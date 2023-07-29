@@ -317,10 +317,14 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         this.removeRectangle(parseInt(key));
     }
 
+    //if (checkDepthMap && (renderer.gpu.gl.clientWaitSync(renderer.webGLSync, 0, 0) === renderer.gpu.gl.CONDITION_SATISFIED)) {
     if (checkDepthMap) {
+    
+        //console.log("Depth buffer ready!");
 
         var reduce = checkDepthMap[2];
-        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], (reduce[4] > 10000000));
+        //var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], (reduce[4] > 10000000));
+        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1],1);
 
         if (depth[0]) {
             var delta = depth[1] - reduce[4];
@@ -330,6 +334,8 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
                 return false;
             }
         }
+    } else {
+        //console.log("Depth buffer not ready.");
     }
 
     //there is no collision so we can store rectangle
