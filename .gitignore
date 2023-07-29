@@ -9,3 +9,6 @@ build/*.css
 *.un~
 *.sw*
 *.lock
+*~
+*.bak
+/package-lock.json

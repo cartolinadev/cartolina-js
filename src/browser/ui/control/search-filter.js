@@ -121,18 +121,18 @@ function nofilterSearch(data, lon, lat) {
         hit = hits[i];
 
         rtrnHit = { 
-            lat: +hit['lat'], 
-            lon: +hit['lon'],  
-            title: hit['title'],
-            rank: 1, //hit.importance || 1,
-            country: hit['country'], 
-            region: hit['region'],
-            state: hit['state'],
+            lat: +hit.lat, 
+            lon: +hit.lon,  
+            title: hit.display_name,
+            rank: hit.importance || 1,
+            country: '', 
+            region: '',
+            state: '',
             cc: '',
             type: '', 
-            bounds: null, //hit.boundingbox,
+            bounds: hit.boundingbox,
             polygon : [],
-            bbox : null //hit.boundingbox
+            bbox : hit.boundingbox
         }
 
         // Calculate distance

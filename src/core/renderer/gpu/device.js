@@ -48,7 +48,8 @@ GpuDevice.prototype.init = function() {
     var gl;
 
     try {
-        gl = canvas.getContext('webgl', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true}) || canvas.getContext('experimental-webgl', {preserveDrawingBuffer: this.keepFrameBuffer});
+        //gl = canvas.getContext('webgl2', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
+        gl = canvas.getContext('webgl', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
     } catch(e) {
         //webgl not supported
     }

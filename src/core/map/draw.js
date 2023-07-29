@@ -383,6 +383,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         if (this.tree.surfaceSequence.length > 0) {
             this.tree.draw();
         }
+
+        //this.renderer.webGLSync = this.renderer.gpu.gl.fenceSync(this.renderer.gpu.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     
         if (replay.storeTiles) { //used only in inspectors
             drawnTiles = [];
@@ -532,6 +534,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         gpu.setState(this.drawTileState);
     }
+    
 
     if (debug.drawEarth) {
         if (!skipFreeLayers) {
