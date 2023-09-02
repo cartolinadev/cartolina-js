@@ -228,7 +228,10 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 submesh.drawBBox(cameraPos);
             }
 
-            if (submesh.externalUVs) {
+            if (submesh.externalUVs) { 
+                
+                // if submesh.externalUVs
+                
                 if (tile.updateBounds) {
                     tile.updateBounds = false;
                     
@@ -242,14 +245,20 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
                 if (surface != null) {
                     var bounds = tile.bounds[surface.id];
-                    
-                    if (bounds) {
-                        if (submesh.externalUVs) {
 
+                    if (bounds) {
+                        if (submesh.externalUVs) { // always true
+                            
+                            // if submesh.externalUVs && submesh.externalUVs (??)
+                           
                             //draw bound layers
                             if (bounds.sequence.length > 0) {
                                 if (bounds.transparent) {
+                                    
+                                    // if submesh.externalUVs && bounds.sequence.length > 0 && bounds.transparent
+                                    
                                     if (submesh.internalUVs) {  //draw surface
+                                        
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
                                             tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
@@ -292,7 +301,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                                 mesh : tile.surfaceMesh,
                                                 submesh : i,
                                                 texture : texture,
-                                                alpha : bounds.alpha[layers[j]][1],
+                                                blending: bounds.blending[layers[j]][1],
+                                                alpha : bounds.blending[layers[j]][2],
                                                 material : VTS_MATERIAL_EXTERNAL_NOFOG,
                                                 layer : layer,
                                                 surface : surface
@@ -312,7 +322,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         type : VTS_DRAWCOMMAND_STATE,
                                         state : draw.drawTileState
                                     });  
-                                } else {
+                                } else { 
+                                    
+                                    // if submesh.externalUVs && bounds.sequence.length > 0 && ! bounds.transparent
                                     var layerId = bounds.sequence[bounds.sequence.length-1];
                                     texture = tile.boundTextures[layerId];
                                     if (texture) {
@@ -342,8 +354,10 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     }
                                 }
                                
-                            } else {
+                            } else { // if submesh.externalUVs && bounds.sequence.length == 0
                                 if (submesh.textureLayer) {
+                                    
+                                    // if submesh.externalUVs && bounds.sequence.length == 0 && submesh.textureLayer 
                                     
                                     layer = this.map.getBoundLayerByNumber(submesh.textureLayer);
                                     
@@ -378,9 +392,12 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         }
                                     }
                                    
-                                } else {
+                                } else { // if submesh.externalUVs && bounds.sequencelength == 0 && ! submesh.textureLayer
     
                                     if (submesh.internalUVs) {  //draw surface
+                                        
+                                        // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && internalUVs
+                                        
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
                                             tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
@@ -395,6 +412,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             material : VTS_MATERIAL_INTERNAL
                                         });
                                     } else {
+                                        
+                                        // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && ! internalUVs
+                                        
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
@@ -408,6 +428,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                             }
     
                         } else if (submesh.internalUVs) {
+                            
+                            // if submesh.externalUVs && ! submesh.externalUVs && submesh.internalUVs -- never reached
     
                             if (tile.surfaceTextures[i] == null) {
                                 path = tile.resourceSurface.getTextureUrl(tile.id, i);
@@ -425,6 +447,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                     }                            
                 }
             } else if (submesh.internalUVs) {
+                
+                // if !submesh.externalUVs && submesh.internalUVs) - looks identical to the aboce unreachable code
 
                 if (tile.surfaceTextures[i] == null) {
                     path = tile.resourceSurface.getTextureUrl(tile.id, i);
@@ -664,7 +688,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 if (!bounds) {
                     bounds = {
                         sequence : [],
-                        alpha : [],
+                        blending : [],
                         transparent : false,
                         viewCoutner : 0
                     };
@@ -776,11 +800,16 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     }
                             
                     sequenceFullAndOpaque.push(fullAndOpaque);
+
+                    let blending_ = surface.boundLayerSequence[j];
                     
                     bound.sequence.push(layer.id);
-                    bound.alpha[layer.id] = surface.boundLayerSequence[j];
+                    bound.blending[layer.id] = blending_; 
                     tile.boundLayers[layer.id] = layer;
-                    if (bound.alpha[layer.id][1] < 1.0 || layer.isTransparent) {
+                                       
+                    if (blending_[1] != 'normal' || !(blending_[2].mode == 'constant'
+                        && blending_[2].value == 1.0) || layer.isTransparent) { 
+                        
                         bound.transparent = true;
                     }
 
