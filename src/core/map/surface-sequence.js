@@ -178,7 +178,7 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
 
 MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
     var view = this.map.currentView;
-    var key, item, layer, alpha, i, li, item2;
+    var key, item, layer, i, li, item2;
     
     //zero bound layer filters
     var layers = this.map.boundLayers;
@@ -195,22 +195,77 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
             
             for (i = 0, li = surfaceLayers.length; i < li; i++) {
                 item = surfaceLayers[i];
+                
+                // implicit alpha
+                let alpha = { mode: 'constant', value: 1.0 }
         
                 if (typeof item === 'string') {
                     layer = this.map.getBoundLayerById(item);
                     if (layer) {
-                        surface.boundLayerSequence.push([layer, 1]);
+                        surface.boundLayerSequence.push(
+                            [layer, 'normal', alpha]);
                     }
                 } else {
                     layer = this.map.getBoundLayerById(item['id']);
                     if (layer) {
 
-                        alpha = 1;
-                        if (typeof item['alpha'] !== 'undefined') {
-                            alpha = parseFloat(item['alpha']);
-                        }
+                        // implicit mode
+                        let mode = 'normal';
+                       
+                        // mode
+                        let mode_ = item['mode'];
 
-                        surface.boundLayerSequence.push([layer, alpha]);
+                        if (mode_ != null) {                            
+                            assert(['normal','multiply'].includes(mode_), 
+                                "unsupported BL param %s ('%s')", mode_);
+                            
+                            mode = mode_;
+                        }
+                        
+                        // alpha
+                        let alpha_ = item['alpha'];
+                        
+                        if (typeof alpha_ === 'number' ) {
+                            
+                            alpha.value = parseFloat(alpha_);
+                        }
+                                               
+                        if (typeof alpha_ === 'object' ) {
+                            
+                            // alpha.value                           
+                            if (alpha_['value'] != null) {
+                                assert(typeof item['alpha'] === 'number');
+                                alpha.value = parseFloat(item['alpha']);
+                            }
+                            
+                            // alpha.mode
+                            if (alpha_['mode'] != null) {
+                                assert(['constant', 'viewdep', 'view-dependent']
+                                    .includes(alpha_['mode']));
+                                if (['viewdep', 'view-dependent'].includes
+                                    (alpha_['mode'])) {
+                                    alpha.mode = 'viewdep'; }
+                            }
+                            
+                            // alpha.illumination
+                            if (alpha_['illumination'] != null) {
+                                illum_ = alpha['illumination'];
+                                
+                                assert(illum_.isArray() && illum_.length === 2
+                                    && typeof(aillum_[0]) === typeof(illum_[1])
+                                        === 'number');
+                                
+                                alpha['illumination'] = vec2.create(
+                                    parseFloat(illum_[0]), parseFloat(illum_[1]));
+                            }
+                            
+                            
+        
+                        }
+                        
+                        console.log([layer, mode, alpha]);
+                       
+                        surface.boundLayerSequence.push([layer, mode, alpha]);
 
                         item2 = item['options'] || item;
 

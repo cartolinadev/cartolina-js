@@ -388,14 +388,22 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
             str += '#define TMIN ' + (0.5-this.map.config.mapSplitMargin) + '\n' + '#define TMAX ' + (0.5+this.map.config.mapSplitMargin) + '\n';
         }
     }
+
     if (useSuperElevation) str += '#define applySE\n';
+
+    if (v & VTS_TILE_SHADER_BLEND_MULTIPLY) {
+        str += '#define blendMultiply\n';
+    } else {
+        str += '#define blendNormal\n';
+    }
+
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
     progs[v] = prog;
     return prog;
 };
 
 
-MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha, layer, surface, splitMask, splitSpace) {
+MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, layer, surface, splitMask, splitSpace) {
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
     }
@@ -406,7 +414,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
     if (!gpuSubmesh) {
         return;
     }
-
+    
     var renderer = this.map.renderer;
     var draw = this.map.draw;
     var program = null;
@@ -419,7 +427,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
     //var attributes = (drawWireframe != 0) ?  ['aPosition', 'aBarycentric'] : ['aPosition'];
     var attributes = ['aPosition'];
     var v = (useSuperElevation) ? VTS_TILE_SHADER_SE : 0;
-
+    
     if (splitMask) {
         v |= VTS_TILE_SHADER_CLIP4;
 
@@ -427,6 +435,10 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
             texcoords2Attr = 'aTexCoord2';
             attributes.push('aTexCoord2');
         }
+    }
+
+    if (blending == 'multiply') {
+        v |= VTS_TILE_SHADER_BLEND_MULTIPLY;
     }
 
     if (texture && draw.debug.meshStats) {
@@ -519,6 +531,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
                     }
 
                     if (filter) {
+
+                        // yuck
                         var id = (gpuMask) ? 'progTile3' : 'progTile2';
                         var renderer = this.map.renderer;
 
@@ -550,6 +564,12 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
                                 }
                             }
 
+                            if (blending == 'multiply') {
+                                'variations' += '#define blendMultiply\n';
+                            } else {
+                                'variations' += '#define blendNormal\n';
+                            }
+
                             var vertexShader = '#define externalTex\n' + variations + ((useSuperElevation) ? '#define applySE\n' : '') + GpuShaders.tileVertexShader;
 
                             if (gpuMask) {
@@ -567,6 +587,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
                                     pixelShader = pixelShader.replace('mediump', 'highp');
                                 //}
                             }
+                            
+                            console.log(pixelShader.replace('__FILTER__', filter));
 
                             program = new GpuProgram(gpu, vertexShader, pixelShader.replace('__FILTER__', filter));
                             renderer.progMap[id] = program;
@@ -697,6 +719,9 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
         }
     }
 
+    // TODO: compute view-dependent alpha value here
+    console.assert(alpha.model == 'constant', "View-dependent BL alpha not implemented yet.")
+
     if (drawWireframe == 0) {
         var cv = this.map.camera.vector2, c = draw.atmoColor, t, bmin = submesh.bbox.min, bmax = submesh.bbox.max;
 
@@ -730,7 +755,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, alpha
 
             program.setMat4('uParams', m);
 
-            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha;
+            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha.value;
             program.setVec4('uParams2', v);
 
             break;

@@ -195,7 +195,7 @@ function vtsStartBrowser() {
     var params_ = vtsParseUrlParams();
     
     // disfunctional search in Melowntech's vtsapi - workaround
-    if (params_['controlSearchUrl'] === null) {
+    if (params_['controlSearchUrl'] == null) {
     
         params_['controlSearchUrl'] = 'https://nominatim.openstreetmap.org/search.php?q={value}&format=json&limit=20';
         params_['controlSearchFilter'] = false;
