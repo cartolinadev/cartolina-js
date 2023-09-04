@@ -699,6 +699,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 if (bounds.viewCoutner != tile.viewCoutner) {
                     this.updateTileSurfaceBounds(tile, submesh, submeshSurface, bounds, bounds.viewCoutner != tile.viewCoutner);
                     //bounds.viewCoutner = tile.viewCoutner;
+                    //console.log(bounds);
                 }  
             }
         }
@@ -737,6 +738,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
     //search map view
     if (surface.boundLayerSequence.length > 0) {
+
         if (fullUpdate) {
             bound.sequence = [];
             var sequenceFullAndOpaque = [];
@@ -745,8 +747,8 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             
             for (var j = 0, lj = surface.boundLayerSequence.length; j < lj; j++) {
                 layer = surface.boundLayerSequence[j][0];
-                
-                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.boundLayerSequence[j][1] > 0) {
+
+                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.boundLayerSequence[j][2].value > 0) {
                     extraBound = null; 
                     
                     if (tile.id[0] > layer.lodRange[1]) {
@@ -794,7 +796,9 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     sequenceMaskPosible.push(maskPosible);
                     
                     //var fullAndOpaque = !((surface.boundLayerSequence[j][1] < 1.0) || texture.extraBound || texture.getMaskTexture() || layer.isTransparent);
-                    var fullAndOpaque = !((surface.boundLayerSequence[j][1] < 1.0) || maskPosible || layer.isTransparent);
+                    var fullAndOpaque = !((surface.boundLayerSequence[j][2].value < 1.0)
+                        || surface.boundLayerSequence[j][2].mode != 'constant'
+                        || surface.boundLayerSequence[j][1] != 'normal' || maskPosible || layer.isTransparent);
                     if (fullAndOpaque) {
                         fullAndOpaqueCounter++;
                     }
@@ -833,8 +837,10 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     } else {
                         texture = tile.boundTextures[layerId];
 
-                        if (bound.alpha[layerId][1] < 1.0 ||
+                        if (bound.blending[layerId][2].value < 1.0 ||
+                            bound.blending[layerId][1].mode != 'normal' ||
                             tile.boundLayers[layerId].isTransparent ||
+                            bound.blending[layerId][2].mode != 'constant' ||
                             (sequenceMaskPosible[i] /*texture.getMaskTexture() /*&& !texture.extraBound*/)) {
                             newSequence.unshift(layerId);    
                         }
@@ -843,7 +849,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 
                 bound.sequence = newSequence; 
             }
-            
+
         }
     } else if (surface.textureLayer != null) { //search surface
         if (fullUpdate) {
