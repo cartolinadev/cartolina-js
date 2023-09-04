@@ -1298,11 +1298,11 @@ GpuGroup.prototype.drawMesh = function(job ,node, splitMask, splitSpace) {
         
         if (job.direct) {
             if (submesh.texture) {
-                mesh.drawSubmesh(cameraPos, i, submesh.texture, VTS_MATERIAL_INTERNAL /*type*/, null /*alpha*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
+                mesh.drawSubmesh(cameraPos, i, submesh.texture, VTS_MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
             }
         } else {
             if (job.textures[i]) {
-                mesh.drawSubmesh(cameraPos, i, job.textures[i], VTS_MATERIAL_INTERNAL /*type*/, null /*alpha*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
+                mesh.drawSubmesh(cameraPos, i, job.textures[i], VTS_MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
             }
         }
     }
