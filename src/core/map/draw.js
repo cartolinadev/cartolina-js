@@ -741,6 +741,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 if (this.debug.drawBBoxes && this.debug.drawMeshBBox) {
                     mesh.submeshes[command.submesh].drawBBox(cameraPos);
                 }
+
+                //console.log(command);
                     
                 if (!texture) {
                     var material = command.material;

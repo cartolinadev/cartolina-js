@@ -33,10 +33,16 @@ GpuProgram.prototype.createShader = function(source, vertexShader) {
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
+    //console.log(source);
+
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         var info = gl.getShaderInfoLog(shader);
+
         console.log('An error occurred compiling the ' + ((vertexShader !== true) ? 'fragment' : 'vertex') + ' shaders: ' + info);
         this.gpu.renderer.core.callListener('renderer-shader-error', { 'where':'compilation', 'info' : info });
+
+        console.trace();
+        console.log(source);
         return null;
     }
 

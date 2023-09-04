@@ -393,8 +393,6 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 
     if (v & VTS_TILE_SHADER_BLEND_MULTIPLY) {
         str += '#define blendMultiply\n';
-    } else {
-        str += '#define blendNormal\n';
     }
 
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
@@ -565,9 +563,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                             }
 
                             if (blending == 'multiply') {
-                                'variations' += '#define blendMultiply\n';
-                            } else {
-                                'variations' += '#define blendNormal\n';
+                                variations += '#define blendMultiply\n';
                             }
 
                             var vertexShader = '#define externalTex\n' + variations + ((useSuperElevation) ? '#define applySE\n' : '') + GpuShaders.tileVertexShader;
@@ -588,8 +584,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                                 //}
                             }
                             
-                            console.log(pixelShader.replace('__FILTER__', filter));
-
                             program = new GpuProgram(gpu, vertexShader, pixelShader.replace('__FILTER__', filter));
                             renderer.progMap[id] = program;
                         }
@@ -719,9 +713,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         }
     }
 
-    // TODO: compute view-dependent alpha value here
-    console.assert(alpha.model == 'constant', "View-dependent BL alpha not implemented yet.")
-
     if (drawWireframe == 0) {
         var cv = this.map.camera.vector2, c = draw.atmoColor, t, bmin = submesh.bbox.min, bmax = submesh.bbox.max;
 
@@ -754,6 +745,9 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             m[12] = bmax[2] - bmin[2], m[13] = bmin[0], m[14] = bmin[1], m[15] = bmin[2];
 
             program.setMat4('uParams', m);
+
+            // TODO: compute view-dependent alpha value here
+            console.assert(alpha.mode == 'constant', "View-dependent BL alpha not implemented yet.");
 
             v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha.value;
             program.setVec4('uParams2', v);

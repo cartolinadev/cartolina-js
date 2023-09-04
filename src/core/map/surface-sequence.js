@@ -216,7 +216,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         let mode_ = item['mode'];
 
                         if (mode_ != null) {                            
-                            assert(['normal','multiply'].includes(mode_), 
+                            console.assert(['normal','multiply'].includes(mode_),
                                 "unsupported BL param %s ('%s')", mode_);
                             
                             mode = mode_;
@@ -263,8 +263,6 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         
                         }
                         
-                        console.log([layer, mode, alpha]);
-                       
                         surface.boundLayerSequence.push([layer, mode, alpha]);
 
                         item2 = item['options'] || item;
@@ -296,6 +294,8 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                 }
             }
         }
+
+        //console.log(surface.id, surface.boundLayerSequence);
     }
 
     //free layers
