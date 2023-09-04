@@ -234,13 +234,13 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             
                             // alpha.value                           
                             if (alpha_['value'] != null) {
-                                assert(typeof item['alpha'] === 'number');
-                                alpha.value = parseFloat(item['alpha']);
+                                console.assert(typeof alpha_['value'] === 'number');
+                                alpha.value = parseFloat(alpha_['value']);
                             }
                             
                             // alpha.mode
                             if (alpha_['mode'] != null) {
-                                assert(['constant', 'viewdep', 'view-dependent']
+                                console.assert(['constant', 'viewdep', 'view-dependent']
                                     .includes(alpha_['mode']));
                                 if (['viewdep', 'view-dependent'].includes
                                     (alpha_['mode'])) {
@@ -249,14 +249,14 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             
                             // alpha.illumination
                             if (alpha_['illumination'] != null) {
-                                illum_ = alpha['illumination'];
+                                let illum_ = alpha_['illumination'];
                                 
-                                assert(illum_.isArray() && illum_.length === 2
-                                    && typeof(aillum_[0]) === typeof(illum_[1])
-                                        === 'number');
+                                console.assert(Array.isArray(illum_) && illum_.length === 2
+                                    && typeof(illum_[0]) === 'number'
+                                    && typeof(illum_[1]) === 'number');
                                 
-                                alpha['illumination'] = vec2.create(
-                                    parseFloat(illum_[0]), parseFloat(illum_[1]));
+                                alpha['illumination']
+                                    = [parseFloat(illum_[0]), parseFloat(illum_[1])];
                             }
                             
                             
@@ -295,7 +295,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
             }
         }
 
-        //console.log(surface.id, surface.boundLayerSequence);
+        console.log(surface.id, surface.boundLayerSequence);
     }
 
     //free layers
