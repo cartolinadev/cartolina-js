@@ -124,7 +124,9 @@ module.exports = {
     'vts-core': __dirname + '/src/core/index.js',
     'vts-browser': __dirname + '/src/browser/index.js'
   },
-
+  resolve: {
+    extensions: [".ts", ".tsx", ".js"]
+  },
   module: {
     rules: [
       {
@@ -139,6 +141,10 @@ module.exports = {
 
         'css-loader']
       },
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+      },      
     ],
   },
 

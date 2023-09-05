@@ -5,6 +5,10 @@ import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
 import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
+import * as Illumination  from './illumination';
+
+
+console.log(greet("Dude"));
 
 //get rid of compiler mess
 var mat4 = mat4_;
