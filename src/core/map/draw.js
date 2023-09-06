@@ -4,6 +4,8 @@ import {math as math_} from '../utils/math';
 import MapGeodata_ from './geodata';
 import MapGeodataView_ from './geodata-view';
 import MapDrawTiles_ from './draw-tiles';
+import * as Illumination from './illumination';
+
 
 //get rid of compiler mess
 var vec3 = vec3_;
@@ -691,7 +693,50 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
     if (commands.length > 0) {
         this.drawTileCounter++;
     }
+
+
+    // normalize viewdep alphas for bound layers
+    let vdalphaSum = 0;
+    const epsilon = 1E-3;
+
+    for (var i = 0; i < commands.length; i ++) {
+
+        let command = commands[i];
+
+        if (command.type === VTS_DRAWCOMMAND_SUBMESH && command.alpha
+            && command.alpha.mode === 'viewdep') {
+
+                command.runtime.vdalpha = math.clamp(
+                    Math.pow(vec3.dot(
+                        command.runtime.illuminationNED,
+                        Illumination.lned2ned(
+                            this.map.idealIlluminationLNED,
+                            this.map.position)), 5),
+                    0.0, 1.0) + epsilon;
+
+               vdalphaSum += command.runtime.vdalpha;
+        }
+    }
+
+    if (vdalphaSum > 0) {
+
+        let factor = 1.0 / vdalphaSum;
+        //console.log(factor);
+
+        for (var i = 0; i < commands.length; i ++) {
+
+            let command = commands[i];
+
+            if (command.type === VTS_DRAWCOMMAND_SUBMESH && command.alpha
+                && command.alpha.mode === 'viewdep') {
+
+                    command.runtime.vdalphan =
+                        command.runtime.vdalpha * factor;
+                }
+        }
+    }
    
+    // process commands
     for (var i = 0, li = commands.length; i < li; i++) {
         var command = commands[i];
         

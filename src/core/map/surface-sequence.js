@@ -297,7 +297,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
             }
         }
 
-        console.log(surface.id, surface.boundLayerSequence);
+        //console.log(surface.id, surface.boundLayerSequence);
     }
 
     //free layers

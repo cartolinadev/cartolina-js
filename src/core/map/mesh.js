@@ -759,12 +759,14 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 //console.log(Illumination.lned2ned(
                 //    this.map.idealIlluminationLNED, this.map.position));
 
-                alpha_ = math.clamp(
-                    vec3.dot(
+                /*alpha_ = math.clamp(
+                    Math.pow(vec3.dot(
                         runtime.illuminationNED,
                         Illumination.lned2ned(
-                            this.map.idealIlluminationLNED, this.map.position)),
-                    0.0, 1.0) * alpha.value;
+                            this.map.idealIlluminationLNED,
+                            this.map.position)), 4),
+                    0.0, 1.0) * alpha.value;*/
+                alpha_ = runtime.vdalphan * alpha.value;
                 //console.log(alpha_);
             }
 
