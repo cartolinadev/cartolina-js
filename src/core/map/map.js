@@ -18,6 +18,7 @@ import MapRenderSlots_ from './render-slots';
 import MapStats_ from './stats';
 import MapSurfaceSequence_ from './surface-sequence';
 import MapUrl_ from './url';
+import * as Illumination from './illumination';
 import GpuTexture_ from '../renderer/gpu/texture';
 
 //get rid of compiler mess
@@ -173,6 +174,10 @@ var Map = function(core, mapConfig, path, config, configStorage) {
 
     this.renderSlots = new MapRenderSlots(this);
     this.renderSlots.addRenderSlot('map', this.drawMap.bind(this), true);
+
+    // TODO: make azimuth and elevation configurable
+    this.idealIlluminationLNED = Illumination.illuminationVector(
+        315, 45, Illumination.CoordSystem.LNED);
 };
 
 
