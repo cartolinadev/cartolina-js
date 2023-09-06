@@ -258,10 +258,12 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 alpha['illumination']
                                     = [parseFloat(illum_[0]), parseFloat(illum_[1])];
                             }
-                            
-                            
-        
                         }
+
+                        console.assert(! (alpha['mode'] === 'viewdep' &&
+                            ! alpha['illumination']), "Illumination vector not " +
+                            "defined for view dependent bound layer alpha (%o).",
+                            alpha);
                         
                         surface.boundLayerSequence.push([layer, mode, alpha]);
 

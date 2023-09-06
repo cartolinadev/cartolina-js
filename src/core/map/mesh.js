@@ -1,5 +1,6 @@
 
-import {mat4 as mat4_} from '../utils/matrix';
+import {math} from '../utils/math';
+import {mat4 as mat4_, vec3} from '../utils/matrix';
 import {utils as utils_} from '../utils/utils';
 import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
@@ -7,8 +8,6 @@ import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
 import * as Illumination  from './illumination';
 
-
-console.log(greet("Dude"));
 
 //get rid of compiler mess
 var mat4 = mat4_;
@@ -405,7 +404,7 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 };
 
 
-MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, layer, surface, splitMask, splitSpace) {
+MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace) {
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
     }
@@ -750,10 +749,26 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
             program.setMat4('uParams', m);
 
-            // TODO: compute view-dependent alpha value here
-            console.assert(alpha.mode == 'constant', "View-dependent BL alpha not implemented yet.");
 
-            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha.value;
+            // establish texture alpha
+            let alpha_ = alpha.value;
+
+            if (alpha.mode == 'viewdep' ) {
+                //console.log(runtime.illuminationNED);
+                //console.log(this.map.idealIlluminationLNED);
+                //console.log(Illumination.lned2ned(
+                //    this.map.idealIlluminationLNED, this.map.position));
+
+                alpha_ = math.clamp(
+                    vec3.dot(
+                        runtime.illuminationNED,
+                        Illumination.lned2ned(
+                            this.map.idealIlluminationLNED, this.map.position)),
+                    0.0, 1.0) * alpha.value;
+                //console.log(alpha_);
+            }
+
+            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha_;
             program.setVec4('uParams2', v);
 
             break;

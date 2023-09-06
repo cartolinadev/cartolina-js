@@ -106,18 +106,21 @@ math.rotationMatrix = function(axis, angle) {
 
     switch (axis) {
     case 0:
+        // correct
         return [
             1,   0,   0,  0,
             0,  ca,  sa,  0,
             0, -sa,  ca,  0,
             0,   0,   0,  1 ];
     case 1:
+        // inverted (!!)
         return [
              ca,  0,  sa,  0,
               0,  1,   0,  0,
             -sa,  0,  ca,  0,
               0,  0,   0,  1 ];
     default:
+        // correct
         return [
              ca, sa,  0,  0,
             -sa, ca,  0,  0,

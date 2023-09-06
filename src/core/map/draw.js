@@ -753,13 +753,15 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                         material = VTS_MATERIAL_FLAT;
                         break; 
                     }
-                    mesh.drawSubmesh(cameraPos, command.submesh, texture, material, 
-                                     command.blending, command.alpha, command.layer, command.surface, tile.splitMask);
+                    mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
+                                     command.blending, command.alpha, command.runtime,
+                                     command.layer, command.surface, tile.splitMask);
                 } else {
                    
                     //tile.renderHappen = true;
-                    mesh.drawSubmesh(cameraPos, command.submesh, texture, command.material, 
-                                     command.blending, command.alpha, command.layer, command.surface, tile.splitMask);
+                    mesh.drawSubmesh(cameraPos, command.submesh, texture, command.material,
+                                     command.blending, command.alpha, command.runtime,
+                                     command.layer, command.surface, tile.splitMask);
                 }
 
             }

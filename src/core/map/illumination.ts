@@ -5,7 +5,14 @@
  * This module is used for view-dependent alpha calculation in views. Functions
  * are provided to compute lNED and NED illumination vectors from azimuth
  * and elevation, and to transform vectors from lNED and NED.
- *
+ */
+
+import * as Matrix from '../utils/matrix';
+import {math} from '../utils/math';
+
+import {MapPosition} from './position';
+
+/*
  * We use the lNED and NED coordinate systems in the map context as follows.
  *
  * NED is the local geographic north-east-down system for the current position.
@@ -22,14 +29,13 @@
  * means yaw of -90. This would normally mean nose down in aeronautics).
  */
 
+export enum CoordSystem { NED, LNED };
 
-
-export const enum CoordSystem { NED, LNED }
-
-export type Position = [string, number, number, string, number, number, number,
-    number, number, number];
+/* Some borrowed types. */
 
 export type vec3 = [number, number, number];
+
+enum Axis { X = 0, Y = 1, Z = 2  };
 
 /*
  * Build illlumination vector from azimuth and elevation, for a given
@@ -39,14 +45,32 @@ export type vec3 = [number, number, number];
  * @param elevation illumination elevation in degrees
  * @cs Coordinate system. For NED, the azimuth and elevation are defined with
  *      respect to the NE plane. For lNED, the are defined with respect to the
- *      (-D,E) plane, as explained in module header.
+ *      (-D,E) plane, as explained in the enum definition.
  * @returns illumination vector in the target coordinate system.
  */
 
 export function illuminationVector(azimuth: number = 315,
     elevation: number = 45., cs: CoordSystem = CoordSystem.NED) : vec3 {
 
-    // TODO
+    const { sin, cos } = Math;
+
+    let az = math.radians(azimuth);
+    let el = math.radians(elevation);
+
+    if (cs === CoordSystem.NED) {
+
+        // shorthand for Rz(a)*Ry(e)*[1,0,0]
+        return [cos(az) * cos(el), sin(az) * cos(el), - sin(el)];
+    }
+
+    if (cs === CoordSystem.LNED) {
+
+        // shorthand for Rx(a)*Ry(e)*[0,0,-1]
+        return [-sin(el), sin(az) * cos(el), - cos(az) * cos(el)];
+    }
+
+    // never reached
+    return [0,0,0];
 }
 
 
@@ -57,8 +81,23 @@ export function illuminationVector(azimuth: number = 315,
  * @returns corresponding vector in NED coordinates
  */
 
-export function lned2ned(arg: vec3, pos: Position) : vec3 {
+export function lned2ned(arg: vec3, pos: MapPosition) : vec3 {
 
-    // TODO
+    const rad = math.radians;
+    const R = math.rotationMatrix;
+    const mat4 = Matrix.mat4;
+
+    let yaw = rad(pos.pos[5]), pitch = rad(pos.pos[6]), roll = rad(pos.pos[7]);
+
+    let retval_: vec3 = [...arg];
+
+    mat4.multiplyVec3(R(Axis.X, roll), retval_);
+
+    // math module's Y-rotation is inverted, ouch
+    mat4.multiplyVec3(R(Axis.Y, - pitch),retval_);
+
+    mat4.multiplyVec3(R(Axis.Z, yaw), retval_);
+
+    return retval_;
 }
 

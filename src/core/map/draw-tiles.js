@@ -1,6 +1,7 @@
 
 import MapGeodataView_ from './geodata-view';
 import {utils as utils_} from '../utils/utils';
+import * as Illumination  from './illumination';
 
 //get rid of compiler mess
 var MapGeodataView = MapGeodataView_;
@@ -303,6 +304,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                                 texture : texture,
                                                 blending: bounds.blending[layers[j]][1],
                                                 alpha : bounds.blending[layers[j]][2],
+                                                runtime: bounds.runtime[layers[j]],
                                                 material : VTS_MATERIAL_EXTERNAL_NOFOG,
                                                 layer : layer,
                                                 surface : surface
@@ -689,6 +691,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                     bounds = {
                         sequence : [],
                         blending : [],
+                        runtime: [],
                         transparent : false,
                         viewCoutner : 0
                     };
@@ -809,6 +812,18 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     
                     bound.sequence.push(layer.id);
                     bound.blending[layer.id] = blending_; 
+
+                    bound.runtime[layer.id] = {};
+
+                    if (blending_[2].mode === 'viewdep') {
+
+                        bound.runtime[layer.id].illuminationNED
+                            = Illumination.illuminationVector(
+                                blending_[2].illumination[0],
+                                blending_[2].illumination[1],
+                                Illumination.CoordSystem.NED);
+                    }
+
                     tile.boundLayers[layer.id] = layer;
                                        
                     if (blending_[1] != 'normal' || !(blending_[2].mode == 'constant'
