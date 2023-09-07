@@ -13,3 +13,4 @@ build/*.css
 *.bak
 /package-lock.json
 *.kate-swp
+/dist.old
