@@ -751,23 +751,18 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
 
             // establish texture alpha
-            let alpha_ = alpha.value;
+            let alpha_ = 1.0;
 
-            if (alpha.mode == 'viewdep' ) {
-                //console.log(runtime.illuminationNED);
-                //console.log(this.map.idealIlluminationLNED);
-                //console.log(Illumination.lned2ned(
-                //    this.map.idealIlluminationLNED, this.map.position));
+            if (alpha) {
+                // alpha object present in command
+                alpha_ = alpha.value;
 
-                /*alpha_ = math.clamp(
-                    Math.pow(vec3.dot(
-                        runtime.illuminationNED,
-                        Illumination.lned2ned(
-                            this.map.idealIlluminationLNED,
-                            this.map.position)), 4),
-                    0.0, 1.0) * alpha.value;*/
-                alpha_ = runtime.vdalphan * alpha.value;
-                //console.log(alpha_);
+                if (alpha.mode == 'viewdep' ) {
+
+                    // view-dependent normalized alpha is precomputed
+                    alpha_ = runtime.vdalphan * alpha.value;
+                    //console.log(alpha_);
+                }
             }
 
             v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha_;
