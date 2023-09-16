@@ -274,6 +274,7 @@ MapConvert.prototype.getPositionCameraSpaceCoords = function(position, lod) {
     worldPos[1] -= camPos[1];
     worldPos[2] -= camPos[2];
   
+    // mmm, this does not look like camera space coords to me
     return worldPos;
 };
 
