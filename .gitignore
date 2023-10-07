@@ -14,3 +14,4 @@ build/*.css
 /package-lock.json
 *.kate-swp
 /dist.old
+DEADJOE

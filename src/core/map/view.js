@@ -79,7 +79,7 @@ MapView.prototype.getInfo = function() {
     var renderer = this.map.renderer;
 
     if (this.map.renderer.getSuperElevationState()) {
-        var se = this.map.renderer.getSuperElevation();
+        var se = this.map.renderer.getSuperElevation(this.map.position);
 
         view['options'] = {
             'superelevation' : [[se[0],se[2]],[se[1],se[3]]]

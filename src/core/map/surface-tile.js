@@ -370,8 +370,10 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
         var node = this.metanode;
 
         if (renderer.useSuperElevation) {
-            node.minZ = renderer.getSuperElevatedHeight(node.minZ2);
-            node.maxZ = renderer.getSuperElevatedHeight(node.maxZ2);
+            node.minZ = renderer.getSuperElevatedHeight(node.minZ2,
+                                                        this.map.position);
+            node.maxZ = renderer.getSuperElevatedHeight(node.maxZ2,
+                                                        this.map.position);
         } else {
             node.minZ = node.minZ2;
             node.maxZ = node.maxZ2;

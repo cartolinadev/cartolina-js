@@ -597,7 +597,7 @@ RendererDraw.prototype.getTextSize = function(size, text) {
 };
 
 
-RendererDraw.prototype.drawGpuJobs = function() {
+RendererDraw.prototype.drawGpuJobs = function(position) {
     var gpu = this.gpu;
     var gl = this.gl;
     var renderer = this.renderer;
@@ -678,14 +678,16 @@ RendererDraw.prototype.drawGpuJobs = function() {
             if (onlyAdvancedHitLayers) {
                 for (j = 0; j < lj; j++) {
                     if (buffer[j].advancedHit) {
-                        this.drawGpuJob(gpu, gl, renderer, buffer[j], screenPixelSize, true);
+                        this.drawGpuJob(gpu, gl, renderer, buffer[j], screenPixelSize,
+                                        true, undefined, position);
                     }
                 }
             } else {
                 for (j = 0; j < lj; j++) {
                     var job = buffer[j];
                     if (job.hitable) {
-                        this.drawGpuJob(gpu, gl, renderer, job, screenPixelSize);
+                        this.drawGpuJob(gpu, gl, renderer, job, screenPixelSize,
+                                        undefined, undefined, position);
                         if (job.advancedHit) {
                             renderer.advancedPassNeeded = true;
                         }
@@ -697,7 +699,8 @@ RendererDraw.prototype.drawGpuJobs = function() {
             for (j = 0; j < lj; j++) {
  
                 job = buffer[j];
-                this.drawGpuJob(gpu, gl, renderer, job, screenPixelSize);
+                this.drawGpuJob(gpu, gl, renderer, job, screenPixelSize,
+                                undefined, undefined, position);
             }
 
             /*if (logDebugInfo) {
@@ -1176,7 +1179,7 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
     return res;
 }
 
-RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixelSize, advancedHitPass, ignoreFilters) {
+RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixelSize, advancedHitPass, ignoreFilters, position) {
     if (!job.ready) {
         return;
     }
@@ -1308,7 +1311,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
 
         if (useSuperElevation) {
             var m = this.mBuffer;
-            var se = renderer.superElevation;
+            var se = renderer.getSuperElevation(position);
 
             m[0] = job.bbox.min[0];
             m[1] = job.bbox.min[1];
@@ -1464,7 +1467,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             prog = advancedHitPass ? job.program2 : renderer.progLine3SE;
 
             var m = this.mBuffer;
-            var se = renderer.superElevation;
+            var se = renderer.getSuperElevation(position);
 
             m[0] = job.bbox.min[0];
             m[1] = job.bbox.min[1];
@@ -1724,7 +1727,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
 
         if (useSuperElevation) {
             var m = this.mBuffer;
-            var se = renderer.superElevation;
+            var se = renderer.getSuperElevation(position);
 
             m[0] = job.bbox.min[0];
             m[1] = job.bbox.min[1];
@@ -2012,7 +2015,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                             sjob.renderCounter = job.renderCounter;
                             sjob.localTilt = localTilt;
                             sjob.id = job.id;
-                            this.drawGpuJob(gpu, gl, renderer, sjob, screenPixelSize, advancedHitPass, ignoreFilters);
+                            this.drawGpuJob(gpu, gl, renderer, sjob, screenPixelSize, advancedHitPass, ignoreFilters, position);
                         }
                     }
 

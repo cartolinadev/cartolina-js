@@ -642,7 +642,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     if (useSuperElevation) {
 
         var m = this.mBuffer;
-        var se = renderer.superElevation;
+        var se = renderer.getSuperElevation(this.map.position);
 
         m[0] = submesh.bbox.min[0];
         m[1] = submesh.bbox.min[1];

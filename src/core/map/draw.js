@@ -371,7 +371,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 if (this.freeLayersHaveGeodata && this.drawChannel == 0) {
                     renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                     renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
-                    renderer.draw.drawGpuJobs();
+                    renderer.draw.drawGpuJobs(this.map.position);
                 }
             }
     
@@ -543,7 +543,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
                 renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
-                renderer.draw.drawGpuJobs();
+                renderer.draw.drawGpuJobs(this.map.position);
             }
         }
     }
@@ -582,11 +582,11 @@ MapDraw.prototype.drawHitmap = function() {
 MapDraw.prototype.drawGeodataHitmap = function() {
     this.renderer.gpu.setState(this.drawTileState);
     this.renderer.switchToFramebuffer('geo');
-    this.renderer.draw.drawGpuJobs();
+    this.renderer.draw.drawGpuJobs(this.map.position);
 
     if (this.renderer.advancedPassNeeded) {
         this.renderer.switchToFramebuffer('geo2');
-        this.renderer.draw.drawGpuJobs();
+        this.renderer.draw.drawGpuJobs(this.map.position);
     }
 
     this.renderer.switchToFramebuffer('base');
