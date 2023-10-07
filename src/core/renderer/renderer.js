@@ -177,7 +177,7 @@ var Renderer = function(core, div, onUpdate, onResize, config) {
     //debug
     this.lastHitPosition = [0,0,100];
     this.logTilePos = null;
-    this.setSuperElevation(0,2,4000,1.5);
+    this.setSuperElevation([[0,2],[4000,1.5]]);
 
     window.addEventListener('resize', (this.onResize).bind(this), false);
 
@@ -304,8 +304,39 @@ Renderer.prototype.getSuperElevationState = function() {
     return this.useSuperElevation;
 };
 
+Renderer.prototype.setSuperElevation = function(seDefinition) {
 
-Renderer.prototype.setSuperElevation = function(h1, f1, h2, f2) {
+
+    // old format
+    if (Array.isArray(seDefinition)){
+
+        return this.setSuperElevationRamp(seDefinition);
+    }
+
+    // new format
+    if (typeof seDefinition === 'object' && seDefinition !== null
+        && !Array.isArray(seDefinition)) {
+
+        // TODO
+        throw new Error('unimplemented');
+
+        return;
+    }
+
+    // default
+    throw new Error("Unsupported super elevation option.");
+
+}
+
+
+Renderer.prototype.setSuperElevationRamp = function(se) {
+
+    if (!(se && se[0] && se[1] && se[0].length >=2 && se[1].length >=2)) {
+        throw new Error("Unsupported super elevation option.");
+    }
+
+    let h1 = se[0][0]; let f1 = se[1][0]; let h2 = se[0][1]; let f2 = se[1][1];
+
     if (f1 == 1 && f2 == 1) {
         if (this.useSuperElevation != false) {
             this.useSuperElevation = false;

@@ -587,16 +587,15 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
 
     //process options
     if (view.options) {
-        var se = view.options.superelevation;
 
-        if (se && se[0] && se[1] && se[0].length >=2 && se[1].length >=2) {
+        console.log(view.options);
+
+        if (view.options.superelevation) {
             renderer.setSuperElevationState(true);
-            renderer.setSuperElevation(se[0][0], se[1][0], se[0][1], se[1][1]);
+            renderer.setSuperElevation(view.options.superelevation);
         } else {
             renderer.setSuperElevationState(false);
         }
-    } else {
-        renderer.setSuperElevationState(false);        
     }
 
     if (string != this.currentViewString || forceRefresh) {

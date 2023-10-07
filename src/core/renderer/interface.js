@@ -459,8 +459,15 @@ RendererInterface.prototype.getGLInterface = function() {
 };
 
 
-RendererInterface.prototype.setSuperElevation = function(h1, f1, h2, f2) {
-    return this.renderer.setSuperElevation(h1, f1, h2, f2);
+RendererInterface.prototype.setSuperElevation = function(seDefinition) {
+
+    // old API
+    if (arguments.length == 4)
+        return this.renderer.setSuperElevation(
+            [[arguments[0], arguments[1]], [arguments[2], arguments[3]]]);
+
+    // new API
+    return this.renderer.setSuperElevation(seDefinition);
 };
 
 
