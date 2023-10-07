@@ -313,23 +313,44 @@ Renderer.prototype.setSuperElevation = function(h1, f1, h2, f2) {
         }
 
         if (h1 == h2) { h2 = h1 + 1; }
-        this.superElevation = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
+        this.superElevation_ = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
         return;
     }
 
     if (h1 == h2) { h2 = h1 + 1; }
-    this.superElevation = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
+    this.superElevation_ = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
     this.seCounter++;
 };
 
 
-Renderer.prototype.getSuperElevation = function() {
-    return this.superElevation.slice();
+Renderer.prototype.getSuperElevation = function(position) {
+
+    if (arguments.length !== 1) {
+        throw new Error('Function now requires current position.');
+    }
+
+    //console.log('getSuperElevation', position);
+
+    return this.superElevation_.slice();
 };
 
 
-Renderer.prototype.getSuperElevatedHeight = function(height) {
-    var se = this.superElevation, h = height;
+Renderer.prototype.getSuperElevatedHeight = function(height, position) {
+
+    if (arguments.length !== 2) {
+        throw new Error('Function now requires current position.');
+    }
+
+    //console.log('getSuperElevatedHeight', position);
+
+    return this.getSuperElevatedHeightRamp(height);
+}
+
+
+Renderer.prototype.getSuperElevatedHeightRamp = function(height) {
+
+
+    var se = this.superElevation_, h = height;
 
     if (h < se[0]) {  // 0 - h1, 1 - f1, 2 - h2, 3 - f2, 4 - dh, 5 - df, 6 - invdh
         h = se[0];
@@ -342,8 +363,21 @@ Renderer.prototype.getSuperElevatedHeight = function(height) {
     return height * (se[1] + ((h - se[0]) * se[6]) * se[5]);
 };
 
-Renderer.prototype.getUnsuperElevatedHeight = function(height) {
-    var se = this.superElevation, s = height;
+
+Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
+
+    if (arguments.length !== 2) {
+        throw new Error('Function now requires current position.');
+    }
+
+    //console.log('getUnsuperElevatedHeight', position);
+
+    return this.getUnsuperElevatedHeightRamp(height);
+}
+
+
+Renderer.prototype.getUnsuperElevatedHeightRamp = function(height) {
+    var se = this.superElevation_, s = height;
 
     if (se[1] == se[3]) {
         return s / se[1];
@@ -403,7 +437,7 @@ Renderer.prototype.transformPointBySE = function(pos, shift) {
     v[2] = p2[2] * m;
 
     var h = l - this.earthRadius;
-    var h2 = this.getSuperElevatedHeight(h);
+    var h2 = this.getSuperElevatedHeight(h, pos);
     m = (h2 - h);
 
     p2[0] = p[0] + v[0] * m;
@@ -433,7 +467,7 @@ Renderer.prototype.transformPointBySE2 = function(pos, shift) {
     v[2] = p2[2] * m;
 
     var h = l - this.earthRadius;
-    var h2 = this.getSuperElevatedHeight(h);
+    var h2 = this.getSuperElevatedHeight(h, pos);
     m = (h2 - h);// * 10;
 
     pos = pos.slice();

@@ -158,7 +158,10 @@ module.exports = {
   devtool: 'source-map',
 
   devServer: {
-    inline: true
+    inline: true,
+    hot: false,
+    liveReload: true,
+    writeToDisk: true
   },
 
   mode: (PROD) ? 'production' : 'development',

@@ -248,7 +248,8 @@ MapConvert.prototype.getPositionPhysCoords = function(position, lod, includeSE) 
     }
 
     if (this.renderer.useSuperElevation && includeSE) {
-        coords[2] = this.renderer.getSuperElevatedHeight(coords[2]);
+        coords[2] = this.renderer.getSuperElevatedHeight(
+            coords[2], position);
     }
 
     return this.convertCoords(coords, 'navigation', 'physical');
@@ -265,7 +266,7 @@ MapConvert.prototype.getPositionCameraSpaceCoords = function(position, lod) {
     }
 
     if (this.renderer.useSuperElevation) {
-        coords[2] = this.renderer.getSuperElevatedHeight(coords[2]);
+        coords[2] = this.renderer.getSuperElevatedHeight(coords[2], position);
     }
 
     var worldPos = this.convertCoords(coords, 'navigation', 'physical');
