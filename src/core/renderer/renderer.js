@@ -1,5 +1,6 @@
 
 import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
+import {math as math_} from '../utils/math';
 import GpuDevice_ from './gpu/device';
 import GpuTexture_ from './gpu/texture';
 import GpuFont_ from './gpu/font';
@@ -317,14 +318,52 @@ Renderer.prototype.setSuperElevation = function(seDefinition) {
     if (typeof seDefinition === 'object' && seDefinition !== null
         && !Array.isArray(seDefinition)) {
 
-        // TODO
-        throw new Error('unimplemented');
+        // heightRamp
+        if (seDefinition.heightRamp && Array.isArray(seDefinition.heightRamp)) {
+
+            this.setSuperElevationRamp(seDefinition.heightRamp);
+
+        } else {
+
+            delete(this.seHeightRamp);
+        }
+
+        // viewExtentProgression
+        if (seDefinition.viewExtentProgression
+            && Array.isArray(seDefinition.viewExtentProgression)) {
+
+            this.setSuperElevationProgression(
+                seDefinition.viewExtentProgression);
+
+        } else {
+
+            delete(this.seProgression);
+        }
 
         return;
     }
 
     // default
     throw new Error("Unsupported super elevation option.");
+
+}
+
+Renderer.prototype.setSuperElevationProgression = function(progression) {
+
+    if (!(progression && progression[0] && progression[1] && progression[3]
+            && progression[3] && progression[4])) {
+        throw new Error("Unsupported super elevation option.");
+    }
+
+    this.seProgrression = {
+        baseValue: progression[0],
+        baseExtent: progression[1],
+        exponent: Math.log2(progression[2]),
+        min: progression[3],
+        max: progression[4]
+    };
+
+    this.useSuperElevation = true;
 
 }
 
@@ -344,14 +383,24 @@ Renderer.prototype.setSuperElevationRamp = function(se) {
         }
 
         if (h1 == h2) { h2 = h1 + 1; }
-        this.superElevation_ = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
+        this.seHeightRamp = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
         return;
     }
 
     if (h1 == h2) { h2 = h1 + 1; }
-    this.superElevation_ = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
+    this.seHeightRamp = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
     this.seCounter++;
 };
+
+Renderer.prototype.getSeProgressionFactor = function(position) {
+
+    let progression = this.seProgression;
+
+    return math_.clamp(
+        progression.baseValue *
+            (position[8] / progression.baseExtent) ** progression.exponent,
+        progression.min, progression.max);
+}
 
 
 Renderer.prototype.getSuperElevation = function(position) {
@@ -360,9 +409,24 @@ Renderer.prototype.getSuperElevation = function(position) {
         throw new Error('Function now requires current position.');
     }
 
+    let retval;
+
+    // heightRamp
+    if (this.seHeightRamp) {
+        retval = this.seHeightRamp.slice();
+    } else {
+        retval = [0, 1, 1000, 1, 1000, 0, 1.0 / 1000];
+    }
+
+    // progression
+    if (this.seProgression) {
+        retval[1] *= getSeProgressionFactor(position);
+        retval[3] *= getSeProgressionFactor(position);
+    }
+
     //console.log('getSuperElevation', position);
 
-    return this.superElevation_.slice();
+    return retval;
 };
 
 
@@ -372,16 +436,30 @@ Renderer.prototype.getSuperElevatedHeight = function(height, position) {
         throw new Error('Function now requires current position.');
     }
 
+    let retval;
+
+    // heightRamp
+    if (this.seHeightRamp) {
+        retval = this.getSuperElevatedHeightRamp(height);
+    } else {
+        retval = height;
+    }
+
+    // progression
+    if (this.seProgression) {
+        retval *= getSeProgressionFactor(position);
+    }
+
     //console.log('getSuperElevatedHeight', position);
 
-    return this.getSuperElevatedHeightRamp(height);
+    return retval;
 }
 
 
 Renderer.prototype.getSuperElevatedHeightRamp = function(height) {
 
 
-    var se = this.superElevation_, h = height;
+    var se = this.seHeightRamp, h = height;
 
     if (h < se[0]) {  // 0 - h1, 1 - f1, 2 - h2, 3 - f2, 4 - dh, 5 - df, 6 - invdh
         h = se[0];
@@ -401,14 +479,28 @@ Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
         throw new Error('Function now requires current position.');
     }
 
+    let retval;
+
+    // heightRamp
+    if (seHeightRamp) {
+        retval = this.getUnsuperElevatedHeightRamp(height);
+    } else {
+        retval = height;
+    }
+
+    // progression
+    if (this.seProgression) {
+        retval /= getSeProgressionFactor(position);
+    }
+
     //console.log('getUnsuperElevatedHeight', position);
 
-    return this.getUnsuperElevatedHeightRamp(height);
+    return retval;
 }
 
 
 Renderer.prototype.getUnsuperElevatedHeightRamp = function(height) {
-    var se = this.superElevation_, s = height;
+    var se = this.seHeightRamp, s = height;
 
     if (se[1] == se[3]) {
         return s / se[1];
