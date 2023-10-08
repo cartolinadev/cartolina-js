@@ -131,6 +131,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
                  'Drawn jobs: ' + renderer.drawnJobs + '<br/>' +
                  'Jobs total time: ' +  Math.round((renderer.jobsTimer2 - renderer.jobsTimer1)*1000) + '<br/>' +
                  'Jobs reduce time: ' + Math.round((renderer.jobsTimer4)*1000) + '<br/>';
+
     }
 
     if (stats.debugStr) {
@@ -148,6 +149,12 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
 
         if (map.draw.debug.meshStats) {
             text3 += 'TexelsPerPoly: ' + (stats.meshesUVArea / Math.max(1,stats.meshesFaces)).toFixed(2) +'<br/><br/>';
+        }
+
+        if (renderer && renderer.seProgression) {
+            text2 += '<br/>Superelevation factor: ' +
+                renderer.getSeProgressionFactor(
+                    this.core.getMap().position).toFixed(2) + '<br/>';
         }
     }
 

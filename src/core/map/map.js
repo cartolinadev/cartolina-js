@@ -588,7 +588,7 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
     //process options
     if (view.options) {
 
-        console.log(view.options);
+        //console.log(view.options);
 
         if (view.options.superelevation) {
             renderer.setSuperElevationState(true);
