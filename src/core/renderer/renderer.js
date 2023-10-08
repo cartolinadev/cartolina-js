@@ -355,7 +355,7 @@ Renderer.prototype.setSuperElevationProgression = function(progression) {
         throw new Error("Unsupported super elevation option.");
     }
 
-    this.seProgrression = {
+    this.seProgression = {
         baseValue: progression[0],
         baseExtent: progression[1],
         exponent: Math.log2(progression[2]),
@@ -364,6 +364,8 @@ Renderer.prototype.setSuperElevationProgression = function(progression) {
     };
 
     this.useSuperElevation = true;
+
+    //console.log("seProgression: ", this.seProgression);
 
 }
 
@@ -396,10 +398,14 @@ Renderer.prototype.getSeProgressionFactor = function(position) {
 
     let progression = this.seProgression;
 
-    return math_.clamp(
+    let retval = math_.clamp(
         progression.baseValue *
-            (position[8] / progression.baseExtent) ** progression.exponent,
+            (position.pos[8] / progression.baseExtent) ** progression.exponent,
         progression.min, progression.max);
+
+    //console.log("seProgressionFactor", retval);
+
+    return retval;
 }
 
 
@@ -420,11 +426,13 @@ Renderer.prototype.getSuperElevation = function(position) {
 
     // progression
     if (this.seProgression) {
-        retval[1] *= getSeProgressionFactor(position);
-        retval[3] *= getSeProgressionFactor(position);
+        retval[1] *= this.getSeProgressionFactor(position);
+        retval[3] *= this.getSeProgressionFactor(position);
+
+        retval[5] = retval[3] - retval[1];
     }
 
-    //console.log('getSuperElevation', position);
+    //console.log('getSuperElevation: ', retval);
 
     return retval;
 };
@@ -447,10 +455,8 @@ Renderer.prototype.getSuperElevatedHeight = function(height, position) {
 
     // progression
     if (this.seProgression) {
-        retval *= getSeProgressionFactor(position);
+        retval *= this.getSeProgressionFactor(position);
     }
-
-    //console.log('getSuperElevatedHeight', position);
 
     return retval;
 }
@@ -482,7 +488,7 @@ Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
     let retval;
 
     // heightRamp
-    if (seHeightRamp) {
+    if (this.seHeightRamp) {
         retval = this.getUnsuperElevatedHeightRamp(height);
     } else {
         retval = height;
@@ -490,10 +496,8 @@ Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
 
     // progression
     if (this.seProgression) {
-        retval /= getSeProgressionFactor(position);
+        retval /= this.getSeProgressionFactor(position);
     }
-
-    //console.log('getUnsuperElevatedHeight', position);
 
     return retval;
 }

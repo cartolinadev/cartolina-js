@@ -1215,7 +1215,8 @@ Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
     var navCoords = this.convert.convertCoords(worldPos, 'physical', 'navigation');
 
     if (this.renderer.useSuperElevation) {
-        navCoords[2] = this.renderer.getUnsuperElevatedHeight(navCoords[2]);
+        navCoords[2] = this.renderer.getUnsuperElevatedHeight(
+            navCoords[2], this.position);
     }
 
     if (mode == 'float') {
