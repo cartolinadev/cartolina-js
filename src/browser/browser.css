@@ -32,7 +32,7 @@
 
 .vts-logo {
     color:#fff;
-    text-shadow: 0 0 2px #000;
+    text-shadow: 0 0 0px #000;
     text-decoration: none;
     border-bottom: 1px solid rgba(255,255,255,0.5);
     padding-bottom: 0px;    
@@ -79,7 +79,7 @@
     padding: 0px 0px;
     margin: 0px;
     text-align: right;
-    color: #FFFFFF;
+    color: #000000;
     font-family: Verdana, Tahoma, Geneva, Arial, Sans-serif;
     font-size: 11px;
     left: 120px;
@@ -88,54 +88,67 @@
 
 .vts-credits-supercell {
     display: inline-block;
-    text-shadow: 0 0 2px #000;
+    text-shadow: 0 0 0px #000;
     max-width: 350px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-bottom: 5px;
+    padding: 2px 5px;
+    background-color: #ffffffaa;
+    
 }
 
-.vts-credits-cell {
+.vts-credits-cell  {
     display: inline-block;
     padding-right: 0px;
     padding-left: 0px;
     padding-top: 2px;
     padding-bottom: 1px;
-    text-shadow: 0 0 2px #000;
+    text-shadow: 0 0 0px #000;
     max-width: 262px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    margin: 0px;
 }
 
 .vts-credits-cell a {
-    color: #FFFFFF;
+    color: #000000;
     text-decoration: none;
     border-bottom: 1px solid rgba(255,255,255,0.5);
     margin: 0px;
 }
+
+
+.vts-credits-cell a:hover {
+    text-decoration: underline;
+}
+
 
 .vts-credits-cell-button {
     display: inline-block;
     padding-right: 0px;
     padding-left: 0px;
     padding-top: 2px;
-    padding-bottom: 0px;
+    padding-bottom: 1px;
     overflow: hidden;
-    text-shadow: 0 0 2px #000;
+    text-shadow: 0 0 0px #000;
     cursor: pointer;
-    border-bottom: 1px solid rgba(255,255,255,0.5);
+    border-bottom: 0px solid rgba(255,255,255,0.5);
     margin-left: 5px;
 }
 
+.vts-credits-cell-button:hover {
+    text-decoration: underline;
+}
+
+
 .vts-credits-separator {
     display: inline-block;
-    width : 1px;
-    height : 14px;
-    background-color: rgba(255,255,255,0.4);
-    margin-left: 10px;
-    margin-right: 10px;
+    padding-top: 2px;
+    padding-bottom: 1px;
+    padding-right: 0px;
+    padding-left: 0px;
 }
 
 .vts-credits-list {
