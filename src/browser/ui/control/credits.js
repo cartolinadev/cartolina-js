@@ -93,7 +93,6 @@ UIControlCredits.prototype.update = function() {
             html += res[1] ? '<div class="vts-credits-cell-button" id="vts-credits-mapdata-more">and others</div>' : '';
             html += '</div>';
             html += '<div class="vts-credits-supercell"><div class="vts-credits-separator">|</div></div>';
-            html += '|';
             html3 = '<div class="vts-credits-list">';
             html3 += this.getCreditsString(credits['mapdata'], '<br/>', true)[0] + '</div>';
         }
