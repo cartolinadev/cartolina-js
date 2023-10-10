@@ -686,12 +686,17 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
             
             if (submeshSurface) {
                 var bounds = tile.bounds[submeshSurface.id];
-                
-                if (!bounds) {
+
+                //console.log(bounds);
+
+                // the check for bounds.blending is an ugly workaround
+                // for a mysterous race condition... bounds should be never
+                // defined elsewhere, but is seem they are.
+                if (!(bounds && bounds.blending)) {
                     bounds = {
                         sequence : [],
-                        blending : [],
-                        runtime: [],
+                        blending : {},
+                        runtime: {},
                         transparent : false,
                         viewCoutner : 0
                     };
