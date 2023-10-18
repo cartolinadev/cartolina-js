@@ -396,6 +396,9 @@ Renderer.prototype.setSuperElevationRamp = function(se) {
 
 Renderer.prototype.getSeProgressionFactor = function(position) {
 
+    if (arguments.length !== 1)
+        throw new Error('function now requires current position');
+
     let progression = this.seProgression;
 
     let retval = math_.clamp(
@@ -545,7 +548,11 @@ Renderer.prototype.getEllipsoidHeight = function(pos, shift) {
 };
 
 
-Renderer.prototype.transformPointBySE = function(pos, shift) {
+Renderer.prototype.transformPointBySE = function(pos, shift, position) {
+
+    if (arguments.length !== 3)
+        throw new Error('function now requires current position');
+
     var p = pos, p2;
     this.seTmpVec3 = [0,0,0];
 
@@ -564,7 +571,7 @@ Renderer.prototype.transformPointBySE = function(pos, shift) {
     v[2] = p2[2] * m;
 
     var h = l - this.earthRadius;
-    var h2 = this.getSuperElevatedHeight(h, pos);
+    var h2 = this.getSuperElevatedHeight(h, position);
     m = (h2 - h);
 
     p2[0] = p[0] + v[0] * m;
@@ -575,7 +582,11 @@ Renderer.prototype.transformPointBySE = function(pos, shift) {
 };
 
 
-Renderer.prototype.transformPointBySE2 = function(pos, shift) {
+Renderer.prototype.transformPointBySE2 = function(pos, shift, position) {
+
+    if (arguments.length !== 3)
+        throw new Error('function now requires current position');
+
     var p = pos, p2;
     this.seTmpVec3 = [0,0,0];
 
@@ -594,7 +605,7 @@ Renderer.prototype.transformPointBySE2 = function(pos, shift) {
     v[2] = p2[2] * m;
 
     var h = l - this.earthRadius;
-    var h2 = this.getSuperElevatedHeight(h, pos);
+    var h2 = this.getSuperElevatedHeight(h, position);
     m = (h2 - h);// * 10;
 
     pos = pos.slice();

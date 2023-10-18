@@ -1180,6 +1180,10 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
 }
 
 RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixelSize, advancedHitPass, ignoreFilters, position) {
+
+    if (arguments.length !== 8)
+        throw new Error('function now requires current position');
+
     if (!job.ready) {
         return;
     }
@@ -1901,8 +1905,11 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         if (renderer.useSuperElevation) {
             if (job.seCounter != renderer.seCounter) {
                 job.seCounter = renderer.seCounter;
-                job.center2 = renderer.transformPointBySE(job.center);
+
+                job.center2 = renderer.transformPointBySE(
+                    job.center, undefined, position);
             }
+
         } else {
             job.center2 = job.center;
         }
