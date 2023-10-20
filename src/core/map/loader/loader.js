@@ -35,6 +35,7 @@ var MapLoader = function(map, maxThreads) {
         this.processWorker = new worker;
         
         this.processWorker.onerror = function(event){
+            console.log("Error event:", event);
             throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
         };
 
