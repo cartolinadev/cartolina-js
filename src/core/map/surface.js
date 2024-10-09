@@ -93,6 +93,7 @@ MapSurface.prototype.parseJson = function(json) {
     //this.pipeline = json['pipeline'] || VTS_PIPELINE_BASIC;
     this.navDelta = json['navDelta'] || 1;
     this.meshUrl = this.processUrl(json['meshUrl'], '');
+    this.normalsUrl = this.processUrl(json['normalsUrl'], null);
     this.textureUrl = this.processUrl(json['textureUrl'], '');
     this.geodataUrl = this.processUrl(json['geodataUrl'] || json['geodata'], '');
     this.lodRange = json['lodRange'] || [0,0];
@@ -382,6 +383,10 @@ MapSurface.prototype.getMeshUrl = function(id, skipBaseUrl) {
 MapSurface.prototype.getTextureUrl = function(id, subId, skipBaseUrl) {
     return this.map.url.makeUrl(this.textureUrl, {lod:id[0], ix:id[1], iy:id[2] }, subId, skipBaseUrl);
 };
+
+MapSurface.prototype.getNormalsUrl = function(id, subId, skipBaseUrl) {
+    return this.map.url.makeUrl(this.normalsUrl, {lod:id[0], ix:id[1], iy:id[2] }, subId, skipBaseUrl);
+}
 
 
 MapSurface.prototype.getGeodataUrl = function(id, navtileStr, skipBaseUrl) {

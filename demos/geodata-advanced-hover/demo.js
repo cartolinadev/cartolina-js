@@ -18,7 +18,7 @@ var distanceDiv = null;
     // view parameter is described in documentation 
     // https://github.com/Melown/vts-browser-js/wiki/VTS-Browser-Map-API#definition-of-view
     browser = vts.browser('map-div', {
-        map: 'https://cdn.melown.com/mario/store/melown2015/map-config/melown/VTS-Tutorial-map/mapConfig.json',
+        map: 'http://localhost/store/demos/sr-viewdep/mapConfig.json',
         position : [ 'obj', 15.096869, 49.3843590, 'float', 0.00, 2.70, -77.86, 0.00, 692772.54, 45.00 ]
     });
 
