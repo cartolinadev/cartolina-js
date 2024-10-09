@@ -9,6 +9,8 @@ import Camera_ from './camera';
 import RenderInit_ from './init';
 import RenderDraw_ from './draw';
 import RenderRMap_ from './rmap';
+import * as Illumination from '../map/illumination';
+
 
 //get rid of compiler mess
 var vec3 = vec3_, mat4 = mat4_;
@@ -314,13 +316,28 @@ Renderer.prototype.setIllumination = function(definition) {
 
     if (light[0] != 'tracking') throw new Error('Only tracking lights supported.');
 
+    let azimuth = utils.validateNumber(light[1], 0, 360, 315);
+    let elevation = utils.validateNumber(light[2], 0, 90, 45);
+
     this.illumination = {
         ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
         trackingLight : {
-            azimuth : utils.validateNumber(light[1], 0, 360, 315),
-            elevation: utils.validateNumber(light[2], 0, 90, 45)
-        }
+            azimuth : azimuth,
+            elevation: elevation
+        },
+        illuminationVectorVC : Illumination.illuminationVector(
+                        azimuth, elevation, Illumination.CoordSystem.VC)
     }
+
+    console.log("Illumination: ", this.illumination);
+
+};
+
+Renderer.prototype.getIlluminationVectorVC = function() {
+
+    console.log("Illumination: vector", this.illumination.illuminationVectorVC);
+
+    return this.illumination.illuminationVectorVC;
 };
 
 Renderer.prototype.setSuperElevationState = function(state) {

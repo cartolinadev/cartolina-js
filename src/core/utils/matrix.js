@@ -422,6 +422,17 @@ mat3.multiplyVec3 = function (a, b, c) {
     return c;
 };
 
+/* the above code modifies its second operand, correccted version. */
+
+mat3.multiplyVec3_ = function (a, b, c) {
+    c || (c = b);
+    var d = b[0], e = b[1], f = b[2];
+    c[0] = a[0] * d + a[3] * e + a[6] * f;
+    c[1] = a[1] * d + a[4] * e + a[7] * f;
+    c[2] = a[2] * d + a[5] * e + a[8] * f;
+    return c;
+};
+
 
 mat3.str = function (a) {
     return '[' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ', ' + a[4] + ', ' + a[5] + ', ' + a[6] + ', ' + a[7] + ', ' + a[8] + ']';
@@ -744,6 +755,20 @@ mat4.multiplyVec3 = function (a, b, c) {
     return c;
 };
 
+
+/* above code cripples second operand, using this version instead. */
+
+mat4.multiplyVec3_ = function (a, b, c) {
+
+    c || (c = b);
+    var d = b[0],
+        e = b[1],
+        f = b[2];
+    c[0] = a[0] * d + a[4] * e + a[8] * f + a[12];
+    c[1] = a[1] * d + a[5] * e + a[9] * f + a[13];
+    c[2] = a[2] * d + a[6] * e + a[10] * f + a[14];
+    return c;
+};
 
 mat4.multiplyVec4 = function (a, b, c) {
     c || (c = b);

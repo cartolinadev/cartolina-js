@@ -12,7 +12,7 @@ import {math} from '../utils/math';
 
 import {MapPosition} from './position';
 
-/*
+/**
  * We use the lNED and NED coordinate systems in the map context as follows.
  *
  * NED is the local geographic north-east-down system for the current position.
@@ -27,9 +27,12 @@ import {MapPosition} from './position';
  * where the camera looks) and D points down our viewport (negative Y in camera
  * space). This follows the way the VTS positions are defined: looking down
  * means yaw of -90. This would normally mean nose down in aeronautics).
+ *
+ * VC is the openGL camera space, it differs from LNED only in order and
+ * and orientation of the axis.
  */
 
-export enum CoordSystem { NED, LNED };
+export enum CoordSystem { NED, LNED, VC };
 
 /* Some borrowed types. */
 
@@ -37,7 +40,7 @@ export type vec3 = [number, number, number];
 
 enum Axis { X = 0, Y = 1, Z = 2  };
 
-/*
+/**
  * Build illlumination vector from azimuth and elevation, for a given
  * coordinate system.
  *
@@ -67,6 +70,13 @@ export function illuminationVector(azimuth: number = 315,
 
         // shorthand for Rx(a)*Ry(e)*[0,0,-1]
         return [-sin(el), sin(az) * cos(el), - cos(az) * cos(el)];
+    }
+
+    if (cs == CoordSystem.VC) {
+
+        // (X,Y,Z) = (lE, -lD, -lN)
+        // should be shorthand for Rx(e) * Rz(-a) * [0, 1, 0]
+        return [sin(az) * cos(el), cos(az) * cos(el), sin(el)]
     }
 
     // never reached
