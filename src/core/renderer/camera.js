@@ -23,6 +23,7 @@ var Camera = function(parent, fov, near, far) {
     this.modelview = mat4.create();
     this.rotationview = mat4.create();
     this.projection = mat4.create();
+    this.modelviewinverse = mat4.create();
     this.mvp = mat4.create();
     this.mvp32 = new Float32Array(16);
     this.modelview32 = new Float32Array(16);
@@ -133,11 +134,19 @@ Camera.prototype.getRotationviewFMatrix = function() {
 // Returns a matrix that transforms the world space to camera space.
 Camera.prototype.getModelviewMatrix = function(){
     if (this.dirty) this.update();
+    console.log("modelview: ", this.modelview);
     return this.modelview;
+};
+
+Camera.prototype.getModelviewMatrixInverse = function(){
+    if (this.dirty) this.update();
+    console.log("modelviewinverse: ", this.modelviewinverse);
+    return this.modelviewinverse;
 };
 
 Camera.prototype.getModelviewFMatrix = function(){
     if (this.dirty) this.update();
+    console.log("modelview32: ", this.modelview32);
     return this.modelview32;
 };
 
@@ -390,6 +399,8 @@ Camera.prototype.update = function(zoffset) {
     }
 
     mat4.multiply(this.rotationview, math.translationMatrix(-this.position[0], -this.position[1], -this.position[2]), this.modelview);
+
+    mat4.inverse(this.modelview, this.modelviewinverse);
 
     if (this.ortho) {
         this.projection = math.orthographicMatrix(this.viewHeight, this.aspect, this.near, this.far);

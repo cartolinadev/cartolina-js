@@ -713,17 +713,28 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         program.setSampler('normalMap', 2);
 
         // viewPos and lightDir (prerequisite: superelevation
-        /*lightDir = renderer.getIlluminatioVectorWC(
-            submesh.getModelViewMatrixInverse());
+        let ilumvec = vec3.create();
+        let lightDir = vec3.create();
+        let viewPos = vec3.create();
 
-        viewPos = mat4.multiply(
-            submesh.getModelViewMatrixInverse(), vec4(0.0,0.0,-1.0,1.0));
+        mat4.multiplyVec3_(
+            renderer.camera.getModelviewMatrixInverse(),
+            renderer.getIlluminationVectorVC(), ilumvec)
+
+        console.log(ilumvec);
+
+        vec3.negate(ilumvec, lightDir);
+
+        mat4.multiplyVec3_(
+            renderer.camera.getModelviewMatrixInverse(),
+            [0.0, 0.0, 0.0],
+            viewPos);
 
         console.log("viewPos: ", viewPos);
         console.log("ligthDir: ", lightDir);
 
         program.setVec3('viewPos', viewPos);
-        program.setVec3('ligthtDir', lightDir);*/
+        program.setVec3('ligthtDir', lightDir);
 
         // brag about it
         console.log("Wow, texture bound.");
