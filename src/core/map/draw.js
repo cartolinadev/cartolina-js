@@ -775,7 +775,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
         case VTS_DRAWCOMMAND_SUBMESH:
 
-            console.log(command);
+            //console.log(command);
 
             var pipeline = command.pipeline;
             if (pipeline) {
@@ -827,8 +827,9 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                     mesh.submeshes[command.submesh].drawBBox(cameraPos);
                 }
 
+                let material = command.material;
+
                 if (!texture) {
-                    var material = command.material;
                     switch (material) {
                             //case "fog":
                     case VTS_MATERIAL_EXTERNAL:
@@ -837,18 +838,14 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                         material = VTS_MATERIAL_FLAT;
                         break; 
                     }
-                    //console.log(material);
-                    mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
-                                     command.blending, command.alpha, command.runtime,
-                                     command.layer, command.surface, tile.splitMask);
-                } else {
-                   
-                    //tile.renderHappen = true;
-                    mesh.drawSubmesh(cameraPos, command.submesh, texture, command.material,
-                                     command.blending, command.alpha, command.runtime,
-                                     command.layer, command.surface, tile.splitMask);
                 }
 
+                //console.log(material);
+                mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
+                                     command.blending, command.alpha, command.runtime,
+                                     command.layer, command.surface,
+                                     tile.splitMask, undefined,
+                                     command.normalMap);
             }
                 
             break;
