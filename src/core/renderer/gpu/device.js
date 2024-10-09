@@ -220,11 +220,17 @@ GpuDevice.prototype.useProgram = function(program, attributes, nextSampler) {
 
 
 GpuDevice.prototype.bindTexture = function(texture, id) {
+
+    if (id && (id != 0 && id != 1))
+        console.log("Warn: texture slot > 1", );
+
     if (!texture.loaded) {
         return;
     }
 
-    this.gl.activeTexture(id ? this.gl.TEXTURE1 : this.gl.TEXTURE0);
+    let slot = id ? this.gl.TEXTURE0 + id : this.gl.TEXTURE0;
+
+    this.gl.activeTexture(slot);
     this.gl.bindTexture(this.gl.TEXTURE_2D, texture.texture);
 };
 

@@ -240,7 +240,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 // and non-illuminated submeshes within the same surface. This
                 // would normally happen in glues: existence of normal maps
                 // should be indicated within the submesh.
-                console.log(tile.map.renderer);
+                //console.log(tile.map.renderer);
                 let illuminatedSubmesh = (surface.normalsUrl
                     && tile.map.renderer.getIlluminationState());
                 //illuminatedSubmesh = true;
@@ -258,7 +258,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 }
                 
                 surface = tile.resourceSurface;
-                console.log(surface);
+                //console.log(surface);
 
                 if (tile.resourceSurface.glue /*&& submesh.surfaceReference != 0*/) {
                     //glue have multiple surfaces per tile
@@ -451,7 +451,6 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     } else {
                                         
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && ! internalUVs
-                                        
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,

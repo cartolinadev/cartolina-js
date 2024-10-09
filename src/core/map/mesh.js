@@ -404,7 +404,7 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 };
 
 
-MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace) {
+MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace, normalMap) {
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
     }
@@ -428,7 +428,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     //var attributes = (drawWireframe != 0) ?  ['aPosition', 'aBarycentric'] : ['aPosition'];
     var attributes = ['aPosition'];
     var v = (useSuperElevation) ? VTS_TILE_SHADER_SE : 0;
-    
+
     if (splitMask) {
         v |= VTS_TILE_SHADER_CLIP4;
 
@@ -441,6 +441,9 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     if (blending == 'multiply') {
         v |= VTS_TILE_SHADER_BLEND_MULTIPLY;
     }
+
+    if (normalMap)
+       v |= VTS_TILE_SHADER_ILLUMINATION;
 
     if (texture && draw.debug.meshStats) {
         if (!submesh.uvAreaComputed) {
@@ -547,6 +550,10 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
                         if (splitMask) {
                             id += 'c4';
+                        }
+
+                        if (normalMap) {
+                            id += 'nm';
                         }
 
                         id += filter;
@@ -684,6 +691,44 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     } else {
         program.setMat4('uProj', proj);
     }
+
+    // illumination uniforms
+    if (normalMap) {
+
+        // bind normal map texture
+        let gpuTexture = normalMap.getGpuTexture();
+
+        if (gpuTexture) {
+            if (normalMap.statsCoutner != this.stats.counter) {
+                normalMap.statsCoutner = this.stats.counter;
+                this.stats.gpuRenderUsed += gpuTexture.getSize();
+            }
+        }
+
+        renderer.gpu.bindTexture(gpuTexture, 2);
+
+        // we set the sampler here, since it seems to be the logical place.
+        // samplers for slot 0 (texture) and 1 (mask) are set in
+        // Gpu.Device.useProgram
+        program.setSampler('normalMap', 2);
+
+        // viewPos and lightDir (prerequisite: superelevation
+        /*lightDir = renderer.getIlluminatioVectorWC(
+            submesh.getModelViewMatrixInverse());
+
+        viewPos = mat4.multiply(
+            submesh.getModelViewMatrixInverse(), vec4(0.0,0.0,-1.0,1.0));
+
+        console.log("viewPos: ", viewPos);
+        console.log("ligthDir: ", lightDir);
+
+        program.setVec3('viewPos', viewPos);
+        program.setVec3('ligthtDir', lightDir);*/
+
+        // brag about it
+        console.log("Wow, texture bound.");
+    }
+
 
     if (splitMask /*&& type != VTS_MATERIAL_FLAT*/) {
         program.setFloatArray('uClip', splitMask);
