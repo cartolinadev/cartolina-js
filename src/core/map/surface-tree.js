@@ -169,16 +169,24 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
         case 'topdown':
 
             if (map.config.mapSplitMeshes) {
+                console.log("Here 2-3");
                 this.drawSurfaceWithSpliting([0,0,0], storeTilesOnly);
             } else {
+                console.log("Here 2-4");
                 this.drawSurface([0,0,0], storeTilesOnly);
             }
 
             break;
 
-        case 'downtop': this.drawSurfaceDownTop([0,0,0], storeTilesOnly); break;
-        case 'fit':     this.drawSurfaceFit([0,0,0], storeTilesOnly); break;
-        case 'fitonly': this.drawSurfaceFitOnly([0,0,0], storeTilesOnly); break;
+        case 'downtop':
+            console.log("Here 2-0");
+            this.drawSurfaceDownTop([0,0,0], storeTilesOnly); break;
+        case 'fit':
+            console.log("Here 2-1");
+            this.drawSurfaceFit([0,0,0], storeTilesOnly); break;
+        case 'fitonly':
+            console.log("Here 2-2");
+            this.drawSurfaceFitOnly([0,0,0], storeTilesOnly); break;
         }
 
     }

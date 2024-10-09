@@ -288,6 +288,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             var single = replay.singleLod; 
     
             if (replay.drawTiles && replay.drawnTiles) {
+
+                console.log("here1");
+
                 tiles = replay.drawnTiles;
                 for (i = 0, li = tiles.length; i < li; i++) {
                     if (!tiles[i][1]) { //skip grids
@@ -307,6 +310,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             }
             
             if (replay.drawFreeTiles && replay.drawnFreeTiles) {
+
+                console.log("here2");
+
                 tiles = replay.drawnFreeTiles;
                 for (i = 0, li = tiles.length; i < li; i++) {
                     if (!tiles[i][1]) { //skip grids
@@ -319,6 +325,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             }
     
             if (replay.drawNodes && replay.tracedNodes) {
+                console.log("here3");
+
                 tiles = replay.tracedNodes;
                 tmp = debug.drawBBoxes;
                 debug.drawBBoxes = true;  
@@ -332,6 +340,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             }
     
             if (replay.drawFreeNodes && replay.tracedFreeNodes) {
+                console.log("here4");
+
                 tiles = replay.tracedFreeNodes;
                 tmp = debug.drawBBoxes;
                 debug.drawBBoxes = true;  
@@ -348,6 +358,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             var singleIndex = replay.singleLodedIndex; 
     
             if (replay.drawLoaded && replay.loaded) {
+                console.log("here5");
+
                 var  loaded = replay.loaded;
                 debug.drawBBoxes = true;  
                 for (i = 0, li = loaded.length; i < li; i++) {
@@ -371,6 +383,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
             if ((replay.drawFreeTiles && replay.drawnFreeTiles) ||
                 (replay.drawLoaded && replay.loaded)) {
+                console.log("here6");
+
                     
                 if (this.freeLayersHaveGeodata && this.drawChannel == 0) {
                     renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
@@ -387,6 +401,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }
     
         if (this.tree.surfaceSequence.length > 0) {
+            console.log("here7");
             this.tree.draw();
         }
 
@@ -670,11 +685,20 @@ MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad,
                 
             var meshReady = (mesh && mesh.isReady(doNotLoad, priority, checkGpu));
             var textureReady = this.config.mapNoTextures ? true : (!texture  || (texture && texture.isReady(doNotLoad, priority, checkGpu)));
-                
+
             if (!(meshReady && textureReady) ) {
-                ready = false;   
+                ready = false;
             }
-               
+
+            let normalMap = command.normalMap;
+
+            if (command.illuminatedSubmesh) {
+
+                // illuminated submeshes need all three
+                let normalMapReady = normalMap.isReady(doNotLoad, priority);
+                ready = ready && normalMapReady;
+            }
+
             break;
 
         case VTS_DRAWCOMMAND_GEODATA:

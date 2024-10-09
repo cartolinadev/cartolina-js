@@ -888,6 +888,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMetricUnits':                this.config.mapMetricUnits = utils.validateBool(value, true); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
+    case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
     case 'mapForceFrameTime':             this.config.mapForceFrameTime = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapForcePipeline':              this.config.mapForcePipeline = utils.validateNumber(value, 0, Number.MAXINTEGER, 0); break;
     case 'mapFeatureGridCells':           this.config.mapFeatureGridCells = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
