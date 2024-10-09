@@ -1,6 +1,7 @@
 
 import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
 import {math as math_} from '../utils/math';
+import {utils as utils_} from '../utils/utils';
 import GpuDevice_ from './gpu/device';
 import GpuTexture_ from './gpu/texture';
 import GpuFont_ from './gpu/font';
@@ -18,6 +19,7 @@ var Camera = Camera_;
 var RenderInit = RenderInit_;
 var RenderDraw = RenderDraw_;
 var RenderRMap = RenderRMap_;
+var utils =  utils_;
 
 var Renderer = function(core, div, onUpdate, onResize, config) {
     this.config = config || {};
@@ -292,6 +294,34 @@ Renderer.prototype.project2 = function(point, mvp, cameraPos, includeDistance) {
     }
 };
 
+Renderer.prototype.setIlluminationState = function(state) {
+    this.useIlluimination = state;
+};
+
+
+Renderer.prototype.getIlluminationState = function() {
+    return this.useIllumination;
+};
+
+Renderer.prototype.setIllumination = function(definition) {
+
+    this.useIllumination = true;
+
+    if (!definition.hasOwnProperty('light') || !Array.isArray(definition.light))
+        throw new Error("Light missing, or no an array.");
+
+    let light = definition.light;
+
+    if (light[0] != 'tracking') throw new Error('Only tracking lights supported.');
+
+    this.illumination = {
+        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
+        trackingLight : {
+            azimuth : utils.validateNumber(light[1], 0, 360, 315),
+            elevation: utils.validateNumber(light[2], 0, 90, 45)
+        }
+    }
+};
 
 Renderer.prototype.setSuperElevationState = function(state) {
     if (this.useSuperElevation != state) {
@@ -299,7 +329,6 @@ Renderer.prototype.setSuperElevationState = function(state) {
         this.seCounter++;
     }
 };
-
 
 Renderer.prototype.getSuperElevationState = function() {
     return this.useSuperElevation;

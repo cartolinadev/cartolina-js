@@ -240,7 +240,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 // and non-illuminated submeshes within the same surface. This
                 // would normally happen in glues: existence of normal maps
                 // should be indicated within the submesh.
-                let illuminatedSubmesh = (surface.normalsUrl && tile.map.illumination);
+                console.log(tile.map.renderer);
+                let illuminatedSubmesh = (surface.normalsUrl
+                    && tile.map.renderer.getIlluminationState());
                 //illuminatedSubmesh = true;
 
                 if (illuminatedSubmesh) {
