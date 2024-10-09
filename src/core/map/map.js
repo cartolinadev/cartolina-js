@@ -591,10 +591,15 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
         //console.log(view.options);
 
         if (view.options.superelevation) {
+
             renderer.setSuperElevationState(true);
             renderer.setSuperElevation(view.options.superelevation);
         } else {
             renderer.setSuperElevationState(false);
+        }
+
+        if (view.options.illumination) {
+            renderer.setIllumination(view.options.illumination);
         }
     }
 
