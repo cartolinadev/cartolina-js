@@ -18,7 +18,7 @@ var pathLength = 0, pathDistance = 0;
     // view parameter is described in documentation 
     // https://github.com/Melown/vts-browser-js/wiki/VTS-Browser-Map-API#definition-of-view
     browser = vts.browser('map-div', {
-        map: 'https://cdn.melown.com/mario/store/melown2015/map-config/melown/VTS-Tutorial-Map-4/mapConfig.json',
+        map: 'http://localhost/store/demos/sr-viewdep/mapConfig.json',
         position : [ 'obj', 16.402434, 48.079867, 'float', 0.00, 9.60, -90.00, 0.00, 2595540.94, 45.00 ]
     });
 

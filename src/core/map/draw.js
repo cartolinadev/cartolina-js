@@ -273,6 +273,10 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     }
 
     if (this.debug.drawEarth) {
+
+        console.log('debug.drawEarth');
+
+
         if (replay.storeNodes || replay.storeFreeNodes) {
             replay.nodeBuffer = [];
         }
@@ -747,6 +751,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
         case VTS_DRAWCOMMAND_SUBMESH:
 
+            console.log(command);
+
             var pipeline = command.pipeline;
             if (pipeline) {
                 var hmap = command.hmap;
@@ -780,24 +786,34 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             } else {
                 textureReady = (!texture || (texture && texture.isReady(doNotLoad, priority)));
             }
+
+            let ready = meshReady && textureReady;
+            let normalMap = command.normalMap;
+
+            if (command.illuminatedSubmesh) {
+
+                // illuminated submeshes need all three
+                let normalMapReady = normalMap.isReady(doNotLoad, priority);
+                ready = ready && normalMapReady;
+            }
                 
-            if (meshReady && textureReady) {
-                    //debug bbox
+            if (ready) {
+                //debug bbox
                 if (this.debug.drawBBoxes && this.debug.drawMeshBBox) {
                     mesh.submeshes[command.submesh].drawBBox(cameraPos);
                 }
 
-                //console.log(command);
-                    
                 if (!texture) {
                     var material = command.material;
                     switch (material) {
                             //case "fog":
                     case VTS_MATERIAL_EXTERNAL:
                     case VTS_MATERIAL_INTERNAL:
+
                         material = VTS_MATERIAL_FLAT;
                         break; 
                     }
+                    //console.log(material);
                     mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
                                      command.blending, command.alpha, command.runtime,
                                      command.layer, command.surface, tile.splitMask);
