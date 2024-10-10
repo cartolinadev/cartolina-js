@@ -345,7 +345,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     }
                                     
                                     // atmosphere?
-                                    console.log("Here 3.2");
+                                    //console.log("Here 3.2");
 
                                     tile.drawCommands[0].push({
                                         type : VTS_DRAWCOMMAND_SUBMESH,
@@ -379,7 +379,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             tile.imageryCredits[credits[k]] = layer.specificity;  
                                         }
 
-                                        console.log("Here 3.1");
+                                        //console.log("Here 3.1");
                                         
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,
