@@ -92,7 +92,7 @@ GpuTexture.prototype.createFromData = function(lx, ly, data, filter, repeat) {
 GpuTexture.prototype.createFromImage = function(image, filter, repeat, aniso) {
     var gl = this.gl;
 
-    console.log("Creating texture from image.");
+    //console.log("Creating texture from image.");
 
     //filter = 'trilinear'; aniso = null; this.gpu.anisoLevel = 0;
     var width = image.naturalWidth;
