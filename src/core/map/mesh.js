@@ -398,6 +398,10 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
         str += '#define blendMultiply\n';
     }
 
+    if (v & VTS_TILE_SHADER_ILLUMINATION) {
+        str += '#define shader_illumination\n';
+    }
+
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
     progs[v] = prog;
     return prog;
@@ -442,8 +446,12 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         v |= VTS_TILE_SHADER_BLEND_MULTIPLY;
     }
 
-    if (normalMap)
+    if (normalMap) {
        v |= VTS_TILE_SHADER_ILLUMINATION;
+
+       texcoords2Attr = 'aTexCoord2';
+       attributes.push('aTexCoord2');
+    }
 
     if (texture && draw.debug.meshStats) {
         if (!submesh.uvAreaComputed) {
@@ -710,7 +718,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         // we set the sampler here, since it seems to be the logical place.
         // samplers for slot 0 (texture) and 1 (mask) are set in
         // Gpu.Device.useProgram
-        program.setSampler('normalMap', 2);
+        program.setSampler("normalMap", 2);
 
         // viewPos and lightDir (prerequisite: superelevation
         let ilumvec = vec3.create();
@@ -730,14 +738,15 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             [0.0, 0.0, 0.0],
             viewPos);
 
-        console.log("viewPos: ", viewPos);
-        console.log("ligthDir: ", lightDir);
+        //console.log("viewPos: ", viewPos);
+        //console.log("lightDir: ", lightDir);
 
         program.setVec3('viewPos', viewPos);
-        program.setVec3('ligthtDir', lightDir);
+        program.setVec3('lightDir', lightDir);
+        program.setFloat('ambientCoef', renderer.getIlluminationAmbientCoef());
 
         // brag about it
-        console.log("Wow, texture bound.");
+        //console.log("Wow, texture bound.");
     }
 
 

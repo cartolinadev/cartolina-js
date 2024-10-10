@@ -247,8 +247,10 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
                 if (illuminatedSubmesh) {
                      let path = surface.getNormalsUrl(tile.id, i);
+/*                     tile.normalMaps[i] = tile.resources.getTexture(
+                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);*/
                      tile.normalMaps[i] = tile.resources.getTexture(
-                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, false);
                 }
 
                 if (tile.updateBounds) {

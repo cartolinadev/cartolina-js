@@ -335,9 +335,16 @@ Renderer.prototype.setIllumination = function(definition) {
 
 Renderer.prototype.getIlluminationVectorVC = function() {
 
-    console.log("Illumination: vector", this.illumination.illuminationVectorVC);
+    //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
 
     return this.illumination.illuminationVectorVC;
+};
+
+Renderer.prototype.getIlluminationAmbientCoef = function() {
+
+    //console.log("Illumination: ambient coef", this.illumination.ambientCoef);
+
+    return this.illumination.ambientCoef;
 };
 
 Renderer.prototype.setSuperElevationState = function(state) {

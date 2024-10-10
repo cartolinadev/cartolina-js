@@ -272,9 +272,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
-    if (this.debug.drawEarth) {
+    if (this.debug.drawEarth) { // debug.drawEarth!?
 
-        console.log('debug.drawEarth');
+        //console.log('debug.drawEarth');
 
 
         if (replay.storeNodes || replay.storeFreeNodes) {
