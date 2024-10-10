@@ -134,19 +134,19 @@ Camera.prototype.getRotationviewFMatrix = function() {
 // Returns a matrix that transforms the world space to camera space.
 Camera.prototype.getModelviewMatrix = function(){
     if (this.dirty) this.update();
-    console.log("modelview: ", this.modelview);
+    //console.log("modelview: ", this.modelview);
     return this.modelview;
 };
 
 Camera.prototype.getModelviewMatrixInverse = function(){
     if (this.dirty) this.update();
-    console.log("modelviewinverse: ", this.modelviewinverse);
+    //console.log("modelviewinverse: ", this.modelviewinverse);
     return this.modelviewinverse;
 };
 
 Camera.prototype.getModelviewFMatrix = function(){
     if (this.dirty) this.update();
-    console.log("modelview32: ", this.modelview32);
+    //console.log("modelview32: ", this.modelview32);
     return this.modelview32;
 };
 

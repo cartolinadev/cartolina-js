@@ -729,7 +729,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             renderer.camera.getModelviewMatrixInverse(),
             renderer.getIlluminationVectorVC(), ilumvec)
 
-        console.log(ilumvec);
+        //console.log(ilumvec);
 
         vec3.negate(ilumvec, lightDir);
 

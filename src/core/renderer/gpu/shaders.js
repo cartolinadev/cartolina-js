@@ -1479,6 +1479,9 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
                             'vec4 cc = vec4(0.0);\n'+
                             'cc.w = c.w * uParams2.w * (1.0 - c.y);\n' +
                         '#endif\n'+
+                        '#ifdef shader_illumination\n'+
+                            'cc = vec4((ambientCoef + diffuseCoef) * vec3(cc), cc.w);\n' +
+                        '#endif\n'+
                         '#ifdef mask\n'+
                             'vec4 c2 = texture2D(uSampler2, vTexCoord.xy);\n'+
                             'cc.w *= c2.x;\n'+

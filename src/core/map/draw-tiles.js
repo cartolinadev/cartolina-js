@@ -291,7 +291,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
                                             tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
                                         }
-                                                
+
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
@@ -345,6 +345,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     }
                                     
                                     // atmosphere?
+                                    console.log("Here 3.2");
+
                                     tile.drawCommands[0].push({
                                         type : VTS_DRAWCOMMAND_SUBMESH,
                                         mesh : tile.surfaceMesh,
@@ -376,6 +378,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         for (k = 0, lk = credits.length; k < lk; k++) {
                                             tile.imageryCredits[credits[k]] = layer.specificity;  
                                         }
+
+                                        console.log("Here 3.1");
                                         
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,

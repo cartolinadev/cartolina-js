@@ -550,6 +550,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         //console.log("a1: " + a1 + " t2: " + t2);
 
         gpu.setState(this.drawAuraState);
+        console.log("Atmosphere campos:", camera.position);
         renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
                                  earthRadius + atmoSize, earthRadius2 + atmoSize, renderer.progAtmo, params,  params2, params3, this.atmoColor, this.atmoColor2);// this.camera.height > atmoSize ? 1 : -1);
 
