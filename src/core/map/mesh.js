@@ -1,6 +1,6 @@
 
 import {math} from '../utils/math';
-import {mat4 as mat4_, vec3} from '../utils/matrix';
+import {mat4 as mat4_, vec3, mat3} from '../utils/matrix';
 import {utils as utils_} from '../utils/utils';
 import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
@@ -683,7 +683,9 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         program.setMat4('uParamsSE', m);
 
         //mv = renderer.camera.getModelviewFMatrix();
-        mat4.multiply(renderer.camera.getModelviewFMatrix(), submesh.getWorldMatrixSE(cameraPos, m), mv);
+
+        mat4.multiply(renderer.camera.getModelviewFMatrix(),
+                      submesh.getWorldMatrixSE(cameraPos, m), mv);
 
     } else {
         mat4.multiply(renderer.camera.getModelviewFMatrix(), submesh.getWorldMatrix(cameraPos, m), mv);
@@ -725,11 +727,21 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         let lightDir = vec3.create();
         let viewPos = vec3.create();
 
+        let ilumvecVC = renderer.getIlluminationVectorVC().slice();
+
+        if (useSuperElevation) {
+
+            // TODO: this should be done in LNED, not VC
+            //ilumvecVC[2] /= renderer.getSeProgressionFactor(this.map.position);
+            vec3.normalize(ilumvecVC);
+        }
+
+
+        console.log("ilumvecVC", ilumvecVC);
+
         mat4.multiplyVec3_(
             renderer.camera.getModelviewMatrixInverse(),
-            renderer.getIlluminationVectorVC(), ilumvec)
-
-        //console.log(ilumvec);
+            ilumvecVC, ilumvec);
 
         vec3.negate(ilumvec, lightDir);
 
@@ -738,15 +750,12 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             [0.0, 0.0, 0.0],
             viewPos);
 
-        //console.log("viewPos: ", viewPos);
         //console.log("lightDir: ", lightDir);
+        //console.log("viewPos: ", viewPos);
 
         program.setVec3('viewPos', viewPos);
         program.setVec3('lightDir', lightDir);
         program.setFloat('ambientCoef', renderer.getIlluminationAmbientCoef());
-
-        // brag about it
-        //console.log("Wow, texture bound.");
     }
 
 
