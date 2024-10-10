@@ -250,7 +250,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 /*                     tile.normalMaps[i] = tile.resources.getTexture(
                             path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);*/
                      tile.normalMaps[i] = tile.resources.getTexture(
-                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, false);
+                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
                 }
 
                 if (tile.updateBounds) {
