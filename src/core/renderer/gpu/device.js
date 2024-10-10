@@ -221,8 +221,8 @@ GpuDevice.prototype.useProgram = function(program, attributes, nextSampler) {
 
 GpuDevice.prototype.bindTexture = function(texture, id) {
 
-    if (id && (id != 0 && id != 1))
-        console.log("Warn: texture slot > 1", );
+    // if (id && (id != 0 && id != 1))
+    //    console.log("Warn: texture slot > 1", );
 
     if (!texture.loaded) {
         return;

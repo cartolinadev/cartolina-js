@@ -1230,6 +1230,7 @@ GpuShaders.tileVertexShader =
 
     '#ifdef shader_illumination\n' +
         'varying vec3 fragPos;\n' +
+        'varying vec2 nmTexCoord;\n' +
     "#endif\n" +
                                                 //0-3                            4-7          8-11            12-15
     'uniform mat4 uMV, uProj, uParams;\n'+  //[zfactor, fogDensity, scale.xy][camVec.xyzw][transform.xyzw][scale.z, trans.xyz]
@@ -1261,6 +1262,7 @@ GpuShaders.tileVertexShader =
 
         '#ifdef shader_illumination\n' +
             'fragPos = aPosition;\n' +
+            'nmTexCoord = aTexCoord2;\n' +
         "#endif\n" +
 
         'gl_Position = uProj * camSpacePos;\n'+
@@ -1283,6 +1285,7 @@ GpuShaders.tileVertexShader =
             'vTexCoord.z = fogFactor;\n'+
 
             '#ifdef externalTex\n'+
+            //'#if 0\n'+
                 'vTexCoord.xy = vec2(uParams[2][0] * aTexCoord2[0] + uParams[2][2], uParams[2][1] * aTexCoord2[1] + uParams[2][3]);\n'+
             '#elif defined(shader_illumination)\n' +
                 'vTexCoord.xy = aTexCoord2;\n' +
@@ -1342,6 +1345,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         'uniform vec3 viewPos;\n' +
         'uniform float ambientCoef;\n' +
         'varying vec3 fragPos;\n' +
+        'varying vec2 nmTexCoord;\n' +
     '#endif\n' +
 
     '#ifdef depth\n'+
@@ -1425,7 +1429,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         '#endif\n'+
 
         '#ifdef shader_illumination\n' +
-            'vec3 normal_ = texture2D(normalMap, vTexCoord.xy).rgb * 2.0 - 1.0;\n' +
+            'vec3 normal_ = texture2D(normalMap, nmTexCoord).rgb * 2.0 - 1.0;\n' +
             'float diffuseCoef = max(dot(normalize(-lightDir), normal_), 0.0);\n' +
         '#endif\n' +
 
