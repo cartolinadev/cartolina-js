@@ -278,7 +278,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                             // non-empty bound layer sequence
                             if (bounds.sequence.length > 0) {
                                 if (bounds.transparent) {
-                                    
+
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && bounds.transparent
                                     
                                     // first, apply the internal texture if applicable
@@ -344,16 +344,18 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         }
                                     }
                                     
-                                    // atmosphere?
-                                    //console.log("Here 3.2");
+                                    // atmosphere
+                                    console.log("Here 3.2");
 
                                     tile.drawCommands[0].push({
                                         type : VTS_DRAWCOMMAND_SUBMESH,
                                         mesh : tile.surfaceMesh,
                                         submesh : i,
+                                        illuminatedSubmesh : illuminatedSubmesh,
+                                        normalMap : tile.normalMaps[i],
                                         texture : null,
                                         material : VTS_MATERIAL_FOG
-                                    });                                                
+                                    });
 
                                     tile.drawCommands[0].push({
                                         type : VTS_DRAWCOMMAND_STATE,
@@ -379,7 +381,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             tile.imageryCredits[credits[k]] = layer.specificity;  
                                         }
 
-                                        //console.log("Here 3.1");
+                                        console.log("Here 3.1");
                                         
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,

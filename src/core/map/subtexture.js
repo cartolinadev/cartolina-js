@@ -35,6 +35,9 @@ var MapSubtexture = function(map, path, type, tile, internal) {
 
 
 MapSubtexture.prototype.kill = function() {
+
+    console.log("MapSubtexture.kill called for: ", this.mapLoaderUrl);
+
     this.killImage();
     this.killGpuTexture();
     
