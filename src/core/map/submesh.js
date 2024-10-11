@@ -51,9 +51,13 @@ MapSubmesh.prototype.kill = function () {
     this.indices = null;
     
     if (this.texture) {
+
+        console.log('Killing texture - seems to never happen.');
+
         this.texture.kill();
         this.texture = null;
     }
+
 };
 
 

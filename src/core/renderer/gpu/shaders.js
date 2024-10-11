@@ -1430,7 +1430,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
 
         '#ifdef shader_illumination\n' +
             'vec3 normal_ = texture2D(normalMap, nmTexCoord).rgb * 2.0 - 1.0;\n' +
-            'float diffuseCoef = max(dot(normalize(-lightDir), normal_), 0.0);\n' +
+            'float diffuseCoef = max(dot(-lightDir, normal_), 0.0);\n' +
         '#endif\n' +
 
         '#ifdef flatShadeVar\n'+
@@ -1466,7 +1466,11 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
             'vec4 fogColor = vec4(uParams2.xyz, 1.0);\n'+
 
             '#ifdef onlyFog\n'+
-                'gl_FragColor = vec4(fogColor.xyz, vFogFactor);\n'+
+                'vec4 c = vec4(fogColor.xyz, vFogFactor);\n' +
+                '#ifdef shader_illumination\n'+
+                    'c = vec4((ambientCoef + diffuseCoef) * vec3(c), c.w);\n' +
+                '#endif\n'+
+                'gl_FragColor = c;\n' +
             '#else\n'+
 
                 '#ifdef depth\n'+
