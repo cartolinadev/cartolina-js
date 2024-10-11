@@ -737,7 +737,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         }
 
 
-        console.log("ilumvecVC", ilumvecVC);
+        //console.log("ilumvecVC", ilumvecVC);
 
         mat4.multiplyVec3_(
             renderer.camera.getModelviewMatrixInverse(),
