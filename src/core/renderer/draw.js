@@ -140,9 +140,9 @@ RendererDraw.prototype.drawBall = function(position, size, size2, shader, params
         mat4.multiplyVec3_(renderer.camera.getModelviewMatrixInverse(),
                           renderer.getIlluminationVectorVC(), lightDir);
 
-        //lightDir[3] = 1.0;
+        lightDir[3] = 1.0;
 
-        console.log("lightDir: ", lightDir);
+        //console.log("lightDir: ", lightDir);
 
     }
 

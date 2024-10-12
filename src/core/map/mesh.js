@@ -446,7 +446,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         v |= VTS_TILE_SHADER_BLEND_MULTIPLY;
     }
 
-    if (normalMap) {
+    if (normalMap && renderer.shaderIllumination) {
        v |= VTS_TILE_SHADER_ILLUMINATION;
 
        texcoords2Attr = 'aTexCoord2';

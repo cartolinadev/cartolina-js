@@ -1475,7 +1475,8 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
             '#ifdef onlyFog\n'+
                 'vec4 c = vec4(fogColor.xyz, vFogFactor);\n' +
                 '#ifdef shader_illumination\n'+
-                    '//c = vec4((ambientCoef + diffuseCoef) * vec3(c), c.w);\n' +
+                    'c = vec4((ambientCoef + diffuseCoef) * c.xyz, c.w);\n' +
+                    '//c = vec4((ambientCoef + diffuseCoef) * c.xyz, c.w);\n' +
                 '#endif\n'+
                 'gl_FragColor = c;\n' +
             '#else\n'+
