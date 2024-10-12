@@ -55,6 +55,7 @@ var MapDraw = function(map) {
         drawLabelBoxes : false,
         drawAllLabels : false,
         drawHiddenLabels : false,
+        shaderIllumination : true,
         drawEarth : true, 
         drawGridCells : false,
         drawTileCounter : 0,
@@ -182,6 +183,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.debugStr = 'AsyncImageDecode: ' + this.config.mapAsyncImageDecode;
     renderer.dirty = true;
     renderer.drawFog = this.debug.drawFog;
+    renderer.shaderIllumination = this.debug.shaderIllumination;
     renderer.debug = this.debug; 
     renderer.mapHack = map;
     renderer.benevolentMargins = this.config.mapBenevolentMargins;
