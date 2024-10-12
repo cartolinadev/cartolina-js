@@ -710,7 +710,8 @@ GpuShaders.atmoVertexShader3 =
     'attribute vec3 aPosition;\n'+
     //'attribute vec2 aTexCoord;\n'+
     'uniform mat4 uMV, uProj;\n'+
-    //"uniform mat3 uNorm;\n"+
+    "uniform mat3 uNorm;\n" +
+    'varying vec3 vNormal;\n'+
     'uniform vec4 uParams;\n'+       //[surfaceRadius, surfaceRadius, strech ,safetyfactor]
     'uniform vec4 uParams2;\n'+       //[cameraPos, 1]
 
@@ -753,6 +754,7 @@ GpuShaders.atmoVertexShader3 =
         'float height = posDot * (1.0 / (maxDot - minDot));\n'+
 
         'vTexcoords.y = height;\n'+
+        'vNormal = (aPosition.xyz - vec3(0.5));\n'+
 
         'height -= min(0.0,minDot2 + ((1.0 + StretchAmt) * minDot2));\n'+
         'vTexcoords.x = height;\n'+
@@ -760,11 +762,13 @@ GpuShaders.atmoVertexShader3 =
 
 
 GpuShaders.atmoFragmentShader3 = 'precision mediump float;\n'+
+    'uniform vec4 lightDir;\n' +
     'varying vec2 vTexcoords;\n'+
     'uniform vec4 uParams3;\n'+       //[treshold, mutiplier, 0,0]
     'uniform vec4 uFogColor;\n'+ // = vec4(216.0/255.0, 232.0/255.0, 243.0/255.0, 1.0);\n'+
     'uniform vec4 uFogColor2;\n'+ // = vec4(72.0/255.0, 154.0/255.0, 255.0/255.0, 1.0);\n'+
     'const vec4 fogColor3 = vec4(0.0/255.0, 0.0/255.0, 0.0/255.0, 1.0);\n'+
+    'varying vec3 vNormal;\n'+
 
     'void main() {\n'+
         'float l = vTexcoords.y;\n'+
@@ -774,6 +778,7 @@ GpuShaders.atmoFragmentShader3 = 'precision mediump float;\n'+
             'gl_FragColor = vec4(c.xyz, c.w*l);\n'+
 
             'if (l > uParams3.x){ gl_FragColor.xyz = mix(gl_FragColor.xyz, fogColor3.xyz, (l-uParams3.x)*uParams3.y); }\n'+
+            'if(lightDir.w != 0.0) {gl_FragColor.xyz = gl_FragColor.xyz * 1.0 + min(4.0 * dot(lightDir.xyz, vNormal), 0.0); }\n' +
         '}'+
 
     '}';

@@ -510,6 +510,16 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.earthRadius2 = earthRadius2;
         renderer.earthERatio = earthRadius / earthRadius2;
 
+        if (this.renderer.useSuperElevation) {
+
+            //console.log("atmoSize: ", atmoSize);
+
+            // empirical factor... the "atmosphere" was insanely thick at 1.0
+            atmoSize = Math.max(atmoSize, 0.2 * renderer.getSuperElevatedHeight(atmoSize, this.map.position));
+
+            //console.log("new atmoSize", atmoSize);
+        }
+
         var cameraPosToEarthCenter = [0,0,0,0];
         vec3.normalize(camera.position, cameraPosToEarthCenter);
 
@@ -550,7 +560,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         //console.log("a1: " + a1 + " t2: " + t2);
 
         gpu.setState(this.drawAuraState);
-        //console.log("Atmosphere campos:", camera.position);
+
         renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
                                  earthRadius + atmoSize, earthRadius2 + atmoSize, renderer.progAtmo, params,  params2, params3, this.atmoColor, this.atmoColor2);// this.camera.height > atmoSize ? 1 : -1);
 
