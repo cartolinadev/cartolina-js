@@ -733,7 +733,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
             // TODO: this should be done in LNED, not VC
             //ilumvecVC[2] /= renderer.getSeProgressionFactor(this.map.position);
-            vec3.normalize(ilumvecVC);
+            //vec3.normalize(ilumvecVC);
         }
 
 

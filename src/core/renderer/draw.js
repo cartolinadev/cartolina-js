@@ -133,10 +133,27 @@ RendererDraw.prototype.drawBall = function(position, size, size2, shader, params
     gpu.useProgram(shader, ['aPosition']);
     //gpu.bindTexture(renderer.redTexture);
 
+    let lightDir = [0.0, 0.0, 0.0, 0.0];
+
+    if (renderer.getIlluminationState()) {
+
+        mat4.multiplyVec3_(renderer.camera.getModelviewMatrixInverse(),
+                          renderer.getIlluminationVectorVC(), lightDir);
+
+        //lightDir[3] = 1.0;
+
+        console.log("lightDir: ", lightDir);
+
+    }
+
+    shader.setVec4('lightDir', lightDir);
+
     //shader.setSampler('uSampler', 0);
     shader.setMat4('uProj', proj);
     shader.setMat4('uMV', mv);
-    
+
+    shader.setMat3('uNorm', norm);
+
     if (normals) {
         shader.setMat3('uNorm', norm);
         gl.cullFace(gl.FRONT);
