@@ -1179,9 +1179,11 @@ GpuShaders.tileVertexShader =
 
     '#ifdef onlyFog\n'+
         'varying float vFogFactor;\n'+
+        '#if defined(shader_illumination)\n' +
+            'attribute vec2 aTexCoord2;\n'+
+        '#endif\n'+
     '#else\n'+
-
-        '#if defined(externalTex) || defined(shader_illumination)\n'+
+        '#if defined(externalTex) || defined(shader_illumination)\n' +
             'attribute vec2 aTexCoord2;\n'+
         '#else\n'+
             'attribute vec2 aTexCoord;\n'+
@@ -1455,7 +1457,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
             '#endif\n' +
 
             '#ifdef fogAndColor\n'+
-               // 'gl_FragColor = vec4(mix(uColor.xyz * flatShadeData.xyz, uParams2.xyz, vTexCoord.z), uColor.w);\n'+
+                '//gl_FragColor = vec4(mix(uColor.xyz * flatShadeData.xyz, uParams2.xyz, vTexCoord.z), uColor.w);\n'+
                 'gl_FragColor = vec4(uColor.xyz * flatShadeData.xyz, uColor.w);\n'+
             '#else\n'+
                 'gl_FragColor = vec4(flatShadeData.xyz, 1.0);\n'+
@@ -1468,7 +1470,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
             '#ifdef onlyFog\n'+
                 'vec4 c = vec4(fogColor.xyz, vFogFactor);\n' +
                 '#ifdef shader_illumination\n'+
-                    'c = vec4((ambientCoef + diffuseCoef) * vec3(c), c.w);\n' +
+                    '//c = vec4((ambientCoef + diffuseCoef) * vec3(c), c.w);\n' +
                 '#endif\n'+
                 'gl_FragColor = c;\n' +
             '#else\n'+
@@ -1488,7 +1490,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
                             'cc.w = c.w * uParams2.w * (1.0 - c.y);\n' +
                         '#endif\n'+
                         '#ifdef shader_illumination\n'+
-                            'cc = vec4((ambientCoef + diffuseCoef) * vec3(cc), cc.w);\n' +
+                            'cc = vec4((ambientCoef + diffuseCoef) * vec3(c), cc.w);\n' +
                         '#endif\n'+
                         '#ifdef mask\n'+
                             'vec4 c2 = texture2D(uSampler2, vTexCoord.xy);\n'+
