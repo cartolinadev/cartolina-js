@@ -33,7 +33,7 @@ GpuProgram.prototype.createShader = function(source, vertexShader) {
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
-    console.log(source);
+    //console.log(source);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         var info = gl.getShaderInfoLog(shader);

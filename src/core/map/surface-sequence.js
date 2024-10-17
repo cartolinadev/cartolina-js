@@ -192,6 +192,8 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         var surface = this.map.getSurface(key);
         if (surface != null) {
             surface.boundLayerSequence = [];
+            surface.specularSequence = [];
+            surface.bumpSequence = [];
             
             for (i = 0, li = surfaceLayers.length; i < li; i++) {
                 item = surfaceLayers[i];
@@ -209,89 +211,142 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                     layer = this.map.getBoundLayerById(item['id']);
                     if (layer) {
 
-                        // implicit mode
-                        let mode = 'normal';
+                        // implicit type
+                        let type = 'diffuse-map';
+
+                        let type_ = item ['type' ];
+
+                        if (type_ != null) {
+                            console.assert([
+                                'diffuse', 'diffuse-map',
+                                'specular', 'specular-map',
+                                'bump', 'bump-map'].includes(type_),
+                                "unsupported BL type ('%s')", type_);
+
+                            type = type_;
+                        }
+
+                        // diffuse maps
+                        if (['diffuse', 'diffuse-map'].includes(type)) {
+
+                            // implicit mode
+                            let mode = 'normal';
                        
-                        // mode
-                        let mode_ = item['mode'];
+                            // mode
+                            let mode_ = item['mode'];
 
-                        if (mode_ != null) {                            
-                            console.assert(['normal','multiply'].includes(mode_),
-                                "unsupported BL param %s ('%s')", mode_);
+                            if (mode_ != null) {
+                                console.assert(['normal','multiply'].includes(mode_),
+                                    "unsupported BL param %s ('%s')", mode_);
                             
-                            mode = mode_;
-                        }
+                                mode = mode_;
+                            }
                         
-                        // alpha
-                        let alpha_ = item['alpha'];
+                            // alpha
+                            let alpha_ = item['alpha'];
                         
-                        if (typeof alpha_ === 'number' ) {
+                            if (typeof alpha_ === 'number' ) {
                             
-                            alpha.value = parseFloat(alpha_);
-                        }
+                                alpha.value = parseFloat(alpha_);
+                            }
                                                
-                        if (typeof alpha_ === 'object' ) {
+                            if (typeof alpha_ === 'object' ) {
                             
-                            // alpha.value                           
-                            if (alpha_['value'] != null) {
-                                console.assert(typeof alpha_['value'] === 'number');
-                                alpha.value = parseFloat(alpha_['value']);
-                            }
+                                // alpha.value
+                                if (alpha_['value'] != null) {
+                                    console.assert(typeof alpha_['value'] === 'number');
+                                    alpha.value = parseFloat(alpha_['value']);
+                                }
                             
-                            // alpha.mode
-                            if (alpha_['mode'] != null) {
-                                console.assert(['constant', 'viewdep', 'view-dependent']
-                                    .includes(alpha_['mode']));
-                                if (['viewdep', 'view-dependent'].includes
-                                    (alpha_['mode'])) {
-                                    alpha.mode = 'viewdep'; }
-                            }
+                                // alpha.mode
+                                if (alpha_['mode'] != null) {
+                                    console.assert(['constant', 'viewdep', 'view-dependent']
+                                        .includes(alpha_['mode']));
+                                    if (['viewdep', 'view-dependent'].includes
+                                        (alpha_['mode'])) {
+                                        alpha.mode = 'viewdep'; }
+                                }
                             
-                            // alpha.illumination
-                            if (alpha_['illumination'] != null) {
-                                let illum_ = alpha_['illumination'];
+                                // alpha.illumination
+                                if (alpha_['illumination'] != null) {
+                                    let illum_ = alpha_['illumination'];
                                 
-                                console.assert(Array.isArray(illum_) && illum_.length === 2
-                                    && typeof(illum_[0]) === 'number'
-                                    && typeof(illum_[1]) === 'number');
+                                    console.assert(Array.isArray(illum_) && illum_.length === 2
+                                        && typeof(illum_[0]) === 'number'
+                                        && typeof(illum_[1]) === 'number');
                                 
-                                alpha['illumination']
-                                    = [parseFloat(illum_[0]), parseFloat(illum_[1])];
+                                    alpha['illumination']
+                                        = [parseFloat(illum_[0]), parseFloat(illum_[1])];
+                                }
                             }
-                        }
 
-                        console.assert(! (alpha['mode'] === 'viewdep' &&
-                            ! alpha['illumination']), "Illumination vector not " +
-                            "defined for view dependent bound layer alpha (%o).",
-                            alpha);
+                            console.assert(! (alpha['mode'] === 'viewdep' &&
+                                ! alpha['illumination']), "Illumination vector not " +
+                                "defined for view dependent bound layer alpha (%o).",
+                                alpha);
                         
-                        surface.boundLayerSequence.push([layer, mode, alpha]);
+                            surface.boundLayerSequence.push([layer, mode, alpha]);
 
-                        item2 = item['options'] || item;
+                            item2 = item['options'] || item;
 
-                        if (item2['shaderVarFlatShade']) {
-                            if (!layer.shaderFilters) {
-                                layer.shaderFilters = {};
-                            }
+                            if (item2['shaderVarFlatShade']) {
+                                if (!layer.shaderFilters) {
+                                    layer.shaderFilters = {};
+                                }
                             
-                            if (!layer.shaderFilters[surface.id]) {
-                                layer.shaderFilters[surface.id] = {};
+                                if (!layer.shaderFilters[surface.id]) {
+                                    layer.shaderFilters[surface.id] = {};
+                                }
+
+                                layer.shaderFilters[surface.id].varFlatShade = item2['shaderVarFlatShade'];
                             }
 
-                            layer.shaderFilters[surface.id].varFlatShade = item2['shaderVarFlatShade'];
-                        }
-
-                        if (item2['shaderFilter']) {
-                            if (!layer.shaderFilters) {
-                                layer.shaderFilters = {};
-                            }
+                            if (item2['shaderFilter']) {
+                                if (!layer.shaderFilters) {
+                                    layer.shaderFilters = {};
+                                }
                             
-                            if (!layer.shaderFilters[surface.id]) {
-                                layer.shaderFilters[surface.id] = {};
+                                if (!layer.shaderFilters[surface.id]) {
+                                    layer.shaderFilters[surface.id] = {};
+                                }
+
+                                layer.shaderFilters[surface.id].filter = item2['shaderFilter'];
                             }
 
-                            layer.shaderFilters[surface.id].filter = item2['shaderFilter'];
-                        }
+                        } // ["diffuse", "diffuse-map"].includes(type)
+
+                        // specular maps
+                        if (['specular', 'specular-map'].includes(type)) {
+
+                            surface.specularSequence.push({
+                                "layer": layer
+                            });
+
+                            console.log("Got specular, id = ", layer.id);
+
+
+                        } // ["specular", "specular-map"].includes(type)
+
+                        // bump maps
+                        if (['bump', 'bump-map'].includes(type)) {
+
+                            // alpha
+                            let alpha = 1.0;
+                            let alpha_ = item['alpha'];
+
+                            if (alpha_ != null) {
+                                console.assert(typeof alpha_ === 'number');
+                                    alpha = parseFloat(alpha_['value']);
+                            }
+
+                            surface.bumpSequence.push({
+                                "layer": layer,
+                                "alpha": alpha
+                            });
+
+                            console.log("Got bump, id = ", layer.id);
+
+                        } // ["bump", "bump-map"].includes(type)
                     }
                 }
             }
