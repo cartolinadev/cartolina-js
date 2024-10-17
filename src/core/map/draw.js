@@ -147,6 +147,8 @@ var MapDraw = function(map) {
     };
 
     this.drawTiles = new MapDrawTiles(map, this);
+
+    this.nmblender = new TextureBlend(this.renderer.gpu.gl, 256, 256);
 };
 
 
@@ -169,6 +171,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     }
 
     var projected = this.isProjected;
+
+    //console.log(this.renderer);
 
     switch (this.config.mapGridMode) {
         case 'none':       this.gridSkipped = true; this.gridFlat = false; this.gridGlues = false;  break;
@@ -278,6 +282,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     if (this.debug.drawEarth) { // debug.drawEarth!?
 
         //console.log('debug.drawEarth');
+
 
 
         if (replay.storeNodes || replay.storeFreeNodes) {
@@ -405,7 +410,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
-            this.tree.draw();
+            this.tree.draw(false, VTS_TREETRAVERSAL_NORMALMAP);
+            this.tree.draw(false, VTS_TREETRAVERSAL_DRAW);
         }
 
         //this.renderer.webGLSync = this.renderer.gpu.gl.fenceSync(this.renderer.gpu.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -633,6 +639,11 @@ MapDraw.prototype.getDrawCommandsGpuSize = function(commands) {
         var command = commands[i];
         
         switch (command.type) {
+
+        case VTS_DRAWCOMMAND_APPLY_BUMPS:
+            gpuNeeded += command.normalMap.getGpuSize();
+            break;
+
         case VTS_DRAWCOMMAND_SUBMESH:
                
             var mesh = command.mesh; 
@@ -789,6 +800,44 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
         switch (command.type) {
         case VTS_DRAWCOMMAND_STATE:
             this.renderer.gpu.setState(command.state);
+            break;
+
+        case VTS_DRAWCOMMAND_APPLY_BUMPS:
+            // if normal map and first bump map is not ready, return
+            if (!command.normalMap.isReady(doNotLoad, priority)
+                || command.bumps.length < 1
+                || ! command.textures[command.bumps[0].layer.id].isReady(
+                    doNotLoad, priority)) continue;
+
+            // init blender
+            this.nmblender.init();
+
+            // blend normal map
+            //console.log("normal map texture: ", command.normalMap.getGpuTexture().texture);
+
+            this.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
+
+            // iterate bumps
+            while (command.bumps.length > 0) {
+
+                let bump = command.bumps[0];
+
+                let bumpTexture = command.textures[bump.layer.id];
+
+                if (!bumpTexture.isReady(doNotLoad, priority)) break;
+
+                // blend texture
+                this.nmblender.blend(bumpTexture.getGpuTexture().texture,
+                                     0.15);
+
+                console.log("Blended a bump map, alpha = ", bump.layer.alpha);
+
+                // bumps.shift
+                command.bumps.shift();
+            }
+
+            // store result back into normal map
+            this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
             break;
 
         case VTS_DRAWCOMMAND_SUBMESH:
