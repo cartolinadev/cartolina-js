@@ -5,6 +5,7 @@ import MapGeodata_ from './geodata';
 import MapGeodataView_ from './geodata-view';
 import MapDrawTiles_ from './draw-tiles';
 import * as Illumination from './illumination';
+import { TextureBlend } from '../renderer/textureblend';
 
 
 //get rid of compiler mess
@@ -773,6 +774,10 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
                     command.runtime.vdalphan =
                         command.runtime.vdalpha * factor;
+
+                    //console.log("layer: ", command.layer.id, ", vdalpha: ",
+                    //       command.runtime.vdalphan);
+
                 }
         }
     }

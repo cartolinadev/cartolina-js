@@ -135,7 +135,7 @@ RendererDraw.prototype.drawBall = function(position, size, size2, shader, params
 
     let lightDir = [0.0, 0.0, 0.0, 0.0];
 
-    if (renderer.getIlluminationState()) {
+    if (renderer.getIlluminationState() && renderer.shaderIllumination) {
 
         mat4.multiplyVec3_(renderer.camera.getModelviewMatrixInverse(),
                           renderer.getIlluminationVectorVC(), lightDir);

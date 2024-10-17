@@ -31,6 +31,8 @@ var MapSurface = function(map, json, type) {
     this.tileRange = [[0,0],[0,0]];
     this.textureLayer = null;
     this.boundLayerSequence = [];
+    this.specularSequence = [];
+    this.bumpSequence = [];
     this.glue = (type == 'glue');
     this.free = (type == 'free');
     this.virtual = false;

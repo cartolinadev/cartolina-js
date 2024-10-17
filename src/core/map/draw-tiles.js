@@ -734,7 +734,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 //console.log(bounds);
 
                 // the check for bounds.blending is an ugly workaround
-                // for a mysterous race condition... bounds should be never
+                // for a mysterious race condition... bounds should be never
                 // defined elsewhere, but is seem they are.
                 if (!(bounds && bounds.blending)) {
                     bounds = {
@@ -786,6 +786,120 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
     if (this.config.mapNoTextures) {
         return;
+    }
+
+    // bump maps
+    bound.bumps = [];
+
+    for (let j = 0; j < surface.bumpSequence.length; j++) {
+
+        let bump = surface.bumpSequence[j];
+
+
+        if (bump.layer && bump.layer.ready && bump.layer.hasTile(tile.id) && bump.alpha > 0) {
+
+            // no extra bounds, bump maps do not propagate
+            texture = tile.boundTextures[bump.layer.id];
+
+            if (!texture) {
+                path = bump.layer.getUrl(tile.id);
+                texture = tile.resources.getTexture(path, bump.layer.dataType, null, null, tile, false);
+
+                //console.log("bump: ", path);
+
+                // TODO: work with masks - it is a hack we don't
+            }
+
+            texture.isReady(true); // no clue what this does
+            tile.boundTextures[bump.layer.id] = texture;
+
+            if (texture.neverReady) {
+                continue; //do not use this layer
+            }
+
+            // store it to some sequence in tile
+            bound.bumps.push(bump);
+
+            // no clue what this does
+            tile.boundLayers[bump.layer.id] = layer;
+        }
+
+        console.log("bump sequence :", bound.bumps);
+    }
+
+    // specular maps
+    if (surface.specularSequence.length > 0 && fullUpdate) {
+
+        bound.speculars = [];
+        let sequenceFullAndOpaque = [];
+        let sequenceMaskPosible = [];
+        let fullAndOpaqueCounter = 0;
+
+        for (let j = 0, lj = surface.specularSequence.length; j < lj; j++) {
+
+            let specular = surface.specularSequence[j];
+
+
+            if (specular.layer && specular.layer.ready
+                && specular.layer.hasTileOrInfluence(tile.id)) {
+
+                extraBound = null;
+
+                if (tile.id[0] > specular.layer.lodRange[1]) {
+                    extraBound = {
+                        sourceTile : this.getParentTile(tile, specular.layer.lodRange[1]),
+                        sourceTexture : null,
+                        layer : layer,
+                        tile : tile
+                    };
+                }
+
+                texture = tile.boundTextures[specular.layer.id];
+
+                if (!texture) {
+                    path = specular.layer.getUrl(tile.id);
+                    texture = tile.resources.getTexture(path,
+                        specular.layer.dataType, extraBound,
+                            {tile: tile, layer: specular.layer}, tile, false);
+
+                    if (texture.checkType == VTS_TEXTURECHECK_MEATATILE) {
+                        texture.checkMask = true;
+                    }
+
+                    texture.isReady(true); //check for mask but do not load
+                    tile.boundTextures[specular.layer.id] = texture;
+                }
+
+                if (texture.neverReady) {
+                    continue; //do not use this layer
+                }
+
+                //var maskPosible = false;
+                //var skipOther = false;
+
+                if (texture.isMaskPosible()) {
+                    if (texture.isMaskInfoReady()) {
+                        if (texture.getMaskTexture()) {
+                            //bound.transparent = true;
+                            //maskPosible = true;
+                        }
+                    } else {
+                        //skipOther = true;
+                        //maskPosible = true;
+                    }
+                }
+
+                //sequenceMaskPosible.push(maskPosible);
+
+                // store it to some sequence in tile
+                bound.speculars.push(specular);
+
+                // no clue what this does
+                tile.boundLayers[specular.layer.id] = layer;
+            }
+        }
+
+        console.log("specular sequence:", bound.speculars);
     }
 
     //search map view
