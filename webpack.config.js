@@ -27,6 +27,9 @@ var plugins = [
       ],
     }),    
     new webpack.DefinePlugin({
+      'VTS_TREETRAVERSAL_DRAW':       0,
+      'VTS_TREETRAVERSAL_NORMALMAP':  1,
+
       'VTS_MATERIAL_DEPTH':           1,
       'VTS_MATERIAL_FLAT':            2,
       'VTS_MATERIAL_FOG':             3,
@@ -34,6 +37,7 @@ var plugins = [
       'VTS_MATERIAL_INTERNAL_NOFOG':  5,
       'VTS_MATERIAL_EXTERNAL':        6,
       'VTS_MATERIAL_EXTERNAL_NOFOG':  7,
+      'VTS_MATERIAL_SPECULAR':        8,
 
       'VTS_PIPELINE_BASIC':           0,
       'VTS_PIPELINE_HMAP':            1,
@@ -42,6 +46,7 @@ var plugins = [
       'VTS_DRAWCOMMAND_STATE':        1,
       'VTS_DRAWCOMMAND_SUBMESH':      2,
       'VTS_DRAWCOMMAND_GEODATA':      3,
+      'VTS_DRAWCOMMAND_APPLY_BUMPS':  4,
 
       'VTS_TEXTURECHECK_MEATATILE':   1,
       'VTS_TEXTURECHECK_TYPE':        2,

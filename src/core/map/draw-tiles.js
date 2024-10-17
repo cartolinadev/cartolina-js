@@ -247,7 +247,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
                 if (illuminatedSubmesh) {
                      let path = surface.getNormalsUrl(tile.id, i);
-/*                     tile.normalMaps[i] = tile.resources.getTexture(
+                     /*tile.normalMaps[i] = tile.resources.getTexture(
                             path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);*/
                      tile.normalMaps[i] = tile.resources.getTexture(
                             path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
@@ -274,6 +274,16 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                     //    if (submesh.externalUVs) { // always true
                             
                             // if submesh.externalUVs && submesh.externalUVs (??)
+
+                            // apply bump maps
+                            if (illuminatedSubmesh && bounds.bumps.length > 0) {
+
+                                tile.drawCommands[0].push({
+                                    type: VTS_DRAWCOMMAND_APPLY_BUMPS,
+                                    normalMap: tile.normalMaps[i],
+                                    bumps: bounds.bumps,
+                                    textures: tile.boundTextures});
+                            }
                            
                             // non-empty bound layer sequence
                             if (bounds.sequence.length > 0) {
@@ -739,6 +749,8 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 if (!(bounds && bounds.blending)) {
                     bounds = {
                         sequence : [],
+                        speculars : [],
+                        bumps: [],
                         blending : {},
                         runtime: {},
                         transparent : false,
@@ -791,7 +803,8 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     // bump maps
     bound.bumps = [];
 
-    for (let j = 0; j < surface.bumpSequence.length; j++) {
+    if (fullUpdate)
+        for (let j = 0; j < surface.bumpSequence.length; j++) {
 
         let bump = surface.bumpSequence[j];
 
@@ -824,7 +837,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             tile.boundLayers[bump.layer.id] = layer;
         }
 
-        console.log("bump sequence :", bound.bumps);
+        //console.log("bump sequence :", bound.bumps);
     }
 
     // specular maps
@@ -899,7 +912,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             }
         }
 
-        console.log("specular sequence:", bound.speculars);
+        //console.log("specular sequence:", bound.speculars);
     }
 
     //search map view

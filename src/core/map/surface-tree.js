@@ -127,7 +127,7 @@ MapSurfaceTree.prototype.findNavTile = function(id) {
 };
 
 
-MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
+MapSurfaceTree.prototype.draw = function(storeTilesOnly, type) {
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];
 
@@ -173,7 +173,7 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
                 this.drawSurfaceWithSpliting([0,0,0], storeTilesOnly);
             } else {
                 //console.log("Here 2-4");
-                this.drawSurface([0,0,0], storeTilesOnly);
+                this.drawSurface([0,0,0], storeTilesOnly, type);
             }
 
             break;
@@ -242,7 +242,8 @@ MapSurfaceTree.prototype.logTileInfo = function(tile, node, cameraPos) {
 
 
 //loadmode = topdown
-MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
+                                                type = VTS_TREETRAVERSAL_DRAW) {
     this.counter++;
 
     var tile = this.surfaceTree;
@@ -367,13 +368,24 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                                 } else {
 
                                     //are draw buffers ready? preventRender=true, preventLoad=false, doNotCheckGpu=true
-                                    if (drawTiles.drawSurfaceTile(child, child.metanode, cameraPos, child.texelSize, priority, true, false, true)) {
+                                    if (type === VTS_TREETRAVERSAL_DRAW) {
+
+                                        //console.log("drawSurfaceTile!");
+                                        if (drawTiles.drawSurfaceTile(child,
+                                            child.metanode, cameraPos, child.texelSize,
+                                            priority, true, false, true)) {
                                         
-                                        readyCount++;
-                                        //child.updateTexelSize();
-                                        childrenBuffer.push(child);
+                                            readyCount++;
+                                            //child.updateTexelSize();
+                                            childrenBuffer.push(child);
+                                        }
                                     }
-                                    
+
+                                    if (type === VTS_TREETRAVERSAL_NORMALMAP) {
+
+                                        //console.log("updateNormalMap for child");
+                                        // TODO
+                                    }
                                 }
                             }
                         }
