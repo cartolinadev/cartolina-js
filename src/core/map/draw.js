@@ -828,9 +828,9 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
                 // blend texture
                 this.nmblender.blend(bumpTexture.getGpuTexture().texture,
-                                     0.15);
+                                     bump.alpha);
 
-                console.log("Blended a bump map, alpha = ", bump.layer.alpha);
+                //console.log("Blended a bump map, alpha = ", bump.alpha);
 
                 // bumps.shift
                 command.bumps.shift();
