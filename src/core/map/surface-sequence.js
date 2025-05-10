@@ -336,7 +336,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
                             if (alpha_ != null) {
                                 console.assert(typeof alpha_ === 'number');
-                                    alpha = parseFloat(alpha_['value']);
+                                alpha = alpha_;
                             }
 
                             surface.bumpSequence.push({
@@ -344,7 +344,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 "alpha": alpha
                             });
 
-                            console.log("Got bump, id = ", layer.id);
+                            console.log("Got bump, id = ", layer.id, ", alpha = ", alpha);
 
                         } // ["bump", "bump-map"].includes(type)
                     }

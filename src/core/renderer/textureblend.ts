@@ -25,11 +25,7 @@ export class TextureBlend {
         this.height = height;
 
         // Save the current state to restore later
-        this.originalFramebuffer = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING);
-        this.originalProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
-        //this.originalActiveTexture = this.gl.getParameter(this.gl.ACTIVE_TEXTURE);
-        this.originalTextureBinding = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
-        this.originalViewport = this.gl.getParameter(this.gl.VIEWPORT) as Int32Array;
+        this.storeInitialState();
 
         // Create framebuffer
         this.framebuffer = this.gl.createFramebuffer();
@@ -74,13 +70,30 @@ export class TextureBlend {
         this.restoreInitialState();
     }
 
+    private storeInitialState() {
+        // Save the current state to restore later
+        this.originalViewport = this.gl.getParameter(this.gl.VIEWPORT) as Int32Array;
+        this.originalFramebuffer = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING);
+        this.originalProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
+        this.originalActiveTexture = this.gl.getParameter(this.gl.ACTIVE_TEXTURE);
+        this.originalTextureBinding = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
+    }
+
+    // Restore the initial WebGL state (before this class modified it)
+    private restoreInitialState() {
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.originalFramebuffer);
+        this.gl.useProgram(this.originalProgram);
+        this.gl.activeTexture(this.originalActiveTexture);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.originalTextureBinding);
+        this.gl.viewport(
+            this.originalViewport[0], this.originalViewport[1],
+            this.originalViewport[2], this.originalViewport[3]);
+    }
+
     // Init function to clear the framebuffer
     init() {
         // Save the current state to restore later
-        this.originalFramebuffer = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING);
-        this.originalProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
-        //this.originalActiveTexture = this.gl.getParameter(this.gl.ACTIVE_TEXTURE);
-        this.originalTextureBinding = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
+        this.storeInitialState();
 
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer);
         this.gl.clearColor(0, 0, 0, 0);
@@ -105,14 +118,6 @@ export class TextureBlend {
         this.gl.enableVertexAttribArray(positionLocation);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
         this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, 0, 0);
-
-        /*this.gl.bindTexture(this.gl.TEXTURE_2D, textureId);
-        this.gl.generateMipmap(this.gl.TEXTURE_2D);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, null);*/
 
         // Bind texture
         const textureLocation = this.gl.getUniformLocation(this.program!, 'u_texture');
@@ -176,18 +181,7 @@ export class TextureBlend {
         }
 
         // Restore the WebGL state
-        //this.restoreInitialState();
-    }
-
-    // Restore the initial WebGL state (before this class modified it)
-    private restoreInitialState() {
-        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.originalFramebuffer);
-        this.gl.useProgram(this.originalProgram);
-        this.gl.activeTexture(this.originalActiveTexture);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.originalTextureBinding);
-        this.gl.viewport(
-            this.originalViewport[0], this.originalViewport[1],
-            this.originalViewport[2], this.originalViewport[3]);
+        this.restoreInitialState();
     }
 
     // Compile shader
