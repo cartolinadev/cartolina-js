@@ -818,23 +818,34 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             this.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
 
             // iterate bumps
-            while (command.bumps.length > 0) {
+            for (let j = 0; j < command.bumps.length; j++) {
+            //while (command.bumps.length > 0) {
 
-                let bump = command.bumps[0];
+                let bump = command.bumps[j];
 
+                // check if the bump map was already blended
+                if (command.normalMap.bumpsApplied.includes(bump.layer.id)) {
+
+                    //console.log("Skipping a bump map (already blended)");
+                    continue;
+                }
+
+                // not so, here is the texture
                 let bumpTexture = command.textures[bump.layer.id];
 
+                // is it ready? Otherwise, skip to the end
                 if (!bumpTexture.isReady(doNotLoad, priority)) break;
 
                 // blend texture
                 this.nmblender.blend(bumpTexture.getGpuTexture().texture,
                                      bump.alpha);
 
+                command.normalMap.noteBump(bump.layer.id);
                 //console.log("Blended a bump map, alpha = ", bump.alpha);
 
                 // bumps.shift
-                command.bumps.shift();
-            }
+                //command.bumps.shift();
+            };
 
             // store result back into normal map
             this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);

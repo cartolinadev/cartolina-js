@@ -34,6 +34,7 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.checkValue = null;
     this.fastHeaderCheck = false;
     this.fileSize = 0;
+    this.bumpsApplied = [];
 
     if (extraInfo && extraInfo.layer) {
         var layer = extraInfo.layer;
@@ -70,6 +71,9 @@ MapTexture.prototype.killImage = function() {
     }
 };
 
+MapTexture.prototype.noteBump = function(layerId) {
+    this.bumpsApplied.push(layerId);
+}
 
 MapTexture.prototype.killGpuTexture = function() {
     this.mainTexture.killGpuTexture();

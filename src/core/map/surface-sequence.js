@@ -344,7 +344,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 "alpha": alpha
                             });
 
-                            console.log("Got bump, id = ", layer.id, ", alpha = ", alpha);
+                            //console.log("Got bump, id = ", layer.id, ", alpha = ", alpha);
 
                         } // ["bump", "bump-map"].includes(type)
                     }

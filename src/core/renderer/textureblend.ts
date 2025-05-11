@@ -208,9 +208,7 @@ export class TextureBlend {
             varying vec2 pos;
             void main() {
                 v_texCoord = a_position * 0.5 + 0.5;
-                //v_texCoord = vec2(a_position.x * 0.5 + 0.5, a_position.y * 0.5 + 0.5);
                 gl_Position = vec4(a_position, 0.0, 1.0);
-                //v_texCoord = vec2(gl_Position);
                 pos = vec2(gl_Position);
             }
         `;
@@ -223,9 +221,6 @@ export class TextureBlend {
             varying vec2 pos;
             void main() {
                 vec4 texColor = texture2D(u_texture, v_texCoord);
-                //vec4 texColor = texture2D(u_texture, vec2(0.0,0.0));
-                //gl_FragColor = vec4(texColor.rgb, 1.0);
-                //gl_FragColor = vec4(texColor.rgb * u_alpha, texColor.a * u_alpha);
                 gl_FragColor = vec4(texColor.rgb, u_alpha);
             }
         `;
