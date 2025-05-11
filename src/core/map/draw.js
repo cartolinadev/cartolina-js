@@ -803,48 +803,52 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             break;
 
         case VTS_DRAWCOMMAND_APPLY_BUMPS:
-            // if normal map and first bump map is not ready, return
-            if (!command.normalMap.isReady(doNotLoad, priority)
-                || command.bumps.length < 1
-                || ! command.textures[command.bumps[0].layer.id].isReady(
-                    doNotLoad, priority)) continue;
+            // normal map not ready? Nothing to do, yet.
+            if (!command.normalMap.isReady(doNotLoad, priority)) continue;
+
+            // find out which bump maps may be blended into the normal map
+            let bumpsReady = [];
+
+
+            for (let j = 0; j < command.bumps.length; j++) {
+
+                let bump = command.bumps[j];
+
+                // is it ready? If not, stop here.
+                if (!command.textures[bump.layer.id].isReady(doNotLoad,
+                    priority)) break;
+
+                // was it already blended? Skip it.
+                if (command.normalMap.bumpsApplied.includes(bump.layer.id))
+                    continue;
+
+                // ok, we'll merge this one
+                bumpsReady.push(bump);
+            }
+
+            // no bumps ready? Nothing to do, yet.
+            if (bumpsReady.length == 0) continue;
 
             // init blender
             this.nmblender.init();
 
             // blend normal map
-            //console.log("normal map texture: ", command.normalMap.getGpuTexture().texture);
-
             this.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
 
             // iterate bumps
-            for (let j = 0; j < command.bumps.length; j++) {
-            //while (command.bumps.length > 0) {
+            for (let j = 0; j < bumpsReady.length; j++) {
 
-                let bump = command.bumps[j];
-
-                // check if the bump map was already blended
-                if (command.normalMap.bumpsApplied.includes(bump.layer.id)) {
-
-                    //console.log("Skipping a bump map (already blended)");
-                    continue;
-                }
+                let bump = bumpsReady[j];
 
                 // not so, here is the texture
                 let bumpTexture = command.textures[bump.layer.id];
-
-                // is it ready? Otherwise, skip to the end
-                if (!bumpTexture.isReady(doNotLoad, priority)) break;
 
                 // blend texture
                 this.nmblender.blend(bumpTexture.getGpuTexture().texture,
                                      bump.alpha);
 
+                // note that the bump map was blended
                 command.normalMap.noteBump(bump.layer.id);
-                //console.log("Blended a bump map, alpha = ", bump.alpha);
-
-                // bumps.shift
-                //command.bumps.shift();
             };
 
             // store result back into normal map
