@@ -37,7 +37,7 @@ UIControlLoading.prototype.show = function() {
     this.ui.setControlVisible('space', false);
     this.ui.setControlVisible('search', false);
     this.ui.setControlVisible('link', false);
-    this.ui.setControlVisible('github', false);
+    //this.ui.setControlVisible('github', false);
     this.ui.setControlVisible('measure', false);
     this.ui.setControlVisible('measure2', false);
     this.ui.setControlVisible('fullscreen', false);
@@ -72,7 +72,7 @@ UIControlLoading.prototype.hide = function() {
     this.ui.setControlVisible('space', this.ui.config.controlSpace, false);
     this.ui.setControlVisible('search', search, false);
     this.ui.setControlVisible('link', this.ui.config.controlLink, false);
-    this.ui.setControlVisible('github', this.ui.config.controlGithub, false);
+    //this.ui.setControlVisible('github', this.ui.config.controlGithub, false);
     this.ui.setControlVisible('measure', this.ui.config.controlMeasure, false);
     this.ui.setControlVisible('measure2', this.ui.config.controlMeasureLite, false);
     this.ui.setControlVisible('fullscreen', this.ui.config.controlFullscreen, false);

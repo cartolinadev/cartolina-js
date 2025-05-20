@@ -894,6 +894,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             }
 
             let ready = meshReady && textureReady;
+
+            // iluminated submeshes require normal maps and sometimes specular maps
             let normalMap = command.normalMap;
 
             if (command.illuminatedSubmesh) {
@@ -902,7 +904,9 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let normalMapReady = normalMap.isReady(doNotLoad, priority);
                 ready = ready && normalMapReady;
             }
-                
+
+
+
             if (ready) {
                 //debug bbox
                 if (this.debug.drawBBoxes && this.debug.drawMeshBBox) {
