@@ -329,8 +329,7 @@ Renderer.prototype.setIllumination = function(definition) {
                         azimuth, elevation, Illumination.CoordSystem.VC)
     }
 
-    console.log("Illumination: ", this.illumination);
-
+    //console.log("Illumination: ", this.illumination);
 };
 
 Renderer.prototype.getIlluminationVectorVC = function() {

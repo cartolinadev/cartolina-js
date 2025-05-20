@@ -41,7 +41,7 @@ GpuTexture.prototype.getSize = function() {
 GpuTexture.prototype.createFromData = function(lx, ly, data, filter, repeat) {
     var gl = this.gl;
 
-    console.log("Creating texture from raw data.");
+    //console.log("Creating texture from raw data.");
 
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
