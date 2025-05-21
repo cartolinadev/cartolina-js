@@ -381,11 +381,11 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
                                         }
                                     }
 
-                                    if (type === VTS_TREETRAVERSAL_NORMALMAP) {
+                                    /*if (type === VTS_TREETRAVERSAL_NORMALMAP) {
 
                                         //console.log("updateNormalMap for child");
                                         // TODO
-                                    }
+                                    }*/
                                 }
                             }
                         }
