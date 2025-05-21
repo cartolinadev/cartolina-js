@@ -410,7 +410,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
-            this.tree.draw(false, VTS_TREETRAVERSAL_NORMALMAP);
+            //this.tree.draw(false, VTS_TREETRAVERSAL_NORMALMAP);
             this.tree.draw(false, VTS_TREETRAVERSAL_DRAW);
         }
 
