@@ -30,10 +30,11 @@
   },
   "homepage": "https://github.com/melown/vts-browser-js#readme",
   "devDependencies": {
-    "@babel/preset-env": "^7.10.2",
+    "@babel/core": "^7.27.1",
+    "@babel/preset-env": "^7.27.2",
     "babel-core": "^6.26.3",
     "babel-eslint": "^10.1.0",
-    "babel-loader": "^8.1.0",
+    "babel-loader": "^8.4.1",
     "chai": "^4.2.0",
     "copy-webpack-plugin": "^6.0.2",
     "css-loader": "^3.5.3",
