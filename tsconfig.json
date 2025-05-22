@@ -1,5 +1,11 @@
 {
   "compilerOptions": {
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "target": "ES2020",
+    "module": "ES2020",
+    "allowJs": true,
+    "checkJs": false,    
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/core/map/geodata-processor/**"]
 }

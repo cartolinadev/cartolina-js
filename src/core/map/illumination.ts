@@ -10,7 +10,7 @@
 import * as Matrix from '../utils/matrix';
 import {math} from '../utils/math';
 
-import {MapPosition} from './position';
+import MapPosition from './position';
 
 /**
  * We use the lNED and NED coordinate systems in the map context as follows.

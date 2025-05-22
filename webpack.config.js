@@ -150,7 +150,27 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: 'ts-loader',
-      },      
+      },
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ["@babel/preset-env", {
+                targets: {
+                  chrome: "90",
+                  firefox: "88",
+                  safari: "13",
+                  edge: "90"
+                },
+                useBuiltIns: false
+              }]
+            ]
+          }
+        }
+      }
     ],
   },
 

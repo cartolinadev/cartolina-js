@@ -1,4 +1,5 @@
 
+
 import MapTexture_ from './texture';
 import MapSubtexture_ from './subtexture';
 import MapMetatile_ from './metatile';
@@ -14,24 +15,25 @@ var MapMesh = MapMesh_;
 var MapGeodata = MapGeodata_;
 var MapPointCloud = MapPointCloud_;
 
-
-var MapResourceNode = function(map, parent, id) {
+export class MapResourceNode {
+    constructor(map, parent, id) {
     this.map = map;
     this.id = id;
     this.parent = parent;
 
-    this.metatiles = {};
-    this.meshes = {};
-    this.textures = {};
-    this.subtextures = {};
-    this.geodata = {};
-    this.credits = {};
+    this.metatiles = {}
+    this.meshes = {}
+    this.textures = {}
+    this.subtextures = {}
+    this.geodata = {}
+    this.credits = {}
 
     this.children = [null, null, null, null];
-};
+}
 
 
-MapResourceNode.prototype.kill = function() {
+
+kill() {
     //kill children
     for (var i = 0; i < 4; i++) {
         if (this.children[i] != null) {
@@ -49,10 +51,11 @@ MapResourceNode.prototype.kill = function() {
     }
     
     //kill resources?
-};
+}
 
 
-MapResourceNode.prototype.addChild = function(index) {
+
+addChild(index) {
     if (this.children[index]) {
         return;
     }
@@ -67,30 +70,33 @@ MapResourceNode.prototype.addChild = function(index) {
     }
 
     this.children[index] = new MapResourceNode(this.map, this, childId);
-};
+}
 
 
-MapResourceNode.prototype.removeChildByIndex = function(index) {
+
+removeChildByIndex(index) {
     if (this.children[index] != null) {
         this.children[index].kill();
         this.children[index] = null;
     }
-};
+}
 
 
-MapResourceNode.prototype.removeChild = function(tile) {
+
+removeChild(tile) {
     for (var i = 0; i < 4; i++) {
         if (this.children[i] == tile) {
             this.children[i].kill();
             this.children[i] = null;
         }
     }
-};
+}
 
 
 // Meshes ---------------------------------
 
-MapResourceNode.prototype.getMesh = function(path, tile) {
+
+getMesh(path, tile) {
     var mesh = this.meshes[path];
     
     if (!mesh) {
@@ -99,13 +105,14 @@ MapResourceNode.prototype.getMesh = function(path, tile) {
     }
     
     return mesh;
-};
+}
 
 
 // Point Clouds ---------------------------------
 
-MapResourceNode.prototype.getPointCloud = function(path, tile, offset, size) {
-    if (!this.pointclouds) this.pointclouds = {};
+
+getPointCloud(path, tile, offset, size) {
+    if (!this.pointclouds) this.pointclouds = {}
 
     var path2 = offset ? path+'@'+offset : path;
     var pointcloud = this.pointclouds[path2];
@@ -116,12 +123,13 @@ MapResourceNode.prototype.getPointCloud = function(path, tile, offset, size) {
     }
     
     return pointcloud;
-};
+}
 
 
 // Geodata ---------------------------------
 
-MapResourceNode.prototype.getGeodata = function(path, extraInfo) {
+
+getGeodata(path, extraInfo) {
     var geodata = this.geodata[path];
     
     if (!geodata) {
@@ -130,12 +138,13 @@ MapResourceNode.prototype.getGeodata = function(path, extraInfo) {
     }
     
     return geodata;
-};
+}
 
 
 // Textures ---------------------------------
 
-MapResourceNode.prototype.getTexture = function(path, type, extraBound, extraInfo, tile, internal) {
+
+getTexture(path, type, extraBound, extraInfo, tile, internal) {
     var texture;
     if (extraInfo && (extraInfo.layer || extraInfo.hmap)) {
         var id = path + (extraInfo.hmap ? '' : extraInfo.layer.id);
@@ -155,12 +164,13 @@ MapResourceNode.prototype.getTexture = function(path, type, extraBound, extraInf
     }
     
     return texture;
-};
+}
 
 
 // SubTextures ---------------------------------
 
-MapResourceNode.prototype.getSubtexture = function(texture, path, type, extraBound, extraInfo, tile, internal) {
+
+getSubtexture(texture, path, type, extraBound, extraInfo, tile, internal) {
     texture = this.subtextures[path];
     
     if (!texture) {
@@ -169,26 +179,29 @@ MapResourceNode.prototype.getSubtexture = function(texture, path, type, extraBou
     }
     
     return texture;
-};
+}
 
 
 // Metatiles ---------------------------------
 
-MapResourceNode.prototype.addMetatile = function(path, metatile) {
+
+addMetatile(path, metatile) {
     this.metatiles[path] = metatile;
-};
+}
 
 
-MapResourceNode.prototype.removeMetatile = function(metatile) {
+
+removeMetatile(metatile) {
     for (var key in this.metatiles) {
         if (this.metatiles[key] == metatile) {
             delete this.metatiles[key];
         }
     }
-};
+}
 
 
-MapResourceNode.prototype.getMetatile = function(surface, allowCreation, tile) {
+
+getMetatile(surface, allowCreation, tile) {
     var metatiles = this.metatiles, metatile; 
     for (var key in metatiles) {
         if (metatiles[key].surface == surface) {
@@ -211,9 +224,12 @@ MapResourceNode.prototype.getMetatile = function(surface, allowCreation, tile) {
     } else {
         return null;
     }
-};
+}
+
+} // class MapResourceNode
 
 
 export default MapResourceNode;
+
 
 
