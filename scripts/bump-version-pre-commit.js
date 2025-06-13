@@ -39,6 +39,6 @@ fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
 const versionFileContent =
   `// This file is auto-generated. Do not edit manually.\n` +
   `// Use scripts/bump-patch.js to update version.\n\n` +
-  `export function getVersion() {\n  return '${fullVersion}';\n}\n`;
+  `export default function getVersion() {\n  return '${fullVersion}';\n}\n`;
 
 fs.writeFileSync(versionPath, versionFileContent, 'utf8');
