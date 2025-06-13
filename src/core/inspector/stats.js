@@ -17,7 +17,7 @@ InspectorStats.prototype.init = function() {
             + 'display: none;'
             + 'padding:15px;'
             + 'width: 305px;'
-            + 'font-size: 14px;'
+            + 'font-size: 13px;'
             + 'position: absolute;'
             + 'right: 10px;'
             + 'top: 10px;'
@@ -54,7 +54,7 @@ InspectorStats.prototype.init = function() {
     this.element = document.createElement('div');
     this.element.id = 'vts-stats-panel';
     this.element.innerHTML =
-        '<span id="vts-stats-panel-title">Render statistics &nbsp;&nbsp;&nbsp;v' + getCoreVersion() + '</h3>'+
+        '<span id="vts-stats-panel-title">Version: ' + getCoreVersion() + '</h3>'+
         '<p id="vts-stats-panel-info"></p>'+
         '<input id="vts-stats-panel-pos" type="text">';
 
