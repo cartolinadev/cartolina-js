@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Exit if nothing is staged before version bump
+if git diff --cached --quiet; then
+  echo "Nothing staged to commit — skipping version bump."
+  exit 1
+fi
+
+# Now do the version bump
+node scripts/bump-version-pre-commit.js
+git add package.json src/core/version.js

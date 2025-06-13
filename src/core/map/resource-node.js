@@ -16,7 +16,8 @@ var MapGeodata = MapGeodata_;
 var MapPointCloud = MapPointCloud_;
 
 export class MapResourceNode {
-    constructor(map, parent, id) {
+
+constructor(map, parent, id) {
     this.map = map;
     this.id = id;
     this.parent = parent;
@@ -30,7 +31,6 @@ export class MapResourceNode {
 
     this.children = [null, null, null, null];
 }
-
 
 
 kill() {
@@ -54,7 +54,6 @@ kill() {
 }
 
 
-
 addChild(index) {
     if (this.children[index]) {
         return;
@@ -73,14 +72,12 @@ addChild(index) {
 }
 
 
-
 removeChildByIndex(index) {
     if (this.children[index] != null) {
         this.children[index].kill();
         this.children[index] = null;
     }
 }
-
 
 
 removeChild(tile) {
