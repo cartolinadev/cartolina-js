@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.23.11",
+  "version": "2.40.4",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "dev": "WEBPACK_ENV=dev node_modules/.bin/webpack --progress --colors --watch --hide-modules",
     "dev2": "WEBPACK_ENV=dev node_modules/.bin/webpack --progress --colors --hide-modules",
     "dist": "NODE_ENV=production node_modules/.bin/webpack --progress --colors --hide-modules",
-    "start": "node_modules/.bin/webpack-dev-server --content-base ./ --inline"
+    "start": "node_modules/.bin/webpack-dev-server --content-base ./ --inline",
+    "prepare": "husky install"
   },
   "repository": {
     "type": "git",
@@ -55,7 +56,8 @@
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.11",
     "webpack-dev-server": "^3.11.0",
-    "worker-loader": "^2.0.0"
+    "worker-loader": "^2.0.0",
+    "husky": "^8.0.0"
   },
   "dependencies": {
     "earcut": "^2.2.2",

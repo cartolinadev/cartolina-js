@@ -8,6 +8,7 @@ import MapInterface_ from './map/interface';
 import {utils as utils_} from './utils/utils';
 import {utilsUrl as utilsUrl_} from './utils/url';
 import {platform as platform_} from './utils/platform';
+import getVersion from './version.js';
 
 //get rid of compiler mess
 var Map = Map_;
@@ -588,7 +589,8 @@ string getCoreVersion()
 */
 
 function getCoreVersion(full) {
-    return (full ? 'Core: ' : '') + '2.40.0cart23';
+
+    return (full ? 'Core: ' : '') + getVersion();
 }
 
 
