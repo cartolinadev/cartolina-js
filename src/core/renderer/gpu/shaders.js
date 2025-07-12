@@ -1355,6 +1355,10 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         'varying vec2 nmTexCoord;\n' +
     '#endif\n' +
 
+    '#ifdef whitewash\n' +
+        'uniform float uWhitewash;\n' +
+    '#endif\n' +
+
     '#ifdef depth\n'+
         'varying float vDepth;\n'+
     '#endif\n'+
@@ -1497,6 +1501,9 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
                         '#endif\n'+
                         '#ifdef shader_illumination\n'+
                             'cc = vec4((ambientCoef + diffuseCoef) * vec3(c), cc.w);\n' +
+                        '#endif\n'+
+                        '#ifdef whitewash\n' +
+                            'cc = vec4(mix(vec3(cc), vec3(1.0), uWhitewash), cc.w);\n' +
                         '#endif\n'+
                         '#ifdef mask\n'+
                             'vec4 c2 = texture2D(uSampler2, vTexCoord.xy);\n'+

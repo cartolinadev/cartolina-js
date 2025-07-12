@@ -118,6 +118,7 @@ var plugins = [
       'VTS_TILE_SHADER_SE':               (1<<2),
       'VTS_TILE_SHADER_BLEND_MULTIPLY':	  (1<<3),
       'VTS_TILE_SHADER_ILLUMINATION':	  (1<<4),
+      'VTS_TILE_SHADER_WHITEWASH':        (1<<5),
 
       'VTS_IMPORATANCE_LOG_BASE':     1.0017,
       'VTS_IMPORATANCE_INV_LOG':      1355.6127860321758038669705901537 // 1/log(LOG_BASE)
@@ -150,7 +151,7 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: 'ts-loader',
-      },
+      }/*,
       {
         test: /\.js$/,
         exclude: /node_modules/,
@@ -170,7 +171,7 @@ module.exports = {
             ]
           }
         }
-      }
+      }*/
     ],
   },
 
