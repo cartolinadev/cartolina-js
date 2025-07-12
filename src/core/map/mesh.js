@@ -402,6 +402,12 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
         str += '#define shader_illumination\n';
     }
 
+    if (v & VTS_TILE_SHADER_WHITEWASH) {
+        str += '#define whitewash\n';
+    }
+
+    console.log(progs[0].fragment.replace('#define variants\n', str));
+
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
     progs[v] = prog;
     return prog;
@@ -432,6 +438,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     //var attributes = (drawWireframe != 0) ?  ['aPosition', 'aBarycentric'] : ['aPosition'];
     var attributes = ['aPosition'];
     var v = (useSuperElevation) ? VTS_TILE_SHADER_SE : 0;
+    let whitewash = null;
 
     if (splitMask) {
         v |= VTS_TILE_SHADER_CLIP4;
@@ -451,6 +458,13 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
        texcoords2Attr = 'aTexCoord2';
        attributes.push('aTexCoord2');
+    }
+
+    if (layer && layer.shaderFilters && layer.shaderFilters[surface.id] &&
+        layer.shaderFilters[surface.id].whitewash) {
+
+        v |= VTS_TILE_SHADER_WHITEWASH;
+        whitewash = layer.shaderFilters[surface.id].whitewash;
     }
 
     if (texture && draw.debug.meshStats) {
@@ -564,6 +578,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                             id += 'nm';
                         }
 
+                        if (whitewash) {
+                            id += 'vw';
+                        }
+
+                        // yuck
                         id += filter;
 
                         program = renderer.progMap[id];
@@ -605,7 +624,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                                     pixelShader = pixelShader.replace('mediump', 'highp');
                                 //}
                             }
-                            
+
+                            if (whitewash) {
+                                pixelShader = "#define whitewash\n" + pixelShader;
+                            }
+
                             program = new GpuProgram(gpu, vertexShader, pixelShader.replace('__FILTER__', filter));
                             renderer.progMap[id] = program;
                         }
@@ -762,6 +785,12 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         program.setFloat('ambientCoef', renderer.getIlluminationAmbientCoef());
     }
 
+    // whitewashing
+    if (whitewash) {
+
+        console.log('Setting whitewash uniform to ' + +whitewash);
+        program.setFloat('uWhitewash', +whitewash);
+    }
 
     if (splitMask /*&& type != VTS_MATERIAL_FLAT*/) {
         program.setFloatArray('uClip', splitMask);
