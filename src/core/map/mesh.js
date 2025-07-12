@@ -560,7 +560,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                             id += 'c4';
                         }
 
-                        if (normalMap) {
+                        if (normalMap && renderer.shaderIllumination) {
                             id += 'nm';
                         }
 
@@ -582,6 +582,10 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
                             if (blending == 'multiply') {
                                 variations += '#define blendMultiply\n';
+                            }
+                            
+                            if (normalMap && renderer.shaderIllumination) {
+                                variations += '#define shader_illumination\n';
                             }
 
                             var vertexShader = '#define externalTex\n' + variations + ((useSuperElevation) ? '#define applySE\n' : '') + GpuShaders.tileVertexShader;
