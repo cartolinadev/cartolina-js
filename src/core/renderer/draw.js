@@ -438,13 +438,27 @@ RendererDraw.prototype.drawBillboard = function(mvp, texture, color, depthOffset
 
 
 //draw flat 2d image - used for debuging
-RendererDraw.prototype.drawFlatImage = function(x, y, lx, ly, texture, color, depth, depthOffset) {
+RendererDraw.prototype.drawFlatImage = function(x, y, lx, ly, texture, color,
+    depth, useState) {
     var gpu = this.gpu;
     var gl = this.gl;
     var renderer = this.renderer;
 
     if (texture == null || renderer.imageProjectionMatrix == null) {
         return;
+    }
+
+     if (useState !== true) {
+        var tmpState = gpu.currentState;
+
+        gpu.setState({
+          ztest: !(depth == null),
+          blend: true,
+          zwrite: !(depth == null),
+          stencil: false,
+          culling: false,
+          zequal: !(depth == null)
+        });
     }
 
     var prog = renderer.progImage;
@@ -471,6 +485,10 @@ RendererDraw.prototype.drawFlatImage = function(x, y, lx, ly, texture, color, de
     prog.setFloat('uDepth', depth != null ? depth : 0);
 
     gl.drawElements(gl.TRIANGLES, indices.numItems, gl.UNSIGNED_SHORT, 0);
+
+    if (useState !== true) {
+        gpu.setState(tmpState);
+    }
 };
 
 
@@ -489,7 +507,7 @@ RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useSt
 
         gpu.setState({
           ztest: !(depth == null),
-          blend: false,
+          blend: true,
           zwrite: !(depth == null),
           stencil: false,
           culling: false,
@@ -497,6 +515,22 @@ RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useSt
         });
     }
 
+    var sizeX = size - 1;
+    var sizeY = size;
+
+    var sizeX2 = Math.round(size*0.5);
+
+    var texelX = 1 / 256;
+    var texelY = 1 / 128;
+
+    var lx = this.getTextSize(size, text) + 2;
+
+    // semi-transparent white backdrop
+    this.drawFlatImage(x-3, y-2, lx+2, size+3, renderer.whiteTexture,
+        [1, 1, 1, 0.9],          // RGBA alpha white
+        depth ? depth : 0, true);
+
+    // characters
     var prog = renderer.progImage;
 
     gpu.useProgram(prog, ['aPosition']);
@@ -513,34 +547,10 @@ RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useSt
     prog.setVec4('uColor', color);
     prog.setFloat('uDepth', depth != null ? depth : 0);
 
-    var sizeX = size - 1;
-    var sizeY = size;
-
-    var sizeX2 = Math.round(size*0.5);
-
-    var texelX = 1 / 256;
-    var texelY = 1 / 128;
-
-    var lx = this.getTextSize(size, text) + 2;
-
-    //draw black line before text
-    var char = 0;
-    var charPosX = (char & 15) << 4;
-    var charPosY = (char >> 4) << 4;
-
-    prog.setMat4('uData', [
-        x-2, y-2,  (charPosX * texelX), (charPosY * texelY),
-        x-2 + lx, y-2,  ((charPosX+15) * texelX), (charPosY * texelY),
-        x-2 + lx, y + sizeY+1, ((charPosX + 15) * texelX), ((charPosY+15) * texelY),
-        x-2,  y + sizeY+1,  (charPosX * texelX), ((charPosY+15) * texelY) ]);
-
-    gl.drawElements(gl.TRIANGLES, indices.numItems, gl.UNSIGNED_SHORT, 0);
-    
-
     for (var i = 0, li = text.length; i < li; i++) {
-        char = text.charCodeAt(i) - 32;
-        charPosX = (char & 15) << 4;
-        charPosY = (char >> 4) << 4;
+        let char = text.charCodeAt(i) - 32;
+        let charPosX = (char & 15) << 4;
+        let charPosY = (char >> 4) << 4;
 
         switch(char) {
         case 12:

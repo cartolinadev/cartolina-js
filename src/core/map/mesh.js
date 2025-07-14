@@ -406,7 +406,7 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
         str += '#define whitewash\n';
     }
 
-    console.log(progs[0].fragment.replace('#define variants\n', str));
+    //console.log(progs[0].fragment.replace('#define variants\n', str));
 
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
     progs[v] = prog;
