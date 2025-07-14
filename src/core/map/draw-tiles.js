@@ -22,6 +22,7 @@ var MapDrawTiles = function(map, draw) {
 
     this.getTextSize = this.renderer.draw.getTextSize.bind(this.renderer.draw);
     this.drawText = this.renderer.draw.drawText.bind(this.renderer.draw);
+    this.defaultColorPair = this.renderer.draw.constructor.defaultColorPair;
 };
 
 
@@ -1120,7 +1121,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         text = '' + tile.id[0]; // + ' ta:' + Math.abs(tile.tiltAngle).toFixed(3);
         //text = '' + tile.id[0] + ' c:' + (50*(Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), VTS_TILE_COUNT_FACTOR) / Math.max(0.00001, this.renderer.drawnGeodataTilesFactor))).toFixed(3) + 
           //     ' l:' + Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), VTS_TILE_COUNT_FACTOR).toFixed(3) + ' g:' + this.renderer.drawnGeodataTilesFactor.toFixed(3);
-        this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]-4*factor), 4*factor, text, [0,0,0,1], pos[2]);
+        this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]-4*factor), 4*factor, text, this.defaultColorPair, pos[2]);
     }
 
     //draw indices

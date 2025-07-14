@@ -493,7 +493,11 @@ RendererDraw.prototype.drawFlatImage = function(x, y, lx, ly, texture, color,
 
 
 //draw 2d text - used for debuging
-RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useState) {
+
+RendererDraw.defaultColorPair = [[0, 0, 0, 1], [1, 1, 1, 0.9]];
+
+RendererDraw.prototype.drawText = function(x, y, size, text,
+    color = RendererDraw.defaultColorPair, depth, useState) {
     var gpu = this.gpu;
     var gl = this.gl;
     var renderer = this.renderer;
@@ -525,10 +529,22 @@ RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useSt
 
     var lx = this.getTextSize(size, text) + 2;
 
+    // backward-compatible color handling
+    let fgColor, bgColor;
+
+    if (Array.isArray(color) && Array.isArray(color[0])) {
+        // new syntax
+        fgColor = color[0]; bgColor = color[1];
+
+    } else {
+
+        // legacy syntax, always black background
+        bgColor = [0,0,0,1]; fgColor = color;
+    }
+
     // semi-transparent white backdrop
     this.drawFlatImage(x-3, y-2, lx+2, size+3, renderer.whiteTexture,
-        [1, 1, 1, 0.9],          // RGBA alpha white
-        depth ? depth : 0, true);
+        bgColor, depth ? depth : 0, true);
 
     // characters
     var prog = renderer.progImage;
@@ -544,7 +560,7 @@ RendererDraw.prototype.drawText = function(x, y, size, text, color, depth, useSt
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
 
     prog.setMat4('uProjectionMatrix', renderer.imageProjectionMatrix);
-    prog.setVec4('uColor', color);
+    prog.setVec4('uColor', fgColor);
     prog.setFloat('uDepth', depth != null ? depth : 0);
 
     for (var i = 0, li = text.length; i < li; i++) {
