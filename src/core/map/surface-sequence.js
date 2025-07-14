@@ -284,10 +284,26 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 ! alpha['illumination']), "Illumination vector not " +
                                 "defined for view dependent bound layer alpha (%o).",
                                 alpha);
-                        
-                            surface.boundLayerSequence.push([layer, mode, alpha]);
 
+                            // FIXME: though options are defined per view
+                            // BL instance, they are applied directly to the map
+                            // bound layer array. This means that a single BL
+                            // cannot be used more than once with
+                            // different option definitions
+                        
                             item2 = item['options'] || item;
+
+                            if (item2['whitewash']) {
+                                if (!layer.shaderFilters) {
+                                    layer.shaderFilters = {};
+                                }
+
+                                if (!layer.shaderFilters[surface.id]) {
+                                    layer.shaderFilters[surface.id] = {};
+                                }
+
+                                layer.shaderFilters[surface.id].whitewash = item2['whitewash'];
+                            }
 
                             if (item2['shaderVarFlatShade']) {
                                 if (!layer.shaderFilters) {
@@ -313,6 +329,9 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 layer.shaderFilters[surface.id].filter = item2['shaderFilter'];
                             }
 
+                            // add to sequence
+                            surface.boundLayerSequence.push([layer, mode, alpha]);
+
                         } // ["diffuse", "diffuse-map"].includes(type)
 
                         // specular maps
@@ -322,7 +341,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 "layer": layer
                             });
 
-                            console.log("Got specular, id = ", layer.id);
+                            //console.log("Got specular, id = ", layer.id);
 
 
                         } // ["specular", "specular-map"].includes(type)
