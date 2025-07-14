@@ -788,7 +788,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     // whitewashing
     if (whitewash) {
 
-        console.log('Setting whitewash uniform to ' + +whitewash);
+        //console.log('Setting whitewash uniform to ' + +whitewash);
         program.setFloat('uWhitewash', +whitewash);
     }
 
