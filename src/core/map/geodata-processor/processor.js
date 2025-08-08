@@ -13,12 +13,12 @@ var MapGeodataProcessor = function(surface, listener) {
     this.processCounter = 0;
 
 
-    // eslint-disable-next-line
-    var worker = require('worker-loader?inline&fallback=false!./worker-main');
-    //var worker = require('worker-loader?!./worker-main');
-
-    //debug worker
-    this.processWorker = new worker;
+    /* webpack 5 native worker bundling  —  keep this expression **inline**
+       so webpack can statically analyse it and emit the worker chunk.     */
+    this.processWorker = new Worker(
+        /* webpackChunkName: "geodata-processsor-worker" */
+        new URL('./worker-main.js', import.meta.url)   // resolves to /build/<hash>.worker.js
+    );
     
     this.processWorker.onerror = function(event){
         throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');

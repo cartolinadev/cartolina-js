@@ -1,6 +1,6 @@
 
-var PROD = (process.env.NODE_ENV === 'production')
-var TARGET_DIR = PROD ? __dirname + "/dist/" : __dirname + "/build/";
+const isProd = process.env.NODE_ENV === 'production';
+var TARGET_DIR = isProd ? __dirname + "/dist/" : __dirname + "/build/";
 
 var fs = require("fs");
 var webpack = require('webpack');
@@ -12,7 +12,7 @@ var path = require('path');
 
 var plugins = [
     new LicenseWebpackPlugin({ outputFilename: '3rdpartylicenses.txt' }),
-    new MiniCssExtractPlugin({ filename: '[name]' + (PROD ? '.min' : '') + '.css' }),
+    new MiniCssExtractPlugin({ filename: '[name]' + (isProd ? '.min' : '') + '.css' }),
     new webpack.BannerPlugin({
         "banner": function(filename) {
           return "Copyright (c) 2020 Melown Technologies SE\n" +
@@ -22,11 +22,12 @@ var plugins = [
     }),
     new CopyPlugin({
       patterns: [
-        { from: './LICENSE', to: 'vts-browser.js' + (PROD ? '.min' : '') + '.LICENSE' },
-        { from: './LICENSE', to: 'vts-core.js' + (PROD ? '.min' : '') + '.LICENSE' }
+        { from: './LICENSE', to: 'vts-browser.js' + (isProd ? '.min' : '') + '.LICENSE' },
+        { from: './LICENSE', to: 'vts-core.js' + (isProd ? '.min' : '') + '.LICENSE' }
       ],
     }),    
     new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),    
       'VTS_TREETRAVERSAL_DRAW':       0,
       'VTS_TREETRAVERSAL_NORMALMAP':  1,
 
@@ -151,7 +152,8 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: 'ts-loader',
-      }/*,
+      },
+      /*,
       {
         test: /\.js$/,
         exclude: /node_modules/,
@@ -177,21 +179,40 @@ module.exports = {
 
   output: {
     path: TARGET_DIR,
-    filename: '[name]' + (PROD ? '.min' : '') + '.js',
+    filename: '[name]' + (isProd ? '.min' : '') + '.js',
     libraryTarget: "var",
-    library: "vts"
+    library: "vts"/*,
+    publicPath: '/build/'*/
   },
 
   devtool: 'source-map',
 
   devServer: {
-    inline: true,
     hot: false,
     liveReload: true,
-    writeToDisk: true
+    devMiddleware: {
+        writeToDisk: (filePath) => {
+            console.log('Writing file: ', filePath);
+            return true;
+        }
+    },
+    static: [{
+        directory: path.join(__dirname, 'build'),
+        publicPath: '/build',
+        watch: false
+    },    
+    {
+        directory: path.join(__dirname, 'demos'),
+        publicPath: '/demos',
+        watch: true
+    }],
+    open: false,
+    client: {
+        overlay: false
+    }    
   },
 
-  mode: (PROD) ? 'production' : 'development',
+  mode: (isProd) ? 'production' : 'development',
 
   plugins: plugins  
 };

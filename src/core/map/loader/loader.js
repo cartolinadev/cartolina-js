@@ -29,14 +29,19 @@ var MapLoader = function(map, maxThreads) {
     this.updateThreadCount();
 
     if (this.config.mapSeparateLoader) {
-        // eslint-disable-next-line
-        var worker = require('worker-loader?inline&fallback=false!./worker-main');
 
-        this.processWorker = new worker;
-        
+        /* webpack 5 native worker bundling  —  keep this expression **inline**
+           so webpack can statically analyse it and emit the worker chunk.     */
+        this.processWorker = new Worker(
+            /* webpackChunkName: "map-loader-worker" */
+            new URL('./worker-main.js', import.meta.url)   // resolves to /build/<hash>.worker.js
+        );
+
         this.processWorker.onerror = function(event){
             console.log("Error event:", event);
-            throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
+            console.error("Worker error:", event);
+            throw new Error((event.error?.message || 'unknown') + ' (' + event.filename + ':' + event.lineno + ')');
+            //throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
         };
 
         this.processWorker.onmessage = this.onWorkerMessage.bind(this);
