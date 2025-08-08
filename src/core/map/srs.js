@@ -21,12 +21,24 @@ var MapSrs = function(map, id, json) {
     //this.srsDefEllps = json["srsDefEllps"] || "";
     this.srsDef = json['srsDefEllps'] || this.srsDef;
     this.periodicity = this.parsePeriodicity(json['periodicity']);
-    this.srsInfo = this.proj4(this.srsDef).info();
     this.geoidGrid = null;
     this.geoidGridMap = null;
-    this.srsProj4 = this.proj4(this.srsDef, null, null, true); 
+    // mindboggling, but this is the semantic equivalent of the commented-out line below
+    // (from former melowntech-proj4)
+    this.srsProj4 = this.srsDef;
+    //this.srsProj4 = this.proj4(this.srsDef, null, null, true);
     this.latlonProj4 = null; 
     this.proj4Cache = {};
+
+
+    // melowntech-proj4 provided a non-standard info method, we raplace it here
+    const _proj = this.proj4(this.srsDef);
+
+    this.srsInfo = {
+          "a": _proj.oProj.a,
+          "b": _proj.oProj.b,
+          "proj-name": _proj.oProj.projName
+    };
 
     if (json['geoidGrid']) {
         var geoidGridData = json['geoidGrid'];
@@ -55,7 +67,11 @@ var MapSrs = function(map, id, json) {
         }
         
         if (this.geoidGrid.srsDefEllps) {
-            this.geoidGrid.srsProj4 = this.proj4(this.geoidGrid.srsDefEllps, null, null, true);        
+
+            // mindboggling, but this seems to be the semantic equivalent of the commented-out line below
+            // (from former melowntech-proj4)
+            this.geoidGrid.srsProj4 = this.geoidGrid.srsDefEllps;
+            //this.geoidGrid.srsProj4 = this.proj4(this.geoidGrid.srsDefEllps, null, null, true);
         }
     }
 
