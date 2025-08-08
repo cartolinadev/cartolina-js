@@ -34,7 +34,7 @@ var MapLoader = function(map, maxThreads) {
            so webpack can statically analyse it and emit the worker chunk.     */
         this.processWorker = new Worker(
             /* webpackChunkName: "map-loader-worker" */
-            new URL('./worker-main.js', import.meta.url)   // resolves to /build/<hash>.worker.js
+            new URL('./worker-main.js', import.meta.url),  { type: 'module' }
         );
 
         this.processWorker.onerror = function(event){
