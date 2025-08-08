@@ -17,7 +17,7 @@ var MapGeodataProcessor = function(surface, listener) {
        so webpack can statically analyse it and emit the worker chunk.     */
     this.processWorker = new Worker(
         /* webpackChunkName: "geodata-processsor-worker" */
-        new URL('./worker-main.js', import.meta.url)   // resolves to /build/<hash>.worker.js
+        new URL('./worker-main.js', import.meta.url),  { type: 'module' }
     );
     
     this.processWorker.onerror = function(event){
