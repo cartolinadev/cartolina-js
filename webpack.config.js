@@ -181,8 +181,9 @@ module.exports = {
     path: TARGET_DIR,
     filename: '[name]' + (isProd ? '.min' : '') + '.js',
     libraryTarget: "var",
-    library: "vts"/*,
-    publicPath: '/build/'*/
+    library: "vts",
+    publicPath: '',
+    workerPublicPath: process.env.WORKER_PATH || '/libs/vtsjs/browser/'
   },
 
   devtool: 'source-map',
