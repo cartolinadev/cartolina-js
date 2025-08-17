@@ -127,7 +127,7 @@ MapSurfaceTree.prototype.findNavTile = function(id) {
 };
 
 
-MapSurfaceTree.prototype.draw = function(storeTilesOnly, type) {
+MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];
 
@@ -173,7 +173,7 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly, type) {
                 this.drawSurfaceWithSpliting([0,0,0], storeTilesOnly);
             } else {
                 //console.log("Here 2-4");
-                this.drawSurface([0,0,0], storeTilesOnly, type);
+                this.drawSurface([0,0,0], storeTilesOnly);
             }
 
             break;
@@ -242,8 +242,7 @@ MapSurfaceTree.prototype.logTileInfo = function(tile, node, cameraPos) {
 
 
 //loadmode = topdown
-MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
-                                                type = VTS_TREETRAVERSAL_DRAW) {
+MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
     this.counter++;
 
     var tile = this.surfaceTree;
@@ -294,7 +293,7 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
     var drawCounter = draw.drawCounter, i, j, lj;
 
 
-    do {
+    do { // while (processBufferIndex > 0)
         var best = 0;
         newProcessBufferIndex = 0;
         
@@ -329,6 +328,8 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
                 }
               
                 if (/*node.hasGeometry() && */tile.texelSize <= texelSizeFit /*|| gpuNeeded > gpuMax*/) {
+
+                    // leaf rendering: texel size fits
                     size = draw.getDrawCommandsGpuSize(tile.drawCommands[draw.drawChannel] || tile.lastRenderState.drawCommands[draw.drawChannel]);
 
                     gpuNeeded += size;
@@ -367,28 +368,18 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
                                     
                                 } else {
 
-                                    //are draw buffers ready? preventRender=true, preventLoad=false, doNotCheckGpu=true
-                                    if (type === VTS_TREETRAVERSAL_DRAW) {
-
-                                        //console.log("drawSurfaceTile!");
-                                        if (drawTiles.drawSurfaceTile(child,
-                                            child.metanode, cameraPos, child.texelSize,
-                                            priority, true, false, true)) {
+                                    // "preventRedener" is set, so this probably just prepres commands
+                                    if (drawTiles.drawSurfaceTile(child,
+                                        child.metanode, cameraPos, child.texelSize,
+                                        priority, true, false, true)) {
                                         
-                                            readyCount++;
-                                            //child.updateTexelSize();
-                                            childrenBuffer.push(child);
-                                        }
+                                        readyCount++;
+                                        //child.updateTexelSize();
+                                        childrenBuffer.push(child);
                                     }
-
-                                    /*if (type === VTS_TREETRAVERSAL_NORMALMAP) {
-
-                                        //console.log("updateNormalMap for child");
-                                        // TODO
-                                    }*/
                                 }
-                            }
-                        }
+                            } // if (child.isMetanodeReady(this.child.id[0])
+                        } // if (child)
                     }
         
                     if (/*!(gpuNeeded > gpuMax) &&*/ childrenCount > 0 && childrenCount == readyCount) {
@@ -419,7 +410,9 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
                             /*}*/
                             
                         }
-                    } else {
+                    } else { // if (childrenCount = 0 || childrenCount != readyCount)
+
+                        // fallback rendering (children not ready yet)
                         gpuNeededForRender += size;
 
                         tile.drawCounter = draw.drawCounter;
@@ -436,7 +429,7 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly,
         newProcessBuffer = tmp;
         processBufferIndex = newProcessBufferIndex;
 
-    } while(processBufferIndex > 0);
+    } while (processBufferIndex > 0);
 
     if (storeTilesOnly) {
         this.storeDrawBufferGeometry(drawBufferIndex);

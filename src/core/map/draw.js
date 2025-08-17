@@ -402,7 +402,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             }
     
             return;
-        }    
+        }  // used only in inspector
         
         for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
             this.tileBuffer[i] = null;    
@@ -411,7 +411,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
             //this.tree.draw(false, VTS_TREETRAVERSAL_NORMALMAP);
-            this.tree.draw(false, VTS_TREETRAVERSAL_DRAW);
+            this.tree.draw(false); //, VTS_TREETRAVERSAL_DRAW);
         }
 
         //this.renderer.webGLSync = this.renderer.gpu.gl.fenceSync(this.renderer.gpu.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -502,7 +502,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             replay.tracedFreeNodes = nodeBuffer;
             replay.storeFreeNodes = false; 
         }
-    }
+    } // if (debug.drawEarth)
 
     var body = map.referenceFrame.body;
 

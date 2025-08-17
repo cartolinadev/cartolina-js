@@ -183,7 +183,8 @@ module.exports = {
     libraryTarget: "var",
     library: "vts",
     publicPath: '',
-    workerPublicPath: process.env.WORKER_PATH || '/libs/vtsjs/browser/'
+    workerPublicPath: process.env.WORKER_PATH || 
+      (isProd ? '/libs/vtsjs/browser/' : '/build/')
   },
 
   devtool: 'source-map',

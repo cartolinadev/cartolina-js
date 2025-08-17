@@ -72,7 +72,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
             var count = 0;
            
-            do {
+            do { // while (tile.resetDrawCommands)
 
                 if (tile.resetDrawCommands) {
                     tile.drawCommands = [[], [], []];
@@ -106,10 +106,10 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
             } while(tile.resetDrawCommands);
 
             return ret;
-        } else {
+        } else { // if (! node.hasGeometry())
             return true;
         }
-    } else {
+    } else { // if (!tile.surface)
         if (!preventRedener && tile.lastRenderState) {
             var channel = this.draw.drawChannel;
             this.draw.processDrawCommands(cameraPos, tile.lastRenderState.drawCommands[channel], priority, true, tile);
@@ -746,7 +746,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                     //console.log(bounds);
                 }  
             }
-        }
+        } // if (submesh.externalUVs)
     }
 
     for (var key in tile.bounds) {
@@ -1021,8 +1021,12 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 bound.sequence = newSequence; 
             }
 
-        }
-    } else if (surface.textureLayer != null) { //search surface
+        } // if (fullUpdate)
+
+
+    } // if (surfaceBoundLayerSequence.length > 0)
+
+    else if (surface.textureLayer != null) { //search surface
         if (fullUpdate) {
             layer = this.map.getBoundLayerById(surface.textureLayer);
             if (layer && layer.hasTileOrInfluence(tile.id)) {
@@ -1045,7 +1049,12 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 }
             }
         }
-    } else { //search submeshes
+
+
+
+    } // if (surface.boundLayerSequence > 0 || surface.textureLayer != null)
+
+    else { //search submeshes
         if (submesh.textureLayer != 0) {
             layer = this.map.getBoundLayerByNumber(submesh.textureLayer);
 
