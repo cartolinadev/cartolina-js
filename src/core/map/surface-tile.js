@@ -37,7 +37,7 @@ var MapSurfaceTile = function(map, parent, id) {
     this.viewCounter = map.viewCounter;
     this.drawCounter = 0;
     this.childrenReadyCount = 0;
-    this.renderReady = false;
+    //this.renderReady = false;
     this.geodataCounter = 0;
     this.gridRenderCounter = 0; //draw grid only once
     this.texelSize = 1;
@@ -140,7 +140,7 @@ MapSurfaceTile.prototype.kill = function() {
     this.virtualReady = false;
     this.virtualSurfaces = [];
 
-    this.renderReady = false;
+    //this.renderReady = false;
     this.lastSurface = null;
     this.lastState = null;
     this.lastRenderState = null;
@@ -196,7 +196,7 @@ MapSurfaceTile.prototype.viewSwitched = function() {
     
     //zero surface related data    
     this.verifyChildren = true;
-    this.renderReady = false;
+    //this.renderReady = false;
     this.lastMetanode = this.metanode;
     this.metanode = null; //quick hack for switching virtual surfaeces //keep old value for smart switching
 
