@@ -116,6 +116,9 @@ UIControlLoading.prototype.update = function() {
 
     var stats = map.getStats();
 
+    //console.log("bestMeshTexelSize = %d, texelSizeFit * 3 = %d",
+    //            stats['bestMeshTexelSize'], stats['texelSizeFit'] * 3);
+
     if ((stats['surfaces'] == 0 && stats['freeLayers'] == 0) ||  //nothing to load 
         ((timer - this.time) > 7000) || //loading takes too long
         (stats['downloading'] == 0 && stats['lastDownload'] > 0 && (timer - stats['lastDownload']) > 1000) || //or everything loaded

@@ -31,7 +31,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
         return false;
     }
 
-    tile.renderReady = false;
+    //tile.renderReady = false;
     
     if (tile.surface) {
         if (node.hasGeometry()) {
@@ -110,6 +110,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
             return true;
         }
     } else { // if (!tile.surface)
+
+        console.log('Surface-less id %s', tile.id);
+
         if (!preventRedener && tile.lastRenderState) {
             var channel = this.draw.drawChannel;
             this.draw.processDrawCommands(cameraPos, tile.lastRenderState.drawCommands[channel], priority, true, tile);
@@ -370,7 +373,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         type : VTS_DRAWCOMMAND_STATE,
                                         state : draw.drawTileState
                                     });  
-                                } else { 
+                                } // if (bounds.transparent)
+                                else
+                                { // if (!bounds.transparent)
                                     
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && ! bounds.transparent
                                     var layerId = bounds.sequence[bounds.sequence.length-1];
@@ -562,12 +567,21 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         
     } else {
 
+        // marking a tile with unready mesh as render-ready just because we can replace it
+        // with a grid seems like a bad idea
+
+        // if (!tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu) || preventLoad)
+
         if (!tile.lastRenderState && this.config.mapHeightfiledWhenUnloaded && !preventRedener) {
             //node.drawPlane(cameraPos, tile);
 
             tile.drawGrid(cameraPos);
             ret = !(tile.drawCommands[channel].length > 0);
-        }        
+
+            //console.log('%s: meshReady = %s, preventLoad = %s, preventRedener = %s, tile is marked %s.',
+            //            tile.id, tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu),
+            //            preventLoad, preventRedener, ret);
+        }
     }
     
     return ret;

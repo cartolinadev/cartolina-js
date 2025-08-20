@@ -174,6 +174,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
     //console.log(this.renderer);
 
+    //console.log(map.resourcesTree);
+    //console.log(map.tree);
+
     switch (this.config.mapGridMode) {
         case 'none':       this.gridSkipped = true; this.gridFlat = false; this.gridGlues = false;  break;
         case 'flat':       this.gridSkipped = false; this.gridFlat = true; this.gridGlues = false;  break;
@@ -410,8 +413,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
-            //this.tree.draw(false, VTS_TREETRAVERSAL_NORMALMAP);
-            this.tree.draw(false); //, VTS_TREETRAVERSAL_DRAW);
+            this.tree.draw(false);
         }
 
         //this.renderer.webGLSync = this.renderer.gpu.gl.fenceSync(this.renderer.gpu.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
