@@ -10,16 +10,16 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.stats = map.stats;
     this.tile = tile; // used only for stats
     this.internal = internal; // used only for stats
-    
+
     if (tile) {
-        this.mainTexture = tile.resources.getSubtexture(this, path, type, tile, internal); 
+        this.mainTexture = tile.resources.getSubtexture(this, path, type, null, null, tile, internal);
     } else {
         this.mainTexture = new MapSubtexture(map, path, type, tile, internal); 
     }
 
     this.maskTexture = null; 
 
-    this.loadState = 0;
+    this.loadState = 0; //  0=not loaded, 1=loading, 2=loaded, 3=error),
     this.loadErrorTime = null;
     this.loadErrorCounter = 0;
     this.neverReady = false;
@@ -29,7 +29,7 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.extraBound = extraBound;
     this.extraInfo = extraInfo;
     this.statsCounter = 0;
-    this.checkStatus = 0;
+    this.checkStatus = 0; // pre-load checks: 0=not checked, 1=in progress, 2=pass,-1=fail depending on the check)
     this.checkType = null;
     this.checkValue = null;
     this.fastHeaderCheck = false;
@@ -132,6 +132,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
    
     if (this.extraBound) {
         if (this.extraBound.texture) {
+
             while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
 //            while (this.extraBound.texture.checkStatus == -1) {
                 parent = this.extraBound.sourceTile.parent;
@@ -164,13 +165,18 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
             return ready;
             
-        } else {
+        } // if (this.extraBound.texture)
+
+        else {
+
+            // if (! this.extraBound.texture)
+
             this.setBoundTexture(this.extraBound.sourceTile, this.extraBound.layer, this.extraBound.hmap);        
             return this.isReady(doNotLoad, priority, doNotCheckGpu);
         }
         
         return false;
-    }
+    } // if (this.extraBound)
 
     /*
     if (!this.extraBound && this.extraInfo && !this.maskTexture) {
@@ -185,8 +191,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     switch (this.checkType) {
     case VTS_TEXTURECHECK_MEATATILE:
 
-        if (this.checkStatus != 2) {
-            if (this.checkStatus == 0) {
+//        if (this.checkStatus != 2) {
+            if (this.checkStatus == 0) { // not checked
                 if (this.extraInfo && this.extraInfo.tile) {
                     var metaresources = this.extraInfo.tile.boundmetaresources;
                     if (!metaresources) {
@@ -196,13 +202,15 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         
                     var layer = this.extraInfo.layer;
                     var path = this.extraInfo.metaPath;
-						
+
                     if(!this.extraInfo.metaPath) {
                         path = layer.getMetatileUrl(metaresources.id);	
                         this.extraInfo.metaPath = path;
                     }
-						
-                    var texture = metaresources.getTexture(path, true, null, null, this.tile, this.internal);
+
+                    // why are bound layer metatiles loaded as heightfields (true == VTS_TEXTURETYPE_HEIGHT)?
+                    var texture = metaresources.getTexture(path,
+                        VTS_TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
                         
                     if (this.maskTexture) {
                         if (this.maskTexture.isReady(doNotLoad, priority, doNotCheckGpu, this)) {
@@ -229,7 +237,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 }
             }
                 
-            if (this.checkStatus == -1) {
+            if (this.checkStatus == -1) { // fail
                 if (!this.extraBound) {
                     parent = this.extraInfo.tile.parent;
                     if (parent.id[0] < this.extraInfo.layer.lodRange[0]) {
@@ -258,11 +266,13 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 }
             }
 
-            return false;
-        }
+            if (this.checkStatus == 1) { // in progress
+                return false;
+            }
+//        } // if (this.checkStatus != 2)
         
         break;
-    }
+    } // switch (this.checkType)
 
     var maskState = true;
 

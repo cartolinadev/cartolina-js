@@ -12,8 +12,8 @@ var MapSubtexture = function(map, path, type, tile, internal) {
     this.stats = map.stats;
     this.tile = tile; // used only for stats
     this.internal = internal; // used only for stats
-    this.image = null;
-    this.imageData = null;
+    this.image = null; // image bitmap (browser-native image container)
+    this.imageData = null; // raw RGBA byte array (height, metatile)
     this.imageExtents = null;
     this.gpuTexture = null;
     this.loadState = 0;
@@ -165,7 +165,9 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
     if (this.loadState == 2) { //loaded
         var t;
 
+        // keep the item warm in resource cache
         if (!doNotLoad && this.cacheItem) {
+
             this.map.resourcesCache.updateItem(this.cacheItem);
         }
 
@@ -190,6 +192,9 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
         }
 
         if (this.type == VTS_TEXTURETYPE_HEIGHT) {
+
+            //console.log(this.type, this.mapLoaderUrl);
+
             if (!this.imageData) {
                 t = performance.now();
                 this.buildHeightMap();
@@ -297,6 +302,7 @@ MapSubtexture.prototype.onLoadError = function(killBlob) {
 
 
 MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
+
     if (this.fastHeaderCheck && this.checkType && this.checkType != VTS_TEXTURECHECK_MEATATILE) {
         this.onHeadLoaded(null, data, null /*status*/);
         
@@ -306,27 +312,39 @@ MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
         }
     }
 
+
     if (direct) {
+        // worker decoded image (mapAsynbcImageDecode), blob is bitmap
         this.onLoaded(false, data)
         this.fileSize = filesize;
         return;
     }
 
+    // main thread decoding, data is blob
     this.fileSize = data.size;
 
-    if (this.map.config.mapAsyncImageDecode) {
+    createImageBitmap(data)
+        .then(this.onLoaded.bind(this,false))
+        .catch(this.onLoadError.bind(this, false));
+
+/*    if (this.map.config.mapAsyncImageDecode) {
+        // data (from worker) is an image bitmap
         createImageBitmap(data).then(this.onLoaded.bind(this, false));
+
     } else {
+        // data (from worker) is a xhr blob
+
         var image = new Image();
         image.onerror = this.onLoadError.bind(this, true, null);
         image.onload = this.onLoaded.bind(this, true, null);
         this.image = image;
         image.src = window.URL.createObjectURL(data);
-    }
+    }*/
 };
 
 
 MapSubtexture.prototype.onLoaded = function(killBlob, bitmap) {
+
     if (this.map.killed){
         return;
     }

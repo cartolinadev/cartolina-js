@@ -776,7 +776,7 @@ MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
 
                 if (/*node.hasGeometry() && */tile.texelSize <= texelSizeFit) {
 
-                    console.log("Drawing %s (fit)", tile.id);
+                    //console.log("Drawing %s (fit)", tile.id);
 
                     tile.drawCounter = draw.drawCounter;
                     drawBuffer[drawBufferIndex] = tile;
@@ -833,8 +833,8 @@ MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
                     } else {
 
                         // if (childrenCount == 0
-                        console.log("Drawing %s (fallback), childrenCount = %d, nodesReadyCount = %d",
-                                    tile.id, childrenCount, nodesReadyCount);
+                        //console.log("Drawing %s (fallback), childrenCount = %d, nodesReadyCount = %d",
+                        //            tile.id, childrenCount, nodesReadyCount);
 
                         tile.drawCounter = draw.drawCounter;
                         drawBuffer[drawBufferIndex] = tile;

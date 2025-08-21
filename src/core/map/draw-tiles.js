@@ -717,6 +717,7 @@ MapDrawTiles.prototype.updateTileHmap = function(tile, node) {
 
 
 MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
+
     for (var i = 0, li = submeshes.length; i < li; i++) {
         var submesh = submeshes[i];
         
@@ -755,13 +756,13 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 } 
                 
                 if (bounds.viewCoutner != tile.viewCoutner) {
-                    this.updateTileSurfaceBounds(tile, submesh, submeshSurface, bounds, bounds.viewCoutner != tile.viewCoutner);
+                    this.updateTileSurfaceBounds(tile, submesh, submeshSurface, bounds);
                     //bounds.viewCoutner = tile.viewCoutner;
                     //console.log(bounds);
                 }  
             }
         } // if (submesh.externalUVs)
-    }
+    } // for (var i = 0, li = submeshes.length; i < li; i++)
 
     for (var key in tile.bounds) {
         tile.bounds[key].viewCoutner = tile.viewCoutner;
@@ -787,7 +788,7 @@ MapDrawTiles.prototype.getTileTextureTransform = function(sourceTile, targetTile
 };
 
 
-MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface, bound, fullUpdate) {
+MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface, bound) {
     var path, extraBound, layer, texture;
 
     if (this.config.mapNoTextures) {
@@ -797,7 +798,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     // bump maps
     bound.bumps = [];
 
-    if (fullUpdate)
+    //if (fullUpdate)
         for (let j = 0; j < surface.bumpSequence.length; j++) {
 
         let bump = surface.bumpSequence[j];
@@ -835,7 +836,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     }
 
     // specular maps
-    if (surface.specularSequence.length > 0 && fullUpdate) {
+    if (surface.specularSequence.length > 0) {
 
         bound.speculars = [];
         let sequenceFullAndOpaque = [];
@@ -843,6 +844,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
         let fullAndOpaqueCounter = 0;
 
         for (let j = 0, lj = surface.specularSequence.length; j < lj; j++) {
+
 
             let specular = surface.specularSequence[j];
 
@@ -863,6 +865,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 texture = tile.boundTextures[specular.layer.id];
 
                 if (!texture) {
+
                     path = specular.layer.getUrl(tile.id);
 
                     texture = tile.resources.getTexture(path,
@@ -912,7 +915,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     //search map view
     if (surface.boundLayerSequence.length > 0) {
 
-        if (fullUpdate) {
+        //if (fullUpdate) {
             bound.sequence = [];
             var sequenceFullAndOpaque = [];
             var sequenceMaskPosible = [];
@@ -1006,7 +1009,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         break; //wait until mask info is loaded
                     }
                 }
-            }
+            } // for (var j = 0; lj = surface.boundLayerSequence.length; j < lj; j++)
 
             //filter out extra bounds if they are not needed
             //and remove all layer after first FullAndOpaque 
@@ -1035,12 +1038,15 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 bound.sequence = newSequence; 
             }
 
-        } // if (fullUpdate)
+        //} // if (fullUpdate)
 
 
     } // if (surfaceBoundLayerSequence.length > 0)
 
     else if (surface.textureLayer != null) { //search surface
+
+        // if (surfaceBoundLayerSequence.length == 0)
+
         if (fullUpdate) {
             layer = this.map.getBoundLayerById(surface.textureLayer);
             if (layer && layer.hasTileOrInfluence(tile.id)) {
