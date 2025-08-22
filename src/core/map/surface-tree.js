@@ -245,6 +245,8 @@ MapSurfaceTree.prototype.logTileInfo = function(tile, node, cameraPos) {
 MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
     this.counter++;
 
+    // storeTilesOnly set only in Map.getCurrentGeometry
+    // (undocumented api method, not used inside project)
     //console.log("storeTilesOnly = %s", storeTilesOnly);
 
     var tile = this.surfaceTree;
@@ -329,7 +331,7 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                     storeNodesBuffer.push(tile);
                 }
               
-                if (/*node.hasGeometry() && */tile.texelSize <= texelSizeFit /*|| gpuNeeded > gpuMax*/) {
+                if (tile.texelSize <= texelSizeFit) {
 
                     // desired rendering: texel size fits
                     //console.log("Drawing %s (fit)", tile.id);
@@ -364,7 +366,9 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                                 child.updateTexelSize(factor);
                                 
                                 var priority = child.id[0] * typeFactor * child.distance;
-                                
+
+                                //console.log('Priority [%d-%d-%d] ->  %d',
+                                //    child.id[0], child.id[1], child.id[2], priority);
 
                                 if (!tile.surface || !child.metanode.hasGeometry()) {
 
@@ -375,7 +379,7 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                                 } else {
 
                                     // "preventRedener" is set, this checks render-readiness
-                                    // and has the side effect of prepping commands
+                                    // fetches and preps commands
                                     if (/*tile.texelSize >= 8 * texelSizeFit ||*/
                                      (drawTiles.drawSurfaceTile(child,
                                         child.metanode, cameraPos, child.texelSize,
@@ -532,12 +536,7 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
                 }
             }
             
-            //if (this.map.drawIndices) {
-              //  this.logTileInfo(tile, node, cameraPos);
-            //}
-
             tile.splitMask = null;
-            //tile.splitMask = [0,0,0,1];
 
             if (tile.visibleCounter == drawCounter || tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) {
 
@@ -553,7 +552,7 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
                     storeNodesBuffer.push(tile);
                 }
               
-                if (/*node.hasGeometry() && */tile.texelSize <= texelSizeFit /*|| gpuNeeded > gpuMax*/) {
+                if (tile.texelSize <= texelSizeFit) {
 
                     if (tile.skipRenderCounter != drawCounter) {
 
@@ -562,11 +561,9 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
                         gpuNeeded += size;
                         gpuNeededForRender += size;
 
-                        //if (tile.parent && tile.parent.children[3] == tile) {
-                            tile.drawCounter = drawCounter;
-                            drawBuffer[drawBufferIndex] = tile;
-                            drawBufferIndex++;
-                        //}
+                        tile.drawCounter = drawCounter;
+                        drawBuffer[drawBufferIndex] = tile;
+                        drawBufferIndex++;
                     }
                     
                 } else { //go deeper
@@ -1629,6 +1626,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         node = tile.metanode;
 
         if (scanExtents && node) {
+
             // TODO noramlize by distance and tilt
 
             p2 = node.diskPos;
@@ -1666,19 +1664,19 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
             //draw tile,  preventRender=false, preventLoad=false
             drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
 
-        } else {
+        } else { // if !noGrid
 
             if (underSurfaceGrid) {
 
                 if (!item[1] && !(stats.gpuRenderUsed >= draw.maxGpuUsed))  {
-                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false /*, checkGpu*/);
+                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
                 } else {
                     if (drawTiles.debug.drawBBoxes) {
                         drawTiles.drawTileInfo(tile, tile.metanode, cameraPos);
                     }
                 }
 
-            } else { // if (!underSurfaceGrid)
+            } else { // if (!noGrid && !underSurfaceGrid)
 
                 if ((drawGrid && item[1]) || stats.gpuRenderUsed >= draw.maxGpuUsed)  {
 
@@ -1688,12 +1686,12 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
                     tile.drawGrid(cameraPos); 
                 } else if (!item[1]) {
-                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false /*, checkGpu*/);
+                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
                 }
             }
 
         }
-    }
+    } // or for (i = drawBufferIndex - 1; i >= 0; i--)
 
     if (scanExtents) {
         renderer.gridHmax = hmax;

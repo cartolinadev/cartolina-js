@@ -97,9 +97,9 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.mobile = false;
     this.metanodeBuffer = new Uint8Array(1024);
    
-    this.gpuCache = new MapCache(this, this.config.mapGPUCache*1024*1024);
-    this.resourcesCache = new MapCache(this, this.config.mapCache*1024*1024);
-    this.metatileCache = new MapCache(this, this.config.mapMetatileCache*1024*1024);
+    this.gpuCache = new MapCache(this.config.mapGPUCache*1024*1024);
+    this.resourcesCache = new MapCache(this.config.mapCache*1024*1024);
+    this.metatileCache = new MapCache(this.config.mapMetatileCache*1024*1024);
 
     this.setupMobileMode(this.config.mapMobileMode);
     this.setupCache();
