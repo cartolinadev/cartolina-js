@@ -749,6 +749,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
         this.drawTileCounter++;
     }
 
+    // the 'doNotLoad' option seems to exist to suppress artefacts in view switching
+    // its all this 'lastRenderState' stuff
 
     // normalize viewdep alphas for bound layers
     let vdalphaSum = 0;
@@ -798,7 +800,9 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
     // process commands
     for (var i = 0, li = commands.length; i < li; i++) {
         var command = commands[i];
-        
+
+        // the meat of the rendering pipeline follows
+
         switch (command.type) {
         case VTS_DRAWCOMMAND_STATE:
             this.renderer.gpu.setState(command.state);
@@ -861,6 +865,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
             //console.log(command);
 
+            // the unfinished procedural pipeline, not important
             var pipeline = command.pipeline;
             if (pipeline) {
                 var hmap = command.hmap;
@@ -883,6 +888,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 return;
             }
 
+            // the real start of stuff happening - check readiness
+
             var mesh = command.mesh; 
             var texture = command.texture;
 
@@ -897,7 +904,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
             let ready = meshReady && textureReady;
 
-            // iluminated submeshes require normal maps and sometimes specular maps
+            // iluminated submeshes require normal maps
             let normalMap = command.normalMap;
 
             if (command.illuminatedSubmesh) {
@@ -906,8 +913,6 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let normalMapReady = normalMap.isReady(doNotLoad, priority);
                 ready = ready && normalMapReady;
             }
-
-
 
             if (ready) {
                 //debug bbox
@@ -918,6 +923,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let material = command.material;
 
                 if (!texture) {
+                    // the syntax is odd, but there is lots of other materials
                     switch (material) {
                             //case "fog":
                     case VTS_MATERIAL_EXTERNAL:

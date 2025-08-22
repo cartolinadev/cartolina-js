@@ -1370,13 +1370,13 @@ MapSurfaceTile.prototype.drawGrid = function(cameraPos, divNode, angle, onlySetB
             } else {
                 var sourceLod = math.clamp(sourceTile.id[0] - map.config.mapGridTextureLevel, layer.lodRange[0], layer.lodRange[1]);
 
-                console.log(layer.lodRange);
+                //console.log(layer.lodRange);
 
                 while (sourceTile.id[0] > sourceLod) {
                     sourceTile = sourceTile.parent;
                 }
 
-                console.log("gridTexture id: %s -> %s", this.id, sourceTile.id);
+                //console.log("gridTexture id: %s -> %s", this.id, sourceTile.id);
 
                 //(path, type, extraBound, extraInfo, tile, internal)
                 this.gridTexture = this.resources.getTexture("gmap#"+map.config.mapGridTextureLayer, null, {sourceTile: sourceTile, layer:layer, tile: this }, null, null, null);

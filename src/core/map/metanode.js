@@ -306,7 +306,9 @@ MapMetanode.prototype.generateCullingHelpers = function(virtual) {
         return;
     }
 
-    if (map.config.mapPreciseCulling || version >= 4) { //use division node srs
+    // version >= 4 no longer carries quantized physical extents, computed here
+    if (version >= 4 || map.config.mapPreciseCulling) { //use division node srs
+
         if (virtual) {
             return; //result is same for each tile id
         }
@@ -613,6 +615,8 @@ MapMetanode.prototype.generateCullingHelpers = function(virtual) {
         //var factor = this.bbox.maxSize * 0.2; 
         //this.diskPos = [this.diskPos[0] - normal[0] * factor, this.diskPos[1]  - normal[1] * factor, this.diskPos[2] - normal[2] * factor];   
     } 
+
+    //console.log(this.bbox2);
 };
 
 

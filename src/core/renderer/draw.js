@@ -1710,60 +1710,6 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
            
             this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, [job,0,texture,files,color,pp]);
 
-            /*
-            if (bl > 384) { vbuff = renderer.textQuads128; prog = renderer.progLineLabel128; } else
-            if (bl > 256) { vbuff = renderer.textQuads96; prog = renderer.progLineLabel96; } else
-            if (bl > 192) { vbuff = renderer.textQuads64; prog = renderer.progLineLabel64; } else
-            if (bl > 128) { vbuff = renderer.textQuads48; prog = renderer.progLineLabel48; } else
-            if (bl > 64) { vbuff = renderer.textQuads32; prog = renderer.progLineLabel32; }
-            else { vbuff = renderer.textQuads16; prog = renderer.progLineLabel16; }
-
-            gpu.useProgram(prog, ['aPosition']);
-            prog.setSampler('uSampler', 0);
-            prog.setMat4('uMVP', mvp, renderer.getZoffsetFactor(job.zbufferOffset));
-
-            prog.setVec4('uColor', hitmapRender ? color : job.color2);
-            prog.setVec2('uParams', [job.outline[0], gamma2]);
-            lj = hitmapRender ? 1 : 2;
-
-            var vertexPositionAttribute = prog.getAttribute('aPosition');
-
-            prog.setVec4('uData', b);
-
-            //bind vetex positions
-            gl.bindBuffer(gl.ARRAY_BUFFER, vbuff);
-            gl.vertexAttribPointer(vertexPositionAttribute, vbuff.itemSize, gl.FLOAT, false, 0, 0);
-
-            //draw polygons
-            for(var j = 0; j < (hitmapRender ? 1 : 2); j++) {
-                if (j == 1) {
-                    prog.setVec4('uColor', color);
-                    prog.setVec2('uParams', [job.outline[1], gamma]);
-                }
-
-                for (var i = 0, li = files.length; i < li; i++) {
-                    var fontFiles = files[i];
-
-                    for (var k = 0, lk = fontFiles.length; k < lk; k++) {
-                        var file = fontFiles[k];
-                        prog.setFloat('uFile', Math.round(file+i*1000));
-                        gpu.bindTexture(job.fonts[i].getTexture(file));
-                        gl.drawArrays(gl.TRIANGLES, 0, vitems / 3); //TODO: demystify vitems
-                    }
-                }
-            }
-
-            if (renderer.drawLabelBoxes) {
-                if (job.labelPoints.length > 0) {
-                    var points = job.labelPoints[0][pointsIndex];
-
-                    for(j = 0; j < points.length; j++) {
-                        pp = renderer.project2(points[j], mvp, [0,0,0], true);
-                        this.drawCircle(pp, points[j][3] *renderer.camera.scaleFactor2(pp[3])*0.5*renderer.curSize[1]*(renderer.curSize[0]/renderer.curSize[1]), 1, [255, 0, 255, 255], null, null, null, null, null);
-                    }
-                }
-            }*/
-
             return;
         }
 
@@ -1813,6 +1759,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         //bind vetex texcoords
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexTexcoordBuffer);
         gl.vertexAttribPointer(vertexTexcoordAttribute, job.vertexTexcoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        console.log('job4');
 
         //draw polygons
         for(var j = 0; j < (hitmapRender ? 1 : 2); j++) {
@@ -2285,6 +2233,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 gl.bindBuffer(gl.ARRAY_BUFFER, vbuff);
                 gl.vertexAttribPointer(vertexPositionAttribute, vbuff.itemSize, gl.FLOAT, false, 0, 0);
 
+                console.log('job1');
+
                 //draw polygons
                 for(;j<lj;j++) {
                     if (j == 1) {
@@ -2339,6 +2289,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         //bind vetex origin
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexOriginBuffer);
         gl.vertexAttribPointer(vertexOriginAttribute, job.vertexOriginBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        console.log('job2');
 
         //draw polygons
         for(;j<lj;j++) {
@@ -2635,7 +2587,8 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
 
             gl.drawElements(gl.TRIANGLES, indices.numItems, gl.UNSIGNED_SHORT, 0);
 
-        } else {
+        } // (prog == renderer.progIcon)
+        else { // if (prog != renderer.progIcon)
 
             var b = job.singleBuffer, bl = b.length, vbuff, vitems = (b.length / 4) * 6;
 
@@ -2668,6 +2621,8 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
             //bind vetex positions
             gl.bindBuffer(gl.ARRAY_BUFFER, vbuff);
             gl.vertexAttribPointer(vertexPositionAttribute, vbuff.itemSize, gl.FLOAT, false, 0, 0);
+
+            //console.log(job);
 
             //draw polygons
             for(;j<lj;j++) {
@@ -2721,6 +2676,8 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
     //bind vetex origin
     gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexOriginBuffer);
     gl.vertexAttribPointer(vertexOriginAttribute, job.vertexOriginBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    console.log('job5');
 
     //draw polygons
     for(;j<lj;j++) {
@@ -2950,6 +2907,8 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, scre
         //bind vetex positions
         gl.bindBuffer(gl.ARRAY_BUFFER, vbuff);
         gl.vertexAttribPointer(vertexPositionAttribute, vbuff.itemSize, gl.FLOAT, false, 0, 0);
+
+        console.log('job6');
 
         //draw polygons
         for(j = 0, lj = (hitmapRender ? 1 : 2); j < lj; j++) {

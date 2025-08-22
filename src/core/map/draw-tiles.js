@@ -199,6 +199,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             surface = tile.surface;
         }
         
+
+        // extract specificity and credits from surfaces
         if (surface.glue) {
 
             var surfaces = surface.id; 
@@ -224,9 +226,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             }
         }
 
-
-
-        // iterate through submeshes
+        // iterate through submeshes, preparing draw commands along the way
         for (i = 0, li = submeshes.length; i < li; i++) {
 
             var submesh = submeshes[i];
@@ -565,22 +565,14 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             }
         }
         
-    } else {
-
-        // marking a tile with unready mesh as render-ready just because we can replace it
-        // with a grid seems like a bad idea
-
-        // if (!tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu) || preventLoad)
+    } else { //if (! tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu) || preventLoad)
 
         if (!tile.lastRenderState && this.config.mapHeightfiledWhenUnloaded && !preventRedener) {
-            //node.drawPlane(cameraPos, tile);
+
+            // it looks like this is the 'we-do-not-have-anything-to-draw-but-who-cares' branch
 
             tile.drawGrid(cameraPos);
             ret = !(tile.drawCommands[channel].length > 0);
-
-            //console.log('%s: meshReady = %s, preventLoad = %s, preventRedener = %s, tile is marked %s.',
-            //            tile.id, tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu),
-            //            preventLoad, preventRedener, ret);
         }
     }
     

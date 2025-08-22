@@ -178,24 +178,16 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
         return false;
     } // if (this.extraBound)
 
-    /*
-    if (!this.extraBound && this.extraInfo && !this.maskTexture) {
-        var layer = this.extraInfo.layer;
-        
-        if (layer && layer.maskUrl && this.checkType != "metatile") {
-            var path = layer.getMaskUrl(this.tile.id);
-            this.maskTexture = this.tile.resources.getTexture(path, null, null, null, this.tile, this.internal);
-        }
-    }*/
-
     switch (this.checkType) {
     case VTS_TEXTURECHECK_MEATATILE:
 
 //        if (this.checkStatus != 2) {
             if (this.checkStatus == 0) { // not checked
                 if (this.extraInfo && this.extraInfo.tile) {
+
                     var metaresources = this.extraInfo.tile.boundmetaresources;
                     if (!metaresources) {
+
                         metaresources = this.map.resourcesTree.findAgregatedNode(this.extraInfo.tile.id, 8);
                         this.extraInfo.tile.boundmetaresources = metaresources;
                     }
@@ -208,7 +200,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         this.extraInfo.metaPath = path;
                     }
 
-                    // why are bound layer metatiles loaded as heightfields (true == VTS_TEXTURETYPE_HEIGHT)?
+                    // type = VTS_TEXTURETYPE_HEIGHT ensures we get an RGBA array instead of brwoser-native bitmap
                     var texture = metaresources.getTexture(path,
                         VTS_TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
                         
@@ -234,7 +226,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                             this.map.markDirty();
                         }
                     }
-                }
+                } // if (this.extraInfo && this.extraInfo.tile)
             }
                 
             if (this.checkStatus == -1) { // fail

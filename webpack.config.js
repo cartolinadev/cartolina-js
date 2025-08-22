@@ -29,7 +29,6 @@ var plugins = [
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),    
       'VTS_TREETRAVERSAL_DRAW':       0,
-      'VTS_TREETRAVERSAL_NORMALMAP':  1,
 
       'VTS_MATERIAL_DEPTH':           1,
       'VTS_MATERIAL_FLAT':            2,
@@ -38,7 +37,6 @@ var plugins = [
       'VTS_MATERIAL_INTERNAL_NOFOG':  5,
       'VTS_MATERIAL_EXTERNAL':        6,
       'VTS_MATERIAL_EXTERNAL_NOFOG':  7,
-      'VTS_MATERIAL_SPECULAR':        8,
 
       'VTS_PIPELINE_BASIC':           0,
       'VTS_PIPELINE_HMAP':            1,

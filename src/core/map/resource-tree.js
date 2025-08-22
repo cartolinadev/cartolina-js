@@ -52,16 +52,14 @@ MapResourceTree.prototype.findNode = function(id, createNonexisted) {
 
 MapResourceTree.prototype.findAgregatedNode = function(id, agregation, createNonexisted) {
     //var rootLod = 0;  //TODO: fix is it same way as findNavTile
+
+    // 'agregate' node is simply a node arbitrarily chosen to keep track of
+    // resources used for multiple ids. It's choosen as the node with minimum x and y values
     var node = this.tree;
     var ix = ((id[1] >> agregation) << agregation);
     var iy = ((id[2] >> agregation) << agregation);
 
-
-//    for (var lod = id[0]; lod > rootLod; lod--) {
-//        var i = lod - rootLod;
-//        var index = 0;
-//        var mask = 1 << (i-1);
-
+    // find the node by its id
     for (var lod = id[0]; lod > 0; lod--) {
         var mask = 1 << (lod-1);
         var index = 0;

@@ -1,9 +1,10 @@
 
 function vtsParseUrlParams(initialParams_, url_) {
     var params_ = vts.utils.getParamsFromUrl(url_ ? url_ : window.location.href);
-	if (!initialParams_) {
-		initialParams_ = params_;
-	}
+
+    if (!initialParams_) {
+        initialParams_ = params_;
+    }
 	
     console.log(params_);	
 	
@@ -174,7 +175,7 @@ function vtsParseUrlParams(initialParams_, url_) {
             case 'debugRadar':
             case 'view':
                 initialParams_[key_] = decodeURIComponent(params_[key_]);
-				if (initialParams_[key_] === 'null') initialParams_[key_] = null;
+                if (initialParams_[key_] === 'null') initialParams_[key_] = null;
                 break;
 
             case 'useCredentials':
