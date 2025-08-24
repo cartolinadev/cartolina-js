@@ -936,6 +936,7 @@ Renderer.prototype.getDepth = function(screenX, screenY) {
     var y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
 
     if (this.hitmapMode <= 2) {
+
         //get pixel value from framebuffer
         var pixel = this.hitmapTexture.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1, (this.hitmapMode == 2));
 

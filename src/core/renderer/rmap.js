@@ -323,6 +323,8 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         //console.log("Depth buffer ready!");
 
         var reduce = checkDepthMap[2];
+        // the below line was a complete killer of performance in Chrome/Chromium, effectively freezing the pipeline
+        // inside renderer.getDepth ->> gl.readPixels, despite nominally high FPS
         //var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], (reduce[4] > 10000000));
         var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1],1);
 

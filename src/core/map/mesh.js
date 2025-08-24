@@ -415,6 +415,9 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 
 
 MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace, normalMap) {
+    // index is the submesh index
+    // type is the material (internal, external, both with fog and nofog variants, flat, etc.
+
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
     }
@@ -763,7 +766,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             //vec3.normalize(ilumvecVC);
         }
 
-
         //console.log("ilumvecVC", ilumvecVC);
 
         mat4.multiplyVec3_(
@@ -884,6 +886,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         this.stats.gpuRenderUsed += gpuSubmesh.getSize();
     }
 
+    // GpuMesh.draw, actual draw call is there
     gpuSubmesh.draw(program, 'aPosition', texcoordsAttr, texcoords2Attr, drawWireframe != 0 ? 'aBarycentric' : null, (drawWireframe == 2));
 
 
