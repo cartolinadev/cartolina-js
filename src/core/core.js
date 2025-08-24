@@ -100,7 +100,7 @@ var Core = function(element, config, coreInterface) {
         mapFeaturesReduceFactor2 : 1,
 
         mapDMapSize : 1024,
-        mapDMapMode : 1,
+        mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
 
         mapDegradeHorizon : false,
         mapDegradeHorizonParams : [1, 1500, 97500, 3500], //[1, 3000, 15000, 7000],
