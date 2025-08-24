@@ -323,10 +323,12 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         //console.log("Depth buffer ready!");
 
         var reduce = checkDepthMap[2];
-        // the below line was a complete killer of performance in Chrome/Chromium, effectively freezing the pipeline
-        // inside renderer.getDepth ->> gl.readPixels, despite nominally high FPS
-        //var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], (reduce[4] > 10000000));
-        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1],1);
+
+        // If we're in per-pixel hitmap mode (<=2), only use the math fallback for very far distances.
+        // In copy-hitmap modes (>2), always use the hitmap (no per-label readback required).
+        // WARN: per-pixel hitmap mode is a performance killer, particularly in Chromium
+        var useFallback = (renderer.hitmapMode <= 2) && (reduce[4] > 10000000);
+        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], useFallback);
 
         if (depth[0]) {
             var delta = depth[1] - reduce[4];
