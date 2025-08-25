@@ -1039,7 +1039,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
         // if (surfaceBoundLayerSequence.length == 0)
 
-        if (fullUpdate) {
+        //if (fullUpdate) {
             layer = this.map.getBoundLayerById(surface.textureLayer);
             if (layer && layer.hasTileOrInfluence(tile.id)) {
                 extraBound = null; 
@@ -1060,7 +1060,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     tile.boundTextures[layer.id] = tile.resources.getTexture(path, layer.dataType, extraBound, {tile: tile, layer: layer}, tile, false);
                 }
             }
-        }
+        //}
 
 
 
