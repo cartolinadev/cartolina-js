@@ -1,14 +1,19 @@
 
-const isProd = process.env.NODE_ENV === 'production';
-var TARGET_DIR = isProd ? __dirname + "/dist/" : __dirname + "/build/";
-
+var path = require('path');
+var pkg = require('./package.json');
 var fs = require("fs");
 var webpack = require('webpack');
+
+const isProd = process.env.NODE_ENV === 'production';
+
+var VERSION = pkg.version;
+
+var TARGET_DIR = isProd ? path.join(__dirname, 'dist', VERSION) : path.join(__dirname, 'build');
+
+
 var LicenseWebpackPlugin = require('license-webpack-plugin').LicenseWebpackPlugin;
 var MiniCssExtractPlugin = require('mini-css-extract-plugin');
 var CopyPlugin = require('copy-webpack-plugin');
-
-var path = require('path');
 
 var plugins = [
     new LicenseWebpackPlugin({ outputFilename: '3rdpartylicenses.txt' }),
