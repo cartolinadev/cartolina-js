@@ -227,6 +227,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         }
                     }
                 } // if (this.extraInfo && this.extraInfo.tile)
+
+                return false;
             }
                 
             if (this.checkStatus == -1) { // fail
@@ -256,9 +258,16 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         
                     this.setBoundTexture(parent, this.extraBound.layer);        
                 }
+
+                return false;
             }
 
             if (this.checkStatus == 1) { // in progress
+                return false;
+            }
+
+            if (this.checkStatus != 2) { // sanity
+                console.log('WARN: unknown check status.');
                 return false;
             }
 //        } // if (this.checkStatus != 2)
