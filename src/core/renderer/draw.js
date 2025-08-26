@@ -1599,7 +1599,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             if (job.seCounter != renderer.seCounter) {
                 job.seCounter = renderer.seCounter;
                 job.labelPointsBuffer.id = -1;
-                job.center2 = renderer.transformPointBySE(job.center);
+                job.center2 = renderer.transformPointBySE(job.center,
+                                                          undefined, position);
             }
         } else {
             job.center2 = job.center;
