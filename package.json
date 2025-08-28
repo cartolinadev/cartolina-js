@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.40.28-ondra_cartolina23.6fd5f8c",
+  "version": "2.40.29-ondra_cartolina23.408856a",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -11,7 +11,12 @@
     "dev2": "WEBPACK_ENV=dev node_modules/.bin/webpack --progress --colors --hide-modules",
     "dist": "NODE_ENV=production node_modules/.bin/webpack --progress --colors --hide-modules",
     "start": "node_modules/.bin/webpack-dev-server --content-base ./ --inline",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "perf:install": "npx playwright install chromium",
+    "test:perf": "node ./test/perf/run-bundle.js",
+    "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
+    "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",
+    "test:perf:one": "node ./test/perf/run-one.js"
   },
   "repository": {
     "type": "git",
@@ -33,6 +38,7 @@
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
+    "@playwright/test": "^1.55.0",
     "babel-core": "^6.26.3",
     "babel-loader": "^8.4.1",
     "chai": "^4.2.0",
@@ -54,8 +60,8 @@
   "dependencies": {
     "earcut": "^2.2.2",
     "geographiclib": "^1.50.0",
-    "proj4": "^2.19.10",
     "npm": "^6.14.9",
+    "proj4": "^2.19.10",
     "ts-loader": "^8.4.0",
     "typescript": "4.2"
   }

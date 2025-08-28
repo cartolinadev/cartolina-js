@@ -205,6 +205,15 @@ MapStats.prototype.end = function(dirty) {
 
             this.inspector.stats.updateStatsPanel(this);
         }
+
+        // Optionally expose FPS to window for external automation (e.g., Playwright).
+        try {
+            if (this.map.config.mapExposeFpsToWindow && typeof window !== 'undefined') {
+
+                window.__vtsFps = this.fps;
+            }
+        } catch(e) {}
+        this.renderTimeTmp = 0;
     }
     
     //do not reset flux data in begin function, because we to collect data from events which     

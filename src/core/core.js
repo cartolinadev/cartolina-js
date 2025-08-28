@@ -99,6 +99,8 @@ var Core = function(element, config, coreInterface) {
         mapFeaturesReduceFactor : 1,
         mapFeaturesReduceFactor2 : 1,
 
+        mapExposeFpsToWindow: false,
+
         mapDMapSize : 1024,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
 
