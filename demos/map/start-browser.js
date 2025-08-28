@@ -117,6 +117,7 @@ function vtsParseUrlParams(initialParams_, url_) {
             case 'syncCursor':
             case 'walkMode':
             case 'rendererAntialiasing':
+            case 'mapExposeFpsToWindow':
             case 'rendererAllowScreenshots':    initialParams_[key_] = (params_[key_] == 'true' || params_[key_] == '1'); break;
             case 'mapDegradeHorizonParams':
             case 'inertia':
@@ -204,6 +205,8 @@ function vtsStartBrowser() {
 
     params_['jumpAllowed'] = true;
     params_['positionInUrl'] = true;
+    
+    console.log(params_.mapExposeFpsToWindow);
 
     var browser_ = vts.browser('map-canvas', params_);
 }

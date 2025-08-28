@@ -45,6 +45,7 @@ var GpuTexture = GpuTexture_;
 
 
 var Map = function(core, mapConfig, path, config, configStorage) {
+
     this.config = config || {};
     this.setConfigParams(config);
     this.setLoaderParams(mapConfig, configStorage);
@@ -920,6 +921,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapNormalizeOctantTexelSize':   this.config.mapNormalizeOctantTexelSize = utils.validateBool(value, true); break;
     case 'mapDMapSize':                   this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER, 512); break; 
     case 'mapDMapMode':                   this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER, 1); break;
+    case 'mapExposeFpsToWindow':          this.config.mapExposeFpsToWindow = utils.validateBool(value, false); break;
     case 'mapSplitSpace':                 this.config.mapSplitSpace = value; break;
     case 'mario':                         this.config.mario = utils.validateBool(value, true); break;
     case 'mapFeaturesReduceMode':         
