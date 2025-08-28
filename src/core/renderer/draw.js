@@ -759,19 +759,19 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
         if (renderer.gmapIndex > 0) {
             switch(renderer.gmapUseVersion) {
                 case 1: //scr-count4
-                    processGMap(gpu, gl, renderer, screenPixelSize, this);
+                    processGMap(gpu, gl, renderer, screenPixelSize, this, position);
                     break;
                 case 2:  //scr-count5
-                    processGMap4(gpu, gl, renderer, screenPixelSize, this);
+                    processGMap4(gpu, gl, renderer, screenPixelSize, this, position);
                     break;
                 case 3: //scr-count6
-                    processGMap5(gpu, gl, renderer, screenPixelSize, this);
+                    processGMap5(gpu, gl, renderer, screenPixelSize, this, position);
                     break;
                 case 4: //scr-count7
-                    processGMap6(gpu, gl, renderer, screenPixelSize, this);
+                    processGMap6(gpu, gl, renderer, screenPixelSize, this, position);
                     break;
                 case 5: //scr-count8
-                    processGMap7(gpu, gl, renderer, screenPixelSize, this);
+                    processGMap7(gpu, gl, renderer, screenPixelSize, this, position);
                     break;
             }
             renderer.gmapIndex = 0;
@@ -962,18 +962,18 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
                                         sjob.updatePos = job.updatePos;
                                         sjob.mvp = job.mvp;
                                         sjob.mv = job.mv;
-                                        this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, sjob.lastSubJob, fade);
+                                        this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, sjob.lastSubJob, fade, position);
                                     }
                                 }
 
                                 break;
 
                             case VTS_JOB_LINE_LABEL:
-                                this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, fade);
+                                this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, fade, position);
                                 break;
 
                             default:
-                                this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, fade);
+                                this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, fade, position);
                                 break;
                         }
 
@@ -1006,18 +1006,18 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
                             sjob.updatePos = job.updatePos;
                             sjob.mvp = job.mvp;
                             sjob.mv = job.mv;
-                            this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, sjob.lastSubJob, job.fade);
+                            this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, sjob.lastSubJob, job.fade, position);
                         }
                     }
 
                 break;
 
                 case VTS_JOB_LINE_LABEL:
-                    this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, job.fade);
+                    this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, job.fade, position);
                     break;
 
                 default:
-                    this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, job.fade);
+                    this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, job.fade, position);
                     break;
             }
 
@@ -1079,7 +1079,7 @@ RendererDraw.prototype.paintGL = function() {   //remove this??
 };
 
 
-RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color) {
+RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color, position) {
     var res = { 
         exit: true
     };
@@ -1160,7 +1160,7 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
         }
 
         if (job.type == VTS_JOB_LINE_LABEL) {
-            if (!renderer.rmap.addLineLabel(job.lastSubJob)) {
+            if (!renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                 //renderer.rmap.storeRemovedLineLabel(job.lastSubJob);
                 return res;
             }
@@ -1697,7 +1697,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 }
             }
 
-            res = this.processNoOverlap(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color); //, pointsIndex);
+            res = this.processNoOverlap(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color, position);
 
             if (res.exit) {
                 return;
@@ -1709,7 +1709,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 //l = res.l;
             }
            
-            this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, [job,0,texture,files,color,pp]);
+            this.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, [job,0,texture,files,color,pp], position);
 
             return;
         }
@@ -2086,7 +2086,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             //}
         }
 
-        res = this.processNoOverlap(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color);
+        res = this.processNoOverlap(renderer, job, pp, p1, p2, camVec, l, stickShift, texture, files, color, position);
 
         if (res.exit) {
             return;
@@ -2324,7 +2324,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
     return;
 };
 
-RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSize, subjob, fade) {
+RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSize, subjob, fade, position) {
     if (!subjob) {
         return;
     }
@@ -2336,7 +2336,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
     if (renderer.useSuperElevation) {
         if (job.seCounter != renderer.seCounter) {
             job.seCounter = renderer.seCounter;
-            job.center2 = renderer.transformPointBySE(job.center);
+            job.center2 = renderer.transformPointBySE(job.center, undefined, position);
         }
     } else {
         job.center2 = job.center;
@@ -2496,7 +2496,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
                 texture = subjob2.texture;
             }
 
-            this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, [subjob2, stickShift, texture, files, color, pp, true, depth, o], fade);
+            this.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, [subjob2, stickShift, texture, files, color, pp, true, depth, o], fade, position);
         }
 
         return;
@@ -2747,7 +2747,7 @@ function q4Slerp(a, b, t, out) {
   return out;
 }
 
-RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, screenPixelSize, subjob, fade) {
+RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, screenPixelSize, subjob, fade, position) {
     if (!subjob) {
         return;
     }
@@ -2761,7 +2761,7 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, scre
         if (job.seCounter != renderer.seCounter) {
             job.seCounter = renderer.seCounter;
             job.labelPointsBuffer.id = -1;
-            job.center2 = renderer.transformPointBySE(job.center);
+            job.center2 = renderer.transformPointBySE(job.center, undefined, position);
         }
     } else {
         job.center2 = job.center;
@@ -2832,8 +2832,8 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, scre
                 var sePoints2 = buffer.points2;
 
                 for(j = 0, lj = points.length; j < lj; j++) {
-                    sePoints[j] = renderer.transformPointBySE2(points[j]);
-                    sePoints2[j] = renderer.transformPointBySE2(points2[j]);
+                    sePoints[j] = renderer.transformPointBySE2(points[j], undefined, position);
+                    sePoints2[j] = renderer.transformPointBySE2(points2[j], undefined, position);
                 }
 
                 points = sePoints;
@@ -2909,7 +2909,7 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, scre
         gl.bindBuffer(gl.ARRAY_BUFFER, vbuff);
         gl.vertexAttribPointer(vertexPositionAttribute, vbuff.itemSize, gl.FLOAT, false, 0, 0);
 
-        console.log('job6');
+        //console.log('job6');
 
         //draw polygons
         for(j = 0, lj = (hitmapRender ? 1 : 2); j < lj; j++) {

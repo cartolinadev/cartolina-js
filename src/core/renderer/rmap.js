@@ -364,7 +364,7 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
 };
 
 
-RendererRMap.prototype.addLineLabel = function(subjob, checkDepthMap) {
+RendererRMap.prototype.addLineLabel = function(subjob, position) {
     var job = subjob[0], blockRectangles, blockRectanglesCount, rectangleIndex;
     var x1 = Number.POSITIVE_INFINITY, x2 = Number.NEGATIVE_INFINITY,
         y1 = Number.POSITIVE_INFINITY, y2 = Number.NEGATIVE_INFINITY;
@@ -419,8 +419,8 @@ RendererRMap.prototype.addLineLabel = function(subjob, checkDepthMap) {
             var sePoints2 = buffer.points2;
 
             for(i = 0, li = points.length; i < li; i++) {
-                sePoints[i] = renderer.transformPointBySE2(points[i]);
-                sePoints2[i] = renderer.transformPointBySE2(points2[i]);
+                sePoints[i] = renderer.transformPointBySE2(points[i], undefined, position);
+                sePoints2[i] = renderer.transformPointBySE2(points2[i], undefined, position);
             }
 
             points = sePoints;

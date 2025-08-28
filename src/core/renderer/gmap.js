@@ -1,6 +1,10 @@
 
 
-function processGMap(gpu, gl, renderer, screenPixelSize, draw) {
+function processGMap(gpu, gl, renderer, screenPixelSize, draw, position) {
+
+    if (arguments.length !== 6)
+        throw new Error('function now requires current position');
+
     if (!renderer.config.mapFeaturesReduceParams) {
         return;
     }
@@ -183,7 +187,8 @@ function processGMap(gpu, gl, renderer, screenPixelSize, draw) {
                         }
 
                         if (job.type == VTS_JOB_LINE_LABEL) {
-                            if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 //renderer.rmap.storeRemovedLineLabel(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], feature[7], feature[0].lastSubJob);
                             }
                         } else {
@@ -298,7 +303,11 @@ function storeFeatureToHitmap(id, feature, ix, iy, mx, my, hitMap, hcache, hcach
 }
 
 
-function processGMap4(gpu, gl, renderer, screenPixelSize, draw) {
+function processGMap4(gpu, gl, renderer, screenPixelSize, draw, position) {
+
+    if (arguments.length !== 6)
+        throw new Error('function now requires current position');
+
     if (!renderer.config.mapFeaturesReduceParams) {
         return;
     }
@@ -430,7 +439,7 @@ function processGMap4(gpu, gl, renderer, screenPixelSize, draw) {
                         o = feature[8];
 
                         if (job.type == VTS_JOB_LINE_LABEL) {
-                            if (renderer.rmap.addLineLabel(job.lastSubJob, null)) {
+                            if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 hitCacheSize++;
                             }
                         } else {
@@ -469,7 +478,11 @@ function processGMap4(gpu, gl, renderer, screenPixelSize, draw) {
     }
 }
 
-function processGMap5(gpu, gl, renderer, screenPixelSize, draw) {
+function processGMap5(gpu, gl, renderer, screenPixelSize, draw, position) {
+
+    if (arguments.length !== 6)
+        throw new Error('function now requires current position');
+
     if (!renderer.config.mapFeaturesReduceParams) {
         return;
     }
@@ -552,7 +565,7 @@ function processGMap5(gpu, gl, renderer, screenPixelSize, draw) {
                     o = feature[8];
 
                     if (job.type == VTS_JOB_LINE_LABEL) {
-                        if (renderer.rmap.addLineLabel(job.lastSubJob, null)) {
+                        if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                             //hitCache[hitCacheSize] = feature;
                         }
                     } else {
@@ -671,7 +684,11 @@ function radixSortFeatures(renderer, input, inputSize, tmp, depthOnly) {
 }
 
 //used for scr-count7
-function processGMap6(gpu, gl, renderer, screenPixelSize, draw) {
+function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
+
+    if (arguments.length !== 6)
+        throw new Error('function now requires current position');
+
     if (!renderer.config.mapFeaturesReduceParams) {
         return;
     }
@@ -717,7 +734,8 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw) {
             depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
 
             if (job.type == VTS_JOB_LINE_LABEL) {
-                if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                     featureCount++;
                 }
             } else {
@@ -986,7 +1004,11 @@ function radixDeltaSortFeatures(renderer, input, inputSize, tmp) {
 
 
 //used for scr-count8
-function processGMap7(gpu, gl, renderer, screenPixelSize, draw) {
+function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
+
+    if (arguments.length !== 6)
+        throw new Error('function now requires current position');
+
     if (!renderer.config.mapFeaturesReduceParams) {
         return;
     }
@@ -1160,7 +1182,8 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw) {
                         depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
                         
                         if (job.type == VTS_JOB_LINE_LABEL) {
-                            if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 featureCount++;
                             }
                         } else {
@@ -1207,7 +1230,8 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw) {
                         depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
                         
                         if (job.type == VTS_JOB_LINE_LABEL) {
-                            if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
+                            if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 featureCount++;
                             }
                         } else {
