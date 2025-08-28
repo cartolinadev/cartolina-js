@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.40.27-ondra_cartolina23.18402db';
+  return '2.40.28-ondra_cartolina23.6fd5f8c';
 }
