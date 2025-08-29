@@ -1,16 +1,20 @@
 [
   {
-    "name": "A 3D Mountain Map - Mount Whitney",
+    "name": "Single diffuse layer, lettering (Mount Whitney)",
     "url": "https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/?pos=obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00&mapExposeFpsToWindow=1",
-    "warmupMs": 2000,
-    "measureMs": 10000,
+    "warmupMs": 0,
+    "measureMs": 2000,
+    "idleMs": 1000,
+    "maxIdleWaitMs": 20000,
     "disableCache" : true
   },
   {
     "name": "Illlumination, normal map + bump map (Glacier Peak)",
     "url": "https://cdn.tspl.re/store/tacoma/005c-fitonly/?pos=obj,-121.167759,48.160547,fix,1545.58,198.97,-38.28,0.00,13440.07,30.00&mapExposeFpsToWindow=1",
-    "warmupMs": 2000,
-    "measureMs": 10000,
+    "warmupMs": 0,
+    "measureMs": 2000,
+    "idleMs": 1000,
+    "maxIdleWaitMs": 20000,
     "disableCache" : true
   }
 ]
