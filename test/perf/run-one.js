@@ -23,62 +23,76 @@ function injectLcpObserver() {
 
 // -------------------- FPS sampler (inject) ----------------------
 // /test/perf/run-one.js:35–94
-function injectFpsSampler(warmupMs, measureMs) {
+// -------------------- FPS helper (inject) ----------------------
+// Defines window.__vtsPerf.startFps(warmupMs, measureMs) -> Promise<stats>
+function injectFpsHelper() {
   return `
   (function () {
     window.__vtsPerf = window.__vtsPerf || {};
-    const samples = [];
-    let frames = 0;
-    let collecting = false;
-    let endAt = 0;
 
-    // prefer page-provided FPS
-    let externalFps = null;
-    try { if (typeof window.__vtsFps === 'number') externalFps = () => window.__vtsFps; } catch (e) {}
+    function percentile(arr, p) {
+      if (!arr.length) return 0;
+      const a = arr.slice().sort((x,y)=>x-y);
+      const idx = (a.length - 1) * p;
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      const h = idx - lo;
+      return a[lo] + (a[hi] - a[lo]) * h;
+    }
 
-    function rafStep(now) {
-      frames++;
-      if (collecting && now >= endAt) {
-        const dur = ${measureMs};
-        const fps = (frames * 1000) / dur;
-        samples.push(fps);
-        collecting = false;
+    window.__vtsPerf.startFps = function startFps(warmupMs, measureMs) {
+      const samples = [];
+      let frames = 0;
+      let collecting = false;
+      let endAt = 0;
+
+      // prefer app-provided FPS if present
+      let externalFps = null;
+      try { if (typeof window.__vtsFps === 'number') externalFps = () => window.__vtsFps; } catch (e) {}
+
+      function rafStep(now) {
+        frames++;
+        if (collecting && now >= endAt) {
+          const dur = measureMs;
+          const fps = (frames * 1000) / dur;
+          samples.push(fps);
+          collecting = false;
+        }
+        requestAnimationFrame(rafStep);
       }
       requestAnimationFrame(rafStep);
-    }
-    requestAnimationFrame(rafStep);
 
-    setTimeout(() => {
-      frames = 0;
-      collecting = true;
-      endAt = performance.now() + ${measureMs};
+      return new Promise(resolve => {
+        setTimeout(() => {
+          frames = 0;
+          collecting = true;
+          endAt = performance.now() + measureMs;
 
-      if (externalFps) {
-        const id = setInterval(() => {
-          const v = externalFps();
-          if (typeof v === 'number' && v > 0) samples.push(v);
-        }, 500);
-        setTimeout(() => clearInterval(id), ${measureMs});
-      }
-    }, ${warmupMs});
+          let intervalId = null;
+          if (externalFps) {
+            intervalId = setInterval(() => {
+              const v = externalFps();
+              if (typeof v === 'number' && v > 0) samples.push(v);
+            }, 500);
+          }
 
-    window.__vtsPerf.fpsPromise = new Promise(resolve => {
-      setTimeout(() => {
-        function p(arr, q) {
-          if (!arr.length) return 0;
-          const a = arr.slice().sort((x,y)=>x-y);
-          const idx = (a.length - 1) * q;
-          const lo = Math.floor(idx), hi = Math.ceil(idx);
-          const h = idx - lo;
-          return a[lo] + (a[hi] - a[lo]) * h;
-        }
-        const avg = samples.reduce((s,x)=>s+x,0) / (samples.length || 1);
-        window.__vtsPerf.fpsStats = { avg: avg||0, p10: p(samples,0.10)||0, p50: p(samples,0.50)||0, p90: p(samples,0.90)||0 };
-        resolve(window.__vtsPerf.fpsStats);
-      }, ${warmupMs + measureMs + 100});
-    });
+          setTimeout(() => {
+            if (intervalId) clearInterval(intervalId);
+            const avg = samples.reduce((s,x)=>s+x,0) / (samples.length || 1);
+            const stats = {
+              avg: avg || 0,
+              p10: percentile(samples, 0.10) || 0,
+              p50: percentile(samples, 0.50) || 0,
+              p90: percentile(samples, 0.90) || 0
+            };
+            window.__vtsPerf.fpsStats = stats;
+            resolve(stats);
+          }, measureMs + 100);
+        }, warmupMs);
+      });
+    };
   })();`;
 }
+
 
 // -------------------- main runner -------------------------------
 // /test/perf/run-one.js:96–210
@@ -111,14 +125,18 @@ async function runOne(cfg, outDir) {
    });
   }
   
-  // CDP for network metrics (Transferred bytes, Requests, Finish time)
+  // CDP for network metrics (Transferred bytes, Requests, Finish via network-idle)
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
 
-  let transferred = 0;
-  let requests = 0;
-  let lastFinishedTs = 0;
-  let mainLoaderId = null;
+  let transferred = 0;          // bytes (for main loader)
+  let requests = 0;             // count (for main loader)
+  let lastFinishedTs = 0;       // last loadingFinished time (any for main loader)
+  let mainLoaderId = null;      // loaderId of the current navigation
+  let inflight = 0;             // inflight count (for main loader)
+  let seenAny = false;          // seen at least one request for main loader
+  const idleMs = Number(cfg.idleMs ?? 1000);
+  const maxIdleWaitMs = Number(cfg.maxIdleWaitMs ?? 30000);
 
   // Map requestId -> loaderId so we can filter loadingFinished events
   const reqToLoader = new Map();
@@ -131,6 +149,16 @@ async function runOne(cfg, outDir) {
 
     if (!mainLoaderId && e.type === 'Document') {
        mainLoaderId = e.loaderId; // scope to the current navigation
+       console.log(`[CDP] Set mainLoaderId: ${mainLoaderId}`);
+    }
+    if (mainLoaderId && e.loaderId === mainLoaderId) {
+      if (e.type !== 'WebSocket' && e.type !== 'EventSource') {
+        console.log(`[CDP] Inflight incremented to ${inflight} for type=${e.type}`);
+        inflight++;
+      } else {
+        console.log(`[CDP] Skipping inflight for persistent type=${e.type}`);
+      }
+      seenAny = true;
     }
   });
 
@@ -143,30 +171,86 @@ async function runOne(cfg, outDir) {
     transferred += e.encodedDataLength || 0;
     lastFinishedTs = Date.now();
     requests++;
+    inflight = Math.max(0, inflight - 1);
+    console.log(`[CDP] Loading finished: requestId=${e.requestId}, inflight now ${inflight}`)
+  });
+
+
+  // also handle failed requests as completions
+  cdp.on('Network.loadingFailed', (e) => {
+    const lid = reqToLoader.get(e.requestId);
+    if (!mainLoaderId || lid !== mainLoaderId) return;
+    lastFinishedTs = Date.now();
+    inflight = Math.max(0, inflight - 1);
+    console.log(`[CDP] Loading failed: requestId=${e.requestId}, inflight now ${inflight}`);
   });
 
   // inject our observers before any app code runs
   await page.addInitScript(injectLcpObserver());
-  await page.addInitScript(injectFpsSampler(cfg.warmupMs || 2000, cfg.measureMs || 5000));
+  await page.addInitScript(injectFpsHelper());
 
   const t0 = Date.now();
   await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load').catch(() => {});
   await page.waitForTimeout(500); // small buffer
 
-  // wait until the FPS promise produces stats
-  await page.waitForFunction(() => window.__vtsPerf && window.__vtsPerf.fpsStats, null, {
-    timeout: (cfg.warmupMs || 2000) + (cfg.measureMs || 5000) + 2000
-  });
+ // ----- Wait for NETWORK IDLE (no requests for idleMs) -----
+  const idleReached = await (async () => {
+    //if (!maxIdleWaitMs) return { idleTs: Date.now(), transferredAtIdle: transferred, requestsAtIdle: requests };
+    let timer = null;
+    let resolveIdle;
+    const idlePromise = new Promise(res => { resolveIdle = res; });
+    const start = Date.now();
+
+    function maybeArmIdle() {
+      if (!seenAny) return;                // wait until we actually saw traffic
+      if (inflight !== 0)  {
+          if (timer) clearTimeout(timer); timer = null;
+      }
+
+      if (!timer) {
+        console.log('Arming idle timeout');
+        timer = setTimeout(() =>  {
+          timer = null,
+          console.log('Idle timeout complete, finished loading page.');
+          resolveIdle({ idleTs: Date.now() - idleMs, transferredAtIdle: transferred, requestsAtIdle: requests });
+        }, idleMs);
+      }
+    }
+
+
+    // poller for timeout/bailout
+    const bail = setInterval(() => {
+      if (Date.now() - start > maxIdleWaitMs) {
+
+        console.log(`Bailing out, maxIdleWaitMs reached.`);
+
+        if (timer) clearTimeout(timer);
+        clearInterval(bail);
+        resolveIdle({ idleTs: Date.now(), transferredAtIdle: transferred, requestsAtIdle: requests });
+      } else {
+        maybeArmIdle();
+      }
+    }, 50);
+
+    // kick initial check
+    maybeArmIdle();
+    const res = await idlePromise;
+    if (timer) clearTimeout(timer);
+    clearInterval(bail);
+    return res;
+  })();
+
+  // ----- Start FPS measurement only AFTER idle -----
+  const warm = Number(cfg.warmupMs || 0);
+  const meas = Number(cfg.measureMs || 2000);
+  const fps = await page.evaluate(([w, m]) => window.__vtsPerf.startFps(w, m), [warm, meas]);
 
   const lcp = await page.evaluate(() =>
     (window.__vtsPerf && window.__vtsPerf.lcp) || 0
   );
-  const fps = await page.evaluate(() =>
-    (window.__vtsPerf && window.__vtsPerf.fpsStats) ||
-    { avg: 0, p10: 0, p50: 0, p90: 0 }
-  );
-  const finish = lastFinishedTs ? (lastFinishedTs - t0) : 0;
+
+  const finish = idleReached.idleTs ? (idleReached.idleTs - t0) : 0;
 
   const result = {
     name: cfg.name || cfg.url,
