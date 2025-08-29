@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.40.29-ondra_cartolina23.408856a",
+  "version": "2.40.30-ondra_cartolina23.af391d3",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -16,7 +16,8 @@
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
     "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",
-    "test:perf:one": "node ./test/perf/run-one.js"
+    "test:perf:one": "node ./test/perf/run-one.js",
+    "test:perf:one:headed": "PWDEBUG=console node ./test/perf/run-one.js"
   },
   "repository": {
     "type": "git",

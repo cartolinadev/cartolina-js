@@ -85,7 +85,16 @@ function injectFpsSampler(warmupMs, measureMs) {
 async function runOne(cfg, outDir) {
   const browser = await chromium.launch({
     headless: !process.env.PWDEBUG,
-    args: ['--disable-extensions', '--enable-precise-memory-info'],
+    args: [
+      '--disable-extensions', 
+      '--enable-precise-memory-info',
+      '--ignore-gpu-blocklist',     // allow GPU on VMs/CI
+      '--enable-gpu',               // don’t auto-disable
+      '--enable-gpu-rasterization',
+      '--enable-zero-copy',
+      '--use-angle=gl'    
+      // '--use=gl=egl'      
+    ],
   });
   const context = await browser.newContext({ bypassCSP: false });
   const page = await context.newPage();
@@ -102,21 +111,38 @@ async function runOne(cfg, outDir) {
    });
   }
   
-  // CDP network to get 'Transferred' and 'Finish'
+  // CDP for network metrics (Transferred bytes, Requests, Finish time)
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
 
   let transferred = 0;
   let requests = 0;
-  let finishTs = 0;
-  const inflight = new Set();
+  let lastFinishedTs = 0;
+  let mainLoaderId = null;
 
-  // /test/perf/run-one.js:120–168
-  cdp.on('Network.requestWillBeSent', (e) => { inflight.add(e.requestId); requests++; });
+  // Map requestId -> loaderId so we can filter loadingFinished events
+  const reqToLoader = new Map();
+  
+  // capture the loaderId for the main navigation
+  cdp.on('Network.requestWillBeSent', (e) => {
+    if (e.requestId && e.loaderId)  {
+      reqToLoader.set(e.requestId, e.loaderId);
+    }
+
+    if (!mainLoaderId && e.type === 'Document') {
+       mainLoaderId = e.loaderId; // scope to the current navigation
+    }
+  });
+
+  // track last request completion time for this loaderId
   cdp.on('Network.loadingFinished', (e) => {
-    inflight.delete(e.requestId);
+
+   const lid = reqToLoader.get(e.requestId);
+   if (!mainLoaderId || lid !== mainLoaderId) return;
+
     transferred += e.encodedDataLength || 0;
-    if (inflight.size === 0) finishTs = Date.now();
+    lastFinishedTs = Date.now();
+    requests++;
   });
 
   // inject our observers before any app code runs
@@ -133,17 +159,28 @@ async function runOne(cfg, outDir) {
     timeout: (cfg.warmupMs || 2000) + (cfg.measureMs || 5000) + 2000
   });
 
-  const lcp = await page.evaluate(() => (window.__vtsPerf && window.__vtsPerf.lcp) || 0);
-  const fps = await page.evaluate(() => (window.__vtsPerf && window.__vtsPerf.fpsStats) || { avg:0,p10:0,p50:0,p90:0 });
-  const finish = finishTs ? (finishTs - t0) : 0;
+  const lcp = await page.evaluate(() =>
+    (window.__vtsPerf && window.__vtsPerf.lcp) || 0
+  );
+  const fps = await page.evaluate(() =>
+    (window.__vtsPerf && window.__vtsPerf.fpsStats) ||
+    { avg: 0, p10: 0, p50: 0, p90: 0 }
+  );
+  const finish = lastFinishedTs ? (lastFinishedTs - t0) : 0;
 
   const result = {
     name: cfg.name || cfg.url,
     url: cfg.url,
-    fps,
-    lcp,
-    finish,
-    transferred,
+    fps: {
+      avg: fps.avg,
+      p10: fps.p10,
+      p50: fps.p50,
+      p90: fps.p90,
+      unit: "frames/second"
+    },
+    lcp: { value: lcp, unit: "ms" },
+    finish: { value: finish, unit: "ms" },
+    transferred: { value: transferred, unit: "bytes" },
     requests
   };
 
