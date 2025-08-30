@@ -1,6 +1,6 @@
 {
   "templates": {
-      "dev": "/demos/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
+      "dev": "http://localhost:8080/demos/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
       , "prod": "${url}/?pos=${pos}&mapExposeFpsToWindow=1${extras}" 
   },
 
@@ -13,7 +13,7 @@
   }
   , {
     "id": "tacoma-005c-fitonly"
-    , "description": "Illlumination, normal map + bump map, 'fitonly' tree traversal (Glacier Peak)"
+    , "description": "Illlumination, normal map + bump map, lettering, 'fitonly' tree traversal (Glacier Peak)"
     , "url": "https://cdn.tspl.re/store/tacoma/005c-fitonly/"
     , "pos": "obj,-121.167759,48.160547,fix,1545.58,198.97,-38.28,0.00,13440.07,30.00"
   }

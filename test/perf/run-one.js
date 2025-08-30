@@ -140,7 +140,7 @@ async function runOne(cfg, outDir) {
   let lastActivityTs = 0;           // updated on every start/finish we count
 
   // idle params
-  const idleMs = Number(cfg.idleMs ?? 1000);
+  const idleMs = Number(cfg.idleMs ?? 2000);
   const maxIdleWaitMs = Number(cfg.maxIdleWaitMs ?? 30000);
   const postNavHoldMs = Number(cfg.postNavHoldMs ?? 1200);     // don’t finish too soon after nav
   const workerGuardMs = Number(cfg.workerGuardMs ?? 5000);     // if no worker seen after 5s, allow idle anyway
@@ -259,7 +259,6 @@ async function runOne(cfg, outDir) {
       return workerOk && sinceNav >= postNavHoldMs;
     }
 
-            console.log(maxIdleWaitMs);
 
 
     return new Promise(resolve => {
@@ -302,7 +301,6 @@ async function runOne(cfg, outDir) {
   const meas = Number(cfg.measureMs || 2000);
 
   console.log(`[${ts()}] [FPS] measuring`);
-  console.log(warm, meas);
   const fps = await page.evaluate(([w, m]) => window.__vtsPerf.startFps(w, m), [warm, meas]);
 
   console.log(`[${ts()}] [FPS] retrieving`);
