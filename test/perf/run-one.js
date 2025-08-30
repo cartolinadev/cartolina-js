@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
-// -------------------- LCP collector (inject) --------------------
+/* ----------------------------------------------------------------------------
+   LCP collector (inject)
+   ------------------------------------------------------------------------- */
 function injectLcpObserver() {
   return `
   (function () {
@@ -20,7 +22,9 @@ function injectLcpObserver() {
   })();`;
 }
 
-// -------------------- FPS helper (inject) ----------------------
+/* ----------------------------------------------------------------------------
+   FPS helper (inject)
+   ------------------------------------------------------------------------- */
 function injectFpsHelper() {
   return `
   (function () {
@@ -88,7 +92,26 @@ function injectFpsHelper() {
   })();`;
 }
 
-// -------------------- main runner -------------------------------
+/* ----------------------------------------------------------------------------
+   Log helpers
+   ------------------------------------------------------------------------- */
+function trimUrl(u, max = 160) {
+  try {
+    const url = new URL(u);
+    const short = url.origin + url.pathname + (url.search ? '?…' : '');
+    return short.length <= max ? short : short.slice(0, max - 1) + '…';
+  } catch {
+    return (u.length <= max) ? u : (u.slice(0, max - 1) + '…');
+  }
+}
+function ts() {
+  const d = new Date();
+  return d.toISOString().split('T')[1].replace('Z', '');
+}
+
+/* ----------------------------------------------------------------------------
+   Main runner
+   ------------------------------------------------------------------------- */
 async function runOne(cfg, outDir) {
   const browser = await chromium.launch({
     headless: !process.env.PWDEBUG,
@@ -102,132 +125,195 @@ async function runOne(cfg, outDir) {
       '--use-angle=gl'
     ],
   });
+
   const context = await browser.newContext({ bypassCSP: false });
   const page = await context.newPage();
 
   // -------------------- aggregate metrics --------------------
-  let transferred = 0;          // bytes (decoded body length) across page + workers
-  let requests = 0;             // count (page + workers)
-  let inflight = 0;             // inflight count
-  let seenAny = false;          // seen at least one request after main doc
+  let requests = 0;                 // count (page + workers)
+  let bytesDecoded = 0;             // Buffer length
+  let bytesByHeader = 0;            // Content-Length (if present)
+  let inflight = 0;                 // in-flight count
+  let seenAny = false;              // seen at least one counted request
+  let workerSeen = false;           // saw any request coming from worker
+  let tracking = false;             // start counting after main Document request
+  let lastActivityTs = 0;           // updated on every start/finish we count
+
+  // idle params
   const idleMs = Number(cfg.idleMs ?? 1000);
   const maxIdleWaitMs = Number(cfg.maxIdleWaitMs ?? 30000);
-  let tracking = false;         // start counting after main Document req
+  const postNavHoldMs = Number(cfg.postNavHoldMs ?? 1200);     // don’t finish too soon after nav
+  const workerGuardMs = Number(cfg.workerGuardMs ?? 5000);     // if no worker seen after 5s, allow idle anyway
 
   // -------------------- one route to capture *everything* --------------------
-  // This sees requests from the page, subframes, *and* workers/service-workers.
   await context.route('**/*', async (route) => {
     const req = route.request();
+    const rt = (req.resourceType() || '').toLowerCase();
+    const fromWorker = !req.frame(); // Workers have no Frame
+    const tag = fromWorker ? 'worker' : 'page';
+    const url = req.url();
+    const method = req.method();
 
-    // flip tracking on the main navigation document
-    if (!tracking && req.isNavigationRequest() && req.resourceType() === 'document') {
+    // start tracking at the main navigation document
+    if (!tracking && req.isNavigationRequest() && rt === 'document') {
       tracking = true;
-      // fall through and count this request too
+      lastActivityTs = Date.now();
+      console.log(`[${ts()}] [route] main navigation -> start counting`);
     }
 
-    // Optionally disable caching by modifying request headers here
+    // Optionally disable caching - commented out: this is a client side test, we do not want to bust cdn caches
     let headers = req.headers();
-    if (cfg.disableCache) {
-      headers = { ...headers, 'Cache-Control': 'no-cache' };
-    }
+    /*if (cfg.disableCache) {
+      headers = { ...headers, 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
+    }*/
 
-    // Before we fetch, decide if we count this one
-    const persistent = req.resourceType() === 'websocket' || req.resourceType() === 'eventsource';
+    // Decide if we count this one
+    const persistent = (rt === 'websocket' || rt === 'eventsource');
     const shouldCount = tracking && !persistent;
 
-    // Start
-    if (shouldCount) { inflight++; seenAny = true; }
+    // Log start
+    const willInflight = shouldCount ? inflight + 1 : inflight;
+    //console.log(`[${ts()}] [ROUTE→] ${method} ${trimUrl(url)} (type=${rt}, src=${tag}) inflight-> ${willInflight}${persistent ? ' [persistent-skip]' : ''}`);
 
+    if (shouldCount) {
+      inflight++;
+      seenAny = true;
+      if (fromWorker) workerSeen = true;
+      lastActivityTs = Date.now();
+    }
+
+    const t0req = Date.now();
     try {
-      // Perform the request ourselves and get its body
       const resp = await route.fetch({ headers });
-      let body = null;
-      try {
-        body = await resp.body();       // Buffer
-      } catch (_) {
-        body = null;
-      }
 
-      if (shouldCount && body) {
-        transferred += body.length;     // decoded bytes
+      // read the body buffer (decoded size)
+      let body = null;
+      try { body = await resp.body(); } catch (_) {}
+
+      // update metrics
+      let decoded = 0;
+      let headerCL = null;
+      if (shouldCount) {
+        if (body) {
+          decoded = body.length;
+          bytesDecoded += decoded;
+        }
+        // prefer Content-Length as "encoded" byte approximation
+        const h = resp.headers();
+        const clHeader = h['content-length'] || h['Content-Length'];
+        if (clHeader) {
+          const v = Array.isArray(clHeader) ? clHeader[0] : clHeader;
+          const n = Number(v);
+          if (!Number.isNaN(n) && n >= 0) {
+            headerCL = n;
+            bytesByHeader += n;
+          }
+        }
         requests++;
       }
 
-      // Fulfill with the original response (and the body we already read)
-      await route.fulfill({ response: resp, body });
+      const status = resp.status();
+      const dur = Date.now() - t0req;
 
+      // Log finish
+      const willInflightDown = shouldCount ? Math.max(0, inflight - 1) : inflight;
+      /*console.log(
+        `[${ts()}] [ROUTE←] ${status} ${trimUrl(url)} (type=${rt}, src=${tag}) ` +
+        `decoded=${decoded}` + (headerCL != null ? ` headerCL=${headerCL}` : '') +
+        ` dur=${dur}ms inflight-> ${willInflightDown}`
+      );*/
+
+      // fulfill back to the browser with the already-buffered body
+      await route.fulfill({ response: resp, body });
     } catch (e) {
-      // Network error — surface it to the page
+      //console.log(`[${ts()}] [ROUTE×] ${method} ${trimUrl(url)} (type=${rt}, src=${tag}) ERROR: ${e?.message || e}`);
       try { await route.abort(); } catch (_) {}
     } finally {
-      if (shouldCount) inflight = Math.max(0, inflight - 1);
+      if (shouldCount) {
+        inflight = Math.max(0, inflight - 1);
+        lastActivityTs = Date.now();
+      }
     }
   });
 
-  // -------------------- optional page-level logging only --------------------
-  page.on('request', (r) => {
-    if (!tracking && r.isNavigationRequest() && r.resourceType() === 'document') {
-      tracking = true;
-      console.log('[route] main navigation seen, starting capture.');
-    }
-  });
-
-  // inject our observers before any app code runs
+  // -------------------- inject observers before any app code runs --------------------
   await page.addInitScript(injectLcpObserver());
   await page.addInitScript(injectFpsHelper());
 
-  const t0 = Date.now();
+  const navStart = Date.now();
+  const t0 = navStart;
   await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load').catch(() => {});
   await page.waitForTimeout(200); // small buffer
 
-  // ----- Wait for NETWORK IDLE (no requests for idleMs) -----
+  // ----- robust NETWORK IDLE (quiet-window + worker guard + post-nav hold) -----
   const idleReached = await (async () => {
-    let timer = null;
-    let resolveIdle;
-    const idlePromise = new Promise(res => { resolveIdle = res; });
+    let idleStart = 0;
     const start = Date.now();
 
-    function maybeArmIdle() {
-      if (!seenAny) return;                // wait until we actually saw traffic
-      if (inflight !== 0) { if (timer) { clearTimeout(timer); timer = null; } return; }
-      if (!timer) {
-        timer = setTimeout(() =>  {
-          timer = null;
-          console.log('Idle timeout complete, finished loading page.');
-          resolveIdle({ idleTs: Date.now() - idleMs, transferredAtIdle: transferred, requestsAtIdle: requests });
-        }, idleMs);
-      }
+    function allowIdleNow() {
+      const sinceNav = Date.now() - navStart;
+      // require: either we saw worker activity OR we gave it some time
+      const workerOk = workerSeen || sinceNav >= workerGuardMs;
+      // also: don’t even consider idle before postNavHoldMs
+      return workerOk && sinceNav >= postNavHoldMs;
     }
 
-    const bail = setInterval(() => {
-      if (Date.now() - start > maxIdleWaitMs) {
-        console.log(`Bailing out, maxIdleWaitMs reached.`);
-        if (timer) clearTimeout(timer);
-        clearInterval(bail);
-        resolveIdle({ idleTs: Date.now(), transferredAtIdle: transferred, requestsAtIdle: requests });
-      } else {
-        maybeArmIdle();
-      }
-    }, 50);
+            console.log(maxIdleWaitMs);
 
-    maybeArmIdle();
-    const res = await idlePromise;
-    if (timer) clearTimeout(timer);
-    clearInterval(bail);
-    return res;
+
+    return new Promise(resolve => {
+      const tick = setInterval(() => {
+        const now = Date.now();
+
+
+        // Bailout hard cap
+        if (now - start > maxIdleWaitMs) {
+          console.log(`[${ts()}] [IDLE] bailout: maxIdleWaitMs=${maxIdleWaitMs} exceeded (inflight=${inflight})`);
+          clearInterval(tick);
+          resolve({ idleTs: now, transferredAtIdle: Math.max(bytesByHeader, bytesDecoded), requestsAtIdle: requests });
+          return;
+        }
+
+        // Keep re-arming idle window based on last activity & inflight
+        const quietFor = now - lastActivityTs;
+        if (allowIdleNow() && inflight === 0 && seenAny && quietFor >= idleMs) {
+          console.log(`[${ts()}] [IDLE] quiet ${quietFor}ms ≥ idleMs=${idleMs}, inflight=0, finishing.`);
+          clearInterval(tick);
+          resolve({ idleTs: now, transferredAtIdle: Math.max(bytesByHeader, bytesDecoded), requestsAtIdle: requests });
+          return;
+        }
+
+        // For visibility
+        if (idleStart === 0 && inflight === 0 && seenAny && allowIdleNow()) {
+          idleStart = now;
+          console.log(`[${ts()}] [IDLE] arming quiet window (idleMs=${idleMs})… inflight=${inflight}`);
+        }
+        if ((inflight > 0 || !allowIdleNow()) && idleStart) {
+          console.log(`[${ts()}] [IDLE] disarming quiet window (inflight=${inflight}, allow=${allowIdleNow()})`);
+          idleStart = 0;
+        }
+      }, 100);
+    });
   })();
 
   // ----- Start FPS measurement only AFTER idle -----
   const warm = Number(cfg.warmupMs || 0);
   const meas = Number(cfg.measureMs || 2000);
+
+  console.log(`[${ts()}] [FPS] measuring`);
+  console.log(warm, meas);
   const fps = await page.evaluate(([w, m]) => window.__vtsPerf.startFps(w, m), [warm, meas]);
 
+  console.log(`[${ts()}] [FPS] retrieving`);
   const lcp = await page.evaluate(() =>
     (window.__vtsPerf && window.__vtsPerf.lcp) || 0
   );
 
   const finish = idleReached.idleTs ? (idleReached.idleTs - t0) : 0;
+  const transferred = Math.max(bytesByHeader, bytesDecoded);
+
+  console.log(`[${ts()}] --- Done. ---`);
 
   const result = {
     name: cfg.name || cfg.url,
@@ -249,7 +335,7 @@ async function runOne(cfg, outDir) {
   const outFile = path.join(outDir, `${safe}.json`);
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify(result, null, 2));
-  console.log(`[perf] ${cfg.name || cfg.url} ->`, result);
+  console.log(`[${ts()}] ${cfg.name || cfg.url} ->`, result);
 
   await browser.close();
   return result;
@@ -259,9 +345,7 @@ async function runOne(cfg, outDir) {
 if (require.main === module) {
   const cfg = {
     url: process.argv[2],
-    name: process.argv[3] || process.argv[2],
-    warmupMs: Number(process.argv[4] || 2000),
-    measureMs: Number(process.argv[5] || 5000),
+    name: process.argv[3] || process.argv[2]
   };
   if (!cfg.url) {
     console.error('Usage: node test/perf/run-one.js <url> [name] [warmupMs] [measureMs]');
