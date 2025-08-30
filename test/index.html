@@ -67,6 +67,9 @@
         border-radius: 6px;
         margin: 12px 0;
       }
+      pre {
+        background: #f6f8fa;
+      }
     </style>
   </head>
   <body>
@@ -85,7 +88,15 @@
         </thead>
         <tbody id="tbody"></tbody>
       </table>
+      <p class="note">Automatic regression tests may be run as one of these commands</p>
+      <pre><code>
+      $ npm run test:perf
+      $ npm run test:perf:headed
+      </code></pre>
+      <p class="note">If any these test have been run at least once, the latest result is available
+      <a href="/test/perf/results/latest/summary.html">here</a>.</p>
     </div>
+
     <script>
       (function () {
         const $tbody = document.getElementById('tbody');
