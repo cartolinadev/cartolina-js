@@ -10,11 +10,6 @@
   },
   {
     "name": "Illlumination, normal map + bump map (Glacier Peak)",
-    "url": "https://cdn.tspl.re/store/tacoma/005c-fitonly/?pos=obj,-121.167759,48.160547,fix,1545.58,198.97,-38.28,0.00,13440.07,30.00&mapExposeFpsToWindow=1",
-    "warmupMs": 0,
-    "measureMs": 2000,
-    "idleMs": 1000,
-    "maxIdleWaitMs": 20000,
-    "disableCache" : true
+    "url": "https://cdn.tspl.re/store/tacoma/005c-fitonly/?pos=obj,-121.167759,48.160547,fix,1545.58,198.97,-38.28,0.00,13440.07,30.00&mapExposeFpsToWindow=1"
   }
 ]
