@@ -4,7 +4,6 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 // -------------------- LCP collector (inject) --------------------
-// /test/perf/run-one.js:11–33
 function injectLcpObserver() {
   return `
   (function () {
@@ -21,10 +20,7 @@ function injectLcpObserver() {
   })();`;
 }
 
-// -------------------- FPS sampler (inject) ----------------------
-// /test/perf/run-one.js:35–94
 // -------------------- FPS helper (inject) ----------------------
-// Defines window.__vtsPerf.startFps(warmupMs, measureMs) -> Promise<stats>
 function injectFpsHelper() {
   return `
   (function () {
@@ -45,7 +41,6 @@ function injectFpsHelper() {
       let collecting = false;
       let endAt = 0;
 
-      // prefer app-provided FPS if present
       let externalFps = null;
       try { if (typeof window.__vtsFps === 'number') externalFps = () => window.__vtsFps; } catch (e) {}
 
@@ -93,96 +88,88 @@ function injectFpsHelper() {
   })();`;
 }
 
-
 // -------------------- main runner -------------------------------
-// /test/perf/run-one.js:96–210
 async function runOne(cfg, outDir) {
   const browser = await chromium.launch({
     headless: !process.env.PWDEBUG,
     args: [
-      '--disable-extensions', 
+      '--disable-extensions',
       '--enable-precise-memory-info',
-      '--ignore-gpu-blocklist',     // allow GPU on VMs/CI
-      '--enable-gpu',               // don’t auto-disable
+      '--ignore-gpu-blocklist',
+      '--enable-gpu',
       '--enable-gpu-rasterization',
       '--enable-zero-copy',
-      '--use-angle=gl'    
-      // '--use=gl=egl'      
+      '--use-angle=gl'
     ],
   });
   const context = await browser.newContext({ bypassCSP: false });
   const page = await context.newPage();
-  
-  // routing override to disable caching
-  if (cfg.disableCache) {
-    await context.route('**/*', route => {
-      route.continue({
-        headers: {
-          ...route.request().headers(),
-          'Cache-Control': 'no-cache'
-        }
-      });
-   });
-  }
-  
-  // CDP for network metrics (Transferred bytes, Requests, Finish via network-idle)
-  const cdp = await context.newCDPSession(page);
-  await cdp.send('Network.enable');
 
-  let transferred = 0;          // bytes (for main loader)
-  let requests = 0;             // count (for main loader)
-  let lastFinishedTs = 0;       // last loadingFinished time (any for main loader)
-  let mainLoaderId = null;      // loaderId of the current navigation
-  let inflight = 0;             // inflight count (for main loader)
-  let seenAny = false;          // seen at least one request for main loader
+  // -------------------- aggregate metrics --------------------
+  let transferred = 0;          // bytes (decoded body length) across page + workers
+  let requests = 0;             // count (page + workers)
+  let inflight = 0;             // inflight count
+  let seenAny = false;          // seen at least one request after main doc
   const idleMs = Number(cfg.idleMs ?? 1000);
   const maxIdleWaitMs = Number(cfg.maxIdleWaitMs ?? 30000);
+  let tracking = false;         // start counting after main Document req
 
-  // Map requestId -> loaderId so we can filter loadingFinished events
-  const reqToLoader = new Map();
-  
-  // capture the loaderId for the main navigation
-  cdp.on('Network.requestWillBeSent', (e) => {
-    if (e.requestId && e.loaderId)  {
-      reqToLoader.set(e.requestId, e.loaderId);
+  // -------------------- one route to capture *everything* --------------------
+  // This sees requests from the page, subframes, *and* workers/service-workers.
+  await context.route('**/*', async (route) => {
+    const req = route.request();
+
+    // flip tracking on the main navigation document
+    if (!tracking && req.isNavigationRequest() && req.resourceType() === 'document') {
+      tracking = true;
+      // fall through and count this request too
     }
 
-    if (!mainLoaderId && e.type === 'Document') {
-       mainLoaderId = e.loaderId; // scope to the current navigation
-       console.log(`[CDP] Set mainLoaderId: ${mainLoaderId}`);
+    // Optionally disable caching by modifying request headers here
+    let headers = req.headers();
+    if (cfg.disableCache) {
+      headers = { ...headers, 'Cache-Control': 'no-cache' };
     }
-    if (mainLoaderId && e.loaderId === mainLoaderId) {
-      if (e.type !== 'WebSocket' && e.type !== 'EventSource') {
-        console.log(`[CDP] Inflight incremented to ${inflight} for type=${e.type}`);
-        inflight++;
-      } else {
-        console.log(`[CDP] Skipping inflight for persistent type=${e.type}`);
+
+    // Before we fetch, decide if we count this one
+    const persistent = req.resourceType() === 'websocket' || req.resourceType() === 'eventsource';
+    const shouldCount = tracking && !persistent;
+
+    // Start
+    if (shouldCount) { inflight++; seenAny = true; }
+
+    try {
+      // Perform the request ourselves and get its body
+      const resp = await route.fetch({ headers });
+      let body = null;
+      try {
+        body = await resp.body();       // Buffer
+      } catch (_) {
+        body = null;
       }
-      seenAny = true;
+
+      if (shouldCount && body) {
+        transferred += body.length;     // decoded bytes
+        requests++;
+      }
+
+      // Fulfill with the original response (and the body we already read)
+      await route.fulfill({ response: resp, body });
+
+    } catch (e) {
+      // Network error — surface it to the page
+      try { await route.abort(); } catch (_) {}
+    } finally {
+      if (shouldCount) inflight = Math.max(0, inflight - 1);
     }
   });
 
-  // track last request completion time for this loaderId
-  cdp.on('Network.loadingFinished', (e) => {
-
-   const lid = reqToLoader.get(e.requestId);
-   if (!mainLoaderId || lid !== mainLoaderId) return;
-
-    transferred += e.encodedDataLength || 0;
-    lastFinishedTs = Date.now();
-    requests++;
-    inflight = Math.max(0, inflight - 1);
-    console.log(`[CDP] Loading finished: requestId=${e.requestId}, inflight now ${inflight}`)
-  });
-
-
-  // also handle failed requests as completions
-  cdp.on('Network.loadingFailed', (e) => {
-    const lid = reqToLoader.get(e.requestId);
-    if (!mainLoaderId || lid !== mainLoaderId) return;
-    lastFinishedTs = Date.now();
-    inflight = Math.max(0, inflight - 1);
-    console.log(`[CDP] Loading failed: requestId=${e.requestId}, inflight now ${inflight}`);
+  // -------------------- optional page-level logging only --------------------
+  page.on('request', (r) => {
+    if (!tracking && r.isNavigationRequest() && r.resourceType() === 'document') {
+      tracking = true;
+      console.log('[route] main navigation seen, starting capture.');
+    }
   });
 
   // inject our observers before any app code runs
@@ -192,11 +179,10 @@ async function runOne(cfg, outDir) {
   const t0 = Date.now();
   await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load').catch(() => {});
-  await page.waitForTimeout(500); // small buffer
+  await page.waitForTimeout(200); // small buffer
 
- // ----- Wait for NETWORK IDLE (no requests for idleMs) -----
+  // ----- Wait for NETWORK IDLE (no requests for idleMs) -----
   const idleReached = await (async () => {
-    //if (!maxIdleWaitMs) return { idleTs: Date.now(), transferredAtIdle: transferred, requestsAtIdle: requests };
     let timer = null;
     let resolveIdle;
     const idlePromise = new Promise(res => { resolveIdle = res; });
@@ -204,27 +190,19 @@ async function runOne(cfg, outDir) {
 
     function maybeArmIdle() {
       if (!seenAny) return;                // wait until we actually saw traffic
-      if (inflight !== 0)  {
-          if (timer) clearTimeout(timer); timer = null;
-      }
-
+      if (inflight !== 0) { if (timer) { clearTimeout(timer); timer = null; } return; }
       if (!timer) {
-        console.log('Arming idle timeout');
         timer = setTimeout(() =>  {
-          timer = null,
+          timer = null;
           console.log('Idle timeout complete, finished loading page.');
           resolveIdle({ idleTs: Date.now() - idleMs, transferredAtIdle: transferred, requestsAtIdle: requests });
         }, idleMs);
       }
     }
 
-
-    // poller for timeout/bailout
     const bail = setInterval(() => {
       if (Date.now() - start > maxIdleWaitMs) {
-
         console.log(`Bailing out, maxIdleWaitMs reached.`);
-
         if (timer) clearTimeout(timer);
         clearInterval(bail);
         resolveIdle({ idleTs: Date.now(), transferredAtIdle: transferred, requestsAtIdle: requests });
@@ -233,7 +211,6 @@ async function runOne(cfg, outDir) {
       }
     }, 50);
 
-    // kick initial check
     maybeArmIdle();
     const res = await idlePromise;
     if (timer) clearTimeout(timer);
@@ -279,7 +256,6 @@ async function runOne(cfg, outDir) {
 }
 
 // CLI usage (manual run)
-// /test/perf/run-one.js:212–236
 if (require.main === module) {
   const cfg = {
     url: process.argv[2],
