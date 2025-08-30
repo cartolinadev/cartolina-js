@@ -210,6 +210,11 @@ module.exports = {
         directory: path.join(__dirname, 'demos'),
         publicPath: '/demos',
         watch: true
+    },
+    {
+        directory: path.join(__dirname, 'test'),
+        publicPath: '/test',
+        watch: true
     }],
     open: false,
     client: {
