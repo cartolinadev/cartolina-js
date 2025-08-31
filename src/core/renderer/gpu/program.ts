@@ -1,28 +1,42 @@
 
-var GpuProgram = function(gpu, vertex, fragment, variants) {
-    this.gpu = gpu;
-    this.gl = gpu.gl;
-    this.vertex = vertex;
-    this.fragment = fragment;
-    this.program = null;
-    this.uniformLocationCache = [];
-    this.attributeLocationCache = [];
-    this.m = new Float32Array(16);
-    this.ready = false;
-    this.createProgram(vertex, fragment);
-    this.variants = variants || [];
-    this.programs = {};
-};
+
+export class GpuProgram {
+
+    gpu: any;
+    vertex: string;
+    fragment: string;
+    gl: WebGLRenderingContext;
+    program: WebGLProgram;
+    ready: Boolean;
+    uniformLocationCache: Record<string, WebGLUniformLocation>;
+    attributeLocationCache: Record<string, GLint>;
+    m: Float32Array;
+
+    constructor(gpu: any, vertex: string, fragment: string, _?: any /*variants*/) {
+
+        this.gpu = gpu;
+        this.vertex = vertex;
+        this.fragment = fragment;
+        this.gl = gpu.gl;
+        this.program = null;
+        this.uniformLocationCache = {};
+        this.attributeLocationCache = {};
+        this.m = new Float32Array(16);
+        this.ready = false;
+        this.createProgram(vertex, fragment);
+        //this.variants = variants || [];
+        //this.programs = {};
+    };
 
 
-GpuProgram.prototype.createShader = function(source, vertexShader) {
+createShader(source: string, vertexShader: Boolean): WebGLShader {
     var gl = this.gl;
 
     if (!source || !gl) {
         return null;
     }
 
-    var shader;
+    let shader : WebGLShader;
 
     if (vertexShader !== true) {
         shader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -50,7 +64,7 @@ GpuProgram.prototype.createShader = function(source, vertexShader) {
 };
 
 
-GpuProgram.prototype.createProgram = function(vertex, fragment) {
+createProgram(vertex: string, fragment: string): void {
     var gl = this.gl;
     if (gl == null) return;
 
@@ -78,7 +92,7 @@ GpuProgram.prototype.createProgram = function(vertex, fragment) {
 };
 
 
-GpuProgram.prototype.setSampler = function(name, index) {
+setSampler(name: string, index: GLint): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -88,11 +102,12 @@ GpuProgram.prototype.setSampler = function(name, index) {
     }
 };
 
-GpuProgram.prototype.isReady = function(name, index) {
+isReady() : Boolean {
     return this.ready;
 };
 
-GpuProgram.prototype.setMat4 = function(name, m, zoffset) {
+setMat4(name: string, m: Float32List, zoffset: number): void {
+
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -132,7 +147,7 @@ GpuProgram.prototype.setMat4 = function(name, m, zoffset) {
 };
 
 
-GpuProgram.prototype.setMat3 = function(name, m) {
+setMat3(name: string, m: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -143,7 +158,7 @@ GpuProgram.prototype.setMat3 = function(name, m) {
 };
 
 
-GpuProgram.prototype.setVec2 = function(name, m) {
+setVec2(name: string, m: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -154,7 +169,7 @@ GpuProgram.prototype.setVec2 = function(name, m) {
 };
 
 
-GpuProgram.prototype.setVec3 = function(name, m) {
+setVec3(name: string, m: Float32List) {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -165,7 +180,7 @@ GpuProgram.prototype.setVec3 = function(name, m) {
 };
 
 
-GpuProgram.prototype.setVec4 = function(name, m) {
+setVec4(name: string, m: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -176,7 +191,7 @@ GpuProgram.prototype.setVec4 = function(name, m) {
 };
 
 
-GpuProgram.prototype.setFloat = function(name, value) {
+setFloat(name: string, value: GLfloat): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -187,7 +202,7 @@ GpuProgram.prototype.setFloat = function(name, value) {
 };
 
 
-GpuProgram.prototype.setFloatArray = function(name, array) {
+setFloatArray(name: string, array: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -198,7 +213,7 @@ GpuProgram.prototype.setFloatArray = function(name, array) {
 };
 
 
-GpuProgram.prototype.getAttribute = function(name) {
+getAttribute(name): GLint {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -213,7 +228,7 @@ GpuProgram.prototype.getAttribute = function(name) {
 };
 
 
-GpuProgram.prototype.getUniform = function(name) {
+getUniform(name: string) {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
@@ -227,5 +242,7 @@ GpuProgram.prototype.getUniform = function(name) {
     return location;
 };
 
+
+} // class GpuProgram
 
 export default GpuProgram;

@@ -781,7 +781,8 @@ MapDrawTiles.prototype.getTileTextureTransform = function(sourceTile, targetTile
 
 
 MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface, bound) {
-    var path, extraBound, layer, texture;
+
+    var path, extraBound, texture;
 
     if (this.config.mapNoTextures) {
         return;
@@ -790,8 +791,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     // bump maps
     bound.bumps = [];
 
-    //if (fullUpdate)
-        for (let j = 0; j < surface.bumpSequence.length; j++) {
+    for (let j = 0; j < surface.bumpSequence.length; j++) {
 
         let bump = surface.bumpSequence[j];
 
@@ -819,9 +819,6 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
             // store it to some sequence in tile
             bound.bumps.push(bump);
-
-            // no clue what this does
-            tile.boundLayers[bump.layer.id] = layer;
         }
 
         //console.log("bump sequence :", bound.bumps);
@@ -895,23 +892,20 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
                 // store it to some sequence in tile
                 bound.speculars.push(specular);
-
-                // no clue what this does
-                tile.boundLayers[specular.layer.id] = layer;
             }
         }
 
         //console.log("specular sequence:", bound.speculars);
     }
 
-    //search map view
+    // diffuse layers
     if (surface.boundLayerSequence.length > 0) {
 
-        //if (fullUpdate) {
             bound.sequence = [];
             var sequenceFullAndOpaque = [];
             var sequenceMaskPosible = [];
             var fullAndOpaqueCounter = 0;
+            let layer;
             
             for (var j = 0, lj = surface.boundLayerSequence.length; j < lj; j++) {
                 layer = surface.boundLayerSequence[j][0];
@@ -1029,8 +1023,6 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 
                 bound.sequence = newSequence; 
             }
-
-        //} // if (fullUpdate)
 
 
     } // if (surfaceBoundLayerSequence.length > 0)
