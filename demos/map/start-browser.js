@@ -206,7 +206,5 @@ function vtsStartBrowser() {
     params_['jumpAllowed'] = true;
     params_['positionInUrl'] = true;
     
-    console.log(params_.mapExposeFpsToWindow);
-
     var browser_ = vts.browser('map-canvas', params_);
 }
