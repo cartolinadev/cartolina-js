@@ -622,7 +622,7 @@ function checkSupport() {
     var gl = null;
 
     try {
-        gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        gl = canvas.getContext('webgl2');
     } catch(e) {
         return false;
     }
