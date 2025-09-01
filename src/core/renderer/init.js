@@ -11,7 +11,6 @@ import GpuTexture_ from './gpu/texture';
 //get rid of compiler mess
 var RendererGeometry = RendererGeometry_;
 var GpuBBox = GpuBBox_;
-var GpuFont = GpuFont_;
 var GpuMesh = GpuMesh_;
 var GpuPixelLine3 = GpuPixelLine3_;
 var GpuProgram = GpuProgram_;
@@ -37,7 +36,7 @@ var RendererInit = function(renderer) {
     this.initTestMap();
     this.initBBox();
     this.initLines();
-    this.initBaricentricBuffer();
+    this.gpu.initBarycentricBuffer();
 };
 
 
@@ -316,7 +315,7 @@ RendererInit.prototype.initImage = function() {
 
 
 RendererInit.prototype.generateTextQuads = function(num) {
-    var renderer = this.renderer;
+
     var gl = this.gpu.gl;
 
     var buffer = new Float32Array(num * 2 * 6);
@@ -406,34 +405,5 @@ RendererInit.prototype.initLines = function() {
     renderer.polygonB0S0C0tate = gpu.createState({blend:false, stencil:false, culling: false, zequal: true});
 
 };
-
-
-RendererInit.prototype.initBaricentricBuffer = function() {
-    var gpu = this.gpu;
-    var buffer = new Array(65535*3);
-
-    for (var i = 0; i < 65535*3; i+=9) {
-        buffer[i] = 1.0;
-        buffer[i+1] = 0;
-        buffer[i+2] = 0;
-
-        buffer[i+3] = 0;
-        buffer[i+4] = 1.0;
-        buffer[i+5] = 0;
-
-        buffer[i+6] = 0;
-        buffer[i+7] = 0;
-        buffer[i+8] = 1.0;
-    }
-
-    var gl = gpu.gl;
-    gpu.barycentricBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, gpu.barycentricBuffer);
-
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(buffer), gl.STATIC_DRAW);
-    gpu.barycentricBuffer.itemSize = 3;
-    gpu.barycentricBuffer.numItems = buffer.length / 3;
-};
-
 
 export default RendererInit;

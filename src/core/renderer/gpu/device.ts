@@ -16,6 +16,7 @@ type State = {
 
 type Viewport = { width: number, height: number }
 
+type Layout = { itemSize: GLint, numItems: GLint }
 
 class GpuDevice {
 
@@ -35,12 +36,15 @@ class GpuDevice {
     anisoExt: EXT_texture_filter_anisotropic;
     maxAniso: GLfloat;
 
-    //barycentricBuffer = null;
+
     //currentOffset = 0; //used fot direct offset
 
     canvas: HTMLCanvasElement = null;
     gl: WebGL2RenderingContext = null;
     currentProgram: WebGLProgram = null;
+
+    barycentricBuffer: WebGLBuffer = null;
+    barycentricBufferLayout: Layout = null;
 
     viewport: Viewport = null;
 
@@ -162,7 +166,7 @@ contextRestored(): void {
 resize(size: NumberPair, skipCanvas: boolean) {
 
     this.curSize = size;
-    var canvas = this.canvas, gl = this.gl;
+    var canvas = this.canvas;
 
     if (canvas != null && skipCanvas !== true) {
         canvas.width = this.curSize[0];
@@ -354,6 +358,33 @@ setState(state: State) {
     this.currentState = state;
 };
 
+
+initBarycentricBuffer() {
+
+    var buffer = new Array(65535*3);
+
+    for (var i = 0; i < 65535*3; i+=9) {
+        buffer[i] = 1.0;
+        buffer[i+1] = 0;
+        buffer[i+2] = 0;
+
+        buffer[i+3] = 0;
+        buffer[i+4] = 1.0;
+        buffer[i+5] = 0;
+
+        buffer[i+6] = 0;
+        buffer[i+7] = 0;
+        buffer[i+8] = 1.0;
+    }
+
+    let gl = this.gl;
+
+    this.barycentricBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.barycentricBuffer);
+
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(buffer), gl.STATIC_DRAW);
+    this.barycentricBufferLayout = { itemSize: 3, numItems: buffer.length / 3};
+};
 
 } // class GpuDevice
 
