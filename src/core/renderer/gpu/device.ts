@@ -2,10 +2,18 @@
 import GpuProgram from './program';
 
 
+// local types
 type NumberPair = [number, number];
 type Color = [number, number, number, number]
 
-type State = {
+type Viewport = { width: number, height: number }
+
+type Layout = { itemSize: GLint, numItems: GLint }
+
+// exported types
+export namespace GpuDevice {
+
+export type State = {
     blend: boolean,
     stencil: boolean,
     zequal: boolean,
@@ -14,11 +22,9 @@ type State = {
     culling: boolean
 }
 
-type Viewport = { width: number, height: number }
+} // export namespace GpuDevice
 
-type Layout = { itemSize: GLint, numItems: GLint }
-
-class GpuDevice {
+export class GpuDevice {
 
     maxAttributesCount = 8;
     newAttributes = new Uint8Array(this.maxAttributesCount);
@@ -26,16 +32,15 @@ class GpuDevice {
     noTextures = false;
 
     renderer: any;
-    div: any;
+    div: HTMLElement;
     curSize: NumberPair;
-    defaultState: State;
-    currentState: State;
+    defaultState: GpuDevice.State;
+    currentState: GpuDevice.State;
     keepFrameBuffer: boolean;
     antialias: boolean;
     anisoLevel: GLfloat;
     anisoExt: EXT_texture_filter_anisotropic;
     maxAniso: GLfloat;
-
 
     //currentOffset = 0; //used fot direct offset
 
@@ -48,7 +53,7 @@ class GpuDevice {
 
     viewport: Viewport = null;
 
-    constructor(renderer: any, div: any, size: NumberPair,
+    constructor(renderer: any, div: HTMLElement, size: NumberPair,
                 keepFrameBuffer: boolean, antialias: boolean,
                 aniso: GLfloat) {
 
@@ -283,7 +288,7 @@ setFramebuffer(texture: any) {
 };
 
 
-createState(state: State): State {
+createState(state: GpuDevice.State): GpuDevice.State {
 
     if (state.blend == null) { state.blend = false; }
     if (state.stencil == null) { state.stencil = false; }
@@ -296,7 +301,7 @@ createState(state: State): State {
 };
 
 
-setState(state: State) {
+setState(state: GpuDevice.State) {
 
     if (!state) {
         return;

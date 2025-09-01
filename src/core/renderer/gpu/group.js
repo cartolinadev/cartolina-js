@@ -893,7 +893,7 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
     return index;
 };
 
-
+/* // probably no longer used
 GpuGroup.prototype.addRenderJob = function(data, tile) {
     switch(data['type']) {
     case 'polygon':
@@ -917,7 +917,7 @@ GpuGroup.prototype.addRenderJob = function(data, tile) {
     case 'node-end':       this.nodeEnd(); break;
     case 'mesh':           this.addMesh(); break;
     }
-};
+};*/
 
 
 function drawLineString(options, renderer) {
@@ -1791,11 +1791,11 @@ GpuGroup.prototype.onBinFileLoaded = function(info, data) {
 
 
 GpuGroup.prototype.draw = function(mv, mvp, applyOrigin, tiltAngle, texelSize) {
-    if (this.id != null) {
+    /*if (this.id != null) {
         if (this.renderer.layerGroupVisible[this.id] === false) {
             return;
         }
-    }
+    }*/
 
     var renderer = this.renderer;
     var renderCounter = [[renderer.geoRenderCounter, mv, mvp, this]];

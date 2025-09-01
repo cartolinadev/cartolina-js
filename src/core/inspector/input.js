@@ -220,11 +220,17 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
                         var value = debug.drawWireframe + 1;
                         debug.drawWireframe = value > 2 ? 0 : value;
                     }
+
+                    console.log('debug.wireframe=%d', debug.drawWireframe);
+
                     break; //key W pressed
 
                 case 70:
                 case 102:
                     debug.drawWireframe = debug.drawWireframe != 3 ? 3 : 0;
+
+                    console.log('debug.wireframe=%d', debug.drawWireframe);
+
                     break; //key F pressed
 
                 case 85:
@@ -454,7 +460,7 @@ InspectorInput.prototype.setParameter = function(key, value) {
     }
 
     var debug = map.draw.debug;
-    var getBool = (function(a){ return (value === true || value == 'true' || value == '1') });
+    var getBool = (function(_){ return (value === true || value == 'true' || value == '1') });
 
     switch(key) {
         case 'debugMode': this.diagnosticMode = true; break;

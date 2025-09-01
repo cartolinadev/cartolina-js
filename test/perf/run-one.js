@@ -298,7 +298,7 @@ async function runOne(cfg, outDir) {
 
   // ----- Start FPS measurement only AFTER idle -----
   const warm = Number(cfg.warmupMs || 0);
-  const meas = Number(cfg.measureMs || 2000);
+  const meas = Number(cfg.measureMs || 3000);
 
   console.log(`[${ts()}] [FPS] measuring`);
   const fps = await page.evaluate(([w, m]) => window.__vtsPerf.startFps(w, m), [warm, meas]);

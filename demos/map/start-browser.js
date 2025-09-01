@@ -6,7 +6,7 @@ function vtsParseUrlParams(initialParams_, url_) {
         initialParams_ = params_;
     }
 	
-    console.log(params_);	
+    //console.log(params_);
 	
     if ('map' in params_) {
     

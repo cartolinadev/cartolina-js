@@ -1,6 +1,5 @@
 
-import {mat4 as mat4_, vec3, mat3} from '../utils/matrix';
-import {utils as utils_} from '../utils/utils';
+import {mat4 as mat4_, vec3} from '../utils/matrix';
 import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
 import GpuProgram_ from '../renderer/gpu/program';
@@ -11,7 +10,6 @@ import GpuShaders_ from '../renderer/gpu/shaders';
 var mat4 = mat4_;
 var BBox = BBox_;
 var MapSubmesh = MapSubmesh_;
-var utils = utils_;
 var GpuProgram = GpuProgram_;
 var GpuShaders = GpuShaders_;
 

@@ -81,8 +81,8 @@
         <thead>
           <tr>
             <th style="width:24%">ID</th>
-            <th style="width:18%">Production</th>
             <th style="width:18%">Development</th>
+            <th style="width:18%">Production</th>
             <th>Comment</th>
           </tr>
         </thead>
@@ -133,13 +133,13 @@
           tdId.textContent = item.id;
           tr.appendChild(tdId);
 
-          const tdProd = document.createElement('td');
-          tdProd.appendChild(mkLink(expandTemplate(templates.prod, item), 'Production'));
-          tr.appendChild(tdProd);
-
           const tdDev = document.createElement('td');
           tdDev.appendChild(mkLink(expandTemplate(templates.dev, item), 'Development'));
           tr.appendChild(tdDev);
+
+          const tdProd = document.createElement('td');
+          tdProd.appendChild(mkLink(expandTemplate(templates.prod, item), 'Production'));
+          tr.appendChild(tdProd);
 
           const tdDesc = document.createElement('td');
           tdDesc.textContent = item.description || '';
