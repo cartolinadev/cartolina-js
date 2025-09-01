@@ -69,7 +69,6 @@ RendererDraw.prototype.drawSkydome = function(texture, shader) {
 
 RendererDraw.prototype.drawTBall = function(position, size, shader, texture, size2, nocull) {
     var gpu = this.gpu;
-    var gl = this.gl;
     var renderer = this.renderer;
 
     if (nocull) {
@@ -190,7 +189,7 @@ RendererDraw.prototype.drawBall = function(position, size, size2, shader, params
 };
 
 
-RendererDraw.prototype.drawBall2 = function(position, size, shader, nfactor, dir, radius2) {
+RendererDraw.prototype.drawBall2 = function(position, size, shader, nfactor, _, radius2) {
     var gpu = this.gpu;
     var renderer = this.renderer;
 
@@ -229,7 +228,6 @@ RendererDraw.prototype.drawBall2 = function(position, size, shader, nfactor, dir
 
 RendererDraw.prototype.drawLineString = function(points, screenSpace, size, color, depthOffset, depthTest, transparent, writeDepth, useState) {
     var gpu = this.gpu;
-    var gl = this.gl;
     var renderer = this.renderer;
     var index = 0, p, i;
 
@@ -259,8 +257,8 @@ RendererDraw.prototype.drawLineString = function(points, screenSpace, size, colo
 
     } else { //covert points from physical space
 
-        var mvp = renderer.camera.getMvpMatrix();
-        var curSize = renderer.curSize;
+        //var mvp = renderer.camera.getMvpMatrix();
+        //var curSize = renderer.curSize;
         var cameraPos = renderer.cameraPosition;
 
         for (i = 0; i < totalPoints; i++) {
@@ -665,7 +663,7 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     var rmap = this.rmap;
     var clearPass = 513;
     var clearPassIndex = 0;
-    var clearStencilPasses = renderer.clearStencilPasses;
+    //var clearStencilPasses = renderer.clearStencilPasses;
     var jobZBuffer = renderer.jobZBuffer;
     var jobZBufferSize = renderer.jobZBufferSize;
     var jobZBuffer2 = renderer.jobZBuffer2;
@@ -679,10 +677,10 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     var hsortBuff = renderer.jobHSortBuffer;
     var hsortBuffSize = 0;
 
-    if (clearStencilPasses.length > 0) {
+    /*if (clearStencilPasses.length > 0) {
         clearPass = clearStencilPasses[0];
         clearPassIndex++;
-    }
+    }*/
 
     if (this.rmap.counter != this.renderer.geoRenderCounter) {
         this.rmap.clear();
@@ -693,7 +691,7 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
 
     var forceUpdate = false;
 
-    var ret, frameTime = renderer.frameTime, sortHbuffer = false;
+    var frameTime = renderer.frameTime;
 
     //console.log("" + frameTime);
 
@@ -826,9 +824,6 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
 
                         }
 
-                        //if (job.hysteresis[3] === true) {
-                            sortHbuffer = true;
-                        //}
                     }
                 }
             }
@@ -951,7 +946,6 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
 
                         switch(job.type) {
                             case VTS_JOB_VSPOINT:
-                                var viewExtent = renderer.viewExtent;
                                 var slayers = job.vswitch[job.vswitchIndex];
 
                                 if (slayers) {
@@ -995,7 +989,6 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
 
             switch(job.type) {
                 case VTS_JOB_VSPOINT:
-                    var viewExtent = renderer.viewExtent;
                     var slayers = job.vswitch[job.vswitchIndex];
 
                     if (slayers) {
@@ -1993,7 +1986,6 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         if (job.type == VTS_JOB_VSPOINT) {
             //TODO: solve switch an call render
             var viewExtent = renderer.viewExtent;
-            var lastViewExtent = 0, vswitch = job.vswitch;
             job.vswitchIndex = 0;
 
             for (i = 0, li = vswitch.length; i < li; i++) {
@@ -2026,7 +2018,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         }
 
         var s = job.stick;
-        var stickShift = 0, pp, o, depth, stickMode, stickHeight;
+        var stickShift = 0, pp, o, stickMode, stickHeight;
 
         if (s[0] != 0) {
             stickMode = renderer.config.mapFeatureStickMode;
@@ -2479,7 +2471,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
         }
 
         for (var i = 0, li = job.subjobs.length; i < li; i++) {
-            var subjob2 = job.subjobs[i], job2;
+            var subjob2 = job.subjobs[i];
             subjob2.mvp = job.mvp;
             subjob2.updatePos = job.updatePos;
 
@@ -2747,14 +2739,14 @@ function q4Slerp(a, b, t, out) {
   return out;
 }
 
-RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, screenPixelSize, subjob, fade, position) {
+RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, _, subjob, fade, position) {
     if (!subjob) {
         return;
     }
 
-    var job = subjob[0], texture = subjob[2],
+    var job = subjob[0], //texture = subjob[2],
         files = subjob[3], color = subjob[4], pp = subjob[5],
-        o = job.noOverlap, localTilt, p2, p1, camVec, prog,
+        o = job.noOverlap, p2, prog,
         useSE = renderer.useSuperElevation;
 
     if (useSE) {

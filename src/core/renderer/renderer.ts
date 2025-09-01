@@ -1,132 +1,291 @@
 
-import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
-import {utils as utils_} from '../utils/utils';
-import GpuDevice_ from './gpu/device';
-import GpuTexture_ from './gpu/texture';
-import GpuFont_ from './gpu/font';
-import Camera_ from './camera';
-import RenderInit_ from './init';
-import RenderDraw_ from './draw';
-import RenderRMap_ from './rmap';
+import {vec3, mat4} from '../utils/matrix';
+import {math} from '../utils/math';
+import {utils} from '../utils/utils';
+import GpuDevice from './gpu/device';
+import GpuProgram from './gpu/program';
+import GpuTexture from './gpu/texture';
+import GpuMesh from './gpu/mesh';
+import GpuFont from './gpu/font';
+import Camera from './camera';
+import RenderInit from './init';
+import RenderDraw from './draw';
+import RenderRMap from './rmap';
 import * as Illumination from '../map/illumination';
 
+// local types
 
-//get rid of compiler mess
-var vec3 = vec3_, mat4 = mat4_;
-var GpuDevice = GpuDevice_;
-var GpuTexture = GpuTexture_;
-var GpuFont = GpuFont_;
-var Camera = Camera_;
-var RenderInit = RenderInit_;
-var RenderDraw = RenderDraw_;
-var RenderRMap = RenderRMap_;
-var utils =  utils_;
+type Config = {
+    [key: string]: boolean | number | string | number[];
+    rendererAllowScreenshots?: boolean;
+    rendererAntialiasing?: boolean;
+    rendererAnisotropic?: number;
+    mapDMapSize?: number;
+    mapDMapMode?: number;
+}
 
-var Renderer = function(core, div, onUpdate, onResize, config) {
-    this.config = config || {};
+type Size2 = [ number, number ];
+
+type Optional<T> = T | null;
+
+type SeProgression = {
+
+    baseValue: number;
+    baseExtent: number;
+    exponent: number;
+    min: number
+    max: number
+}
+
+type SeProgressionDef =
+    [number, number, number, number, number];
+
+type SeRamp =
+    [number, number, number, number, number, number, number];
+
+type SeRampDef = [[number, number], [number, number]];
+
+// exported types
+export namespace Renderer {
+
+export type IlluminationDef = {
+
+    // azimuth and elevation in VC
+    light: ["tracking", number, number];
+
+    ambientCoef?: number;
+}
+
+export type Illumination = {
+
+    trackingLight: { azimuth: number, elevation: number };
+    illuminationVectorVC: Illumination.vec3
+    ambientCoef: number;
+}
+
+
+export type SeDefinition = SeRampDef | {
+    heightRamp?: SeRampDef;
+    viewExtentProgression?: SeProgressionDef;
+}
+
+} // export namespace GpuDevice
+
+
+export class Renderer {
+
+    config: Config;
+    core: any;
+    div: HTMLElement;
+    onResizeCall: () => void;
+
+    marginFlags = 0; // see rmap.js
+
+    // flags
+    onlyDepth = false;
+    onlyLayers = false;
+    onlyHitLayers = false;
+    onlyAdvancedHitLayers = false;
+    advancedPassNeeded = false;
+
+    drawLabelBoxes = false;
+    drawGridCells = false;
+    drawAllLabels = false;
+
+    geoRenderCounter = 0;
+    geoHitmapCounter = 0;
+    frameTime = 0;
+
+    hitmapCounter = 0;
+    hitmapData: Optional<Uint8Array> = null;
+
+    debug: { [key: string] : boolean }  = {}
+
+    geometries = {} // no clue, see MapInterface.getGeodataGeometry
+
+    stencilLineState: Optional<GpuDevice.State> = null;
+
+    mapHack: any = null; // assigned in map/draw.js
+
+    geodataSelection = []; // see geodata-click-and-hover-events/demo.j    //reduce garbage collection
+
+    hoverFeatureCounter = 0;
+    hoverFeatureList = [];
+
+    touchSurfaceEvent = [];
+
+    dirty = true;
+
+    viewExtent = 1;
+
+    gpu!: GpuDevice;
+    camera: any;
+
+    drawTileMatrix = mat4.create();
+    drawTileMatrix2 = mat4.create();
+    drawTileWorldMatrix = mat4.create();
+    pixelTileSizeMatrix = mat4.create();
+    drawTileVec = [0,0,0];
+
+    // programs
+    progTile: Optional<GpuProgram> = null;
+    progTile2: Optional<GpuProgram> = null;
+    progTile3: Optional<GpuProgram> = null;
+    progHeightmap: Optional<GpuProgram> = null;
+    progSkydome: Optional<GpuProgram> = null;
+    progWireframeTile: Optional<GpuProgram> = null;
+    progWireframeTile2: Optional<GpuProgram> = null;
+    progText: Optional<GpuProgram> = null;
+
+    winSize!: Size2;
+    curSize!: Size2;
+    oldSize!: Size2;
+
+    // vertical exaggeration
+    useSuperElevation = false;
+    seHeightRamp: Optional<SeRamp> = null; // 7 elements
+    seProgression: SeProgression;
+
+    // these values, important for vertical exaggeration, are calculated from
+    // nvagiationSrs in MapDraw.drawMap as a side effect of drawing the skydome
+    // (which is not guaranteed). TODO: move their initilization here
+    earthRadius: Optional<number> = null; // major axis
+    earthRadius2: Optional<number> = null; // minor axis
+    earthERatio: Optional<number> = null;
+
+    // illumination
+    useIllumination = false;
+    illumination:  Optional<Renderer.Illumination> = null;
+
+    // textures
+    heightmapTexture: any = null;
+    skydomeMesh: Optional<GpuMesh> = null;
+    hitmapTexture: any = null;
+    geoHitmapTexture: any = null;
+    geoHitmapTexture2: any = null;
+    redTexture: any = null;
+    whiteTexture: any = null;
+    blackTexture: any = null;
+    textTexture2: any = null;
+
+    // meshes
+    atmoMesh: Optional<GpuMesh> = null;
+    bboxMesh: Optional<GpuMesh> = null;
+
+    // GpuPixelLine3
+    plines: any = null;
+    plineJoints: any = null; // probably not used, but still initialize by init
+
+    hitmapSize!: number;
+    hitmapMode!: number;
+    updateHitmap = true;
+    updateGeoHitmap = true;
+
+    rectVerticesBuffer: Optional<WebGLBuffer> = null;
+    rectIndicesBuffer: Optional<WebGLBuffer> = null;
+
+    imageProjectionMatrix: Optional<Float32Array> = null;
+
+    fonts: {[key:string] : any} = {};
+
+    fogDensity = 0;
+
+    // feature caches, hitmaps, etc. for geodata rendering
+    gmap = new Array(2048);
+    gmap2 = new Array(2048);
+    gmap3 = new Array(10000);
+    gmap3Size = new Array(10000);
+    gmap4 = new Array(10000);
+    gmapIndex = 0;
+    gmapTop = new Array(512);
+    gmapHit = new Array(512);
+    gmapStore = new Array(512);
+    fmaxDist = 0;
+    fminDist = 0;
+
+    jobZBuffer = new Array(512);
+    jobZBufferSize = new Array(512);
+
+    jobZBuffer2 = new Array(512);
+    jobZBuffer2Size = new Array(512);
+
+    jobHBuffer = {};
+    jobHBufferSize = 0;
+    jobHSortBuffer = new Array(2048);
+
+    radixCountBuffer16 = new Uint16Array(256*4);
+    radixCountBuffer32 = new Uint32Array(256*4);
+
+    buffFloat32 = new Float32Array(1);
+    buffUint32 = new Uint32Array(this.buffFloat32.buffer);
+
+    bitmaps: { [key: string] : any } = {};  // array of GpuTextures, used from gpugroup and geodata
+
+    cameraPosition = [0,0,0];
+    cameraOrientation = [0,0,0];
+    cameraTiltFator = 1;
+    cameraViewExtent = 1;
+    distanceFactor = 1;
+    tiltFactor = 1;
+    localViewExtentFactor = 1;
+    cameraVector = [0,0,0];
+    labelVector = [0,0,0];
+    drawnGeodataTiles = 0;
+    drawnGeodataTilesFactor = 0;
+    drawnGeodataTilesUsed = false;
+
+    // tile shader program variants, created in MapMesh.drawSubmesh
+    progMap : {[key: string] : GpuProgram } = {};
+
+    gridHmax = 0;
+    gridHmin = 0;
+    seCounter = 0;
+
+    // temporary objects hoisted as class members to reduce garbage collection
+    seTmpVec = [0,0,0];
+    seTmpVec2 = [0,0,0];
+    seTmpVec3 = [0,0,0];
+
+    // hit test
+    lastHitPosition = [0,0,100];
+
+    // encapsulated objects
+    init : any = null;
+    rmap: any = null;
+    draw: any = null;
+
+    // no idea
+    killed = false;
+    //layerGroupVisible = [];
+
+
+constructor(core: any, div: HTMLElement, _ /* onUpdate */,
+            onResize : () => void, config : Config) {
+
+    this.config = config; // || {};
     this.core = core;
-    this.marginFlags = 0;
-    this.progTile = null;
-    this.progHeightmap = null;
-    this.progSkydome = null;
-    this.progWireframeTile = null;
-    this.progWireframeTile2 = null;
-    this.progText = null;
     this.div = div;
-    this.onUpdate = onUpdate;
-    this.killed = false;
-    this.onlyDepth = false;
-    this.onlyLayers = false;
-    this.onlyHitLayers = false;
-    this.onlyAdvancedHitLayers = false;
-    this.advancedPassNeeded = false;
-    this.hitmapCounter = 0;
-    this.geoRenderCounter = 0;
-    this.geoHitmapCounter = 0;
-    this.frameTime = 0;
+    //this.onUpdate = onUpdate;
     this.geometries = {};
-    this.clearStencilPasses = [];
+    //this.clearStencilPasses = [];
     this.onResizeCall = onResize;
-    //this.math = Math;
     this.stencilLineState = null;
-    this.drawLabelBoxes = false;
-    this.drawGridCells = false;
-    this.drawAllLabels = false;
-    this.debug = {};
-    this.mapHack = null;
-
-    this.geodataSelection = [];
-    this.hoverFeatureCounter = 0;
-    this.hoverFeatureList = [];
-
-    this.touchSurfaceEvent = [];
 
     var rect = this.div.getBoundingClientRect();
 
     this.winSize = [rect.width, rect.height]; //QSize
     this.curSize = [rect.width, rect.height]; //QSize
     this.oldSize = [rect.width, rect.height]; //QSize
-    this.dirty = true;
-    this.cameraVector = [0,1,0];
-    this.viewExtent = 1;
-    //this.texelSizeLimit = this.core.mapConfig.texelSize * texelSizeFactor;
 
     this.gpu = new GpuDevice(this, div, this.curSize, this.config.rendererAllowScreenshots, this.config.rendererAntialiasing, this.config.rendererAnisotropic);
     this.camera = new Camera(this, 45, 2, 1200000.0);
 
-    //reduce garbage collection
-    this.drawTileMatrix = mat4.create();
-    this.drawTileMatrix2 = mat4.create();
-    this.drawTileVec = [0,0,0];
-    this.drawTileWorldMatrix = mat4.create();
-    this.pixelTileSizeMatrix = mat4.create();
+    //this.heightmapMesh = null;
+    //this.skydomeTexture = null;
+    //this.font = null;
 
-    this.heightmapMesh = null;
-    this.heightmapTexture = null;
-
-    this.skydomeMesh = null;
-    this.skydomeTexture = null;
-
-    this.hitmapTexture = null;
-    this.geoHitmapTexture = null;
     this.hitmapSize = this.config.mapDMapSize;
     this.hitmapMode = this.config.mapDMapMode;
-    this.updateHitmap = true;
-    this.updateGeoHitmap = true;
-
-    this.redTexture = null;
-
-    this.rectVerticesBuffer = null;
-    this.rectIndicesBuffer = null;
-    this.imageProjectionMatrix = null;
-
-    this.font = null;
-    this.fonts = {};
-    this.fogDensity = 0;
-
-    this.gmap = new Array(2048);
-    this.gmap2 = new Array(2048);
-    this.gmap3 = new Array(10000);
-    this.gmap3Size = new Array(10000);
-    this.gmap4 = new Array(10000);
-    this.gmapIndex = 0;
-    this.gmapTop = new Array(512);
-    this.gmapHit = new Array(512);
-    this.gmapStore = new Array(512);
-    this.fmaxDist = 0;
-    this.fminDist = 0;
-
-    this.jobZBuffer = new Array(512);
-    this.jobZBufferSize = new Array(512);
-
-    this.jobZBuffer2 = new Array(512);
-    this.jobZBuffer2Size = new Array(512);
-    
-    this.jobHBuffer = {};
-    this.jobHBufferSize = 0;
-    this.jobHSortBuffer = new Array(2048);
-
 
     for (var i = 0, li = this.jobZBuffer.length; i < li; i++) {
         this.jobZBuffer[i] = [];
@@ -148,48 +307,25 @@ var Renderer = function(core, div, onUpdate, onResize, config) {
     this.buffFloat32 = new Float32Array(1);
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
-    this.layerGroupVisible = [];
-    this.bitmaps = {};
+    //this.layerGroupVisible = [];
     
-    this.cameraPosition = [0,0,0];
-    this.cameraOrientation = [0,0,0];
-    this.cameraTiltFator = 1;
-    this.cameraViewExtent = 1;
-    this.distanceFactor = 1;
-    this.tiltFactor = 1;
-    this.localViewExtentFactor = 1;
-    this.cameraVector = [0,0,0];
-    this.labelVector = [0,0,0];
-    this.drawnGeodataTiles = 0;
-    this.drawnGeodataTilesFactor = 0;
-    this.drawnGeodataTilesUsed = false;
-    this.progMap = {};
-    this.gridHmax = 0;
-    this.gridHmin = 0;
-    this.seCounter = 0;
 
     //hack for vts maps
     //this.vtsHack = true;
     //this.vtsHack = false;
 
-    //reduce garbage collection
-    this.updateCameraMatrix = mat4.create();
-
-    this.seTmpVec = [0,0,0];
-    this.seTmpVec2 = [0,0,0];
-    this.seTmpVec3 = [0,0,0];
+    //updateCameraMatrix = mat4.create();
 
     //debug
-    this.lastHitPosition = [0,0,100];
-    this.logTilePos = null;
-    this.setSuperElevation([[0,2],[4000,1.5]]);
+    //this.logTilePos = null;
+
+    this.setSuperElevation([[0,2],[4000,1.5]]); // why?
 
     window.addEventListener('resize', (this.onResize).bind(this), false);
 
-    this.gpu.init();
 
-    //intit resources
-    // eslint-disable-next-line
+    // initialize resources
+    this.gpu.init();
     this.init = new RenderInit(this);
     this.rmap = new RenderRMap(this, 50);
     this.draw = new RenderDraw(this);
@@ -198,12 +334,12 @@ var Renderer = function(core, div, onUpdate, onResize, config) {
     this.resizeGL(Math.floor(this.curSize[0]*factor), Math.floor(this.curSize[1]*factor));
 };
 
-Renderer.prototype.initProceduralShaders = function() {
+initProceduralShaders() {
     this.init.initProceduralShaders();
 };
 
 
-Renderer.prototype.onResize = function() {
+onResize() {
     if (this.killed){
         return;
     }
@@ -217,27 +353,27 @@ Renderer.prototype.onResize = function() {
 };
 
 
-Renderer.prototype.kill = function() {
+kill() {
     if (this.killed){
         return;
     }
 
     this.killed = true;
 
-    if (this.heightmapMesh) this.heightmapMesh.kill();
+    //if (this.heightmapMesh) this.heightmapMesh.kill();
     if (this.heightmapTexture) this.heightmapTexture.kill();
     if (this.skydomeMesh) this.skydomeMesh.kill();
-    if (this.skydomeTexture) this.skydomeTexture.kill();
+    //if (this.skydomeTexture) this.skydomeTexture.kill();
     if (this.hitmapTexture) this.hitmapTexture.kill();
     if (this.geoHitmapTexture) this.geoHitmapTexture.kill();
     if (this.redTexture) this.redTexture.kill();
     if (this.whiteTexture) this.whiteTexture.kill();
     if (this.blackTexture) this.blackTexture.kill();
-    if (this.lineTexture) this.lineTexture.kill();
+    //if (this.lineTexture) this.lineTexture.kill();
     if (this.textTexture2) this.textTexture2.kill();
     if (this.atmoMesh) this.atmoMesh.kill();
     if (this.bboxMesh) this.bboxMesh.kill();
-    if (this.font) this.font.kill();
+    //if (this.font) this.font.kill();
     if (this.plines) this.plines.kill();
     if (this.plineJoints) this.plineJoints.kill();
  
@@ -246,15 +382,11 @@ Renderer.prototype.kill = function() {
 };
 
 
-Renderer.prototype.resizeGL = function(width, height, skipCanvas, skipPaint) {
+resizeGL(width: number, height: number, skipCanvas: boolean = false) {
     this.camera.setAspect(width / height);
     this.curSize = [width, height];
     this.oldSize = [width, height];
     this.gpu.resize(this.curSize, skipCanvas);
-
-    //if (skipPaint !== true) { //remove this??
-       // this.draw.paintGL();
-    //}
 
     var m = new Float32Array(16);
     m[0] = 2.0/width; m[1] = 0; m[2] = 0; m[3] = 0;
@@ -266,7 +398,7 @@ Renderer.prototype.resizeGL = function(width, height, skipCanvas, skipPaint) {
 };
 
 
-Renderer.prototype.project2 = function(point, mvp, cameraPos, includeDistance) {
+project2(point, mvp, cameraPos, includeDistance) {
     var p = [0, 0, 0, 1];
 
     if (cameraPos) {
@@ -296,16 +428,16 @@ Renderer.prototype.project2 = function(point, mvp, cameraPos, includeDistance) {
     }
 };
 
-Renderer.prototype.setIlluminationState = function(state) {
-    this.useIlluimination = state;
+setIlluminationState(state: boolean) {
+    this.useIllumination = state;
 };
 
 
-Renderer.prototype.getIlluminationState = function() {
+getIlluminationState(): boolean {
     return this.useIllumination;
 };
 
-Renderer.prototype.setIllumination = function(definition) {
+setIllumination(definition: Renderer.IlluminationDef) {
 
     this.useIllumination = true;
 
@@ -314,7 +446,7 @@ Renderer.prototype.setIllumination = function(definition) {
 
     let light = definition.light;
 
-    if (light[0] != 'tracking') throw new Error('Only tracking lights supported.');
+    if (light[0] != "tracking") throw new Error('Only tracking lights supported.');
 
     let azimuth = utils.validateNumber(light[1], 0, 360, 315);
     let elevation = utils.validateNumber(light[2], 0, 90, 45);
@@ -332,33 +464,32 @@ Renderer.prototype.setIllumination = function(definition) {
     //console.log("Illumination: ", this.illumination);
 };
 
-Renderer.prototype.getIlluminationVectorVC = function() {
+getIlluminationVectorVC() {
 
     //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
-
     return this.illumination.illuminationVectorVC;
 };
 
-Renderer.prototype.getIlluminationAmbientCoef = function() {
+getIlluminationAmbientCoef() {
 
     //console.log("Illumination: ambient coef", this.illumination.ambientCoef);
 
     return this.illumination.ambientCoef;
 };
 
-Renderer.prototype.setSuperElevationState = function(state) {
+setSuperElevationState(state: boolean) {
+
     if (this.useSuperElevation != state) {
         this.useSuperElevation = state;
         this.seCounter++;
     }
 };
 
-Renderer.prototype.getSuperElevationState = function() {
+getSuperElevationState(): boolean {
     return this.useSuperElevation;
 };
 
-Renderer.prototype.setSuperElevation = function(seDefinition) {
-
+setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
     // old format
     if (Array.isArray(seDefinition)){
@@ -377,7 +508,7 @@ Renderer.prototype.setSuperElevation = function(seDefinition) {
 
         } else {
 
-            delete(this.seHeightRamp);
+            this.seHeightRamp = null;
         }
 
         // viewExtentProgression
@@ -389,7 +520,7 @@ Renderer.prototype.setSuperElevation = function(seDefinition) {
 
         } else {
 
-            delete(this.seProgression);
+            this.seProgression = null;
         }
 
         return;
@@ -400,7 +531,7 @@ Renderer.prototype.setSuperElevation = function(seDefinition) {
 
 }
 
-Renderer.prototype.setSuperElevationProgression = function(progression) {
+private setSuperElevationProgression(progression: SeProgressionDef) {
 
     if (!(progression && progression[0] && progression[1] && progression[3]
             && progression[3] && progression[4])) {
@@ -422,7 +553,7 @@ Renderer.prototype.setSuperElevationProgression = function(progression) {
 }
 
 
-Renderer.prototype.setSuperElevationRamp = function(se) {
+private setSuperElevationRamp(se: [[number, number], [number, number]]) {
 
     if (!(se && se[0] && se[1] && se[0].length >=2 && se[1].length >=2)) {
         throw new Error("Unsupported super elevation option.");
@@ -446,14 +577,14 @@ Renderer.prototype.setSuperElevationRamp = function(se) {
     this.seCounter++;
 };
 
-Renderer.prototype.getSeProgressionFactor = function(position) {
+getSeProgressionFactor(position) {
 
     if (arguments.length !== 1)
         throw new Error('function now requires current position');
 
     let progression = this.seProgression;
 
-    let retval = math_.clamp(
+    let retval = math.clamp(
         progression.baseValue *
             (position.pos[8] / progression.baseExtent) ** progression.exponent,
         progression.min, progression.max);
@@ -464,7 +595,7 @@ Renderer.prototype.getSeProgressionFactor = function(position) {
 }
 
 
-Renderer.prototype.getSuperElevation = function(position) {
+getSuperElevation(position) {
 
     if (arguments.length !== 1) {
         throw new Error('Function now requires current position.');
@@ -493,7 +624,7 @@ Renderer.prototype.getSuperElevation = function(position) {
 };
 
 
-Renderer.prototype.getSuperElevatedHeight = function(height, position) {
+getSuperElevatedHeight(height, position) {
 
     if (arguments.length !== 2) {
         throw new Error('Function now requires current position.');
@@ -517,7 +648,7 @@ Renderer.prototype.getSuperElevatedHeight = function(height, position) {
 }
 
 
-Renderer.prototype.getSuperElevatedHeightRamp = function(height) {
+getSuperElevatedHeightRamp(height) {
 
 
     var se = this.seHeightRamp, h = height;
@@ -534,7 +665,7 @@ Renderer.prototype.getSuperElevatedHeightRamp = function(height) {
 };
 
 
-Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
+getUnsuperElevatedHeight(height, position) {
 
     if (arguments.length !== 2) {
         throw new Error('Function now requires current position.');
@@ -558,7 +689,7 @@ Renderer.prototype.getUnsuperElevatedHeight = function(height, position) {
 }
 
 
-Renderer.prototype.getUnsuperElevatedHeightRamp = function(height) {
+getUnsuperElevatedHeightRamp(height) {
     var se = this.seHeightRamp, s = height;
 
     if (se[1] == se[3]) {
@@ -582,7 +713,7 @@ Renderer.prototype.getUnsuperElevatedHeightRamp = function(height) {
 };
 
 
-Renderer.prototype.getEllipsoidHeight = function(pos, shift) {
+getEllipsoidHeight(pos, shift) {
     var p, p2;
     this.seTmpVec3 = [0,0,0];
 
@@ -600,7 +731,7 @@ Renderer.prototype.getEllipsoidHeight = function(pos, shift) {
 };
 
 
-Renderer.prototype.transformPointBySE = function(pos, shift, position) {
+transformPointBySE(pos, shift, position) {
 
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
@@ -634,7 +765,7 @@ Renderer.prototype.transformPointBySE = function(pos, shift, position) {
 };
 
 
-Renderer.prototype.transformPointBySE2 = function(pos, shift, position) {
+transformPointBySE2(pos, shift, position) {
 
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
@@ -673,8 +804,9 @@ Renderer.prototype.transformPointBySE2 = function(pos, shift, position) {
     return pos;
 };
 
-
-Renderer.prototype.project = function(point) {
+/*
+// there is a type error in this function in calling this.cameraPosition(). Commenting out, as it's likely never called.
+project(point) {
     //get mode-view-projection matrix
     var mvp = this.camera.getMvpMatrix();
 
@@ -706,10 +838,10 @@ Renderer.prototype.project = function(point) {
     } else {
         return [0, 0, 0];
     }
-};
+};*/
 
 
-Renderer.prototype.getScreenRay = function(screenX, screenY) {
+getScreenRay(screenX, screenY) {
     if (this.camera == null) {
         return [0,0,1.0];
     }
@@ -748,7 +880,7 @@ Renderer.prototype.getScreenRay = function(screenX, screenY) {
 };
 
 
-Renderer.prototype.hitTestGeoLayers = function(screenX, screenY, secondTexture) {
+hitTestGeoLayers(screenX, screenY, secondTexture) {
     var gl = this.gpu.gl;
 
     //probably not needed
@@ -787,7 +919,7 @@ Renderer.prototype.hitTestGeoLayers = function(screenX, screenY, secondTexture) 
 };
 
 
-Renderer.prototype.switchToFramebuffer = function(type, texture) {
+switchToFramebuffer(type, texture) {
     var gl = this.gpu.gl, size, width, height;
     
     switch(type) {
@@ -892,7 +1024,7 @@ Renderer.prototype.switchToFramebuffer = function(type, texture) {
 };
 
 
-Renderer.prototype.hitTest = function(screenX, screenY) {
+hitTest(screenX, screenY) {
     var gl = this.gpu.gl;
 
     //get screen ray
@@ -926,14 +1058,18 @@ Renderer.prototype.hitTest = function(screenX, screenY) {
 };
 
 
-Renderer.prototype.copyHitmap = function() {
+copyHitmap() {
     this.hitmapTexture.readFramebufferPixels(0,0,this.hitmapSize,this.hitmapSize, false, this.hitmapData);
 };
 
 
-Renderer.prototype.getDepth = function(screenX, screenY) {
+getDepth(screenX, screenY) {
+
     var x = Math.floor(screenX * (this.hitmapSize / this.curSize[0]));
     var y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
+
+    var depth: number;
+
 
     if (this.hitmapMode <= 2) {
 
@@ -941,7 +1077,7 @@ Renderer.prototype.getDepth = function(screenX, screenY) {
         var pixel = this.hitmapTexture.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1, (this.hitmapMode == 2));
 
         //convert rgb values into depth
-        var depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);// + (pixel[3]*16581375.0);
+        depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);
         var surfaceHit = !(pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 && pixel[3] == 255);
 
     } else {
@@ -949,7 +1085,7 @@ Renderer.prototype.getDepth = function(screenX, screenY) {
         var index = (x + (this.hitmapSize - y - 1) * this.hitmapSize) * 4;
         var r = pixels[index], g = pixels[index+1], b = pixels[index+2], a = pixels[index+3];
 
-        var depth = (r * (1.0/255)) + (g) + (b*255.0) + (a*65025.0);// + (pixel[3]*16581375.0);
+        depth = (r * (1.0/255)) + (g) + (b*255.0) + (a*65025.0);// + (pixel[3]*16581375.0);
         var surfaceHit = !(r == 255 && g == 255 && b == 255 && a == 255);
     }
 
@@ -957,12 +1093,12 @@ Renderer.prototype.getDepth = function(screenX, screenY) {
 };
 
 
-Renderer.prototype.getZoffsetFactor = function(params) {
+getZoffsetFactor(params) {
     return (params[0] + params[1]*this.distanceFactor + params[2]*this.tiltFactor)*0.0001;
 };
 
 
-Renderer.prototype.saveScreenshot = function(output, filename, filetype) {
+saveScreenshot(output, filename, filetype) {
     var gl = this.gpu.gl;
 
     //get current screen size
@@ -1039,7 +1175,7 @@ Renderer.prototype.saveScreenshot = function(output, filename, filetype) {
 };
 
 
-Renderer.prototype.getBitmap = function(url, filter, tiled, hash, useHash) {
+getBitmap(url, filter, tiled, hash, useHash) {
     var id = (useHash ? hash : url) + '*' + filter + '*' + tiled;
 
     var texture = this.bitmaps[id];
@@ -1052,7 +1188,7 @@ Renderer.prototype.getBitmap = function(url, filter, tiled, hash, useHash) {
 };
 
 
-Renderer.prototype.getFont = function(url) {
+getFont(url) {
     var font = this.fonts[url];
     if (!font) {
         font = new GpuFont(this.gpu, this.core, null, null, url);
@@ -1062,5 +1198,6 @@ Renderer.prototype.getFont = function(url) {
     return font;
 };
 
+} // export class Renderer
 
 export default Renderer;

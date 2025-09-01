@@ -2,6 +2,8 @@
 
 import GpuDevice from './device';
 
+type Optional<T> = T | null;
+
 
 export class GpuProgram {
 
@@ -9,7 +11,7 @@ export class GpuProgram {
     vertex: string;
     fragment: string;
     gl: WebGL2RenderingContext;
-    program: WebGLProgram;
+    program: Optional<WebGLProgram>;
     ready: boolean;
     uniformLocationCache: Record<string, WebGLUniformLocation>;
     attributeLocationCache: Record<string, GLint>;
@@ -216,7 +218,7 @@ setFloatArray(name: string, array: Float32List): void {
 };
 
 
-getAttribute(name): GLint {
+getAttribute(name: string): GLint {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 

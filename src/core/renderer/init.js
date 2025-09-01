@@ -1,7 +1,6 @@
 
 import RendererGeometry_ from './geometry';
 import GpuBBox_ from './gpu/bbox';
-import GpuFont_ from './gpu/font';
 import GpuMesh_ from './gpu/mesh';
 import GpuPixelLine3_ from './gpu/pixel-line3';
 import GpuProgram_ from './gpu/program';
