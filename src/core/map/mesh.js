@@ -1,12 +1,10 @@
 
-import {math} from '../utils/math';
 import {mat4 as mat4_, vec3, mat3} from '../utils/matrix';
 import {utils as utils_} from '../utils/utils';
 import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
 import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
-import * as Illumination  from './illumination';
 
 
 //get rid of compiler mess

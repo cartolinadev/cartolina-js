@@ -1,18 +1,21 @@
 
 
+import GpuDevice from './device';
+
+
 export class GpuProgram {
 
-    gpu: any;
+    gpu: GpuDevice;
     vertex: string;
     fragment: string;
-    gl: WebGLRenderingContext;
+    gl: WebGL2RenderingContext;
     program: WebGLProgram;
-    ready: Boolean;
+    ready: boolean;
     uniformLocationCache: Record<string, WebGLUniformLocation>;
     attributeLocationCache: Record<string, GLint>;
     m: Float32Array;
 
-    constructor(gpu: any, vertex: string, fragment: string, _?: any /*variants*/) {
+    constructor(gpu: GpuDevice, vertex: string, fragment: string, _?: any /*variants*/) {
 
         this.gpu = gpu;
         this.vertex = vertex;
@@ -29,7 +32,7 @@ export class GpuProgram {
     };
 
 
-createShader(source: string, vertexShader: Boolean): WebGLShader {
+createShader(source: string, vertexShader: boolean): WebGLShader {
     var gl = this.gl;
 
     if (!source || !gl) {
@@ -102,7 +105,7 @@ setSampler(name: string, index: GLint): void {
     }
 };
 
-isReady() : Boolean {
+isReady() : boolean {
     return this.ready;
 };
 
