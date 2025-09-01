@@ -1,29 +1,70 @@
 
-
-var GpuDevice = function(renderer, div, size, keepFrameBuffer, antialias, aniso) {
-    this.renderer = renderer;
-    this.div = div;
-    this.canvas =  null;
-    this.curSize = size;
-    this.currentProgram = null;
-    this.maxAttributesCount = 8;
-    this.newAttributes = new Uint8Array(this.maxAttributesCount);
-    this.enabledAttributes = new Uint8Array(this.maxAttributesCount);
-    this.noTextures = false;
-    this.barycentricBuffer = null;
-   
-    //state of device when first initialized
-    this.defaultState = this.createState({blend:false, stencil:false, zequal: false, ztest:false, zwrite: false, culling:false}); 
-    this.currentState = this.defaultState;
-    this.currentOffset = 0; //used fot direct offset
-
-    this.keepFrameBuffer = (keepFrameBuffer == null) ? false : keepFrameBuffer;
-    this.antialias = antialias ? true : false;
-    this.anisoLevel = aniso;
-};
+import GpuProgram from './program';
 
 
-GpuDevice.prototype.init = function() {
+type NumberPair = [number, number];
+type Color = [number, number, number, number]
+
+type State = {
+    blend: boolean,
+    stencil: boolean,
+    zequal: boolean,
+    ztest: boolean,
+    zwrite: boolean,
+    culling: boolean
+}
+
+type Viewport = { width: number, height: number }
+
+
+class GpuDevice {
+
+    maxAttributesCount = 8;
+    newAttributes = new Uint8Array(this.maxAttributesCount);
+    enabledAttributes = new Uint8Array(this.maxAttributesCount);
+    noTextures = false;
+
+    renderer: any;
+    div: any;
+    curSize: NumberPair;
+    defaultState: State;
+    currentState: State;
+    keepFrameBuffer: boolean;
+    antialias: boolean;
+    anisoLevel: GLfloat;
+    anisoExt: EXT_texture_filter_anisotropic;
+    maxAniso: GLfloat;
+
+    //barycentricBuffer = null;
+    //currentOffset = 0; //used fot direct offset
+
+    canvas: HTMLCanvasElement = null;
+    gl: WebGL2RenderingContext = null;
+    currentProgram: WebGLProgram = null;
+
+    viewport: Viewport = null;
+
+    constructor(renderer: any, div: any, size: NumberPair,
+                keepFrameBuffer: boolean, antialias: boolean,
+                aniso: GLfloat) {
+
+        this.renderer = renderer;
+        this.div = div;
+        this.curSize = size;
+
+        //state of device when first initialized
+        this.defaultState = this.createState({blend:false, stencil:false,
+            zequal: false, ztest:false, zwrite: false, culling:false});
+        this.currentState = this.defaultState;
+
+        this.keepFrameBuffer = !! keepFrameBuffer;
+        this.antialias = !! antialias;
+        this.anisoLevel = aniso;
+    };
+
+
+init() {
+
     var canvas = document.createElement('canvas');
 
     if (canvas == null) {
@@ -45,7 +86,7 @@ GpuDevice.prototype.init = function() {
     canvas.addEventListener("webglcontextlost", this.contextLost.bind(this), false);
     canvas.addEventListener("webglcontextrestored", this.contextRestored.bind(this), false);
 
-    var gl;
+    let gl: WebGL2RenderingContext;
 
     try {
         gl = canvas.getContext('webgl2', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
@@ -60,11 +101,7 @@ GpuDevice.prototype.init = function() {
 
     this.gl = gl;
 
-    this.anisoExt = (
-      gl.getExtension('EXT_texture_filter_anisotropic') ||
-      gl.getExtension('MOZ_EXT_texture_filter_anisotropic') ||
-      gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic')
-    );
+    this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
 
     if (this.anisoExt) {
         this.maxAniso = gl.getParameter(this.anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
@@ -83,11 +120,10 @@ GpuDevice.prototype.init = function() {
 
     this.div.appendChild(canvas);
 
-    gl.viewportWidth = canvas.width;
-    gl.viewportHeight = canvas.height;
+    this.viewport = { width: canvas.width, height: canvas.height };
+
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    //gl.enable(gl.DEPTH_TEST);
 
     //initial state
     gl.disable(gl.BLEND);
@@ -99,31 +135,32 @@ GpuDevice.prototype.init = function() {
     gl.disable(gl.CULL_FACE);
 
     //clear screen
-    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    gl.viewport(0, 0, this.viewport.width, this.viewport.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 };
 
 
-GpuDevice.prototype.kill = function() {
+kill() {
     this.div.removeChild(this.canvas);
     delete this.canvas;
     this.canvas = null;
 };
 
 
-GpuDevice.prototype.contextLost = function(event) {
+contextLost(event: WebGLContextEvent) {
     event.preventDefault();
     this.renderer.core.contextLost = true;
     this.renderer.core.callListener('gpu-context-lost', {});
 };
 
 
-GpuDevice.prototype.contextRestored = function() {
+contextRestored(): void {
     this.renderer.core.callListener('gpu-context-restored', {});
 };
 
 
-GpuDevice.prototype.resize = function(size, skipCanvas) {
+resize(size: NumberPair, skipCanvas: boolean) {
+
     this.curSize = size;
     var canvas = this.canvas, gl = this.gl;
 
@@ -132,14 +169,11 @@ GpuDevice.prototype.resize = function(size, skipCanvas) {
         canvas.height = this.curSize[1];
     }
 
-    if (gl != null) {
-        gl.viewportWidth = canvas.width;
-        gl.viewportHeight = canvas.height;
-    }
+    this.viewport = { width: canvas.width, height: canvas.height }
 };
 
 
-GpuDevice.prototype.setAniso = function(aniso) {
+setAniso(aniso: GLfloat) {
     if (this.anisoExt) {
         if (this.anisoLevel) {
             if (aniso == -1) {
@@ -152,48 +186,54 @@ GpuDevice.prototype.setAniso = function(aniso) {
 };
 
 
-GpuDevice.prototype.getCanvas = function() {
+getCanvas(): HTMLCanvasElement {
     return this.canvas;
 };
 
 
-GpuDevice.prototype.setViewport = function() {
-    this.gl.viewport(0, 0, this.gl.viewportWidth, this.gl.viewportHeight);
+setViewport() {
+    this.gl.viewport(0, 0, this.viewport.width, this.viewport.height);
 };
 
 
-GpuDevice.prototype.clear = function(clearDepth, clearColor, color) {
+clear(clearDepth: boolean, clearColor: boolean, color : Color): void {
+
     if (color != null) {
         this.gl.clearColor(color[0]/255, color[1]/255, color[2]/255, color[3]/255);
     }
-    
+
     this.gl.clear((clearColor ? this.gl.COLOR_BUFFER_BIT : 0) |
                   (clearDepth ? this.gl.DEPTH_BUFFER_BIT : 0) );
 };
 
 
-GpuDevice.prototype.useProgram = function(program, attributes, nextSampler) {
+useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
+
     if (this.currentProgram != program) {
         this.gl.useProgram(program.program);
         this.currentProgram = program;
 
+        // why this is done for every program statically i do not know
+        // in the tile program the first uniform identifies the main
+        // texture slot (0), the second one the mask (1)
         program.setSampler('uSampler', 0);
-        
+
         if (nextSampler) {
             program.setSampler('uSampler2', 1);
         }
 
+        // TODO: we should handle this by switching VAOs
         var newAttributes = this.newAttributes;
-        var enabledAttributes = this.enabledAttributes; 
-       
+        var enabledAttributes = this.enabledAttributes;
+
         //reset new attributes list
         for (var i = 0, li = newAttributes.length; i < li; i++){
             newAttributes[i] = 0;
         }
-        
+
         for (i = 0, li = attributes.length; i < li; i++){
             var index = program.getAttribute(attributes[i]);
-            
+
             if (index != -1){
                 newAttributes[index] = 1;
             }
@@ -215,10 +255,7 @@ GpuDevice.prototype.useProgram = function(program, attributes, nextSampler) {
 };
 
 
-GpuDevice.prototype.bindTexture = function(texture, id) {
-
-    // if (id && (id != 0 && id != 1))
-    //    console.log("Warn: texture slot > 1", );
+bindTexture(texture: any, id: GLint) {
 
     if (!texture.loaded) {
         return;
@@ -231,7 +268,7 @@ GpuDevice.prototype.bindTexture = function(texture, id) {
 };
 
 
-GpuDevice.prototype.setFramebuffer = function(texture) {
+setFramebuffer(texture: any) {
     if (texture != null) {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, texture.framebuffer);
     } else {
@@ -242,7 +279,8 @@ GpuDevice.prototype.setFramebuffer = function(texture) {
 };
 
 
-GpuDevice.prototype.createState = function(state) {
+createState(state: State): State {
+
     if (state.blend == null) { state.blend = false; }
     if (state.stencil == null) { state.stencil = false; }
     if (state.zwrite == null) { state.zwrite = true; }
@@ -254,7 +292,8 @@ GpuDevice.prototype.createState = function(state) {
 };
 
 
-GpuDevice.prototype.setState = function(state) {
+setState(state: State) {
+
     if (!state) {
         return;
     }
@@ -289,7 +328,7 @@ GpuDevice.prototype.setState = function(state) {
     }
 
     if (currentState.ztest != state.ztest) {
-        if (state.ztest != 0) {
+        if (state.ztest) {
             gl.enable(gl.DEPTH_TEST);
         } else {
             gl.disable(gl.DEPTH_TEST);
@@ -297,7 +336,7 @@ GpuDevice.prototype.setState = function(state) {
     }
 
     if (currentState.zequal != state.zequal) {
-        if (state.zequal != 0) {
+        if (state.zequal) {
             gl.depthFunc(gl.LEQUAL);
         } else {
             gl.depthFunc(gl.LESS);
@@ -315,6 +354,8 @@ GpuDevice.prototype.setState = function(state) {
     this.currentState = state;
 };
 
+
+} // class GpuDevice
 
 export default GpuDevice;
 
