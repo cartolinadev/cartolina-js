@@ -244,7 +244,7 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
         }
 
         for (i = 0, li = attributes.length; i < li; i++){
-            var index = program.getAttribute(attributes[i]);
+            var index = program.getAttribLocation(attributes[i]);
 
             if (index != -1){
                 newAttributes[index] = 1;

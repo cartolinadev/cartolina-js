@@ -398,7 +398,7 @@ resizeGL(width: number, height: number, skipCanvas: boolean = false) {
 };
 
 
-project2(point, mvp, cameraPos, includeDistance) {
+project2(point, mvp, cameraPos, includeDistance: boolean = false) {
     var p = [0, 0, 0, 1];
 
     if (cameraPos) {

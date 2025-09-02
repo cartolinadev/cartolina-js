@@ -111,7 +111,7 @@ isReady() : boolean {
     return this.ready;
 };
 
-setMat4(name: string, m: Float32List, zoffset: number): void {
+setMat4(name: string, m: Float32List, zoffset?: number): void {
 
     var gl = this.gl;
     if (gl == null || this.program == null) return;
@@ -218,7 +218,7 @@ setFloatArray(name: string, array: Float32List): void {
 };
 
 
-getAttribute(name: string): GLint {
+getAttribLocation(name: string): GLint {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 

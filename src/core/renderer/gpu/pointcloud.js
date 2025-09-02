@@ -66,12 +66,12 @@ GpuPointcloud.prototype.draw = function(program, attrVertex, attrColor, skipDraw
     }
 
     //bind vetex positions
-    var vertexAttribute = program.getAttribute(attrVertex);
+    var vertexAttribute = program.getAttribLocation(attrVertex);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.vertexAttribPointer(vertexAttribute, this.vertexBuffer.itemSize, gl.UNSIGNED_BYTE, true, 0, 0);
 
     //bind vetex colors
-    var colorAttribute = program.getAttribute(attrColor);
+    var colorAttribute = program.getAttribLocation(attrColor);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer);
     gl.vertexAttribPointer(colorAttribute, this.colorBuffer.itemSize, gl.UNSIGNED_BYTE, true, 0, 0);
 

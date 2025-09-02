@@ -9,7 +9,6 @@ var GpuBBox = function(gpu, free) {
         return;
 
     this.free = free;
-    this.vertexPositionBuffer = null;
 
     //create vertex buffer
     this.vertexPositionBuffer = gl.createBuffer();
@@ -68,7 +67,7 @@ GpuBBox.prototype.draw = function(program, attrPosition) {
     if (gl == null)
         return;
 
-    var vertexPositionAttribute = program.getAttribute(attrPosition);
+    var vertexPositionAttribute = program.getAttribLocation(attrPosition);
 
     //bind vetex positions
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexPositionBuffer);

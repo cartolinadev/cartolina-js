@@ -153,7 +153,6 @@ draw(program: GpuProgram, attrVertex: string, attrUV: string, attrUV2: string,
 
     var gl = this.gl;
 
-
     if (gl == null) {
         return;
     }
@@ -161,44 +160,44 @@ draw(program: GpuProgram, attrVertex: string, attrUV: string, attrUV2: string,
     // we should handle this through binding a VAO
     if (this.use16bit) {
         //bind vetex positions
-        var vertexAttribute = program.getAttribute(attrVertex);
+        var vertexAttribute = program.getAttribLocation(attrVertex);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize, gl.UNSIGNED_SHORT, !this.verticesUnnormalized, 0, 0);
 
         //bind texture coords
         if (this.uvBuffer && attrUV) {
-            var uvAttribute = program.getAttribute(attrUV);
+            var uvAttribute = program.getAttribLocation(attrUV);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
             gl.vertexAttribPointer(uvAttribute, this.uvBufferLayout.itemSize, gl.UNSIGNED_SHORT, true, 0, 0);
         }
 
         if (this.uv2Buffer && attrUV2) {
-            var uv2Attribute = program.getAttribute(attrUV2);
+            var uv2Attribute = program.getAttribLocation(attrUV2);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uv2Buffer);
             gl.vertexAttribPointer(uv2Attribute, this.uv2BufferLayout.itemSize, gl.UNSIGNED_SHORT, true, 0, 0);
         }
     } else {
         //bind vetex positions
-        var vertexAttribute = program.getAttribute(attrVertex);
+        var vertexAttribute = program.getAttribLocation(attrVertex);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize, gl.FLOAT, false, 0, 0);
 
         //bind texture coords
         if (this.uvBuffer && attrUV) {
-            var uvAttribute = program.getAttribute(attrUV);
+            var uvAttribute = program.getAttribLocation(attrUV);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
             gl.vertexAttribPointer(uvAttribute, this.uvBufferLayout.itemSize, gl.FLOAT, false, 0, 0);
         }
 
         if (this.uv2Buffer && attrUV2) {
-            var uv2Attribute = program.getAttribute(attrUV2);
+            var uv2Attribute = program.getAttribLocation(attrUV2);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uv2Buffer);
             gl.vertexAttribPointer(uv2Attribute, this.uv2BufferLayout.itemSize, gl.FLOAT, false, 0, 0);
         }
     }
 
     if (attrBarycenteric) {
-        var barycentericAttribute = program.getAttribute(attrBarycenteric);
+        var barycentericAttribute = program.getAttribLocation(attrBarycenteric);
         
         if (barycentericAttribute != -1) {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.gpu.barycentricBuffer);
