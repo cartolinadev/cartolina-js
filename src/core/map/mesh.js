@@ -654,7 +654,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         return;
     }
 
-    // use program (and set sampler0 and sampler1 statically)
+    // use program (and set sampler0 and sampler1 statically, enable vertex attributes)
     renderer.gpu.useProgram(program, attributes, gpuMask);
 
     // bind textures

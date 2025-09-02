@@ -803,7 +803,7 @@ MapSubmesh.prototype.buildGpuMesh = function () {
         uvs: this.internalUVs,
         uvs2: this.externalUVs,
         indices: this.indices
-    }, 1, this.map.core, true, this.use16bit);
+    }, this.map.core, this.use16bit);
 };
 
 

@@ -103,9 +103,9 @@ RendererInterface.prototype.createMesh = function(options) {
     }
 
     var data = {
-        vertices : options['vertices'],
-        uvs : options['uvs'],
-        uvs2 : options['normals'],
+        vertices : new Float32Array(options['vertices']),
+        uvs : new Float32Array(options['uvs']),
+        uvs2 : new Float32Array(options['normals']), // what? uvs2 are normals?
         vertexSize : options['vertexSize'],
         uvSize : options['uvSize'],
         uv2Size : options['normalSize'] || 3,
@@ -115,7 +115,7 @@ RendererInterface.prototype.createMesh = function(options) {
         bbox : options['bbox']
     };
 
-    return new GpuMesh(this.gpu, data, 0, this.renderer.core);
+    return new GpuMesh(this.gpu, data, this.renderer.core);
 };
 
 
