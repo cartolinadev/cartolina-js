@@ -151,13 +151,13 @@ RendererInit.prototype.initHeightmap = function() {
 
     // initialize heightmap geometry
     var meshData = RendererGeometry.buildHeightmap(5, true);
-    //renderer.heightmapMesh = new GpuMesh(gpu, meshData, null, this.core, true, use16Bit);
+    //renderer.heightmapMesh = new GpuMesh(gpu, meshData, this.core, use16Bit);
 
     meshData = RendererGeometry.buildPlane(16, true);
-    renderer.planeMesh = new GpuMesh(gpu, meshData, null, this.core, true, use16Bit, true);
+    renderer.planeMesh = new GpuMesh(gpu, meshData, this.core, use16Bit, true);
 
     meshData = RendererGeometry.buildPlane(128, true);
-    renderer.planeMesh2 = new GpuMesh(gpu, meshData, null, this.core, true, use16Bit, true);
+    renderer.planeMesh2 = new GpuMesh(gpu, meshData, this.core, use16Bit, true);
 
     // create heightmap texture
     var size = 64;
@@ -363,12 +363,12 @@ RendererInit.prototype.initSkydome = function() {
     var renderer = this.renderer;
     var use16Bit = renderer.core.config.map16bitMeshes;
     var meshData = RendererGeometry.buildSkydome(32, 64, use16Bit);
-    renderer.skydomeMesh = new GpuMesh(this.gpu, meshData, null, this.core, true, use16Bit);
+    renderer.skydomeMesh = new GpuMesh(this.gpu, meshData, this.core, use16Bit);
     //this.skydomeTexture = new GpuTexture(this.gpu, "./skydome.jpg", this.core);
 
     meshData = RendererGeometry.buildSkydome(128, 256, use16Bit, true);
 //    var meshData = RendererGeometry.buildSkydome(256, 512);
-    renderer.atmoMesh = new GpuMesh(this.gpu, meshData, null, this.core, true, use16Bit);
+    renderer.atmoMesh = new GpuMesh(this.gpu, meshData, this.core, use16Bit);
 };
 
 
