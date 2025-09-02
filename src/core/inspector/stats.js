@@ -99,8 +99,8 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
     var inspector = this.inspector;
     
     var text2 =
-            'FPS: ' + Math.round(stats.fps) + '<br/>' +
-            'Render time: ' + Math.round(stats.renderTime*1000) + '<br/>' +
+            'FPS (upper limit): ' + Math.round(stats.fps) + '<br/>' +
+            'Render time: ' + stats.renderTime.toFixed(2) + ' ms/frame <br/>' +
             ' - resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +
             ' - topdown: ' + Math.round(stats.gpuNeeded/(1024*1024)) + 'MB<br/>' +
             //" - resources: " + (stats.gpuRenderUsed) + " --- " + (stats.gpuRenderUsed / stats.drawnTiles) + "<br/>" +

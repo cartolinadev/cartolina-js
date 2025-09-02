@@ -355,7 +355,7 @@ RendererDraw.prototype.drawImage = function(x, y, lx, ly, texture, color, depth,
 
     var vertices = renderer.rectVerticesBuffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-    gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
     var indices = renderer.rectIndicesBuffer;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -409,7 +409,7 @@ RendererDraw.prototype.drawBillboard = function(mvp, texture, color, depthOffset
 
     var vertices = renderer.rectVerticesBuffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-    gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
     var indices = renderer.rectIndicesBuffer;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -466,7 +466,7 @@ RendererDraw.prototype.drawFlatImage = function(x, y, lx, ly, texture, color,
 
     var vertices = renderer.rectVerticesBuffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-    gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
     var indices = renderer.rectIndicesBuffer;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -552,7 +552,7 @@ RendererDraw.prototype.drawText = function(x, y, size, text,
 
     var vertices = renderer.rectVerticesBuffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-    gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
     var indices = renderer.rectIndicesBuffer;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -1382,20 +1382,20 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             prog.setVec4('uColor', color);
         }
 
-        vertexPositionAttribute = prog.getAttribute('aPosition');
+        vertexPositionAttribute = prog.getAttribLocation('aPosition');
 
         //bind vetex positions
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexPositionBuffer);
         gl.vertexAttribPointer(vertexPositionAttribute, job.vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
         if (advancedHitPass) {
-            vertexElementAttribute = prog.getAttribute('aElement');
+            vertexElementAttribute = prog.getAttribLocation('aElement');
             gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexElementBuffer);
             gl.vertexAttribPointer(vertexElementAttribute, job.vertexElementBuffer.itemSize, gl.FLOAT, false, 0, 0);
         }
 
         if (debugWires) {
-            var barycentericAttribute = prog.getAttribute('aBarycentric');
+            var barycentericAttribute = prog.getAttribLocation('aBarycentric');
             gl.bindBuffer(gl.ARRAY_BUFFER, gpu.barycentricBuffer);
             gl.vertexAttribPointer(barycentericAttribute, gpu.barycentricBuffer.itemSize, gl.FLOAT, false, 0, 0);
         }
@@ -1545,8 +1545,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             prog.setSampler('uSampler', 0);
         }
 
-        vertexPositionAttribute = prog.getAttribute('aPosition');
-        vertexNormalAttribute = prog.getAttribute('aNormal');
+        vertexPositionAttribute = prog.getAttribLocation('aPosition');
+        vertexNormalAttribute = prog.getAttribLocation('aNormal');
 
         //bind vetex positions
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexPositionBuffer);
@@ -1557,7 +1557,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         gl.vertexAttribPointer(vertexNormalAttribute, job.vertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
         if (advancedHitPass) {
-            vertexElementAttribute = prog.getAttribute('aElement');
+            vertexElementAttribute = prog.getAttribLocation('aElement');
             gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexElementBuffer);
             gl.vertexAttribPointer(vertexElementAttribute, job.vertexElementBuffer.itemSize, gl.FLOAT, false, 0, 0);
         }
@@ -1743,8 +1743,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         prog.setVec4('uColor', (hitmapRender ? color : job.color2));
         prog.setVec2('uParams', [job.outline[0], gamma2]);
 
-        vertexPositionAttribute = prog.getAttribute('aPosition');
-        vertexTexcoordAttribute = prog.getAttribute('aTexCoord');
+        vertexPositionAttribute = prog.getAttribLocation('aPosition');
+        vertexTexcoordAttribute = prog.getAttribLocation('aTexCoord');
 
         //bind vetex positions
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexPositionBuffer);
@@ -2180,7 +2180,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
 
                 var vertices = renderer.rectVerticesBuffer;
                 gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-                gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+                gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
                 var indices = renderer.rectIndicesBuffer;
                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -2218,7 +2218,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 prog.setVec2('uParams', [job.outline[0], job.gamma[1]]);
                 lj = hitmapRender ? 1 : 2;
 
-                var vertexPositionAttribute = prog.getAttribute('aPosition');
+                var vertexPositionAttribute = prog.getAttribLocation('aPosition');
 
                 prog.setVec4('uData', b);
 
@@ -2267,9 +2267,9 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             prog.setVec4('uColor', color);
         }
 
-        vertexPositionAttribute = prog.getAttribute('aPosition');
-        vertexTexcoordAttribute = prog.getAttribute('aTexCoord');
-        vertexOriginAttribute = prog.getAttribute('aOrigin');
+        vertexPositionAttribute = prog.getAttribLocation('aPosition');
+        vertexTexcoordAttribute = prog.getAttribLocation('aTexCoord');
+        vertexOriginAttribute = prog.getAttribLocation('aOrigin');
 
         //bind vetex positions
         gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexPositionBuffer);
@@ -2568,7 +2568,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
 
             var vertices = renderer.rectVerticesBuffer;
             gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
-            gl.vertexAttribPointer(prog.getAttribute('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribPointer(prog.getAttribLocation('aPosition'), vertices.itemSize, gl.FLOAT, false, 0, 0);
 
             var indices = renderer.rectIndicesBuffer;
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
@@ -2607,7 +2607,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
             prog.setVec2('uParams', [job.outline[0], job.gamma[1]]);
             lj = hitmapRender ? 1 : 2;
 
-            var vertexPositionAttribute = prog.getAttribute('aPosition');
+            var vertexPositionAttribute = prog.getAttribLocation('aPosition');
 
             prog.setVec4('uData', b);
 
@@ -2654,9 +2654,9 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
         prog.setVec4('uColor', color);
     }
 
-    var vertexPositionAttribute = prog.getAttribute('aPosition');
-    var vertexTexcoordAttribute = prog.getAttribute('aTexCoord');
-    var vertexOriginAttribute = prog.getAttribute('aOrigin');
+    var vertexPositionAttribute = prog.getAttribLocation('aPosition');
+    var vertexTexcoordAttribute = prog.getAttribLocation('aTexCoord');
+    var vertexOriginAttribute = prog.getAttribLocation('aOrigin');
 
     //bind vetex positions
     gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexPositionBuffer);
@@ -2893,7 +2893,7 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, _, s
         prog.setVec2('uParams', [job.outline[0], gamma2]);
         var lj = hitmapRender ? 1 : 2;
 
-        var vertexPositionAttribute = prog.getAttribute('aPosition');
+        var vertexPositionAttribute = prog.getAttribLocation('aPosition');
 
         prog.setVec4('uData', b);
 

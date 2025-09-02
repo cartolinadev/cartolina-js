@@ -131,7 +131,7 @@ GpuPixelLine3.prototype.draw = function(program, attrPosition, points) {
         return;
     }
 
-    var vertexPositionAttribute = program.getAttribute(attrPosition);
+    var vertexPositionAttribute = program.getAttribLocation(attrPosition);
 
     //bind vetex positions
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);

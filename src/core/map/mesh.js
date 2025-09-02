@@ -654,8 +654,10 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         return;
     }
 
+    // use program (and set sampler0 and sampler1 statically)
     renderer.gpu.useProgram(program, attributes, gpuMask);
 
+    // bind textures
     if (texture) {
         var gpuTexture = texture.getGpuTexture();
 
@@ -678,6 +680,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         return;
     }
 
+
+    // set uniforms
     var mv = this.mBuffer, m = this.mBuffer2, v = this.vBuffer;
 
     if (useSuperElevation) {
@@ -728,7 +732,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         program.setMat4('uProj', proj);
     }
 
-    // illumination uniforms
+    // illumination uniforms and normal map texture
     if (normalMap) {
 
         // bind normal map texture
@@ -790,19 +794,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         program.setFloat('uWhitewash', +whitewash);
     }
 
-    if (splitMask /*&& type != VTS_MATERIAL_FLAT*/) {
+    if (splitMask) {
         program.setFloatArray('uClip', splitMask);
-
-        //var fx = this.getLinePointParametricDist(points[0], points[1], point);
-        //var fy = this.getLinePointParametricDist(points[1], points[2], point);
-        //var fz = this.getLinePointParametricDist(points[4], points[0], point);
 
         var p = this.map.camera.position;
         var s = splitSpace;
-        //var c = [s[0][0] - p[0], s[0][1] - p[1], s[0][2] - p[2]];
-        //var px = [s[1][0] - p[0], s[1][1] - p[1], s[1][2] - p[2]];
-        //var py = [s[2][0] - p[0], s[2][1] - p[1], s[2][2] - p[2]];
-        //var pz = [s[4][0] - p[0], s[4][1] - p[1], s[4][2] - p[2]];
 
         if (splitSpace) {
             m[0] = s[0][0] - p[0]; m[1] = s[0][1] - p[1]; m[2] = s[0][2] - p[2];
