@@ -39,7 +39,6 @@ export class GpuTexture {
     size = 0;
     fileSize!: number;
 
-
     constructor(gpu: GpuDevice, path: string, core: any,
                           fileSize : number, direct: boolean, repeat: boolean,
                           filter: GpuTexture.Filter, keepImage?: boolean,
@@ -71,8 +70,8 @@ kill() {
 // Returns GPU RAM used, in bytes.
 getSize() { return this.size; };
 
-createFromData(
-    lx, ly, data, filter: GpuTexture.Filter, repeat) {
+createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
+    filter: GpuTexture.Filter, repeat?: GLfloat | GLint) {
 
     var gl = this.gl;
 
@@ -124,7 +123,11 @@ createFromData(
     this.loaded = true;
 };
 
-createFromImage(image, filter, repeat, aniso) {
+/*
+ * Are these textures allways vertically flipped with respect to the original image?
+ */
+
+createFromImage(image: HTMLImageElement, filter: GpuTexture.Filter, repeat?: boolean) {
     var gl = this.gl;
 
     //console.log("Creating texture from image.");
@@ -132,20 +135,13 @@ createFromImage(image, filter, repeat, aniso) {
     //filter = 'trilinear'; aniso = null; this.gpu.anisoLevel = 0;
     var width = image.naturalWidth;
     var height = image.naturalHeight;
-    var data = image;
 
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
 
-    if (repeat) {
-        repeat = gl.REPEAT;
-        this.repeat = true;
-    } else {
-        repeat = gl.CLAMP_TO_EDGE;
-    }
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, repeat);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeat);
+    const wrap = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
     var mipmaps = false;
     this.filter = filter;
 
@@ -165,7 +161,10 @@ createFromImage(image, filter, repeat, aniso) {
         break;
     }
 
-    //resize image to nearest power of two
+    let data: TexImageSource = image;
+
+    /* no longer need on WebGL2
+     * //resize image to nearest power of two
     if ((this.repeat || mipmaps) && (!utils.isPowerOfTwo(width) || !utils.isPowerOfTwo(height))) {
         width = utils.nearestPowerOfTwo(width);
         height = utils.nearestPowerOfTwo(height);
@@ -173,9 +172,10 @@ createFromImage(image, filter, repeat, aniso) {
         canvas.width = width;
         canvas.height = height;
         var context = canvas.getContext('2d');
-        context.drawImage(image, 0, 0, width, height); 
+        context.drawImage(image, 0, 0, width, height);
         data = canvas;
     }
+    */
 
     var gpu = this.gpu;
 
@@ -238,7 +238,7 @@ load(path: string, onLoaded : () => void, onError: () => void, direct: boolean,
 };
 
 
-createFramebufferFromData(lx, ly, data) {
+createFramebufferFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array) {
     var gl = this.gl;
 
     console.log("Creating framebuffer from data.");
@@ -259,8 +259,6 @@ createFramebufferFromData(lx, ly, data) {
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lx, ly, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
-
-
 
     var renderbuffer = gl.createRenderbuffer();
     gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
@@ -284,7 +282,7 @@ createFramebufferFromData(lx, ly, data) {
 };
 
 
-createFramebuffer = function(lx, ly) {
+createFramebuffer = function(lx:GLsizei, ly: GLsizei) {
     if (this.texture == null){
         return;
     }
