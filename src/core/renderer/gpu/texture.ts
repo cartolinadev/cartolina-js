@@ -1,44 +1,79 @@
 
-import {utils as utils_} from '../../utils/utils';
+import {utils} from '../../utils/utils';
+import {GpuDevice} from 'device';
 
-//get rid of compiler mess
-var utils = utils_;
+type Optional<T> = T | null;
 
-var GpuTexture = function(gpu, path, core, fileSize, direct, repeat, filter, keepImage, onLoaded, onError) {
-    this.gpu = gpu;
-    this.gl = gpu.gl;
-    this.texture = null;
-    this.framebuffer = null;
-    this.size = 0;
-    this.fileSize = fileSize; //used for stats
-    this.width = 0;
-    this.height = 0;
-    this.repeat = repeat || false;
-    this.filter = filter || 'linear';
+// local types
+// export types
 
-    this.image = null;
-    this.loaded = false;
-    this.trilinear = false;//true;
-    this.core = core;
+export namespace GpuTexture {
 
-    if (path != null) {
-        this.load(path, onLoaded, onError, direct, keepImage);
-    }
-};
+    export type Filter = 'linear' | 'trilinear' | 'nearest';
+}
+
+
+export class GpuTexture {
+
+    gpu!: GpuDevice;
+    gl!: WebGL2RenderingContext;
+    core: any;
+
+    texture: Optional<WebGLTexture> = null;
+
+    framebuffer: Optional<WebGLFramebuffer> = null;
+    renderbuffer: Optional<WebGLRenderbuffer> = null;
+
+    image: Optional<HTMLImageElement> = null;
+
+    width: number = 0;
+    height: number = 0;
+
+    repeat!: boolean;
+
+    filter!: GpuTexture.Filter;
+
+    loaded: boolean = false;
+
+    // stats
+    size = 0;
+    fileSize!: number;
+
+
+    constructor(gpu: GpuDevice, path: string, core: any,
+                          fileSize : number, direct: boolean, repeat: boolean,
+                          filter: GpuTexture.Filter, keepImage?: boolean,
+                          onLoaded?: () => void, onError?: () => void) {
+
+        this.gpu = gpu;
+        this.gl = gpu.gl;
+
+        this.fileSize = fileSize; //used for stats
+
+        this.repeat = repeat;
+        this.filter = filter || 'linear';
+
+        //this.trilinear = false;//true;
+        this.core = core;
+
+        if (path != null) {
+            this.load(path, onLoaded, onError, direct, keepImage);
+        }
+    };
 
 //destructor
-GpuTexture.prototype.kill = function() {
+kill() {
     this.gl.deleteTexture(this.texture);
     
     this.texture = null;
 };
 
 // Returns GPU RAM used, in bytes.
-GpuTexture.prototype.getSize = function() {
-    return this.size;
-};
+getSize() { return this.size; };
 
-GpuTexture.prototype.createFromData = function(lx, ly, data, filter, repeat) {
+createFromData(
+    lx, ly, data, filter: GpuTexture.Filter, repeat) {
+
     var gl = this.gl;
 
     //console.log("Creating texture from raw data.");
@@ -89,7 +124,7 @@ GpuTexture.prototype.createFromData = function(lx, ly, data, filter, repeat) {
     this.loaded = true;
 };
 
-GpuTexture.prototype.createFromImage = function(image, filter, repeat, aniso) {
+createFromImage(image, filter, repeat, aniso) {
     var gl = this.gl;
 
     //console.log("Creating texture from image.");
@@ -164,7 +199,9 @@ GpuTexture.prototype.createFromImage = function(image, filter, repeat, aniso) {
     this.loaded = true;
 };
 
-GpuTexture.prototype.load = function(path, onLoaded, onError, direct, keepImage) {
+load(path: string, onLoaded : () => void, onError: () => void, direct: boolean,
+    keepImage: boolean) {
+
     this.image = utils.loadImage(path, (function () {
         if (this.core != null && this.core.killed) {
             return;
@@ -201,15 +238,15 @@ GpuTexture.prototype.load = function(path, onLoaded, onError, direct, keepImage)
 };
 
 
-GpuTexture.prototype.createFramebufferFromData = function(lx, ly, data) {
+createFramebufferFromData(lx, ly, data) {
     var gl = this.gl;
 
     console.log("Creating framebuffer from data.");
 
     var framebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    framebuffer.width = lx;
-    framebuffer.height = ly;
+    //framebuffer.width = lx;
+    //framebuffer.height = ly;
 
     var texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -247,7 +284,7 @@ GpuTexture.prototype.createFramebufferFromData = function(lx, ly, data) {
 };
 
 
-GpuTexture.prototype.createFramebuffer = function(lx, ly) {
+createFramebuffer = function(lx, ly) {
     if (this.texture == null){
         return;
     }
@@ -277,7 +314,10 @@ GpuTexture.prototype.createFramebuffer = function(lx, ly) {
 };
 
 
-GpuTexture.prototype.readFramebufferPixels = function(x, y, lx, ly, fastMode, data) {
+readFramebufferPixels(
+    x: number, y: number, lx: number, ly: number, fastMode: boolean = false,
+    data?: Uint8Array) : Uint8Array {
+
     if (this.texture == null) {
         return;
     }
@@ -302,6 +342,9 @@ GpuTexture.prototype.readFramebufferPixels = function(x, y, lx, ly, fastMode, da
 
     return data;
 };
+
+
+} // class GpuTexture
 
 export default GpuTexture;
 

@@ -13,6 +13,8 @@ import RenderDraw from './draw';
 import RenderRMap from './rmap';
 import * as Illumination from '../map/illumination';
 
+type Optional<T> = T | null;
+
 // local types
 
 type Config = {
@@ -25,8 +27,6 @@ type Config = {
 }
 
 type Size2 = [ number, number ];
-
-type Optional<T> = T | null;
 
 type SeProgression = {
 
@@ -45,7 +45,7 @@ type SeRamp =
 
 type SeRampDef = [[number, number], [number, number]];
 
-// exported types
+// export types
 export namespace Renderer {
 
 export type IlluminationDef = {
@@ -158,15 +158,15 @@ export class Renderer {
     illumination:  Optional<Renderer.Illumination> = null;
 
     // textures
-    heightmapTexture: any = null;
+    heightmapTexture: Optional<GpuTexture> = null;
     skydomeMesh: Optional<GpuMesh> = null;
-    hitmapTexture: any = null;
-    geoHitmapTexture: any = null;
-    geoHitmapTexture2: any = null;
-    redTexture: any = null;
-    whiteTexture: any = null;
-    blackTexture: any = null;
-    textTexture2: any = null;
+    hitmapTexture: Optional<GpuTexture> = null;
+    geoHitmapTexture: Optional<GpuTexture> = null;
+    geoHitmapTexture2: Optional<GpuTexture> = null;
+    redTexture: Optional<GpuTexture> = null;
+    whiteTexture: Optional<GpuTexture> = null;
+    blackTexture: Optional<GpuTexture> = null;
+    textTexture2: Optional<GpuTexture> = null;
 
     // meshes
     atmoMesh: Optional<GpuMesh> = null;
@@ -888,7 +888,7 @@ hitTestGeoLayers(screenX, screenY, secondTexture) {
       //  return [false, 0,0,0,0];
     //}
 
-    var surfaceHit = false, pixel;
+    var surfaceHit = false, pixel: Uint8Array;
 
     if (screenX >= 0 && screenX < this.curSize[0] &&
         screenY >= 0 && screenY < this.curSize[1]) {

@@ -1,6 +1,9 @@
 
 import GpuProgram from './program';
+import GpuTexture from './texture';
+import Renderer from '../renderer';
 
+type Optional<T> = T | null;
 
 // local types
 type NumberPair = [number, number];
@@ -31,29 +34,29 @@ export class GpuDevice {
     enabledAttributes = new Uint8Array(this.maxAttributesCount);
     noTextures = false;
 
-    renderer: any;
-    div: HTMLElement;
-    curSize: NumberPair;
-    defaultState: GpuDevice.State;
-    currentState: GpuDevice.State;
-    keepFrameBuffer: boolean;
-    antialias: boolean;
-    anisoLevel: GLfloat;
-    anisoExt: EXT_texture_filter_anisotropic;
-    maxAniso: GLfloat;
+    renderer!: Renderer;
+    div!: HTMLElement;
+    curSize!: NumberPair;
+    defaultState!: GpuDevice.State;
+    currentState!: GpuDevice.State;
+    keepFrameBuffer!: boolean;
+    antialias!: boolean;
+    anisoLevel!: GLfloat;
+    maxAniso!: GLfloat;
 
     //currentOffset = 0; //used fot direct offset
 
-    canvas: HTMLCanvasElement = null;
-    gl: WebGL2RenderingContext = null;
-    currentProgram: WebGLProgram = null;
+    canvas: Optional<HTMLCanvasElement> = null;
+    gl: Optional<WebGL2RenderingContext> = null;
+    currentProgram: Optional<WebGLProgram> = null;
 
-    barycentricBuffer: WebGLBuffer = null;
-    barycentricBufferLayout: Layout = null;
+    barycentricBuffer: Optional<WebGLBuffer> = null;
+    barycentricBufferLayout: Optional<Layout> = null;
 
-    viewport: Viewport = null;
+    viewport: Optional<Viewport> = null;
+    anisoExt: Optional<EXT_texture_filter_anisotropic>;
 
-    constructor(renderer: any, div: HTMLElement, size: NumberPair,
+    constructor(renderer: Renderer, div: HTMLElement, size: NumberPair,
                 keepFrameBuffer: boolean, antialias: boolean,
                 aniso: GLfloat) {
 
@@ -66,8 +69,8 @@ export class GpuDevice {
             zequal: false, ztest:false, zwrite: false, culling:false});
         this.currentState = this.defaultState;
 
-        this.keepFrameBuffer = !! keepFrameBuffer;
-        this.antialias = !! antialias;
+        this.keepFrameBuffer = keepFrameBuffer;
+        this.antialias = antialias;
         this.anisoLevel = aniso;
     };
 
@@ -264,7 +267,7 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
 };
 
 
-bindTexture(texture: any, id: GLint) {
+bindTexture(texture: GpuTexture, id?: GLint) {
 
     if (!texture.loaded) {
         return;
@@ -277,7 +280,7 @@ bindTexture(texture: any, id: GLint) {
 };
 
 
-setFramebuffer(texture: any) {
+setFramebuffer(texture: GpuTexture) {
     if (texture != null) {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, texture.framebuffer);
     } else {
