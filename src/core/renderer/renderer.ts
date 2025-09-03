@@ -352,36 +352,6 @@ onResize() {
     }
 };
 
-
-kill() {
-    if (this.killed){
-        return;
-    }
-
-    this.killed = true;
-
-    //if (this.heightmapMesh) this.heightmapMesh.kill();
-    if (this.heightmapTexture) this.heightmapTexture.kill();
-    if (this.skydomeMesh) this.skydomeMesh.kill();
-    //if (this.skydomeTexture) this.skydomeTexture.kill();
-    if (this.hitmapTexture) this.hitmapTexture.kill();
-    if (this.geoHitmapTexture) this.geoHitmapTexture.kill();
-    if (this.redTexture) this.redTexture.kill();
-    if (this.whiteTexture) this.whiteTexture.kill();
-    if (this.blackTexture) this.blackTexture.kill();
-    //if (this.lineTexture) this.lineTexture.kill();
-    if (this.textTexture2) this.textTexture2.kill();
-    if (this.atmoMesh) this.atmoMesh.kill();
-    if (this.bboxMesh) this.bboxMesh.kill();
-    //if (this.font) this.font.kill();
-    if (this.plines) this.plines.kill();
-    if (this.plineJoints) this.plineJoints.kill();
- 
-    this.gpu.kill();
-    //this.div.removeChild(this.gpu.getCanvas());
-};
-
-
 resizeGL(width: number, height: number, skipCanvas: boolean = false) {
     this.camera.setAspect(width / height);
     this.curSize = [width, height];
@@ -1196,6 +1166,34 @@ getFont(url) {
     }
 
     return font;
+};
+
+kill() {
+    if (this.killed){
+        return;
+    }
+
+    this.killed = true;
+
+    //if (this.heightmapMesh) this.heightmapMesh.kill();
+    if (this.heightmapTexture) this.heightmapTexture.kill();
+    if (this.skydomeMesh) this.skydomeMesh.kill();
+    //if (this.skydomeTexture) this.skydomeTexture.kill();
+    if (this.hitmapTexture) this.hitmapTexture.kill();
+    if (this.geoHitmapTexture) this.geoHitmapTexture.kill();
+    if (this.redTexture) this.redTexture.kill();
+    if (this.whiteTexture) this.whiteTexture.kill();
+    if (this.blackTexture) this.blackTexture.kill();
+    //if (this.lineTexture) this.lineTexture.kill();
+    if (this.textTexture2) this.textTexture2.kill();
+    if (this.atmoMesh) this.atmoMesh.kill();
+    if (this.bboxMesh) this.bboxMesh.kill();
+    //if (this.font) this.font.kill();
+    if (this.plines) this.plines.kill();
+    if (this.plineJoints) this.plineJoints.kill();
+
+    this.gpu.kill();
+    //this.div.removeChild(this.gpu.getCanvas());
 };
 
 } // export class Renderer

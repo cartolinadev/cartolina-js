@@ -505,7 +505,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 });                                                
             }
             
-            //depth path
+            // depth path - note this is inserted in channel 1 (depth rendering,
+            // triggered by MapDraw.drawHitmap and used for depth testing etc.
             tile.drawCommands[1].push({
                 type : VTS_DRAWCOMMAND_SUBMESH,
                 mesh : tile.surfaceMesh,

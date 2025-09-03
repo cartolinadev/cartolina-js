@@ -70,7 +70,7 @@ class GpuMesh {
     polygons!: number;
 
     /** The VAOo cache. We keep a VAO per program, as attrib locations may differ. */
-    vaos: Map<WebGLProgram, WebGLVertexArrayObject>;
+    vaos = new Map<WebGLProgram, WebGLVertexArrayObject>();
 
     /**
      * Create a GPUMesh object from mesh data. Buffer data to the GPU.
@@ -104,6 +104,7 @@ class GpuMesh {
 
         var vertices = meshData.vertices;
         var uvs = meshData.uvs;
+
         var uvs2 = meshData.uvs2;
         var indices = meshData.indices;
         var vertexSize = meshData.vertexSize || 3;
@@ -224,7 +225,8 @@ draw2(program: GpuProgram,
 }
 
 
-private createVAO(program: GpuProgram, attrNames: AttrNames): WebGLVertexArrayObject {
+private createVAO(program: GpuProgram, attrNames: AttrNames)
+    : WebGLVertexArrayObject {
 
     const gl = this.gl;
 
@@ -243,27 +245,40 @@ private createVAO(program: GpuProgram, attrNames: AttrNames): WebGLVertexArrayOb
 
     gl.bindVertexArray(vao);
 
+    // positions (required)
     const vertexAttribute = program.getAttribLocation(attrNames['position']);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.enableVertexAttribArray(vertexAttribute)
-    gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize, gl.UNSIGNED_SHORT, this.normalize, 0, 0);
+    gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize,
+                           gl.UNSIGNED_SHORT, this.normalize, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     if (this.uvBuffer && attrNames['uvs']) {
 
+        // uvs (only when the program has them)
         const uvAttribute = program.getAttribLocation(attrNames['uvs']);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
-        gl.enableVertexAttribArray(uvAttribute)
-        gl.vertexAttribPointer(uvAttribute, this.uvBufferLayout.itemSize, dataType, true, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        if (uvAttribute != -1) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
+            gl.enableVertexAttribArray(uvAttribute)
+            gl.vertexAttribPointer(uvAttribute, this.uvBufferLayout.itemSize,
+                                   dataType, true, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
     }
 
     if (this.uv2Buffer && attrNames['uvs2']) {
+
+        // uvs2 (only when the program has them)
         const uv2Attribute = program.getAttribLocation(attrNames['uvs2']);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.uv2Buffer);
-        gl.enableVertexAttribArray(uv2Attribute)
-        gl.vertexAttribPointer(uv2Attribute, this.uv2BufferLayout.itemSize, dataType, true, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        if (uv2Attribute != -1) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.uv2Buffer);
+            gl.enableVertexAttribArray(uv2Attribute)
+            gl.vertexAttribPointer(uv2Attribute, this.uv2BufferLayout.itemSize,
+                                   dataType, true, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        }
     }
 
     if (this.indexBuffer)
