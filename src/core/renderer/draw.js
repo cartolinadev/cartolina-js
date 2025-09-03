@@ -1347,7 +1347,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             prog = useSuperElevation ? renderer.progCFlatShadeTileSE : renderer.progCFlatShadeTile;
         }
 
-        gpu.useProgram(prog, advancedHitPass ? ['aPosition', 'aElement'] : debugWires ? ['aPosition', 'aBarycentric'] : ['aPosition']);
+        gpu.useProgram(prog, advancedHitPass ? ['aPosition', 'aElement'] : ['aPosition']);
 
         if (useSuperElevation) {
             var m = this.mBuffer;
@@ -1392,12 +1392,6 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             vertexElementAttribute = prog.getAttribLocation('aElement');
             gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexElementBuffer);
             gl.vertexAttribPointer(vertexElementAttribute, job.vertexElementBuffer.itemSize, gl.FLOAT, false, 0, 0);
-        }
-
-        if (debugWires) {
-            var barycentericAttribute = prog.getAttribLocation('aBarycentric');
-            gl.bindBuffer(gl.ARRAY_BUFFER, gpu.barycentricBuffer);
-            gl.vertexAttribPointer(barycentericAttribute, gpu.barycentricBuffer.itemSize, gl.FLOAT, false, 0, 0);
         }
         
         //draw polygons
