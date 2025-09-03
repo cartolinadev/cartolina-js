@@ -6,7 +6,7 @@
 
   "urls": [
   {  
-    "id": "a-3d-moutain-map"
+    "id": "a-3d-mountain-map"
     , "description": "global terrain + single layer, lettering (Mount Whitney)"
     , "url": "https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/"
     , "pos": "obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00"
@@ -22,6 +22,12 @@
     , "description": "Illlumination, normal map + bump map, lettering (Grossglockner)"
     , "url": "https://cdn.tspl.re/store/tacoma/005b-lettering/"
     , "pos": "obj,12.721290,47.084420,fix,2727.44,-46.93,-44.97,0.00,12643.36,30.00"
+  }
+  , {
+    "id": "tacoma-005a-normalmap-bumpmap-se"
+    , "description": "Illlumination, normal map + bump map, high oblique (Wetterstein)"
+    , "url": "https://cdn.tspl.re/store/tacoma/005a-surfacedem-normalmap-bumpmap-se/"
+    , "pos": "obj,11.089189,47.412804,fix,1744.54,-151.48,-30.00,0.00,14002.15,30.00"
   }
   , {
     "id": "tacoma-005b-lettering-noxhrimage"

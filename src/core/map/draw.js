@@ -865,7 +865,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
             //console.log(command);
 
-            // the unfinished procedural pipeline, not important
+            // the unfinished procedural pipeline, removal candidate
             var pipeline = command.pipeline;
             if (pipeline) {
                 var hmap = command.hmap;

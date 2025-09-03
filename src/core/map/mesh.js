@@ -402,7 +402,9 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
         str += '#define whitewash\n';
     }
 
-    //console.log(progs[0].fragment.replace('#define variants\n', str));
+    //if (progs === this.map.renderer.progDepthTile) {
+    //    console.log(progs[0].vertex.replace('#define variants\n', str));
+    //}
 
     var prog = (new GpuProgram(this.map.renderer.gpu, progs[0].vertex.replace('#define variants\n', str), progs[0].fragment.replace('#define variants\n', str)));
     progs[v] = prog;
@@ -412,7 +414,7 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 
 MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace, normalMap) {
     // index is the submesh index
-    // type is the material (internal, external, both with fog and nofog variants, flat, etc.
+    // type is the material (internal, external, both with fog and nofog variants, flat, depth, etc.
 
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
@@ -430,8 +432,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     var program = null;
     var gpuMask = null;
 
-    var texcoordsAttr = null;
-    var texcoords2Attr = null;
+    let texcoordsAttr = null;
+    let texcoords2Attr = null;
     var drawWireframe = draw.debug.drawWireframe;
 
     var useSuperElevation = renderer.useSuperElevation;
@@ -655,7 +657,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     }
 
     // use program (and set sampler0 and sampler1 statically, enable vertex attributes)
-    renderer.gpu.useProgram(program, attributes, gpuMask);
+    //renderer.gpu.useProgram(program, attributes, gpuMask);
+    renderer.gpu.useProgram2(program);
 
     // bind textures
     if (texture) {
@@ -668,9 +671,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             }
 
             renderer.gpu.bindTexture(gpuTexture);
+            program.setSampler('uSampler', 0);
 
             if (gpuMask) {
                 renderer.gpu.bindTexture(gpuMask, 1);
+                program.setSampler('uSampler2', 1);
             }
 
         } else {
@@ -746,10 +751,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         }
 
         renderer.gpu.bindTexture(gpuTexture, 2);
-
-        // we set the sampler here, since it seems to be the logical place.
-        // samplers for slot 0 (texture) and 1 (mask) are set in
-        // Gpu.Device.useProgram
         program.setSampler("normalMap", 2);
 
         // viewPos and lightDir (prerequisite: superelevation
@@ -879,8 +880,12 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     }
 
     // GpuMesh.draw, actual draw call is there
-    gpuSubmesh.draw(program, 'aPosition', texcoordsAttr, texcoords2Attr, null, (drawWireframe == 2));
+    //gpuSubmesh.draw(program, 'aPosition', texcoordsAttr, texcoords2Attr, null, (drawWireframe == 2));
+    if (drawWireframe != 2) {
 
+        gpuSubmesh.draw2(program, {
+            position: 'aPosition', uvs: 'aTexCoord', uvs2: 'aTexCoord2'});
+    }
 
     if (drawWireframe == 1 || drawWireframe == 2) { //very slow debug only
 
