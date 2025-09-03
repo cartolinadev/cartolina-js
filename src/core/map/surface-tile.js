@@ -1714,8 +1714,6 @@ MapSurfaceTile.prototype.drawHmapTile = function(cameraPos, divNode, angle, pipe
             }
         }
 
-//        renderer.gpu.useProgram(prog, ['aPosition', 'aTexCoord', 'aBarycentric']);
-        //renderer.gpu.useProgram(prog, ['aPosition', 'aTexCoord']);
         renderer.gpu.useProgram(prog, ['aPosition']);
         prog.setVec3('uVector', mnode.diskNormal);
 

@@ -35,7 +35,6 @@ var RendererInit = function(renderer) {
     this.initTestMap();
     this.initBBox();
     this.initLines();
-    this.gpu.initBarycentricBuffer();
 };
 
 
@@ -154,10 +153,10 @@ RendererInit.prototype.initHeightmap = function() {
     //renderer.heightmapMesh = new GpuMesh(gpu, meshData, this.core, use16Bit);
 
     meshData = RendererGeometry.buildPlane(16, true);
-    renderer.planeMesh = new GpuMesh(gpu, meshData, this.core, use16Bit, true);
+    renderer.planeMesh = new GpuMesh(gpu, meshData, this.core, use16Bit, false);
 
     meshData = RendererGeometry.buildPlane(128, true);
-    renderer.planeMesh2 = new GpuMesh(gpu, meshData, this.core, use16Bit, true);
+    renderer.planeMesh2 = new GpuMesh(gpu, meshData, this.core, use16Bit, false);
 
     // create heightmap texture
     var size = 64;

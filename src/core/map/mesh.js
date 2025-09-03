@@ -433,8 +433,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     var texcoordsAttr = null;
     var texcoords2Attr = null;
     var drawWireframe = draw.debug.drawWireframe;
+
     var useSuperElevation = renderer.useSuperElevation;
-    //var attributes = (drawWireframe != 0) ?  ['aPosition', 'aBarycentric'] : ['aPosition'];
     var attributes = ['aPosition'];
     var v = (useSuperElevation) ? VTS_TILE_SHADER_SE : 0;
     let whitewash = null;
@@ -879,10 +879,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     }
 
     // GpuMesh.draw, actual draw call is there
-    gpuSubmesh.draw(program, 'aPosition', texcoordsAttr, texcoords2Attr, drawWireframe != 0 ? 'aBarycentric' : null, (drawWireframe == 2));
+    gpuSubmesh.draw(program, 'aPosition', texcoordsAttr, texcoords2Attr, null, (drawWireframe == 2));
 
 
     if (drawWireframe == 1 || drawWireframe == 2) { //very slow debug only
+
         program = renderer.progWireFrameBasic[v];
 
         if (!program) {
@@ -907,11 +908,16 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         var gl = gpuSubmesh.gl;
 
         if (gpuSubmesh.indexBuffer) {
-            for (var i = 0, li = gpuSubmesh.indexBuffer.numItems*2; i < li; i+=3) {
+
+            for (var i = 0, li = gpuSubmesh.indexBufferLayout.numItems*2; i < li; i+=3) {
+
                 gl.drawElements(gl.LINE_LOOP, 3, gl.UNSIGNED_SHORT, i);
             }
         }  else {
-            for (var i = 0, li = gpuSubmesh.vertexBuffer.numItems*2; i < li; i+=3) {
+
+
+            for (var i = 0, li = gpuSubmesh.vertexBufferLayout.numItems*2; i < li; i+=3) {
+
                 gl.drawArrays(gl.LINE_LOOP, i, 3);
             }
         }

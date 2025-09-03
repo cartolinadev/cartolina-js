@@ -52,7 +52,7 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
-    //console.log(source);
+    //if (vertexShader) console.log(source);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         var info = gl.getShaderInfoLog(shader);
@@ -90,6 +90,8 @@ createProgram(vertex: string, fragment: string): void {
         this.gpu.renderer.core.callListener('renderer-shader-error', { 'where':'linking' });
     }
 
+    // this is probably useless
+    // program is set for real in GpuDevice.useProgram in the rendering loop
     gl.useProgram(program);
 
     this.program = program;
@@ -226,6 +228,7 @@ getAttribLocation(name: string): GLint {
 
     if (location == null) {
         location = gl.getAttribLocation(this.program, name);
+
         this.attributeLocationCache[name] = location;
     }
 

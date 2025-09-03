@@ -992,7 +992,6 @@ GpuShaders.planeVertex4Shader =
     'uniform sampler2D uSampler2;\n'+
     'attribute vec3 aPosition;\n'+
     //'attribute vec2 aTexCoord;\n'+
-    //'attribute vec3 aBarycentric;\n'+
     'uniform mat4 uMV, uProj;\n'+
     'uniform vec4 uParams;\n'+    //[uGridStep1, fogDensity, indexFactor, uGridStep2]
     'uniform vec4 uParams3;\n'+    //[px, py, sx, sy]
@@ -1231,7 +1230,6 @@ GpuShaders.tileVertexShader =
     '#endif\n'+
 
     '#ifdef flatShadeVar\n'+
-        ///'attribute vec3 aBarycentric;\n'+
         'varying vec3 vBarycentric;\n'+
     '#endif\n'+
 
