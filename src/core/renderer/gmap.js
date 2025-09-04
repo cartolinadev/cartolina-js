@@ -693,11 +693,19 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
         return;
     }
 
+    //console.log(renderer.curSize[0], renderer.curSize[1], window.devicePixelRatio);
+
     var featuresPerSquareInch = renderer.config.mapFeaturesReduceParams[1]; //0.6614; //labelsPerSquareInch
-    var ppi = 96 * (window.devicePixelRatio || 1);
+
+    // curSize is in css pixels, hence devicePixelRatio is irrelevant to the calculation
+    //var ppi = 96 * (window.devicePixelRatio || 1);
+    var ppi = 96;
+
     var screenLX = renderer.curSize[0];
     var screenLY = renderer.curSize[1];
+
     var maxFeatures = Math.ceil((screenLX/ppi)*(screenLY/ppi)*featuresPerSquareInch); 
+
     var i, li, top = renderer.config.mapFeaturesSortByTop, tmp, job;
     var feature, feature2, pp, pp2, o, featureCount = 0;
     var drawAllLabels = renderer.drawAllLabels;

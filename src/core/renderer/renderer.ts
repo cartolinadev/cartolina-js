@@ -10,7 +10,7 @@ import GpuFont from './gpu/font';
 import Camera from './camera';
 import RenderInit from './init';
 import RenderDraw from './draw';
-import RenderRMap from './rmap';
+import RendererRMap from './rmap';
 import * as Illumination from '../map/illumination';
 
 type Optional<T> = T | null;
@@ -137,6 +137,7 @@ export class Renderer {
     progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;
 
+    // physical window
     winSize!: Size2;
     curSize!: Size2;
     oldSize!: Size2;
@@ -176,8 +177,21 @@ export class Renderer {
     plines: any = null;
     plineJoints: any = null; // probably not used, but still initialize by init
 
+
+
+    /**
+     * coopied from config.mapDMapSize. hitmap linear size in pixels.
+     */
     hitmapSize!: number;
+
+    /**
+     *  copied from config.mapDMapMode. Governs getDepth behaviour.
+     *  0, 1 - readFramebufferPixels for each getDepth call
+     *  2 - 'fastMode' - same thing, just without switching framebuffer
+     *  3 - call copyHitmap once per frame, then sample it per getDepth call (faster)
+     */
     hitmapMode!: number;
+
     updateHitmap = true;
     updateGeoHitmap = true;
 
@@ -196,7 +210,12 @@ export class Renderer {
     gmap3 = new Array(10000);
     gmap3Size = new Array(10000);
     gmap4 = new Array(10000);
+
     gmapIndex = 0;
+
+    /**  1-5 scr-count 4-8, 0 - no label hierarchy */
+    gmapUseVersion: number  = 0;
+
     gmapTop = new Array(512);
     gmapHit = new Array(512);
     gmapStore = new Array(512);
@@ -250,8 +269,10 @@ export class Renderer {
     lastHitPosition = [0,0,100];
 
     // encapsulated objects
+
+
     init : any = null;
-    rmap: any = null;
+    rmap: any = null; // RenderRM
     draw: any = null;
 
     // no idea
@@ -327,7 +348,7 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     // initialize resources
     this.gpu.init();
     this.init = new RenderInit(this);
-    this.rmap = new RenderRMap(this, 50);
+    this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
     var factor = 1;
@@ -356,6 +377,8 @@ resizeGL(width: number, height: number, skipCanvas: boolean = false) {
     this.camera.setAspect(width / height);
     this.curSize = [width, height];
     this.oldSize = [width, height];
+
+    // TODO: curSize is in CSS pixels - this is probably wrong
     this.gpu.resize(this.curSize, skipCanvas);
 
     var m = new Float32Array(16);
