@@ -80,10 +80,10 @@ init() {
     }
 
     this.canvas = canvas;
-
-    canvas.width = this.curSize[0];
-    canvas.height = this.curSize[1];
     canvas.style.display = 'block';
+    this.div.appendChild(canvas);
+
+    this.resize(this.curSize);
 
     if (canvas.getContext == null) {
         //canvas not supported
@@ -99,11 +99,6 @@ init() {
         gl = canvas.getContext('webgl2', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
     } catch(e) {
         //webgl not supported
-    }
-
-    if (!gl) {
-        //webgl not supported
-        return;
     }
 
     this.gl = gl;
@@ -125,14 +120,11 @@ init() {
         this.anisoLevel = 0;
     }
 
-    this.div.appendChild(canvas);
-
     this.viewport = { width: canvas.width, height: canvas.height };
-
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-    //initial state
+    // initial state
     gl.disable(gl.BLEND);
 
     gl.disable(gl.STENCIL_TEST);
@@ -166,14 +158,26 @@ contextRestored(): void {
 };
 
 
-resize(size: NumberPair, skipCanvas: boolean) {
+resize(size: NumberPair, skipCanvas: boolean = false) {
 
     this.curSize = size;
-    var canvas = this.canvas;
+    let canvas = this.canvas;
+
+    let dpr = window.devicePixelRatio || 1;
+
+    var width = Math.floor(size[0]);
+    var height = Math.floor(size[1]);
+    var pwidth = Math.floor(width * dpr);
+    var pheight = Math.floor(height * dpr);
 
     if (canvas != null && skipCanvas !== true) {
-        canvas.width = this.curSize[0];
-        canvas.height = this.curSize[1];
+        canvas.width = pwidth;
+        canvas.height = pheight;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
+                    pwidth, pheight, width, height);
     }
 
     this.viewport = { width: canvas.width, height: canvas.height }
@@ -294,6 +298,11 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     this.gl.bindTexture(this.gl.TEXTURE_2D, texture.texture);
 };
 
+/*
+ * WARN: The function does nothing to the gl.viewport, which is set by the
+ * calling layer. Pretty ugly, since may fall appart as soon as the upper
+ * layer issues an innocent call to this.setViewport.
+ */
 
 setFramebuffer(texture: GpuTexture) {
     if (texture != null) {

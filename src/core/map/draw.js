@@ -26,7 +26,8 @@ var MapDraw = function(map) {
     this.camera = map.camera;
     this.tree = map.tree;
 
-    this.ndcToScreenPixel = this.renderer.curSize[0] * 0.5;
+    //this.ndcToScreenPixel = this.renderer.curSize[0] * 0.5;
+    this.ndcToScreenPixel = this.renderer.gpu.canvas.width * 0.5;
 
     this.debug = {
         heightmapOnly : false,
@@ -268,7 +269,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     map.loader.setChannel(0); //0 = hires channel
     this.zFactor = 0;
 
-    this.ndcToScreenPixel = renderer.curSize[0] * 0.5;
+    //this.ndcToScreenPixel = renderer.curSize[0] * 0.5;
+    this.ndcToScreenPixel = this.renderer.gpu.canvas.width * 0.5;
+
     this.updateFogDensity();
     this.updateGridFactors();
     this.maxGpuUsed = Math.max(32*102*1204, map.gpuCache.getMaxCost() - 32*102*1204); 
@@ -1073,18 +1076,20 @@ MapDraw.prototype.setupDetailDegradation = function(degradeMore) {
     var factor = 0;
     
     if (this.map.mobile) {
-        factor = this.config.mapMobileDetailDegradation;
+        //factor = this.config.mapMobileDetailDegradation;
+        //console.log(factor);
     }
 
     if (degradeMore) {
-        factor += degradeMore;        
+        factor += degradeMore;
     }
 
-    //var dpiRatio = 1; //(window.devicePixelRatio || 1);
-    // WARN: this might be wrong, because renderer is using css pixels as viewport size
-    var dpiRatio = (1 / window.devicePixelRatio) || 1
+    //var dpiRatio = 1;
+    var dpiRatio = window.devicePixelRatio || 1
 
-    this.texelSizeFit = this.config.mapTexelSizeFit * Math.pow(2,factor) * dpiRatio;      
+    this.texelSizeFit = this.config.mapTexelSizeFit * Math.pow(2,factor) * dpiRatio;
+
+    //console.log("TexelSizeFit: %f", this.texelSizeFit);
 };
 
 

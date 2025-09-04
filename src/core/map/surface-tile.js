@@ -918,6 +918,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
         var screenPixelSize = Number.POSITIVE_INFINITY;
 
         if (node.usedTexelSize()) {
+            // hot path
             screenPixelSize = draw.ndcToScreenPixel * node.pixelSize;
         } else if (node.usedDisplaySize()) {
             screenPixelSize = draw.ndcToScreenPixel * ((node.bbox ? node.bbox.maxSize : node.bboxMaxSize) / node.displaySize);
@@ -967,7 +968,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
                 }
             }
         }
-    } else {
+    } else { // if( !node.hasGeometry())
         if (preciseDistance) {
             pixelSize = this.getPixelSize3(node, 1, 1);
         } else {
@@ -983,6 +984,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
 
     //degrade horizont
     if (!map.config.mapDegradeHorizon || draw.degradeHorizonFactor < 1.0) {
+        // hot path
         return;
     }
 
@@ -1012,8 +1014,6 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
     } else if (observerDistance < distanceFade && degradeFactor > 1.0) {
         degradeFactor = 1.0 + ((degradeFactor - 1.0) * (1.0-(observerDistance / distanceFade)));
     }
-
-    //console.log("degrade: " + degradeFactor);
 
     this.texelSize /= degradeFactor;
 };
