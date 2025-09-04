@@ -859,7 +859,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMaxGeodataProcessingTime':   this.config.mapMaxGeodataProcessingTime = utils.validateNumber(value, 1, Number.MAXINTEGER, 10); break;
     case 'mapMobileMode':                 this.config.mapMobileMode = utils.validateBool(value, false); this.setupMobileMode(); break;
     case 'mapMobileModeAutodect':         this.config.mapMobileModeAutodect = utils.validateBool(value, false); break;
-    case 'mapMobileDetailDegradation':    this.config.mapMobileDetailDegradation = utils.validateNumber(value, 1, Number.MAXINTEGER, 2); break;
+    case 'mapMobileDetailDegradation':    this.config.mapMobileDetailDegradation = utils.validateNumber(value, 0, Number.MAXINTEGER, 2); break;
     case 'mapNavSamplesPerViewExtent':    this.config.mapNavSamplesPerViewExtent = utils.validateNumber(value, 0.00000000001, Number.MAXINTEGER, 4); break;
     case 'mapFog':                        this.config.mapFog = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawFog = this.config.mapFog; this.dirty = true; } break;
     case 'mapFlatshade':                  this.config.mapFlatshade = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawWireframe = this.config.mapFlatshade ? 3 : 0; this.dirty = true; } break;

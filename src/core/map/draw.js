@@ -613,6 +613,19 @@ MapDraw.prototype.drawToTexture = function(texture) {
  */
 
 MapDraw.prototype.drawHitmap = function() {
+
+    // throtle hitmap drawing (and copying) to 1 / hitmapCopyIntervalMs
+    // per frame
+    var interval = this.renderer.hitmapCopyIntervalMs;
+    if (interval > 0) {
+        var now = Date.now();
+        if (((this.renderer.lastHitmapCopyTime|0) !== 0)
+            && ((now - this.renderer.lastHitmapCopyTime) < interval)) {
+            return; // reuse previous CPU buffer this frame
+        }
+        this.renderer.lastHitmapCopyTime = now;
+    }
+
     this.drawChannel = 1;
     this.renderer.switchToFramebuffer('depth');
     this.map.renderSlots.processRenderSlots();

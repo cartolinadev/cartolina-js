@@ -94,7 +94,7 @@ var Core = function(element, config, coreInterface) {
         mapFeaturesPerSquareInch : 0.25, //0.6614,
         mapFeaturesSortByTop : false,
 
-        mapFeaturesReduceMode : 'scr-count1', //have to be 'scr-count1' because of legacy https://rigel.mlwn.se/store/map-config/high-terrain/
+        mapFeaturesReduceMode : 'scr-count7',
         mapFeaturesReduceParams : null,
         mapFeaturesReduceFactor : 1,
         mapFeaturesReduceFactor2 : 1,
@@ -103,6 +103,8 @@ var Core = function(element, config, coreInterface) {
 
         mapDMapSize : 1024,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
+        mapDMapCopyIntervalMs : 500, // minimum interval between expensive hitmap copy reads - throttling
+        mapDMapDilatePx : 2, // depth map dilation on sampling
 
         mapDegradeHorizon : false,
         mapDegradeHorizonParams : [1, 1500, 97500, 3500], //[1, 3000, 15000, 7000],
@@ -507,9 +509,13 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
     case 'mapForcePipeline':
         this.config.mapForcePipeline = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapDMapSize':
-        this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER, 512); break;
+        this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER); break;
     case 'mapDMapMode':
-        this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER, 1); break;
+        this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER); break;
+    case 'mapDMapCopyIntervalMs':
+        this.config.mapDMapCopyIntervalMs = utils.validateNumber(value, 0, Number.MAXINTEGER); break;
+    case 'mapDMapDilatePx':
+        this.config.mapDMapDilatePx = utils.validateNumber(value, 0, 8); break;
     case 'map16bitMeshes':
         this.config.map16bitMeshes = utils.validateBool(value, false); break;
     case 'inspector':

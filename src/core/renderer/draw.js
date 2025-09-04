@@ -2673,7 +2673,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
     gl.bindBuffer(gl.ARRAY_BUFFER, job.vertexOriginBuffer);
     gl.vertexAttribPointer(vertexOriginAttribute, job.vertexOriginBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
-    console.log('job5');
+    //console.log('job5');
 
     //draw polygons
     for(;j<lj;j++) {
