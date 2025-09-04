@@ -78,6 +78,7 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
             }
         }
 
+
         if (this.shiftDown && press !== true) {
 
             switch(keyCode) {
@@ -90,7 +91,7 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
                 /*this.showMenu(); this.toolbarItemSelected('position'); done();*/ break; //key G pressed
             }
 
-            if (this.ctrlDown) {
+            //if (this.ctrlDown) {
 
                 switch(keyCode) {
                 case 68:
@@ -99,7 +100,7 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
                     inspector.enableInspector();
                     this.diagnosticMode = true; hit = true; break;  //key D pressed
                 }
-            }
+            //}
 
             if (this.diagnosticMode) {
                 blockHit = true;

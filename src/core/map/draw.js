@@ -605,6 +605,10 @@ MapDraw.prototype.drawToTexture = function(texture) {
 };
 
 
+/**
+ * Triggered by map.getScreenDepth and map.getHitcoords
+ */
+
 MapDraw.prototype.drawHitmap = function() {
     this.drawChannel = 1;
     this.renderer.switchToFramebuffer('depth');
@@ -1077,6 +1081,7 @@ MapDraw.prototype.setupDetailDegradation = function(degradeMore) {
     }
 
     //var dpiRatio = 1; //(window.devicePixelRatio || 1);
+    // WARN: this might be wrong, because renderer is using css pixels as viewport size
     var dpiRatio = (1 / window.devicePixelRatio) || 1
 
     this.texelSizeFit = this.config.mapTexelSizeFit * Math.pow(2,factor) * dpiRatio;      
