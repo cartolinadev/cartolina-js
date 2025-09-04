@@ -328,7 +328,7 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         // WARN: per-pixel hitmap mode is a performance killer, particularly in Chromium
         var useFallback = (renderer.hitmapMode <= 2) && (reduce[4] > 10000000);
         var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1],
-                            2, // depthmap dilate pixels
+                            renderer.mapHack.config.mapDMapDilatePx, // depthmap dilate pixels
                             useFallback);
 
         if (depth[0]) {
@@ -343,9 +343,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
             if (!renderer.drawHiddenLabels && - delta > 0.03 * reduce[4]) {
                 return false;
             }
-
-                        console.log(reduce[4], delta);
-
         }
     } else {
         //console.log("Depth buffer not ready.");

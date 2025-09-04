@@ -24,6 +24,7 @@ type Config = {
     rendererAnisotropic?: number;
     mapDMapSize?: number;
     mapDMapMode?: number;
+    mapDMapCopyIntervalMs?: number;
 }
 
 type Size2 = [ number, number ];
@@ -182,7 +183,7 @@ export class Renderer {
     /**
      * coopied from config.mapDMapSize. hitmap linear size in pixels.
      */
-    hitmapSize!: number;
+    hitmapSize: number = 1024;
 
     /**
      *  copied from config.mapDMapMode. Governs getDepth behaviour.
@@ -190,10 +191,14 @@ export class Renderer {
      *  2 - 'fastMode' - same thing, just without switching framebuffer
      *  3 - call copyHitmap once per frame, then sample it per getDepth call (faster)
      */
-    hitmapMode!: number;
+    hitmapMode: number = 3;
+
+    /** interval between hitmap updates */
+    hitmapCopyIntervalMs: number = 200;
 
     updateHitmap = true;
     updateGeoHitmap = true;
+    lastHitmapCopyTime = 0;
 
     rectVerticesBuffer: Optional<WebGLBuffer> = null;
     rectIndicesBuffer: Optional<WebGLBuffer> = null;
@@ -307,6 +312,7 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
 
     this.hitmapSize = this.config.mapDMapSize;
     this.hitmapMode = this.config.mapDMapMode;
+    this.hitmapCopyIntervalMs = this.config.mapDMapCopyIntervalMs;
 
     for (var i = 0, li = this.jobZBuffer.length; i < li; i++) {
         this.jobZBuffer[i] = [];
@@ -1059,7 +1065,10 @@ hitTest(screenX, screenY) {
 
 
 copyHitmap() {
-    this.hitmapTexture.readFramebufferPixels(0,0,this.hitmapSize,this.hitmapSize, false, this.hitmapData);
+
+    this.hitmapTexture.readFramebufferPixels(
+        0, 0, this.hitmapSize, this.hitmapSize, false, this.hitmapData
+    );
 };
 
 
