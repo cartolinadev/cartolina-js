@@ -37,7 +37,7 @@ var Core = function(element, config, coreInterface) {
         mapMaxGeodataProcessingTime : 10,
         mapMobileMode : false,
         mapMobileModeAutodect : true,
-        mapMobileDetailDegradation : 1,
+        mapMobileDetailDegradation : 0,
         mapNavSamplesPerViewExtent : 4,
         mapIgnoreNavtiles : false,
         mapVirtualSurfaces : true,

@@ -959,7 +959,7 @@ switchToFramebuffer(type, texture) {
         this.onlyHitLayers = false;
         this.onlyAdvancedHitLayers = false;
         this.advancedPassNeeded = false;
-        console.log('curSize = ', this.curSize);
+        //console.log('curSize = ', this.curSize);
         break;
 
     case 'geo':
@@ -995,7 +995,7 @@ switchToFramebuffer(type, texture) {
     case 'texture':
         //set texture framebuffer
 
-        console.log('texture (warn: dangerous path)');
+        console.log('texture (warn: untested path)');
 
         this.oldSize = [...this.curSize];
 
@@ -1063,7 +1063,7 @@ copyHitmap() {
 };
 
 
-getDepth(screenX, screenY) {
+getDepth(screenX: number, screenY: number, dilate: number = 0) {
 
     var x = Math.floor(screenX * (this.hitmapSize / this.curSize[0]));
     var y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
@@ -1080,13 +1080,46 @@ getDepth(screenX, screenY) {
         depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);
         var surfaceHit = !(pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 && pixel[3] == 255);
 
-    } else {
-        var pixels = this.hitmapData;
-        var index = (x + (this.hitmapSize - y - 1) * this.hitmapSize) * 4;
-        var r = pixels[index], g = pixels[index+1], b = pixels[index+2], a = pixels[index+3];
+     } else {
 
-        depth = (r * (1.0/255)) + (g) + (b*255.0) + (a*65025.0);// + (pixel[3]*16581375.0);
-        var surfaceHit = !(r == 255 && g == 255 && b == 255 && a == 255);
+        // CPU-cached path; allow small dilation, if configured to catch near-occlusions (in pixels)
+        var pixels = this.hitmapData;
+        var rpx = dilate;
+        var minDepth = Number.POSITIVE_INFINITY;
+        var anyHit = false;
+        /*if (rpx <= 0) {
+            var index = (x + (this.hitmapSize - y - 1) * this.hitmapSize) * 4;
+            var r = pixels[index], g = pixels[index+1], b = pixels[index+2], a = pixels[index+3];
+            minDepth = (r * (1.0/255)) + (g) + (b*255.0) + (a*65025.0);
+            anyHit = !(r == 255 && g == 255 && b == 255 && a == 255);
+        } else */ {
+            var hs = this.hitmapSize;
+            var y0 = (this.hitmapSize - y - 1);
+            for (var dy = -rpx; dy <= rpx; dy++) {
+                var yy = y0 + dy;
+                if (yy < 0 || yy >= hs) continue;
+                for (var dx = -rpx; dx <= rpx; dx++) {
+                    var xx = x + dx;
+                    if (xx < 0 || xx >= hs) continue;
+                    var idx = (xx + yy * hs) * 4;
+                    var rr = pixels[idx], gg = pixels[idx+1], bb = pixels[idx+2], aa = pixels[idx+3];
+                    var surface = !(rr == 255 && gg == 255 && bb == 255 && aa == 255);
+                    if (surface) {
+                        anyHit = true;
+                        var d = (rr * (1.0/255)) + (gg) + (bb*255.0) + (aa*65025.0);
+                        if (d < minDepth) minDepth = d;
+                    }
+                }
+            }
+            if (!anyHit) {
+                // fall back to center sample
+                var index2 = (x + y0 * hs) * 4;
+                var r2 = pixels[index2], g2 = pixels[index2+1], b2 = pixels[index2+2], a2 = pixels[index2+3];
+                minDepth = (r2 * (1.0/255)) + (g2) + (b2*255.0) + (a2*65025.0);
+            }
+        }
+        var depth = minDepth;
+        var surfaceHit = anyHit;
     }
 
     return [surfaceHit, depth];

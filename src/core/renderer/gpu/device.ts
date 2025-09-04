@@ -298,9 +298,9 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     this.gl.bindTexture(this.gl.TEXTURE_2D, texture.texture);
 };
 
-/*
+/**
  * WARN: The function does nothing to the gl.viewport, which is set by the
- * calling layer. Pretty ugly, since may fall appart as soon as the upper
+ * calling layer. Pretty ugly, things may fall appart as soon as the upper
  * layer issues an innocent call to this.setViewport.
  */
 
