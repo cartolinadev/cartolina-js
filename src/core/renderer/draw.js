@@ -659,7 +659,8 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     gl.stencilFunc(gl.EQUAL, 0, 0xFF);
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
 
-    var screenPixelSize = [1.0/renderer.curSize[0], 1.0/renderer.curSize[1]];
+    var screenPixelSize = [1.0 / renderer.curSize[0], 1.0 / renderer.curSize[1]];
+
     var rmap = this.rmap;
     var clearPass = 513;
     var clearPassIndex = 0;
@@ -717,6 +718,9 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
 
         if (onlyHitLayers) {
             if (onlyAdvancedHitLayers) {
+
+                //console.log('onlyAdvancedHitlayers');
+
                 for (j = 0; j < lj; j++) {
                     if (buffer[j].advancedHit) {
                         this.drawGpuJob(gpu, gl, renderer, buffer[j], screenPixelSize,
@@ -724,6 +728,9 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
                     }
                 }
             } else {
+
+                //console.log('onlyHitlayers && ! onlyAndvancedHitlayers');
+
                 for (j = 0; j < lj; j++) {
                     var job = buffer[j];
                     if (job.hitable) {
@@ -738,6 +745,8 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
         } else {
 
             for (j = 0; j < lj; j++) {
+
+                //console.log('Drawing job.');
  
                 job = buffer[j];
                 this.drawGpuJob(gpu, gl, renderer, job, screenPixelSize,

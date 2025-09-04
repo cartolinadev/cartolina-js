@@ -351,8 +351,7 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
-    var factor = 1;
-    this.resizeGL(Math.floor(this.curSize[0]*factor), Math.floor(this.curSize[1]*factor));
+    this.resizeGL(Math.floor(this.curSize[0]), Math.floor(this.curSize[1]));
 };
 
 initProceduralShaders() {
@@ -378,7 +377,6 @@ resizeGL(width: number, height: number, skipCanvas: boolean = false) {
     this.curSize = [width, height];
     this.oldSize = [width, height];
 
-    // TODO: curSize is in CSS pixels - this is probably wrong
     this.gpu.resize(this.curSize, skipCanvas);
 
     var m = new Float32Array(16);
@@ -917,17 +915,18 @@ switchToFramebuffer(type, texture) {
     
     switch(type) {
     case 'base':
+
         width = this.oldSize[0];
         height = this.oldSize[1];
     
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
     
-        gl.viewport(0, 0, width, height);
         this.gpu.setFramebuffer(null);
-    
+        this.gpu.setViewport();
+
         this.camera.setAspect(width / height);
         this.curSize = [width, height];
-        this.gpu.resize(this.curSize, true);
+        //this.gpu.resize(this.curSize, true);
         this.camera.update();
             //this.updateCamera();
         this.onlyDepth = false;
@@ -937,6 +936,7 @@ switchToFramebuffer(type, texture) {
         break;
 
     case 'depth':
+
         //set texture framebuffer
         this.gpu.setFramebuffer(this.hitmapTexture);
 
@@ -959,6 +959,7 @@ switchToFramebuffer(type, texture) {
         this.onlyHitLayers = false;
         this.onlyAdvancedHitLayers = false;
         this.advancedPassNeeded = false;
+        console.log('curSize = ', this.curSize);
         break;
 
     case 'geo':
@@ -973,7 +974,7 @@ switchToFramebuffer(type, texture) {
         width = size;
         height = size;
             
-        gl.clearColor(1.0,1.0, 1.0, 1.0);
+        gl.clearColor(1.0, 1.0, 1.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
             
         //clear screen
@@ -993,18 +994,24 @@ switchToFramebuffer(type, texture) {
 
     case 'texture':
         //set texture framebuffer
+
+        console.log('texture (warn: dangerous path)');
+
+        this.oldSize = [...this.curSize];
+
         this.gpu.setFramebuffer(texture);
 
-        this.oldSize = [ this.curSize[0], this.curSize[1] ];
-   
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
 
         //clear screen
-        gl.viewport(0, 0, this.gpu.canvas.width, this.gpu.canvas.height);
+        //gl.viewport(0, 0, this.gpu.canvas.width, this.gpu.canvas.height);
+        gl.viewport(0, 0, texture.width, texture.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-        this.curSize = [this.gpu.canvas.width, this.gpu.canvas.height];
+
+        // shouldn't this be texture size instead?
+        this.curSize = [texture.width, texture.height];
+        //this.curSize = [this.gpu.canvas.width, this.gpu.canvas.height];
 
         //this.gpu.clear();
         this.camera.update();
