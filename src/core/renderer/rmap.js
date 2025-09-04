@@ -317,7 +317,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         this.removeRectangle(parseInt(key));
     }
 
-    //if (checkDepthMap && (renderer.gpu.gl.clientWaitSync(renderer.webGLSync, 0, 0) === renderer.gpu.gl.CONDITION_SATISFIED)) {
     if (checkDepthMap) {
     
         //console.log("Depth buffer ready!");
@@ -328,15 +327,25 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         // In copy-hitmap modes (>2), always use the hitmap (no per-label readback required).
         // WARN: per-pixel hitmap mode is a performance killer, particularly in Chromium
         var useFallback = (renderer.hitmapMode <= 2) && (reduce[4] > 10000000);
-        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1], useFallback);
+        var depth = renderer.mapHack.getScreenDepth(checkDepthMap[0], checkDepthMap[1],
+                            2, // depthmap dilate pixels
+                            useFallback);
 
         if (depth[0]) {
+
             var delta = depth[1] - reduce[4];
             reduce[7] = delta;
 
-            if (!renderer.drawHiddenLabels && delta < checkDepthMap[3]) {
+            /* as we now apply dilation to make the depth rule more agressive, we relax
+             * it here a little: feature is considered occluded when the depth map
+             * sample is closer by a fixed fraction of its distance. */
+            //if (!renderer.drawHiddenLabels && delta < checkDepthMap[3]) {}
+            if (!renderer.drawHiddenLabels && - delta > 0.03 * reduce[4]) {
                 return false;
             }
+
+                        console.log(reduce[4], delta);
+
         }
     } else {
         //console.log("Depth buffer not ready.");

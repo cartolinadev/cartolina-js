@@ -1077,7 +1077,12 @@ Map.prototype.renderToImage = function(texture) {
 };
 
 
-Map.prototype.getScreenDepth = function(screenX, screenY, useFallback) {
+/**
+ * dilate - the number of pixels to dilate the depth map by when sampling
+ */
+
+Map.prototype.getScreenDepth = function(
+    screenX, screenY, dilate = 0, useFallback = false) {
 
     if (useFallback) {
 
@@ -1141,7 +1146,7 @@ Map.prototype.getScreenDepth = function(screenX, screenY, useFallback) {
             this.renderer.camera.update();
         }
 
-        var res = this.renderer.getDepth(screenX, screenY);
+        var res = this.renderer.getDepth(screenX, screenY, dilate);
     }
 
     return res;
