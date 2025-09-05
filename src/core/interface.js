@@ -40,6 +40,13 @@ var CoreInterface = function(element, config) {
             return earcut;
         }
     });
+
+    // Promise that resolves once when the map is fully loaded.
+    Object.defineProperty(this, 'ready', {
+        get: function() {
+            return this.core.ready;
+        }
+    });
 };
 
 

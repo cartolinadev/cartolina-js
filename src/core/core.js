@@ -25,6 +25,12 @@ var platform = platform_;
 var Core = function(element, config, coreInterface) {
     var lang = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
     this.killed = false;
+
+    // ready Promise: resolves once when the map becomes ready ('map-loaded')
+    this._readyResolved = false;
+    var self = this;
+    this.ready = new Promise(function(resolve) { self._resolveReady = resolve; });
+
     this.config = {
         map : null,
         mapCache : 1100, //old value 900
@@ -457,6 +463,11 @@ Core.prototype.onUpdate = function() {
         if (!this.map.srsReady && this.map.isReferenceFrameReady()) {
             this.map.srsReady = true;
             this.callListener('map-loaded', { 'browserOptions':this.map.browserOptions});
+            // resolve ready() once, after emitting the legacy event
+            if (!this._readyResolved) {
+                this._readyResolved = true;
+                if (this._resolveReady) { this._resolveReady({ 'browserOptions': this.map.browserOptions }); }
+            }
         }
 
         this.map.update();
