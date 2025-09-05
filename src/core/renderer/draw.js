@@ -1104,7 +1104,18 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
             return res;
         }
 
+        // suppress anchors inside the margin band (label inner window) for ALL label types.
+        if (renderer.labelFreeMargins && (
+            renderer.labelFreeMargins[0] || renderer.labelFreeMargins[1]
+            || renderer.labelFreeMargins[2] || renderer.labelFreeMargins[3])) {
+            // point-only rectangle -> checkRectangle will enforce the inner-window first
+            if (!renderer.rmap.checkRectangle(pp[0], pp[1], pp[0], pp[1], 0)) {
+                return res;
+            }
+        }
+
         if (job.type == VTS_JOB_LINE_LABEL) {
+            // line label branch
             if (renderer.benevolentMargins) {
                 if (!renderer.rmap.checkRectangle(pp[0]-200, pp[1]-200, pp[0]+200, pp[1]+200, 0)) {
                     return res;
@@ -1115,6 +1126,7 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
                 }
             }
         } else {
+            // bbox branch - point labels?
             if (!renderer.rmap.checkRectangle(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], stickShift)) {
                 return res;
             }
@@ -2119,7 +2131,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             }
         }
 
-        gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+        //gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+        gpu.setState(hitmapRender ? renderer.lineLabelHitState : ((job.type === VTS_JOB_LABEL) ? renderer.labelNoDepthState : renderer.labelState));
 
         if (s[0] != 0 && s[2] != 0) {
             if (!pp) {
@@ -2466,7 +2479,8 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
             }
         }
 
-        gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+        //gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+        gpu.setState(hitmapRender ? renderer.lineLabelHitState : ((job.type === VTS_JOB_LABEL) ? renderer.labelNoDepthState : renderer.labelState));
 
         if (s[0] != 0 && s[2] != 0 && stickShift >= 4) {
             this.drawLineString([[pp[0], pp[1]+stickShift+s[7], pp[2]], [pp[0], pp[1]+s[7], pp[2]]], true, s[2], [s[3], s[4], s[5], ((fade !== null) ? s[6] * fade : s[6]) ], null, null, null, null, true);
@@ -2513,7 +2527,8 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
         }
     }
 
-    gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+    //gpu.setState(hitmapRender ? renderer.lineLabelHitState : renderer.labelState);
+    gpu.setState(hitmapRender ? renderer.lineLabelHitState : ((job.type === VTS_JOB_LABEL) ? renderer.labelNoDepthState : renderer.labelState));
 
     var j = 0, lj = 1, color2 = job.color2;
 

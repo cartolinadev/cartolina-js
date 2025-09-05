@@ -481,4 +481,16 @@ RendererInterface.prototype.getMarginFlags = function() {
 };
 
 
+
+RendererInterface.prototype.setLabelFreeMargins = function(margins) {
+    // margins: [top, right, bottom, left] in CSS pixels
+    this.renderer.labelFreeMargins = margins || [0,0,0,0];
+    return this;
+};
+
+RendererInterface.prototype.getLabelFreeMargins = function() {
+    return this.renderer.labelFreeMargins || [0,0,0,0];
+};
+
+
 export default RendererInterface;

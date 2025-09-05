@@ -418,8 +418,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             //console.log("here7");
             this.tree.draw(false);
         }
-
-        //this.renderer.webGLSync = this.renderer.gpu.gl.fenceSync(this.renderer.gpu.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     
         if (replay.storeTiles) { //used only in inspectors
             drawnTiles = [];
@@ -462,6 +460,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                     this.zbufferOffset = layer.zFactor;
                 }
 
+                // hot path
                 if (layer.type == 'geodata') {
                     this.drawMonoliticGeodata(layer);
                 } else {

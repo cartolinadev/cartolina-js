@@ -87,6 +87,7 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.surfaceCounter = 0;
 
     this.freeLayerSequence = [];
+
     this.freeLayersHaveGeodata = false;
 
     this.visibleCredits = {

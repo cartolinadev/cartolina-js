@@ -118,6 +118,7 @@ var Core = function(element, config, coreInterface) {
         mapForcePipeline: 0,
         mapLogGeodataStyles: true,
         mapBenevolentMargins: false,
+        mapLabelFreeMargins: [0, 0, 0, 0],
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,
@@ -518,6 +519,8 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.mapDMapDilatePx = utils.validateNumber(value, 0, 8); break;
     case 'map16bitMeshes':
         this.config.map16bitMeshes = utils.validateBool(value, false); break;
+    case 'mapLabelFreeMargins':
+        this.config.mapLabelFreeMargins = utils.validateNumberArray(value, 4, [0,0,0,0], [Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER], [0,0,0,0]); break;
     case 'inspector':
         this.config.inspector = utils.validateBool(value, true); break;
     case 'authorization':

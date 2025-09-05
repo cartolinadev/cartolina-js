@@ -25,6 +25,7 @@ type Config = {
     mapDMapSize?: number;
     mapDMapMode?: number;
     mapDMapCopyIntervalMs?: number;
+    mapLabelFreeMargins?: [number, number, number, number];
 }
 
 type Size2 = [ number, number ];
@@ -81,6 +82,9 @@ export class Renderer {
     onResizeCall: () => void;
 
     marginFlags = 0; // see rmap.js
+
+    // label-free margins on  the map: [top, right, bottom, left]
+    labelFreeMargins: [number, number, number, number] = [0, 0, 0, 0];
 
     // flags
     onlyDepth = false;
@@ -297,6 +301,7 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     this.onResizeCall = onResize;
     this.stencilLineState = null;
 
+
     var rect = this.div.getBoundingClientRect();
 
     this.winSize = [rect.width, rect.height]; //QSize
@@ -310,9 +315,13 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     //this.skydomeTexture = null;
     //this.font = null;
 
-    this.hitmapSize = this.config.mapDMapSize;
-    this.hitmapMode = this.config.mapDMapMode;
-    this.hitmapCopyIntervalMs = this.config.mapDMapCopyIntervalMs;
+    if (config.mapLabelFreeMargins)
+        this.labelFreeMargins = config.mapLabelFreeMargins;
+
+    this.hitmapSize = config.mapDMapSize | this.hitmapSize;
+    this.hitmapMode = config.mapDMapMode | this.hitmapMode;
+    this.hitmapCopyIntervalMs
+        = config.mapDMapCopyIntervalMs | this.hitmapCopyIntervalMs;
 
     for (var i = 0, li = this.jobZBuffer.length; i < li; i++) {
         this.jobZBuffer[i] = [];
