@@ -4,10 +4,14 @@
     <meta http-equiv="content-type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" type="text/css" href="../../build/vts-browser.css" />
-    <script type="text/javascript" src="../../build/vts-browser.js"></script>
-    <script type="text/javascript" src="start-browser.js"></script>
+    <script type="module">
+         import { browser } from "../../build/vts-browser.esm.js";
+         import startBrowser from "./start-browser.js";
+         
+         startBrowser();
+    </script>     
 </head>
-<body style = "padding: 0; margin: 0;" onload="vtsStartBrowser()">
+<body style = "padding: 0; margin: 0;">
     <div id="map-canvas" style="width:100%; height:100%;"></div>
 </body>
 </html>

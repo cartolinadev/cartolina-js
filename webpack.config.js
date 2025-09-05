@@ -130,7 +130,8 @@ var plugins = [
     })
 ];
 
-module.exports = {
+// Base webpack config used by both outputs (global + ESM)
+const baseConfig = {
   entry: {
     'vts-core': __dirname + '/src/core/index.js',
     'vts-browser': __dirname + '/src/browser/index.js'
@@ -226,4 +227,22 @@ module.exports = {
 
   plugins: plugins  
 };
+
+// 1) Global build: window.vts (unchanged behavior)
+var globalConfig = baseConfig;
+
+// 2) ESM build: `import { browser } from 'vts-browser-js'`
+var esmConfig = Object.assign({}, baseConfig);
+esmConfig.output = Object.assign({}, baseConfig.output, {
+  // put the ESM files alongside the global ones (build/ in dev, dist/<version>/ in prod)
+  path: TARGET_DIR,
+  filename: '[name]' + (isProd ? '.min' : '') + '.esm.js',
+  libraryTarget: 'module'
+});
+// ESM library targets require this flag; also remove the global name
+delete esmConfig.output.library;
+esmConfig.experiments = Object.assign({}, baseConfig.experiments || {}, { outputModule: true });
+
+module.exports = [ globalConfig, esmConfig ];
+
 

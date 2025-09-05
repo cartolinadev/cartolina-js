@@ -1,6 +1,9 @@
 
+import { browser, utils } from "../../build/vts-browser.esm.js";
+
+
 function vtsParseUrlParams(initialParams_, url_) {
-    var params_ = vts.utils.getParamsFromUrl(url_ ? url_ : window.location.href);
+    var params_ = utils.getParamsFromUrl(url_ ? url_ : window.location.href);
 
     if (!initialParams_) {
         initialParams_ = params_;
@@ -21,7 +24,7 @@ function vtsParseUrlParams(initialParams_, url_) {
         alert('Use query parameter "map" to specify the mapConfig location'); 
     }
 
-    for (key_ in params_) {
+    for (let key_ in params_) {
         switch(key_) {
             case 'rotate':
             case 'fixedHeight':
@@ -194,7 +197,7 @@ function vtsParseUrlParams(initialParams_, url_) {
     return initialParams_;
 }
 
-function vtsStartBrowser() {
+async function startBrowser() {
 
     var params_ = vtsParseUrlParams();
     
@@ -208,5 +211,8 @@ function vtsStartBrowser() {
     params_['jumpAllowed'] = true;
     params_['positionInUrl'] = true;
     
-    var browser_ = vts.browser('map-canvas', params_);
+    let browser_ = browser('map-canvas', params_);
+    await browser_.ready;
 }
+
+export default startBrowser;

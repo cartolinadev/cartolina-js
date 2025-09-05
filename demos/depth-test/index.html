@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>vts-browser-js — elevation & depth overlay</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="../../build/vts-browser.css" />
+  <script src="../../build/vts-browser.js"></script>
+  <style>
+    html, body { height:100%; margin:0; }
+    #map { position:fixed; inset:0; cursor:crosshair; }
+    #overlay {
+      position:fixed; top:10px; left:10px; z-index:9999;
+      background:rgba(0,0,0,.55); color:#fff; font:14px/1.25 system-ui,sans-serif;
+      padding:8px 10px; border-radius:6px; user-select:none; white-space:nowrap;
+    }
+    #overlay b { font-weight:600; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="overlay">
+    Elevation: <b>— m</b> · Depth(vec): <b>— m</b> · Depth(api): <b>—</b>
+  </div>
+  <script src="./demo.js"></script>
+</body>
+</html>
