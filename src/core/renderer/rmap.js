@@ -165,8 +165,31 @@ RendererRMap.prototype.lineAABBoxCollide = function(x1, y1, x2, y2, rx1, ry1, rx
     return tmax >= tmin;
 };
 
+// Returns true if the rectangle (x1,y1,x2,y2) is fully inside the label inner window
+// defined by CSS-pixel margins [top,right,bottom,left]. If margins are zero, returns true.
+RendererRMap.prototype._isInsideLabelInnerWindow = function(x1, y1, x2, y2) {
+
+    var m = this.renderer.labelFreeMargins || [0,0,0,0]; // [top,right,bottom,left]
+    if (!(m[0] || m[1] || m[2] || m[3])) { return true; }
+    var w = this.renderer.curSize[0], h = this.renderer.curSize[1];
+    var xMin = m[3], yMin = m[0], xMax = w - m[1], yMax = h - m[2];
+
+    // normalize
+    var _x1 = x1, _y1 = y1, _x2 = x2, _y2 = y2;
+    if (_x1 > _x2) { var t = _x1; _x1 = _x2; _x2 = t; }
+    if (_y1 > _y2) { var t = _y1; _y1 = _y2; _y2 = t; }
+
+    return (_x1 >= xMin && _y1 >= yMin && _x2 <= xMax && _y2 <= yMax);
+};
+
 
 RendererRMap.prototype.checkRectangle = function(x1, y1, x2, y2, y3) {
+
+    // Enforce strict inner-window containment first; fails fast on margin violations.
+    if (!this._isInsideLabelInnerWindow(x1, y1, x2, y2)) {
+        return false;
+    }
+
     var t;
 
     if (x1 > x2) { t = x1; x1 = x2; x2 = t; }
@@ -473,6 +496,12 @@ RendererRMap.prototype.addLineLabel = function(subjob, position) {
     }
 
     x1 -= rr, x2 += rr, y1 -= rr, y2 += rr;
+
+    // Enforce label inner window (full containment) for the final line-label bbox
+    // Reject early if any part would intersect the margin band.
+    if (!this._isInsideLabelInnerWindow(x1, y1, x2, y2)) {
+        return false;
+    }
 
     if (benevolentMargins) {
         //screen including credits

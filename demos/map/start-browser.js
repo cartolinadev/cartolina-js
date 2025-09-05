@@ -124,6 +124,7 @@ function vtsParseUrlParams(initialParams_, url_) {
             case 'sensitivity':
             case 'tiltConstrainThreshold':
             case 'mapFeaturesReduceParams':
+            case 'mapLabelFreeMargins':
             case 'mapFeatureStickMode':
             case 'mapSplitSpace':
             case 'wheelInputLag':
