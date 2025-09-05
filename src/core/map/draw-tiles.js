@@ -375,7 +375,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     });  
                                 } // if (bounds.transparent)
                                 else
-                                { // if (!bounds.transparent)
+                                { // if (!bounds.transparent) - optimization path, we work just with the top layer
                                     
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && ! bounds.transparent
                                     var layerId = bounds.sequence[bounds.sequence.length-1];
@@ -415,6 +415,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                 if (submesh.textureLayer) {
                                     
                                     // if submesh.externalUVs && bounds.sequence.length == 0 && submesh.textureLayer 
+                                    // submesh identifies a texture layer by numerical id... probably never used
                                     
                                     layer = this.map.getBoundLayerByNumber(submesh.textureLayer);
                                     
@@ -454,6 +455,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     if (submesh.internalUVs) {  //draw surface
                                         
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && internalUVs
+                                        // internal texture is used only when no external textures are configured
                                         
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
@@ -473,6 +475,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     } else {
                                         
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && ! internalUVs
+                                        // there is no texture to use, flat shade
                                         tile.drawCommands[0].push({
                                             type : VTS_DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
@@ -505,7 +508,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 });                                                
             }
             
-            // depth path - note this is inserted in channel 1 (depth rendering,
+            // depth path - note this is inserted in channel 1 (depth rendering),
             // triggered by MapDraw.drawHitmap and used for depth testing etc.
             tile.drawCommands[1].push({
                 type : VTS_DRAWCOMMAND_SUBMESH,
@@ -516,7 +519,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             
         }
 
-        if (surface.pipeline > VTS_PIPELINE_BASIC) {
+        /*if (surface.pipeline > VTS_PIPELINE_BASIC) { // long dead
             this.updateTileHmap(tile, node);
 
             for (j = 0; j < 2; j++) {
@@ -528,7 +531,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                     }
                 }
             }
-        }
+        }*/
 
         if (tile.resetDrawCommands) {
             return false;
@@ -536,6 +539,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
         if (draw.areDrawCommandsReady(tile.drawCommands[channel], priority, preventLoad, doNotCheckGpu)) {
 
+            // immediate readiness of draw commands - probably could be skipped until the next frame
             if (tile.resetDrawCommands) {
                 return false;
             }
@@ -549,6 +553,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             ret = true;
         } else if (tile.lastRenderState) {
 
+            // the view-switch hook - upon changing bound layers, mesh is available but the textures typically are not.
+            // to prevent flashing, we display the the last state
             if (this.draw.areDrawCommandsReady(tile.lastRenderState.drawCommands[channel], priority, preventLoad, doNotCheckGpu)) {
                 if (!preventRedener) {
                     draw.processDrawCommands(cameraPos, tile.lastRenderState.drawCommands[channel], priority, true, tile);
@@ -717,10 +723,6 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
         if (submesh.externalUVs) {
             var submeshSurface = tile.resourceSurface;
 
-            //if (tile.resourceSurface.glue) { //glue have multiple surfaces per tile
-              //  submeshSurface = tile.resourceSurface.getSurfaceReference(submesh.surfaceReference);
-            //}
-
             if (tile.resourceSurface.glue) { //glue have multiple surfaces per tile
                 submeshSurface = tile.resourceSurface.getSurfaceReference(submesh.surfaceReference);
             }
@@ -728,8 +730,6 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
             
             if (submeshSurface) {
                 var bounds = tile.bounds[submeshSurface.id];
-
-                //console.log(bounds);
 
                 // the check for bounds.blending is an ugly workaround
                 // for a mysterious race condition... bounds should be never
@@ -750,8 +750,6 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 
                 if (bounds.viewCoutner != tile.viewCoutner) {
                     this.updateTileSurfaceBounds(tile, submesh, submeshSurface, bounds);
-                    //bounds.viewCoutner = tile.viewCoutner;
-                    //console.log(bounds);
                 }  
             }
         } // if (submesh.externalUVs)

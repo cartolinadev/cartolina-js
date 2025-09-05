@@ -50,6 +50,7 @@ function vtsParseUrlParams(initialParams_, url_) {
             case 'mapHysteresisWait':
             case 'mapDMapSize':
             case 'mapDMapMode':
+            case 'mapDMapCopyIntervalMs':
             case 'rendererAnisotropic':         initialParams_[key_] = parseInt(params_[key_], 10); break;
             case 'panAllowed':
             case 'rotationAllowed':
