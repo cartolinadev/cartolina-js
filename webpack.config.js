@@ -229,10 +229,26 @@ const baseConfig = {
 };
 
 // 1) Global build: window.vts (unchanged behavior)
-var globalConfig = baseConfig;
+var globalConfig = Object.assign({}, baseConfig);
+globalConfig.name = 'global';
+// IMPORTANT: attach devServer ONLY to ONE config, so we get a single server instance.
+/*globalConfig.devServer = {
+  port: 8080,
+  static: [
+    { directory: path.join(__dirname, 'build') },
+    { directory: path.join(__dirname, 'demos') },
+    { directory: path.join(__dirname, 'test') }
+  ],
+  hot: false,
+  client: { overlay: true },
+  compress: false,
+  historyApiFallback: false
+};*/
+
 
 // 2) ESM build: `import { browser } from 'vts-browser-js'`
 var esmConfig = Object.assign({}, baseConfig);
+esmConfig.name = 'esm';
 esmConfig.output = Object.assign({}, baseConfig.output, {
   // put the ESM files alongside the global ones (build/ in dev, dist/<version>/ in prod)
   path: TARGET_DIR,
@@ -242,7 +258,7 @@ esmConfig.output = Object.assign({}, baseConfig.output, {
 // ESM library targets require this flag; also remove the global name
 delete esmConfig.output.library;
 esmConfig.experiments = Object.assign({}, baseConfig.experiments || {}, { outputModule: true });
-
+// CRUCIAL: do NOT define devServer here. One server watches BOTH compilations.
+delete esmConfig.devServer;
+ 
 module.exports = [ globalConfig, esmConfig ];
-
-
