@@ -13,66 +13,32 @@ import RenderDraw from './draw';
 import RendererRMap from './rmap';
 import * as Illumination from '../map/illumination';
 
-type Optional<T> = T | null;
-
-// local types
-
-type Config = {
-    [key: string]: boolean | number | string | number[];
-    rendererAllowScreenshots?: boolean;
-    rendererAntialiasing?: boolean;
-    rendererAnisotropic?: number;
-    mapDMapSize?: number;
-    mapDMapMode?: number;
-    mapDMapCopyIntervalMs?: number;
-    mapLabelFreeMargins?: [number, number, number, number];
-}
-
-type Size2 = [ number, number ];
-
-type SeProgression = {
-
-    baseValue: number;
-    baseExtent: number;
-    exponent: number;
-    min: number
-    max: number
-}
-
-type SeProgressionDef =
-    [number, number, number, number, number];
-
-type SeRamp =
-    [number, number, number, number, number, number, number];
-
-type SeRampDef = [[number, number], [number, number]];
-
-// export types
-export namespace Renderer {
-
-export type IlluminationDef = {
-
-    // azimuth and elevation in VC
-    light: ["tracking", number, number];
-
-    ambientCoef?: number;
-}
-
-export type Illumination = {
-
-    trackingLight: { azimuth: number, elevation: number };
-    illuminationVectorVC: Illumination.vec3
-    ambientCoef: number;
-}
-
-
-export type SeDefinition = SeRampDef | {
-    heightRamp?: SeRampDef;
-    viewExtentProgression?: SeProgressionDef;
-}
-
-} // export namespace GpuDevice
-
+/**
+ * As with many classes in vts-browser-js, it is difficult to find any
+ * meaningful abstraction behind this class. Despite its name, it's not a
+ * renderer. Here is a non-exhaustive list of what id does.
+ *
+ *  * It's a collection of compiled GPU programs and GPU texture objects.
+ *
+ *  * It keeps track of scene illumination vector and provides a public API
+ *    to provide the vector in camera space.
+ *
+ *  * It keeps track of vertical exaggeration (superelevation) configuration and
+ *    provides methods for applying superelevation.
+ *
+ *  * It keeps a 'debug' object which is in fact a set of rendering flags.
+ *
+ *  * It holds a 'hitmap' or depthMap of the scene, an offscreen framebuffer
+ *    a map is rendered into in 'draw channel 1'
+ *
+ *  * It keeps track of the CSS pixel size of the map
+ *
+ *  * It maintains an image projection matrix, used as projection matrix in
+ *    various shaders and keeps it in sync with the CSS pixel size.
+ *
+ * It probably does many other things and is accessed through undocumented
+ * backdoors.
+ */
 
 export class Renderer {
 
@@ -184,9 +150,8 @@ export class Renderer {
 
 
 
-    /**
-     * coopied from config.mapDMapSize. hitmap linear size in pixels.
-     */
+    /** copied from config.mapDMapSize. hitmap (depth map) linear size in
+     *  pixels. */
     hitmapSize: number = 1024;
 
     /**
@@ -207,6 +172,7 @@ export class Renderer {
     rectVerticesBuffer: Optional<WebGLBuffer> = null;
     rectIndicesBuffer: Optional<WebGLBuffer> = null;
 
+    /** col-major projection matrix, used in various shaders. */
     imageProjectionMatrix: Optional<Float32Array> = null;
 
     fonts: {[key:string] : any} = {};
@@ -395,6 +361,8 @@ resizeGL(width: number, height: number, skipCanvas: boolean = false) {
     this.gpu.resize(this.curSize, skipCanvas);
 
     var m = new Float32Array(16);
+
+    // the matrix is column-major
     m[0] = 2.0/width; m[1] = 0; m[2] = 0; m[3] = 0;
     m[4] = 0; m[5] = -2.0/height; m[6] = 0; m[7] = 0;
     m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
@@ -1278,5 +1246,66 @@ kill() {
 };
 
 } // export class Renderer
+
+// local types
+
+type Optional<T> = T | null;
+
+type Config = {
+    [key: string]: boolean | number | string | number[];
+    rendererAllowScreenshots?: boolean;
+    rendererAntialiasing?: boolean;
+    rendererAnisotropic?: number;
+    mapDMapSize?: number;
+    mapDMapMode?: number;
+    mapDMapCopyIntervalMs?: number;
+    mapLabelFreeMargins?: [number, number, number, number];
+}
+
+type Size2 = [ number, number ];
+
+type SeProgression = {
+
+    baseValue: number;
+    baseExtent: number;
+    exponent: number;
+    min: number
+    max: number
+}
+
+type SeProgressionDef =
+    [number, number, number, number, number];
+
+type SeRamp =
+    [number, number, number, number, number, number, number];
+
+type SeRampDef = [[number, number], [number, number]];
+
+// export types
+export namespace Renderer {
+
+export type IlluminationDef = {
+
+    // azimuth and elevation in VC
+    light: ["tracking", number, number];
+
+    ambientCoef?: number;
+}
+
+export type Illumination = {
+
+    trackingLight: { azimuth: number, elevation: number };
+    illuminationVectorVC: Illumination.vec3
+    ambientCoef: number;
+}
+
+
+export type SeDefinition = SeRampDef | {
+    heightRamp?: SeRampDef;
+    viewExtentProgression?: SeProgressionDef;
+}
+
+} // export namespace GpuDevice
+
 
 export default Renderer;

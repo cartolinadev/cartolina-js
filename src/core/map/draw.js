@@ -841,8 +841,9 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let bump = command.bumps[j];
 
                 // is it ready? If not, stop here.
+                // the scheduling priority is hacked lower, without measurable effect
                 if (!command.textures[bump.layer.id].isReady(doNotLoad,
-                    priority)) break;
+                    20 * priority)) break;
 
                 // was it already blended? Skip it.
                 if (command.normalMap.bumpsApplied.includes(bump.layer.id))

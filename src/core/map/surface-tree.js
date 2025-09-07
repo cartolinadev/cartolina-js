@@ -360,7 +360,8 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
 
                                 this.updateNodeHeightExtents(child, child.metanode);
                                 child.updateTexelSize(factor);
-                                
+
+                                // note that this is *inverse* priority - higher number means back seat in the queue
                                 var priority = child.id[0] * typeFactor * child.distance;
 
                                 //console.log('Priority [%d-%d-%d] ->  %d',

@@ -338,6 +338,8 @@ MapLoader.prototype.updateChannel = function(channel) {
             item.call(item.id, this.onLoaded.bind(this, item), this.onLoadError.bind(this, item));
         }
     }
+
+    //console.log(this.usedThreads);
 };
 
 
