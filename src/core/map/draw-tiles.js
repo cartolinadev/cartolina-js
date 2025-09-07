@@ -110,10 +110,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             if (tile.tileRenderRig[i])
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
-                            console.log(tile.resourceSurface);
-
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                tile.resources, this.config,
+                                tile.resources, this.renderer, this.config,
                                 { bare: priority, full: priority });
                         }
 
@@ -859,7 +857,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 // TODO: work with masks - it is a hack we don't
             }
 
-            texture.isReady(true); // no clue what this does
+            texture.isReady(true); // doNotLoad = true (does not enqueue a download, but performs checks)
             tile.boundTextures[bump.layer.id] = texture;
 
             if (texture.neverReady) {
@@ -914,7 +912,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         texture.checkMask = true;
                     }
 
-                    texture.isReady(true); //check for mask but do not load
+                    texture.isReady(true); //check for metatile/mask but do not load
                     tile.boundTextures[specular.layer.id] = texture;
                 }
 
@@ -981,7 +979,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                             texture.checkMask = true;
                         }
 
-                        texture.isReady(true); //check for mask but do not load
+                        texture.isReady(true); //check metatile/mask but do not load
                         tile.boundTextures[layer.id] = texture; 
                     } 
 

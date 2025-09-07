@@ -37,7 +37,7 @@ var Core = function(element, config, coreInterface) {
         mapMetatileCache : 60,
         mapTexelSizeFit : 1.1,
         mapMaxHiresLodLevels : 2,
-        mapDownloadThreads : 20,
+        mapDownloadThreads : 20, // 20,
         mapMaxProcessingTime : 10, //1000*20,
         mapMaxGeodataProcessingTime : 10,
         mapMobileMode : false,

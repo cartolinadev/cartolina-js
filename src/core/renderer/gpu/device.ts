@@ -3,27 +3,24 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 
-type Optional<T> = T | null;
+/**
+ * GpuDevice is not an abstraction of a GPU device. Here is what it does:
+ *
+ *   * it manages the canvas inside the map element and sets its size properly
+ *     according to the provided CSS pixel size
+ *
+ *   * it computes the size of the gl viewport, though it doen set it (it should)
+ *     (setViewport)
+ *
+ *   * it abstracts various GL rendering flags (gl.BLEND, gl.STENCIL_TEST,
+ *     gl.DEPTH) into a single state object, with getState and setState accessors.
+ *
+ *   * it provides a thin wrapper around gl.userProgram and gl.bindTexture
+ *
+ *   * it can set a framebuffer, though the logic is flawed (no tracking of that
+ *     the rendering is now offscreen, no change to viewport, prone to errors)
+ */
 
-// local types
-type NumberPair = [number, number];
-type Color = [number, number, number, number]
-
-type Viewport = { width: number, height: number }
-
-// exported types
-export namespace GpuDevice {
-
-export type State = {
-    blend: boolean,
-    stencil: boolean,
-    zequal: boolean,
-    ztest: boolean,
-    zwrite: boolean,
-    culling: boolean
-}
-
-} // export namespace GpuDevice
 
 export class GpuDevice {
 
@@ -391,6 +388,29 @@ setState(state: GpuDevice.State) {
 };
 
 } // class GpuDevice
+
+type Optional<T> = T | null;
+
+// local types
+type NumberPair = [number, number];
+type Color = [number, number, number, number]
+
+type Viewport = { width: number, height: number }
+
+// exported types
+export namespace GpuDevice {
+
+export type State = {
+    blend: boolean,
+    stencil: boolean,
+    zequal: boolean,
+    ztest: boolean,
+    zwrite: boolean,
+    culling: boolean
+}
+
+} // export namespace GpuDevice
+
 
 export default GpuDevice;
 

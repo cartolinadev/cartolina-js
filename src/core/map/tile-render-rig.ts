@@ -3,7 +3,8 @@
  */
 
 import MapResourceNode from './resource-node';
-import * as utils from '../utils/utils';
+import Renderer from '../renderer/renderer';
+//import * as utils from '../utils/utils';
 
 
  /**
@@ -26,7 +27,7 @@ import * as utils from '../utils/utils';
   * The rig is self-contained in the sense that it can draw independently even
   * when/while the original tile changes.
   *
-  * There are two types of draw readiness: full readiness (or simply readiness)
+  * There are two levels of draw readiness: full readiness (or simply readiness)
   * and fallback readiness. The fallback readiness is meant for a tile that is
   * meant to be a replacement for better (typically higher resolution) data.
   * This matters: not all data are made ready for the sake of fallback readiness.
@@ -36,13 +37,14 @@ export class TileRenderRig {
 
     private readonly config!: Config;
     private readonly resources!: MapResourceNode;
+    private readonly renderer!: Renderer;
 
 
-
-    constructor(resources: MapResourceNode, config: Config,
+    constructor(resources: MapResourceNode, renderer: Renderer, config: Config,
         priority: TileRenderRig.Priority = TileRenderRig.DEFAULT_PRIORITY) {
 
         this.resources = resources;
+        this.renderer = renderer;
         this.config = config;
 
         //console.log(resources.id);
@@ -86,9 +88,13 @@ export namespace TileRenderRig {
     export type Priority = typeof DEFAULT_PRIORITY;
 
     export const DEFAULT_RENDER_FLAGS = {
-        shaderIllumination: true,
+        illumination: true,
+        normalMaps: true,
         bumps: true,
-        speculars: true,
+        diffuse: true,
+        specular: true,
+        atmosphere: false,
+        shadows: false
     };
 
     export type RenderFlags = typeof DEFAULT_RENDER_FLAGS;
