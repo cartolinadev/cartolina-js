@@ -1,10 +1,9 @@
 
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import BBox_ from '../renderer/bbox';
 
 //get rid of compiler mess
 var BBox = BBox_;
-var utils = utils_;
 
 
 var MapVirtualSurface = function(map, json) {
@@ -46,7 +45,8 @@ MapVirtualSurface.prototype.parseJson = function(json) {
         this.extents = new BBox(0,0,0,1,1,1);
     }
 
-    this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));    
+    this.specificity = Math.pow(2, this.lodRange[1]) + this.lodRange[0];
+    //this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));
 
     utils.loadBinary(this.mappingUrl, this.onMappingFileLoaded.bind(this), this.onMappingFileLoadError.bind(this), (utils.useCredentials ? (this.jsonUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams);
 };

@@ -4,7 +4,7 @@ import RoiProcessQueue_ from './processor';
 import RoiPhoto_ from './photo/photo';
 import RoiPano_ from './pano/pano';
 import RoiLocation_ from './location/location';
-import {utils as utils_} from '../../core/utils/utils';
+import * as utils from '../../core/utils/utils';
 
 //get rid of compiler mess
 var RoiLoadingQueue = RoiLoadingQueue_;
@@ -12,7 +12,6 @@ var RoiProcessQueue = RoiProcessQueue_;
 var RoiPhoto = RoiPhoto_;
 var RoiPano = RoiPano_;
 var RoiLocation = RoiLocation_;
-var utils = utils_;
 
 
 /**

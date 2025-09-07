@@ -1,6 +1,6 @@
 
 import {vec3 as vec3_} from '../utils/matrix';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import {platform as platform_} from '../utils/platform';
 import MapView_ from './view';
 import MapSurfaceTree_ from './surface-tree';
@@ -23,7 +23,6 @@ import GpuTexture_ from '../renderer/gpu/texture';
 
 //get rid of compiler mess
 var vec3 = vec3_;
-var utils = utils_;
 var platform = platform_;
 var MapView = MapView_;
 var MapSurfaceTree = MapSurfaceTree_;

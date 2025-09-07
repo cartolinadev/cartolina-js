@@ -5,7 +5,7 @@ import Renderer_ from './renderer/renderer';
 import RendererInterface_ from './renderer/interface';
 import MapPosition_ from './map/position';
 import MapInterface_ from './map/interface';
-import {utils as utils_} from './utils/utils';
+import * as utils from './utils/utils';
 import {utilsUrl as utilsUrl_} from './utils/url';
 import {platform as platform_} from './utils/platform';
 import getVersion from './version.js';
@@ -17,7 +17,6 @@ var Renderer = Renderer_;
 var RendererInterface = RendererInterface_;
 var MapPosition = MapPosition_;
 var MapInterface = MapInterface_;
-var utils = utils_;
 var utilsUrl = utilsUrl_;
 var platform = platform_;
 

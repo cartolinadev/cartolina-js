@@ -706,8 +706,9 @@ MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad,
         switch (command.type) {
         case VTS_DRAWCOMMAND_SUBMESH:
 
-            var pipeline = command.pipeline;
-            if (pipeline) {
+            /* // long dead
+             var pipeline = command.pipeline;
+             if (pipeline) {
                 var hmap = command.hmap;
     
                 if (!(hmap && hmap.isReady(doNotLoad, priority))) {
@@ -724,7 +725,7 @@ MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad,
                 }
 
                 break;
-            }
+            }*/
                 
             var mesh = command.mesh; 
             var texture = command.texture; 
@@ -1015,7 +1016,7 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
 
             for (var i = 0, li = surface.credits.length; i < li; i++) {
                 var key = surface.credits[i]
-                var value = 10; //fixed specificity
+                var value = 1; //fixed specificity
                 var value2 = mapdataCredits[key];
 
                 if (value2) {

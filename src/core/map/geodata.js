@@ -1,11 +1,10 @@
 
 import BBox_ from '../renderer/bbox';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import MapGeodataBuilder_ from './geodata-builder';
 
 //get rid of compiler mess
 var BBox = BBox_;
-var utils = utils_;
 var MapGeodataBuilder = MapGeodataBuilder_;
 
 

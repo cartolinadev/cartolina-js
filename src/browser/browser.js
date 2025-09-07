@@ -1,7 +1,7 @@
 
 import {checkSupport as checkSupport_} from '../core/core';
 import {CoreInterface as CoreInterface_} from '../core/interface';
-import {utils as utils_} from '../core/utils/utils';
+import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
 import Autopilot_ from './autopilot/autopilot';
 import ControlMode_ from './control-mode/control-mode';
@@ -10,7 +10,6 @@ import Rois_ from './rois/rois';
 
 //get rid of compiler mess
 var CoreInterface = CoreInterface_;
-var utils = utils_;
 var UI = UI_;
 var Autopilot = Autopilot_;
 var ControlMode = ControlMode_;

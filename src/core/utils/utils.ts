@@ -1,18 +1,12 @@
 
-import {math as math_} from './math';
-import {utilsUrl as utilsUrl_} from './url';
-
-//get rid of compiler mess
-var math = math_;
-var utilsUrl = utilsUrl_;
+import {math} from './math';
+import {utilsUrl} from './url';
 
 
-var utils = {};
-utils.useCredentials = false;
-utils.instanceCounter = 0;
+export const useCredentials = false;
 
 
-utils.validateBool = function(value, defaultValue) {
+export function validateBool(value, defaultValue) {
     if (typeof value === 'boolean') {
         return value;
     } else {
@@ -21,7 +15,7 @@ utils.validateBool = function(value, defaultValue) {
 };
 
 
-utils.validateNumber = function(value, minValue, maxValue, defaultValue) {
+export function validateNumber(value, minValue, maxValue, defaultValue) {
     if (typeof value === 'number') {
         return math.clamp(value, minValue, maxValue);
     } else {
@@ -30,7 +24,7 @@ utils.validateNumber = function(value, minValue, maxValue, defaultValue) {
 };
 
 
-utils.validateNumberArray = function(array, arraySize, minValues, maxValues, defaultValues) {
+export function validateNumberArray(array, arraySize, minValues, maxValues, defaultValues) {
     if (Array.isArray(array) && array.length == arraySize) {
         for (var i = 0; i < arraySize; i++) {
             array[i] = math.clamp(array[i], minValues[i], maxValues[i]);
@@ -42,7 +36,7 @@ utils.validateNumberArray = function(array, arraySize, minValues, maxValues, def
 };
 
 
-utils.validateString = function(value, defaultValue) {
+export function validateString(value, defaultValue) {
     if (typeof value === 'string') {
         return value;
     } else {
@@ -51,7 +45,7 @@ utils.validateString = function(value, defaultValue) {
 };
 
 
-utils.padNumber = function(n, width) {
+export function padNumber(n, width) {
     var z = '0';
 
     if (n < 0) {
@@ -65,7 +59,7 @@ utils.padNumber = function(n, width) {
 };
 
 
-utils.decodeFloat16 = function(binary) {
+export function decodeFloat16(binary) {
     var exponent = (binary & 0x7C00) >> 10;
     var fraction = binary & 0x03FF;
     return (binary >> 15 ? -1 : 1) * (
@@ -80,7 +74,7 @@ utils.decodeFloat16 = function(binary) {
 };
 
 
-utils.simpleFmtObj = (function obj(str, obj) {
+export function simpleFmtObj(str, obj) {
     if (!str || str == '') {
         return '';
     }
@@ -88,15 +82,15 @@ utils.simpleFmtObj = (function obj(str, obj) {
     return str.replace(/\{([$a-zA-Z0-9][$a-zA-Z0-9]*)\}/g, function(s, match) {
         return (match in obj ? obj[match] : s);
     });
-});
+};
 
 
-utils.simpleWikiLinks = (function obj(str, plain) {
+export function simpleWikiLinks(str, plain) {
     if (!str || str == '') {
         return '';
     }
 
-    var str2 = utils.simpleFmtObj(str, {'copy':'&copy;', 'Y': (new Date().getFullYear())}); 
+    var str2 = simpleFmtObj(str, {'copy':'&copy;', 'Y': (new Date().getFullYear())});
     
     return str2.replace(/\[([^\]]*)\]/g, function(s, match) {
         match  = match.trim();
@@ -120,21 +114,20 @@ utils.simpleWikiLinks = (function obj(str, plain) {
         
         return match;
     });
-});
+}
 
 
-utils.simpleFmtObjOrCall = (function obj(str, obj, call) {
-    if (!str || str == '') {
-        return '';
-    }
+export function simpleFmtObjOrCall(str: string, map: Record<string, unknown>,
+  call?: (key: string) => string) {
+  if (!str) return '';
+  return str.replace(/\{([$A-Za-z_][\w$]*)\}/g, (_s, key) =>
+    Object.prototype.hasOwnProperty.call(map, key)
+      ? String(map[key])
+      : call ? call(key) : `{${key}}`
+  );
+}
 
-    return str.replace(/\{([$a-zA-Z(-9][$a-zA-Z(-9]*)\}/g, function(s, match) {
-        return (match in obj ? obj[match] : call(match));
-    });
-});
-
-
-utils.getABGRFromHexaCode = (function(code) {
+export function getABGRFromHexaCode(code) {
     var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(code);
 
     return result ?
@@ -143,31 +136,31 @@ utils.getABGRFromHexaCode = (function(code) {
         parseInt(result[2], 16),
         parseInt(result[1], 16)]
     : [0,0,0,255];
-});
+};
 
 
-utils.stringifyFunction = (function(fn) {
+export function stringifyFunction(fn) {
     // Stringify the code
     return '(' + fn + ').call(self);';
-});
+};
 
 
-utils.isPowerOfTwo = (function(value) {
+export function isPowerOfTwo(value) {
     return (value & (value - 1)) === 0 && value !== 0;
-});
+};
 
 
-utils.nearestPowerOfTwo = (function(value) {
+export function nearestPowerOfTwo(value) {
     return Math.pow(2, Math.round(Math.log(value) / Math.LN2));
-});   
+};
 
 
-utils.fitToPowerOfTwo = (function(value) {
+export function fitToPowerOfTwo(value) {
     return Math.pow(2, Math.ceil(Math.log(value) / Math.LN2));
-});   
+};
 
 
-utils.getHash = function(str) {
+export function getHash(str) {
     if (!str || str.length === 0) {
         return 0;    
     }
@@ -183,21 +176,21 @@ utils.getHash = function(str) {
 };
 
 
-utils.convertRGB2YCbCr = function(r, g, b) {
+export function convertRGB2YCbCr(r, g, b) {
   return [( .299 * r + .587 * g  +  0.114 * b) + 0,
           ( -.169 * r + -.331 * g +  0.500 * b) + 128,
           ( .500 * r + -.419 * g +  -0.081 * b) + 128];
 };
 
 
-utils.convertYCbCr2RGB = function(y, cb, cr) {
+export function convertYCbCr2RGB(y, cb, cr) {
   return [1 * y +  0 * (cb-128)      +  1.4 * (cr-128),
           1 * y +  -.343 * (cb-128)  +  -.711 * (cr-128),
           1 * y +  1.765 * (cb-128)  +  0 * (cr-128)];
 };
 
 
-utils.convertHSL2RGB = function(h, s, l){
+export function convertHSL2RGB(h, s, l){
    var r, g, b, m, c, x;
 
     h /= 60;
@@ -232,15 +225,15 @@ utils.convertHSL2RGB = function(h, s, l){
 }
 
 
-utils.getHashColor = function(str) {
-    var h = utils.getHash(str);
-    var c = utils.convertRGB2YCbCr(h&255,(h>>8)&255,(h>>16)&255);
+export function getHashColor(str) {
+    var h = getHash(str);
+    var c = convertRGB2YCbCr(h&255,(h>>8)&255,(h>>16)&255);
     c[0] = math.clamp(c[0], 50, 200);
-    return utils.convertRGB2YCbCr(c[0],c[1],c[2]);
+    return convertRGB2YCbCr(c[0],c[1],c[2]);
 };
 
 
-utils.getHashColor2 = function(counter) {
+export function getHashColor2(counter) {
     var h = Math.floor(counter / 18);
     var l = 50;
 
@@ -254,16 +247,16 @@ utils.getHashColor2 = function(counter) {
 
     h = (counter % 18) * 20;
 
-    return utils.convertHSL2RGB(h,100,l);
+    return convertHSL2RGB(h,100,l);
 };
 
 
-utils.loadText = function(path, onLoaded, onError, withCredentials, xhrParams) {
-    utils.loadJSON(path, onLoaded, onError, true, withCredentials, xhrParams);
+export function loadText(path, onLoaded, onError, withCredentials, xhrParams) {
+    loadJSON(path, onLoaded, onError, true, withCredentials, xhrParams);
 };
 
 
-utils.loadXML = function(path, onLoaded, onError, withCredentials, xhrParams) {
+export function loadXML(path, onLoaded, onError, withCredentials, xhrParams) {
     var onLoaded2 = (function(data){
         var parser = new DOMParser();
         data = parser.parseFromString(data, 'text/xml');
@@ -272,11 +265,11 @@ utils.loadXML = function(path, onLoaded, onError, withCredentials, xhrParams) {
         }
     });
 
-    utils.loadJSON(path, onLoaded2, onError, true, withCredentials, xhrParams);
+    loadJSON(path, onLoaded2, onError, true, withCredentials, xhrParams);
 };
 
 
-utils.loadJSON = function(path, onLoaded, onError, skipParse, withCredentials, xhrParams) {
+export function loadJSON(path, onLoaded, onError, skipParse, withCredentials, xhrParams) {
     var xhr = new XMLHttpRequest();
 
     //xhr.onload  = (function() {
@@ -349,7 +342,7 @@ utils.loadJSON = function(path, onLoaded, onError, skipParse, withCredentials, x
 };
 
 
-utils.loadBinary = function(path, onLoaded, onError, withCredentials, xhrParams, responseType) {
+export function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, responseType) {
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = (function (){
@@ -421,7 +414,7 @@ utils.loadBinary = function(path, onLoaded, onError, withCredentials, xhrParams,
 };
 
 
-utils.headRequest = function(url, onLoaded, onError, withCredentials, xhrParams) { 
+export function headRequest(url, onLoaded, onError, withCredentials, xhrParams) {
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = (function (){
@@ -469,7 +462,7 @@ utils.headRequest = function(url, onLoaded, onError, withCredentials, xhrParams)
 };
 
 
-utils.loadImage = function(url, onload, onerror, withCredentials, direct) {
+export function loadImage(url, onload, onerror, withCredentials, direct) {
     var image = new Image();
     image.onerror = onerror;
     image.onload = onload;
@@ -483,7 +476,7 @@ utils.loadImage = function(url, onload, onerror, withCredentials, direct) {
 };
 
 
-utils.getParamsFromUrl = function(url) {
+export function getParamsFromUrl(url) {
     return utilsUrl.getParamsFromUrl(url);
 };
 
@@ -491,7 +484,7 @@ utils.getParamsFromUrl = function(url) {
 //var textDecoderUtf8 = null; //(typeof TextDecoder !== 'undefined') ? (new TextDecoder('utf-8')) : null;
 var textDecoderUtf8 = (typeof TextDecoder !== 'undefined') ? (new TextDecoder('utf-8')) : null;
 
-utils.unint8ArrayToString = function(array) {
+export function unint8ArrayToString(array) {
     if (textDecoderUtf8) {
         return textDecoderUtf8.decode(array);
     } else {
@@ -534,12 +527,27 @@ utils.unint8ArrayToString = function(array) {
 }
 
 
-export {utils};
+/**
+ * A TypeScript method decorator, useful for diagnostics. Logs and times every
+ * call. Put @log immediately before the definition of the method you want
+ * logged to use it.
+ */
 
-// only implement if no native implementation is available
-/*
-if (typeof Array.isArray === 'undefined') {
-  Array.isArray = (function(obj) {
-    return Object.prototype.toString.call(obj) === '[object Array]';
-  });
-}*/
+
+export function Log(
+  target: any,
+  propertyKey: string,
+  descriptor: PropertyDescriptor
+) {
+  const original = descriptor.value; // the method being decorated
+  descriptor.value = function (...args: any[]) {
+    const start = performance.now();
+    console.log(`${propertyKey} called with:`, ...args);
+    const result = original.apply(this, args);
+    const duration = performance.now() - start;
+    console.log(`${propertyKey} returned:`, result,
+                `(${duration.toFixed(2)} ms)`);
+    return result;
+  };
+}
+

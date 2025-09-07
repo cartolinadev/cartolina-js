@@ -1,6 +1,6 @@
 
 import {mat4 as mat4_} from '../utils/matrix';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import BBox_ from '../renderer/bbox';
 import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
@@ -9,7 +9,6 @@ import GpuPointcloud_ from '../renderer/gpu/pointcloud';
 //get rid of compiler mess
 var mat4 = mat4_;
 var BBox = BBox_;
-var utils = utils_;
 var GpuProgram = GpuProgram_;
 var GpuShaders = GpuShaders_;
 var GpuPointcloud = GpuPointcloud_;

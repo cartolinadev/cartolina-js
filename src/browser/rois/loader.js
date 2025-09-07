@@ -1,8 +1,7 @@
 
-import {utils as utils_} from '../../core/utils/utils';
+import * as utils from '../../core/utils/utils';
 
 //get rid of compiler mess
-var utils = utils_;
 
 
 var RoiLoadingQueue = function(options) {

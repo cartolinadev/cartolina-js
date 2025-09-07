@@ -1,8 +1,7 @@
 
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 
 //get rid of compiler mess
-var utils = utils_;
 
 var MapCredit = function(map, json) {
     this.map = map;

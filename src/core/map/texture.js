@@ -133,6 +133,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     if (this.extraBound) {
         if (this.extraBound.texture) {
 
+            // this looks lika  fallback mechanism - if loading tile on the desired level falls,
+            // we try to fetch parent tile instead
             while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
 //            while (this.extraBound.texture.checkStatus == -1) {
                 parent = this.extraBound.sourceTile.parent;
@@ -174,8 +176,6 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
             this.setBoundTexture(this.extraBound.sourceTile, this.extraBound.layer, this.extraBound.hmap);        
             return this.isReady(doNotLoad, priority, doNotCheckGpu);
         }
-        
-        return false;
     } // if (this.extraBound)
 
     switch (this.checkType) {
@@ -209,19 +209,29 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                             this.checkStatus = 2;
                         }
                     } else {
+                        // checkStatus == 0 && this.extraInfo && this.extraInfo.tile && ! this.maskTexture
                         if (texture.isReady(doNotLoad, priority, doNotCheckGpu)) {
                             var tile = this.extraInfo.tile;
+
+                            // read bl metatile value
                             var value = texture.getHeightMapValue(tile.id[1] & 255, tile.id[2] & 255);
+
+                            // the highest bit seems to indicate tile existence
                             this.checkStatus = (value & 128) ? 2 : -1;
                                 
                             if (this.checkStatus == 2) {
-                                if (!(value & 64)) { //load mask
+
+                                // the 2nd highest bit seems to inddicate mask existence
+                                if (!(value & 64)) {
+
+                                    //load mask
                                     path = layer.getMaskUrl(tile.id);
                                     this.maskTexture = tile.resources.getTexture(path, null, null, null, this.tile, this.internal);
                                     this.checkStatus = 0;
                                 }
                             }
 
+                            // reset draw commands to add mask
                             tile.resetDrawCommands = true;
                             this.map.markDirty();
                         }
@@ -231,8 +241,9 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 return false;
             }
                 
-            if (this.checkStatus == -1) { // fail
+            if (this.checkStatus == -1) { // fail or nonexistent tile
                 if (!this.extraBound) {
+
                     parent = this.extraInfo.tile.parent;
                     if (parent.id[0] < this.extraInfo.layer.lodRange[0]) {
                         this.neverReady = true;
@@ -247,7 +258,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 }
 
                 while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
-                    //while (this.extraBound.texture.checkStatus == -1) {
+
+                    // move up the hierarchy
                     parent = this.extraBound.sourceTile.parent;
                     if (parent.id[0] < this.extraBound.layer.lodRange[0]) {
                         this.neverReady = true;

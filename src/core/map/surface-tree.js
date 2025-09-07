@@ -313,10 +313,6 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                 }
             }
             
-            //if (this.map.drawIndices) {
-              //  this.logTileInfo(tile, node, cameraPos);
-            //}
-
             if (tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) {
 
                 usedNodes++;
@@ -1691,7 +1687,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
             }
 
         }
-    } // or for (i = drawBufferIndex - 1; i >= 0; i--)
+    } // for (i = drawBufferIndex - 1; i >= 0; i--)
 
     if (scanExtents) {
         renderer.gridHmax = hmax;
