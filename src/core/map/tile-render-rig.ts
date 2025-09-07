@@ -2,7 +2,9 @@
  * tilerenderrig.ts - prepare and draw mesh tiles
  */
 
+import MapResourceNode from './resource-node';
 import * as utils from '../utils/utils';
+
 
  /**
   * A tile render rig manages the render process for a specific tile (more
@@ -33,19 +35,24 @@ import * as utils from '../utils/utils';
 export class TileRenderRig {
 
     private readonly config!: Config;
+    private readonly resources!: MapResourceNode;
 
 
-    constructor (tileId: [number, number, number], config: Config,
+
+    constructor(resources: MapResourceNode, config: Config,
         priority: TileRenderRig.Priority = TileRenderRig.DEFAULT_PRIORITY) {
 
+        this.resources = resources;
         this.config = config;
-        //console.log(tileId);
+
+        //console.log(resources.id);
 
         // layer stack may not be constructed until mesh is ready at least
     }
 
-    isReady(level:TileRenderRig.Level = 'full',
-          checkReadyFlags = TileRenderRig.DEFAULT_CHECKREADYFLAGS): boolean {
+    isReady(minimum: TileRenderRig.Level = 'full',
+            desired: TileRenderRig.Level = 'full',
+            options = TileRenderRig.DEFAULT_ISREADY_OPTIONS): boolean {
 
         return true;
     }
@@ -92,9 +99,9 @@ export namespace TileRenderRig {
      * The first one checks readiness without queueing requests for missing content.
      * The second one seems to prevent checking agains exhaustion of gpu resources.
      */
-    export const DEFAULT_CHECKREADYFLAGS = {
+    export const DEFAULT_ISREADY_OPTIONS = {
         doNotLoad: false, doNotCheckGpu: false
     }
 
-    export type CheckReadyFlags = typeof DEFAULT_CHECKREADYFLAGS;
+    export type CheckReadyOptions = typeof DEFAULT_ISREADY_OPTIONS;
 }
