@@ -110,9 +110,10 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             if (tile.tileRenderRig[i])
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
+                            console.log(tile.resourceSurface);
+
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                tile.id,
-                                this.config,
+                                tile.resources, this.config,
                                 { bare: priority, full: priority });
                         }
 
