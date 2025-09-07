@@ -1,10 +1,9 @@
 
 import MapCredit_ from './credit';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import {utilsUrl as utilsUrl_} from '../utils/url';
 
 //get rid of compiler mess
-var utils = utils_;
 var utilsUrl = utilsUrl_;
 var MapCredit = MapCredit_;
 
@@ -86,7 +85,9 @@ MapBoundLayer.prototype.parseJson = function(json) {
         case 'classification': this.dataType = VTS_TEXTURETYPE_CLASS;  break;
     }
 
-    this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));    
+    // replacing the bizarre formula with a different heuristics...
+    //this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));
+    this.specificity = Math.pow(2, this.lodRange[1]) + this.lodRange[0] + 1;
 
     this.availability = json['availability'] ? {} : null;
 

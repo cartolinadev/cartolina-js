@@ -2,7 +2,7 @@ import MapCredit_ from './credit';
 import MapStylesheet_ from './stylesheet';
 import MapSurfaceTree_ from './surface-tree';
 import BBox_ from '../renderer/bbox';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import {utilsUrl as utilsUrl_} from '../utils/url';
 
 //get rid of compiler mess
@@ -10,7 +10,6 @@ var MapCredit = MapCredit_;
 var MapStylesheet = MapStylesheet_;
 var MapSurfaceTree = MapSurfaceTree_;
 var BBox = BBox_;
-var utils = utils_;
 var utilsUrl = utilsUrl_;
 
 
@@ -116,7 +115,8 @@ MapSurface.prototype.parseJson = function(json) {
         this.extents = new BBox(0,0,0,1,1,1);
     }
 
-    this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));    
+    this.specificity = Math.pow(2, this.lodRange[1]) + this.lodRange[0];
+    //this.specificity = Math.pow(2,this.lodRange[0]) / ((this.tileRange[1][0] - this.tileRange[1][0]+1)*(this.tileRange[1][1] - this.tileRange[1][1]+1));
     
     switch(typeof this.credits) {
     case 'string':

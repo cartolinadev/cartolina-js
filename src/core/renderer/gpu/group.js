@@ -2,7 +2,7 @@
 import {vec3 as vec3_, mat4 as mat4_} from '../../utils/matrix';
 import BBox_ from '../bbox';
 import {math as math_} from '../../utils/math';
-import {utils as utils_} from '../../utils/utils';
+import * as utils from '../../utils/utils';
 import {utilsUrl as utilsUrl_} from '../../utils/url';
 import MapResourceNode_ from '../../map/resource-node';
 //import MapGeodataImport3DTiles_ from '../../map/geodata-import/3dtiles';
@@ -14,7 +14,6 @@ import MapGeodataImportVTSTree_ from '../../map/geodata-import/vts-tree.js';
 var vec3 = vec3_, mat4 = mat4_;
 var BBox = BBox_;
 var math = math_;
-var utils = utils_;
 var MapResourceNode = MapResourceNode_;
 //var MapGeodataImport3DTiles = MapGeodataImport3DTiles_;
 //var MapGeodataImport3DTiles2 = MapGeodataImport3DTiles2_;

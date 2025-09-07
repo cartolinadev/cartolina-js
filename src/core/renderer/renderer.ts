@@ -1,7 +1,7 @@
 
 import {vec3, mat4} from '../utils/matrix';
 import {math} from '../utils/math';
-import {utils} from '../utils/utils';
+import * as utils from '../utils/utils';
 import GpuDevice from './gpu/device';
 import GpuProgram from './gpu/program';
 import GpuTexture from './gpu/texture';

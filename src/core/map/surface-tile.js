@@ -81,6 +81,10 @@ var MapSurfaceTile = function(map, parent, id) {
     this.boundresources = this.map.resourcesTree.findAgregatedNode(id, 8, true); //link to meta resource tree
     
     this.children = [null, null, null, null];
+
+    // temporary TileRenderRig (the new aproach to drawing mesh tiles) integration
+    this.tileRenderRig = [];
+    this.lastRenderRig = [];
 };
 
 

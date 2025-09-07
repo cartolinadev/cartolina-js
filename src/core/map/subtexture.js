@@ -1,9 +1,8 @@
 
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import GpuTexture_ from '../renderer/gpu/texture';
 
 //get rid of compiler mess
-var utils = utils_;
 var GpuTexture = GpuTexture_;
 
 

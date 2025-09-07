@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.49.17-ondra_cartolina23.5eff55c",
+  "version": "2.49.18-ondra_cartolina23.156be43",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -38,30 +38,29 @@
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
     "@playwright/test": "^1.55.0",
-    "babel-core": "^6.26.3",
     "babel-loader": "^8.4.1",
     "chai": "^4.2.0",
     "copy-webpack-plugin": "^6.0.2",
-    "css-loader": "^3.5.3",
+    "css-loader": "^7.1.2",
     "html-webpack-plugin": "^4.3.0",
     "husky": "^8.0.0",
     "install": "^0.13.0",
     "license-webpack-plugin": "^2.2.0",
     "mini-css-extract-plugin": "^2.9.3",
-    "mocha": "^7.2.0",
+    "mocha": "^11.7.2",
     "rimraf": "^3.0.2",
-    "serve": "^11.3.0",
+    "serve": "^14.2.5",
     "style-loader": "^1.2.1",
     "webpack": "^5.101.0",
     "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^5.2.2"
   },
   "dependencies": {
     "earcut": "^2.2.2",
     "geographiclib": "^1.50.0",
-    "npm": "^6.14.9",
+    "npm": "^10.9.3",
     "proj4": "^2.19.10",
     "ts-loader": "^8.4.0",
-    "typescript": "4.2"
+    "typescript": "^5.9.2"
   }
 }

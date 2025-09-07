@@ -1,6 +1,6 @@
 
 import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import {math as math_} from '../utils/math';
 import BBox_ from '../renderer/bbox';
 
@@ -8,7 +8,6 @@ import BBox_ from '../renderer/bbox';
 var vec3 = vec3_, mat4 = mat4_;
 var BBox = BBox_;
 var math = math_;
-var utils = utils_;
 
 
 var MapMetanode = function(metatile, id, stream, divisionNode) {

@@ -1,10 +1,9 @@
 
 import GpuTexture_ from './texture';
-import {utils as utils_} from '../../utils/utils';
+import * as utils from '../../utils/utils';
 
 //get rid of compiler mess
 var GpuTexture = GpuTexture_;
-var utils = utils_;
 
 
 var GpuFont = function(gpu, core, font, size, path) {

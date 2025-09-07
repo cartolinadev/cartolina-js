@@ -1,5 +1,5 @@
 
-import {utils} from '../../utils/utils';
+import * as utils from '../../utils/utils';
 import {GpuDevice} from 'device';
 
 type Optional<T> = T | null;

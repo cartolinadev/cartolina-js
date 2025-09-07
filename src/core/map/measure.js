@@ -1,12 +1,7 @@
 
-import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
-import GeographicLib_ from 'geographiclib';
-
-//get rid of compiler mess
-var vec3 = vec3_, mat4 = mat4_;
-var math = math_;
-var GeographicLib = GeographicLib_;
+import {vec3, mat4} from '../utils/matrix';
+import {math} from '../utils/math';
+import GeographicLib from 'geographiclib';
 
 
 var MapMeasure = function(map) {

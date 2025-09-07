@@ -1,14 +1,13 @@
 
 import {math as math_} from '../../utils/math';
 import {vec3 as vec3_} from '../../utils/matrix';
-import {utils as utils_} from '../../utils/utils';
+import * as utils from '../../utils/utils';
 import {utilsUrl as utilsUrl_} from '../../utils/url';
 
 
 //get rid of compiler mess
 var math = math_;
 var vec3 = vec3_;
-var utils = utils_;
 var utilsUrl = utilsUrl_;
 
 var MapGeodataImportVTSTree = function() {

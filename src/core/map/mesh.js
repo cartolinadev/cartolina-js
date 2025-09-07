@@ -841,6 +841,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         case VTS_MATERIAL_EXTERNAL:
         case VTS_MATERIAL_EXTERNAL_NOFOG:
 
+            // the bound layer texture trensformation, computed in MapTexture due to hieaarchy fallback
             t = texture.getTransform();
 
             m[0] = draw.zFactor, m[1] = (type == VTS_MATERIAL_EXTERNAL) ? draw.fogDensity : 0;

@@ -2,8 +2,7 @@
 import Dom_ from '../utility/dom';
 var dom = Dom_;
 
-import {utils as utils_} from '../../core/utils/utils';
-var utils = utils_;
+import * as utils from '../../core/utils/utils';
 
 import UIControlHolder_ from './control/holder';
 var UIControlHolder = UIControlHolder_;
@@ -51,7 +50,7 @@ var UI = function(browser, element) {
     this.controls = [];
     this.killed = false;
     this.init();
-    this.instanceId = utils.instanceCounter++;
+    //this.instanceId = utils.instanceCounter++;
 
     Object.defineProperty(this, 'dom', {
         get: function() {

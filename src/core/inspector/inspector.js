@@ -1,7 +1,7 @@
 
 import {mat4 as mat4_} from '../utils/matrix';
 import {math as math_} from '../utils/math';
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import InspectorInput_ from './input';
 import InspectorStats_ from './stats';
 import InspectorGraphs_ from './graphs';
@@ -12,7 +12,6 @@ import InspectorStylesheets_ from './stylesheets';
 //get rid of compiler mess
 var mat4 = mat4_;
 var math = math_;
-var utils = utils_;
 var InspectorInput = InspectorInput_;
 var InspectorStats = InspectorStats_;
 var InspectorGraphs = InspectorGraphs_;

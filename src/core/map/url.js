@@ -1,10 +1,9 @@
 
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import {utilsUrl as utilsUrl_} from '../utils/url';
 
 //get rid of compiler mess
 var utilsUrl = utilsUrl_;
-var utils = utils_;
 
 
 var MapUrl = function(map, path) {

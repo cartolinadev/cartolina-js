@@ -1,11 +1,9 @@
 
-import MapGeodataView_ from './geodata-view';
-import {utils as utils_} from '../utils/utils';
+import MapGeodataView from './geodata-view';
+import * as utils from '../utils/utils';
 import * as Illumination  from './illumination';
+import { TileRenderRig } from './tile-render-rig';
 
-//get rid of compiler mess
-var MapGeodataView = MapGeodataView_;
-var utils = utils_;
 
 
 var MapDrawTiles = function(map, draw) {
@@ -23,6 +21,7 @@ var MapDrawTiles = function(map, draw) {
     this.getTextSize = this.renderer.draw.getTextSize.bind(this.renderer.draw);
     this.drawText = this.renderer.draw.drawText.bind(this.renderer.draw);
     this.defaultColorPair = this.renderer.draw.constructor.defaultColorPair;
+
 };
 
 
@@ -30,8 +29,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
     if (this.stats.gpuRenderUsed >= this.draw.maxGpuUsed) {
         return false;
     }
-
-    //tile.renderReady = false;
     
     if (tile.surface) {
         if (node.hasGeometry()) {
@@ -90,12 +87,61 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 var ret;
 
                 if (!tile.surface.geodata) {
+
+
+                    // -- start tilerendrerig integration (temporary)
+                    if (!tile.surfaceMesh) {
+                        if (tile.resourceSurface.virtual) return true;
+
+                        let path = tile.resourceSurface.getMeshUrl(tile.id);
+                        tile.surfaceMesh = tile.resources.getMesh(path, tile);
+                    }
+
+                    // procsss credits here
+
+                    // iterate through submeshes
+                    for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
+
+                        // we are either drawing the tile for the first time, or
+                        // there has been a boundlayer fallback, or a view
+                        // has been switched
+                        if (!tile.tileRenderRig[i] || tile.resetDrawCommands || tile.updateBounds) {
+
+                            if (tile.tileRenderRig[i])
+                                tile.lastRenderRig[i] = tile.tileRenderRig[i];
+
+                            tile.tileRenderRig[i] = new TileRenderRig(
+                                tile.id,
+                                this.config,
+                                { bare: priority, full: priority });
+                        }
+
+                        // is the tile rig ready? Draw it. If not, use the last rig
+
+                        let curRig = tile.tileRenderRig[i], lastRig = tile.lastRenderRig[i];
+                        let readyOptions = { doNotLoad: preventLoad, doNotCheckGpu: doNotCheckGpu};
+
+                        let rigToDraw = curRig.isReady('fallback', 'full', readyOptions) ? curRig
+                            : lastRig && lastRig.isReady('fallback', 'fallback', readyOptions) ? lastRig : null;
+
+                        // draw
+                        if (rigToDraw && !preventRedener) {
+
+                            rigToDraw.draw();
+
+                            // TODO here: extract credits from mesh and active layers and
+                            // this.map.applyCredits(tile);
+                        }
+                    }
+
+                    // -- end tilerenderrig integration
+
+                    // we will remove this line once we get the new render rig working
                     ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
+
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 }
-
-                //if (count > 0) console.log('loop: ' + count);
 
                 count++;
 
@@ -111,7 +157,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
         }
     } else { // if (!tile.surface)
 
-        console.log('Surface-less id %s', tile.id);
+        //console.log('Surface-less id %s', tile.id);
 
         if (!preventRedener && tile.lastRenderState) {
             var channel = this.draw.drawChannel;
@@ -222,7 +268,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
             //set credits
             for (k = 0, lk = node.credits.length; k < lk; k++) {
-                tile.imageryCredits[node.credits[k]] = specificity;  
+                tile.imageryCredits[node.credits[k]] = specificity;
             }
         }
 
@@ -285,9 +331,12 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     bumps: bounds.bumps,
                                     textures: tile.boundTextures});
                             }
-                           
+
+                            //console.log(bounds);
+
                             // non-empty bound layer sequence
                             if (bounds.sequence.length > 0) {
+
                                 if (bounds.transparent) {
 
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && bounds.transparent

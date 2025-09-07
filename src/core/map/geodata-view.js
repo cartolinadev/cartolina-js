@@ -1,12 +1,11 @@
 
-import {mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
-import {utils as utils_} from '../utils/utils';
+import {mat4} from '../utils/matrix';
+import {math} from '../utils/math';
+import * as utils from '../utils/utils';
 import GpuGroup_ from '../renderer/gpu/group';
 import MapGeodataProcessor_ from './geodata-processor/processor';
 
 //get rid of compiler mess
-var mat4 = mat4_, math = math_, utils = utils_;
 var GpuGroup = GpuGroup_;
 var MapGeodataProcessor = MapGeodataProcessor_;
 

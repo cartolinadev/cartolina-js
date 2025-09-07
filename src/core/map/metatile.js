@@ -1,9 +1,8 @@
 
-import {utils as utils_} from '../utils/utils';
+import * as utils from '../utils/utils';
 import MapMetanode_ from './metanode';
 
 //get rid of compiler mess
-var utils = utils_;
 var MapMetanode = MapMetanode_;
 
 
