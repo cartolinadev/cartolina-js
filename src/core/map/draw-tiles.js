@@ -29,7 +29,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
     if (this.stats.gpuRenderUsed >= this.draw.maxGpuUsed) {
         return false;
     }
-    
+
     if (tile.surface) {
         if (node.hasGeometry()) {
 
@@ -68,7 +68,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
             }
 
             var count = 0;
-           
+
             do { // while (tile.resetDrawCommands)
 
                 if (tile.resetDrawCommands) {
@@ -88,7 +88,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                 if (!tile.surface.geodata) {
 
-
                     // -- start tilerendrerig integration (temporary)
                     if (!tile.surfaceMesh) {
                         if (tile.resourceSurface.virtual) return true;
@@ -96,6 +95,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         let path = tile.resourceSurface.getMeshUrl(tile.id);
                         tile.surfaceMesh = tile.resources.getMesh(path, tile);
                     }
+
+                    // submesh info does not exist until mesh is ready
+                    tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu);
 
                     // iterate through submeshes
                     for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
@@ -121,6 +123,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             : lastRig && lastRig.isReady('fallback', 'fallback', readyOptions) ? lastRig : null;
 
                         // draw
+                        //console.log(preventRedener);
+
                         if (rigToDraw && !preventRedener) {
 
                             rigToDraw.draw();
@@ -133,38 +137,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                      tile.imageryCredits[credits[k]] = layer.specificity;
 
                             })
+
+                            tile.addSubmeshCredits(i, rigToDraw.activeLayerIds());
+
+                            // extract and flush credits
+                            this.map.applyCredits(tile);
                         }
                     }
-
-                    // process surface credits and flush credits
-                    let specificity = 0;
-
-                    if (tile.surface.glue) {
-
-                        var surfaces = tile.surface.id;
-                        for (let i = 0, li = surfaces.length; i < li; i++) {
-                            var surface2 = this.map.getSurface(surfaces[i]);
-                            if (surface2) {
-                                specificity = Math.max(specificity, surface2.specificity);
-                            }
-                        }
-
-                        //set credits
-                        for (let k = 0, lk = node.credits.length; k < lk; k++) {
-                            tile.glueImageryCredits[node.credits[k]] = specificity;
-                        }
-
-                    } else {
-
-                        specificity = tile.surface.specificity;
-
-                        //set credits
-                        for (let k = 0, lk = node.credits.length; k < lk; k++) {
-                            tile.imageryCredits[node.credits[k]] = specificity;
-                        }
-                    }
-
-                    this.map.applyCredits(tile);
 
                     // -- end tilerenderrig integration
 
@@ -278,7 +257,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         }
         
         // extract specificity and credits from surfaces
-        if (surface.glue) {
+        /*if (surface.glue) {
 
             var surfaces = surface.id; 
             for (i = 0, li = surfaces.length; i < li; i++) {
@@ -301,7 +280,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             for (k = 0, lk = node.credits.length; k < lk; k++) {
                 tile.imageryCredits[node.credits[k]] = specificity;
             }
-        }
+        }*/
 
         // iterate through submeshes, preparing draw commands along the way
         for (i = 0, li = submeshes.length; i < li; i++) {
@@ -413,11 +392,13 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             tile.boundsDebug[surface.id].push(layers[j]);
 
                                             //set credits
-                                            layer = tile.boundLayers[layers[j]];
+                                            /*layer = tile.boundLayers[layers[j]];
                                             credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
                                                 tile.imageryCredits[credits[k]] = layer.specificity;  
-                                            }
+                                            }*/
+
+                                            tile.addSubmeshCredits(i, layers[j]);
 
                                             tile.drawCommands[0].push({
                                                 type : vts.DRAWCOMMAND_SUBMESH,
@@ -469,11 +450,13 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         tile.boundsDebug[surface.id].push(layerId);
                                         
                                         //set credits
-                                        layer = tile.boundLayers[layerId];
+                                        /*layer = tile.boundLayers[layerId];
                                         credits = layer.credits;
                                         for (k = 0, lk = credits.length; k < lk; k++) {
                                             tile.imageryCredits[credits[k]] = layer.specificity;  
-                                        }
+                                        }*/
+
+                                        tile.addSubmeshCredits(i, layerId);
 
                                         //console.log("Here 3.1");
                                         
@@ -511,12 +494,14 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             tile.boundsDebug[surface.id].push(layer.id);
                                             
                                             //set credits
-                                            layer = tile.boundLayers[layer.id];
+                                            /*layer = tile.boundLayers[layer.id];
                                             credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
                                                 tile.imageryCredits[credits[k]] = layer.specificity;  
-                                            }
-                                            
+                                            }*/
+
+                                            tile.addSubmeshCredits(i, layerId);
+
                                             //draw mesh
                                             tile.drawCommands[0].push({
                                                 type : vts.DRAWCOMMAND_SUBMESH,

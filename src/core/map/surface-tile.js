@@ -1847,6 +1847,46 @@ MapSurfaceTile.prototype.drawHmapTile = function(cameraPos, divNode, angle, pipe
     this.map.stats.drawnFaces += renderer.planeMesh2.polygons;
 }; 
 
+/**
+ * Extract credits for a tile submesh and add them to tile.[glueI|i]mageryCredits.
+ * The submeshes are presumed too follow the same orther as the components of
+ * the glue id.
+ */
+
+MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null) {
+
+    // process surface credits
+    if (this.surface.glue) {
+
+        let specificity
+            = this.map.getSurface(this.surface.id[index]).specificity;
+
+        //set credits
+        for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
+            this.glueImageryCredits[this.metanode.credits[k]] = specificity;
+
+    } else  {
+
+        let specificity = this.surface.specificity;
+
+        //set credits
+        for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
+            this.imageryCredits[this.metanode.credits[k]] = specificity;
+    }
+
+    // process bound layers
+    if (!activeLayers) activeLayers = this.boundLayers;
+    if (!Array.isArray(activeLayers)) activeLayers = [ activeLayers ];
+
+    activeLayers.forEach((id) => {
+
+        let layer = this.boundLayers[id];
+        let credits = layer.credits;
+        for (let k = 0; k < credits.length; k++)
+            this.imageryCredits[credits[k]] = layer.specificity;
+    });
+}
+
 
 export default MapSurfaceTile;
 
