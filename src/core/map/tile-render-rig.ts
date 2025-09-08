@@ -46,6 +46,7 @@ export class TileRenderRig {
 
     private mesh!: MapMesh;
     normalMap?: MapTexture;
+    internalTexture?: MapTexture;
 
     private illuminatedSubmesh!: boolean;
     private externalUVs!: boolean;
@@ -68,8 +69,6 @@ export class TileRenderRig {
          * normally happen in glues. Data design change would be needed to fix
          * this. */
 
-        console.log(surface);
-
         this.illuminatedSubmesh = surface.normalsUrl
             && renderer.getIlluminationState();
 
@@ -89,6 +88,9 @@ export class TileRenderRig {
 
         if (this.internalUVs) {
             // request internal texture
+            let path = tile.resourceSurface.getTextureUrl(tile.id, submeshIndex);
+            //this.internalTexture = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+
         }
 
         if (this.illuminatedSubmesh) {
