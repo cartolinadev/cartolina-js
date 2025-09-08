@@ -97,7 +97,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         tile.surfaceMesh = tile.resources.getMesh(path, tile);
                     }
 
-                    // procsss credits here
+                    // process credits here
 
                     // iterate through submeshes
                     for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
@@ -111,7 +111,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                tile.resources, this.renderer, this.config,
+                                i, tile, this.renderer, this.config,
                                 { bare: priority, full: priority });
                         }
 

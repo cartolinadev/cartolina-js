@@ -23,6 +23,7 @@ var MapSurface = function(map, json, type) {
     this.navDelta = 1;
     this.meshUrl = '';
     this.textureUrl = '';
+    this.normalsUrl = '';
     this.baseUrl = this.map.url.baseUrl;
     this.baseUrlSchema = this.map.url.baseUrlSchema;
     this.baseUrlOrigin = this.map.url.baseUrlOrigin;

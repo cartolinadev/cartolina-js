@@ -159,9 +159,13 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
     } else {
         var mode;
 
+        // WARN: the key bit causing mesh surface 'starvation' by geodata
         if (this.freeLayerSurface && this.freeLayerSurface.geodata) {
+            // default: fit => fast descent, populating of loader queue
+            // + massive additional boost in priority in the fit branch
             mode = map.config.mapGeodataLoadMode; 
         } else {
+            // default: topdown => slow descent, struggling for place in loader queue
             mode = map.config.mapLoadMode; 
         }
 

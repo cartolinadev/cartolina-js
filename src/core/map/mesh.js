@@ -106,14 +106,6 @@ MapMesh.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     var doNotUseGpu = (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed);
     doNotLoad = doNotLoad || doNotUseGpu;
 
-    //if (doNotUseGpu) {
-      //  doNotUseGpu = doNotUseGpu;
-    //}
-
-    //if (this.mapLoaderUrl == "https://cdn.vts.com/mario/proxy/melown2015/surface/vts/cz10/12-1107-688.bin?0") {
-      //  this.mapLoaderUrl = this.mapLoaderUrl;
-    //}
-
     if (this.loadState == 2) { //loaded
         if (this.cacheItem) {
             this.map.resourcesCache.updateItem(this.cacheItem);

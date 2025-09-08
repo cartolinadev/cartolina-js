@@ -1,19 +1,12 @@
 
 
-import MapTexture_ from './texture';
-import MapSubtexture_ from './subtexture';
-import MapMetatile_ from './metatile';
-import MapMesh_ from './mesh';
-import MapGeodata_ from './geodata';
-import MapPointCloud_ from './pointcloud';
+import MapTexture from './texture';
+import MapSubtexture from './subtexture';
+import MapMetatile from './metatile';
+import MapMesh from './mesh';
+import MapGeodata from './geodata';
+import MapPointCloud from './pointcloud';
 
-//get rid of compiler mess
-var MapTexture = MapTexture_;
-var MapSubtexture = MapSubtexture_;
-var MapMetatile = MapMetatile_;
-var MapMesh = MapMesh_;
-var MapGeodata = MapGeodata_;
-var MapPointCloud = MapPointCloud_;
 
 export class MapResourceNode {
 
