@@ -5,6 +5,8 @@ import BBox_ from '../renderer/bbox';
 import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
 
+import * as vts from '../constants';
+
 
 //get rid of compiler mess
 var mat4 = mat4_;
@@ -382,15 +384,15 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 
     if (useSuperElevation) str += '#define applySE\n';
 
-    if (v & VTS_TILE_SHADER_BLEND_MULTIPLY) {
+    if (v & vts.TILE_SHADER_BLEND_MULTIPLY) {
         str += '#define blendMultiply\n';
     }
 
-    if (v & VTS_TILE_SHADER_ILLUMINATION) {
+    if (v & vts.TILE_SHADER_ILLUMINATION) {
         str += '#define shader_illumination\n';
     }
 
-    if (v & VTS_TILE_SHADER_WHITEWASH) {
+    if (v & vts.TILE_SHADER_WHITEWASH) {
         str += '#define whitewash\n';
     }
 
@@ -430,24 +432,24 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
     var useSuperElevation = renderer.useSuperElevation;
     var attributes = ['aPosition'];
-    var v = (useSuperElevation) ? VTS_TILE_SHADER_SE : 0;
+    var v = (useSuperElevation) ? vts.TILE_SHADER_SE : 0;
     let whitewash = null;
 
     if (splitMask) {
-        v |= VTS_TILE_SHADER_CLIP4;
+        v |= vts.TILE_SHADER_CLIP4;
 
-        if (type != VTS_MATERIAL_EXTERNAL && type != VTS_MATERIAL_INTERNAL_NOFOG) {
+        if (type != vts.MATERIAL_EXTERNAL && type != vts.MATERIAL_INTERNAL_NOFOG) {
             texcoords2Attr = 'aTexCoord2';
             attributes.push('aTexCoord2');
         }
     }
 
     if (blending == 'multiply') {
-        v |= VTS_TILE_SHADER_BLEND_MULTIPLY;
+        v |= vts.TILE_SHADER_BLEND_MULTIPLY;
     }
 
     if (normalMap && renderer.shaderIllumination) {
-       v |= VTS_TILE_SHADER_ILLUMINATION;
+       v |= vts.TILE_SHADER_ILLUMINATION;
 
        texcoords2Attr = 'aTexCoord2';
        attributes.push('aTexCoord2');
@@ -456,7 +458,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     if (layer && layer.shaderFilters && layer.shaderFilters[surface.id] &&
         layer.shaderFilters[surface.id].whitewash) {
 
-        v |= VTS_TILE_SHADER_WHITEWASH;
+        v |= vts.TILE_SHADER_WHITEWASH;
         whitewash = layer.shaderFilters[surface.id].whitewash;
     }
 
@@ -469,14 +471,14 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         this.stats.meshesFaces += submesh.faces;
     }
 
-    if (type == VTS_MATERIAL_DEPTH) {
+    if (type == vts.MATERIAL_DEPTH) {
         program = renderer.progDepthTile[v];
 
         if (!program) {
             program = this.generateTileShader(renderer.progDepthTile, v, useSuperElevation, splitMask);
         }
 
-    } else if (type == VTS_MATERIAL_FLAT) {
+    } else if (type == vts.MATERIAL_FLAT) {
         program = renderer.progFlatShadeTile[v];
 
         if (!program) {
@@ -484,7 +486,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         }
 
     } else {
-        if (drawWireframe > 0 && type == VTS_MATERIAL_FOG) {
+        if (drawWireframe > 0 && type == vts.MATERIAL_FOG) {
             return;
         }
 
@@ -497,8 +499,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
         } else {
             switch(type) {
-            case VTS_MATERIAL_INTERNAL:
-            case VTS_MATERIAL_INTERNAL_NOFOG:
+            case vts.MATERIAL_INTERNAL:
+            case vts.MATERIAL_INTERNAL_NOFOG:
 
                 texcoordsAttr = 'aTexCoord';
                 attributes.push('aTexCoord');
@@ -511,8 +513,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
                 break;
 
-            case VTS_MATERIAL_EXTERNAL:
-            case VTS_MATERIAL_EXTERNAL_NOFOG:
+            case vts.MATERIAL_EXTERNAL:
+            case vts.MATERIAL_EXTERNAL_NOFOG:
 
                 var prog = renderer.progTile2;
 
@@ -632,7 +634,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 attributes.push('aTexCoord2');
                 break;
 
-            case VTS_MATERIAL_FOG:
+            case vts.MATERIAL_FOG:
                 program = renderer.progFogTile[v];
 
                 if (!program) {
@@ -673,7 +675,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         } else {
             return;
         }
-    } else if (type != VTS_MATERIAL_FOG && type != VTS_MATERIAL_DEPTH && type != VTS_MATERIAL_FLAT) {
+    } else if (type != vts.MATERIAL_FOG && type != vts.MATERIAL_DEPTH && type != vts.MATERIAL_FLAT) {
         return;
     }
 
@@ -814,11 +816,11 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         var cv = this.map.camera.vector2, c = draw.atmoColor, t, bmin = submesh.bbox.min, bmax = submesh.bbox.max;
 
         switch(type) {
-        case VTS_MATERIAL_INTERNAL:
-        case VTS_MATERIAL_FOG:
-        case VTS_MATERIAL_INTERNAL_NOFOG:
+        case vts.MATERIAL_INTERNAL:
+        case vts.MATERIAL_FOG:
+        case vts.MATERIAL_INTERNAL_NOFOG:
 
-            m[0] = draw.zFactor, m[1] = (type == VTS_MATERIAL_INTERNAL_NOFOG) ? 0 : draw.fogDensity;
+            m[0] = draw.zFactor, m[1] = (type == vts.MATERIAL_INTERNAL_NOFOG) ? 0 : draw.fogDensity;
             m[2] = bmax[0] - bmin[0], m[3] = bmax[1] - bmin[1],
             m[4] = cv[0], m[5] = cv[1], m[6] = cv[2], m[7] = cv[3],
             m[12] = bmax[2] - bmin[2], m[13] = bmin[0], m[14] = bmin[1], m[15] = bmin[2];
@@ -830,13 +832,13 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
             break;
 
-        case VTS_MATERIAL_EXTERNAL:
-        case VTS_MATERIAL_EXTERNAL_NOFOG:
+        case vts.MATERIAL_EXTERNAL:
+        case vts.MATERIAL_EXTERNAL_NOFOG:
 
             // the bound layer texture trensformation, computed in MapTexture due to hieaarchy fallback
             t = texture.getTransform();
 
-            m[0] = draw.zFactor, m[1] = (type == VTS_MATERIAL_EXTERNAL) ? draw.fogDensity : 0;
+            m[0] = draw.zFactor, m[1] = (type == vts.MATERIAL_EXTERNAL) ? draw.fogDensity : 0;
             m[2] = bmax[0] - bmin[0], m[3] = bmax[1] - bmin[1],
             m[4] = cv[0], m[5] = cv[1], m[6] = cv[2], m[7] = cv[3],
             m[8] = t[0], m[9] = t[1], m[10] = t[2], m[11] = t[3],
@@ -860,7 +862,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 }
             }
 
-            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == VTS_MATERIAL_EXTERNAL) ? 1 : alpha_;
+            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == vts.MATERIAL_EXTERNAL) ? 1 : alpha_;
             program.setVec4('uParams2', v);
 
             break;

@@ -1,6 +1,8 @@
 
 import MapSubtexture_ from './subtexture';
 
+import * as vts from '../constants';
+
 //get rid of compiler mess
 var MapSubtexture = MapSubtexture_;
 
@@ -25,7 +27,7 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.neverReady = false;
     this.maskTexture = null;
     this.mapLoaderUrl = path;
-    this.type = type || VTS_TEXTURETYPE_COLOR;
+    this.type = type || vts.TEXTURETYPE_COLOR;
     this.extraBound = extraBound;
     this.extraInfo = extraInfo;
     this.statsCounter = 0;
@@ -42,9 +44,9 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
         if (layer.availability) {
             this.checkType = layer.availability.type;
             switch (this.checkType) {
-            case VTS_TEXTURECHECK_TYPE: this.checkValue = layer.availability.mime; break;
-            case VTS_TEXTURECHECK_CODE: this.checkValue = layer.availability.codes; break;
-            case VTS_TEXTURECHECK_SIZE: this.checkValue = layer.availability.size; break;
+            case vts.TEXTURECHECK_TYPE: this.checkValue = layer.availability.mime; break;
+            case vts.TEXTURECHECK_CODE: this.checkValue = layer.availability.codes; break;
+            case vts.TEXTURECHECK_SIZE: this.checkValue = layer.availability.size; break;
             }
         }       
     }
@@ -179,7 +181,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     } // if (this.extraBound)
 
     switch (this.checkType) {
-    case VTS_TEXTURECHECK_MEATATILE:
+    case vts.TEXTURECHECK_MEATATILE:
 
 //        if (this.checkStatus != 2) {
             if (this.checkStatus == 0) { // not checked
@@ -200,9 +202,9 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         this.extraInfo.metaPath = path;
                     }
 
-                    // type = VTS_TEXTURETYPE_HEIGHT ensures we get an RGBA array instead of brwoser-native bitmap
+                    // type = vts.TEXTURETYPE_HEIGHT ensures we get an RGBA array instead of brwoser-native bitmap
                     var texture = metaresources.getTexture(path,
-                        VTS_TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
+                        vts.TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
                         
                     if (this.maskTexture) {
                         if (this.maskTexture.isReady(doNotLoad, priority, doNotCheckGpu, this)) {
@@ -306,7 +308,7 @@ MapTexture.prototype.isMaskPosible = function() {
         }
     }
 
-    if (texture.checkType == VTS_TEXTURECHECK_MEATATILE) {
+    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
         return true;
     } else {
         return false;
@@ -322,7 +324,7 @@ MapTexture.prototype.isMaskInfoReady = function() {
         }
     }
 
-    if (texture.checkType == VTS_TEXTURECHECK_MEATATILE) {
+    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
         if (this.maskTexture || texture.checkStatus == 2 || texture.checkStatus ==  -1) {
             return true;
         }

@@ -3,6 +3,8 @@ import MapCredit_ from './credit';
 import * as utils from '../utils/utils';
 import {utilsUrl as utilsUrl_} from '../utils/url';
 
+import * as vts from '../constants';
+
 //get rid of compiler mess
 var utilsUrl = utilsUrl_;
 var MapCredit = MapCredit_;
@@ -22,7 +24,7 @@ var MapBoundLayer = function(map, json, id) {
     this.baseUrlSchema = this.map.url.baseUrlSchema;
     this.baseUrlOrigin = this.map.url.baseUrlOrigin;
     this.ready = false;
-    this.dataType = VTS_TEXTURETYPE_COLOR;
+    this.dataType = vts.TEXTURETYPE_COLOR;
 
     this.shaderFilters = null;
 
@@ -80,9 +82,9 @@ MapBoundLayer.prototype.parseJson = function(json) {
 
     switch(json['dataType']) {
         default:
-        case 'color':          this.dataType = VTS_TEXTURETYPE_COLOR;  break;
-        case 'height':         this.dataType = VTS_TEXTURETYPE_HEIGHT; break;
-        case 'classification': this.dataType = VTS_TEXTURETYPE_CLASS;  break;
+        case 'color':          this.dataType = vts.TEXTURETYPE_COLOR;  break;
+        case 'height':         this.dataType = vts.TEXTURETYPE_HEIGHT; break;
+        case 'classification': this.dataType = vts.TEXTURETYPE_CLASS;  break;
     }
 
     // replacing the bizarre formula with a different heuristics...
@@ -95,9 +97,9 @@ MapBoundLayer.prototype.parseJson = function(json) {
         var p = json['availability'];
 
         switch(p['type']) {
-            case 'negative-type': this.availability.type = VTS_TEXTURECHECK_TYPE; break;
-            case 'negative-code': this.availability.type = VTS_TEXTURECHECK_CODE; break;
-            case 'negative-size': this.availability.type = VTS_TEXTURECHECK_SIZE; break;
+            case 'negative-type': this.availability.type = vts.TEXTURECHECK_TYPE; break;
+            case 'negative-code': this.availability.type = vts.TEXTURECHECK_CODE; break;
+            case 'negative-size': this.availability.type = vts.TEXTURECHECK_SIZE; break;
         }
 
         this.availability.mime = p['mime'];
@@ -108,7 +110,7 @@ MapBoundLayer.prototype.parseJson = function(json) {
 
     if (this.metaUrl && this.maskUrl) {
         this.availability = {
-            type : VTS_TEXTURECHECK_MEATATILE
+            type : vts.TEXTURECHECK_MEATATILE
         };
     }
 

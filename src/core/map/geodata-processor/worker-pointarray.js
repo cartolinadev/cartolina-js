@@ -6,6 +6,8 @@ import {addText as addText_, getSplitIndex as getSplitIndex_, getTextGlyphs as g
         areTextCharactersAvailable as areTextCharactersAvailable_, getCharVerticesCount as getCharVerticesCount_, getLineHeight as getLineHeight_} from './worker-text.js';
 import {postGroupMessageFast as postGroupMessageFast_} from './worker-message.js';
 
+import * as vts from '../../constants';
+
 //get rid of compiler mess
 var globals = globals_, clamp = clamp_;
 var getLayerPropertyValue = getLayerPropertyValue_, getLayerExpresionValue = getLayerExpresionValue_;
@@ -515,14 +517,14 @@ var processPointArrayPass = function(pointArray, lod, style, featureIndex, zInde
 
     if (point) {
         if (pointFlat) {
-            postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_FLAT_LINE, {
+            postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_FLAT_LINE, {
                 'color':pointColor, 'z-index':zIndex, 'visibility': visibility, 'center': center,
                 'hover-event':hoverEvent, 'click-event':clickEvent, 'draw-event':drawEvent, 'advancedHit': advancedHit,
                 'enter-event':enterEvent, 'leave-event':leaveEvent, 'zbuffer-offset':zbufferOffset,
                 'hitable':hitable, 'state':globals.hitState, 'eventInfo': (globals.alwaysEventInfo || hitable || drawEvent) ? eventInfo : {}, 
                 'lod':(globals.autoLod ? null : globals.tileLod) }, [vertexBuffer], signature);
         } else {
-            postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_PIXEL_LINE, {
+            postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_PIXEL_LINE, {
                 'color':pointColor, 'z-index':zIndex, 'visibility': visibility, 'center': center,
                 'hover-event':hoverEvent, 'click-event':clickEvent, 'draw-event':drawEvent,
                 'enter-event':enterEvent, 'leave-event':leaveEvent, 'zbuffer-offset':zbufferOffset,
@@ -544,8 +546,8 @@ var processPointArrayPass = function(pointArray, lod, style, featureIndex, zInde
 
                 if (iconData.noOverlapFactor !== null) {
                     switch(iconData.noOverlapFactor[0]) {
-                        case 'direct':      factorType = VTS_NO_OVERLAP_DIRECT;      break;
-                        case 'div-by-dist': factorType = VTS_NO_OVERLAP_DIV_BY_DIST; break;
+                        case 'direct':      factorType = vts.NO_OVERLAP_DIRECT;      break;
+                        case 'div-by-dist': factorType = vts.NO_OVERLAP_DIV_BY_DIST; break;
                     }
 
                     factorValue = iconData.noOverlapFactor[1];
@@ -556,7 +558,7 @@ var processPointArrayPass = function(pointArray, lod, style, featureIndex, zInde
 
             if ((iconData.singleBuffer && iconData.singleBuffer.length > 0) || (iconData.vertexBuffer && iconData.vertexBuffer.length > 0)) {
 
-                postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, (iconData.singleBuffer) ? VTS_WORKER_TYPE_ICON : VTS_WORKER_TYPE_ICON2, {
+                postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, (iconData.singleBuffer) ? vts.WORKER_TYPE_ICON : vts.WORKER_TYPE_ICON2, {
                     'icon':globals.stylesheetBitmaps[iconData.source[0]], 'color':iconData.color, 'z-index':zIndex,
                     'visibility': visibility, 'culling': culling, 'center': pp2, 'stick': iconData.stick,
                     'hover-event':hoverEvent, 'click-event':clickEvent, 'draw-event':drawEvent, 'advancedHit': advancedHit,
@@ -582,8 +584,8 @@ var processPointArrayPass = function(pointArray, lod, style, featureIndex, zInde
 
                 if (labelData.noOverlapFactor !== null) {
                     switch(labelData.noOverlapFactor[0]) {
-                        case 'direct':      factorType = VTS_NO_OVERLAP_DIRECT;      break;
-                        case 'div-by-dist': factorType = VTS_NO_OVERLAP_DIV_BY_DIST; break;
+                        case 'direct':      factorType = vts.NO_OVERLAP_DIRECT;      break;
+                        case 'div-by-dist': factorType = vts.NO_OVERLAP_DIV_BY_DIST; break;
                     }
 
                     factorValue = labelData.noOverlapFactor[1];
@@ -594,7 +596,7 @@ var processPointArrayPass = function(pointArray, lod, style, featureIndex, zInde
 
             if ((labelData.singleBuffer && labelData.singleBuffer.length > 0) || (labelData.vertexBuffer && labelData.vertexBuffer.length > 0)) {
 
-                postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, (labelData.singleBuffer) ? VTS_WORKER_TYPE_LABEL : VTS_WORKER_TYPE_LABEL2, {
+                postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, (labelData.singleBuffer) ? vts.WORKER_TYPE_LABEL : vts.WORKER_TYPE_LABEL2, {
                     'size':labelData.size, 'origin':labelData.pos, 'color':labelData.color,
                     'color2':labelData.color2, 'outline':labelData.outline, 'z-index':zIndex, 'visibility': visibility,
                     'culling': culling, 'center': pp2, 'stick': labelData.stick, 'noOverlap' : (labelData.noOverlap ? noOverlap: null),
@@ -715,7 +717,7 @@ var processPointArrayVSwitchPass = function(pointArray, lod, style, featureIndex
     globals.signatureCounter++;
     var signature = (""+globals.signatureCounter);
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_VSPOINT, {
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_VSPOINT, {
         'z-index':zIndex, 'hysteresis' : hysteresis,
         'visibility': visibility, 'culling': culling, 'center': center, 'eventInfo': {} /*(globals.alwaysEventInfo || hitable || drawEvent) ? eventInfo : {}*/,
          'index': featureIndex, 'lod':(globals.autoLod ? null : globals.tileLod) }, [], signature);
@@ -1092,7 +1094,7 @@ var processPointArrayGeometry = function(pointArray) {
     }
 
     globals.signatureCounter++;
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_POINT_GEOMETRY, {
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_POINT_GEOMETRY, {
         'id':pointArray['id'] }, [geometryBuffer, indicesBuffer], (""+globals.signatureCounter));
 };
 

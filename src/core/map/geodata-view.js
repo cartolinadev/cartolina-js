@@ -5,6 +5,8 @@ import * as utils from '../utils/utils';
 import GpuGroup_ from '../renderer/gpu/group';
 import MapGeodataProcessor_ from './geodata-processor/processor';
 
+import * as vts from '../constants';
+
 //get rid of compiler mess
 var GpuGroup = GpuGroup_;
 var MapGeodataProcessor = MapGeodataProcessor_;
@@ -85,7 +87,7 @@ MapGeodataView.prototype.processPackedCommands = function(buffer, index) {
         var command = buffer[index]; index += 1;
 
         switch(command) {
-            case VTS_WORKERCOMMAND_GROUP_BEGIN:
+            case vts.WORKERCOMMAND_GROUP_BEGIN:
                 index += 1;
                 length = view.getUint32(index); index += 4;
                 str = utils.unint8ArrayToString(new Uint8Array(buffer.buffer, index, length)); index+= length;
@@ -94,19 +96,19 @@ MapGeodataView.prototype.processPackedCommands = function(buffer, index) {
                 this.currentGpuGroup = new GpuGroup(data['id'], data['bbox'], data['origin'], this.gpu, this.renderer);
                 this.gpuGroups.push(this.currentGpuGroup);
 
-                //console.log('VTS_WORKERCOMMAND_GROUP_BEGIN ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
+                //console.log('vts.WORKERCOMMAND_GROUP_BEGIN ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
                 break;
 
-            case VTS_WORKERCOMMAND_GROUP_END:
+            case vts.WORKERCOMMAND_GROUP_END:
                 this.size += this.currentGpuGroup.size; index += 1 + 4;
-                //console.log('VTS_WORKERCOMMAND_GROUP_END ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
+                //console.log('vts.WORKERCOMMAND_GROUP_END ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
                 break;
 
-            case VTS_WORKERCOMMAND_ADD_RENDER_JOB:
+            case vts.WORKERCOMMAND_ADD_RENDER_JOB:
                 index = this.currentGpuGroup.addRenderJob2(buffer, index, this.tile);
                 break;
 
-            case VTS_WORKERCOMMAND_ALL_PROCESSED:
+            case vts.WORKERCOMMAND_ALL_PROCESSED:
                 this.map.markDirty();
                 this.gpuCacheItem = this.map.gpuCache.insert(this.killGeodataView.bind(this, true), this.size);
 
@@ -116,7 +118,7 @@ MapGeodataView.prototype.processPackedCommands = function(buffer, index) {
                 this.ready = true;
                 this.processing = false;
 
-                //console.log('VTS_WORKERCOMMAND_ALL_PROCESSED ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
+                //console.log('vts.WORKERCOMMAND_ALL_PROCESSED ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
 
                 index += 1 + 4;
                 break;
@@ -199,14 +201,14 @@ MapGeodataView.prototype.onGeodataProcessorMessage = function(command, message, 
 
 MapGeodataView.prototype.directParseNode = function(node, lod) {
 
-    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: VTS_WORKER_TYPE_NODE_BEGIN, data: {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }});
+    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_NODE_BEGIN, data: {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }});
 
     var meshes = node['meshes'] || [];
     var i, li;
 
     //loop elements
     for (i = 0, li = meshes.length; i < li; i++) {
-        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: VTS_WORKER_TYPE_MESH, data: { 'path':meshes[i] } });
+        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_MESH, data: { 'path':meshes[i] } });
     }
 
     var nodes = node['nodes'] || [];
@@ -218,10 +220,10 @@ MapGeodataView.prototype.directParseNode = function(node, lod) {
     var loadNodes = node['loadNodes'] || [];
 
     for (i = 0, li = loadNodes.length; i < li; i++) {
-        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: VTS_WORKER_TYPE_LOAD_NODE, data: { 'path':loadNodes[i] } });
+        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_LOAD_NODE, data: { 'path':loadNodes[i] } });
     }
 
-    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: VTS_WORKER_TYPE_NODE_END, data: {} });
+    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_NODE_END, data: {} });
 
 };
 
@@ -235,13 +237,13 @@ MapGeodataView.prototype.directParse = function(data) {
 
     for (var i = 0, li = nodes.length; i < li; i++) {
         
-        //VTS_WORKERCOMMAND_GROUP_BEGIN
+        //vts.WORKERCOMMAND_GROUP_BEGIN
         this.currentGpuGroup = new GpuGroup(null /*data['id']*/, null /*data['bbox']*/, null /*data['origin']*/, this.gpu, this.renderer);
         this.gpuGroups.push(this.currentGpuGroup);
     
         this.directParseNode(nodes[i], 0);
     
-        //VTS_WORKERCOMMAND_GROUP_END:
+        //vts.WORKERCOMMAND_GROUP_END:
         this.size += this.currentGpuGroup.size;
     }
 };
