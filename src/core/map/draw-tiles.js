@@ -97,8 +97,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         tile.surfaceMesh = tile.resources.getMesh(path, tile);
                     }
 
-                    // process credits here
-
                     // iterate through submeshes
                     for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
 
@@ -116,7 +114,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         }
 
                         // is the tile rig ready? Draw it. If not, use the last rig
-
                         let curRig = tile.tileRenderRig[i], lastRig = tile.lastRenderRig[i];
                         let readyOptions = { doNotLoad: preventLoad, doNotCheckGpu: doNotCheckGpu};
 
@@ -128,10 +125,46 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                             rigToDraw.draw();
 
-                            // TODO here: extract credits from mesh and active layers and
-                            // this.map.applyCredits(tile);
+                            // process layer credits (only active layers)
+                            rigToDraw.activeLayerIds().forEach((id) => {
+                                let layer = tile.boundLayers[id];
+                                let credits = layer.credits;
+                                for (k = 0; k < credits.length; k++)
+                                     tile.imageryCredits[credits[k]] = layer.specificity;
+
+                            })
                         }
                     }
+
+                    // process surface credits and flush credits
+                    let specificity = 0;
+
+                    if (tile.surface.glue) {
+
+                        var surfaces = tile.surface.id;
+                        for (let i = 0, li = surfaces.length; i < li; i++) {
+                            var surface2 = this.map.getSurface(surfaces[i]);
+                            if (surface2) {
+                                specificity = Math.max(specificity, surface2.specificity);
+                            }
+                        }
+
+                        //set credits
+                        for (let k = 0, lk = node.credits.length; k < lk; k++) {
+                            tile.glueImageryCredits[node.credits[k]] = specificity;
+                        }
+
+                    } else {
+
+                        specificity = tile.surface.specificity;
+
+                        //set credits
+                        for (let k = 0, lk = node.credits.length; k < lk; k++) {
+                            tile.imageryCredits[node.credits[k]] = specificity;
+                        }
+                    }
+
+                    this.map.applyCredits(tile);
 
                     // -- end tilerenderrig integration
 
@@ -244,7 +277,6 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             surface = tile.surface;
         }
         
-
         // extract specificity and credits from surfaces
         if (surface.glue) {
 

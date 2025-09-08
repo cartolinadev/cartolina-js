@@ -8,6 +8,8 @@ import MapMesh from 'mesh';
 import MapTexture from 'texture';
 import Renderer from '../renderer/renderer';
 
+import * as vts from '../constants';
+
 
 //import * as utils from '../utils/utils';
 
@@ -48,11 +50,15 @@ export class TileRenderRig {
     normalMap?: MapTexture;
     internalTexture?: MapTexture;
 
-    private illuminatedSubmesh!: boolean;
-    private externalUVs!: boolean;
-    private internalUVs!: boolean;
+    rt = {
+        illumination: false,
+        normals: false,
+        externalUVs: false,
+        internalUVs: false
+    }
 
-    constructor(submeshIndex: number, tile: SurfaceTile, renderer: Renderer, config: Config,
+    constructor(submeshIndex: number, tile: SurfaceTile, renderer: Renderer,
+        config: Config,
         priority: TileRenderRig.Priority = TileRenderRig.DEFAULT_PRIORITY) {
 
         this.tile = tile;
@@ -64,20 +70,19 @@ export class TileRenderRig {
         // examine surface
         const surface = tile.resourceSurface;
 
-        /* WARN: this logic does not allow to have illuminated and
-         * non-illuminated submeshes within the same surface. This would
-         * normally happen in glues. Data design change would be needed to fix
-         * this. */
 
-        this.illuminatedSubmesh = surface.normalsUrl
-            && renderer.getIlluminationState();
+        this.rt.illumination = this.renderer.getIlluminationState()
+
+        /** WARN: glues currently don't carry normalsUrls, so normal information
+           is lost even when the original surface carried it. */
+        this.rt.normals = surface.normalsUrl && ! config.mapNoNormalMaps;
 
         // unlike the old pipeline, we guess the presence of external and internal
         // UVs from surface definition. If the surface publishes texture URLs
         // its meshes are expected to carry internal UVs and the surface is
         // expected to provide internal textures.
-        this.internalUVs = !! surface.textureUrl;
-        this.externalUVs = !! surface.normalsUrl
+        this.rt.internalUVs = !! surface.textureUrl;
+        this.rt.externalUVs = !! surface.normalsUrl
             || surface.boundLayerSequence.length > 0
             || surface.specularSequence.length > 0
             || surface.bumpSequence.length > 0;
@@ -86,17 +91,20 @@ export class TileRenderRig {
         // build the layer stack - this may change the flags above
         this.buildLayerStack();
 
-        if (this.internalUVs) {
+        if (this.rt.internalUVs) {
             // request internal texture
             let path = tile.resourceSurface.getTextureUrl(tile.id, submeshIndex);
-            //this.internalTexture = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+            this.internalTexture = tile.resources.getTexture(
+                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
 
         }
 
-        if (this.illuminatedSubmesh) {
+        if (this.rt.normals) {
+
+            // request normal map
             let path = surface.getNormalsUrl(tile.id, submeshIndex);
-            //this.normalMap = tile.resources.getTexture(
-            //    path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+            this.normalMap = tile.resources.getTexture(
+                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
         }
 
     }
@@ -118,7 +126,9 @@ export class TileRenderRig {
      * that will be actually used in rendering. This is used for assembling tile
      * credits.
      */
-    activeLayerIds(): string[] { return []; }
+    activeLayerIds(): string[] {
+        // TODO
+        return []; }
 
 
     private buildLayerStack() {
@@ -134,6 +144,9 @@ export class TileRenderRig {
 
 type Config = {
     [key: string]: boolean | number | string | number[];
+
+    // do not download or use normal maps (use GL derivatives instead)
+    mapNoNormalMaps?: boolean;
 }
 
 type SurfaceTile = {
