@@ -7,6 +7,8 @@ import MapDrawTiles_ from './draw-tiles';
 import * as Illumination from './illumination';
 import { TextureBlend } from '../renderer/textureblend';
 
+import * as vts from '../constants';
+
 
 //get rid of compiler mess
 var vec3 = vec3_;
@@ -661,11 +663,11 @@ MapDraw.prototype.getDrawCommandsGpuSize = function(commands) {
         
         switch (command.type) {
 
-        case VTS_DRAWCOMMAND_APPLY_BUMPS:
+        case vts.DRAWCOMMAND_APPLY_BUMPS:
             gpuNeeded += command.normalMap.getGpuSize();
             break;
 
-        case VTS_DRAWCOMMAND_SUBMESH:
+        case vts.DRAWCOMMAND_SUBMESH:
                
             var mesh = command.mesh; 
             var texture = this.config.mapNoTextures ? 0 : command.texture; 
@@ -680,7 +682,7 @@ MapDraw.prototype.getDrawCommandsGpuSize = function(commands) {
                 
             break;
 
-        case VTS_DRAWCOMMAND_GEODATA:
+        case vts.DRAWCOMMAND_GEODATA:
                 
             var geodataView = command.geodataView; 
                 
@@ -704,7 +706,7 @@ MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad,
         var command = commands[i];
         
         switch (command.type) {
-        case VTS_DRAWCOMMAND_SUBMESH:
+        case vts.DRAWCOMMAND_SUBMESH:
 
             /* // long dead
              var pipeline = command.pipeline;
@@ -748,7 +750,7 @@ MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad,
 
             break;
 
-        case VTS_DRAWCOMMAND_GEODATA:
+        case vts.DRAWCOMMAND_GEODATA:
                 
             var geodataView = command.geodataView; 
                 
@@ -780,7 +782,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
         let command = commands[i];
 
-        if (command.type === VTS_DRAWCOMMAND_SUBMESH && command.alpha
+        if (command.type === vts.DRAWCOMMAND_SUBMESH && command.alpha
             && command.alpha.mode === 'viewdep') {
 
                 command.runtime.vdalpha = math.clamp(
@@ -804,7 +806,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
             let command = commands[i];
 
-            if (command.type === VTS_DRAWCOMMAND_SUBMESH && command.alpha
+            if (command.type === vts.DRAWCOMMAND_SUBMESH && command.alpha
                 && command.alpha.mode === 'viewdep') {
 
                     command.runtime.vdalphan =
@@ -824,11 +826,11 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
         // the meat of the rendering pipeline follows
 
         switch (command.type) {
-        case VTS_DRAWCOMMAND_STATE:
+        case vts.DRAWCOMMAND_STATE:
             this.renderer.gpu.setState(command.state);
             break;
 
-        case VTS_DRAWCOMMAND_APPLY_BUMPS:
+        case vts.DRAWCOMMAND_APPLY_BUMPS:
             // normal map not ready? Nothing to do, yet.
             if (!command.normalMap.isReady(doNotLoad, priority)) continue;
 
@@ -887,7 +889,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
             break;
 
-        case VTS_DRAWCOMMAND_SUBMESH:
+        case vts.DRAWCOMMAND_SUBMESH:
 
             //console.log(command);
 
@@ -952,10 +954,10 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                     // the syntax is odd, but there is lots of other materials
                     switch (material) {
                             //case "fog":
-                    case VTS_MATERIAL_EXTERNAL:
-                    case VTS_MATERIAL_INTERNAL:
+                    case vts.MATERIAL_EXTERNAL:
+                    case vts.MATERIAL_INTERNAL:
 
-                        material = VTS_MATERIAL_FLAT;
+                        material = vts.MATERIAL_FLAT;
                         break; 
                     }
                 }
@@ -970,7 +972,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 
             break;
                 
-        case VTS_DRAWCOMMAND_GEODATA:
+        case vts.DRAWCOMMAND_GEODATA:
                 
             var geodataView = command.geodataView; 
             //tile.renderHappen = true;

@@ -2,6 +2,8 @@
 import * as utils from '../utils/utils';
 import GpuTexture_ from '../renderer/gpu/texture';
 
+import * as vts from '../constants';
+
 //get rid of compiler mess
 var GpuTexture = GpuTexture_;
 
@@ -125,20 +127,20 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
     }
 
     switch (texture.checkType) {
-    case VTS_TEXTURECHECK_TYPE:
-    case VTS_TEXTURECHECK_CODE:
-    case VTS_TEXTURECHECK_SIZE:
+    case vts.TEXTURECHECK_TYPE:
+    case vts.TEXTURECHECK_CODE:
+    case vts.TEXTURECHECK_SIZE:
         
         if (this.checkStatus != 2) {
             this.checkType = texture.checkType;
             this.checkValue = texture.checkValue;
 
             if (this.checkStatus == 0) {
-                this.scheduleHeadRequest(priority, (this.checkType == VTS_TEXTURECHECK_SIZE));
+                this.scheduleHeadRequest(priority, (this.checkType == vts.TEXTURECHECK_SIZE));
             } else if (this.checkStatus == 3) { //loadError
                 if (this.loadErrorCounter <= this.map.config.mapLoadErrorMaxRetryCount &&
                         performance.now() > this.loadErrorTime + this.map.config.mapLoadErrorRetryTime) {
-                    this.scheduleHeadRequest(priority, (this.checkType == VTS_TEXTURECHECK_SIZE));
+                    this.scheduleHeadRequest(priority, (this.checkType == vts.TEXTURECHECK_SIZE));
                 }
             } else if (this.checkStatus == -1) {
             
@@ -171,7 +173,7 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
         }
 
         /*
-        if (((this.type == VTS_TEXTURETYPE_HEIGHT && !this.imageData) || (this.type != VTS_TEXTURETYPE_HEIGHT && !this.gpuTexture)) &&
+        if (((this.type == vts.TEXTURETYPE_HEIGHT && !this.imageData) || (this.type != vts.TEXTURETYPE_HEIGHT && !this.gpuTexture)) &&
               this.stats.renderBuild > this.map.config.mapMaxProcessingTime) {
             //console.log("testure resource build overflow");
             this.map.markDirty();
@@ -179,7 +181,7 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
         }*/
 
         if (doNotCheckGpu) {
-            if (this.type == VTS_TEXTURETYPE_HEIGHT) {
+            if (this.type == vts.TEXTURETYPE_HEIGHT) {
                 if (!this.imageData) {
                     t = performance.now();
                     this.buildHeightMap();
@@ -190,7 +192,7 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
             return true;
         }
 
-        if (this.type == VTS_TEXTURETYPE_HEIGHT) {
+        if (this.type == vts.TEXTURETYPE_HEIGHT) {
 
             //console.log(this.type, this.mapLoaderUrl);
 
@@ -302,7 +304,7 @@ MapSubtexture.prototype.onLoadError = function(killBlob) {
 
 MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
 
-    if (this.fastHeaderCheck && this.checkType && this.checkType != VTS_TEXTURECHECK_MEATATILE) {
+    if (this.fastHeaderCheck && this.checkType && this.checkType != vts.TEXTURECHECK_MEATATILE) {
         this.onHeadLoaded(null, data, null /*status*/);
         
         if (this.checkStatus == -1) {
@@ -434,7 +436,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
     if (this.map.config.mapXhrImageLoad && this.fastHeaderCheck) {
 
         switch (this.checkType) {
-        case VTS_TEXTURECHECK_SIZE:
+        case vts.TEXTURECHECK_SIZE:
             if (data) {
                 if (data.size == this.checkValue) {
                     this.checkStatus = -1;
@@ -442,7 +444,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
             }
             break;
                 
-        case VTS_TEXTURECHECK_TYPE:
+        case vts.TEXTURECHECK_TYPE:
             if (data) {
                 if (data.type == this.checkValue) {
                     this.checkStatus = -1;
@@ -450,7 +452,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
             }
             break;
                 
-        case VTS_TEXTURECHECK_CODE:
+        case vts.TEXTURECHECK_CODE:
             if (status) {
                 if (this.checkValue.indexOf(status) != -1) {
                     this.checkStatus = -1;
@@ -462,7 +464,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
     } else {
 
         switch (this.checkType) {
-        case VTS_TEXTURECHECK_SIZE:
+        case vts.TEXTURECHECK_SIZE:
             if (data) {
                 if (data.byteLength == this.checkValue) {
                     this.checkStatus = -1;
@@ -470,7 +472,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
             }
             break;
                 
-        case VTS_TEXTURECHECK_TYPE:
+        case vts.TEXTURECHECK_TYPE:
             if (data) {
                 //if (!data.indexOf) {
                   //  data = data;
@@ -482,7 +484,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
             }
             break;
                 
-        case VTS_TEXTURECHECK_CODE:
+        case vts.TEXTURECHECK_CODE:
             if (status) {
                 if (this.checkValue.indexOf(status) != -1) {
                     this.checkStatus = -1;
@@ -523,7 +525,7 @@ MapSubtexture.prototype.buildGpuTexture = function () {
     }
 
     this.gpuTexture = new GpuTexture(this.map.renderer.gpu, null, this.map.core);
-    this.gpuTexture.createFromImage(this.image, (this.type == VTS_TEXTURETYPE_CLASS) ? 'nearest' : 'linear', false);
+    this.gpuTexture.createFromImage(this.image, (this.type == vts.TEXTURETYPE_CLASS) ? 'nearest' : 'linear', false);
     this.gpuSize = this.gpuTexture.getSize();
 
     this.stats.gpuTextures += this.gpuSize;

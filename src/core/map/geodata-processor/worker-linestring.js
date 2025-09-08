@@ -9,6 +9,8 @@ import {addStreetTextOnPath as addStreetTextOnPath_, getTextGlyphs as getTextGly
 import {postGroupMessageFast as postGroupMessageFast_} from './worker-message.js';
 import {checkDPoints as checkDPoints_} from './worker-pointarray.js';
 
+import * as vts from '../../constants';
+
 //get rid of compiler mess
 var globals = globals_, vec3Normalize = vec3Normalize_,
     vec3Cross = vec3Cross_;
@@ -857,9 +859,9 @@ var processLineStringPass = function(lineString, lod, style, featureIndex, zInde
             'line-width':lineWidth*2, 'lod':(globals.autoLod ? null : globals.tileLod) };
     
         if (lineFlat) {
-            type = texturedLine ? VTS_WORKER_TYPE_FLAT_TLINE : (widthByRatio ? VTS_WORKER_TYPE_FLAT_RLINE : VTS_WORKER_TYPE_FLAT_LINE);
+            type = texturedLine ? vts.WORKER_TYPE_FLAT_TLINE : (widthByRatio ? vts.WORKER_TYPE_FLAT_RLINE : vts.WORKER_TYPE_FLAT_LINE);
         } else {
-            type = texturedLine ? VTS_WORKER_TYPE_PIXEL_TLINE : VTS_WORKER_TYPE_PIXEL_LINE;
+            type = texturedLine ? vts.WORKER_TYPE_PIXEL_TLINE : vts.WORKER_TYPE_PIXEL_LINE;
         }
     
         if (texturedLine) {
@@ -883,7 +885,7 @@ var processLineStringPass = function(lineString, lod, style, featureIndex, zInde
             buffers.push(elementBuffer);
         }
         
-        postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, type, messageData, buffers, signature);
+        postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, type, messageData, buffers, signature);
     }
 
     if (lineLabel) {
@@ -1141,8 +1143,8 @@ var processLineLabel = function(lineLabelPoints, lineLabelPoints2, lineString, c
 
         if (labelOverlapFactor !== null) {
             switch(labelOverlapFactor[0]) {
-                case 'direct':      factorType = VTS_NO_OVERLAP_DIRECT;      break;
-                case 'div-by-dist': factorType = VTS_NO_OVERLAP_DIV_BY_DIST; break;
+                case 'direct':      factorType = vts.NO_OVERLAP_DIRECT;      break;
+                case 'div-by-dist': factorType = vts.NO_OVERLAP_DIV_BY_DIST; break;
             }
 
             factorValue = labelOverlapFactor[1];
@@ -1151,7 +1153,7 @@ var processLineLabel = function(lineLabelPoints, lineLabelPoints2, lineString, c
         var noOverlap = [labelOverlapMargin, factorType, factorValue];
     }
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, globals.useLineLabel2 ? VTS_WORKER_TYPE_LINE_LABEL2 : VTS_WORKER_TYPE_LINE_LABEL, {
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, globals.useLineLabel2 ? vts.WORKER_TYPE_LINE_LABEL2 : vts.WORKER_TYPE_LINE_LABEL, {
         'color':labelColor, 'color2':labelColor2, 'outline':labelOutline, 'textVector':globals.textVector, 'labelPoints': globals.useLineLabel2 ? labelsPack : [],
         'visibility': visibility, 'culling': culling, 'hysteresis' : hysteresis, 'z-index':zIndex,
         'center': center, 'hover-event':hoverEvent, 'click-event':clickEvent, 'draw-event':drawEvent,
@@ -1228,7 +1230,7 @@ var processLineStringGeometry = function(lineString) {
 
     globals.signatureCounter++;
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_LINE_GEOMETRY, {
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_LINE_GEOMETRY, {
         'id':lineString['id'] }, [geometryBuffer, indicesBuffer], (""+globals.signatureCounter));
 };
 

@@ -3,7 +3,7 @@ import MapGeodataView from './geodata-view';
 import * as utils from '../utils/utils';
 import * as Illumination  from './illumination';
 import { TileRenderRig } from './tile-render-rig';
-
+import * as vts from '../constants';
 
 
 var MapDrawTiles = function(map, draw) {
@@ -60,7 +60,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                     if (!(pp[0] < 0 || pp[1] < 0 || pp[0] > this.renderer.curSize[0] || pp[1] > this.renderer.curSize[1])) {
                         this.stats.drawnGeodataTilesPerLayer++;
-                        this.stats.drawnGeodataTilesFactor += Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), VTS_TILE_COUNT_FACTOR);
+                        this.stats.drawnGeodataTilesFactor += Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), vts.TILE_COUNT_FACTOR);
                     }
 
                     this.stats.drawnGeodataTiles++;
@@ -297,9 +297,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 if (illuminatedSubmesh) {
                      let path = surface.getNormalsUrl(tile.id, i);
                      /*tile.normalMaps[i] = tile.resources.getTexture(
-                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);*/
+                            path, vts.TEXTURETYPE_COLOR, null, null, tile, true);*/
                      tile.normalMaps[i] = tile.resources.getTexture(
-                            path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+                            path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
                 }
 
                 if (tile.updateBounds) {
@@ -325,7 +325,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                             if (illuminatedSubmesh && bounds.bumps.length > 0) {
 
                                 tile.drawCommands[0].push({
-                                    type: VTS_DRAWCOMMAND_APPLY_BUMPS,
+                                    type: vts.DRAWCOMMAND_APPLY_BUMPS,
                                     normalMap: tile.normalMaps[i],
                                     bumps: bounds.bumps,
                                     textures: tile.boundTextures});
@@ -348,23 +348,23 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
-                                            tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+                                            tile.surfaceTextures[i] = tile.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
                                         }
 
                                         // render internal texture
                                         tile.drawCommands[0].push({
-                                            type : VTS_DRAWCOMMAND_SUBMESH,
+                                            type : vts.DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
                                             submesh : i,
                                             illuminatedSubmesh : illuminatedSubmesh,
                                             normalMap : tile.normalMaps[i],
                                             texture : tile.surfaceTextures[i],
-                                            material : VTS_MATERIAL_INTERNAL_NOFOG
+                                            material : vts.MATERIAL_INTERNAL_NOFOG
                                         });
                                     }
     
                                     tile.drawCommands[0].push({
-                                        type : VTS_DRAWCOMMAND_STATE,
+                                        type : vts.DRAWCOMMAND_STATE,
                                         state : draw.drawBlendedTileState
                                     });            
                                     
@@ -388,7 +388,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             }
 
                                             tile.drawCommands[0].push({
-                                                type : VTS_DRAWCOMMAND_SUBMESH,
+                                                type : vts.DRAWCOMMAND_SUBMESH,
                                                 mesh : tile.surfaceMesh,
                                                 submesh : i,
                                                 illuminatedSubmesh : illuminatedSubmesh,
@@ -397,7 +397,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                                 blending: bounds.blending[layers[j]][1],
                                                 alpha : bounds.blending[layers[j]][2],
                                                 runtime: bounds.runtime[layers[j]],
-                                                material : VTS_MATERIAL_EXTERNAL_NOFOG,
+                                                material : vts.MATERIAL_EXTERNAL_NOFOG,
                                                 layer : layer,
                                                 surface : surface
                                             });
@@ -408,17 +408,17 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     //console.log("Here 3.2");
 
                                     tile.drawCommands[0].push({
-                                        type : VTS_DRAWCOMMAND_SUBMESH,
+                                        type : vts.DRAWCOMMAND_SUBMESH,
                                         mesh : tile.surfaceMesh,
                                         submesh : i,
                                         illuminatedSubmesh : illuminatedSubmesh,
                                         normalMap : tile.normalMaps[i],
                                         texture : null,
-                                        material : VTS_MATERIAL_FOG
+                                        material : vts.MATERIAL_FOG
                                     });
 
                                     tile.drawCommands[0].push({
-                                        type : VTS_DRAWCOMMAND_STATE,
+                                        type : vts.DRAWCOMMAND_STATE,
                                         state : draw.drawTileState
                                     });  
                                 } // if (bounds.transparent)
@@ -446,13 +446,13 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         //console.log("Here 3.1");
                                         
                                         tile.drawCommands[0].push({
-                                            type : VTS_DRAWCOMMAND_SUBMESH,
+                                            type : vts.DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
                                             submesh : i,
                                             illuminatedSubmesh : illuminatedSubmesh,
                                             normalMap : tile.normalMaps[i],
                                             texture : texture,
-                                            material : VTS_MATERIAL_EXTERNAL,
+                                            material : vts.MATERIAL_EXTERNAL,
                                             layer : layer,
                                             surface : surface
                                         });
@@ -487,11 +487,11 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             
                                             //draw mesh
                                             tile.drawCommands[0].push({
-                                                type : VTS_DRAWCOMMAND_SUBMESH,
+                                                type : vts.DRAWCOMMAND_SUBMESH,
                                                 mesh : tile.surfaceMesh,
                                                 submesh : i,
                                                 texture : texture,
-                                                material : VTS_MATERIAL_EXTERNAL,
+                                                material : vts.MATERIAL_EXTERNAL,
                                                 layer : layer,
                                                 surface : surface
                                             });
@@ -507,31 +507,31 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
-                                            tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+                                            tile.surfaceTextures[i] = tile.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
                                         }
 
                                         //draw mesh
                                         tile.drawCommands[0].push({
-                                            type : VTS_DRAWCOMMAND_SUBMESH,
+                                            type : vts.DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
                                             submesh : i,
                                             illuminatedSubmesh : illuminatedSubmesh,
                                             normalMap : tile.normalMaps[i],
                                             texture : tile.surfaceTextures[i],
-                                            material : VTS_MATERIAL_INTERNAL
+                                            material : vts.MATERIAL_INTERNAL
                                         });
                                     } else {
                                         
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && ! internalUVs
                                         // there is no texture to use, flat shade
                                         tile.drawCommands[0].push({
-                                            type : VTS_DRAWCOMMAND_SUBMESH,
+                                            type : vts.DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
                                             submesh : i,
                                             illuminatedSubmesh : illuminatedSubmesh,
                                             normalMap : tile.normalMaps[i],
                                             texture : null,
-                                            material : VTS_MATERIAL_FLAT
+                                            material : vts.MATERIAL_FLAT
                                         });
                                     }
     
@@ -545,35 +545,35 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
                 if (tile.surfaceTextures[i] == null) {
                     path = tile.resourceSurface.getTextureUrl(tile.id, i);
-                    tile.surfaceTextures[i] = tile.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, tile, true);
+                    tile.surfaceTextures[i] = tile.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
                 } //else {
                 tile.drawCommands[0].push({
-                    type : VTS_DRAWCOMMAND_SUBMESH,
+                    type : vts.DRAWCOMMAND_SUBMESH,
                     mesh : tile.surfaceMesh,
                     submesh : i,
                     texture : tile.surfaceTextures[i],
-                    material : VTS_MATERIAL_INTERNAL
+                    material : vts.MATERIAL_INTERNAL
                 });                                                
             }
             
             // depth path - note this is inserted in channel 1 (depth rendering),
             // triggered by MapDraw.drawHitmap and used for depth testing etc.
             tile.drawCommands[1].push({
-                type : VTS_DRAWCOMMAND_SUBMESH,
+                type : vts.DRAWCOMMAND_SUBMESH,
                 mesh : tile.surfaceMesh,
                 submesh : i,
-                material : VTS_MATERIAL_DEPTH
+                material : vts.MATERIAL_DEPTH
             });
             
         }
 
-        /*if (surface.pipeline > VTS_PIPELINE_BASIC) { // long dead
+        /*if (surface.pipeline > vts.PIPELINE_BASIC) { // long dead
             this.updateTileHmap(tile, node);
 
             for (j = 0; j < 2; j++) {
                 var commands = tile.drawCommands[j];
                 for (i = 0, li = commands.length; i < li; i++) {
-                    if (commands[i].type == VTS_DRAWCOMMAND_SUBMESH) {
+                    if (commands[i].type == vts.DRAWCOMMAND_SUBMESH) {
                         commands[i].pipeline = surface.pipeline;
                         commands[i].hmap = tile.hmap;
                     }
@@ -700,7 +700,7 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
         }
 
         tile.drawCommands[channel][0] = {
-            type : VTS_DRAWCOMMAND_GEODATA,
+            type : vts.DRAWCOMMAND_GEODATA,
             geodataView : tile.surfaceGeodataView 
         };
 
@@ -908,7 +908,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         specular.layer.dataType, extraBound,
                             {tile: tile, layer: specular.layer}, tile, false);
 
-                    if (texture.checkType == VTS_TEXTURECHECK_MEATATILE) {
+                    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
                         texture.checkMask = true;
                     }
 
@@ -975,7 +975,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         path = layer.getUrl(tile.id);
                         texture = tile.resources.getTexture(path, layer.dataType, extraBound, {tile: tile, layer: layer}, tile, false);
 
-                        if (texture.checkType == VTS_TEXTURECHECK_MEATATILE) {
+                        if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
                             texture.checkMask = true;
                         }
 
@@ -1179,8 +1179,8 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     //draw lods
     if (debug.drawLods) {
         text = '' + tile.id[0]; // + ' ta:' + Math.abs(tile.tiltAngle).toFixed(3);
-        //text = '' + tile.id[0] + ' c:' + (50*(Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), VTS_TILE_COUNT_FACTOR) / Math.max(0.00001, this.renderer.drawnGeodataTilesFactor))).toFixed(3) + 
-          //     ' l:' + Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), VTS_TILE_COUNT_FACTOR).toFixed(3) + ' g:' + this.renderer.drawnGeodataTilesFactor.toFixed(3);
+        //text = '' + tile.id[0] + ' c:' + (50*(Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), vts.TILE_COUNT_FACTOR) / Math.max(0.00001, this.renderer.drawnGeodataTilesFactor))).toFixed(3) +
+          //     ' l:' + Math.pow(Math.abs(tile.tiltAngle * tile.texelSize), vts.TILE_COUNT_FACTOR).toFixed(3) + ' g:' + this.renderer.drawnGeodataTilesFactor.toFixed(3);
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]-4*factor), 4*factor, text, this.defaultColorPair, pos[2]);
     }
 

@@ -1,5 +1,7 @@
 
 
+import * as vts from '../constants';
+
 function processGMap(gpu, gl, renderer, screenPixelSize, draw, position) {
 
     if (arguments.length !== 6)
@@ -186,7 +188,7 @@ function processGMap(gpu, gl, renderer, screenPixelSize, draw, position) {
                         if (!renderer.rmap.addRectangle(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], feature[7], feature[0].lastSubJob)) {
                         }
 
-                        if (job.type == VTS_JOB_LINE_LABEL) {
+                        if (job.type == vts.JOB_LINE_LABEL) {
                             //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
                             if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 //renderer.rmap.storeRemovedLineLabel(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], feature[7], feature[0].lastSubJob);
@@ -203,7 +205,7 @@ function processGMap(gpu, gl, renderer, screenPixelSize, draw, position) {
                         } else {
                             renderer.drawnJobs++;
 
-                            if (job.type == VTS_JOB_LINE_LABEL) {
+                            if (job.type == vts.JOB_LINE_LABEL) {
                                 draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                             } else {
                                 draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -438,7 +440,7 @@ function processGMap4(gpu, gl, renderer, screenPixelSize, draw, position) {
                         pp = feature[5];
                         o = feature[8];
 
-                        if (job.type == VTS_JOB_LINE_LABEL) {
+                        if (job.type == vts.JOB_LINE_LABEL) {
                             if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 hitCacheSize++;
                             }
@@ -454,7 +456,7 @@ function processGMap4(gpu, gl, renderer, screenPixelSize, draw, position) {
                         } else {
                             renderer.drawnJobs++;
 
-                            if (job.type == VTS_JOB_LINE_LABEL) {
+                            if (job.type == vts.JOB_LINE_LABEL) {
                                 draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                             } else {
                                 draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -564,7 +566,7 @@ function processGMap5(gpu, gl, renderer, screenPixelSize, draw, position) {
                     pp = feature[5];
                     o = feature[8];
 
-                    if (job.type == VTS_JOB_LINE_LABEL) {
+                    if (job.type == vts.JOB_LINE_LABEL) {
                         if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                             //hitCache[hitCacheSize] = feature;
                         }
@@ -580,7 +582,7 @@ function processGMap5(gpu, gl, renderer, screenPixelSize, draw, position) {
                     } else {
                         renderer.drawnJobs++;
 
-                        if (job.type == VTS_JOB_LINE_LABEL) {
+                        if (job.type == vts.JOB_LINE_LABEL) {
                             draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                         } else {
                             draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -741,7 +743,7 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
             
             depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
 
-            if (job.type == VTS_JOB_LINE_LABEL) {
+            if (job.type == vts.JOB_LINE_LABEL) {
                 //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
                 if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                     featureCount++;
@@ -762,7 +764,7 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
             } else {
                 renderer.drawnJobs++;
 
-                if (job.type == VTS_JOB_LINE_LABEL) {
+                if (job.type == vts.JOB_LINE_LABEL) {
                     draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                 } else {
                     draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -1071,7 +1073,7 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
                 } else {
                     renderer.drawnJobs++;
                     job = feature[0];
-                    if (job.type == VTS_JOB_LINE_LABEL) {
+                    if (job.type == vts.JOB_LINE_LABEL) {
                         draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                     } else {
                         draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -1189,7 +1191,7 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
 
                         depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
                         
-                        if (job.type == VTS_JOB_LINE_LABEL) {
+                        if (job.type == vts.JOB_LINE_LABEL) {
                             //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
                             if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 featureCount++;
@@ -1207,7 +1209,7 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
                         } else {
                             renderer.drawnJobs++;
 
-                            if (job.type == VTS_JOB_LINE_LABEL) {
+                            if (job.type == vts.JOB_LINE_LABEL) {
                                 draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                             } else {
                                 draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
@@ -1237,7 +1239,7 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
 
                         depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
                         
-                        if (job.type == VTS_JOB_LINE_LABEL) {
+                        if (job.type == vts.JOB_LINE_LABEL) {
                             //if (renderer.rmap.addLineLabel(job.lastSubJob, depthParams)) {
                             if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                                 featureCount++;
@@ -1254,7 +1256,7 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
                         } else {
                             renderer.drawnJobs++;
 
-                            if (job.type == VTS_JOB_LINE_LABEL) {
+                            if (job.type == vts.JOB_LINE_LABEL) {
                                 draw.drawGpuSubJobLineLabel(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);
                             } else {
                                 draw.drawGpuSubJob(gpu, gl, renderer, screenPixelSize, job.lastSubJob, null);

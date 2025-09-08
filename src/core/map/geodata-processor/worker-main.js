@@ -11,6 +11,8 @@ import {postGroupMessageFast as postGroupMessageFast_,
         postGroupMessageLite as postGroupMessageLite_, optimizeGroupMessages as optimizeGroupMessages_,
         postPackedMessage as postPackedMessage_, postPackedMessages as postPackedMessages_} from './worker-message.js';
 
+import * as vts from '../../constants';
+
 
 //get rid of compiler mess
 var globals = globals_;
@@ -293,7 +295,7 @@ function processLayerFeature(type, feature, lod, layer, featureIndex, skipPack) 
 
     if (type == 'point-array') {
         if (layer['visibility-switch']) {
-            postGroupMessageLite(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_VSWITCH_BEGIN);
+            postGroupMessageLite(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_VSWITCH_BEGIN);
             //postGroupMessage({'command':'addRenderJob', 'type':'vswitch-begin'});
             var zIndex = getLayerPropertyValue(layer, 'z-index', feature, lod);
             var eventInfo = feature.properties;
@@ -305,10 +307,10 @@ function processLayerFeature(type, feature, lod, layer, featureIndex, skipPack) 
                     var slayer = getLayer(vswitch[i][1], type, featureIndex);
                     processLayerFeature(type, feature, lod, slayer, featureIndex);
                 }
-                postGroupMessageLite(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_VSWITCH_STORE, vswitch[i][0]);
+                postGroupMessageLite(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_VSWITCH_STORE, vswitch[i][0]);
             }
 
-            postGroupMessageLite(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_VSWITCH_END);
+            postGroupMessageLite(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_VSWITCH_END);
             return;
         }
     }
@@ -316,9 +318,9 @@ function processLayerFeature(type, feature, lod, layer, featureIndex, skipPack) 
     if (!skipPack && layer['pack'] == true) {
         globals.directPoints = [];
 
-        postGroupMessageLite(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_PACK_BEGIN);
+        postGroupMessageLite(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_PACK_BEGIN);
         processLayerFeature(type, feature, lod, layer, featureIndex, true);
-        postGroupMessageLite(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_PACK_END);
+        postGroupMessageLite(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_PACK_END);
 
         if (globals.directPoints)  //????????????????? FIXME
 
@@ -408,7 +410,7 @@ function processGroup(group, lod) {
         bboxDelta[1] / bboxResolution,
         bboxDelta[2] / bboxResolution];
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_GROUP_BEGIN, 0, {'id': group['id'], 'bbox': [bboxMin, bboxMax], 'origin': bboxMin}, [], "");
+    postGroupMessageFast(vts.WORKERCOMMAND_GROUP_BEGIN, 0, {'id': group['id'], 'bbox': [bboxMin, bboxMax], 'origin': bboxMin}, [], "");
 
     //process points
     var points = group['points'] || [];
@@ -425,7 +427,7 @@ function processGroup(group, lod) {
     globals.featureType = 'polygon';
     processFeatures('polygon', polygons, lod, 'polygon', groupId);
 
-    postGroupMessageLite(VTS_WORKERCOMMAND_GROUP_END, 0);
+    postGroupMessageLite(vts.WORKERCOMMAND_GROUP_END, 0);
 
     if (globals.groupOptimize) {
         optimizeGroupMessages();
@@ -438,7 +440,7 @@ function processNode(node, lod) {
 
     //TODO: get volume
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_NODE_BEGIN, {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }, [], "");
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_NODE_BEGIN, {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }, [], "");
 
     var meshes = node['meshes'] || [];
 
@@ -447,7 +449,7 @@ function processNode(node, lod) {
 
         var signature = meshes[i];
 
-        postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_MESH, { 'path':meshes[i] }, [], signature);
+        postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_MESH, { 'path':meshes[i] }, [], signature);
     }
 
     var nodes = node['nodes'] || [];
@@ -456,7 +458,7 @@ function processNode(node, lod) {
         processNode(nodes[i], lod);
     }
 
-    postGroupMessageFast(VTS_WORKERCOMMAND_ADD_RENDER_JOB, VTS_WORKER_TYPE_NODE_END, {}, [], "");
+    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_NODE_END, {}, [], "");
 }
 
 function processGeodata(data, lod) {
@@ -485,9 +487,9 @@ function processGeodata(data, lod) {
         var nodes = geodata['nodes'] || [];
 
         for (var i = 0, li = nodes.length; i < li; i++) {
-            postGroupMessageFast(VTS_WORKERCOMMAND_GROUP_BEGIN, 0, {}, [], "");
+            postGroupMessageFast(vts.WORKERCOMMAND_GROUP_BEGIN, 0, {}, [], "");
             processNode(nodes[i], lod);
-            postGroupMessageLite(VTS_WORKERCOMMAND_GROUP_END, 0);
+            postGroupMessageLite(vts.WORKERCOMMAND_GROUP_END, 0);
         }
     }
 
@@ -570,7 +572,7 @@ self.onmessage = function (e) {
             processGeodata(data, globals.tileLod);
         }
 
-        postGroupMessageLite(VTS_WORKERCOMMAND_ALL_PROCESSED, 0);
+        postGroupMessageLite(vts.WORKERCOMMAND_ALL_PROCESSED, 0);
             
         if (globals.groupOptimize) {  //we need send all processed message
             optimizeGroupMessages();

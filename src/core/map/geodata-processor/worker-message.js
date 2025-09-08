@@ -1,6 +1,8 @@
 
 import {globals as globals_, stringToUint8Array as stringToUint8Array_ } from './worker-globals.js';
 
+import * as vts from '../../constants';
+
 //get rid of compiler mess
 var globals = globals_, stringToUint8Array = stringToUint8Array_;
 var tmpVertexBuffer = new Uint8Array(65536*4*4*4*4);
@@ -53,7 +55,7 @@ function postGroupMessageFast(command, type, message, buffers, signature) {
         buff.set( new Uint8Array(buffers[i].buffer), index); index += buffers[i].byteLength;
     }
 
-    postGroupMessageDirect(command, type, buff.buffer, index2, signature, message['hitable'], message['totalPoints'], (type == VTS_WORKER_TYPE_LINE_LABEL) ? message : null);
+    postGroupMessageDirect(command, type, buff.buffer, index2, signature, message['hitable'], message['totalPoints'], (type == vts.WORKER_TYPE_LINE_LABEL) ? message : null);
 }
 
 
@@ -124,11 +126,11 @@ function optimizeGroupMessages() {
         //console.log('command: ' + message.command + ' type:' + message.type);
         
         if (!message.hitable && !message.reduced && 
-            (type >= VTS_WORKER_TYPE_FLAT_LINE && type <= VTS_WORKER_TYPE_POLYGON)) {
+            (type >= vts.WORKER_TYPE_FLAT_LINE && type <= vts.WORKER_TYPE_POLYGON)) {
             
             switch(type) {
-            case VTS_WORKER_TYPE_POLYGON:
-            case VTS_WORKER_TYPE_FLAT_LINE:
+            case vts.WORKER_TYPE_POLYGON:
+            case vts.WORKER_TYPE_FLAT_LINE:
                 count = 0;
 
                 //get message vertices length and copy vertices to buffer
@@ -172,9 +174,9 @@ function optimizeGroupMessages() {
 
                 break;
                     
-            case VTS_WORKER_TYPE_PIXEL_LINE:
-            case VTS_WORKER_TYPE_LINE_LABEL:
-            case VTS_WORKER_TYPE_FLAT_RLINE:
+            case vts.WORKER_TYPE_PIXEL_LINE:
+            case vts.WORKER_TYPE_LINE_LABEL:
+            case vts.WORKER_TYPE_FLAT_RLINE:
 
                 count = 0;
                 totalVertices = 0;
@@ -216,7 +218,7 @@ function optimizeGroupMessages() {
                         setToTmpBuffer(1, new Uint8Array(message2.job, message2.buffersIndex+4+length+4, length), bufferSize);
                         bufferSize += length;
 
-                        if (type == VTS_WORKER_TYPE_LINE_LABEL) {
+                        if (type == vts.WORKER_TYPE_LINE_LABEL) {
                             var files = message.job2['files'];
                             var files2 = message2.job2['files'];
 
@@ -239,7 +241,7 @@ function optimizeGroupMessages() {
 
                     //create new message with merged vertices
 
-                    if (type == VTS_WORKER_TYPE_LINE_LABEL) { //we have to rebuild header
+                    if (type == vts.WORKER_TYPE_LINE_LABEL) { //we have to rebuild header
                         var buffjob = stringToUint8Array(JSON.stringify(message.job2));
 
                         buffer = new Uint8Array(1+1+4+buffjob.byteLength+2*(4+bufferSize));

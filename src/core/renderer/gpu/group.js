@@ -5,10 +5,8 @@ import {math as math_} from '../../utils/math';
 import * as utils from '../../utils/utils';
 import {utilsUrl as utilsUrl_} from '../../utils/url';
 import MapResourceNode_ from '../../map/resource-node';
-//import MapGeodataImport3DTiles_ from '../../map/geodata-import/3dtiles';
-//import MapGeodataImport3DTiles2_ from '../../map/geodata-import/3dtiles2';
-//import MapGeodataBuilder_ from '../../map/geodata-builder';
 import MapGeodataImportVTSTree_ from '../../map/geodata-import/vts-tree.js';
+import * as vts from '../../constants';
 
 //get rid of compiler mess
 var vec3 = vec3_, mat4 = mat4_;
@@ -59,29 +57,29 @@ GpuGroup.prototype.kill = function() {
         var job = this.jobs[i]; 
 
         switch(job.type) {
-        case VTS_JOB_FLAT_LINE:
-        case VTS_JOB_POLYGON:
+        case vts.JOB_FLAT_LINE:
+        case vts.JOB_POLYGON:
             if (job.vertexPositionBuffer) this.gl.deleteBuffer(job.vertexPositionBuffer);
             if (job.vertexElementBuffer) this.gl.deleteBuffer(job.vertexElementBuffer);
             break;
 
-        case VTS_JOB_FLAT_TLINE:
-        case VTS_JOB_FLAT_RLINE:
-        case VTS_JOB_PIXEL_LINE:
-        case VTS_JOB_PIXEL_TLINE:
+        case vts.JOB_FLAT_TLINE:
+        case vts.JOB_FLAT_RLINE:
+        case vts.JOB_PIXEL_LINE:
+        case vts.JOB_PIXEL_TLINE:
             if (job.vertexPositionBuffer) this.gl.deleteBuffer(job.vertexPositionBuffer);
             if (job.vertexNormalBuffer) this.gl.deleteBuffer(job.vertexNormalBuffer);
             if (job.vertexElementBuffer) this.gl.deleteBuffer(job.vertexElementBuffer);
             break;
 
-        case VTS_JOB_LINE_LABEL:
+        case vts.JOB_LINE_LABEL:
             if (job.vertexPositionBuffer) this.gl.deleteBuffer(job.vertexPositionBuffer);
             if (job.vertexTexcoordBuffer) this.gl.deleteBuffer(job.vertexTexcoordBuffer);
             if (job.vertexElementBuffer) this.gl.deleteBuffer(job.vertexElementBuffer);
             break;
 
-        case VTS_JOB_ICON:
-        case VTS_JOB_LABEL:
+        case vts.JOB_ICON:
+        case vts.JOB_LABEL:
             if (job.vertexPositionBuffer) this.gl.deleteBuffer(job.vertexPositionBuffer);
             if (job.vertexTexcoordBuffer) this.gl.deleteBuffer(job.vertexTexcoordBuffer);
             if (job.vertexOriginBuffer) this.gl.deleteBuffer(job.vertexOriginBuffer);
@@ -139,10 +137,10 @@ GpuGroup.prototype.addLineJob = function(data) {
 
     var job = {};
 
-    if (data.type == VTS_WORKER_TYPE_POLYGON) {
-        job.type = VTS_JOB_POLYGON;
+    if (data.type == vts.WORKER_TYPE_POLYGON) {
+        job.type = vts.JOB_POLYGON;
     } else {
-        job.type = VTS_JOB_FLAT_LINE;
+        job.type = vts.JOB_FLAT_LINE;
     }
 
     job.program = this.renderer.progLine;
@@ -216,10 +214,10 @@ GpuGroup.prototype.addExtentedLineJob = function(data) {
 
     
     switch(job.type) {
-    case VTS_WORKER_TYPE_FLAT_LINE:  job.type = VTS_JOB_FLAT_TLINE;  break;
-    case VTS_WORKER_TYPE_FLAT_RLINE:  job.type = VTS_JOB_FLAT_RLINE;  break;
-    case VTS_WORKER_TYPE_PIXEL_LINE:  job.type = VTS_JOB_PIXEL_LINE;  break;
-    case VTS_WORKER_TYPE_PIXEL_TLINE: job.type = VTS_JOB_PIXEL_TLINE; break;
+    case vts.WORKER_TYPE_FLAT_LINE:  job.type = vts.JOB_FLAT_TLINE;  break;
+    case vts.WORKER_TYPE_FLAT_RLINE:  job.type = vts.JOB_FLAT_RLINE;  break;
+    case vts.WORKER_TYPE_PIXEL_LINE:  job.type = vts.JOB_PIXEL_LINE;  break;
+    case vts.WORKER_TYPE_PIXEL_TLINE: job.type = vts.JOB_PIXEL_TLINE; break;
     }
 
     job.color = this.convertColor(data['color']);
@@ -254,10 +252,10 @@ GpuGroup.prototype.addExtentedLineJob = function(data) {
     }
 
     switch(job.type) {
-    case VTS_JOB_FLAT_TLINE:   job.program = (background[3] != 0) ? this.renderer.progTBLine : this.renderer.progTLine;  break;
-    case VTS_JOB_FLAT_RLINE:   job.program = this.renderer.progRLine;  break;
-    case VTS_JOB_PIXEL_LINE:   job.program = this.renderer.progLine3;  break;
-    case VTS_JOB_PIXEL_TLINE:  job.program = (background[3] != 0) ? this.renderer.progTPBLine : this.renderer.progTPLine; break;
+    case vts.JOB_FLAT_TLINE:   job.program = (background[3] != 0) ? this.renderer.progTBLine : this.renderer.progTLine;  break;
+    case vts.JOB_FLAT_RLINE:   job.program = this.renderer.progRLine;  break;
+    case vts.JOB_PIXEL_LINE:   job.program = this.renderer.progLine3;  break;
+    case vts.JOB_PIXEL_TLINE:  job.program = (background[3] != 0) ? this.renderer.progTPBLine : this.renderer.progTPLine; break;
     }
 
     if (!job.program.isReady()) {
@@ -266,10 +264,10 @@ GpuGroup.prototype.addExtentedLineJob = function(data) {
 
     if (job.advancedHit) {
         switch(job.type) {
-        case VTS_JOB_FLAT_TLINE:   job.program2 = this.renderer.progETLine;  break;
-        case VTS_JOB_FLAT_RLINE:   job.program2 = this.renderer.progERLine;  break;
-        case VTS_JOB_PIXEL_LINE:   job.program2 = this.renderer.progELine3;  break;
-        case VTS_JOB_PIXEL_TLINE:  job.program2 = this.renderer.progETPLine; break;
+        case vts.JOB_FLAT_TLINE:   job.program2 = this.renderer.progETLine;  break;
+        case vts.JOB_FLAT_RLINE:   job.program2 = this.renderer.progERLine;  break;
+        case vts.JOB_PIXEL_LINE:   job.program2 = this.renderer.progELine3;  break;
+        case vts.JOB_PIXEL_TLINE:  job.program2 = this.renderer.progETPLine; break;
         }
 
         if (!job.program2.isReady()) {
@@ -365,7 +363,7 @@ GpuGroup.prototype.addLineLabelJob = function(data) {
     }
 
     var job = {};
-    job.type = VTS_JOB_LINE_LABEL;
+    job.type = vts.JOB_LINE_LABEL;
     job.program = this.renderer.progText;
     job.color = this.convertColor(data['color']);
     job.color2 = this.convertColor(data['color2']);
@@ -454,7 +452,7 @@ GpuGroup.prototype.addIconJob = function(data, label, tile) {
     var f = 1.0/255;
 
     var job = { tile: tile };
-    job.type = label ? VTS_JOB_LABEL : VTS_JOB_ICON;
+    job.type = label ? vts.JOB_LABEL : vts.JOB_ICON;
     job.program = this.renderer.progIcon;
     job.color = this.convertColor(data['color']);
     job.zIndex = data['z-index'] + 256;
@@ -567,7 +565,7 @@ GpuGroup.prototype.addPack = function(data) {
     }
 
     var job = {
-        type : VTS_JOB_PACK,
+        type : vts.JOB_PACK,
         subjobs: this.subjobs,
         culling : 180,
         zIndex : 0,
@@ -637,7 +635,7 @@ GpuGroup.prototype.addPack = function(data) {
 
 GpuGroup.prototype.addVSPoint = function(data, tile){
     var job = { tile: tile };
-    job.type = VTS_JOB_VSPOINT;
+    job.type = vts.JOB_VSPOINT;
     job.zIndex = data['z-index'] + 256;
     job.visibility = data['visibility'];
     job.culling = data['culling'];
@@ -674,7 +672,7 @@ GpuGroup.prototype.addVSwitch = function(){
 GpuGroup.prototype.addMeshJob = function(data, lod) {
     var job = {};
 
-    job.type = VTS_JOB_MESH;
+    job.type = vts.JOB_MESH;
     job.path = data['path'];
     
     job.textures = [];
@@ -712,8 +710,8 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
         var view = new DataView(buffer.buffer);
         type = buffer[index]; index += 1;
 
-        if (type != VTS_WORKER_TYPE_PACK_BEGIN && type != VTS_WORKER_TYPE_PACK_END && 
-            type != VTS_WORKER_TYPE_VSWITCH_BEGIN && type != VTS_WORKER_TYPE_VSWITCH_END && type != VTS_WORKER_TYPE_VSWITCH_STORE) {
+        if (type != vts.WORKER_TYPE_PACK_BEGIN && type != vts.WORKER_TYPE_PACK_END &&
+            type != vts.WORKER_TYPE_VSWITCH_BEGIN && type != vts.WORKER_TYPE_VSWITCH_END && type != vts.WORKER_TYPE_VSWITCH_STORE) {
 
             length = view.getUint32(index); index += 4;
             str = utils.unint8ArrayToString(new Uint8Array(buffer.buffer, index, length)); index+= length;
@@ -722,8 +720,8 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
     }
 
     switch(type) {
-        case VTS_WORKER_TYPE_POLYGON:
-        case VTS_WORKER_TYPE_FLAT_LINE:
+        case vts.WORKER_TYPE_POLYGON:
+        case vts.WORKER_TYPE_FLAT_LINE:
             data.type = type;
             length = view.getUint32(index); index += 4;
             data.vertexBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.vertexBuffer.byteLength;
@@ -736,10 +734,10 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             this.addLineJob(data);
             break;
 
-        case VTS_WORKER_TYPE_FLAT_TLINE:
-        case VTS_WORKER_TYPE_FLAT_RLINE:
-        case VTS_WORKER_TYPE_PIXEL_LINE:
-        case VTS_WORKER_TYPE_PIXEL_TLINE:
+        case vts.WORKER_TYPE_FLAT_TLINE:
+        case vts.WORKER_TYPE_FLAT_RLINE:
+        case vts.WORKER_TYPE_PIXEL_LINE:
+        case vts.WORKER_TYPE_PIXEL_TLINE:
             data.type = type;
             length = view.getUint32(index); index += 4;
             data.vertexBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.vertexBuffer.byteLength;
@@ -754,7 +752,7 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             this.addExtentedLineJob(data);
             break;
 
-        case VTS_WORKER_TYPE_LINE_LABEL:
+        case vts.WORKER_TYPE_LINE_LABEL:
 
             length = view.getUint32(index); index += 4;
             data.vertexBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.vertexBuffer.byteLength;
@@ -763,7 +761,7 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             this.addLineLabelJob(data);
             break;
 
-        case VTS_WORKER_TYPE_LINE_LABEL2:
+        case vts.WORKER_TYPE_LINE_LABEL2:
 
             length = view.getUint32(index); index += 4;
             data.singleBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.singleBuffer.byteLength;
@@ -772,16 +770,16 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             this.addLineLabelJob(data);
             break;
 
-        case VTS_WORKER_TYPE_ICON:
-        case VTS_WORKER_TYPE_LABEL:
+        case vts.WORKER_TYPE_ICON:
+        case vts.WORKER_TYPE_LABEL:
 
             length = view.getUint32(index); index += 4;
             data.singleBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.singleBuffer.byteLength;
-            this.addIconJob(data, (type == VTS_WORKER_TYPE_LABEL), tile);
+            this.addIconJob(data, (type == vts.WORKER_TYPE_LABEL), tile);
             break;
 
-        case VTS_WORKER_TYPE_ICON2:
-        case VTS_WORKER_TYPE_LABEL2:
+        case vts.WORKER_TYPE_ICON2:
+        case vts.WORKER_TYPE_LABEL2:
 
             length = view.getUint32(index); index += 4;
             data.vertexBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.vertexBuffer.byteLength;
@@ -789,11 +787,11 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             data.originBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.originBuffer.byteLength;
             length = view.getUint32(index); index += 4;
             data.texcoordsBuffer = this.copyBuffer(new Float32Array(length), buffer, index); index += data.texcoordsBuffer.byteLength;
-            this.addIconJob(data, (type == VTS_WORKER_TYPE_LABEL2), tile);
+            this.addIconJob(data, (type == vts.WORKER_TYPE_LABEL2), tile);
             break;
 
-        case VTS_WORKER_TYPE_POINT_GEOMETRY:
-        case VTS_WORKER_TYPE_LINE_GEOMETRY:
+        case vts.WORKER_TYPE_POINT_GEOMETRY:
+        case vts.WORKER_TYPE_LINE_GEOMETRY:
 
             length = view.getUint32(index); index += 4;
             data.geometryBuffer = this.copyBuffer(new Float64Array(length), buffer, index); index += data.originBuffer.byteLength;
@@ -803,32 +801,32 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
             this.addGeometry(data);
             break;
 
-        case VTS_WORKER_TYPE_PACK_BEGIN:
+        case vts.WORKER_TYPE_PACK_BEGIN:
             this.subjobs = []; index += 4;
             break;
 
-        case VTS_WORKER_TYPE_PACK_END:
+        case vts.WORKER_TYPE_PACK_END:
             this.addPack(); index += 4;
             break;
 
-        case VTS_WORKER_TYPE_VSPOINT:
+        case vts.WORKER_TYPE_VSPOINT:
             this.addVSPoint(data, tile);
             break;
 
-        case VTS_WORKER_TYPE_VSWITCH_BEGIN:
+        case vts.WORKER_TYPE_VSWITCH_BEGIN:
             this.vsjobs = []; this.vsjob = null; index += 4;
             break;
 
-        case VTS_WORKER_TYPE_VSWITCH_END:
+        case vts.WORKER_TYPE_VSWITCH_END:
             this.addVSwitch(); index += 4;
             break;
 
-        case VTS_WORKER_TYPE_VSWITCH_STORE:
+        case vts.WORKER_TYPE_VSWITCH_STORE:
             data = { viewExtent: view.getUint32(index) }; index += 4;
             this.storeVSJobs(data);
             break;
 
-        case VTS_WORKER_TYPE_NODE_BEGIN:
+        case vts.WORKER_TYPE_NODE_BEGIN:
 
             var node = data;
             node.nodes = [];
@@ -865,7 +863,7 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
 
             break;
 
-        case VTS_WORKER_TYPE_NODE_END:
+        case vts.WORKER_TYPE_NODE_END:
 
             if (this.currentNode.parent) {
                 this.currentNode = this.currentNode.parent;
@@ -877,11 +875,11 @@ GpuGroup.prototype.addRenderJob2 = function(buffer, index, tile, direct) {
 
             break;
 
-        case VTS_WORKER_TYPE_MESH:
+        case vts.WORKER_TYPE_MESH:
             this.addMeshJob(data, tile);
             break;
 
-        case VTS_WORKER_TYPE_LOAD_NODE:
+        case vts.WORKER_TYPE_LOAD_NODE:
             if(this.currentNode) {
                 this.currentNode.path = data['path'];
             }
@@ -1103,7 +1101,7 @@ GpuGroup.prototype.drawNode = function(node, noSkip, splitMask, splitSpace) {
         }
 
         if (debug.drawFaceCount) {
-            var mesh = (jobs[0] && jobs[0].type == VTS_JOB_MESH) ? jobs[0].mesh : null;
+            var mesh = (jobs[0] && jobs[0].type == vts.JOB_MESH) ? jobs[0].mesh : null;
             if (mesh) {
                 text = '' + mesh.faces + ' - ' + mesh.submeshes.length;
                 renderer.draw.drawText(Math.round(pos[0]-renderer.draw.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, [0,1,0,1], pos[2]);
@@ -1118,7 +1116,7 @@ GpuGroup.prototype.drawNode = function(node, noSkip, splitMask, splitSpace) {
         if (debug.drawSurfaces && jobs[0]) {
             var text = '';
 
-            var mesh = (jobs[0] && jobs[0].type == VTS_JOB_MESH) ? jobs[0].mesh : null;
+            var mesh = (jobs[0] && jobs[0].type == vts.JOB_MESH) ? jobs[0].mesh : null;
             if (mesh) {
                 var path = mesh.mapLoaderUrl;
                 path = path.replace('.mesh', '');
@@ -1135,7 +1133,7 @@ GpuGroup.prototype.drawNode = function(node, noSkip, splitMask, splitSpace) {
         }
 
         if (debug.drawTextureSize) {
-            var mesh = (jobs[0] && jobs[0].type == VTS_JOB_MESH) ? jobs[0].mesh : null;
+            var mesh = (jobs[0] && jobs[0].type == vts.JOB_MESH) ? jobs[0].mesh : null;
             if (mesh) {
                 var submeshes = mesh.submeshes;
                 for (i = 0, li = submeshes.length; i < li; i++) {
@@ -1175,13 +1173,13 @@ GpuGroup.prototype.drawNode = function(node, noSkip, splitMask, splitSpace) {
         
         switch(job.type) {
             
-            case VTS_JOB_MESH:
+            case vts.JOB_MESH:
                 if (this.isMeshReady(job, null, null, null, true, node)) {
                     this.drawMesh(job, node, splitMask, splitSpace);
                 }
                 break;
 
-            case VTS_JOB_POINTCLOUD:
+            case vts.JOB_POINTCLOUD:
                 if (job.pointcloud.isReady()) {
                     job.pointcloud.draw(this.renderer.cameraPosition);
                 }
@@ -1222,7 +1220,7 @@ GpuGroup.prototype.isMeshReady = function(job, doNotLoad, priority, skipGpu, ski
                         var path = mesh.mapLoaderUrl;
                         path = path.replace('.mesh', '-' + i + '.jpg');
                         var resource = new MapResourceNode(this.renderer.core.map, null, null);
-                        submesh.texture = resource.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, null /*tile*/, true);
+                        submesh.texture = resource.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, null /*tile*/, true);
                     }
                     
                     texture = submesh.texture;
@@ -1233,7 +1231,7 @@ GpuGroup.prototype.isMeshReady = function(job, doNotLoad, priority, skipGpu, ski
 
                     if (!job.textures[i]) {
                         var path = job.texturePath + '-' + i + '.jpg';
-                        job.textures[i] = job.resources.getTexture(path, VTS_TEXTURETYPE_COLOR, null, null, null /*tile*/, true);
+                        job.textures[i] = job.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, null /*tile*/, true);
                     } 
                     
                     texture = job.textures[i];
@@ -1297,11 +1295,11 @@ GpuGroup.prototype.drawMesh = function(job ,node, splitMask, splitSpace) {
         
         if (job.direct) {
             if (submesh.texture) {
-                mesh.drawSubmesh(cameraPos, i, submesh.texture, VTS_MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*runtime*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
+                mesh.drawSubmesh(cameraPos, i, submesh.texture, vts.MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*runtime*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
             }
         } else {
             if (job.textures[i]) {
-                mesh.drawSubmesh(cameraPos, i, job.textures[i], VTS_MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*runtime*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
+                mesh.drawSubmesh(cameraPos, i, job.textures[i], vts.MATERIAL_INTERNAL /*type*/, null /*blending*/, null /*alpha*/, null /*runtime*/, null /*layer*/, null /*surface*/,  splitMask, splitSpace);
             }
         }
     }
@@ -1320,7 +1318,7 @@ GpuGroup.prototype.generateNode = function(index, file, lod, cindex, texelSize, 
                 switch(feature.type) {
                     case 1: //mesh
                         jobs.push({
-                            type: VTS_JOB_MESH,
+                            type: vts.JOB_MESH,
                             mesh: feature.resources[index],
                             direct: true
                         });
@@ -1328,7 +1326,7 @@ GpuGroup.prototype.generateNode = function(index, file, lod, cindex, texelSize, 
 
                     case 2: //point cloud
                         jobs.push({
-                            type: VTS_JOB_POINTCLOUD,
+                            type: vts.JOB_POINTCLOUD,
                             pointcloud: feature.resources[index],
                             direct: true
                         });
@@ -1338,7 +1336,7 @@ GpuGroup.prototype.generateNode = function(index, file, lod, cindex, texelSize, 
         } else {
             jobs = [
                 {
-                    type: VTS_JOB_MESH,
+                    type: vts.JOB_MESH,
                     mesh: file.meshes[index],
                     direct: true
                 }
@@ -1890,7 +1888,7 @@ GpuGroup.prototype.draw = function(mv, mvp, applyOrigin, tiltAngle, texelSize) {
     for (var i = 0, li = this.jobs.length; i < li; i++) {
         var job = this.jobs[i];
 
-        if ((job.type == VTS_JOB_ICON || job.type == VTS_JOB_LABEL) && job.visibility > 0) {
+        if ((job.type == vts.JOB_ICON || job.type == vts.JOB_LABEL) && job.visibility > 0) {
             var center = job.center;
             if (vec3.length([center[0]-cameraPos[0],
                 center[1]-cameraPos[1],
