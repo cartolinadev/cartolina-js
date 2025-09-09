@@ -1,7 +1,5 @@
 // a list of obsolete vts constants, automatically created from the old version of webpack.config.json
 
-export const VTS_TREETRAVERSAL_DRAW = 0;
-
 export const MATERIAL_DEPTH = 1;
 export const MATERIAL_FLAT = 2;
 export const MATERIAL_FOG = 3;
@@ -27,6 +25,7 @@ export const TEXTURECHECK_SIZE = 4;
 export const TEXTURETYPE_COLOR = 0;
 export const TEXTURETYPE_HEIGHT = 1;
 export const TEXTURETYPE_CLASS = 2;
+export const TEXTURETYPE_NORMALMAP = 3;
 
 export const JOB_FLAT_LINE = 1;
 export const JOB_FLAT_RLINE = 2;

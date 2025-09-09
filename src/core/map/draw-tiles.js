@@ -89,6 +89,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 if (!tile.surface.geodata) {
 
                     // -- start tilerendrerig integration (temporary)
+                    // TODO: honor draw.drawChannel
+
                     if (!tile.surfaceMesh) {
                         if (tile.resourceSurface.virtual) return true;
 
@@ -123,8 +125,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             : lastRig && lastRig.isReady('fallback', 'fallback', readyOptions) ? lastRig : null;
 
                         // draw
-                        //console.log(preventRedener);
-
                         if (rigToDraw && !preventRedener) {
 
                             rigToDraw.draw();
@@ -144,6 +144,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             this.map.applyCredits(tile);
                         }
                     }
+
+                    ret = true; // seems safe
 
                     // -- end tilerenderrig integration
 
