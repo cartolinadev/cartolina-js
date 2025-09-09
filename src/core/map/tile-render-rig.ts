@@ -104,7 +104,7 @@ export class TileRenderRig {
             // request normal map
             let path = surface.getNormalsUrl(tile.id, submeshIndex);
             this.normalMap = tile.resources.getTexture(
-                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
+                path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
         }
 
     }

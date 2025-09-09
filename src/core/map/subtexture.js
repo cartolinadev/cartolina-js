@@ -75,21 +75,6 @@ MapSubtexture.prototype.killImage = function(killedByCache) {
 
 
 MapSubtexture.prototype.killGpuTexture = function(killedByCache) {
-/*
-    //debug only    
-    if (!this.map.lastRemoved) {
-        this.map.lastRemoved = [];
-    }
-
-    //debug only    
-    if (this.map.lastRemoved.indexOf(this.mapLoaderUrl) != -1) {
-        console.log("tex: " + this.mapLoaderUrl);
-    }
-
-    //debug only    
-    this.map.lastRemoved.unshift(this.mapLoaderUrl);
-    this.map.lastRemoved = this.map.lastRemoved.slice(0,20);
-*/
 
     if (this.gpuTexture != null) {
         this.stats.gpuTextures -= this.gpuTexture.size;
@@ -172,14 +157,6 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
             this.map.resourcesCache.updateItem(this.cacheItem);
         }
 
-        /*
-        if (((this.type == vts.TEXTURETYPE_HEIGHT && !this.imageData) || (this.type != vts.TEXTURETYPE_HEIGHT && !this.gpuTexture)) &&
-              this.stats.renderBuild > this.map.config.mapMaxProcessingTime) {
-            //console.log("testure resource build overflow");
-            this.map.markDirty();
-            return false;
-        }*/
-
         if (doNotCheckGpu) {
             if (this.type == vts.TEXTURETYPE_HEIGHT) {
                 if (!this.imageData) {
@@ -197,11 +174,15 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
             //console.log(this.type, this.mapLoaderUrl);
 
             if (!this.imageData) {
+
+                // build heightmap
                 t = performance.now();
                 this.buildHeightMap();
                 this.stats.renderBuild += performance.now() - t; 
             }
         } else {
+
+            // this.type != vts.TEXTURETYPE_HEIGHT
             if (!this.gpuTexture) {
                 if (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed) {
                     return false;
@@ -315,7 +296,7 @@ MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
 
 
     if (direct) {
-        // worker decoded image (mapAsynbcImageDecode), blob is bitmap
+        // worker decoded image (mapAsynbcImageDecode), data is image bitmap
         this.onLoaded(false, data)
         this.fileSize = filesize;
         return;
@@ -327,20 +308,6 @@ MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
     createImageBitmap(data)
         .then(this.onLoaded.bind(this,false))
         .catch(this.onLoadError.bind(this, false));
-
-/*    if (this.map.config.mapAsyncImageDecode) {
-        // data (from worker) is an image bitmap
-        createImageBitmap(data).then(this.onLoaded.bind(this, false));
-
-    } else {
-        // data (from worker) is a xhr blob
-
-        var image = new Image();
-        image.onerror = this.onLoadError.bind(this, true, null);
-        image.onload = this.onLoaded.bind(this, true, null);
-        this.image = image;
-        image.src = window.URL.createObjectURL(data);
-    }*/
 };
 
 
@@ -499,7 +466,7 @@ MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
 
 
 MapSubtexture.prototype.buildGpuTexture = function () {
-    if (this.map.config.mapCheckTextureSize && (this.image.naturalWidth > 1024 || this.image.naturalHeight > 1024)) {
+    /*if (this.map.config.mapCheckTextureSize && (this.image.naturalWidth > 1024 || this.image.naturalHeight > 1024)) {
         console.log('very large texture: ' + this.image.naturalWidth + 'x' + this.image.naturalHeight + ' ' + this.mapLoaderUrl);
 
         var size = 16;
@@ -522,10 +489,11 @@ MapSubtexture.prototype.buildGpuTexture = function () {
         //this.gpuTexture = this.map.renderer.blackTexture; 
         this.gpuSize = 0; //this.image.naturalWidth * this.image.naturalHeight * 4;
         return;
-    }
+    }*/
 
     this.gpuTexture = new GpuTexture(this.map.renderer.gpu, null, this.map.core);
-    this.gpuTexture.createFromImage(this.image, (this.type == vts.TEXTURETYPE_CLASS) ? 'nearest' : 'linear', false);
+    this.gpuTexture.createFromImage(
+        this.image, this.type, (this.type == vts.TEXTURETYPE_CLASS) ? 'nearest' : 'linear', false);
     this.gpuSize = this.gpuTexture.getSize();
 
     this.stats.gpuTextures += this.gpuSize;
