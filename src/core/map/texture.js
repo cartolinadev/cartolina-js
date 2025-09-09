@@ -202,7 +202,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         this.extraInfo.metaPath = path;
                     }
 
-                    // type = vts.TEXTURETYPE_HEIGHT ensures we get an RGBA array instead of brwoser-native bitmap
+                    // type = vts.TEXTURETYPE_HEIGHT ensures we get an RGBA array
+                    // instead of the browser-native bitmap
                     var texture = metaresources.getTexture(path,
                         vts.TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
                         

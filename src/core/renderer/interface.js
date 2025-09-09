@@ -3,6 +3,7 @@ import GpuTexture_ from './gpu/texture';
 import GpuMesh_ from './gpu/mesh';
 import GpuProgram_ from './gpu/program';
 import {Octree as Octree_, OctreeRaycaster as OctreeRaycaster_} from './octree.js';
+import * as vts from '../constants';
 
 //get rid of compiler mess
 var GpuTexture = GpuTexture_;
@@ -81,7 +82,7 @@ RendererInterface.prototype.createTexture = function(options) {
 
     if (source instanceof Image) {
         texture = new GpuTexture(this.gpu);
-        texture.createFromImage(source, filter, repeat);
+        texture.createFromImage(source, vts.TEXTURETYPE_COLOR, filter, repeat);
         return texture;
     }
 

@@ -27,7 +27,7 @@ export class GpuDevice {
     maxAttributesCount = 8;
     newAttributes = new Uint8Array(this.maxAttributesCount);
     enabledAttributes = new Uint8Array(this.maxAttributesCount);
-    noTextures = false;
+    //noTextures = false; // never used
 
     renderer!: Renderer;
     div!: HTMLElement;

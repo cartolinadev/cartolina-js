@@ -2,6 +2,8 @@
 import * as utils from '../../utils/utils';
 import {GpuDevice} from 'device';
 
+import * as vts from '../../constants';
+
 type Optional<T> = T | null;
 
 // local types
@@ -29,6 +31,9 @@ export class GpuTexture {
     width: number = 0;
     height: number = 0;
 
+    type_: number = vts.TEXTURETYPE_COLOR;
+    mipmapped: boolean = false;
+
     repeat!: boolean;
 
     filter!: GpuTexture.Filter;
@@ -36,7 +41,6 @@ export class GpuTexture {
     loaded: boolean = false;
 
     // stats
-    size = 0;
     fileSize!: number;
 
     constructor(gpu: GpuDevice, path: string, core: any,
@@ -67,15 +71,33 @@ kill() {
     this.texture = null;
 };
 
-// Returns GPU RAM used, in bytes.
-getSize() { return this.size; };
+
+/**
+ * Return GPU size estimate, in bytes (for cache bookkeeping)
+ */
+getSize() {
+
+  let bytesPerTexel = 4;
+
+  switch (this.type_) {
+
+      case vts.TEXTURETYPE_NORMALMAP:
+          bytesPerTexel = 2;
+          break;
+
+  }
+
+  const base = this.width * this.height * bytesPerTexel;
+  return (this.mipmapped) ? Math.ceil(base * 4/3) : base;
+}
+
 
 createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
     filter: GpuTexture.Filter, repeat?: GLfloat | GLint) {
 
     var gl = this.gl;
 
-    //console.log("Creating texture from raw data.");
+    this.type_ = vts.TEXTURETYPE_COLOR;
 
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -89,7 +111,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, repeat);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeat);
-    var mipmaps = false;
+    this.mipmapped = false;
 
     switch (filter) {
     case 'linear':
@@ -99,7 +121,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
     case 'trilinear':
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        mipmaps = true;
+        this.mipmapped = true;
         break;
     default:
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -111,7 +133,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lx, ly, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
 
-    if (mipmaps) {
+    if (this.mipmapped) {
         gl.generateMipmap(gl.TEXTURE_2D);
     }
 
@@ -119,18 +141,24 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
     this.width = lx;
     this.height = ly;
-    this.size = lx * ly * 4;
     this.loaded = true;
 };
 
-/*
+
+/**
  * Are these textures allways vertically flipped with respect to the original image?
+ * There is no gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true).
+ *
+ * @param textureType see constants.ts for texture types
  */
 
-createFromImage(image: HTMLImageElement, filter: GpuTexture.Filter, repeat?: boolean) {
-    var gl = this.gl;
+createFromImage(image: HTMLImageElement,
+                type_: number, filter: GpuTexture.Filter, repeat?: boolean) {
 
-    //console.log("Creating texture from image.");
+    let gl = this.gl;
+    let gpu = this.gpu;
+
+    this.type_ = type_;
 
     //filter = 'trilinear'; aniso = null; this.gpu.anisoLevel = 0;
     var width = image.naturalWidth;
@@ -138,11 +166,13 @@ createFromImage(image: HTMLImageElement, filter: GpuTexture.Filter, repeat?: boo
 
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     const wrap = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
-    var mipmaps = false;
+
+    this.mipmapped = false;
     this.filter = filter;
 
     switch (filter) {
@@ -153,7 +183,7 @@ createFromImage(image: HTMLImageElement, filter: GpuTexture.Filter, repeat?: boo
     case 'trilinear':
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        mipmaps = true;
+        this.mipmapped = true;
         break;
     default:
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -161,41 +191,34 @@ createFromImage(image: HTMLImageElement, filter: GpuTexture.Filter, repeat?: boo
         break;
     }
 
-    let data: TexImageSource = image;
-
-    /* no longer need on WebGL2
-     * //resize image to nearest power of two
-    if ((this.repeat || mipmaps) && (!utils.isPowerOfTwo(width) || !utils.isPowerOfTwo(height))) {
-        width = utils.nearestPowerOfTwo(width);
-        height = utils.nearestPowerOfTwo(height);
-        var canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        var context = canvas.getContext('2d');
-        context.drawImage(image, 0, 0, width, height);
-        data = canvas;
-    }
-    */
-
-    var gpu = this.gpu;
-
     if (gpu.anisoLevel) {
         gl.texParameterf(gl.TEXTURE_2D, gpu.anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, gpu.anisoLevel);
     }
 
-    if (gpu.noTextures !== true) { //why is it here and not at the beginig of the code?
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    let levels = 1;
+    if (this.mipmapped)
+        levels = Math.floor(Math.log2(Math.max(width, height))) + 1;
 
-        if (mipmaps) {
-            gl.generateMipmap(gl.TEXTURE_2D);
-        }
+    switch (this.type_) {
+
+        case vts.TEXTURETYPE_NORMALMAP:
+            gl.texStorage2D(gl.TEXTURE_2D, levels, gl.RG8, width, height);
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RG, gl.UNSIGNED_BYTE, image);
+
+            break;
+
+        default:
+            gl.texStorage2D(gl.TEXTURE_2D, levels, gl.RGBA8, width, height);
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
     }
+
+
+    if (this.mipmapped) gl.generateMipmap(gl.TEXTURE_2D);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
 
     this.width = width;
     this.height = height;
-    this.size = width * height * 4;
     this.loaded = true;
 };
 
@@ -207,7 +230,7 @@ load(path: string, onLoaded : () => void, onError: () => void, direct: boolean,
             return;
         }
 
-        this.createFromImage(this.image, this.filter, this.repeat);
+        this.createFromImage(this.image, this.type, this.filter, this.repeat);
         if (!keepImage) {
             this.image = null;
         }
@@ -243,10 +266,10 @@ createFramebufferFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array) {
 
     console.log("Creating framebuffer from data.");
 
+    this.type_ = vts.TEXTURETYPE_COLOR;
+
     var framebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    //framebuffer.width = lx;
-    //framebuffer.height = ly;
 
     var texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -270,7 +293,6 @@ createFramebufferFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array) {
 
     this.width = lx;
     this.height = ly;
-    this.size = lx * ly * 4;
 
     this.texture = texture;
     this.renderbuffer = renderbuffer;
