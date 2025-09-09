@@ -1438,7 +1438,9 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         '#endif\n'+
 
         '#ifdef shader_illumination\n' +
-            'vec3 normal_ = texture2D(normalMap, nmTexCoord).rgb * 2.0 - 1.0;\n' +
+            'vec2 nxy = texture2D(normalMap, nmTexCoord).rg * 2.0 - 1.0;\n' +
+            'float z = sqrt(max(1.0 - dot(nxy, nxy), 0.0));\n' +
+            'vec3 normal_ = normalize(vec3(nxy, z));\n' +
             'float diffuseCoef = max(dot(-lightDir, normal_), 0.0);\n' +
         '#endif\n' +
 
