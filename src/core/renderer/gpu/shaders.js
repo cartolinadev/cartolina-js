@@ -1318,6 +1318,31 @@ GpuShaders.tileVertexShader =
         '#endif\n'+
     '}';
 
+let decodeOct = `
+float sign_nz(float v) {
+    return (v < 0.0) ? -1.0 : 1.0;
+}
+
+vec3 decodeOct(vec2 rg) {
+    vec2 p = rg * 2.0 - 1.0;                          // [-1,1]^2
+    vec3 n = vec3(p, 1.0 - abs(p.x) - abs(p.y));      // L1 “unproject”
+    // branchless fold fixup (t = amount to slide back to the upper sheet)
+    float t = clamp(-n.z, 0.0, 1.0);                  // >0 only when z<0
+    n.xy += vec2(p.x >= 0.0 ? -t : t,
+                 p.y >= 0.0 ? -t : t);
+    return normalize(n);
+}
+
+/*vec3 decodeOct(vec2 rg) {
+    vec2 p = rg * 2.0 - 1.0;
+    vec3 n = vec3(p.x, p.y, 1.0 - abs(p.x) - abs(p.y));
+    if (n.z < 0.0) {
+        n.xy = (1.0 - abs(n.yx)) * vec2(sign_nz(n.x), sign_nz(n.y));
+    }
+    return normalize(n);
+}*/
+`;
+
 GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
 
     '#ifdef clip4\n'+
@@ -1371,6 +1396,11 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
     '#endif\n'+
 
     'uniform vec4 uParams2;\n'+
+
+    '#ifdef shader_illumination\n' +
+    decodeOct +
+    '#endif\n' +
+
     'void main() {\n'+
 
         '#ifdef clip4_nomargin\n'+
@@ -1438,9 +1468,7 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         '#endif\n'+
 
         '#ifdef shader_illumination\n' +
-            'vec2 nxy = texture2D(normalMap, nmTexCoord).rg * 2.0 - 1.0;\n' +
-            'float z = sqrt(max(1.0 - dot(nxy, nxy), 0.0));\n' +
-            'vec3 normal_ = normalize(vec3(nxy, z));\n' +
+            'vec3 normal_ = decodeOct(texture2D(normalMap, nmTexCoord).rg);\n' +
             'float diffuseCoef = max(dot(-lightDir, normal_), 0.0);\n' +
         '#endif\n' +
 
