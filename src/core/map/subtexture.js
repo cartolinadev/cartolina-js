@@ -492,8 +492,20 @@ MapSubtexture.prototype.buildGpuTexture = function () {
     }*/
 
     this.gpuTexture = new GpuTexture(this.map.renderer.gpu, null, this.map.core);
-    this.gpuTexture.createFromImage(
-        this.image, this.type, (this.type == vts.TEXTURETYPE_CLASS) ? 'nearest' : 'linear', false);
+
+    switch (this.type) {
+
+        case vts.TEXTURETYPE_NORMALMAP:
+        case vts.TEXTURETYPE_CLASS:
+            this.gpuTexture.createFromImage(
+                this.image, this.type, 'nearest', false);
+            break;
+
+        default:
+            this.gpuTexture.createFromImage(
+                this.image, this.type, 'linear', false);
+    }
+
     this.gpuSize = this.gpuTexture.getSize();
 
     this.stats.gpuTextures += this.gpuSize;
