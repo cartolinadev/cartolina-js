@@ -1337,15 +1337,21 @@ vec3 decodeOct(vec2 rg) {
 // (we cannot rely on gl interpolation, octahedron encoding is not continuous)
 
 vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
-  vec2 f = fract(uv/texel); vec2 base = (floor(uv/texel))*texel;
+
+  vec2 pos = uv / texel - 0.5;
+  vec2 f = fract(pos);
+  vec2 base = (floor(pos) + 0.5) * texel;
+
   vec2 uv00 = base;
   vec2 uv10 = base + vec2(texel.x,0.0);
   vec2 uv01 = base + vec2(0.0,texel.y);
   vec2 uv11 = base + texel;
+
   vec3 n00 = decodeOct(texture2D(tex, uv00).rg);
   vec3 n10 = decodeOct(texture2D(tex, uv10).rg);
   vec3 n01 = decodeOct(texture2D(tex, uv01).rg);
   vec3 n11 = decodeOct(texture2D(tex, uv11).rg);
+
   vec3 n0 = mix(n00, n10, f.x), n1 = mix(n01, n11, f.x);
   return normalize(mix(n0, n1, f.y));
 }
