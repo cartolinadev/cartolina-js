@@ -1319,9 +1319,8 @@ GpuShaders.tileVertexShader =
     '}';
 
 let decodeOct = `
-float sign_nz(float v) {
-    return (v < 0.0) ? -1.0 : 1.0;
-}
+
+// octahedron rg decoding of normals
 
 vec3 decodeOct(vec2 rg) {
     vec2 p = rg * 2.0 - 1.0;                          // [-1,1]^2
@@ -1333,14 +1332,36 @@ vec3 decodeOct(vec2 rg) {
     return normalize(n);
 }
 
-/*vec3 decodeOct(vec2 rg) {
-    vec2 p = rg * 2.0 - 1.0;
-    vec3 n = vec3(p.x, p.y, 1.0 - abs(p.x) - abs(p.y));
-    if (n.z < 0.0) {
-        n.xy = (1.0 - abs(n.yx)) * vec2(sign_nz(n.x), sign_nz(n.y));
-    }
-    return normalize(n);
-}*/
+
+// manual biliniear filtering of decoded values
+// (we cannot rely on gl interpolation, octahedron encoding is not continuous)
+
+vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
+  vec2 f = fract(uv/texel); vec2 base = (floor(uv/texel))*texel;
+  vec2 uv00 = base;
+  vec2 uv10 = base + vec2(texel.x,0.0);
+  vec2 uv01 = base + vec2(0.0,texel.y);
+  vec2 uv11 = base + texel;
+  vec3 n00 = decodeOct(texture2D(tex, uv00).rg);
+  vec3 n10 = decodeOct(texture2D(tex, uv10).rg);
+  vec3 n01 = decodeOct(texture2D(tex, uv01).rg);
+  vec3 n11 = decodeOct(texture2D(tex, uv11).rg);
+  vec3 n0 = mix(n00, n10, f.x), n1 = mix(n01, n11, f.x);
+  return normalize(mix(n0, n1, f.y));
+}
+
+
+
+vec3 sampleNormal(sampler2D tex, vec2 uv, vec3 worldPos) {
+    vec2 rg = texture2D(tex, uv).rg;
+
+    // optionally add; manual bilinear fiterling + jitter
+    //return decodeOct(rg);
+
+    // TODO: pass texture size via unifom or textureSize once on GLSL ES 3.0
+    return sampleOctBilinear(tex, uv, vec2(1./256., 1./256.));
+}
+
 `;
 
 GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
@@ -1468,7 +1489,8 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         '#endif\n'+
 
         '#ifdef shader_illumination\n' +
-            'vec3 normal_ = decodeOct(texture2D(normalMap, nmTexCoord).rg);\n' +
+            //'vec3 normal_ = texture2D(normalMap, nmTexCoord).rgb * 2.0 - 1.0;\n' +
+            'vec3 normal_ = sampleNormal(normalMap, nmTexCoord, fragPos);\n' +
             'float diffuseCoef = max(dot(-lightDir, normal_), 0.0);\n' +
         '#endif\n' +
 
