@@ -393,9 +393,11 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             }
                                             tile.boundsDebug[surface.id].push(layers[j]);
 
+
+                                            layer = tile.boundLayers[layers[j]];
+
                                             //set credits
-                                            /*layer = tile.boundLayers[layers[j]];
-                                            credits = layer.credits;
+                                            /* credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
                                                 tile.imageryCredits[credits[k]] = layer.specificity;  
                                             }*/
@@ -451,8 +453,10 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         }
                                         tile.boundsDebug[surface.id].push(layerId);
                                         
+                                        layer = tile.boundLayers[layerId];
+
                                         //set credits
-                                        /*layer = tile.boundLayers[layerId];
+                                        /*
                                         credits = layer.credits;
                                         for (k = 0, lk = credits.length; k < lk; k++) {
                                             tile.imageryCredits[credits[k]] = layer.specificity;  
@@ -495,8 +499,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             }
                                             tile.boundsDebug[surface.id].push(layer.id);
                                             
+                                            layer = tile.boundLayers[layer.id];
                                             //set credits
-                                            /*layer = tile.boundLayers[layer.id];
+                                            /*
                                             credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
                                                 tile.imageryCredits[credits[k]] = layer.specificity;  
