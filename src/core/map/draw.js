@@ -962,7 +962,6 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                     }
                 }
 
-                //console.log(material);
                 mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
                                      command.blending, command.alpha, command.runtime,
                                      command.layer, command.surface,
