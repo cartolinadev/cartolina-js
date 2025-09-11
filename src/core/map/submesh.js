@@ -858,6 +858,7 @@ MapSubmesh.prototype.getWorldMatrix = function(geoPos, matrix) {
         m[0] = this.bbox.side(0); m[1] = 0; m[2] = 0; m[3] = 0;
         m[4] = 0; m[5] = this.bbox.side(1); m[6] = 0; m[7] = 0;
         m[8] = 0; m[9] = 0; m[10] = this.bbox.side(2); m[11] = 0;
+
         m[12] = this.bbox.min[0] - geoPos[0]; m[13] = this.bbox.min[1] - geoPos[1]; m[14] = this.bbox.min[2] - geoPos[2]; m[15] = 1;
     } else {
         m = mat4.create();

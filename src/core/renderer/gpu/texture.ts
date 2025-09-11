@@ -202,7 +202,9 @@ createFromImage(image: HTMLImageElement,
     switch (this.type_) {
 
         case vts.TEXTURETYPE_NORMALMAP:
-            console.log('here');
+
+            gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
             gl.texStorage2D(gl.TEXTURE_2D, levels, gl.RG8, width, height);
             gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RG, gl.UNSIGNED_BYTE, image);

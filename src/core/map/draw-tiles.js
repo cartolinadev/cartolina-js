@@ -869,9 +869,9 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
             if (!texture) {
                 path = bump.layer.getUrl(tile.id);
-                texture = tile.resources.getTexture(path, bump.layer.dataType, null, null, tile, false);
-
-                //console.log("bump: ", path);
+                //texture = tile.resources.getTexture(path, bump.layer.dataType, null, null, tile, false);
+                texture = tile.resources.getTexture(path,
+                    vts.TEXTURETYPE_NORMALMAP, null, null, tile, false);
 
                 // TODO: work with masks - it is a hack we don't
             }
