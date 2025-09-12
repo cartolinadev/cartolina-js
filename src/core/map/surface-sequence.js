@@ -337,8 +337,18 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         // specular maps
                         if (['specular', 'specular-map'].includes(type)) {
 
+                            // alpha
+                            let alpha = 1.0;
+                            let alpha_ = item['alpha'];
+
+                            if (alpha_ != null) {
+                                console.assert(typeof alpha_ === 'number');
+                                alpha = alpha_;
+                            }
+
                             surface.specularSequence.push({
-                                "layer": layer
+                                layer: layer,
+                                alpha: alpha
                             });
 
                             //console.log("Got specular, id = ", layer.id);
@@ -359,8 +369,8 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             }
 
                             surface.bumpSequence.push({
-                                "layer": layer,
-                                "alpha": alpha
+                                layer: layer,
+                                alpha: alpha
                             });
 
                             //console.log("Got bump, id = ", layer.id, ", alpha = ", alpha);
