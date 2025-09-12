@@ -113,16 +113,19 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                i, tile, this.renderer, this.config,
-                                { bare: priority, full: priority });
+                                i, tile.resourceSurface, tile, this.renderer, this.config);
                         }
 
-                        // is the tile rig ready? Draw it. If not, use the last rig
+                        // is the tile rig ready? Draw it. If not, try the last rig
                         let curRig = tile.tileRenderRig[i], lastRig = tile.lastRenderRig[i];
+                        let priority_ = { basic: priority, full: priority }
                         let readyOptions = { doNotLoad: preventLoad, doNotCheckGpu: doNotCheckGpu};
 
-                        let rigToDraw = curRig.isReady('fallback', 'full', readyOptions) ? curRig
-                            : lastRig && lastRig.isReady('fallback', 'fallback', readyOptions) ? lastRig : null;
+                        let curRigReady = curRig.isReady('fallback', 'full', priority_, readyOptions);
+                        let lastRigReady = ! curRigReady ?
+                            lastRig.isReady('fallback', 'fallback', priority_, readyOptions) : false;
+
+                        let rigToDraw  =  curRigReady ? curRig : lastRigReady ? lastRig : null;
 
                         // draw
                         if (rigToDraw && !preventRedener) {

@@ -6,6 +6,7 @@ import MapResourceNode from 'resource-node';
 import MapSurface from 'surface';
 import MapMesh from 'mesh';
 import MapTexture from 'texture';
+import MapBoundLayer from './bound-layer'
 import Renderer from '../renderer/renderer';
 
 import * as vts from '../constants';
@@ -50,16 +51,17 @@ export class TileRenderRig {
     normalMap?: MapTexture;
     internalTexture?: MapTexture;
 
-    rt = {
+    private rt = {
         illumination: false,
         normals: false,
         externalUVs: false,
-        internalUVs: false
+        internalUVs: false,
+        layerStack: []
     }
 
-    constructor(submeshIndex: number, tile: SurfaceTile, renderer: Renderer,
-        config: Config,
-        priority: TileRenderRig.Priority = TileRenderRig.DEFAULT_PRIORITY) {
+    constructor(submeshIndex: number,
+        layerDef: TileRenderRig.LayerDef, tile: SurfaceTile, renderer: Renderer,
+        config: Config) {
 
         this.tile = tile;
         this.renderer = renderer;
@@ -88,9 +90,10 @@ export class TileRenderRig {
             || surface.bumpSequence.length > 0;
 
 
-        // build the layer stack - this may change the flags above
-        this.buildLayerStack();
+        // build the layer stack - this may change the flags due to optimization
+        this.buildLayerStack(layerDef);
 
+        // shared resources
         if (this.rt.internalUVs) {
             // request internal texture
             let path = tile.resourceSurface.getTextureUrl(tile.id, submeshIndex);
@@ -109,16 +112,26 @@ export class TileRenderRig {
 
     }
 
+    /**
+     * Make rig resources ready and check readiness.
+     *
+     * @param minimum if 'full', returns true only when all submesh resources
+     *      are  ready. If 'fallback', returns when basic resources are ready.
+     * @param desired if 'full', the functions makes extra resources ready.
+     *      If 'fallback', only basicresources are made ready.
+     * @return true if resources are ready on the desired rendering level
+     */
     isReady(minimum: TileRenderRig.Level = 'full',
             desired: TileRenderRig.Level = 'full',
-            options = TileRenderRig.DEFAULT_ISREADY_OPTIONS): boolean {
+            priority = TileRenderRig.DefaultPriority,
+            options = TileRenderRig.DefaultIsReadyOptions): boolean {
 
         return true;
     }
 
     draw(renderFlags: Partial<TileRenderRig.RenderFlags> = {}) {
 
-        let flags = {...TileRenderRig.DEFAULT_RENDER_FLAGS, ...renderFlags };
+        let flags = {...TileRenderRig.DefaultRenderFlags, ...renderFlags };
     }
 
     /**
@@ -131,9 +144,14 @@ export class TileRenderRig {
         return []; }
 
 
-    private buildLayerStack() {
+    private buildLayerStack(layerDef: TileRenderRig.LayerDef) {
 
         // build the stack
+
+        // always start by pushing the diffuse shading layer on the stack
+
+        // and if there are no diffuse layers, multiply by constant color
+
         // optimize it for non-transparency
         // turn off internal/external UVs if no layer needs them
     }
@@ -159,17 +177,77 @@ type SurfaceTile = {
 }
 
 
+type Layer = {
+
+    operation: 'blend'  | 'normalBlend' | 'push',
+    source: 'constant' | 'shade' | 'pop' | 'atmColor' | 'texture' | 'shadows',
+    target: 'color' | 'normal',
+
+    sourceConstant?: [number, number, number],
+
+    srcShadeType?: 'diffuse' | 'specular',
+    srcShadeNormal?: 'normal' | 'flat',
+
+    srcTextureTexture?: MapTexture
+    srcTextureMask?: MapTexture
+
+    opBlendMode?: 'overlay' | 'add' | 'multiply',
+    opBlendAlpha?: number,
+
+    whitewash?: number,
+}
+
+const LayerDefaults: Partial<Layer> = {
+
+    target: 'color'
+}
+
+
 // export types
 export namespace TileRenderRig {
 
+    /**
+     * the legacy layer definition, effectively modeled by MapSurface
+     */
+    type SurfaceLayerDef = {
+
+        boundLayerSequence: [
+            MapBoundLayer,
+            'normal', 'multiply',
+            {
+                value: number,
+                mode?: 'constant' | 'viewdep',
+                illumination?: [number, number]
+            } ][];
+
+        specularSequence: {
+            layer: MapBoundLayer,
+            alpha: number
+
+        }[];
+
+        bumpSequence: {
+            layer: MapBoundLayer,
+            alpha: number
+        }[];
+    }
+
+    // to be widened to accomodate for new layer definition format
+    export type LayerDef = SurfaceLayerDef;
+
+    /**
+     * rendering level, see TileRenderRig.isReady for details
+     */
     export type Level = 'fallback' | 'full';
 
+    /**
+     * basic resources are necessary to render tile, extras are embelishments.
+     */
+    export const DefaultPriority = { basic: 0, extras: 0}
 
-    export const DEFAULT_PRIORITY = { bare: 0, full: 0}
+    export type Priority = typeof DefaultPriority;
 
-    export type Priority = typeof DEFAULT_PRIORITY;
-
-    export const DEFAULT_RENDER_FLAGS = {
+    export const DefaultRenderFlags = {
         illumination: true,
         normalMap: true,
         bumps: true,
@@ -179,7 +257,7 @@ export namespace TileRenderRig {
         shadows: false
     };
 
-    export type RenderFlags = typeof DEFAULT_RENDER_FLAGS;
+    export type RenderFlags = typeof DefaultRenderFlags;
 
     /**
      * These are passed to MapMesh.isReady() and MapTexture.isReady().
@@ -187,9 +265,9 @@ export namespace TileRenderRig {
      * The first one checks readiness without queueing requests for missing content.
      * The second one seems to prevent checking agains exhaustion of gpu resources.
      */
-    export const DEFAULT_ISREADY_OPTIONS = {
+    export const DefaultIsReadyOptions = {
         doNotLoad: false, doNotCheckGpu: false
     }
 
-    export type CheckReadyOptions = typeof DEFAULT_ISREADY_OPTIONS;
+    export type CheckReadyOptions = typeof DefaultIsReadyOptions;
 }
