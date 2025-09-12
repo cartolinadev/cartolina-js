@@ -229,7 +229,8 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
                                     //load mask
                                     path = layer.getMaskUrl(tile.id);
-                                    this.maskTexture = tile.resources.getTexture(path, null, null, null, this.tile, this.internal);
+                                    this.maskTexture = tile.resources.getTexture(path,
+                                        vts.TEXTURETYPE_MASK, null, null, this.tile, this.internal);
                                     this.checkStatus = 0;
                                 }
                             }
