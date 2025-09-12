@@ -211,6 +211,16 @@ createFromImage(image: HTMLImageElement,
 
             break;
 
+        case vts.TEXTURETYPE_MASK:
+
+            gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+            gl.texStorage2D(gl.TEXTURE_2D, levels, gl.R8, width, height);
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RED, gl.UNSIGNED_BYTE, image);
+
+            break;
+
         default:
             gl.texStorage2D(gl.TEXTURE_2D, levels, gl.RGBA8, width, height);
             gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
