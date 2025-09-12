@@ -1322,13 +1322,15 @@ let decodeOct = `
 
 // octahedron rg decoding of normals
 
-vec3 decodeOct(vec2 rg) {
+vec3 decodeOct(vec2 rg, bool normalize_) {
     vec2 p = rg * 2.0 - 1.0;                          // [-1,1]^2
     vec3 n = vec3(p, 1.0 - abs(p.x) - abs(p.y));      // L1 “unproject”
     // branchless fold fixup (t = amount to slide back to the upper sheet)
     float t = clamp(-n.z, 0.0, 1.0);                  // >0 only when z<0
     n.xy += vec2(p.x >= 0.0 ? -t : t,
                  p.y >= 0.0 ? -t : t);
+
+    if (! normalize_) return n;
     return normalize(n);
 }
 
@@ -1347,10 +1349,10 @@ vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
   vec2 uv01 = base + vec2(0.0,texel.y);
   vec2 uv11 = base + texel;
 
-  vec3 n00 = decodeOct(texture2D(tex, uv00).rg);
-  vec3 n10 = decodeOct(texture2D(tex, uv10).rg);
-  vec3 n01 = decodeOct(texture2D(tex, uv01).rg);
-  vec3 n11 = decodeOct(texture2D(tex, uv11).rg);
+  vec3 n00 = decodeOct(texture2D(tex, uv00).rg, false);
+  vec3 n10 = decodeOct(texture2D(tex, uv10).rg, false);
+  vec3 n01 = decodeOct(texture2D(tex, uv01).rg, false);
+  vec3 n11 = decodeOct(texture2D(tex, uv11).rg, false);
 
   vec3 n0 = mix(n00, n10, f.x), n1 = mix(n01, n11, f.x);
   return normalize(mix(n0, n1, f.y));
