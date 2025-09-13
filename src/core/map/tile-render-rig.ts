@@ -29,7 +29,7 @@ import * as vts from '../constants';
   * mostly in MapDrawTiles.drawMeshTile, MapDrawTiles.updateTileBounds and
   * MapMesh.drawSubmesh. Unlike the old setup split across these methods,
   * the rig renders the tile always in a single pass, using a single, unified
-  * shader, including optional atmospheric scattering, hence there is no "draw
+  * program, including optional atmospheric scattering, hence there is no "draw
   * command" sequence.
   *
   * The rig is self-contained in the sense that it can draw independently even
@@ -149,11 +149,36 @@ export class TileRenderRig {
         // build the stack
 
         // always start by pushing the diffuse shading layer on the stack
+        this.rt.layerStack.push({
+            operation: 'push',
+            source: 'shadows',
+            srcShadeType: 'diffuse',
+            srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+            target: 'color',
+        });
+
 
         // and if there are no diffuse layers, multiply by constant color
+        if (layerDef.boundLayerSequence.length === 0)  {
+
+            this.rt.layerStack.push({
+                operation: 'multiply',
+                source: 'constant',
+                sourceConstant: [0.9, 0.9, 0.8], // this could be configurable
+                target: 'color'
+            });
+        }
+
+        // build the stack
+        // TODO
 
         // optimize it for non-transparency
+        // TODO
+
         // turn off internal/external UVs if no layer needs them
+        // TODO
+
+        //console.log(this.rt.layerStack);
     }
 };
 
