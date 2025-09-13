@@ -77,11 +77,11 @@ MapSubtexture.prototype.killImage = function(killedByCache) {
 MapSubtexture.prototype.killGpuTexture = function(killedByCache) {
 
     if (this.gpuTexture != null) {
-        this.stats.gpuTextures -= this.gpuTexture.size;
+        this.stats.gpuTextures -= this.gpuTexture.getSize();
         this.gpuTexture.kill();
 
         this.stats.graphsFluxTexture[1][0]++;
-        this.stats.graphsFluxTexture[1][1] += this.gpuTexture.size;
+        this.stats.graphsFluxTexture[1][1] += this.gpuTexture.getSize();
 
         if (this.mask) {
             this.mask.killGpuTexture(); 

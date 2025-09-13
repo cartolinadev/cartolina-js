@@ -85,6 +85,9 @@ getSize() {
           bytesPerTexel = 2;
           break;
 
+      case vts.TEXTURETYPE_MASK:
+          bytesPerTexel = 1;
+          break;
   }
 
   const base = this.width * this.height * bytesPerTexel;
