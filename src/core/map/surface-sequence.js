@@ -202,11 +202,18 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                 let alpha = { mode: 'constant', value: 1.0 }
         
                 if (typeof item === 'string') {
+
                     layer = this.map.getBoundLayerById(item);
+
                     if (layer) {
-                        surface.boundLayerSequence.push(
-                            [layer, 'normal', alpha]);
+
+                        surface.boundLayerSequence.push({
+                            layer: layer,
+                            mode: 'normal',
+                            alpha: alpha
+                        });
                     }
+
                 } else {
                     layer = this.map.getBoundLayerById(item['id']);
                     if (layer) {
@@ -330,7 +337,11 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             }
 
                             // add to sequence
-                            surface.boundLayerSequence.push([layer, mode, alpha]);
+                            surface.boundLayerSequence.push({
+                                layer: layer,
+                                mode: mode,
+                                alpha: alpha
+                            });
 
                         } // ["diffuse", "diffuse-map"].includes(type)
 
