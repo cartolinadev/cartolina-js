@@ -5,6 +5,7 @@
 import MapResourceNode from 'resource-node';
 import MapSurface from 'surface';
 import MapMesh from 'mesh';
+import MapSubmesh from 'submesh';
 import MapTexture from 'texture';
 import MapBoundLayer from './bound-layer'
 import Renderer from '../renderer/renderer';
@@ -48,8 +49,10 @@ export class TileRenderRig {
     private readonly renderer!: Renderer;
 
     private mesh!: MapMesh;
+    private submesh!: MapSubmesh;
+    private submeshIndex!: number;
+
     normalMap?: MapTexture;
-    internalTexture?: MapTexture;
 
     private rt = {
         illumination: false,
@@ -68,6 +71,8 @@ export class TileRenderRig {
         this.config = config;
 
         this.mesh = tile.surfaceMesh;
+        this.submeshIndex = submeshIndex;
+        this.submesh = this.mesh.submeshes[submeshIndex];
 
         // examine surface
         const surface = tile.resourceSurface;
@@ -79,10 +84,8 @@ export class TileRenderRig {
            is lost even when the original surface carried it. */
         this.rt.normals = surface.normalsUrl && ! config.mapNoNormalMaps;
 
-        // unlike the old pipeline, we guess the presence of external and internal
-        // UVs from surface definition. If the surface publishes texture URLs
-        // its meshes are expected to carry internal UVs and the surface is
-        // expected to provide internal textures.
+        // if the surface publishes texture URLs its meshes are expected to
+        // carry internal UVs and the surface is expected to provide internal textures.
         this.rt.internalUVs = !! surface.textureUrl;
         this.rt.externalUVs = !! surface.normalsUrl
             || surface.boundLayerSequence.length > 0
@@ -96,9 +99,6 @@ export class TileRenderRig {
         // shared resources
         if (this.rt.internalUVs) {
             // request internal texture
-            let path = tile.resourceSurface.getTextureUrl(tile.id, submeshIndex);
-            this.internalTexture = tile.resources.getTexture(
-                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
 
         }
 
@@ -147,32 +147,82 @@ export class TileRenderRig {
     private buildLayerStack(layerDef: TileRenderRig.LayerDef) {
 
         // build the stack
+        const rt = this.rt;
+        const tile = this.tile;
 
-        // always start by pushing the diffuse shading layer on the stack
-        this.rt.layerStack.push({
-            operation: 'push',
-            source: 'shadows',
-            srcShadeType: 'diffuse',
-            srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
-            target: 'color',
-        });
+        // if there is illumination, always start by pushing a diffuse shading layer
+        if (rt.illumination) {
 
-
-        // and if there are no diffuse layers, multiply by constant color
-        if (layerDef.boundLayerSequence.length === 0)  {
-
-            this.rt.layerStack.push({
-                operation: 'multiply',
-                source: 'constant',
-                sourceConstant: [0.9, 0.9, 0.8], // this could be configurable
-                target: 'color'
+            rt.layerStack.push({
+                target: 'color',
+                source: 'shade',
+                operation: 'push',
+                srcShadeType: 'diffuse',
+                srcShadeNormal: this.rt.normals ? 'normal' : 'flat'
             });
         }
 
-        // build the stack
+
+        // push a constant (default) color
+        if (layerDef.boundLayerSequence.length === 0)  {
+
+            rt.layerStack.push({
+                target: 'color',
+                source: 'constant',
+                operation: 'push',
+                sourceConstant: [0.9, 0.9, 0.8] // this could be configurable
+            });
+        }
+
+        // if internal textures exist, overlay an internal texture
+        if (rt.internalUVs && this.submesh.internalUVs)  {
+
+            let path = tile.resourceSurface.getTextureUrl(tile.id, this.submeshIndex);
+            let internalTexture = tile.resources.getTexture(
+                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
+
+            rt.layerStack.push({
+                target: 'color',
+                source: 'texture',
+                operation: 'blend',
+                srcTextureTexture: internalTexture,
+                srcTextureUVs: 'internal',
+                opBlendMode: 'overlay',
+                opBlendAlpha: 1.0
+            });
+
+        }
+
+
+        // add diffuse bound layers
         // TODO
 
-        // optimize it for non-transparency
+
+        // if there is illumination, add a pop-multiply
+        if (layerDef.boundLayerSequence.length === 0)  {
+
+            rt.layerStack.push({
+                target: 'color',
+                source: 'pop',
+                operation: 'blend',
+                opBlendMode: 'multiply',
+                opBlendAlpha: 1.0
+            });
+        }
+
+        // push black on top (init specular sequence)
+
+        // add specular bound layers
+
+        // add addition - pop
+
+        // add atmosphere and shadows
+
+
+        // add bump layers
+
+
+        // optimize stack for non-transparency
         // TODO
 
         // turn off internal/external UVs if no layer needs them
@@ -213,18 +263,14 @@ type Layer = {
     srcShadeType?: 'diffuse' | 'specular',
     srcShadeNormal?: 'normal' | 'flat',
 
-    srcTextureTexture?: MapTexture
-    srcTextureMask?: MapTexture
+    srcTextureTexture?: MapTexture,
+    srcTextureUVs?: 'internal' | 'external',
+    srcTextureMask?: MapTexture,
 
     opBlendMode?: 'overlay' | 'add' | 'multiply',
     opBlendAlpha?: number,
 
     whitewash?: number,
-}
-
-const LayerDefaults: Partial<Layer> = {
-
-    target: 'color'
 }
 
 
