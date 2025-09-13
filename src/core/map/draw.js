@@ -847,14 +847,14 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let loader = this.map.loader;
                 let holdBumps = (loader.usedThreads > 0.1 * loader.maxThreads);
 
+                // was it already blended? Skip it.
+                if (command.normalMap.bumpsApplied.includes(bump.layer.id))
+                    continue;
+
                 // is it ready? If not, stop here.
                 // the scheduling priority is hacked lower, without measurable effect
                 if (!command.textures[bump.layer.id].isReady(doNotLoad || holdBumps,
                     20 * priority)) break;
-
-                // was it already blended? Skip it.
-                if (command.normalMap.bumpsApplied.includes(bump.layer.id))
-                    continue;
 
                 // ok, we'll merge this one
                 bumpsReady.push(bump);
@@ -872,9 +872,8 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             // iterate bumps
             for (let j = 0; j < bumpsReady.length; j++) {
 
+                // grab texture
                 let bump = bumpsReady[j];
-
-                // not so, here is the texture
                 let bumpTexture = command.textures[bump.layer.id];
 
                 // blend texture
@@ -887,6 +886,19 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
             // store result back into normal map
             this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
+
+            // kill the bump textures that have been blended to save cache space
+            // they should not be needed until the normal map is evicted from cache
+            for (let j = 0; j < bumpsReady.length; j++) {
+
+                let bump = bumpsReady[j];
+                let bumpTexture = command.textures[bump.layer.id];
+
+                bumpTexture.mainTexture.killImage();
+                bumpTexture.mainTexture.killGpuTexture();
+            };
+
+            // done
             break;
 
         case vts.DRAWCOMMAND_SUBMESH:
