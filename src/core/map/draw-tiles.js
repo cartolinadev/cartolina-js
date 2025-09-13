@@ -153,7 +153,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    //ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
@@ -252,7 +252,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         tile.boundsDebug = {}; //used for inspector
         tile.normalMaps = [];
 
-        var specificity = 0;
+        //var specificity = 0;
         var i, li, j, lj, k, lk, surface;
 
         surface = tile.resourceSurface;
@@ -293,9 +293,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             var submesh = submeshes[i];
 
             //debug bbox
-            if (this.debug.drawBBoxes && this.debug.drawMeshBBox && !preventRedener) {
+            /*if (this.debug.drawBBoxes && this.debug.drawMeshBBox && !preventRedener) {
                 submesh.drawBBox(cameraPos);
-            }
+            }*/
 
             if (submesh.externalUVs) { 
 
@@ -1164,6 +1164,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     var debug = this.debug, pos;
 
     if (!debug.drawMeshBBox) {
+
         node.drawBBox(cameraPos);
     }
 

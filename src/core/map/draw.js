@@ -882,21 +882,16 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
                 // note that the bump map was blended
                 command.normalMap.noteBump(bump.layer.id);
+
+                // kill the bump textures that have been blended to save cache space
+                // they should not be needed until the normal map is evicted from cache
+                bumpTexture.mainTexture.killImage();
+                bumpTexture.mainTexture.killGpuTexture();
+
             };
 
             // store result back into normal map
             this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
-
-            // kill the bump textures that have been blended to save cache space
-            // they should not be needed until the normal map is evicted from cache
-            for (let j = 0; j < bumpsReady.length; j++) {
-
-                let bump = bumpsReady[j];
-                let bumpTexture = command.textures[bump.layer.id];
-
-                bumpTexture.mainTexture.killImage();
-                bumpTexture.mainTexture.killGpuTexture();
-            };
 
             // done
             break;
