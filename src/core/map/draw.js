@@ -901,7 +901,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             //console.log(command);
 
             // the unfinished procedural pipeline, removal candidate
-            var pipeline = command.pipeline;
+            /*var pipeline = command.pipeline;
             if (pipeline) {
                 var hmap = command.hmap;
     
@@ -921,7 +921,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 }
 
                 return;
-            }
+            }*/
 
             // the real start of stuff happening - check readiness
 

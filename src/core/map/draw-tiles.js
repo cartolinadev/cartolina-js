@@ -153,7 +153,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    //ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
@@ -414,8 +414,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                                 illuminatedSubmesh : illuminatedSubmesh,
                                                 normalMap : tile.normalMaps[i],
                                                 texture : texture,
-                                                blending: bounds.blending[layers[j]][1],
-                                                alpha : bounds.blending[layers[j]][2],
+                                                blending: bounds.blending[layers[j]].mode,
+                                                alpha : bounds.blending[layers[j]].alpha,
                                                 runtime: bounds.runtime[layers[j]],
                                                 material : vts.MATERIAL_EXTERNAL_NOFOG,
                                                 layer : layer,
@@ -982,9 +982,9 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             let layer;
             
             for (var j = 0, lj = surface.boundLayerSequence.length; j < lj; j++) {
-                layer = surface.boundLayerSequence[j][0];
+                layer = surface.boundLayerSequence[j].layer;
 
-                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.boundLayerSequence[j][2].value > 0) {
+                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.boundLayerSequence[j].alpha.value > 0) {
                     extraBound = null; 
                     
                     if (tile.id[0] > layer.lodRange[1]) {
@@ -1031,10 +1031,9 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
                     sequenceMaskPosible.push(maskPosible);
                     
-                    //var fullAndOpaque = !((surface.boundLayerSequence[j][1] < 1.0) || texture.extraBound || texture.getMaskTexture() || layer.isTransparent);
-                    var fullAndOpaque = !((surface.boundLayerSequence[j][2].value < 1.0)
-                        || surface.boundLayerSequence[j][2].mode != 'constant'
-                        || surface.boundLayerSequence[j][1] != 'normal' || maskPosible || layer.isTransparent);
+                    var fullAndOpaque = !((surface.boundLayerSequence[j].alpha.value < 1.0)
+                        || surface.boundLayerSequence[j].alpha.mode != 'constant'
+                        || surface.boundLayerSequence[j].mode != 'normal' || maskPosible || layer.isTransparent);
                     if (fullAndOpaque) {
                         fullAndOpaqueCounter++;
                     }
@@ -1048,19 +1047,19 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
                     bound.runtime[layer.id] = {};
 
-                    if (blending_[2].mode === 'viewdep') {
+                    if (blending_.alpha.mode === 'viewdep') {
 
                         bound.runtime[layer.id].illuminationNED
                             = Illumination.illuminationVector(
-                                blending_[2].illumination[0],
-                                blending_[2].illumination[1],
+                                blending_.alpha.illumination[0],
+                                blending_.alpha.illumination[1],
                                 Illumination.CoordSystem.NED);
                     }
 
                     tile.boundLayers[layer.id] = layer;
                                        
-                    if (blending_[1] != 'normal' || !(blending_[2].mode == 'constant'
-                        && blending_[2].value == 1.0) || layer.isTransparent) { 
+                    if (blending_.mode != 'normal' || !(blending_.alpha.mode == 'constant'
+                        && blending_.alpha.value == 1.0) || layer.isTransparent) {
                         
                         bound.transparent = true;
                     }
@@ -1085,11 +1084,11 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     } else {
                         texture = tile.boundTextures[layerId];
 
-                        if (bound.blending[layerId][2].value < 1.0 ||
-                            bound.blending[layerId][1].mode != 'normal' ||
+                        if (bound.blending[layerId].alpha.value < 1.0 ||
+                            bound.blending[layerId].mode != 'normal' ||
                             tile.boundLayers[layerId].isTransparent ||
-                            bound.blending[layerId][2].mode != 'constant' ||
-                            (sequenceMaskPosible[i] /*texture.getMaskTexture() /*&& !texture.extraBound*/)) {
+                            bound.blending[layerId].alpha.mode != 'constant' ||
+                            (sequenceMaskPosible[i])) {
                             newSequence.unshift(layerId);    
                         }
                     }
