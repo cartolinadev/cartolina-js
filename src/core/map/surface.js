@@ -30,7 +30,7 @@ var MapSurface = function(map, json, type) {
     this.lodRange = [0,0];
     this.tileRange = [[0,0],[0,0]];
     this.textureLayer = null;
-    this.boundLayerSequence = [];
+    this.diffuseSequence = [];
     this.specularSequence = [];
     this.bumpSequence = [];
     this.glue = (type == 'glue');

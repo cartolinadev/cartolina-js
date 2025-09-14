@@ -17,7 +17,7 @@ export const DRAWCOMMAND_SUBMESH = 2;
 export const DRAWCOMMAND_GEODATA = 3;
 export const DRAWCOMMAND_APPLY_BUMPS = 4;
 
-export const TEXTURECHECK_MEATATILE = 1;
+export const TEXTURECHECK_METATILE = 1;
 export const TEXTURECHECK_TYPE = 2;
 export const TEXTURECHECK_CODE = 3;
 export const TEXTURECHECK_SIZE = 4;

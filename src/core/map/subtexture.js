@@ -285,7 +285,7 @@ MapSubtexture.prototype.onLoadError = function(killBlob) {
 
 MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
 
-    if (this.fastHeaderCheck && this.checkType && this.checkType != vts.TEXTURECHECK_MEATATILE) {
+    if (this.fastHeaderCheck && this.checkType && this.checkType != vts.TEXTURECHECK_METATILE) {
         this.onHeadLoaded(null, data, null /*status*/);
         
         if (this.checkStatus == -1) {

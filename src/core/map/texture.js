@@ -181,7 +181,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     } // if (this.extraBound)
 
     switch (this.checkType) {
-    case vts.TEXTURECHECK_MEATATILE:
+    case vts.TEXTURECHECK_METATILE:
 
 //        if (this.checkStatus != 2) {
             if (this.checkStatus == 0) { // not checked
@@ -301,7 +301,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     return this.mainTexture.isReady(doNotLoad, priority, doNotCheckGpu, this) && maskState;
 };
 
-MapTexture.prototype.isMaskPosible = function() {
+MapTexture.prototype.isMaskPossible = function() {
     var texture = this;
 
     if (this.extraBound) {
@@ -310,7 +310,7 @@ MapTexture.prototype.isMaskPosible = function() {
         }
     }
 
-    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
+    if (texture.checkType == vts.TEXTURECHECK_METATILE) {
         return true;
     } else {
         return false;
@@ -326,7 +326,7 @@ MapTexture.prototype.isMaskInfoReady = function() {
         }
     }
 
-    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
+    if (texture.checkType == vts.TEXTURECHECK_METATILE) {
         if (this.maskTexture || texture.checkStatus == 2 || texture.checkStatus ==  -1) {
             return true;
         }
