@@ -156,6 +156,13 @@ export class TileRenderRig {
 
                 item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
 
+                item.rt.isWatertight =
+                    item.rt.hasMask == 'no'
+                    && item.opBlendAlpha.value === 1.0
+                    && item.opBlendAlpha.mode == 'constant'
+                    && item.opBlendMode == 'overlay'
+                    && ! item.rt.isTransparent;
+
                 if (item.rt.hasMask === 'notSureYet') unsureMasks = true;
 
             }
@@ -193,19 +200,6 @@ export class TileRenderRig {
         // build the stack
         const rt = this.rt;
         const tile = this.tile;
-
-        // if there is illumination, start by pushing a diffuse shading layer
-        if (rt.illumination) {
-
-            rt.layerStack.push({
-                target: 'color',
-                source: 'shade',
-                operation: 'push',
-                srcShadeType: 'diffuse',
-                srcShadeNormal: this.rt.normals ? 'normal' : 'flat'
-            });
-        }
-
 
         // push a constant (default) color as background
         rt.layerStack.push({
@@ -276,7 +270,7 @@ export class TileRenderRig {
 
             let hasMask = TileRenderRig.hasMask(texture);
 
-            let isOpaque = !(hasMask != 'no' || item.alpha.value < 1.0
+            let isWatertight = !(hasMask != 'no' || item.alpha.value < 1.0
                 || item.alpha.mode != 'constant' || item.mode != 'normal'
                 || layer.isTransparent );
 
@@ -317,34 +311,78 @@ export class TileRenderRig {
 
                 rt: {
                     layerId: layer.id,
-                    isOpaque: isOpaque,
-                    hasMask: hasMask }
+                    isWatertight: isWatertight,
+                    hasMask: hasMask,
+                    isTransparent: layer.isTransparent
+                }
             });
 
 
-        }); // layerDef.diffuseSequence.forEach((item)
+        }); // layerDef.diffuseSequence.forEach(()
 
-        // if there is illumination, add a pop-multiply
-        if (rt.illumination)  {
+        // if there is illumination, blend-multiply by a diffuse shading layer
+        if (rt.illumination) {
 
             rt.layerStack.push({
                 target: 'color',
-                source: 'pop',
+                source: 'shade',
                 operation: 'blend',
+                srcShadeType: 'diffuse',
+                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
                 opBlendMode: 'multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
             });
         }
 
-        // add specular bound layers
-        // TODO
+        // add specular bound layers (if illuminated)
+        if (rt.illumination && layerDef.specularSequence.length > 0) {
 
+            // push black as background
+            rt.layerStack.push({
+                target: 'color',
+                source: 'constant',
+                operation: 'push',
+                sourceConstant: [0, 0, 0]
+            });
+
+
+            // process specular sequence
+            layerDef.specularSequence.forEach((item) => {
+
+                // TODO
+
+            }); // layerDef.specularSequence.forEach()
+
+            // specular shade with specular multiply
+            rt.layerStack.push({
+                target: 'color',
+                source: 'shade',
+                operation: 'blend',
+                srcShadeType: 'specular',
+                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+                opBlendMode: 'specular-multiply',
+                opBlendAlpha: { mode: 'constant', value: 1.0 }
+            });
+
+            // pop-add, to add to the underlying color
+            rt.layerStack.push({
+                target: 'color',
+                source: 'pop',
+                operation: 'blend',
+                opBlendMode: 'add',
+                opBlendAlpha: { mode: 'constant', value: 1.0 }
+            });
+
+        } // if (rt.illumination && layerDef.specularSequence.length > 0)
 
         // add atmosphere and shadows
         // TODO
 
         // add bump layers
-        // TODO
+        layerDef.bumpSequence.forEach((item) => {
+
+            // TODO
+        }); // layerDef.bumpSequence.forEach()
 
         // optimize stack for non-transparency
         // TODO
@@ -404,7 +442,7 @@ type Alpha = {
     illuminationNED?: Illumination.vec3
 }
 
-type BlendMode = 'overlay' | 'add' | 'multiply';
+type BlendMode = 'overlay' | 'add' | 'multiply' | 'specular-multiply';
 
 type MaskStatus = 'yes' | 'no' | 'notSureYet';
 
@@ -414,7 +452,7 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 
 type Layer = {
 
-    operation: 'blend'  | 'normalBlend' | 'push',
+    operation: 'blend'  | 'normal-blend' | 'push',
     source: 'constant' | 'shade' | 'pop' | 'atmColor' | 'texture' | 'shadows',
     target: 'color' | 'normal',
 
@@ -435,7 +473,8 @@ type Layer = {
     rt?: {
         layerId: string,
         hasMask: MaskStatus,
-        isOpaque: boolean,
+        isTransparent: boolean,
+        isWatertight: boolean,
         vdalpha?: number,
     }
 }
