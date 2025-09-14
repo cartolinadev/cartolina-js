@@ -72,7 +72,7 @@ export class TileRenderRig {
     }
 
     constructor(submeshIndex: number,
-        layerDef: TileRenderRig.LayerDef, tile: SurfaceTile, renderer: Renderer,
+        layerDef: TileRenderRig.LayerDefs, tile: SurfaceTile, renderer: Renderer,
         config: Config) {
 
         this.tile = tile;
@@ -195,7 +195,7 @@ export class TileRenderRig {
         return []; }
 
 
-    private buildLayerStack(layerDef: TileRenderRig.LayerDef) {
+    private buildLayerStack(layerDefs: TileRenderRig.LayerDefs) {
 
         // build the stack
         const rt = this.rt;
@@ -235,11 +235,117 @@ export class TileRenderRig {
             return tile;
         }
 
-        layerDef.diffuseSequence.forEach((item) => {
+        layerDefs.diffuseSequence.forEach((item) => {
 
-            const layer = item.layer;
+            let layer: Layer | false = this.layerFromDef(item);
+            if (layer) rt.layerStack.push(layer);
+        });
 
-            if (!(layer && layer.ready && layer.hasTileOrInfluence(tile.id)))
+        // if there is illumination, blend-multiply by a diffuse shading layer
+        if (rt.illumination) {
+
+            rt.layerStack.push({
+                target: 'color',
+                source: 'shade',
+                operation: 'blend',
+                srcShadeType: 'diffuse',
+                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+                opBlendMode: 'multiply',
+                opBlendAlpha: { mode: 'constant', value: 1.0 },
+            });
+        }
+
+        // add specular bound layers (if illuminated)
+        if (rt.illumination && layerDefs.specularSequence.length > 0) {
+
+            // push black as background
+            rt.layerStack.push({
+                target: 'color',
+                source: 'constant',
+                operation: 'push',
+                sourceConstant: [0, 0, 0]
+            });
+
+
+            // process specular sequence
+            layerDefs.specularSequence.forEach((item) => {
+
+                let layer: Layer | false = this.layerFromDef(item);
+                if (layer) rt.layerStack.push(layer);
+
+            }); // layerDef.specularSequence.forEach()
+
+            // specular shade with specular multiply
+            rt.layerStack.push({
+                target: 'color',
+                source: 'shade',
+                operation: 'blend',
+                srcShadeType: 'specular',
+                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+                opBlendMode: 'specular-multiply',
+                opBlendAlpha: { mode: 'constant', value: 1.0 }
+            });
+
+            // pop-add, to add to the underlying color
+            rt.layerStack.push({
+                target: 'color',
+                source: 'pop',
+                operation: 'blend',
+                opBlendMode: 'add',
+                opBlendAlpha: { mode: 'constant', value: 1.0 }
+            });
+
+        } // if (rt.illumination && layerDef.specularSequence.length > 0)
+
+        // add atmosphere and shadows
+        // TODO
+
+        // add bump layers
+        layerDefs.bumpSequence.forEach((item) => {
+
+            // TODO
+        }); // layerDef.bumpSequence.forEach()
+
+        // optimize stack for non-transparency
+        // TODO
+
+        // turn off internal/external UVs if no layer needs them
+        // TODO
+
+        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+    }
+
+
+    private static hasMask(texture: MapTexture): MaskStatus {
+
+        if (texture.isMaskPossible()) {
+
+            if (texture.isMaskInfoReady()) {
+
+                if (texture.getMaskTexture()) return 'yes';
+                return 'no';
+            }
+
+            return 'notSureYet';
+        }
+
+        return 'no';
+    }
+
+
+    private layerFromDef(layerDef: TileRenderRig.LayerDef): Layer | undefined {
+
+        let tile = this.tile;
+        const layer = layerDef.layer;
+
+        let clampToLodRange = (tile: SurfaceTile, lodRange: number[]) => {
+
+            while(tile && tile.id[0] > lodRange[1]) { tile = tile.parent; }
+            return tile;
+        }
+
+
+        if (!(layer && layer.ready && layer.hasTileOrInfluence(tile.id)))
                 return;
 
             let extraBound = null;
@@ -270,35 +376,40 @@ export class TileRenderRig {
 
             let hasMask = TileRenderRig.hasMask(texture);
 
-            let isWatertight = !(hasMask != 'no' || item.alpha.value < 1.0
-                || item.alpha.mode != 'constant' || item.mode != 'normal'
+            let alpha_: any = layerDef.alpha;
+
+            if (typeof layerDef.alpha === "number")
+                alpha_ = { mode: 'constant', value: layerDef.alpha };
+
+
+            let isWatertight = !(hasMask != 'no' || alpha_.value < 1.0
+                || alpha_.mode != 'constant' || layerDef.mode != 'normal'
                 || layer.isTransparent );
 
             let mode: BlendMode;
-            switch (item.mode) {
+            switch (layerDef.mode) {
 
                 case 'multiply': mode = 'multiply'; break;
                 case 'normal': default: mode = 'overlay'; break;
             }
 
             let alpha: Alpha = {
-                mode: item.alpha.mode,
-                value: item.alpha.value
+                mode: alpha_.mode,
+                value:alpha_.value
             }
 
-            if (item.alpha.mode === 'viewdep') {
+            if (alpha_.mode === 'viewdep') {
 
                 alpha.illuminationNED = Illumination.illuminationVector(
-                    item.alpha.illumination[0],
-                    item.alpha.illumination[1],
+                    alpha_.illumination[0],
+                    alpha_.illumination[1],
                     Illumination.CoordSystem.NED);
-
             }
 
             // ommit this silent side effect of the old code for now
             //tile.boundLayers[layer.id] = item.layer;
 
-            rt.layerStack.push({
+            return ({
                 operation: 'blend',
                 source: 'texture',
                 target: 'color',
@@ -316,98 +427,6 @@ export class TileRenderRig {
                     isTransparent: layer.isTransparent
                 }
             });
-
-
-        }); // layerDef.diffuseSequence.forEach(()
-
-        // if there is illumination, blend-multiply by a diffuse shading layer
-        if (rt.illumination) {
-
-            rt.layerStack.push({
-                target: 'color',
-                source: 'shade',
-                operation: 'blend',
-                srcShadeType: 'diffuse',
-                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
-                opBlendMode: 'multiply',
-                opBlendAlpha: { mode: 'constant', value: 1.0 },
-            });
-        }
-
-        // add specular bound layers (if illuminated)
-        if (rt.illumination && layerDef.specularSequence.length > 0) {
-
-            // push black as background
-            rt.layerStack.push({
-                target: 'color',
-                source: 'constant',
-                operation: 'push',
-                sourceConstant: [0, 0, 0]
-            });
-
-
-            // process specular sequence
-            layerDef.specularSequence.forEach((item) => {
-
-                // TODO
-
-            }); // layerDef.specularSequence.forEach()
-
-            // specular shade with specular multiply
-            rt.layerStack.push({
-                target: 'color',
-                source: 'shade',
-                operation: 'blend',
-                srcShadeType: 'specular',
-                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
-                opBlendMode: 'specular-multiply',
-                opBlendAlpha: { mode: 'constant', value: 1.0 }
-            });
-
-            // pop-add, to add to the underlying color
-            rt.layerStack.push({
-                target: 'color',
-                source: 'pop',
-                operation: 'blend',
-                opBlendMode: 'add',
-                opBlendAlpha: { mode: 'constant', value: 1.0 }
-            });
-
-        } // if (rt.illumination && layerDef.specularSequence.length > 0)
-
-        // add atmosphere and shadows
-        // TODO
-
-        // add bump layers
-        layerDef.bumpSequence.forEach((item) => {
-
-            // TODO
-        }); // layerDef.bumpSequence.forEach()
-
-        // optimize stack for non-transparency
-        // TODO
-
-        // turn off internal/external UVs if no layer needs them
-        // TODO
-
-        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
-    }
-
-
-    private static hasMask(texture: MapTexture): MaskStatus {
-
-        if (texture.isMaskPossible()) {
-
-            if (texture.isMaskInfoReady()) {
-
-                if (texture.getMaskTexture()) return 'yes';
-                return 'no';
-            }
-
-            return 'notSureYet';
-        }
-
-        return 'no';
     }
 };
 
@@ -484,10 +503,20 @@ type Layer = {
 export namespace TileRenderRig {
 
     /**
-     * the legacy layer definition (the thre sequences in MapSurface)
+     * the legacy layer definition (the three sequences in MapSurface)
      */
 
-    type SurfaceLayerDef = {
+    export type LegacyLayerDef = {
+        layer: MapBoundLayer,
+        mode?: 'normal' | 'multiply'
+        alpha: number | {
+            value: number,
+            mode?: AlphaMode,
+            illumination?: [number, number]
+        }
+    }
+
+    type LegacyLayerDefs = {
 
         diffuseSequence: {
             layer: MapBoundLayer,
@@ -512,7 +541,9 @@ export namespace TileRenderRig {
     }
 
     // to be widened to accomodate for new layer definition format
-    export type LayerDef = SurfaceLayerDef;
+    export type LayerDef = LegacyLayerDef;
+    export type LayerDefs = LegacyLayerDefs;
+
 
     /**
      * rendering level, see TileRenderRig.isReady for details

@@ -220,7 +220,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                                 
                             if (this.checkStatus == 2) {
 
-                                // the 2nd highest bit seems to inddicate mask existence
+                                // the 2nd highest bit seems to indicate tile is watertight
                                 if (!(value & 64)) {
 
                                     //load mask
