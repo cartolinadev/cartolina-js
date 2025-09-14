@@ -115,11 +115,17 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         // has been switched
                         if (!tile.tileRenderRig[i] || tile.resetDrawCommands || tile.updateBounds) {
 
+                            //if (tile.tileRenderRig[i])
+                            //    console.log('Replacing rig for %s.', [...tile.id, i].join('-'));
+
                             if (tile.tileRenderRig[i])
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
                             tile.tileRenderRig[i] = new TileRenderRig(
                                 i, submeshSurface, tile, this.renderer, this.config);
+
+                            tile.resetDrawCommands = tile.updateBounds = false;
+
                         }
 
                         // is the tile rig ready? Draw it. If not, try the last rig
@@ -129,7 +135,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                         let curRigReady = curRig.isReady('fallback', 'full', priority_, readyOptions);
                         let lastRigReady = ! curRigReady ?
-                            lastRig.isReady('fallback', 'fallback', priority_, readyOptions) : false;
+                            lastRig && lastRig.isReady('fallback', 'fallback', priority_, readyOptions) : false;
 
                         let rigToDraw  =  curRigReady ? curRig : lastRigReady ? lastRig : null;
 
@@ -159,7 +165,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    //ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
@@ -909,7 +915,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
         bound.speculars = [];
         let sequenceFullAndOpaque = [];
-        let sequenceMaskPosible = [];
+        let sequenceMaskPossible = [];
         let fullAndOpaqueCounter = 0;
 
         for (let j = 0, lj = surface.specularSequence.length; j < lj; j++) {
@@ -953,22 +959,22 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     continue; //do not use this layer
                 }
 
-                //var maskPosible = false;
+                //var maskPossible = false;
                 //var skipOther = false;
 
                 if (texture.isMaskPossible()) {
                     if (texture.isMaskInfoReady()) {
                         if (texture.getMaskTexture()) {
                             //bound.transparent = true;
-                            //maskPosible = true;
+                            //maskPossible = true;
                         }
                     } else {
                         //skipOther = true;
-                        //maskPosible = true;
+                        //maskPossible = true;
                     }
                 }
 
-                //sequenceMaskPosible.push(maskPosible);
+                //sequenceMaskPossible.push(maskPossible);
 
                 // store it to some sequence in tile
                 bound.speculars.push(specular);
@@ -983,7 +989,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
             bound.sequence = [];
             var sequenceFullAndOpaque = [];
-            var sequenceMaskPosible = [];
+            var sequenceMaskPossible = [];
             var fullAndOpaqueCounter = 0;
             let layer;
             
@@ -1020,26 +1026,40 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         continue; //do not use this layer
                     }
 
-                    var maskPosible = false;
+                    var maskPossible = false;
                     var skipOther = false;
 
                     if (texture.isMaskPossible()) {
+
+                        // the layer has metatiles
+
                         if (texture.isMaskInfoReady()) {
+
+                            // we already know if there is mask
                             if (texture.getMaskTexture()) {
                                 bound.transparent = true;
-                                maskPosible = true;
+                                maskPossible = true;
                             }
+
+
                         } else {
+
+                            // so the layer has metatiles, but we do not know
+                            // if there is mask for this tile, so we abort.
+                            // Once the metatile loads, commands reset and
+                            // updateBounds becomes true. The only effect of the
+                            // aborted sequence is to issue the isReady call that
+                            // will triggerthe metatile download
                             skipOther = true;
-                            maskPosible = true;
+                            maskPossible = true;
                         }
                     }
 
-                    sequenceMaskPosible.push(maskPosible);
+                    sequenceMaskPossible.push(maskPossible);
                     
                     var fullAndOpaque = !((surface.diffuseSequence[j].alpha.value < 1.0)
                         || surface.diffuseSequence[j].alpha.mode != 'constant'
-                        || surface.diffuseSequence[j].mode != 'normal' || maskPosible || layer.isTransparent);
+                        || surface.diffuseSequence[j].mode != 'normal' || maskPossible || layer.isTransparent);
                     if (fullAndOpaque) {
                         fullAndOpaqueCounter++;
                     }
@@ -1094,7 +1114,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                             bound.blending[layerId].mode != 'normal' ||
                             tile.boundLayers[layerId].isTransparent ||
                             bound.blending[layerId].alpha.mode != 'constant' ||
-                            (sequenceMaskPosible[i])) {
+                            (sequenceMaskPossible[i])) {
                             newSequence.unshift(layerId);    
                         }
                     }
