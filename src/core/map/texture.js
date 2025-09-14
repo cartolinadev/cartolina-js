@@ -121,11 +121,7 @@ MapTexture.prototype.setBoundTexture = function(tile, layer, hmap) {
 MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     var doNotUseGpu = (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed);
     doNotLoad = doNotLoad || doNotUseGpu;
-/*   
-   if (this.mapLoaderUrl == "https://ecn.t3.tiles.virtualearth.net/tiles/a1202310323212333.jpeg?g=5549") {
-       this.mapLoaderUrl = this.mapLoaderUrl;
-   }
-*/
+
     if (this.neverReady) {
         return false;
     }
@@ -135,8 +131,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     if (this.extraBound) {
         if (this.extraBound.texture) {
 
-            // this looks lika  fallback mechanism - if loading tile on the desired level falls,
-            // we try to fetch parent tile instead
+            // extraBound is a tile clamped to the available lodRange for the layer
             while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
 //            while (this.extraBound.texture.checkStatus == -1) {
                 parent = this.extraBound.sourceTile.parent;
@@ -214,6 +209,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                     } else {
                         // checkStatus == 0 && this.extraInfo && this.extraInfo.tile && ! this.maskTexture
                         if (texture.isReady(doNotLoad, priority, doNotCheckGpu)) {
+
                             var tile = this.extraInfo.tile;
 
                             // read bl metatile value
@@ -231,6 +227,10 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                                     path = layer.getMaskUrl(tile.id);
                                     this.maskTexture = tile.resources.getTexture(path,
                                         vts.TEXTURETYPE_MASK, null, null, this.tile, this.internal);
+
+                                    // possible race condition here: checkStatus flashes to 2
+                                    // before being reset to 0. And should checkStatus be 0
+                                    // anyway? We're just waiting for the mask to load.
                                     this.checkStatus = 0;
                                 }
                             }
@@ -327,6 +327,8 @@ MapTexture.prototype.isMaskInfoReady = function() {
     }
 
     if (texture.checkType == vts.TEXTURECHECK_METATILE) {
+        // check for maskTexture bellow probably redundant, could be
+        // if (texture.checkStatus == 2 || texture.checkStatus ==  -1) {
         if (this.maskTexture || texture.checkStatus == 2 || texture.checkStatus ==  -1) {
             return true;
         }

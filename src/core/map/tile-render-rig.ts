@@ -86,7 +86,6 @@ export class TileRenderRig {
         // examine surface
         const surface = tile.resourceSurface;
 
-
         this.rt.illumination
             = surface.normalsUrl && this.renderer.getIlluminationState()
 
@@ -95,7 +94,8 @@ export class TileRenderRig {
         this.rt.normals = surface.normalsUrl && ! config.mapNoNormalMaps;
 
         // if the surface publishes texture URLs its meshes are expected to
-        // carry internal UVs and the surface is expected to provide internal textures.
+        // carry internal UVs and the surface is expected to provide internal
+        // textures.
         this.rt.internalUVs = !! surface.textureUrl;
         this.rt.externalUVs = !! surface.normalsUrl
             || surface.diffuseSequence.length > 0
@@ -127,8 +127,9 @@ export class TileRenderRig {
      *
      * @param minimum if 'full', returns true only when all submesh resources
      *      are  ready. If 'fallback', returns when basic resources are ready.
-     * @param desired if 'full', the functions makes extra resources ready.
-     *      If 'fallback', only basicresources are made ready.
+     * @param desired if 'full', the function makes all submesh resources ready.
+     *      If 'fallback', only resources needed for fallback rendering are made
+     *      ready.
      * @return true if resources are ready on the desired rendering level
      */
     isReady(minimum: TileRenderRig.Level = 'full',
@@ -136,9 +137,41 @@ export class TileRenderRig {
             priority = TileRenderRig.DefaultPriority,
             options = TileRenderRig.DefaultIsReadyOptions): boolean {
 
+        let layerStack = this.rt.layerStack;
+
+        // if we have any 'notSureYet' masks, initiate checks and exit gracefully
+        let unsureMasks = false;
+
+        layerStack.forEach((item: Layer) => {
+
+            if (item.rt && item.rt.hasMask === 'notSureYet') {
+
+                //console.log('Checking mask for %s (%s): ', this.tile.id.join('-'), item.rt.layerId);
+
+                console.assert(
+                    item.source === 'texture', 'incompatible layer params');
+
+                item.srcTextureTexture.isReady(
+                    options.doNotLoad, priority.basic, options.doNotCheckGpu);
+
+                item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
+
+                if (item.rt.hasMask === 'notSureYet') unsureMasks = true;
+
+            }
+        });
+
+        if (unsureMasks) return false;
+
+        // actual readiness check
+        // TODO
+
         return true;
     }
 
+    /**
+     * Process layer stack into actual draw calls, using the tile shader program.
+     */
     draw(renderFlags: Partial<TileRenderRig.RenderFlags> = {}) {
 
         let flags = {...TileRenderRig.DefaultRenderFlags, ...renderFlags };
@@ -149,6 +182,7 @@ export class TileRenderRig {
      * that will be actually used in rendering. This is used for assembling tile
      * credits.
      */
+
     activeLayerIds(): string[] {
         // TODO
         return []; }
@@ -201,9 +235,9 @@ export class TileRenderRig {
         }
 
         // add diffuse bound layers
-        let getParentTile = (tile: SurfaceTile, lod: number) => {
+        let clampToLodRange = (tile: SurfaceTile, lodRange: number[]) => {
 
-            while(tile && tile.id[0] > lod) { tile = tile.parent; }
+            while(tile && tile.id[0] > lodRange[1]) { tile = tile.parent; }
             return tile;
         }
 
@@ -218,7 +252,7 @@ export class TileRenderRig {
 
             if (tile.id[0] > layer.lodRange[1])
                 extraBound = {
-                    sourceTile: getParentTile(tile, layer.lodRange[1]),
+                    sourceTile: clampToLodRange(tile, layer.lodRange),
                     sourceTexture: null, layer: layer, tile: tile };
 
             let texture: MapTexture = tile.boundTextures[layer.id];
@@ -240,14 +274,15 @@ export class TileRenderRig {
 
             if (texture.neverReady) return;
 
-            let isOpaque = true;
+            let hasMask = TileRenderRig.hasMask(texture);
 
-            if (texture.isMaskPossible() || item.alpha.value < 1.0
+            let isOpaque = !(hasMask != 'no' || item.alpha.value < 1.0
                 || item.alpha.mode != 'constant' || item.mode != 'normal'
-                || layer.isTransparent ) isOpaque = false;
+                || layer.isTransparent );
 
             let mode: BlendMode;
             switch (item.mode) {
+
                 case 'multiply': mode = 'multiply'; break;
                 case 'normal': default: mode = 'overlay'; break;
             }
@@ -280,7 +315,10 @@ export class TileRenderRig {
                 opBlendMode: mode,
                 opBlendAlpha: alpha,
 
-                rt: { isOpaque: isOpaque }
+                rt: {
+                    layerId: layer.id,
+                    isOpaque: isOpaque,
+                    hasMask: hasMask }
             });
 
 
@@ -298,17 +336,15 @@ export class TileRenderRig {
             });
         }
 
-        // push black on top (init specular sequence)
-
         // add specular bound layers
+        // TODO
 
-        // add addition - pop
 
         // add atmosphere and shadows
-
+        // TODO
 
         // add bump layers
-
+        // TODO
 
         // optimize stack for non-transparency
         // TODO
@@ -316,7 +352,24 @@ export class TileRenderRig {
         // turn off internal/external UVs if no layer needs them
         // TODO
 
-        //console.log(tile.resourceSurface.id, tile.id, this.rt.layerStack);
+        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+    }
+
+
+    private static hasMask(texture: MapTexture): MaskStatus {
+
+        if (texture.isMaskPossible()) {
+
+            if (texture.isMaskInfoReady()) {
+
+                if (texture.getMaskTexture()) return 'yes';
+                return 'no';
+            }
+
+            return 'notSureYet';
+        }
+
+        return 'no';
     }
 };
 
@@ -353,6 +406,12 @@ type Alpha = {
 
 type BlendMode = 'overlay' | 'add' | 'multiply';
 
+type MaskStatus = 'yes' | 'no' | 'notSureYet';
+
+/**
+ * Layer stack item, basically an elementary instruction for the fragment shader.
+ */
+
 type Layer = {
 
     operation: 'blend'  | 'normalBlend' | 'push',
@@ -374,7 +433,9 @@ type Layer = {
     whitewash?: number,
 
     rt?: {
-        isOpaque?: boolean,
+        layerId: string,
+        hasMask: MaskStatus,
+        isOpaque: boolean,
         vdalpha?: number,
     }
 }
