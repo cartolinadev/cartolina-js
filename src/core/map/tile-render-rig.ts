@@ -7,8 +7,9 @@ import MapSurface from 'surface';
 import MapMesh from 'mesh';
 import MapSubmesh from 'submesh';
 import MapTexture from 'texture';
-import MapBoundLayer from './bound-layer'
+import MapBoundLayer from 'bound-layer'
 import Renderer from '../renderer/renderer';
+import * as Illumination from './illumination';
 
 import * as vts from '../constants';
 
@@ -54,12 +55,20 @@ export class TileRenderRig {
 
     normalMap?: MapTexture;
 
-    private rt = {
+
+    private rt : {
+        illumination: boolean,
+        normals: boolean,
+        externalUVs: boolean,
+        internalUVs: boolean,
+        layerStack: Layer[],
+    } = {
+
         illumination: false,
         normals: false,
         externalUVs: false,
         internalUVs: false,
-        layerStack: []
+        layerStack: [],
     }
 
     constructor(submeshIndex: number,
@@ -78,7 +87,8 @@ export class TileRenderRig {
         const surface = tile.resourceSurface;
 
 
-        this.rt.illumination = this.renderer.getIlluminationState()
+        this.rt.illumination
+            = surface.normalsUrl && this.renderer.getIlluminationState()
 
         /** WARN: glues currently don't carry normalsUrls, so normal information
            is lost even when the original surface carried it. */
@@ -88,7 +98,7 @@ export class TileRenderRig {
         // carry internal UVs and the surface is expected to provide internal textures.
         this.rt.internalUVs = !! surface.textureUrl;
         this.rt.externalUVs = !! surface.normalsUrl
-            || surface.boundLayerSequence.length > 0
+            || surface.diffuseSequence.length > 0
             || surface.specularSequence.length > 0
             || surface.bumpSequence.length > 0;
 
@@ -150,7 +160,7 @@ export class TileRenderRig {
         const rt = this.rt;
         const tile = this.tile;
 
-        // if there is illumination, always start by pushing a diffuse shading layer
+        // if there is illumination, start by pushing a diffuse shading layer
         if (rt.illumination) {
 
             rt.layerStack.push({
@@ -163,16 +173,13 @@ export class TileRenderRig {
         }
 
 
-        // push a constant (default) color
-        if (layerDef.boundLayerSequence.length === 0)  {
-
-            rt.layerStack.push({
+        // push a constant (default) color as background
+        rt.layerStack.push({
                 target: 'color',
                 source: 'constant',
                 operation: 'push',
                 sourceConstant: [0.9, 0.9, 0.8] // this could be configurable
-            });
-        }
+        });
 
         // if internal textures exist, overlay an internal texture
         if (rt.internalUVs && this.submesh.internalUVs)  {
@@ -188,25 +195,106 @@ export class TileRenderRig {
                 srcTextureTexture: internalTexture,
                 srcTextureUVs: 'internal',
                 opBlendMode: 'overlay',
-                opBlendAlpha: 1.0
+                opBlendAlpha: { mode: 'constant', value: 1.0 },
             });
 
         }
 
-
         // add diffuse bound layers
-        // TODO
+        let getParentTile = (tile: SurfaceTile, lod: number) => {
 
+            while(tile && tile.id[0] > lod) { tile = tile.parent; }
+            return tile;
+        }
+
+        layerDef.diffuseSequence.forEach((item) => {
+
+            const layer = item.layer;
+
+            if (!(layer && layer.ready && layer.hasTileOrInfluence(tile.id)))
+                return;
+
+            let extraBound = null;
+
+            if (tile.id[0] > layer.lodRange[1])
+                extraBound = {
+                    sourceTile: getParentTile(tile, layer.lodRange[1]),
+                    sourceTexture: null, layer: layer, tile: tile };
+
+            let texture: MapTexture = tile.boundTextures[layer.id];
+
+            if (!texture) {
+
+                let path = layer.getUrl(tile.id);
+                texture = tile.resources.getTexture(
+                    path, layer.dataType, extraBound,
+                    {tile: tile, layer: layer}, tile, false);
+
+                if (texture.checkType == vts.TEXTURECHECK_METATILE) {
+                    texture.checkMask = true;
+                }
+
+                texture.isReady(true); //check metatile/mask but do not load
+                tile.boundTextures[layer.id] = texture;
+            }
+
+            if (texture.neverReady) return;
+
+            let isOpaque = true;
+
+            if (texture.isMaskPossible() || item.alpha.value < 1.0
+                || item.alpha.mode != 'constant' || item.mode != 'normal'
+                || layer.isTransparent ) isOpaque = false;
+
+            let mode: BlendMode;
+            switch (item.mode) {
+                case 'multiply': mode = 'multiply'; break;
+                case 'normal': default: mode = 'overlay'; break;
+            }
+
+            let alpha: Alpha = {
+                mode: item.alpha.mode,
+                value: item.alpha.value
+            }
+
+            if (item.alpha.mode === 'viewdep') {
+
+                alpha.illuminationNED = Illumination.illuminationVector(
+                    item.alpha.illumination[0],
+                    item.alpha.illumination[1],
+                    Illumination.CoordSystem.NED);
+
+            }
+
+            // ommit this silent side effect of the old code for now
+            //tile.boundLayers[layer.id] = item.layer;
+
+            rt.layerStack.push({
+                operation: 'blend',
+                source: 'texture',
+                target: 'color',
+
+                srcTextureTexture: texture,
+                srcTextureUVs: 'external',
+
+                opBlendMode: mode,
+                opBlendAlpha: alpha,
+
+                rt: { isOpaque: isOpaque }
+            });
+
+
+        }); // layerDef.diffuseSequence.forEach((item)
 
         // if there is illumination, add a pop-multiply
-        if (layerDef.boundLayerSequence.length === 0)  {
+        if (rt.illumination)  {
 
             rt.layerStack.push({
                 target: 'color',
                 source: 'pop',
                 operation: 'blend',
                 opBlendMode: 'multiply',
-                opBlendAlpha: 1.0
+                opBlendAlpha: { mode: 'constant', value: 1.0 },
             });
         }
 
@@ -228,7 +316,7 @@ export class TileRenderRig {
         // turn off internal/external UVs if no layer needs them
         // TODO
 
-        //console.log(this.rt.layerStack);
+        //console.log(tile.resourceSurface.id, tile.id, this.rt.layerStack);
     }
 };
 
@@ -246,11 +334,24 @@ type SurfaceTile = {
 
     id: [number, number, number];
 
+    parent?: SurfaceTile;
+
     resources: MapResourceNode;
     resourceSurface: MapSurface;
     surfaceMesh: MapMesh;
+
+    boundTextures: { [key: string]: MapTexture };
 }
 
+type AlphaMode = 'constant' | 'viewdep';
+
+type Alpha = {
+    mode: AlphaMode,
+    value: number,
+    illuminationNED?: Illumination.vec3
+}
+
+type BlendMode = 'overlay' | 'add' | 'multiply';
 
 type Layer = {
 
@@ -265,12 +366,17 @@ type Layer = {
 
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
-    srcTextureMask?: MapTexture,
+    //srcTextureMask?: MapTexture,
 
-    opBlendMode?: 'overlay' | 'add' | 'multiply',
-    opBlendAlpha?: number,
+    opBlendMode?: BlendMode,
+    opBlendAlpha?: Alpha,
 
     whitewash?: number,
+
+    rt?: {
+        isOpaque?: boolean,
+        vdalpha?: number,
+    }
 }
 
 
@@ -278,18 +384,20 @@ type Layer = {
 export namespace TileRenderRig {
 
     /**
-     * the legacy layer definition, effectively modeled by MapSurface
+     * the legacy layer definition (the thre sequences in MapSurface)
      */
+
     type SurfaceLayerDef = {
 
-        boundLayerSequence: [
-            MapBoundLayer,
-            'normal', 'multiply',
-            {
-                value: number,
-                mode?: 'constant' | 'viewdep',
-                illumination?: [number, number]
-            } ][];
+        diffuseSequence: {
+            layer: MapBoundLayer,
+            mode: 'normal' | 'multiply',
+            alpha: {
+                    value: number,
+                    mode?: AlphaMode,
+                    illumination?: [number, number]
+                }
+            }[];
 
         specularSequence: {
             layer: MapBoundLayer,

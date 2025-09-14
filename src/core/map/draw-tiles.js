@@ -104,6 +104,12 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // iterate through submeshes
                     for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
 
+                        var submeshSurface = tile.resourceSurface;
+
+                        if (tile.resourceSurface.glue)
+                            submeshSurface  = tile.resourceSurface.getSurfaceReference(
+                                tile.surfaceMesh.submeshes[i].surfaceReference);
+
                         // we are either drawing the tile for the first time, or
                         // there has been a boundlayer fallback, or a view
                         // has been switched
@@ -113,7 +119,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                i, tile.resourceSurface, tile, this.renderer, this.config);
+                                i, submeshSurface, tile, this.renderer, this.config);
                         }
 
                         // is the tile rig ready? Draw it. If not, try the last rig
@@ -935,7 +941,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         specular.layer.dataType, extraBound,
                             {tile: tile, layer: specular.layer}, tile, false);
 
-                    if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
+                    if (texture.checkType == vts.TEXTURECHECK_METATILE) {
                         texture.checkMask = true;
                     }
 
@@ -950,7 +956,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                 //var maskPosible = false;
                 //var skipOther = false;
 
-                if (texture.isMaskPosible()) {
+                if (texture.isMaskPossible()) {
                     if (texture.isMaskInfoReady()) {
                         if (texture.getMaskTexture()) {
                             //bound.transparent = true;
@@ -973,7 +979,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
     }
 
     // diffuse layers
-    if (surface.boundLayerSequence.length > 0) {
+    if (surface.diffuseSequence.length > 0) {
 
             bound.sequence = [];
             var sequenceFullAndOpaque = [];
@@ -981,10 +987,10 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             var fullAndOpaqueCounter = 0;
             let layer;
             
-            for (var j = 0, lj = surface.boundLayerSequence.length; j < lj; j++) {
-                layer = surface.boundLayerSequence[j].layer;
+            for (var j = 0, lj = surface.diffuseSequence.length; j < lj; j++) {
+                layer = surface.diffuseSequence[j].layer;
 
-                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.boundLayerSequence[j].alpha.value > 0) {
+                if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.diffuseSequence[j].alpha.value > 0) {
                     extraBound = null; 
                     
                     if (tile.id[0] > layer.lodRange[1]) {
@@ -1002,7 +1008,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         path = layer.getUrl(tile.id);
                         texture = tile.resources.getTexture(path, layer.dataType, extraBound, {tile: tile, layer: layer}, tile, false);
 
-                        if (texture.checkType == vts.TEXTURECHECK_MEATATILE) {
+                        if (texture.checkType == vts.TEXTURECHECK_METATILE) {
                             texture.checkMask = true;
                         }
 
@@ -1017,7 +1023,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     var maskPosible = false;
                     var skipOther = false;
 
-                    if (texture.isMaskPosible()) {
+                    if (texture.isMaskPossible()) {
                         if (texture.isMaskInfoReady()) {
                             if (texture.getMaskTexture()) {
                                 bound.transparent = true;
@@ -1031,16 +1037,16 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
                     sequenceMaskPosible.push(maskPosible);
                     
-                    var fullAndOpaque = !((surface.boundLayerSequence[j].alpha.value < 1.0)
-                        || surface.boundLayerSequence[j].alpha.mode != 'constant'
-                        || surface.boundLayerSequence[j].mode != 'normal' || maskPosible || layer.isTransparent);
+                    var fullAndOpaque = !((surface.diffuseSequence[j].alpha.value < 1.0)
+                        || surface.diffuseSequence[j].alpha.mode != 'constant'
+                        || surface.diffuseSequence[j].mode != 'normal' || maskPosible || layer.isTransparent);
                     if (fullAndOpaque) {
                         fullAndOpaqueCounter++;
                     }
                             
                     sequenceFullAndOpaque.push(fullAndOpaque);
 
-                    let blending_ = surface.boundLayerSequence[j];
+                    let blending_ = surface.diffuseSequence[j];
                     
                     bound.sequence.push(layer.id);
                     bound.blending[layer.id] = blending_; 
@@ -1068,7 +1074,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         break; //wait until mask info is loaded
                     }
                 }
-            } // for (var j = 0; lj = surface.boundLayerSequence.length; j < lj; j++)
+            } // for (var j = 0; lj = surface.diffuseSequence.length; j < lj; j++)
 
             //filter out extra bounds if they are not needed
             //and remove all layer after first FullAndOpaque 
@@ -1098,11 +1104,11 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             }
 
 
-    } // if (surfaceBoundLayerSequence.length > 0)
+    } // if (surfacediffuseSequence.length > 0)
 
     else if (surface.textureLayer != null) { //search surface
 
-        // if (surfaceBoundLayerSequence.length == 0)
+        // if (surfacediffuseSequence.length == 0)
 
         //if (fullUpdate) {
             layer = this.map.getBoundLayerById(surface.textureLayer);
@@ -1129,7 +1135,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
 
 
 
-    } // if (surface.boundLayerSequence > 0 || surface.textureLayer != null)
+    } // if (surface.diffuseSequence > 0 || surface.textureLayer != null)
 
     else { //search submeshes
         if (submesh.textureLayer != 0) {

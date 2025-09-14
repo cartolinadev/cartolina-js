@@ -108,9 +108,9 @@ MapBoundLayer.prototype.parseJson = function(json) {
         //this.availability.coverageUrl = p["coverageUrl"];
     }
 
-    if (this.metaUrl && this.maskUrl) {
+    if (this.metaUrl && this.maskUrl) { // metatiles may exist without masks, or not?
         this.availability = {
-            type : vts.TEXTURECHECK_MEATATILE
+            type : vts.TEXTURECHECK_METATILE
         };
     }
 

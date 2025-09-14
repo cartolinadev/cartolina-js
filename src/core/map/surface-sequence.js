@@ -191,7 +191,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         var surfaceLayers = view.surfaces[key];
         var surface = this.map.getSurface(key);
         if (surface != null) {
-            surface.boundLayerSequence = [];
+            surface.diffuseSequence = [];
             surface.specularSequence = [];
             surface.bumpSequence = [];
             
@@ -207,7 +207,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
                     if (layer) {
 
-                        surface.boundLayerSequence.push({
+                        surface.diffuseSequence.push({
                             layer: layer,
                             mode: 'normal',
                             alpha: alpha
@@ -337,7 +337,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             }
 
                             // add to sequence
-                            surface.boundLayerSequence.push({
+                            surface.diffuseSequence.push({
                                 layer: layer,
                                 mode: mode,
                                 alpha: alpha
@@ -392,7 +392,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
             }
         }
 
-        //console.log(surface.id, surface.boundLayerSequence);
+        //console.log(surface.id, surface.diffuseSequence);
     }
 
     //free layers
@@ -403,7 +403,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
             freeLayer.options = freeLayersProperties['options'] || {};
 
-            freeLayer.boundLayerSequence = [];
+            freeLayer.diffuseSequence = [];
             
             var boundLayers = freeLayersProperties['boundLayers'];
             
@@ -415,7 +415,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                     if (typeof item === 'string') {
                         layer = this.map.getBoundLayerById(item);
                         if (layer) {
-                            freeLayer.boundLayerSequence.push([layer, 1]);
+                            freeLayer.diffuseSequence.push([layer, 1]);
                         }
                     } else {
                         layer = this.map.getBoundLayerById(item['id']);
@@ -426,7 +426,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 alpha = parseFloat(item['alpha']);
                             }
     
-                            freeLayer.boundLayerSequence.push([layer, alpha]);
+                            freeLayer.diffuseSequence.push([layer, alpha]);
 
                             if (item['shaderVarFlatShade']) {
                                 if (!layer.shaderFilters) {
