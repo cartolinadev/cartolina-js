@@ -125,15 +125,15 @@ export class TileRenderRig {
     /**
      * Make rig resources ready and check readiness.
      *
-     * @param minimum if 'full', returns true only when all submesh resources
-     *      are  ready. If 'fallback', returns when basic resources are ready.
-     * @param desired if 'full', the function makes all submesh resources ready.
-     *      If 'fallback', only resources needed for fallback rendering are made
-     *      ready.
+     * @param readiness the two levels of readiness requested. *Minimum* controls
+     *     which resources suffice for the tile rig to be evaluated as ready.
+     *     *Desired* contrrols which resources the method *attempts* to make
+     *     ready.
+     * @param priority the priority for essential and optional resources.
      * @return true if resources are ready on the desired rendering level
      */
-    isReady(minimum: TileRenderRig.Level = 'full',
-            desired: TileRenderRig.Level = 'full',
+    isReady(readiness: TileRenderRig.ReadinessLevels = {
+                minimum : 'full', desired: 'full' },
             priority = TileRenderRig.DefaultPriority,
             options = TileRenderRig.DefaultIsReadyOptions): boolean {
 
@@ -152,7 +152,7 @@ export class TileRenderRig {
                     item.source === 'texture', 'incompatible layer params');
 
                 item.srcTextureTexture.isReady(
-                    options.doNotLoad, priority.basic, options.doNotCheckGpu);
+                    options.doNotLoad, priority.essential, options.doNotCheckGpu);
 
                 item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
 
@@ -170,10 +170,21 @@ export class TileRenderRig {
 
         if (unsureMasks) return false;
 
-        // actual readiness check
-        // TODO
+        // actual readiness starts
+        let ready_: boolean = true;
 
-        return true;
+
+        // mesh is always essential
+        ready_ &&= TileRenderRig.isResourceReady(this.mesh, 'essential',
+            readiness, priority, options);
+
+        // process layerStack
+        layerStack.forEach((item: Layer) => {
+            ready_ &&= this.isLayerReady(item, readiness, priority, options)
+        });
+
+        // done
+        return ready_;
     }
 
     /**
@@ -206,7 +217,8 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'constant',
                 operation: 'push',
-                sourceConstant: [0.9, 0.9, 0.8] // this could be configurable
+                necessity: 'essential',
+                srcConstant: [0.9, 0.9, 0.8] // this could be configurable
         });
 
         // if internal textures exist, overlay an internal texture
@@ -220,6 +232,7 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'texture',
                 operation: 'blend',
+                necessity: 'essential',
                 srcTextureTexture: internalTexture,
                 srcTextureUVs: 'internal',
                 opBlendMode: 'overlay',
@@ -248,6 +261,7 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'shade',
                 operation: 'blend',
+                necessity: 'essential',
                 srcShadeType: 'diffuse',
                 srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
                 opBlendMode: 'multiply',
@@ -263,14 +277,15 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'constant',
                 operation: 'push',
-                sourceConstant: [0, 0, 0]
+                necessity: 'essential',  // sanity
+                srcConstant: [0, 0, 0]
             });
 
 
             // process specular sequence
             layerDefs.specularSequence.forEach((item) => {
 
-                let layer: Layer | false = this.layerFromDef(item);
+                let layer: Layer | false = this.layerFromDef(item, 'optional');
                 if (layer) rt.layerStack.push(layer);
 
             }); // layerDef.specularSequence.forEach()
@@ -280,6 +295,7 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'shade',
                 operation: 'blend',
+                necessity: 'essential', // sanity
                 srcShadeType: 'specular',
                 srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
                 opBlendMode: 'specular-multiply',
@@ -291,6 +307,7 @@ export class TileRenderRig {
                 target: 'color',
                 source: 'pop',
                 operation: 'blend',
+                necessity: 'essential', // sanity
                 opBlendMode: 'add',
                 opBlendAlpha: { mode: 'constant', value: 1.0 }
             });
@@ -306,7 +323,7 @@ export class TileRenderRig {
             // TODO
         }); // layerDef.bumpSequence.forEach()
 
-        // optimize stack for non-transparency
+        // optimize stack,
         // TODO
 
         // turn off internal/external UVs if no layer needs them
@@ -333,7 +350,8 @@ export class TileRenderRig {
     }
 
 
-    private layerFromDef(layerDef: TileRenderRig.LayerDef): Layer | undefined {
+    private layerFromDef(layerDef: TileRenderRig.LayerDef,
+                         necessity: Necessity = 'essential' ): Layer | undefined {
 
         let tile = this.tile;
         const layer = layerDef.layer;
@@ -414,6 +432,8 @@ export class TileRenderRig {
                 source: 'texture',
                 target: 'color',
 
+                necessity: necessity,
+
                 srcTextureTexture: texture,
                 srcTextureUVs: 'external',
 
@@ -427,8 +447,75 @@ export class TileRenderRig {
                     isTransparent: layer.isTransparent
                 }
             });
+    } // layerFromDef
+
+    /**
+     * Check if a given resource satifies the readiness condition, given the
+     * necessity of the resource and the requested readiness levels.
+     *
+     * The side effect is making the resource ready if input values imply it
+     * should be used for rendering.
+     */
+    private static isResourceReady(
+        resource: MapMesh | MapTexture,
+        necessity: Necessity,
+        readiness: TileRenderRig.ReadinessLevels,
+        priority: TileRenderRig.Priority,
+        options: TileRenderRig.CheckReadyOptions) : boolean {
+
+
+        let priority_: number =  priority[necessity];
+
+        // coalasce desired >= minimum
+        let minimum = readiness.minimum;
+        let desired = readiness.minimum === 'fallback' ? readiness.desired : 'full';
+
+        if (necessity === 'optional') {
+
+            // optional resource in purely fallback rendering, ok
+            if (desired === 'fallback')  return true;
+
+            // optional resource, desired but not necessary
+            if (minimum === 'fallback') {
+                resource.isReady(options.doNotLoad, priority_,
+                                 options.doNotCheckGpu);
+                return true;
+            }
+        }
+
+        // essential resource, or full readiness level requested
+        return resource.isReady(options.doNotLoad,
+                                 priority_, options.doNotCheckGpu);
     }
-};
+
+    private isLayerReady(layer: Layer,
+        readiness: TileRenderRig.ReadinessLevels,
+        priority: TileRenderRig.Priority,
+        options: TileRenderRig.CheckReadyOptions) : boolean {
+
+        let ready_ = true;
+        let necessity = layer.necessity;
+
+        switch (layer.source) {
+
+            case 'shade':
+                if (this.rt.normals)
+                    ready_ &&= TileRenderRig.isResourceReady(this.normalMap,
+                        necessity, readiness, priority, options);
+            break;
+
+            case 'texture':
+                ready_ &&= TileRenderRig.isResourceReady(layer.srcTextureTexture,
+                        necessity, readiness, priority, options);
+            break;
+
+            case 'atmColor': // TODO
+        }
+
+        return ready_;
+    }
+
+}; // class TileRenderRig
 
 
 // local types
@@ -453,6 +540,8 @@ type SurfaceTile = {
     boundTextures: { [key: string]: MapTexture };
 }
 
+type Necessity = 'essential' | 'optional';
+
 type AlphaMode = 'constant' | 'viewdep';
 
 type Alpha = {
@@ -475,7 +564,9 @@ type Layer = {
     source: 'constant' | 'shade' | 'pop' | 'atmColor' | 'texture' | 'shadows',
     target: 'color' | 'normal',
 
-    sourceConstant?: [number, number, number],
+    necessity: Necessity;
+
+    srcConstant?: [number, number, number],
 
     srcShadeType?: 'diffuse' | 'specular',
     srcShadeNormal?: 'normal' | 'flat',
@@ -487,7 +578,8 @@ type Layer = {
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
 
-    whitewash?: number,
+    tgtColorWhitewash?: number,
+
 
     rt?: {
         layerId: string,
@@ -546,14 +638,21 @@ export namespace TileRenderRig {
 
 
     /**
-     * rendering level, see TileRenderRig.isReady for details
+     * resrouce readiness level, see TileRenderRig.isReady for details
      */
-    export type Level = 'fallback' | 'full';
+    export type ReadinessLevel = 'fallback' | 'full';
+
+    /**
+     * the levels of readiness passed to isReady checks
+     */
+    export type ReadinessLevels = {
+        minimum: ReadinessLevel,
+        desired: ReadinessLevel }
 
     /**
      * basic resources are necessary to render tile, extras are embelishments.
      */
-    export const DefaultPriority = { basic: 0, extras: 0}
+    export const DefaultPriority = { essential: 0, optional: 0}
 
     export type Priority = typeof DefaultPriority;
 

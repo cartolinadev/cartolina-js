@@ -45,7 +45,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 }
                 return true;
             }
-           
+
             if (!preventRedener) {
                 this.stats.renderedLods[tile.id[0]]++;
                 this.stats.drawnTiles++;
@@ -74,13 +74,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 if (tile.resetDrawCommands) {
                     tile.drawCommands = [[], [], []];
                     tile.updateBounds = true;
-            
+
                     if (tile.bounds) {
                         for (var key in tile.bounds) {
-                            tile.bounds[key].viewCoutner = 0; 
+                            tile.bounds[key].viewCoutner = 0;
                         }
                     }
-                    
+
                     tile.resetDrawCommands = false;
                 }
 
@@ -130,12 +130,18 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                         // is the tile rig ready? Draw it. If not, try the last rig
                         let curRig = tile.tileRenderRig[i], lastRig = tile.lastRenderRig[i];
-                        let priority_ = { basic: priority, full: priority }
+
+                        let priority_ = { essential: priority, optional: priority }
                         let readyOptions = { doNotLoad: preventLoad, doNotCheckGpu: doNotCheckGpu};
 
-                        let curRigReady = curRig.isReady('fallback', 'full', priority_, readyOptions);
+                        let curRigReady = curRig.isReady(
+                            { minimum: 'fallback', desired: 'full'}, priority_,
+                            readyOptions);
+
                         let lastRigReady = ! curRigReady ?
-                            lastRig && lastRig.isReady('fallback', 'fallback', priority_, readyOptions) : false;
+                            lastRig && lastRig.isReady(
+                                { minimum: 'fallback', desired: 'fallback' },
+                                priority_, readyOptions) : false;
 
                         let rigToDraw  =  curRigReady ? curRig : lastRigReady ? lastRig : null;
 
@@ -205,7 +211,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         if (tile.resourceSurface.virtual) {
             return true;
         }
-        
+
         path = tile.resourceSurface.getMeshUrl(tile.id);
         tile.surfaceMesh = tile.resources.getMesh(path, tile);
     }
@@ -252,9 +258,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         } else {
             return false;
         }
-    } 
+    }
 
-    // information about support for extarnal or internal textures are present in the mesh,  
+    // information about support for extarnal or internal textures are present in the mesh,
     // so we have to wait until is mesh ready and then we can generate commands
     if (tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu) && !preventLoad) {
         var submeshes = tile.surfaceMesh.submeshes;
@@ -272,11 +278,11 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
         if (!surface) {
             surface = tile.surface;
         }
-        
+
         // extract specificity and credits from surfaces
         /*if (surface.glue) {
 
-            var surfaces = surface.id; 
+            var surfaces = surface.id;
             for (i = 0, li = surfaces.length; i < li; i++) {
                 var surface2 = this.map.getSurface(surfaces[i]);
                 if (surface2) {
@@ -286,7 +292,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
             //set credits
             for (k = 0, lk = node.credits.length; k < lk; k++) {
-                tile.glueImageryCredits[node.credits[k]] = specificity;  
+                tile.glueImageryCredits[node.credits[k]] = specificity;
             }
 
         } else {
@@ -309,7 +315,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 submesh.drawBBox(cameraPos);
             }*/
 
-            if (submesh.externalUVs) { 
+            if (submesh.externalUVs) {
 
                 // if submesh.externalUVs
 
@@ -332,10 +338,10 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
 
                 if (tile.updateBounds) {
                     tile.updateBounds = false;
-                    
+
                     this.updateTileBounds(tile, submeshes);
                 }
-                
+
                 surface = tile.resourceSurface;
                 //console.log(surface);
 
@@ -367,13 +373,13 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                 if (bounds.transparent) {
 
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && bounds.transparent
-                                    
+
                                     // first, apply the internal texture if applicable
                                     if (submesh.internalUVs) {  //draw surface
 
                                         // if submesh.externalUVs && submesh.internalUVs
                                         // && bounds.sequence.length > 0 && bounds.transparent
-                                        
+
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
                                             tile.surfaceTextures[i] = tile.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
@@ -390,12 +396,12 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             material : vts.MATERIAL_INTERNAL_NOFOG
                                         });
                                     }
-    
+
                                     tile.drawCommands[0].push({
                                         type : vts.DRAWCOMMAND_STATE,
                                         state : draw.drawBlendedTileState
-                                    });            
-                                    
+                                    });
+
                                     // iterate through bound layers
                                     var layers = bounds.sequence;
                                     for (j = 0, lj = layers.length; j < lj; j++) {
@@ -414,7 +420,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             //set credits
                                             /* credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
-                                                tile.imageryCredits[credits[k]] = layer.specificity;  
+                                                tile.imageryCredits[credits[k]] = layer.specificity;
                                             }*/
 
                                             tile.addSubmeshCredits(i, layers[j]);
@@ -435,7 +441,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             });
                                         }
                                     }
-                                    
+
                                     // atmosphere
                                     //console.log("Here 3.2");
 
@@ -452,11 +458,11 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                     tile.drawCommands[0].push({
                                         type : vts.DRAWCOMMAND_STATE,
                                         state : draw.drawTileState
-                                    });  
+                                    });
                                 } // if (bounds.transparent)
                                 else
                                 { // if (!bounds.transparent) - optimization path, we work just with the top layer
-                                    
+
                                     // if submesh.externalUVs && bounds.sequence.length > 0 && ! bounds.transparent
                                     var layerId = bounds.sequence[bounds.sequence.length-1];
                                     texture = tile.boundTextures[layerId];
@@ -467,20 +473,20 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             tile.boundsDebug[surface.id] = [];
                                         }
                                         tile.boundsDebug[surface.id].push(layerId);
-                                        
+
                                         layer = tile.boundLayers[layerId];
 
                                         //set credits
                                         /*
                                         credits = layer.credits;
                                         for (k = 0, lk = credits.length; k < lk; k++) {
-                                            tile.imageryCredits[credits[k]] = layer.specificity;  
+                                            tile.imageryCredits[credits[k]] = layer.specificity;
                                         }*/
 
                                         tile.addSubmeshCredits(i, layerId);
 
                                         //console.log("Here 3.1");
-                                        
+
                                         tile.drawCommands[0].push({
                                             type : vts.DRAWCOMMAND_SUBMESH,
                                             mesh : tile.surfaceMesh,
@@ -494,32 +500,32 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                         });
                                     }
                                 }
-                               
+
                             } else { // if submesh.externalUVs && bounds.sequence.length == 0
                                 if (submesh.textureLayer) {
-                                    
-                                    // if submesh.externalUVs && bounds.sequence.length == 0 && submesh.textureLayer 
+
+                                    // if submesh.externalUVs && bounds.sequence.length == 0 && submesh.textureLayer
                                     // submesh identifies a texture layer by numerical id... probably never used
-                                    
+
                                     layer = this.map.getBoundLayerByNumber(submesh.textureLayer);
-                                    
+
                                     if (layer) {
                                         texture = tile.boundTextures[layer.id];
-                                        
+
                                         if (texture) {
-                                            
+
                                             //debug stuff
                                             if (!tile.boundsDebug[surface.id]) {
                                                 tile.boundsDebug[surface.id] = [];
                                             }
                                             tile.boundsDebug[surface.id].push(layer.id);
-                                            
+
                                             layer = tile.boundLayers[layer.id];
                                             //set credits
                                             /*
                                             credits = layer.credits;
                                             for (k = 0, lk = credits.length; k < lk; k++) {
-                                                tile.imageryCredits[credits[k]] = layer.specificity;  
+                                                tile.imageryCredits[credits[k]] = layer.specificity;
                                             }*/
 
                                             tile.addSubmeshCredits(i, layerId);
@@ -536,14 +542,14 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             });
                                         }
                                     }
-                                   
+
                                 } else { // if submesh.externalUVs && bounds.sequencelength == 0 && ! submesh.textureLayer
-    
+
                                     if (submesh.internalUVs) {  //draw surface
-                                        
+
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && internalUVs
                                         // internal texture is used only when no external textures are configured
-                                        
+
                                         if (tile.surfaceTextures[i] == null) {
                                             path = tile.resourceSurface.getTextureUrl(tile.id, i);
                                             tile.surfaceTextures[i] = tile.resources.getTexture(path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
@@ -560,7 +566,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             material : vts.MATERIAL_INTERNAL
                                         });
                                     } else {
-                                        
+
                                         // if externalUVs && bounds.seq.length == 0 && ! submesh.textureLayer && ! internalUVs
                                         // there is no texture to use, flat shade
                                         tile.drawCommands[0].push({
@@ -573,13 +579,13 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                                             material : vts.MATERIAL_FLAT
                                         });
                                     }
-    
+
                                 }
                             }
-                    }                            
+                    }
                 }
             } else if (submesh.internalUVs) {
-                
+
                 // if (!submesh.externalUVs && submesh.internalUVs)
 
                 if (tile.surfaceTextures[i] == null) {
@@ -592,9 +598,9 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                     submesh : i,
                     texture : tile.surfaceTextures[i],
                     material : vts.MATERIAL_INTERNAL
-                });                                                
+                });
             }
-            
+
             // depth path - note this is inserted in channel 1 (depth rendering),
             // triggered by MapDraw.drawHitmap and used for depth testing etc.
             tile.drawCommands[1].push({
@@ -603,7 +609,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 submesh : i,
                 material : vts.MATERIAL_DEPTH
             });
-            
+
         }
 
         /*if (surface.pipeline > vts.PIPELINE_BASIC) { // long dead
@@ -658,7 +664,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
                 ret = !(tile.drawCommands[channel].length > 0);
             }
         }
-        
+
     } else { //if (! tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu) || preventLoad)
 
         if (!tile.lastRenderState && this.config.mapHeightfiledWhenUnloaded && !preventRedener) {
@@ -669,7 +675,7 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
             ret = !(tile.drawCommands[channel].length > 0);
         }
     }
-    
+
     return ret;
 };
 
@@ -681,18 +687,18 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
 
     if (tile.surfaceGeodata == null) {
         var path;
-        
+
         if (tile.surface.geodataNavtileInfo) {  //remove this code??? no longer used
             var navtile = this.tree.findNavTile(tile.id);
-            
+
             if (navtile && navtile.surface) {
                 var navtileStr = navtile.surface.getNavUrl(navtile.id) + ';'
-                                  + navtile.id[0] + '-' + navtile.id[1] + '-' + navtile.id[2] + ';'      
-                                  + navtile.metanode.minHeight + ';' + navtile.metanode.maxHeight;     
+                                  + navtile.id[0] + '-' + navtile.id[1] + '-' + navtile.id[2] + ';'
+                                  + navtile.metanode.minHeight + ';' + navtile.metanode.maxHeight;
                 path = tile.surface.getGeodataUrl(tile.id, encodeURIComponent(navtileStr));
             }
         }
-        
+
         if (!path) {
             path = tile.resourceSurface.getGeodataUrl(tile.id, '');
         }
@@ -701,14 +707,14 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
     }
 
     var channel = this.draw.drawChannel;
-    
+
     if (tile.geodataCounter != tile.surface.geodataCounter) {
         tile.drawCommands = [[],[],[]];
 
         if (tile.surfaceGeodataView != null) {
             tile.surfaceGeodataView.kill();
         }
-        
+
         tile.surfaceGeodataView = null;
         tile.geodataCounter = tile.surface.geodataCounter;
     }
@@ -730,17 +736,17 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
 
     if (tile.surfaceGeodataView) {
         tile.mapdataCredits = {};
-        
+
         var specificity = (tile.surface) ? tile.surface.specificity : 0;
 
         //set credits
         for (var k = 0, lk = node.credits.length; k < lk; k++) {
-            tile.mapdataCredits[node.credits[k]] = specificity;  
+            tile.mapdataCredits[node.credits[k]] = specificity;
         }
 
         tile.drawCommands[channel][0] = {
             type : vts.DRAWCOMMAND_GEODATA,
-            geodataView : tile.surfaceGeodataView 
+            geodataView : tile.surfaceGeodataView
         };
 
         return tile.surfaceGeodataView.isReady();
@@ -751,16 +757,16 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
 
 
 MapDrawTiles.prototype.updateTileHmap = function(tile, node) {
-    if (node && node.hasNavtile() && tile.surface) { 
+    if (node && node.hasNavtile() && tile.surface) {
 
         if (!tile.surface || !tile.resourceSurface) { //surface.virtual) {
             return false; //is it best way how to do it?
         }
-            
+
         if (!tile.resourceSurface.getHMapUrl) { //virtual surface is as resource surface. Is it bug??!!
             return false; //is it best way how to do it?
         }
-            
+
         var path = tile.resourceSurface.getHMapUrl(tile.id, true);
         tile.hmap = tile.resources.getTexture(path);
 
@@ -770,7 +776,7 @@ MapDrawTiles.prototype.updateTileHmap = function(tile, node) {
 
         //get parent with nav tile
         var parent = tile.parent;
-        var extraBound = null; 
+        var extraBound = null;
 
         while(parent && parent.id[0] > 0) {
             if (parent.metanode && parent.metanode.hasNavtile()) {
@@ -778,7 +784,7 @@ MapDrawTiles.prototype.updateTileHmap = function(tile, node) {
                     sourceTile : parent,
                     sourceTexture : null,
                     hmap : true,
-                    tile : tile 
+                    tile : tile
                 };
 
                 break;
@@ -806,7 +812,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
 
     for (var i = 0, li = submeshes.length; i < li; i++) {
         var submesh = submeshes[i];
-        
+
         if (submesh.externalUVs) {
             var submeshSurface = tile.resourceSurface;
 
@@ -814,7 +820,7 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                 submeshSurface = tile.resourceSurface.getSurfaceReference(submesh.surfaceReference);
             }
 
-            
+
             if (submeshSurface) {
                 var bounds = tile.bounds[submeshSurface.id];
 
@@ -831,13 +837,13 @@ MapDrawTiles.prototype.updateTileBounds = function(tile, submeshes) {
                         transparent : false,
                         viewCoutner : 0
                     };
-                    
+
                     tile.bounds[submeshSurface.id] = bounds;
-                } 
-                
+                }
+
                 if (bounds.viewCoutner != tile.viewCoutner) {
                     this.updateTileSurfaceBounds(tile, submesh, submeshSurface, bounds);
-                }  
+                }
             }
         } // if (submesh.externalUVs)
     } // for (var i = 0, li = submeshes.length; i < li; i++)
@@ -852,7 +858,7 @@ MapDrawTiles.prototype.getParentTile = function(tile, lod) {
     while(tile && tile.id[0] > lod) {
         tile = tile.parent;
     }
-    
+
     return tile;
 };
 
@@ -992,25 +998,25 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             var sequenceMaskPossible = [];
             var fullAndOpaqueCounter = 0;
             let layer;
-            
+
             for (var j = 0, lj = surface.diffuseSequence.length; j < lj; j++) {
                 layer = surface.diffuseSequence[j].layer;
 
                 if (layer && layer.ready && layer.hasTileOrInfluence(tile.id) && surface.diffuseSequence[j].alpha.value > 0) {
-                    extraBound = null; 
-                    
+                    extraBound = null;
+
                     if (tile.id[0] > layer.lodRange[1]) {
                         extraBound = {
                             sourceTile : this.getParentTile(tile, layer.lodRange[1]),
                             sourceTexture : null,
                             layer : layer,
-                            tile : tile 
+                            tile : tile
                         };
                     }
 
                     texture = tile.boundTextures[layer.id];
 
-                    if (!texture) { //TODO: make sure that we load only textures which we need  
+                    if (!texture) { //TODO: make sure that we load only textures which we need
                         path = layer.getUrl(tile.id);
                         texture = tile.resources.getTexture(path, layer.dataType, extraBound, {tile: tile, layer: layer}, tile, false);
 
@@ -1019,8 +1025,8 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                         }
 
                         texture.isReady(true); //check metatile/mask but do not load
-                        tile.boundTextures[layer.id] = texture; 
-                    } 
+                        tile.boundTextures[layer.id] = texture;
+                    }
 
                     if (texture.neverReady) {
                         continue; //do not use this layer
@@ -1056,20 +1062,20 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     }
 
                     sequenceMaskPossible.push(maskPossible);
-                    
+
                     var fullAndOpaque = !((surface.diffuseSequence[j].alpha.value < 1.0)
                         || surface.diffuseSequence[j].alpha.mode != 'constant'
                         || surface.diffuseSequence[j].mode != 'normal' || maskPossible || layer.isTransparent);
                     if (fullAndOpaque) {
                         fullAndOpaqueCounter++;
                     }
-                            
+
                     sequenceFullAndOpaque.push(fullAndOpaque);
 
                     let blending_ = surface.diffuseSequence[j];
-                    
+
                     bound.sequence.push(layer.id);
-                    bound.blending[layer.id] = blending_; 
+                    bound.blending[layer.id] = blending_;
 
                     bound.runtime[layer.id] = {};
 
@@ -1083,10 +1089,10 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     }
 
                     tile.boundLayers[layer.id] = layer;
-                                       
+
                     if (blending_.mode != 'normal' || !(blending_.alpha.mode == 'constant'
                         && blending_.alpha.value == 1.0) || layer.isTransparent) {
-                        
+
                         bound.transparent = true;
                     }
 
@@ -1097,15 +1103,15 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             } // for (var j = 0; lj = surface.diffuseSequence.length; j < lj; j++)
 
             //filter out extra bounds if they are not needed
-            //and remove all layer after first FullAndOpaque 
+            //and remove all layer after first FullAndOpaque
             if (fullAndOpaqueCounter > 0) {
                 var newSequence = [];
-                
+
                 for (var i = bound.sequence.length - 1; i >= 0; i--) {
                     var layerId = bound.sequence[i];
-                    
+
                     if (sequenceFullAndOpaque[i]) {
-                        newSequence.unshift(layerId);   
+                        newSequence.unshift(layerId);
                         break;
                     } else {
                         texture = tile.boundTextures[layerId];
@@ -1115,12 +1121,12 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                             tile.boundLayers[layerId].isTransparent ||
                             bound.blending[layerId].alpha.mode != 'constant' ||
                             (sequenceMaskPossible[i])) {
-                            newSequence.unshift(layerId);    
+                            newSequence.unshift(layerId);
                         }
                     }
                 }
-                
-                bound.sequence = newSequence; 
+
+                bound.sequence = newSequence;
             }
 
 
@@ -1133,14 +1139,14 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
         //if (fullUpdate) {
             layer = this.map.getBoundLayerById(surface.textureLayer);
             if (layer && layer.hasTileOrInfluence(tile.id)) {
-                extraBound = null; 
-                
+                extraBound = null;
+
                 if (tile.id[0] > layer.lodRange[1]) {
                     extraBound = {
                         sourceTile : this.getParentTile(tile, layer.lodRange[1]),
                         sourceTexture : null,
                         layer : layer,
-                        tile : tile 
+                        tile : tile
                     };
                 }
 
@@ -1162,14 +1168,14 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
             layer = this.map.getBoundLayerByNumber(submesh.textureLayer);
 
             if (layer && layer.hasTileOrInfluence(tile.id)) {
-                extraBound = null; 
-                
+                extraBound = null;
+
                 if (tile.id[0] > layer.lodRange[1]) {
                     extraBound = {
                         sourceTile : this.getParentTile(tile, layer.lodRange[1]),
                         sourceTexture : null,
                         layer : layer,
-                        tile : tile 
+                        tile : tile
                     };
                 }
 
@@ -1197,27 +1203,27 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     if (node.metatile.useVersion < 4) {
         var min = node.bbox.min;
         var max = node.bbox.max;
-    
+
         pos =  this.core.getRendererInterface().getCanvasCoords(
             [(min[0] + (max[0] - min[0])*0.5) - cameraPos[0],
                 (min[1] + (max[1] - min[1])*0.5) - cameraPos[1],
                 (max[2]) - cameraPos[2]],
              this.camera.getMvpMatrix());
-    
+
         pos[2] = pos[2] * 0.9992;
     } else {
-        var dx = node.bbox2[3] - node.bbox2[0]; 
-        var dy = node.bbox2[4] - node.bbox2[1]; 
-        var dz = node.bbox2[5] - node.bbox2[2]; 
-    
+        var dx = node.bbox2[3] - node.bbox2[0];
+        var dy = node.bbox2[4] - node.bbox2[1];
+        var dz = node.bbox2[5] - node.bbox2[2];
+
         var d = Math.sqrt(dx*dx + dy*dy + dz*dz);
-    
+
         pos =  this.core.getRendererInterface().getCanvasCoords(
             [(node.bbox2[12] + node.bbox2[15] + node.bbox2[18] + node.bbox2[21])*0.25 + node.diskNormal[0] * d*0.1 - cameraPos[0],
                 (node.bbox2[13] + node.bbox2[16] + node.bbox2[19] + node.bbox2[22])*0.25 + node.diskNormal[1] * d*0.1 - cameraPos[1],
                 (node.bbox2[14] + node.bbox2[17] + node.bbox2[20] + node.bbox2[23])*0.25 + node.diskNormal[2] * d*0.1 - cameraPos[2]],
              this.camera.getMvpMatrix());
-        
+
         /*
             var pos =  this.core.getRendererInterface().getCanvasCoords(
                             [(node.diskPos[0] + node.diskNormal[0] * node.bboxHeight) - cameraPos[0],
@@ -1247,7 +1253,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     if (debug.drawPositions) {
         //text = "" + min[0].toFixed(1) + " " + min[1].toFixed(1) + " " + min[2].toFixed(1);
         //text = "" + Math.floor(node.corners[0]) + " " + Math.floor(node.corners[1]) + " " + Math.floor(node.corners[2]) + " " + Math.floor(node.corners[3]);
-        
+
         var b = node.border2;
         if (b) {
             text = '' + Math.floor(b[0]) + ' ' + Math.floor(b[1]) + ' ' + Math.floor(b[2]) + ' ' + Math.floor(b[3]) + ' ' + Math.floor(b[4]) + ' ' + Math.floor(b[5]) + ' ' + Math.floor(b[6]) + ' ' + Math.floor(b[7]) + ' ' + Math.floor(b[8]);
@@ -1297,7 +1303,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
             //c = [c[0]/255,c[1]/255,c[2]/255,1];
             c = [c[0],c[1],c[2],1];
         } else {
-            c = [1,1,1,1];    
+            c = [1,1,1,1];
         }
 
         if (node.alien) {
@@ -1310,8 +1316,8 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     if (debug.drawBoundLayers) {
         if (tile.boundsDebug) {
             var surface = tile.resourceSurface;
-            if (surface.glue) { 
-              
+            if (surface.glue) {
+
                 for (i = 0, li = surface.id.length; i < li; i++) {
                     if (tile.boundsDebug[surface.id[i]]) {
                         text = '< ' + surface.id[i] + ' >';
@@ -1320,11 +1326,11 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
                         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+(17+i*7*2)*factor), 4*factor, text, [1,1,1,1], pos[2]);
                     }
                 }
-                
+
             } else if (tile.boundsDebug[surface.id]) {
                 text = '< ' + surface.id + ' >';
                 this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, [1,1,1,1], pos[2]);
-    
+
                 text = JSON.stringify(tile.boundsDebug[surface.id]);
                 this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+17*factor), 4*factor, text, [1,1,1,1], pos[2]);
             }
@@ -1333,7 +1339,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
 
     if (debug.drawCredits) {
         text = '{ ';
-       
+
         for (var key in tile.imageryCredits) {
             if (tile.imageryCredits[key]) {
                 text += key + ':' + tile.imageryCredits[key] + ', ';
@@ -1355,7 +1361,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     //draw distance
     if (debug.drawDistance) {
         text = '' + tile.distance.toFixed(2) + '  ' + tile.texelSize.toFixed(3) + '  ' + node.pixelSize.toFixed(3);
-        text += '--' + tile.texelSize2.toFixed(3); 
+        text += '--' + tile.texelSize2.toFixed(3);
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+17*factor), 4*factor, text, [1,0,1,1], pos[2]);
     }
 
@@ -1366,7 +1372,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         text += '-' + node.minHeight + '/' + node.maxHeight+ '-' + Math.floor(node.minZ) + '/' + Math.floor(node.maxZ)+ '-' + Math.floor(node.surrogatez);
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]-18*factor), 4*factor, text, [1,0,1,1], pos[2]);
     }
-    
+
     //draw texture size
     if (debug.drawTextureSize && mesh) {
         var submeshes = mesh.submeshes;
