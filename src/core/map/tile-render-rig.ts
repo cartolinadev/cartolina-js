@@ -11,6 +11,7 @@ import MapBoundLayer from 'bound-layer'
 import Renderer from '../renderer/renderer';
 import * as Illumination from './illumination';
 
+import * as utils from '../utils/utils';
 import * as vts from '../constants';
 
 
@@ -120,7 +121,9 @@ export class TileRenderRig {
                 path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
         }
 
-    }
+        // done
+
+    } // constructor
 
     /**
      * Make rig resources ready and check readiness.
@@ -173,7 +176,6 @@ export class TileRenderRig {
         // actual readiness starts
         let ready_: boolean = true;
 
-
         // mesh is always essential
         ready_ &&= TileRenderRig.isResourceReady(this.mesh, 'essential',
             readiness, priority, options);
@@ -182,6 +184,11 @@ export class TileRenderRig {
         layerStack.forEach((item: Layer) => {
             ready_ &&= this.isLayerReady(item, readiness, priority, options)
         });
+
+        /*if (ready_ && utils.compareTuples(this.tile.id, [15, 8772, 5758])) {
+            console.log([...this.tile.id, this.submeshIndex].join('-'), readiness, options);
+            console.log('%s render-ready.', utils.idToString([...this.tile.id, this.submeshIndex]));
+        }*/
 
         // done
         return ready_;
@@ -320,7 +327,11 @@ export class TileRenderRig {
         // add bump layers
         layerDefs.bumpSequence.forEach((item) => {
 
-            // TODO
+            let layer: Layer | false = this.layerFromDef(item, 'optional',
+                false, 'normal');
+
+            if (layer) rt.layerStack.push(layer);
+
         }); // layerDef.bumpSequence.forEach()
 
         // optimize stack,
@@ -350,8 +361,23 @@ export class TileRenderRig {
     }
 
 
+    /**
+     * Create an internal layer operation (blend) with texture source from
+     * a layer definition.
+     *
+     * @param layerDef layerDefinition
+     * @param necessity is layer necessary or optional for rendering
+     * @param proagagate: should layer tiles propage beyeond their lodRange to
+     *      higher lods? Usually true.
+     * @param target 'color' (for the fragment color stack) or 'normal'
+     *      (for the surface normal stack), normally 'color'.
+     * @return resultant layer operation, or undefined if layer def yields none.
+     */
+
     private layerFromDef(layerDef: TileRenderRig.LayerDef,
-                         necessity: Necessity = 'essential' ): Layer | undefined {
+                         necessity: Necessity = 'essential',
+                         propagate: boolean = true,
+                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
         let tile = this.tile;
         const layer = layerDef.layer;
@@ -368,10 +394,18 @@ export class TileRenderRig {
 
             let extraBound = null;
 
-            if (tile.id[0] > layer.lodRange[1])
-                extraBound = {
-                    sourceTile: clampToLodRange(tile, layer.lodRange),
-                    sourceTexture: null, layer: layer, tile: tile };
+            if (propagate) {
+
+                // normally, we want to fallback to higher lod tiles if
+                // tiles are not available on the requested lod. This provides
+                // necessary information to MapTexture. In some cases, like
+                // bump maps, this is not desirable.
+                if (tile.id[0] > layer.lodRange[1])
+                    extraBound = {
+                        sourceTile: clampToLodRange(tile, layer.lodRange),
+                        sourceTexture: null, layer: layer, tile: tile };
+
+            }
 
             let texture: MapTexture = tile.boundTextures[layer.id];
 
@@ -430,7 +464,7 @@ export class TileRenderRig {
             return ({
                 operation: 'blend',
                 source: 'texture',
-                target: 'color',
+                target: target,
 
                 necessity: necessity,
 
@@ -502,14 +536,15 @@ export class TileRenderRig {
                 if (this.rt.normals)
                     ready_ &&= TileRenderRig.isResourceReady(this.normalMap,
                         necessity, readiness, priority, options);
-            break;
+                break;
 
             case 'texture':
                 ready_ &&= TileRenderRig.isResourceReady(layer.srcTextureTexture,
                         necessity, readiness, priority, options);
-            break;
+                break;
 
             case 'atmColor': // TODO
+                break;
         }
 
         return ready_;

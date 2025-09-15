@@ -551,3 +551,13 @@ export function Log(
   };
 }
 
+
+export function idToString(id: number[]): string {
+
+    return id.join('-');
+};
+
+export function compareTuples<T>(a: T[], b: T[]) {
+
+    return a.length === b.length && a.every((val, i) => val === b[i]);
+}
