@@ -3,12 +3,11 @@ import Dom_ from '../../utility/dom';
 import * as utils from '../../../core/utils/utils';
 import {filterSearch as filterSearch_, nofilterSearch as nofilterSearch_} from './search-filter';
 import {vec3 as vec3_} from '../../../core/utils/matrix';
-import {math as math_} from '../../../core/utils/math';
+import * as math from '../../../core/utils/math';
 
 //get rid of compiler mess
 var dom = Dom_;
 var vec3 = vec3_;
-var math = math_;
 var filterSearch = filterSearch_;
 var nofilterSearch = nofilterSearch_;
 

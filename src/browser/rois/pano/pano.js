@@ -1,11 +1,10 @@
 
 import RoiLoadingQueue_ from '../loader';
-import {math as math_} from '../../../core/utils/math';
+import * as math from '../../../core/utils/math';
 import {mat4 as mat4_} from '../../../core/utils/matrix';
 
 //get rid of compiler mess
 var RoiLoadingQueue = RoiLoadingQueue_;
-var math = math_;
 var mat4 = mat4_;
 
 

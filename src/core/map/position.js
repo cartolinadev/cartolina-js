@@ -1,8 +1,6 @@
 
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 
-//get rid of compiler mess
-var math = math_;
 
 var MapPosition = function(pos) {
     if (pos instanceof MapPosition) {

@@ -1,13 +1,12 @@
 
 import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import BBox_ from '../renderer/bbox';
 
 //get rid of compiler mess
 var vec3 = vec3_, mat4 = mat4_;
 var BBox = BBox_;
-var math = math_;
 
 
 var MapMetanode = function(metatile, id, stream, divisionNode) {

@@ -1,10 +1,9 @@
 
 import Dom_ from '../utility/dom';
-import {math as math_} from '../../core/utils/math';
+import * as math from '../../core/utils/math';
 
 //get rid of compiler mess
 var dom = Dom_;
-var math = math_;
 
 
 var ControlModeMapObserver = function(browser) {

@@ -1,8 +1,7 @@
 
-import {math as math_} from '../../../core/utils/math';
+import * as math from '../../../core/utils/math';
 
 //get rid of compiler mess
-var math = math_;
 
 // Deduplication of hits, that have the same display_name
 // and are subsequent in a result set. 

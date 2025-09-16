@@ -1,13 +1,12 @@
 // An index-less mesh. Each triangle has three items in the array 'vertices'.
 
 import {mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import GpuMesh_ from '../renderer/gpu/mesh';
 import BBox_ from '../renderer/bbox';
 
 //get rid of compiler mess
 var mat4 = mat4_;
-var math = math_;
 var GpuMesh = GpuMesh_;
 var BBox = BBox_;
 

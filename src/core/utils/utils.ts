@@ -1,5 +1,5 @@
 
-import {math} from './math';
+import * as math from './math';
 import {utilsUrl} from './url';
 
 

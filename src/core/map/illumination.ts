@@ -8,7 +8,7 @@
  */
 
 import * as Matrix from '../utils/matrix';
-import {math} from '../utils/math';
+import * as math from '../utils/math';
 
 import MapPosition from './position';
 
@@ -36,8 +36,6 @@ export enum CoordSystem { NED, LNED, VC };
 
 /* Some borrowed types. */
 
-export type vec3 = [number, number, number];
-
 enum Axis { X = 0, Y = 1, Z = 2  };
 
 /**
@@ -53,7 +51,7 @@ enum Axis { X = 0, Y = 1, Z = 2  };
  */
 
 export function illuminationVector(azimuth: number = 315,
-    elevation: number = 45., cs: CoordSystem = CoordSystem.NED) : vec3 {
+    elevation: number = 45., cs: CoordSystem = CoordSystem.NED) : math.vec3 {
 
     const { sin, cos } = Math;
 
@@ -91,7 +89,7 @@ export function illuminationVector(azimuth: number = 315,
  * @returns corresponding vector in NED coordinates
  */
 
-export function lned2ned(arg: vec3, pos: MapPosition) : vec3 {
+export function lned2ned(arg: math.vec3, pos: MapPosition) : math.vec3 {
 
     const rad = math.radians;
     const R = math.rotationMatrix;
@@ -99,11 +97,11 @@ export function lned2ned(arg: vec3, pos: MapPosition) : vec3 {
 
     let yaw = rad(pos.pos[5]), pitch = rad(pos.pos[6]), roll = rad(pos.pos[7]);
 
-    let retval_: vec3 = [...arg];
+    let retval_: math.vec3 = [...arg];
 
     mat4.multiplyVec3(R(Axis.X, roll), retval_);
 
-    // math module's Y-rotation is inverted, ouch
+    // WARNING: math module's Y-rotation is inverted, ouch
     mat4.multiplyVec3(R(Axis.Y, - pitch),retval_);
 
     mat4.multiplyVec3(R(Axis.Z, yaw), retval_);

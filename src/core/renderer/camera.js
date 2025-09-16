@@ -1,10 +1,9 @@
 
 import {vec3 as vec3_, vec4 as vec4_, mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 
 //get rid of compiler mess
 var vec3 = vec3_, vec4 = vec4_, mat4 = mat4_;
-var math = math_;
 
 
 var Camera = function(parent, fov, near, far) {

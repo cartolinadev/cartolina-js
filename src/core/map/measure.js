@@ -1,6 +1,6 @@
 
 import {vec3, mat4} from '../utils/matrix';
-import {math} from '../utils/math';
+import * as math from '../utils/math';
 import GeographicLib from 'geographiclib';
 
 

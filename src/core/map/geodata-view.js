@@ -1,6 +1,6 @@
 
 import {mat4} from '../utils/matrix';
-import {math} from '../utils/math';
+import * as math from '../utils/math';
 import * as utils from '../utils/utils';
 import GpuGroup_ from '../renderer/gpu/group';
 import MapGeodataProcessor_ from './geodata-processor/processor';

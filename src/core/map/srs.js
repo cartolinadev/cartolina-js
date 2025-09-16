@@ -1,11 +1,10 @@
 
 import MapTexture_ from './texture';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import GeographicLib_ from 'geographiclib';
 
 //get rid of compiler mess
 var MapTexture = MapTexture_;
-var math = math_;
 var GeographicLib = GeographicLib_;
 
 

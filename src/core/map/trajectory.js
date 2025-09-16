@@ -1,8 +1,7 @@
 
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 
 //get rid of compiler mess
-var math = math_;
 
 
 var MapTrajectory = function(map, p1, p2, options) {
