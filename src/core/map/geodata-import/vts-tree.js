@@ -1,12 +1,11 @@
 
-import {math as math_} from '../../utils/math';
+import * as math from '../../utils/math';
 import {vec3 as vec3_} from '../../utils/matrix';
 import * as utils from '../../utils/utils';
 import {utilsUrl as utilsUrl_} from '../../utils/url';
 
 
 //get rid of compiler mess
-var math = math_;
 var vec3 = vec3_;
 var utilsUrl = utilsUrl_;
 

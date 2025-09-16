@@ -1,12 +1,11 @@
 
 import {vec3 as vec3_} from '../utils/matrix';
 import GpuTexture_ from '../renderer/gpu/texture';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 
 //get rid of compiler mess
 var vec3 = vec3_;
 var GpuTexture = GpuTexture_;
-var math = math_;
 
  var tileBorderTable = [
     [-1, -1, 0, 0],

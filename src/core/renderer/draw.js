@@ -1,13 +1,12 @@
 
 import {vec3 as vec3_, mat3 as mat3_, mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import {processGMap as processGMap_, processGMap4 as processGMap4_, processGMap5 as processGMap5_,
         processGMap6 as processGMap6_, processGMap7 as processGMap7_, radixDepthSortFeatures as radixDepthSortFeatures_ } from './gmap';
 import * as vts from '../constants';
 
 //get rid of compiler mess
 var vec3 = vec3_, mat3 = mat3_, mat4 = mat4_;
-var math = math_;
 var processGMap = processGMap_;
 var processGMap4 = processGMap4_;
 var processGMap5 = processGMap5_;

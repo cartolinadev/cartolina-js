@@ -282,6 +282,10 @@ MapMesh.prototype.parseWorkerData = function (data) {
     this.bbox.updateMaxSize();
 };
 
+/**
+ * @param stream = {data: new DataView(data), buffer:data, index:0};
+ */
+
 MapMesh.prototype.parseMapMesh = function (stream) {
 /*
     struct MapMesh {

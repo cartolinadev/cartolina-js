@@ -1,9 +1,6 @@
 
 
-import {math as math_} from '../../core/utils/math';
-
-//get rid of compiler mess
-var math = math_;
+import * as math from '../../core/utils/math';
 
 
 var ControlModePano = function(browser) {

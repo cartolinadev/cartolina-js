@@ -1,6 +1,6 @@
 
 import {vec3, mat4} from '../utils/matrix';
-import {math} from '../utils/math';
+import * as math from '../utils/math';
 import * as utils from '../utils/utils';
 import GpuDevice from './gpu/device';
 import GpuProgram from './gpu/program';
@@ -29,15 +29,15 @@ import * as Illumination from '../map/illumination';
  *  * It keeps a 'debug' object which is in fact a set of rendering flags.
  *
  *  * It holds a 'hitmap' or depthMap of the scene, an offscreen framebuffer
- *    a map is rendered into in 'draw channel 1'
+ *    a map is rendered into in 'draw channel 1' when depth info is requested
  *
  *  * It keeps track of the CSS pixel size of the map
  *
  *  * It maintains an image projection matrix, used as projection matrix in
  *    various shaders and keeps it in sync with the CSS pixel size.
  *
- * It probably does many other things and is accessed through undocumented
- * backdoors.
+ * It probably does many other things and is accessed through numerous
+ * undocumented backdoors.
  */
 
 export class Renderer {
@@ -1295,7 +1295,7 @@ export type IlluminationDef = {
 export type Illumination = {
 
     trackingLight: { azimuth: number, elevation: number };
-    illuminationVectorVC: Illumination.vec3
+    illuminationVectorVC: math.vec3;
     ambientCoef: number;
 }
 

@@ -1,6 +1,6 @@
 
 import {vec3 as vec3_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import MapGeodata_ from './geodata';
 import MapGeodataView_ from './geodata-view';
 import MapDrawTiles_ from './draw-tiles';
@@ -12,7 +12,6 @@ import * as vts from '../constants';
 
 //get rid of compiler mess
 var vec3 = vec3_;
-var math = math_;
 var MapDrawTiles = MapDrawTiles_;
 var MapGeodataView = MapGeodataView_;
 var MapGeodata = MapGeodata_;

@@ -1,10 +1,9 @@
 
 import GpuTexture_ from '../renderer/gpu/texture';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
 
 //get rid of compiler mess
-var math = math_;
 var GpuTexture = GpuTexture_;
 var vec3 = vec3_, mat4 = mat4_;
 

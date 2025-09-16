@@ -1,19 +1,15 @@
 
-import {mat4 as mat4_} from './matrix';
+import {mat4} from './matrix';
 
-//get rid of compiler mess
-var mat4 = mat4_;
+export type vec3 = [number, number, number];
+export type vec4 = [number, number, number, number];
 
-
-var math = {};
-
-
-math.isEqual = function(value, value2, delta) {
+export function isEqual(value, value2, delta) {
     return (Math.abs(value - value2) < delta);
 };
 
 
-math.clamp = function(value, min, max) {
+export function clamp(value, min, max) {
     if (value < min) value = min;
     else if (value > max) value = max;
 
@@ -21,22 +17,22 @@ math.clamp = function(value, min, max) {
 };
 
 
-math.radians = function(degrees) {
+export function radians(degrees) {
     return degrees * Math.PI / 180;
 };
 
 
-math.degrees = function(radians) {
+export function degrees(radians) {
     return (radians / Math.PI) * 180;
 };
 
 
-math.mix = function(a, b, c) {
+export function mix(a, b, c) {
     return a + (b - a) * c;
 };
 
 
-math.frustumMatrix = function(left, right, bottom, top, near, far) {
+export function frustumMatrix(left, right, bottom, top, near, far) {
     var w = (right - left);
     var h = (top - bottom);
     var d = (far - near);
@@ -51,14 +47,14 @@ math.frustumMatrix = function(left, right, bottom, top, near, far) {
 };
 
 
-math.perspectiveMatrix = function(fovy, aspect, near, far) {
+export function perspectiveMatrix(fovy, aspect, near, far) {
     var ymax = near * Math.tan(fovy * Math.PI / 180.0);
     var xmax = ymax * aspect;
-    return math.frustumMatrix(-xmax, xmax, -ymax, ymax, near, far);
+    return frustumMatrix(-xmax, xmax, -ymax, ymax, near, far);
 };
 
 
-math.orthographicMatrix = function(vsize, aspect, near, far) {
+export function orthographicMatrix(vsize, aspect, near, far) {
     //vsize *= 0.020;
     var w = vsize* 0.5 * aspect;
     var h = vsize * 0.5;
@@ -74,7 +70,7 @@ math.orthographicMatrix = function(vsize, aspect, near, far) {
 };
 
 
-math.rotationMatrix = function(axis, angle) {
+export function rotationMatrix(axis, angle) {
     var ca = Math.cos(angle), sa = Math.sin(angle);
 
     /*    var m;
@@ -113,7 +109,7 @@ math.rotationMatrix = function(axis, angle) {
             0, -sa,  ca,  0,
             0,   0,   0,  1 ];
     case 1:
-        // inverted (!!)
+        // WARNING: inverted !!
         return [
              ca,  0,  sa,  0,
               0,  1,   0,  0,
@@ -131,7 +127,7 @@ math.rotationMatrix = function(axis, angle) {
 };
 
 
-math.scaleMatrix = function(sx, sy, sz) {
+export function scaleMatrix(sx, sy, sz) {
     /*var m = [
         sx,  0,  0, 0,
         0, sy,  0, 0,
@@ -148,12 +144,12 @@ math.scaleMatrix = function(sx, sy, sz) {
 };
 
 
-math.scaleMatrixf = function(s) {
-    return math.scaleMatrix(s, s, s);
+export function scaleMatrixf(s) {
+    return scaleMatrix(s, s, s);
 };
 
 
-math.translationMatrix = function(tx, ty, tz) {
+export function translationMatrix(tx, ty, tz) {
     /*
     var m = [
         1, 0, 0, tx,
@@ -172,14 +168,13 @@ math.translationMatrix = function(tx, ty, tz) {
 };
 
 
-math.translationMatrix2f = function(t) {
-    return math.translationMatrix(t[0], t[1], 0);
+export function translationMatrix2f(t) {
+    return translationMatrix(t[0], t[1], 0);
 };
 
 
-math.translationMatrix3f = function(t) {
-    return math.translationMatrix(t[0], t[1], t[2]);
+export function translationMatrix3f(t) {
+    return translationMatrix(t[0], t[1], t[2]);
 };
 
 
-export {math};

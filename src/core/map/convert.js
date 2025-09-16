@@ -1,11 +1,10 @@
 
 import {mat4 as mat4_} from '../utils/matrix';
-import {math as math_} from '../utils/math';
+import * as math from '../utils/math';
 import GeographicLib_ from 'geographiclib';
 
 //get rid of compiler mess
 var mat4 = mat4_;
-var math = math_;
 var GeographicLib = GeographicLib_;
 
 

@@ -9,8 +9,9 @@ import MapSubmesh from 'submesh';
 import MapTexture from 'texture';
 import MapBoundLayer from 'bound-layer'
 import Renderer from '../renderer/renderer';
-import * as Illumination from './illumination';
 
+import * as illumination from './illumination';
+import * as math from '../utils/math';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 
@@ -186,7 +187,6 @@ export class TileRenderRig {
         });
 
         /*if (ready_ && utils.compareTuples(this.tile.id, [15, 8772, 5758])) {
-            console.log([...this.tile.id, this.submeshIndex].join('-'), readiness, options);
             console.log('%s render-ready.', utils.idToString([...this.tile.id, this.submeshIndex]));
         }*/
 
@@ -452,10 +452,10 @@ export class TileRenderRig {
 
             if (alpha_.mode === 'viewdep') {
 
-                alpha.illuminationNED = Illumination.illuminationVector(
+                alpha.illuminationNED = illumination.illuminationVector(
                     alpha_.illumination[0],
                     alpha_.illumination[1],
-                    Illumination.CoordSystem.NED);
+                    illumination.CoordSystem.NED);
             }
 
             // ommit this silent side effect of the old code for now
@@ -582,7 +582,7 @@ type AlphaMode = 'constant' | 'viewdep';
 type Alpha = {
     mode: AlphaMode,
     value: number,
-    illuminationNED?: Illumination.vec3
+    illuminationNED?: math.vec3
 }
 
 type BlendMode = 'overlay' | 'add' | 'multiply' | 'specular-multiply';
