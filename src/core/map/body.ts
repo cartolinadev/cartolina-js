@@ -34,14 +34,16 @@ class MapBody {
     };
 
 
-    getInfo() {
+    getInfo(): MapBody {
 
         return {
             'class' : this.class,
             'comment' : this.comment,
             'parent' : this.parent,
+
+            // the deep copy contract, copied from old js file
             'atmosphere' : JSON.parse(JSON.stringify(this.atmosphere)),
-        };
+        } as MapBody;
     };
 
 }; // class MapBody

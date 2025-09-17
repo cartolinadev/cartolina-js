@@ -17,9 +17,10 @@ import MapPosition_ from './position';
 import MapRenderSlots_ from './render-slots';
 import MapStats_ from './stats';
 import MapSurfaceSequence_ from './surface-sequence';
-import MapUrl_ from './url';
+import MapUrl from './url';
 import * as Illumination from './illumination';
 import GpuTexture_ from '../renderer/gpu/texture';
+import Atmosphere from './atmosphere';
 
 //get rid of compiler mess
 var vec3 = vec3_;
@@ -39,7 +40,6 @@ var MapPosition = MapPosition_;
 var MapRenderSlots = MapRenderSlots_;
 var MapStats = MapStats_;
 var MapSurfaceSequence = MapSurfaceSequence_;
-var MapUrl = MapUrl_;
 var GpuTexture = GpuTexture_;
 
 
@@ -143,7 +143,14 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.draw.setupDetailDegradation();
 
     var body = this.referenceFrame.body, c;
+    var services = this.services;
 
+    if (body && body.atmosphere && services && services.atmdensity)
+        this.atmosphere = new Atmosphere(
+            body.atmosphere, this.getPhysicalSrs(),
+            this.url.makeUrl(services.atmdensity.url, {}), this);
+
+    // old atmosphere starts
     if (body && body.atmosphere) {
         c = body.atmosphere.colorHorizon;
         this.draw.atmoColor = [c[0]/255.0, c[1]/255.0, c[2]/255.0, c[3]/255.0];
@@ -172,6 +179,7 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     }
 
     this.draw.atmoHeightFactor = this.draw.atmoHeight / 50000;
+    // old atmosphere ends
 
     this.renderSlots = new MapRenderSlots(this);
     this.renderSlots.addRenderSlot('map', this.drawMap.bind(this), true);

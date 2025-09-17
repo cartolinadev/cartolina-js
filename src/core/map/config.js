@@ -34,8 +34,10 @@ MapConfig.prototype.parseConfig = function() {
           this.parseSurfaces() && this.parseGlues() && 
           this.parseVirtualSurfaces() && this.parseBoundLayers() &&
           this.parseFreeLayers() && this.parseViews() &&
-          this.parseParams() && this.parseBrowserOptions() )) {
+          this.parseParams() && this.parseBrowserOptions() &&
+          this.parseServices())) {
         //wrong config file
+        throw new Error('Error in map configuration.');
     }
 
     var stats = this.map.stats;
@@ -86,6 +88,12 @@ MapConfig.prototype.parseBodies = function() {
     return true;
 };
 
+MapConfig.prototype.parseServices = function() {
+
+    let services = this.mapConfig['services'];
+    this.map.services = services || {};
+    return true;
+};
 
 MapConfig.prototype.parseReferenceFrame = function() {
     var rf = this.mapConfig['referenceFrame'];
