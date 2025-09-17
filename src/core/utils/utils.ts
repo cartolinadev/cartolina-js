@@ -79,7 +79,8 @@ export function simpleFmtObj(str, obj) {
         return '';
     }
 
-    return str.replace(/\{([$a-zA-Z0-9][$a-zA-Z0-9]*)\}/g, function(s, match) {
+    //return str.replace(/\{([$a-zA-Z0-9][$a-zA-Z0-9]*)\}/g, function(s, match) {
+    return str.replace(/{([$a-zA-Z0-9()][$a-zA-Z0-9()]*)}/g, function(s, match) {
         return (match in obj ? obj[match] : s);
     });
 };
