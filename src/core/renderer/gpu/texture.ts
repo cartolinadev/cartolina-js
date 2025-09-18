@@ -1,6 +1,6 @@
 
 import * as utils from '../../utils/utils';
-import {GpuDevice} from 'device';
+import {GpuDevice} from './device';
 
 import * as vts from '../../constants';
 
@@ -141,7 +141,6 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
     switch (this.type_) {
 
         case vts.TEXTURETYPE_ATMDENSITY:
-            console.log('here');
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, lx, ly, 0, gl.RGB,
                           gl.UNSIGNED_BYTE, data);
             break;

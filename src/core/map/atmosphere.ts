@@ -1,6 +1,6 @@
 
-import MapBody from 'body';
-import MapSrs from 'srs';
+import MapBody from './body';
+import MapSrs from './srs';
 import MapTexture from './texture';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';

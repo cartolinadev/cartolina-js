@@ -1848,7 +1848,7 @@ MapSurfaceTile.prototype.drawHmapTile = function(cameraPos, divNode, angle, pipe
 
 /**
  * Extract credits for a tile submesh and add them to tile.[glueI|i]mageryCredits.
- * The submeshes are presumed too follow the same orther as the components of
+ * The submeshes are presumed too follow the same order as the components of
  * the glue id.
  */
 
