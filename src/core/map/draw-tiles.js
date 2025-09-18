@@ -149,13 +149,15 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         // draw
                         if (rigToDraw && !preventRedener) {
 
+                            // draw something
                             rigToDraw.draw();
 
                             // process layer credits (only active layers)
                             rigToDraw.activeLayerIds().forEach((id) => {
                                 let layer = tile.boundLayers[id];
+
                                 let credits = layer.credits;
-                                for (k = 0; k < credits.length; k++)
+                                for (let k = 0; k < credits.length; k++)
                                      tile.imageryCredits[credits[k]] = layer.specificity;
 
                             })
@@ -172,7 +174,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    // ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    //ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);

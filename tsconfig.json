@@ -6,7 +6,12 @@
     "module": "es2020",
     "allowJs": true,
     "checkJs": false,    
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*"],
   "exclude": ["src/core/map/geodata-processor/**"]

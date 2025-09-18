@@ -95,7 +95,7 @@ init() {
     try {
         gl = canvas.getContext('webgl2', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
     } catch(e) {
-        //webgl not supported
+        throw new Error('Error obtaining webgl2 context, webgl not supported?');
     }
 
     this.gl = gl;

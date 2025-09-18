@@ -527,14 +527,25 @@ export function unint8ArrayToString(array) {
     }
 }
 
+/**
+ * Log all parameterrs the fnction was called with, diagnostics tools
+ */
+export function log<T extends (...args: any[]) => any>(fn: T): T {
+  return ((...args: Parameters<T>): ReturnType<T> => {
+    const start = performance.now();
+    console.log(fn.name || "<anonymous>", "called with:", ...args);
+    const result = fn(...args);
+    const duration = performance.now() - start;
+    console.log(fn.name || "<anonymous>", "returned:", result, `(${duration.toFixed(2)} ms)`);
+    return result;
+  }) as T;
+}
 
 /**
  * A TypeScript method decorator, useful for diagnostics. Logs and times every
  * call. Put @log immediately before the definition of the method you want
  * logged to use it.
  */
-
-
 export function Log(
   target: any,
   propertyKey: string,
@@ -553,10 +564,18 @@ export function Log(
 }
 
 
+/**
+ * helper for logging of numerical tuples (tile id's)
+ */
+
 export function idToString(id: number[]): string {
 
     return id.join('-');
 };
+
+/**
+ * test tuple (tile id) equivalence
+ */
 
 export function compareTuples<T>(a: T[], b: T[]) {
 

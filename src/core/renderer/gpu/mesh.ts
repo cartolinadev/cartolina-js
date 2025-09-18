@@ -1,6 +1,6 @@
 
-import GpuDevice from 'gpu/device';
-import GpuProgram from 'gpu/program';
+import GpuDevice from './device';
+import GpuProgram from './program';
 
 
 type Optional<T> = T | null;

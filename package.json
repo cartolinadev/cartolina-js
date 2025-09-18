@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.49.50-ondra_cartolina23.1bc7caf",
+  "version": "2.49.51-ondra_cartolina23.a454409",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -51,6 +51,7 @@
     "rimraf": "^3.0.2",
     "serve": "^14.2.5",
     "style-loader": "^1.2.1",
+    "ts-shader-loader": "^2.0.2",
     "webpack": "^5.101.0",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"

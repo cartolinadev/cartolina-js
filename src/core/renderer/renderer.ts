@@ -13,6 +13,9 @@ import RenderDraw from './draw';
 import RendererRMap from './rmap';
 import * as Illumination from '../map/illumination';
 
+import shaderTileVert from './shaders/tile.vert.glsl';
+import shaderTileFrag from './shaders/tile.frag.glsl';
+
 /**
  * As with many classes in vts-browser-js, it is difficult to find any
  * meaningful abstraction behind this class. Despite its name, it's not a
@@ -28,7 +31,7 @@ import * as Illumination from '../map/illumination';
  *
  *  * It keeps a 'debug' object which is in fact a set of rendering flags.
  *
- *  * It holds a 'hitmap' or depthMap of the scene, an offscreen framebuffer
+ *  * It holds a 'hitmap', a depth map of the scene. It's an offscreen framebuffer
  *    a map is rendered into in 'draw channel 1' when depth info is requested
  *
  *  * It keeps track of the CSS pixel size of the map
@@ -36,8 +39,8 @@ import * as Illumination from '../map/illumination';
  *  * It maintains an image projection matrix, used as projection matrix in
  *    various shaders and keeps it in sync with the CSS pixel size.
  *
- * It probably does many other things and is accessed through numerous
- * undocumented backdoors.
+ *   * It probably does many other things and is accessed through numerous
+ *     undocumented backdoors.
  */
 
 export class Renderer {
@@ -99,6 +102,11 @@ export class Renderer {
     drawTileVec = [0,0,0];
 
     // programs
+    programs!: {
+        tile: GpuProgram;
+    }
+
+    // legacy programs
     progTile: Optional<GpuProgram> = null;
     progTile2: Optional<GpuProgram> = null;
     progTile3: Optional<GpuProgram> = null;
@@ -119,8 +127,9 @@ export class Renderer {
     seProgression: SeProgression;
 
     // these values, important for vertical exaggeration, are calculated from
-    // nvagiationSrs in MapDraw.drawMap as a side effect of drawing the skydome
-    // (which is not guaranteed). TODO: move their initilization here
+    // navigationSrs in MapDraw.drawMap as a side effect of drawing the skydome
+    // (which is not guaranteed). TODO: move their initilization here, or drop
+    // them altogether and use the map object
     earthRadius: Optional<number> = null; // major axis
     earthRadius2: Optional<number> = null; // minor axis
     earthERatio: Optional<number> = null;
@@ -329,11 +338,21 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     // initialize resources
     this.gpu.init();
     this.init = new RenderInit(this);
+
+    this.initShaders();
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
     this.resizeGL(Math.floor(this.curSize[0]), Math.floor(this.curSize[1]));
 };
+
+
+initShaders() {
+
+    this.programs = {
+        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag)
+    }
+}
 
 initProceduralShaders() {
     this.init.initProceduralShaders();

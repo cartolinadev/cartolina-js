@@ -21,6 +21,7 @@ var plugins = [
     new webpack.BannerPlugin({
         "banner": function(filename) {
           return "Copyright (c) 2020 Melown Technologies SE\n" +
+                 "	    (c) 2025 Montevallo Consulting s.r.o.\n" +
                  " *  For terms of use, see accompanying [name] file.\n" +
                  " *  For 3rd party libraries licenses, see 3rdpartylicenses.txt.\n"
         }
@@ -59,7 +60,11 @@ const baseConfig = {
       },
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
+        use: 'ts-loader'
+      },
+      {
+        test: /\.(glsl|vs|fs)$/,
+        loader: 'ts-shader-loader'
       },
       /*,
       {

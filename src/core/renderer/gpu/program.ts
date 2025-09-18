@@ -52,17 +52,15 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
-    //if (vertexShader) console.log(source);
-
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        var info = gl.getShaderInfoLog(shader);
 
-        console.log('An error occurred compiling the ' + ((vertexShader !== true) ? 'fragment' : 'vertex') + ' shaders: ' + info);
-        this.gpu.renderer.core.callListener('renderer-shader-error', { 'where':'compilation', 'info' : info });
+        var errorLog = gl.getShaderInfoLog(shader);
 
-        console.trace();
-        console.log(source);
-        return null;
+        const numberedSource = source
+            .split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n');
+
+        throw new Error(
+            `Shader compilation failed:\n${errorLog}\nSource:\n${numberedSource}`);
     }
 
     return shader;
@@ -86,9 +84,14 @@ createProgram(vertex: string, fragment: string): void {
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        console.log('Unable to initialize the shader program.');
-        this.gpu.renderer.core.callListener('renderer-shader-error', { 'where':'linking' });
+        const linkError = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program linking failed:\n${linkError}`);
     }
+
+    // Clean up shaders (optional - they can be deleted after successful linking)
+    gl.detachShader(program, vertexShader);
+    gl.detachShader(program, fragmentShader);
 
     // this is probably useless
     // program is set for real in GpuDevice.useProgram in the rendering loop

@@ -2,12 +2,12 @@
  * tilerenderrig.ts - prepare and draw mesh tiles
  */
 
-import MapResourceNode from 'resource-node';
-import MapSurface from 'surface';
-import MapMesh from 'mesh';
-import MapSubmesh from 'submesh';
-import MapTexture from 'texture';
-import MapBoundLayer from 'bound-layer'
+import MapResourceNode from './resource-node';
+import MapSurface from './surface';
+import MapMesh from './mesh';
+import MapSubmesh from './submesh';
+import MapTexture from './texture';
+import MapBoundLayer from './bound-layer'
 import Renderer from '../renderer/renderer';
 import Atmosphere from './atmosphere';
 
@@ -132,8 +132,8 @@ export class TileRenderRig {
      *
      * @param readiness the two levels of readiness requested. *Minimum* controls
      *     which resources suffice for the tile rig to be evaluated as ready.
-     *     *Desired* contrrols which resources the method *attempts* to make
-     *     ready.
+     *     *Desired* controls which resources the method *attempts* to make
+     *     ready (activates their readiness triggers).
      * @param priority the priority for essential and optional resources.
      * @return true if resources are ready on the desired rendering level
      */
@@ -201,17 +201,37 @@ export class TileRenderRig {
     draw(renderFlags: Partial<TileRenderRig.RenderFlags> = {}) {
 
         let flags = {...TileRenderRig.DefaultRenderFlags, ...renderFlags };
+
+        //console.log('%s: draw.', utils.idToString([...this.tile.id, this.submeshIndex]));
     }
 
     /**
      * retrieve a list of *active* layerIds from the tile, i.e. ids of layers
-     * that will be actually used in rendering. This is used for assembling tile
+     * that have beeen actually used in rendering. This is used for assembling tile
      * credits.
      */
 
-    activeLayerIds(): string[] {
-        // TODO
-        return []; }
+    activeLayerIds(readiness: TileRenderRig.ReadinessLevels
+        = { minimum: 'full', desired: 'full' }): string[] {
+
+        const options: TileRenderRig.IsReadyOptions
+            = { doNotLoad: true, doNotCheckGpu: true };
+
+        let ret = [] as string[];
+
+        this.rt.layerStack.forEach((item: Layer) => {
+
+            // priority is irelevant, we load nothing
+            if (this.isLayerReady(item, readiness,
+                TileRenderRig.DefaultPriority, options)
+                && item.rt && item.rt.layerId)
+                ret.push(item.rt.layerId);
+        });
+
+        //console.log(utils.idToString(this.tile.id), ret);
+
+        return ret;
+    }
 
 
     private buildLayerStack(layerDefs: TileRenderRig.LayerDefs) {
@@ -352,10 +372,9 @@ export class TileRenderRig {
         // optimize stack,
         // TODO
 
-        // turn off internal/external UVs if no layer needs them
-        // TODO
+        // turn off internal/external UVs if no layer needs them?
 
-        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        // console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -382,7 +401,7 @@ export class TileRenderRig {
      *
      * @param layerDef layerDefinition
      * @param necessity is layer necessary or optional for rendering
-     * @param proagagate: should layer tiles propage beyeond their lodRange to
+     * @param propagate: should layer tiles propage beyeond their lodRange to
      *      higher lods? Usually true.
      * @param target 'color' (for the fragment color stack) or 'normal'
      *      (for the surface normal stack), normally 'color'.
@@ -473,8 +492,9 @@ export class TileRenderRig {
                     illumination.CoordSystem.NED);
             }
 
-            // ommit this silent side effect of the old code for now
-            //tile.boundLayers[layer.id] = item.layer;
+            // not a pretty side effect, copied verbatim from old code.
+            // needed for credits extraction
+            this.tile.boundLayers[layer.id] = layer;
 
             return ({
                 operation: 'blend',
@@ -510,7 +530,7 @@ export class TileRenderRig {
         necessity: Necessity,
         readiness: TileRenderRig.ReadinessLevels,
         priority: TileRenderRig.Priority,
-        options: TileRenderRig.CheckReadyOptions) : boolean {
+        options: TileRenderRig.IsReadyOptions) : boolean {
 
 
         let priority_: number =  priority[necessity];
@@ -540,7 +560,7 @@ export class TileRenderRig {
     private isLayerReady(layer: Layer,
         readiness: TileRenderRig.ReadinessLevels,
         priority: TileRenderRig.Priority,
-        options: TileRenderRig.CheckReadyOptions) : boolean {
+        options: TileRenderRig.IsReadyOptions) : boolean {
 
         let ready_ = true;
         let necessity = layer.necessity;
@@ -590,10 +610,13 @@ type SurfaceTile = {
     resourceSurface: MapSurface;
     surfaceMesh: MapMesh;
 
-    map: { atmosphere?: Atmosphere }
+    map: { atmosphere?: Atmosphere };
 
 
     boundTextures: { [key: string]: MapTexture };
+
+    // lookup bound layer by id
+    boundLayers: { [key:string]: MapBoundLayer };
 }
 
 type Necessity = 'essential' | 'optional';
@@ -737,5 +760,5 @@ export namespace TileRenderRig {
         doNotLoad: false, doNotCheckGpu: false
     }
 
-    export type CheckReadyOptions = typeof DefaultIsReadyOptions;
+    export type IsReadyOptions = typeof DefaultIsReadyOptions;
 }
