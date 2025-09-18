@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.49.51-ondra_cartolina23.a454409",
+  "version": "2.49.52-ondra_cartolina23.523f174",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -25,10 +25,9 @@
     "Web",
     "JavaScript",
     "3D",
-    "map",
-    "WebGL"
+    "map"
   ],
-  "author": "http://melown.com",
+  "author": "https://cartolina.dev",
   "license": "BSD-2-Clause",
   "bugs": {
     "url": "https://github.com/melown/vts-browser-js/issues"

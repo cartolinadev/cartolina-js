@@ -1240,28 +1240,41 @@ GpuShaders.tileVertexShader =
                                                 //0-3                            4-7          8-11            12-15
     'uniform mat4 uMV, uProj, uParams;\n'+  //[zfactor, fogDensity, scale.xy][camVec.xyzw][transform.xyzw][scale.z, trans.xyz]
 
-    '#ifdef applySE\n'+
-        'uniform mat4 uParamsSE;\n'+
+    '#ifdef applySE\n'+              // 0-3                        4-7                     8-11             12-15
+        'uniform mat4 uParamsSE;\n'+ // [bbox.min.xyz, bbox.side.x][bbox.side.yz, n/a, n/a][n/a, h1, f1, h2][1/(h2-h1), f2-f1, body.a, body.a / body.b]
     '#endif\n'+
 
     'void main() {\n'+
 
         '#ifdef applySE\n'+
+            // scale by bbox size - this is metric, but relative to bbox pos
             'vec3 geoPos2 = aPosition*vec3(uParamsSE[0][3],uParamsSE[1][0],uParamsSE[1][1]);\n'+
+            // translate to bbox pos - this is the world position, same as worldPos below
             'vec3 geoPos = geoPos2+vec3(uParamsSE[0][0],uParamsSE[0][1],uParamsSE[0][2]);\n'+
+            // looks like we transform ellipsoid to a sphere here
             'geoPos.z *= uParamsSE[3][3];\n'+
+            // distance from earth center, sort of
             'float ll = length(geoPos);\n'+
+            // earth normal
             'vec3 v = geoPos * (1.0/(ll+0.0001));\n'+
+            // ellipsoidal height, sort of
             'float h = ll - uParamsSE[3][2];\n'+
+            // h_ = clamp(h, h1, h2)
             'float h2 = clamp(h, uParamsSE[2][1], uParamsSE[2][3]);\n'+
             'float h3 = h;\n'+
+            // h * = (h_ - h1) /(h2 - h1) * (f2 - f1)
             'h *= (uParamsSE[2][2] + ((h2 - uParamsSE[2][1]) * uParamsSE[3][0]) * uParamsSE[3][1]);\n'+
+            // move relative bbox pos along the normal by the difference obtained due to exaggeration
             'geoPos2.xyz += v * (h - h3);\n'+
+            // uMV in case of SE is different then below, without the bbox scaling (we already have the metric coordinates
+            // this is result of submesh.getWorldMatrixSE
             'vec4 camSpacePos = uMV * vec4(geoPos2, 1.0);\n'+
+            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is)
             'float l = dot(v, vec3(uParams[1][0],uParams[1][1],uParams[1][2]));\n'+
         '#else\n'+
             'vec4 camSpacePos = uMV * vec4(aPosition, 1.0);\n'+
             'vec3 worldPos = vec3(aPosition.x * uParams[0][2] + uParams[3][1], aPosition.y * uParams[0][3] + uParams[3][2], aPosition.z * uParams[3][0] + uParams[3][3]);\n'+
+            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is)
             'float l = dot(normalize(worldPos.xyz), vec3(uParams[1][0],uParams[1][1],uParams[1][2]));\n'+
         '#endif\n'+
 
