@@ -7,6 +7,8 @@ import GpuProgram_ from './gpu/program';
 import GpuShaders_ from './gpu/shaders';
 import GpuTexture_ from './gpu/texture';
 
+import * as vts from '../constants';
+
 //get rid of compiler mess
 var RendererGeometry = RendererGeometry_;
 var GpuBBox = GpuBBox_;
@@ -184,7 +186,8 @@ RendererInit.prototype.initHeightmap = function() {
 
 
     renderer.heightmapTexture = new GpuTexture(gpu);
-    renderer.heightmapTexture.createFromData(size, size, data, 'trilinear', true);
+    renderer.heightmapTexture.createFromData(
+        size, size, data, vts.TEXTURETYPE_COLOR, 'trilinear', true);
 };
 
 

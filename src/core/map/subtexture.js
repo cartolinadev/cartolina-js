@@ -1,11 +1,12 @@
 
 import * as utils from '../utils/utils';
-import GpuTexture_ from '../renderer/gpu/texture';
+import GpuTexture from '../renderer/gpu/texture';
+import Atmosphere from './atmosphere';
 
 import * as vts from '../constants';
 
+
 //get rid of compiler mess
-var GpuTexture = GpuTexture_;
 
 
 var MapSubtexture = function(map, path, type, tile, internal) {
@@ -22,7 +23,7 @@ var MapSubtexture = function(map, path, type, tile, internal) {
     this.loadErrorCounter = 0;
     this.neverReady = false;
     this.mapLoaderUrl = path;
-    this.type = type || false;
+    this.type = Number(type) || vts.TEXTURETYPE_COLOR; // necessary normalization, due to faulty callers using true instead of vts.TEXTURETYPE_HEIGHT etc.
     this.statsCounter = 0;
     this.checkStatus = 0;
     this.checkType = null;
@@ -157,58 +158,71 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
             this.map.resourcesCache.updateItem(this.cacheItem);
         }
 
-        if (doNotCheckGpu) {
-            if (this.type == vts.TEXTURETYPE_HEIGHT) {
+        switch(this.type) {
+
+            case vts.TEXTURETYPE_HEIGHT:
+
                 if (!this.imageData) {
+
+                    // build heightmap
                     t = performance.now();
                     this.buildHeightMap();
-                    this.stats.renderBuild += performance.now() - t; 
+                    this.stats.renderBuild += performance.now() - t;
                 }
-            }
 
-            return true;
-        }
+                return true;
 
-        if (this.type == vts.TEXTURETYPE_HEIGHT) {
+            case vts.TEXTURETYPE_ATMDENSITY:
 
-            //console.log(this.type, this.mapLoaderUrl);
+                if (!this.decoded) {
 
-            if (!this.imageData) {
+                    t = performance.now();
 
-                // build heightmap
-                t = performance.now();
-                this.buildHeightMap();
-                this.stats.renderBuild += performance.now() - t; 
-            }
-        } else {
+                    this.buildHeightMap(); let extents = this.imageExtents;
 
-            // this.type != vts.TEXTURETYPE_HEIGHT
-            if (!this.gpuTexture) {
-                if (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed) {
-                    return false;
+                    this.decoded = Atmosphere.decodeAtmosphereDensity({
+                        width: extents[0], height: extents[1], data:
+                        this.imageData });
+
+                    this.imageExtents = [this.decoded.width, this.decoded.height];
+
+                    this.stats.renderBuild += performance.now() - t;
                 }
+
+                if (doNotCheckGpu) return true;
+
+                if (!this.gpuTexture) {
+
+                    t = performance.now();
+                    this.buildGpuTexture();
+                    this.stats.renderBuild += performance.now() - t;
+                }
+
+                return true;
+
+            default:
+                if (doNotCheckGpu) return true;
+
+                if (!this.gpuTexture) {
+                    if (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed)
+                        return false;
                 
-                if (doNotUseGpu) {
-                    return false;
+                    if (doNotUseGpu) return false;
+
+
+                    t = performance.now();
+                    this.buildGpuTexture();
+                    this.stats.renderBuild += performance.now() - t;
                 }
 
-                //if (this.stats.graphsFluxTexture [0][0] > 2) {
-                   // return false;
-                //}
+                if (!doNotLoad && this.gpuCacheItem)
+                    this.map.gpuCache.updateItem(this.gpuCacheItem);
 
-                t = performance.now();
-                this.buildGpuTexture();
-                this.stats.renderBuild += performance.now() - t; 
-            }
+                return true;
 
-            if (!doNotLoad && this.gpuCacheItem) {
-                this.map.gpuCache.updateItem(this.gpuCacheItem);
-            }
-        }
-        
-        
-        return true;
-    } else {
+        } // switch(this.type)
+
+    } else { // if (this.loadState != 2)
         if (this.loadState == 0) { 
             if (doNotLoad) {
                 //remove from queue
@@ -499,6 +513,12 @@ MapSubtexture.prototype.buildGpuTexture = function () {
         case vts.TEXTURETYPE_CLASS:
             this.gpuTexture.createFromImage(
                 this.image, this.type, 'nearest', false);
+            break;
+
+        case vts.TEXTURETYPE_ATMDENSITY:
+            this.gpuTexture.createFromData(
+                this.decoded.width, this.decoded.height,
+                this.decoded.data, this.type, 'linear', false);
             break;
 
         default:

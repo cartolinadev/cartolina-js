@@ -9,6 +9,7 @@ import MapSubmesh from 'submesh';
 import MapTexture from 'texture';
 import MapBoundLayer from 'bound-layer'
 import Renderer from '../renderer/renderer';
+import Atmosphere from './atmosphere';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
@@ -321,7 +322,21 @@ export class TileRenderRig {
 
         } // if (rt.illumination && layerDef.specularSequence.length > 0)
 
-        // add atmosphere and shadows
+        // add atmosphere
+        if (tile.map.atmosphere) {
+
+            rt.layerStack.push({
+                target: 'color',
+                source: 'atm-color',
+                necessity: 'optional',
+                srcAtmColorVisibilityToCamDistance: 3.0,
+                operation: 'blend',
+                opBlendMode: 'overlay',
+                opBlendAlpha: { mode: 'atm-density', value: 1.0 }
+            });
+        }
+
+        // add shadows
         // TODO
 
         // add bump layers
@@ -491,7 +506,7 @@ export class TileRenderRig {
      * should be used for rendering.
      */
     private static isResourceReady(
-        resource: MapMesh | MapTexture,
+        resource: MapMesh | MapTexture | Atmosphere,
         necessity: Necessity,
         readiness: TileRenderRig.ReadinessLevels,
         priority: TileRenderRig.Priority,
@@ -543,7 +558,10 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
                 break;
 
-            case 'atmColor': // TODO
+            case 'atm-color':
+                ready_ &&= TileRenderRig.isResourceReady(
+                        this.tile.map.atmosphere,
+                        necessity, readiness, priority, options);
                 break;
         }
 
@@ -572,12 +590,15 @@ type SurfaceTile = {
     resourceSurface: MapSurface;
     surfaceMesh: MapMesh;
 
+    map: { atmosphere?: Atmosphere }
+
+
     boundTextures: { [key: string]: MapTexture };
 }
 
 type Necessity = 'essential' | 'optional';
 
-type AlphaMode = 'constant' | 'viewdep';
+type AlphaMode = 'constant' | 'viewdep' | 'atm-density';
 
 type Alpha = {
     mode: AlphaMode,
@@ -595,9 +616,9 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 
 type Layer = {
 
-    operation: 'blend'  | 'normal-blend' | 'push',
-    source: 'constant' | 'shade' | 'pop' | 'atmColor' | 'texture' | 'shadows',
     target: 'color' | 'normal',
+    source: 'constant' | 'shade' | 'pop' | 'atm-color' | 'texture' | 'shadows',
+    operation: 'blend'  | 'normal-blend' | 'push',
 
     necessity: Necessity;
 
@@ -609,6 +630,9 @@ type Layer = {
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
     //srcTextureMask?: MapTexture,
+
+    // to be replaced by runtime expressions
+    srcAtmColorVisibilityToCamDistance?: 3.0,
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,

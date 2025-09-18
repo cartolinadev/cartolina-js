@@ -75,7 +75,8 @@ RendererInterface.prototype.createTexture = function(options) {
 
         if (width && height) {
             texture = new GpuTexture(this.gpu);
-            texture.createFromData(width, height, source, filter, repeat);
+            texture.createFromData(width, height, source, vts.TEXTURETYPE_COLOR,
+                                   filter, repeat);
             return texture;
         }
     }
