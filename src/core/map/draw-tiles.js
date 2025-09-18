@@ -125,7 +125,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                 i, submeshSurface, tile, this.renderer, this.config);
 
                             // WARN comment out this line if you want the old call below to work
-                            //tile.resetDrawCommands = tile.updateBounds = false;
+                            tile.resetDrawCommands = tile.updateBounds = false;
 
                         }
 
@@ -172,7 +172,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    // ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);

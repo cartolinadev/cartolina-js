@@ -96,11 +96,12 @@ getSize() {
 
 
 createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
-    filter: GpuTexture.Filter, repeat?: GLfloat | GLint) {
+    type_: number = vts.TEXTURETYPE_COLOR,
+    filter: GpuTexture.Filter = 'nearest', repeat?: GLfloat | GLint) {
 
     var gl = this.gl;
 
-    this.type_ = vts.TEXTURETYPE_COLOR;
+    this.type_ = type_;
 
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -117,15 +118,18 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
     this.mipmapped = false;
 
     switch (filter) {
+
     case 'linear':
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         break;
+
     case 'trilinear':
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         this.mipmapped = true;
         break;
+
     default:
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -134,7 +138,20 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lx, ly, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    switch (this.type_) {
+
+        case vts.TEXTURETYPE_ATMDENSITY:
+            console.log('here');
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, lx, ly, 0, gl.RGB,
+                          gl.UNSIGNED_BYTE, data);
+            break;
+
+        case vts.TEXTURETYPE_COLOR:
+        default:
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lx, ly, 0, gl.RGBA,
+                          gl.UNSIGNED_BYTE, data);
+            break;
+    }
 
     if (this.mipmapped) {
         gl.generateMipmap(gl.TEXTURE_2D);

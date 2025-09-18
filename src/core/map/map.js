@@ -143,7 +143,7 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.draw.setupDetailDegradation();
 
     var body = this.referenceFrame.body, c;
-    var services = this.services;
+    let services = this.services;
 
     if (body && body.atmosphere && services && services.atmdensity)
         this.atmosphere = new Atmosphere(

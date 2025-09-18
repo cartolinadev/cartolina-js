@@ -3,9 +3,15 @@ import MapBody from 'body';
 import MapSrs from 'srs';
 import MapTexture from './texture';
 import * as utils from '../utils/utils';
+import * as vts from '../constants';
 
+/**
+ * The map atmosphere object. Provides density texture retrieval and decoding,
+ * readiness trigger, rendering initialization and buffer and uniform updates during
+ * tile rendering loop.
+ * Drawing of background (sky) might be added.
+ */
 
-// atmosphere object
 
 class Atmosphere {
 
@@ -13,8 +19,14 @@ class Atmosphere {
     atmDensityTexture!: MapTexture;
 
 
-    // initializes from params, creates map texture
-    // texture spec, textureUrl, creates new MapTexture
+    /**
+     * Initialize from atmosphere parameters, initiailize atmdensity texture.
+     * @param a atmosphere parameters (body.atmosphere object from mapConfig)
+     * @param srs the body srs, usually physical, for radius retrieval
+     * @param urlTemplate the URL template for atmdensity, usually comes
+     *      from services.atmdensity in map configuration
+     * @param map Map object to pass on to MapTexture (opaque in this class)
+     */
     constructor(a: MapBody.Atmosphere, srs: MapSrs, urlTemplate: string,
                 map: any) {
 
@@ -43,13 +55,25 @@ class Atmosphere {
         });
 
         let url = utils.simpleFmtObj(urlTemplate, { 'param(0)' : name });
-        this.atmDensityTexture = new MapTexture(map, url, true);
+        this.atmDensityTexture = new MapTexture(
+            map, url, vts.TEXTURETYPE_ATMDENSITY);
 
-        console.log('atmDensityTexture url: ', url);
+        //console.log('atmDensityTexture url: ', url);
     }
 
-
-    // readiness check/trigger
+    /**
+     * readiness check/trigger
+     *
+     * @param doNotLoad passed on to MapTexture
+     * @param priority  passed on to MapTexture
+     * @param doNotCheckGpu passed on to MapTexture
+     * @returns true if ready to render, side effect: triggers load
+     */
+    isReady(doNotLoad: boolean, priority: number, doNotCheckGpu: boolean): boolean
+    {
+        return this.atmDensityTexture.isReady(
+            doNotLoad, priority, doNotCheckGpu);
+    }
 
     // initializes (creates gl buffers and binds textures)
 
@@ -57,8 +81,49 @@ class Atmosphere {
 
     // renders background?
 
+
+    /**
+     * decode the grayscale atmosphere density image data into interleaved rgb
+     *
+     * @param img grayscale atmosphere density
+     * @returns the interlaved rgb density rgb array, with dimensions
+     */
+
+    static decodeAtmosphereDensity(img: ImageData):
+        { width: number, height: number, data: Uint8Array } {
+
+        const w = img.width, h3 = img.height, rgba = img.data;
+        console.assert(h3 % 3 === 0, `height ${h3} not divisible by 3`);
+
+        const h = h3 / 3, planeSize = w * h;
+
+        // repack stacked grayscale planes -> interleaved RGB
+
+        const rgb = new Uint8Array(planeSize * 3);
+
+        const offRpx = 0, offGpx = planeSize, offBpx = planeSize * 2;
+        let di = 0;
+
+        for (let i = 0; i < planeSize; i++) {
+
+            const rIdx = (offRpx + i) * 4;
+            const gIdx = (offGpx + i) * 4;
+            const bIdx = (offBpx + i) * 4;
+
+            rgb[di++] = rgba[rIdx]; // take R from each grayscale plane
+            rgb[di++] = rgba[gIdx];
+            rgb[di++] = rgba[bIdx];
+        }
+
+        console.log('decodeAtmosphereDensity:', w, h);
+
+        return { width: w, height: h, data: rgb }
+    }
+
     /**
      * convert AtmosphereTextureSpec to a base64-encoded query argument
+     * @spec atmosphere texture spec, derived from parameters
+     * @returns 'def' arg for atmdensity query
      */
     private static toQueryArg(spec: AtmosphereTextureSpec): string {
 
@@ -82,6 +147,8 @@ class Atmosphere {
 
     /**
      * convert the query argument back to AtmosphereTextureSpec (currently unused)
+     * @arg 'def' arg from atmdensity query
+     * @returns atmosphere texture spec
      */
     private static fromQueryArg(arg: string): AtmosphereTextureSpec {
 
