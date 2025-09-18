@@ -588,7 +588,14 @@ getSeProgressionFactor(position) {
 }
 
 
-getSuperElevation(position) {
+/**
+ * @returns a tuple of 7 numbers describing the vertical exaggeration
+ * if the original ramp spec was [h1, h2, f1, f2], the reurned value is
+ * something like:
+ * [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
+ */
+
+getSuperElevation(position) : SeRamp {
 
     if (arguments.length !== 1) {
         throw new Error('Function now requires current position.');

@@ -688,6 +688,11 @@ mat4.toInverseMat3 = function (a, b) {
     return b;
 };
 
+/**
+ * 4×4 matrix multiplication routine, written in the unrolled style of the
+   old glMatrix library. Marvel at the cryptic beauty.
+   c stores the result of b x a, matrices are column major
+ */
 
 mat4.multiply = function (a, b, c) {
     c || (c = a);

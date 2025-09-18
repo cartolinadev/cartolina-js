@@ -831,6 +831,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
             program.setMat4('uParams', m);
 
+            // c is atmo color
             v[0] = c[0], v[1] = c[1], v[2] = c[2];
             program.setVec4('uParams2', v);
 
@@ -839,8 +840,10 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         case vts.MATERIAL_EXTERNAL:
         case vts.MATERIAL_EXTERNAL_NOFOG:
 
-            // the bound layer texture trensformation, computed in MapTexture due to hieaarchy fallback
+            // the bound layer texture transformation, computed in MapTexture due to hierarchy fallback
             t = texture.getTransform();
+
+            // the texture tranformation is passed over in the third column (the major difference from the internal version above)
 
             m[0] = draw.zFactor, m[1] = (type == vts.MATERIAL_EXTERNAL) ? draw.fogDensity : 0;
             m[2] = bmax[0] - bmin[0], m[3] = bmax[1] - bmin[1],
@@ -866,6 +869,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 }
             }
 
+            // c is atmo color, last byte used for alpha
             v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == vts.MATERIAL_EXTERNAL) ? 1 : alpha_;
             program.setVec4('uParams2', v);
 
