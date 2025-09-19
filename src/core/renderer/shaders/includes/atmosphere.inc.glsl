@@ -9,7 +9,7 @@ layout(std140) uniform uboAtm
     highp vec4 uniAtmSizes; // atmosphere thickness (divided by major axis), major / minor axes ratio, inverse major axis, atmospere offset from viewer (divided by major axis, normally 0)
     highp vec4 uniAtmCoefs; // horizontal exponent, colorGradientExponent
     highp vec3 uniAtmCameraPosition; // world position of camera (divided by major axis)
-};
+} uAtm;
 
 float atmDecodeFloat(vec4 rgba)
 {
@@ -37,24 +37,24 @@ float atmSampleDensity(vec2 uv)
 // fragDir is in model space
 float atmDensityDir(vec3 fragDir, float fragDist)
 {
-    if (uniAtmSizes[0] == 0.0) // no atmosphere
+    if (uAtm.uniAtmSizes[0] == 0.0) // no atmosphere
         return 0.0;
 
     // convert from ellipsoidal into spherical space
-    vec3 camPos = uniAtmCameraPosition;
-    camPos.z *= uniAtmSizes[1];
+    vec3 camPos = uAtm.uniAtmCameraPosition;
+    camPos.z *= uAtm.uniAtmSizes[1];
     vec3 camNormal = normalize(camPos);
-    fragDir.z *= uniAtmSizes[1];
+    fragDir.z *= uAtm.uniAtmSizes[1];
     fragDir = normalize(fragDir);
     if (fragDist < 1000.0)
     {
-        vec3 T = uniAtmCameraPosition + fragDist * fragDir;
-        T.z *= uniAtmSizes[1];
+        vec3 T = uAtm.uniAtmCameraPosition + fragDist * fragDir;
+        T.z *= uAtm.uniAtmSizes[1];
         fragDist = length(T - camPos);
     }
 
-    //float lb = 90000 * uniAtmSizes[2];
-    //float ub = 100000 * uniAtmSizes[2];
+    //float lb = 90000 * uAtm.uniAtmSizes[2];
+    //float ub = 100000 * uAtm.uniAtmSizes[2];
 
     //return (fragDist - lb) / (ub  - lb);
 
@@ -66,7 +66,7 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     float y2 = l * l - x * x;
     float y = sqrt(y2); // distance of the ray from world origin
 
-    float atmThickness = uniAtmSizes[0]; // atmosphere height (excluding planet radius)
+    float atmThickness = uAtm.uniAtmSizes[0]; // atmosphere height (excluding planet radius)
     float invAtmThickness = 1.0 / atmThickness;
     float atmRad = 1.0 + atmThickness; // atmosphere height including planet radius
     float atmRad2 = atmRad * atmRad;
@@ -84,8 +84,8 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     if (y <= 1.0)
         ts[1] = mix(ts[1], t1e, clamp(l * 10.0 - 14.0, 0.0, 1.0));
 
-    //float lb = 90000 * uniAtmSizes[2];
-    //float ub = 100000 * uniAtmSizes[2];
+    //float lb = 90000 * uAtm.uniAtmSizes[2];
+    //float ub = 100000 * uAtm.uniAtmSizes[2];
 
     //return (ts[1] - lb) / (ub  - lb);
 
@@ -99,11 +99,11 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     // clamp t0 and t1 to atmosphere boundaries
     // ts is line segment that encloses the unobstructed portion of the ray and is inside atmosphere
     // ts[0] = max(0.0, x - a);
-    ts[0] = max(uniAtmSizes[3], x - a);
+    ts[0] = max(uAtm.uniAtmSizes[3], x - a);
     ts[1] = min(ts[1], x + a);
 
-    //float lb = 90000 * uniAtmSizes[2];
-    //float ub = 100000 * uniAtmSizes[2];
+    //float lb = 90000 * uAtm.uniAtmSizes[2];
+    //float ub = 100000 * uAtm.uniAtmSizes[2];
 
     //return (ts[1] - lb) / (ub  - lb);
 
@@ -127,7 +127,7 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     float density = ds[0] - ds[1];
     if (swapDirection)
         density *= -1.0;
-    float transmittance = exp(-uniAtmCoefs[0] * density);
+    float transmittance = exp(-uAtm.uniAtmCoefs[0] * density);
     return 1.0 - transmittance;
 }
 
@@ -135,12 +135,12 @@ float atmDensityDir(vec3 fragDir, float fragDist)
 float atmDensity(vec3 fragVect)
 {
     // convert fragVect to world-space and divide by major radius
-    fragVect = (uniAtmViewInv * vec4(fragVect, 1.0)).xyz;
-    fragVect = fragVect * uniAtmSizes[2];
-    vec3 f = fragVect - uniAtmCameraPosition;
+    fragVect = (uAtm.uniAtmViewInv * vec4(fragVect, 1.0)).xyz;
+    fragVect = fragVect * uAtm.uniAtmSizes[2];
+    vec3 f = fragVect - uAtm.uniAtmCameraPosition;
 
-    //float lb = 90000 * uniAtmSizes[2];
-    //float ub = 100000 * uniAtmSizes[2];
+    //float lb = 90000 * uAtm.uniAtmSizes[2];
+    //float ub = 100000 * uAtm.uniAtmSizes[2];
 
     //return (length(f) - lb) / (ub  - lb);
 
@@ -150,7 +150,7 @@ float atmDensity(vec3 fragVect)
 vec4 atmColor(float density, vec4 color)
 {
     density = clamp(density, 0.0, 1.0);
-    vec3 a = mix(uniAtmColorHorizon.rgb, uniAtmColorZenith.rgb, pow(1.0 - density, uniAtmCoefs[1]));
+    vec3 a = mix(uAtm.uniAtmColorHorizon.rgb, uAtm.uniAtmColorZenith.rgb, pow(1.0 - density, uAtm.uniAtmCoefs[1]));
     return vec4(mix(color.rgb, a, density), color.a);
 }
 

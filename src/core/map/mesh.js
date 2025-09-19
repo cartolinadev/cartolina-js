@@ -6,6 +6,7 @@ import GpuProgram_ from '../renderer/gpu/program';
 import GpuShaders_ from '../renderer/gpu/shaders';
 
 import * as vts from '../constants';
+import * as utils from '../utils/utils';
 
 
 //get rid of compiler mess
@@ -374,10 +375,13 @@ MapMesh.prototype.buildGpuSubmeshes = function() {
     //console.log("build: " + this.stats.counter + "   " + this.mapLoaderUrl);
 };
 
-
 MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, splitMask) {
+
     var str = '';
     if (splitMask) {
+
+        //console.log(this.map.config.mapSplitMargin);
+
         if (!this.map.config.mapSplitMargin) {
             if (splitMask.length == 4){ str += '#define clip4_nomargin\n' } else { str += '#define clip8\n' };
         } else {
@@ -438,6 +442,9 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     var attributes = ['aPosition'];
     var v = (useSuperElevation) ? vts.TILE_SHADER_SE : 0;
     let whitewash = null;
+
+    //if (splitMask && !utils.compareTuples(splitMask, [1,1,1,1]))
+    //    console.log('%s: splitMask %s ', utils.idToString(this.tile.id), utils.idToString(splitMask));
 
     if (splitMask) {
         v |= vts.TILE_SHADER_CLIP4;
@@ -654,8 +661,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         return;
     }
 
-    // use program (and set sampler0 and sampler1 statically, enable vertex attributes)
-    //renderer.gpu.useProgram(program, attributes, gpuMask);
+    // use program
     renderer.gpu.useProgram2(program);
 
     // bind textures

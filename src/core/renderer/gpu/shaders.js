@@ -1269,17 +1269,19 @@ GpuShaders.tileVertexShader =
             // uMV in case of SE is different then below, without the bbox scaling (we already have the metric coordinates
             // this is result of submesh.getWorldMatrixSE
             'vec4 camSpacePos = uMV * vec4(geoPos2, 1.0);\n'+
-            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is)
+            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is), used in the fogFactor calc below
             'float l = dot(v, vec3(uParams[1][0],uParams[1][1],uParams[1][2]));\n'+
         '#else\n'+
             'vec4 camSpacePos = uMV * vec4(aPosition, 1.0);\n'+
             'vec3 worldPos = vec3(aPosition.x * uParams[0][2] + uParams[3][1], aPosition.y * uParams[0][3] + uParams[3][2], aPosition.z * uParams[3][0] + uParams[3][3]);\n'+
-            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is)
+            // this is the cosine of the angle between earth normal and camera.vector2 (whatever that is), used in the fogFactor calc below
             'float l = dot(normalize(worldPos.xyz), vec3(uParams[1][0],uParams[1][1],uParams[1][2]));\n'+
         '#endif\n'+
 
         '#ifdef shader_illumination\n' +
+            // wow, we use the normalized submesh coordinates instead of world coordinates. Probably wrong.
             'fragPos = aPosition;\n' +
+            // for sampling normal maps (not transformed)
             'nmTexCoord = aTexCoord2;\n' +
         "#endif\n" +
 
@@ -1303,11 +1305,13 @@ GpuShaders.tileVertexShader =
             'vTexCoord.z = fogFactor;\n'+
 
             '#ifdef externalTex\n'+
-            //'#if 0\n'+
+                // texture transformation, for textures propagated from higher lods
                 'vTexCoord.xy = vec2(uParams[2][0] * aTexCoord2[0] + uParams[2][2], uParams[2][1] * aTexCoord2[1] + uParams[2][3]);\n'+
             '#elif defined(shader_illumination)\n' +
+                // not sure, perhaps no longer needed - we use nmTexCoord
                 'vTexCoord.xy = aTexCoord2;\n' +
             '#else\n'+
+                // internal texture
                 'vTexCoord.xy = aTexCoord;\n'+
             '#endif\n'+
 

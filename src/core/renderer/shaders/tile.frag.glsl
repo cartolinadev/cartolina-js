@@ -26,7 +26,6 @@ struct Light {
 
 in vec3 vFragPos;
 in vec3 vFragPosVC;
-in vec3 vNormal;
 in vec2 vTexCoords;
 in float vAtmDensity;
 
@@ -38,6 +37,57 @@ uniform Light light;
 uniform int renderFlags;
 
 out vec4 fragColor;
+
+// octahedron rg decoding of normals
+
+vec3 decodeOct(vec2 rg, bool normalize_) {
+    vec2 p = rg * 2.0 - 1.0;                          // [-1,1]^2
+    vec3 n = vec3(p, 1.0 - abs(p.x) - abs(p.y));      // L1 “unproject”
+    // branchless fold fixup (t = amount to slide back to the upper sheet)
+    float t = clamp(-n.z, 0.0, 1.0);                  // >0 only when z<0
+    n.xy += vec2(p.x >= 0.0 ? -t : t,
+                 p.y >= 0.0 ? -t : t);
+
+    if (! normalize_) return n;
+    return normalize(n);
+}
+
+
+// manual biliniear filtering of decoded values
+// (we cannot rely on gl interpolation, octahedron encoding is not continuous)
+
+vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
+
+  vec2 pos = uv / texel - 0.5;
+  vec2 f = fract(pos);
+  vec2 base = (floor(pos) + 0.5) * texel;
+
+  vec2 uv00 = base;
+  vec2 uv10 = base + vec2(texel.x,0.0);
+  vec2 uv01 = base + vec2(0.0,texel.y);
+  vec2 uv11 = base + texel;
+
+  vec3 n00 = decodeOct(texture(tex, uv00).rg, false);
+  vec3 n10 = decodeOct(texture(tex, uv10).rg, false);
+  vec3 n01 = decodeOct(texture(tex, uv01).rg, false);
+  vec3 n11 = decodeOct(texture(tex, uv11).rg, false);
+
+  vec3 n0 = mix(n00, n10, f.x), n1 = mix(n01, n11, f.x);
+  return normalize(mix(n0, n1, f.y));
+}
+
+
+
+vec3 sampleNormal(sampler2D tex, vec2 uv, vec3 worldPos) {
+    //vec2 rg = texture(tex, uv).rg;
+
+    // optionally add; manual bilinear fiterling + jitter
+    //return decodeOct(rg);
+
+    // TODO: pass texture size via unifom or textureSize once on GLSL ES 3.0
+    return sampleOctBilinear(tex, uv, vec2(1./256., 1./256.));
+}
+
 
 // main
 
@@ -55,11 +105,11 @@ void main() {
     // normal
     vec3 normal;
 
-    if (!useNormalMap) {
-        normal = vNormal;
-    } else {
-        normal = normalize(texture(material.normalMap,
-            vTexCoords).rgb * 2.0 - 1.0);
+    if (useNormalMap) {
+
+        vec3 normal_ = sampleNormal(material.normalMap, vTexCoords, vFragPos);
+        //normal = normalize(texture(material.normalMap,
+        //    vTexCoords).rgb * 2.0 - 1.0);
     }
 
     // TODO: tangent, bitangent
