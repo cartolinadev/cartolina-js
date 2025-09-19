@@ -17,7 +17,14 @@ export class GpuProgram {
     attributeLocationCache: Record<string, GLint>;
     m: Float32Array;
 
-    constructor(gpu: GpuDevice, vertex: string, fragment: string, _?: any /*variants*/) {
+    /**
+      * Create a new gpu program, compile and link sources.
+      * @ubBindings the optional dictionary of uniform block bindings, maps
+      *      a block name to its ubo binding point.
+      */
+
+    constructor(gpu: GpuDevice, vertex: string, fragment: string,
+              ubBindings: {[key:string]: number} = {}) {
 
         this.gpu = gpu;
         this.vertex = vertex;
@@ -28,9 +35,7 @@ export class GpuProgram {
         this.attributeLocationCache = {};
         this.m = new Float32Array(16);
         this.ready = false;
-        this.createProgram(vertex, fragment);
-        //this.variants = variants || [];
-        //this.programs = {};
+        this.createProgram(vertex, fragment, ubBindings);
     };
 
 
@@ -66,19 +71,19 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
     return shader;
 };
 
-
-createProgram(vertex: string, fragment: string): void {
+createProgram(vertex: string, fragment: string,
+              ubBindings: {[key:string]: number}): void {
     var gl = this.gl;
     if (gl == null) return;
 
-    var vertexShader = this.createShader(vertex, true);
-    var fragmentShader = this.createShader(fragment, false);
+    let vertexShader = this.createShader(vertex, true);
+    let fragmentShader = this.createShader(fragment, false);
 
     if (!vertexShader ||  !fragmentShader) {
         return;
     }
 
-    var program = gl.createProgram();
+    let program = gl.createProgram();
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
@@ -92,6 +97,19 @@ createProgram(vertex: string, fragment: string): void {
     // Clean up shaders (optional - they can be deleted after successful linking)
     gl.detachShader(program, vertexShader);
     gl.detachShader(program, fragmentShader);
+
+    // create the uniform block bindings
+    Object.entries(ubBindings).forEach(([blockName, bindingPoint])=> {
+
+        const idx = gl.getUniformBlockIndex(program, blockName);
+
+        if (idx === gl.INVALID_INDEX) {
+            console.warn(`Invalid uniform block name '${blockName} (invalid index).`);
+            return;
+        }
+
+        gl.uniformBlockBinding(program, idx, bindingPoint);
+    });
 
     // this is probably useless
     // program is set for real in GpuDevice.useProgram in the rendering loop

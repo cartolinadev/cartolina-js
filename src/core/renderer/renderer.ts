@@ -350,14 +350,17 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
 initShaders() {
 
     this.programs = {
-        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag)
+        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,{
+            uboFrame: UniformBlockName.Frame,
+            uboLayers: UniformBlockName.Layers,
+            uboAtm: UniformBlockName.Atmosphere
+        })
     }
 }
 
 initProceduralShaders() {
     this.init.initProceduralShaders();
 };
-
 
 onResize() {
     if (this.killed){
@@ -1306,6 +1309,13 @@ type SeRamp =
     [number, number, number, number, number, number, number];
 
 type SeRampDef = [[number, number], [number, number]];
+
+enum UniformBlockName {
+
+    Frame = 0,
+    Layers = 1,
+    Atmosphere = 2
+}
 
 // export types
 export namespace Renderer {

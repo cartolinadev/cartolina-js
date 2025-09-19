@@ -59,6 +59,9 @@ class Atmosphere {
             map, url, vts.TEXTURETYPE_ATMDENSITY);
 
         //console.log('atmDensityTexture url: ', url);
+
+        // create gl buffer
+        // TODO
     }
 
     /**
@@ -73,13 +76,10 @@ class Atmosphere {
     {
         return this.atmDensityTexture.isReady(
             doNotLoad, priority, doNotCheckGpu);
+        // buffer metadata and bind textures
+        // TODO
+
     }
-
-    // initializes (creates gl buffers and binds textures)
-
-    // updates buffers in the rendering loop
-
-    // renders background?
 
 
     /**
