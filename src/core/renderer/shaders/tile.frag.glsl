@@ -1,11 +1,12 @@
 #version 300 es
 precision mediump float;
 
-#include "./includes/atmosphere.inc.glsl";
+//#include "./includes/atmosphere.inc.glsl";
 
 // structures
 
 struct Material {
+
     sampler2D diffuseMap;
     sampler2D specularMap;
     sampler2D normalMap;

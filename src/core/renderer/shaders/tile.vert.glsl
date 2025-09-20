@@ -44,9 +44,6 @@ layout(std140) uniform uboFrame {
     // renderingFlags
     highp ivec4 renderFlags; // renderFlags (see above), yzw reserved
 
-    // global samplers
-    highp ivec4 samplers; // x = uTexAtmDensity, yzw reserved
-
     // clip margin
     highp vec4 clipParams; // x = clipMargin, yzw reserved
 

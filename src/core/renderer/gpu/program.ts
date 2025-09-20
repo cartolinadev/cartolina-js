@@ -24,7 +24,8 @@ export class GpuProgram {
       */
 
     constructor(gpu: GpuDevice, vertex: string, fragment: string,
-              ubBindings: {[key:string]: number} = {}) {
+              ubBindings: {[key:string]: number} = {},
+              samplerUnitMappings: {[key:string]: number} = {}) {
 
         this.gpu = gpu;
         this.vertex = vertex;
@@ -35,7 +36,7 @@ export class GpuProgram {
         this.attributeLocationCache = {};
         this.m = new Float32Array(16);
         this.ready = false;
-        this.createProgram(vertex, fragment, ubBindings);
+        this.createProgram(vertex, fragment, ubBindings, samplerUnitMappings);
     };
 
 
@@ -72,7 +73,8 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
 };
 
 createProgram(vertex: string, fragment: string,
-              ubBindings: {[key:string]: number}): void {
+              ubBindings: {[key:string]: number},
+              samplerUnitMappings: {[key:string]: number}): void {
     var gl = this.gl;
     if (gl == null) return;
 
@@ -104,11 +106,26 @@ createProgram(vertex: string, fragment: string,
         const idx = gl.getUniformBlockIndex(program, blockName);
 
         if (idx === gl.INVALID_INDEX) {
-            console.warn(`Invalid uniform block name '${blockName} (invalid index).`);
+            console.warn(`Invalid uniform block name '${blockName} `
+            + `(invalid index) in program ${program}.`);
             return;
         }
 
         gl.uniformBlockBinding(program, idx, bindingPoint);
+    });
+
+    // sampler unit sampler unit mappings
+    Object.entries(samplerUnitMappings).forEach(([sampler, unitIdx])=>{
+
+        let location = this.getUniform(sampler);
+
+        if (location === null) {
+
+            console.warn(`Uniform '${sampler}' not found in program ${program}.`);
+            return;
+        }
+
+        gl.uniform1i(location, unitIdx);
     });
 
     // this is probably useless

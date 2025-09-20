@@ -66,6 +66,12 @@ class Atmosphere {
         //console.log('atmDensityTexture url: ', url);
 
         this.renderer = map.renderer;
+    }
+
+    /**
+     * create the uboAtm uniform buffer object.
+     */
+    createBuffers() {
 
         // create gl buffer
         let gl = this.renderer.gpu.gl;
@@ -98,8 +104,8 @@ class Atmosphere {
     }
 
     /**
-     * binds the atmdensity texture and updates the atm ubo buffer based on
-     * current map parameters, sets sampler uniform
+     * update the atm ubo buffer based on current map parameters, sets sampler
+     * uniform
      *
      * @param eyePos camera position in (WC)
      * @param eyeToCenter distance of camera to center of orbit (for dynamic
@@ -108,9 +114,16 @@ class Atmosphere {
      */
     updateBuffers(eyePos: math.vec3, eyeToCenter: number, viewInverse: math.mat4) {
 
-        // bind textures - note: the sampler idx is in the uboFrame and set elsewhere
-        this.renderer.gpu.bindTexture(this.atmDensityTexture.getGpuTexture(),
-            Atmosphere.TextureUnitIdx);
+        // bind textures - note: the sampler idx is set once in program creation
+        // and untouched. The call could be done only once when the gpu texture
+        // is created, since the binding never changes, but once per frame, it
+        // does not hurt.
+        let atmDensity = this.atmDensityTexture.getGpuTexture();
+
+        if (atmDensity)
+            this.renderer.gpu.bindTexture(
+                this.atmDensityTexture.getGpuTexture(),
+                Atmosphere.TextureUnitIdx);
 
         // compute ubo values
         const params = this.params;
@@ -122,7 +135,7 @@ class Atmosphere {
             * Math.log(1.0 / params.visibilityQuantile) / visibility * 5.0;
         // times 5 as compensation for texture normalization factor
 
-        let eyePosNormalized: math.vec3;
+        let eyePosNormalized = matrix.vec3.create();
         matrix.vec3.scale(eyePos, 1.0 / params.bodyMajorRadius, eyePosNormalized);
 
         let data = {
@@ -168,12 +181,15 @@ class Atmosphere {
 
         // vec3 uniAtmCameraPosition (+ pad float)
         buffer.set(data.uniAtmCameraPosition, offset);
-
-        // pad with one float (0)
         buffer[offset + 3] = 0.0;
         offset += 4;
 
+        // upload
+        let gl = this.renderer.gpu.gl;
 
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboAtm);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buffer);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
     }
 
     /**

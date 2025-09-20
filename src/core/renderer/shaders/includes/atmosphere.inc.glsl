@@ -1,5 +1,5 @@
 
-uniform sampler2D uTexAtmDensity; // change this to uFrame.samplers.x
+uniform sampler2D uTexAtmDensity;
 
 layout(std140) uniform uboAtm
 {
