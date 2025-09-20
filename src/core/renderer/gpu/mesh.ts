@@ -83,10 +83,10 @@ class GpuMesh {
      *      true, gl.FLOAT otherwise).
      * @param normalize Relevant only when use16bit = true. If true,
      *      'normalized' is set in the call to gl.vertexAttribPointer and the
-     *      provided uint vertex coordinates are normalized to [0, 1] range
-     *      before being passed to the vertex shader.
-     *      Note that regardless of this parameter, uv coordinates are always
-     *      normalized before being passed to the shader.
+     *      provided vertex coordinates, if uint, are normalized by gl to the
+     *      [0, 1] range before being passed to the vertex shader.
+     *      Note that regardless of this parameter, uv coordinates, if uint,
+     *      are always normalized before being passed to the shader.
      */
     constructor(gpu: GpuDevice, meshData: Mesh.MeshData, core: any,
                 use16bit: boolean = false,
@@ -185,14 +185,12 @@ class GpuMesh {
 /**
  * Provide the draw call for the mesh.
  *
- * A prior call to bufferAndBind is necessary to setup the VAO used in this call.
- * Any program uniforms need to be set as well prior to this calll.
+ * Any program uniforms need to be set prior to this call.
  *
  * @param program the program to use in draw call
- * @param attrNames names of attributes to bind in the program. These are honored
- *      only on the first call forand seems to be always passed as
-     *      false when that is the case a given program, changes on subsequent calls
- *      are ignored.
+ * @param attrNames names of attributes to bind in the program. These are
+ *      honored only on the first call fo a given program, changes on subsequent
+ *      calls are ignored.
  */
 
 draw2(program: GpuProgram,

@@ -1,8 +1,11 @@
 
-import {mat4} from './matrix';
+import {mat4, vec3} from './matrix';
 
-export type vec3 = [number, number, number];
+export type vec3 = [number, number, number]
 export type vec4 = [number, number, number, number];
+
+export type mat3 = ArrayLike<number> & { length: 9 };
+export type mat4 = ArrayLike<number> & { length: 16 };
 
 export function isEqual(value, value2, delta) {
     return (Math.abs(value - value2) < delta);

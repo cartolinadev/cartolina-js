@@ -286,7 +286,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
-    if (this.debug.drawEarth) { // debug.drawEarth!?
+    if (this.debug.drawEarth) { // debug.drawEarth? :-)
 
         //console.log('debug.drawEarth');
 
@@ -415,6 +415,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             this.tileBuffer[i] = null;    
         }
     
+
+        // the hot path - draw mesh tiles
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
             this.tree.draw(false);
