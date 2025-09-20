@@ -8,7 +8,11 @@ var vec3 = vec3_, vec4 = vec4_, mat4 = mat4_;
 
 var Camera = function(parent, fov, near, far) {
     this.parent = parent;
+
+    // world position, probably
     this.position = [0,0,0];
+
+    // rotation angles, probably
     this.orientation = [0,0,0];
     this.aspect = 1;
     this.fov = fov;

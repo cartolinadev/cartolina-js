@@ -11,7 +11,12 @@ import Camera from './camera';
 import RenderInit from './init';
 import RenderDraw from './draw';
 import RendererRMap from './rmap';
+
 import * as Illumination from '../map/illumination';
+
+import Atmosphere from '../map/atmosphere';
+import MapPosition from '../map/position';
+import MapBody from '../map/position';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
@@ -31,6 +36,11 @@ import shaderTileFrag from './shaders/tile.frag.glsl';
  *
  *  * It keeps a 'debug' object which is in fact a set of rendering flags.
  *
+ *  * It provides an object for creation a  per-frame uniform buffer object
+ *    (uboFrame) with view and projection matrices and provides a method for
+ *    per-frame updates. Indirectly, it does the same same for the uboAtm object,
+ *    which passes parameters for physical atmosphere to the shader program.
+ *
  *  * It holds a 'hitmap', a depth map of the scene. It's an offscreen framebuffer
  *    a map is rendered into in 'draw channel 1' when depth info is requested
  *
@@ -39,18 +49,20 @@ import shaderTileFrag from './shaders/tile.frag.glsl';
  *  * It maintains an image projection matrix, used as projection matrix in
  *    various shaders and keeps it in sync with the CSS pixel size.
  *
- *   * It probably does many other things and is accessed through numerous
+ *  * It probably does many other things and is accessed through numerous
  *     undocumented backdoors.
  */
 
 export class Renderer {
 
     config: Config;
-    core: any;
+    core: Core;
     div: HTMLElement;
     onResizeCall: () => void;
 
     marginFlags = 0; // see rmap.js
+
+    uboFrame: WebGLBuffer;
 
     // label-free margins on  the map: [top, right, bottom, left]
     labelFreeMargins: [number, number, number, number] = [0, 0, 0, 0];
@@ -93,7 +105,7 @@ export class Renderer {
     viewExtent = 1;
 
     gpu!: GpuDevice;
-    camera: any;
+    camera!: Camera;
 
     drawTileMatrix = mat4.create();
     drawTileMatrix2 = mat4.create();
@@ -264,8 +276,7 @@ export class Renderer {
     //layerGroupVisible = [];
 
 
-constructor(core: any, div: HTMLElement, _ /* onUpdate */,
-            onResize : () => void, config : Config) {
+constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config) {
 
     this.config = config; // || {};
     this.core = core;
@@ -340,6 +351,7 @@ constructor(core: any, div: HTMLElement, _ /* onUpdate */,
     this.init = new RenderInit(this);
 
     this.initShaders();
+
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
@@ -354,13 +366,118 @@ initShaders() {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
             uboAtm: Renderer.UniformBlockName.Atmosphere
+        },{
+            uTexAtmDensity: Atmosphere.TextureUnitIdx
         })
     }
+}
+
+/**
+ * initialize the uboFrame and ubooAtm uniform buffer objects, for later
+ * per-frame updates.
+ *
+ * this function is not called in constructor because the mapconfig manifest is
+ * typically not known when renderer is initialized. The map object needs to
+ * exist before this function is called.
+ */
+
+createBuffers() {
+
+    let gl = this.gpu.gl;
+
+    // uboFrame
+    this.uboFrame = gl.createBuffer();
+
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboFrame);
+    // 2*mat4 (2*64) + 4*vec4 (4*16) + ivec4 (16) = 208
+    // see uboFrame in frame.inc.glsl
+    gl.bufferData(gl.UNIFORM_BUFFER, 208, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, Renderer.UniformBlockName.Frame,
+        this.uboFrame);
+
+    // uboAtmosphere initialized in the atmosphere object
+    if (this.core.map.atmosphere) this.core.map.atmosphere.createBuffers();
+
+    // uboLayers not initialized here: each submesh keeps its own
+}
+
+/**
+ * Update the contents of the uboFrame and uboAtm unform buffer objects based
+ * on current position and view configuration. This should be called once per
+ * frame.
+ */
+
+updateBuffers() {
+
+    // one backing buffer, two typed views.
+    const buf = new ArrayBuffer(208);
+    const f32 = new Float32Array(buf); // for mat4/vec4
+    const i32 = new Int32Array(buf);   // for ivec4
+
+    // obtain the data
+    let se = this.getSuperElevation(this.core.map.position);
+
+
+    const data = {
+        view: this.camera.getModelviewFMatrix(),
+        projection: this.camera.getProjectionFMatrix(),
+        bodyParams: [this.earthRadius, this.earthERatio, 0, 0],
+        vaParams1: se.slice(0,4),
+        vaParams2: se.slice(4,7).concat(0),
+
+        // TODO - use this.debug to set the flags
+        renderFlags: [0xff, 0, 0, 0],
+        clipParams: [this.core.map.config.mapSplitMargin, 0, 0, 0]
+    };
+
+    // offsets in bytes (std140): see frame.inc.glsl/ uboFrame
+    const OFF = {
+        view:        0,     // 0
+        projection:  64,    // 16 floats
+        bodyParams:  128,   // 32 floats
+        vaParams1:   144,   // 36
+        vaParams2:   160,   // 40
+        renderFlags: 176,   // 44 (int view)
+        clipParams:  192    // 48
+    };
+
+    // write floats (indices = byteOffset / 4)
+    f32.set(data.view,        OFF.view / 4);
+    f32.set(data.projection,  OFF.projection / 4);
+    f32.set(data.bodyParams,  OFF.bodyParams / 4);
+    f32.set(data.vaParams1,   OFF.vaParams1 / 4);
+    f32.set(data.vaParams2,   OFF.vaParams2 / 4);
+    f32.set(data.clipParams,  OFF.clipParams / 4);
+
+    // write ints for ivec4
+    const ri = OFF.renderFlags / 4;
+    i32[ri + 0] = data.renderFlags[0] | 0;
+
+    // upload
+    let gl = this.gpu.gl;
+
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboFrame);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+
+    // the uboAtm buffer
+    if (this.core.map.atmosphere) {
+
+        this.core.map.atmosphere.updateBuffers(
+            this.camera.position as math.vec3,
+            this.core.map.position.getViewDistance(),
+            this.camera.modelviewinverse as math.mat4)
+    }
+
 }
 
 initProceduralShaders() {
     this.init.initProceduralShaders();
 };
+
 
 onResize() {
     if (this.killed){
@@ -1310,6 +1427,25 @@ type SeRamp =
 
 type SeRampDef = [[number, number], [number, number]];
 
+type Core = {
+
+    map: Map;
+    contextLost: boolean;
+
+    callListener(name: string, event: any, log?: boolean): void;
+
+}
+
+type Map = {
+
+    body: MapBody;
+    atmosphere?: Atmosphere;
+    position: MapPosition;
+
+    config: {
+        mapSplitMargin: number
+    }
+}
 
 // export types
 export namespace Renderer {

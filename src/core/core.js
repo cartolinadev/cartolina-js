@@ -148,7 +148,7 @@ var Core = function(element, config, coreInterface) {
 
     this.map = null;
     this.mapInterface = null;
-    this.renderer = new Renderer(this, this.element, null, this.onResize.bind(this), this.config);
+    this.renderer = new Renderer(this, this.element, this.onResize.bind(this), this.config);
     this.rendererInterface = new RendererInterface(this.renderer);
     this.proj4 = Proj4;
     this.contextLost = false;
@@ -231,6 +231,8 @@ Core.prototype.loadMap = function(path) {
             this.map.setView(this.config.view);
             this.config.view = null;
         }
+
+        this.renderer.createBuffers();
 
     }).bind(this);
 

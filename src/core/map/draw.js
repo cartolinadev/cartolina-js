@@ -239,6 +239,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.tiltFactor = (Math.abs(renderer.cameraOrientation[1]/-90));
     renderer.localViewExtentFactor = 2 * Math.tan(math.radians(map.position.getFov()*0.5));
 
+    // update per frame UBOs
+    renderer.updateBuffers();
+
     this.degradeHorizonFactor = 200.0 * this.config.mapDegradeHorizonParams[0];
     this.degradeHorizonTiltFactor = 0.5*(1.0+Math.cos(math.radians(Math.min(180,Math.abs(renderer.cameraOrientation[1]*2*3)))));
    
@@ -286,10 +289,10 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
+
     if (this.debug.drawEarth) { // debug.drawEarth? :-)
 
         //console.log('debug.drawEarth');
-
 
 
         if (replay.storeNodes || replay.storeFreeNodes) {
