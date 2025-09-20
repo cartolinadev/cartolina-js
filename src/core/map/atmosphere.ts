@@ -4,6 +4,9 @@ import MapSrs from './srs';
 import MapTexture from './texture';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
+import * as math from '../utils/math';
+import * as matrix from '../utils/matrix';
+import Renderer from '../renderer/renderer';
 
 /**
  * The map atmosphere object. Provides density texture retrieval and decoding,
@@ -17,7 +20,9 @@ class Atmosphere {
 
     params!: Parameters;
     atmDensityTexture!: MapTexture;
+    renderer!: Renderer;
 
+    uboAtm!: WebGLBuffer;
 
     /**
      * Initialize from atmosphere parameters, initiailize atmdensity texture.
@@ -28,7 +33,7 @@ class Atmosphere {
      * @param map Map object to pass on to MapTexture (opaque in this class)
      */
     constructor(a: MapBody.Atmosphere, srs: MapSrs, urlTemplate: string,
-                map: any) {
+                map: Map) {
 
         const srsInfo = srs.getInfo();
 
@@ -60,8 +65,22 @@ class Atmosphere {
 
         //console.log('atmDensityTexture url: ', url);
 
+        this.renderer = map.renderer;
+
         // create gl buffer
-        // TODO
+        let gl = this.renderer.gpu.gl;
+
+        this.uboAtm = gl.createBuffer();
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboAtm);
+
+        // total size in bytes (see shaders/include/atmosphere.inc.glsl)
+        // mat4 (64) + vec4 (16) + vec4 (16) + vec4 (16) + vec4 (16) + vec3+p (16) = 144
+        gl.bufferData(gl.UNIFORM_BUFFER, 144, gl.DYNAMIC_DRAW);
+
+        gl.bindBufferBase(gl.UNIFORM_BUFFER,
+            Renderer.UniformBlockName.Atmosphere, this.uboAtm);
+
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
     }
 
     /**
@@ -76,11 +95,86 @@ class Atmosphere {
     {
         return this.atmDensityTexture.isReady(
             doNotLoad, priority, doNotCheckGpu);
-        // buffer metadata and bind textures
-        // TODO
-
     }
 
+    /**
+     * binds the atmdensity texture and updates the atm ubo buffer based on
+     * current map parameters, sets sampler uniform
+     *
+     * @param eyePos camera position in (WC)
+     * @param eyeToCenter distance of camera to center of orbit (for dynamic
+     *      visibility
+     * @param viewInverse inverse of the view matrix
+     */
+    updateBuffers(eyePos: math.vec3, eyeToCenter: number, viewInverse: math.mat4) {
+
+        // bind textures - note: the sampler idx is in the uboFrame and set elsewhere
+        this.renderer.gpu.bindTexture(this.atmDensityTexture.getGpuTexture(),
+            Atmosphere.TextureUnitIdx);
+
+        // compute ubo values
+        const params = this.params;
+
+        // this should be configurable:
+        // we make the visiblity dependent on the distance from view center
+        const visibility = 3.0 * eyeToCenter;
+        const horizontalExponent = params.bodyMajorRadius
+            * Math.log(1.0 / params.visibilityQuantile) / visibility * 5.0;
+        // times 5 as compensation for texture normalization factor
+
+        let eyePosNormalized: math.vec3;
+        matrix.vec3.scale(eyePos, 1.0 / params.bodyMajorRadius, eyePosNormalized);
+
+        let data = {
+
+                uniAtmViewInv: viewInverse,
+                uniAtmColorHorizon: params.colorHorizon,
+                uniAtmColorZenith: params.colorZenith,
+                uniAtmSizes: [
+                    params.boundaryThickness / params.bodyMajorRadius,
+                    params.bodyMajorRadius / params.bodyMinorRadius,
+                    1.0 / params.bodyMajorRadius,
+                    // this should be configurable as well
+                    // we shift the edge of atmosphere to view center
+                    // to make everything crystal clear until then
+                    eyeToCenter / params.bodyMajorRadius],
+                uniAtmCoefs: [
+                    horizontalExponent,
+                    params.colorGradientExponent,
+                    0.0, 0.0],
+                uniAtmCameraPosition: eyePosNormalized
+        };
+
+
+        // create and populate backing array
+        const buffer = new Float32Array(36); // 144 / 4 = 36 floats
+
+        let offset = 0;
+
+        // mat4 uniAtmViewInv (16 floats)
+        buffer.set(data.uniAtmViewInv, offset); offset += 16;
+
+        // vec4 uniAtmColorHorizon
+        buffer.set(data.uniAtmColorHorizon, offset); offset += 4;
+
+        // vec4 uniAtmColorZenith
+        buffer.set(data.uniAtmColorZenith, offset); offset += 4;
+
+        // vec4 uniAtmSizes
+        buffer.set(data.uniAtmSizes, offset); offset += 4;
+
+        // vec4 uniAtmCoefs
+        buffer.set(data.uniAtmCoefs, offset); offset += 4;
+
+        // vec3 uniAtmCameraPosition (+ pad float)
+        buffer.set(data.uniAtmCameraPosition, offset);
+
+        // pad with one float (0)
+        buffer[offset + 3] = 0.0;
+        offset += 4;
+
+
+    }
 
     /**
      * decode the grayscale atmosphere density image data into interleaved rgb
@@ -211,10 +305,17 @@ const EmptyAtmosphereTextureSpec = {
 type AtmosphereTextureSpec = typeof EmptyAtmosphereTextureSpec;
 
 
+type Map = {
+    renderer: Renderer;
+}
+
+
 // export types
 
 namespace Atmosphere {
 
+    // active texture unit for atmosphere texture
+    export const TextureUnitIdx = 15;
 }
 
 export default Atmosphere;

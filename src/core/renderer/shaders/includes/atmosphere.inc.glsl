@@ -1,14 +1,14 @@
 
-uniform sampler2D texAtmDensity;
+uniform sampler2D uTexAtmDensity; // change this to uFrame.samplers.x
 
 layout(std140) uniform uboAtm
 {
     highp mat4 uniAtmViewInv;
     highp vec4 uniAtmColorHorizon;
     highp vec4 uniAtmColorZenith;
-    highp vec4 uniAtmSizes; // atmosphere thickness (divided by major axis), major / minor axes ratio, inverse major axis, atmospere offset from viewer (divided by major axis, normally 0)
-    highp vec4 uniAtmCoefs; // horizontal exponent, colorGradientExponent
-    highp vec3 uniAtmCameraPosition; // world position of camera (divided by major axis)
+    highp vec4 uniAtmSizes; // atmosphere thickness (divided by major axis), major / minor axes ratio, inverse major axis, atmoshpere offset from viewer (divided by major axis, normally 0)
+    highp vec4 uniAtmCoefs; // horizontal exponent, colorGradientExponent, zw reserved
+    highp vec4 uniAtmCameraPosition; // world position of camera (divided by major axis)
 } uAtm;
 
 float atmDecodeFloat(vec4 rgba)
@@ -21,14 +21,14 @@ float atmSampleDensity(vec2 uv)
     // since some color channels of the density texture are not continuous
     //   it is important to first decode the float from rgba and only after
     //   that to filter the values
-    ivec2 res = textureSize(texAtmDensity, 0);
+    ivec2 res = textureSize(uTexAtmDensity, 0);
     vec2 uvp = uv * vec2(res - 1);
     ivec2 iuv = ivec2(uvp); // upper-left texel fetch coordinates
     vec4 s;
-    s.x = atmDecodeFloat(texelFetchOffset(texAtmDensity, iuv, 0, ivec2(0,0)));
-    s.y = atmDecodeFloat(texelFetchOffset(texAtmDensity, iuv, 0, ivec2(1,0)));
-    s.z = atmDecodeFloat(texelFetchOffset(texAtmDensity, iuv, 0, ivec2(0,1)));
-    s.w = atmDecodeFloat(texelFetchOffset(texAtmDensity, iuv, 0, ivec2(1,1)));
+    s.x = atmDecodeFloat(texelFetchOffset(uTexAtmDensity, iuv, 0, ivec2(0,0)));
+    s.y = atmDecodeFloat(texelFetchOffset(uTexAtmDensity, iuv, 0, ivec2(1,0)));
+    s.z = atmDecodeFloat(texelFetchOffset(uTexAtmDensity, iuv, 0, ivec2(0,1)));
+    s.w = atmDecodeFloat(texelFetchOffset(uTexAtmDensity, iuv, 0, ivec2(1,1)));
     vec2 f = fract(uvp); // interpolation factors
     vec2 a = mix(s.xz, s.yw, f.x);
     return mix(a.x, a.y, f.y);
@@ -41,14 +41,14 @@ float atmDensityDir(vec3 fragDir, float fragDist)
         return 0.0;
 
     // convert from ellipsoidal into spherical space
-    vec3 camPos = uAtm.uniAtmCameraPosition;
+    vec3 camPos = uAtm.uniAtmCameraPosition.xyz;
     camPos.z *= uAtm.uniAtmSizes[1];
     vec3 camNormal = normalize(camPos);
     fragDir.z *= uAtm.uniAtmSizes[1];
     fragDir = normalize(fragDir);
     if (fragDist < 1000.0)
     {
-        vec3 T = uAtm.uniAtmCameraPosition + fragDist * fragDir;
+        vec3 T = uAtm.uniAtmCameraPosition.xyz + fragDist * fragDir;
         T.z *= uAtm.uniAtmSizes[1];
         fragDist = length(T - camPos);
     }
@@ -137,7 +137,7 @@ float atmDensity(vec3 fragVect)
     // convert fragVect to world-space and divide by major radius
     fragVect = (uAtm.uniAtmViewInv * vec4(fragVect, 1.0)).xyz;
     fragVect = fragVect * uAtm.uniAtmSizes[2];
-    vec3 f = fragVect - uAtm.uniAtmCameraPosition;
+    vec3 f = fragVect - uAtm.uniAtmCameraPosition.xyz;
 
     //float lb = 90000 * uAtm.uniAtmSizes[2];
     //float ub = 100000 * uAtm.uniAtmSizes[2];

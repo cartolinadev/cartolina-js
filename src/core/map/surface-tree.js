@@ -159,7 +159,7 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
     } else {
         var mode;
 
-        // WARN: the key bit causing mesh surface 'starvation' by geodata
+        // WARN: this causes mesh surface 'starvation' by geodata
         if (this.freeLayerSurface && this.freeLayerSurface.geodata) {
             // default: fit => fast descent, populating of loader queue
             // + massive additional boost in priority in the fit branch

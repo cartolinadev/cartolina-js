@@ -351,9 +351,9 @@ initShaders() {
 
     this.programs = {
         tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,{
-            uboFrame: UniformBlockName.Frame,
-            uboLayers: UniformBlockName.Layers,
-            uboAtm: UniformBlockName.Atmosphere
+            uboFrame: Renderer.UniformBlockName.Frame,
+            uboLayers: Renderer.UniformBlockName.Layers,
+            uboAtm: Renderer.UniformBlockName.Atmosphere
         })
     }
 }
@@ -1310,12 +1310,6 @@ type SeRamp =
 
 type SeRampDef = [[number, number], [number, number]];
 
-enum UniformBlockName {
-
-    Frame = 0,
-    Layers = 1,
-    Atmosphere = 2
-}
 
 // export types
 export namespace Renderer {
@@ -1340,6 +1334,17 @@ export type SeDefinition = SeRampDef | {
     heightRamp?: SeRampDef;
     viewExtentProgression?: SeProgressionDef;
 }
+
+
+/* Uniform buffer object binding points. */
+
+export enum UniformBlockName {
+
+    Frame = 0,
+    Layers = 1,
+    Atmosphere = 2
+}
+
 
 } // export namespace GpuDevice
 
