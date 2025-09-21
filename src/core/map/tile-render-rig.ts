@@ -237,7 +237,9 @@ export class TileRenderRig {
         // material.normalMap
         if (!this.rt.normals) throw Error('no normal map, bud');
         this.renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
-        program.setSampler('material.normalMap', 2);
+        program.setSampler('material.normalMap', 0);
+
+        program.setFloat('material.shininess', 1.0);
 
         // not needed at the moment: for specular lighting - if we use it, use uFrame
         // virtualEyePos
@@ -248,7 +250,7 @@ export class TileRenderRig {
 
         // draw
         this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, {
-            position: 'aPosition', uvs: 'aTexCoord', uvs2: 'aTexCoord2'});
+            position: 'aPosition', uvs: 'aTexCoords', uvs2: 'aTexCoords2'});
 
         //console.log('%s: draw.', utils.idToString([...this.tile.id, this.submeshIndex]));
     }

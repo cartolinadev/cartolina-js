@@ -149,32 +149,40 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         let rigToDraw  =  curRigReady ? curRig : lastRigReady ? lastRig : null;
 
                         // draw
-                        if (rigToDraw && !preventRedener) {
+                        if (rigToDraw) {
+                            if (!preventRedener) {
 
-                            // to be moved to top of the rendering loop
-                            this.renderer.gpu.useProgram2(this.renderer.programs.tile);
+                                // to be moved to top of the rendering loop
+                                this.renderer.gpu.useProgram2(this.renderer.programs.tile);
 
-                            // draw something
-                            rigToDraw.draw(this.renderer.programs.tile, cameraPos);
+                                // draw something
+                                rigToDraw.draw(this.renderer.programs.tile, cameraPos);
 
-                            // process layer credits (only active layers)
-                            rigToDraw.activeLayerIds().forEach((id) => {
-                                let layer = tile.boundLayers[id];
+                                // process layer credits (only active layers)
+                                rigToDraw.activeLayerIds().forEach((id) => {
+                                    let layer = tile.boundLayers[id];
 
-                                let credits = layer.credits;
-                                for (let k = 0; k < credits.length; k++)
-                                     tile.imageryCredits[credits[k]] = layer.specificity;
+                                    let credits = layer.credits;
+                                    for (let k = 0; k < credits.length; k++)
+                                        tile.imageryCredits[credits[k]] = layer.specificity;
 
-                            })
+                                })
 
-                            tile.addSubmeshCredits(i, rigToDraw.activeLayerIds());
+                                tile.addSubmeshCredits(i, rigToDraw.activeLayerIds());
 
-                            // extract and flush credits
-                            this.map.applyCredits(tile);
-                        }
-                    }
+                                // extract and flush credits
+                                this.map.applyCredits(tile);
+                            }
 
-                    ret = true; // seems safe
+                            // this means: tile ready to draw
+                            ret = true;
+                        } else
+
+                            // this means: tile not ready to draw
+                            ret = false;
+
+                    } // end iterate through submeshes
+
 
                     } // if draw.channel === 0
 
