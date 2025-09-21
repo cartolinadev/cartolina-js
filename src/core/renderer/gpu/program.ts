@@ -1,6 +1,7 @@
 
 
 import GpuDevice from './device';
+import * as utils from '../../utils/utils';
 
 type Optional<T> = T | null;
 
@@ -17,6 +18,13 @@ export class GpuProgram {
     attributeLocationCache: Record<string, GLint>;
     m: Float32Array;
 
+    // for diagnostics
+    id!: number;
+    name!: string;
+
+    // internal id
+    static nextId: number = 1;
+
     /**
       * Create a new gpu program, compile and link sources.
       * @ubBindings the optional dictionary of uniform block bindings, maps
@@ -24,6 +32,7 @@ export class GpuProgram {
       */
 
     constructor(gpu: GpuDevice, vertex: string, fragment: string,
+              name: string = 'unnamed',
               ubBindings: {[key:string]: number} = {},
               samplerUnitMappings: {[key:string]: number} = {}) {
 
@@ -36,8 +45,19 @@ export class GpuProgram {
         this.attributeLocationCache = {};
         this.m = new Float32Array(16);
         this.ready = false;
+
+        this.id = GpuProgram.nextId++;
+        this.name = name;
+
         this.createProgram(vertex, fragment, ubBindings, samplerUnitMappings);
     };
+
+
+    log(message, logger: (message: string) => void = utils.warnOnce) {
+
+        let message_ = `[GpuProgram ${this.id}:${this.name}]` + message;
+        logger(message_);
+    }
 
 
 createShader(source: string, vertexShader: boolean): WebGLShader {
@@ -100,19 +120,23 @@ createProgram(vertex: string, fragment: string,
     gl.detachShader(program, vertexShader);
     gl.detachShader(program, fragmentShader);
 
+
     // create the uniform block bindings
     Object.entries(ubBindings).forEach(([blockName, bindingPoint])=> {
 
         const idx = gl.getUniformBlockIndex(program, blockName);
 
         if (idx === gl.INVALID_INDEX) {
-            console.warn(`Invalid uniform block name '${blockName} `
-            + `(invalid index) in program ${program}.`);
+            __DEV__ && this.log(`Invalid uniform block name '${blockName} `
+            + `(invalid index) in program.`);
             return;
         }
 
         gl.uniformBlockBinding(program, idx, bindingPoint);
     });
+
+    // important to do this before setting any uniforms (samplers below)
+    gl.useProgram(program);
 
     // sampler unit sampler unit mappings
     Object.entries(samplerUnitMappings).forEach(([sampler, unitIdx])=>{
@@ -121,17 +145,15 @@ createProgram(vertex: string, fragment: string,
 
         if (location === null) {
 
-            console.warn(`Uniform '${sampler}' not found in program ${program}.`);
+            this.log(`Uniform '${sampler}' not found in program.`);
             return;
         }
 
         gl.uniform1i(location, unitIdx);
     });
 
-    // this is probably useless
-    // program is set for real in GpuDevice.useProgram in the rendering loop
-    gl.useProgram(program);
 
+    // done
     this.program = program;
     this.ready = true;
 };
@@ -157,6 +179,7 @@ setMat4(name: string, m: Float32List, zoffset?: number): void {
     if (gl == null || this.program == null) return;
 
     var key = this.getUniform(name);
+
     if (key != null) {
         if (zoffset) {
             zoffset = ((1+zoffset)*2)-1;
@@ -251,7 +274,8 @@ setFloatArray(name: string, array: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;
 
-    var key = this.getUniform(name);
+    // the correct way to query uniform arrays is to query the first element
+    var key = this.getUniform(name.endsWith("]") ? name : name + "[0]");
     if (key != null) {
         gl.uniform1fv(key, array);
     }
@@ -275,18 +299,48 @@ getAttribLocation(name: string): GLint {
 
 
 getUniform(name: string) {
-    var gl = this.gl;
+    let gl = this.gl;
     if (gl == null || this.program == null) return;
 
-    var location = this.uniformLocationCache[name];
+    let location = this.uniformLocationCache[name];
 
     if (location == null) {
         location = gl.getUniformLocation(this.program, name);
+
+        if (location === null && !/\[\d+\]$/.test(name)) {
+            // try array base
+            location = gl.getUniformLocation(this.program, name + "[0]");
+        }
+
+        if (location === null) {
+            this.log(`uniform ${name} does not exist in program `
+                + `(optimized out?)\nActive uniforms:\n\t`
+                + this.activeUniforms().join("\n\t"));
+
+        }
+
         this.uniformLocationCache[name] = location;
     }
     
     return location;
 };
+
+
+/**
+ * logActive uniforms - for program diagnostics.
+ */
+
+activeUniforms(): string[] {
+    const gl = this.gpu.gl;
+
+    let ret = [] as string[];
+
+    const n = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++)
+        ret.push(gl.getActiveUniform(this.program, i)?.name);
+
+    return ret;
+}
 
 
 } // class GpuProgram

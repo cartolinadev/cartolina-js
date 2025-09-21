@@ -32,7 +32,10 @@ var plugins = [
         { from: './LICENSE', to: 'vts-core.js' + (isProd ? '.min' : '') + '.LICENSE' }
       ],
     }),    
-    new webpack.DefinePlugin({'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')})
+    new webpack.DefinePlugin({ 
+      __DEV__: JSON.stringify(!isProd),
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    })
 ];
 
 // Base webpack config used by both outputs (global + ESM)

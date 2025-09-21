@@ -362,7 +362,8 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 initShaders() {
 
     this.programs = {
-        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,{
+        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,
+        'shader-tile', {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
             uboAtm: Renderer.UniformBlockName.Atmosphere

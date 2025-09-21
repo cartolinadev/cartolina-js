@@ -581,3 +581,18 @@ export function compareTuples<T>(a: T[], b: T[]) {
 
     return a.length === b.length && a.every((val, i) => val === b[i]);
 }
+
+
+// Simple global log once utility
+export const warnOnce = (() => {
+
+    const logged = new Set();  // Each call creates new closure
+
+    return (message: string): void => {
+
+        if (!logged.has(message)) {
+            console.warn(message); logged.add(message);
+        }
+    };
+
+})();
