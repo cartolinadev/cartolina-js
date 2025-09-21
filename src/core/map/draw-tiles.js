@@ -88,6 +88,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                 if (!tile.surface.geodata) {
 
+                    if (this.draw.drawChannel === 0) {
+
                     // -- start tilerendrerig integration (temporary)
                     // TODO: honor draw.drawChannel
 
@@ -174,10 +176,14 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                     ret = true; // seems safe
 
+                    } // if draw.channel === 0
+
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    //ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    if (this.draw.drawChannel !== 0)
+                        ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+
                 } else {
 
                     ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);

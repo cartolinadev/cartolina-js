@@ -1,7 +1,7 @@
 
 import GpuDevice from './device';
 import GpuProgram from './program';
-
+import * as utils from '../../utils/utils';
 
 type Optional<T> = T | null;
 
@@ -245,6 +245,11 @@ private createVAO(program: GpuProgram, attrNames: AttrNames)
 
     // positions (required)
     const vertexAttribute = program.getAttribLocation(attrNames['position']);
+
+    if (vertexAttribute == -1)
+        __DEV__ && program.log(
+            `Program does not have attribute ${attrNames['uvs']}`);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.enableVertexAttribArray(vertexAttribute)
     gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize,
@@ -255,6 +260,9 @@ private createVAO(program: GpuProgram, attrNames: AttrNames)
 
         // uvs (only when the program has them)
         const uvAttribute = program.getAttribLocation(attrNames['uvs']);
+
+        if (uvAttribute == -1)
+            __DEV__ && program.log(`Program does not have attribute ${attrNames['uvs']}`);
 
         if (uvAttribute != -1) {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
@@ -269,6 +277,9 @@ private createVAO(program: GpuProgram, attrNames: AttrNames)
 
         // uvs2 (only when the program has them)
         const uv2Attribute = program.getAttribLocation(attrNames['uvs2']);
+
+        if (uv2Attribute == -1)
+            __DEV__ && program.log(`Program does not have attribute ${attrNames['uvs2']}`);
 
         if (uv2Attribute != -1) {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.uv2Buffer);
