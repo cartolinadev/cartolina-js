@@ -23,20 +23,32 @@ struct Light {
     vec3 specular;
 };
 
-// attributes, uniforms
-
+// varyings
 in vec3 vFragPos;
 in vec3 vFragPosVC;
 in vec2 vTexCoords;
+in vec2 vTexCoords2;
 in float vAtmDensity;
+
+
+// frame ubo
+
+#include "./includes/frame.inc.glsl";
+
+// other uniforms
+
+
+uniform Light uLight;
+uniform float uClip[4];
 
 uniform vec3 virtualEyePos;
 uniform float eyeToCenter, virtualEyeToCenter;
 uniform Material material;
-uniform Light light;
+
 
 uniform int renderFlags;
 
+// render target
 out vec4 fragColor;
 
 // octahedron rg decoding of normals
@@ -95,13 +107,40 @@ vec3 sampleNormal(sampler2D tex, vec2 uv, vec3 worldPos) {
 void main() {
 
     // render flags
-    bool useLighting = (renderFlags & (1 << 0)) != 0; // bit 0
-    bool useNormalMap = (renderFlags & (1 << 1)) != 0; // bit 1
-    bool useDiffuseMap = (renderFlags & (1 << 2)) != 0; // bit 2
-    bool useSpecularMap = (renderFlags & (1 << 3)) != 0; // bit 3
-    bool useBumpMap = (renderFlags & (1 << 4)) != 0; // bit 4
-    bool useAtmosphere = (renderFlags & (1 << 5)) != 0; // bit 5
-    bool useShadows = (renderFlags & (1 << 6)) != 0; // bit 6
+    int renderFlags = uFrame.renderFlags.x;
+    //renderFlags = FlagNone;
+    renderFlags = FlagLighting | FlagNormalMap;
+
+    bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
+    bool useNormalMap = (renderFlags & FlagNormalMap) != 0; // bit 1
+    bool useDiffuseMap = (renderFlags & FlagDiffuseMaps) != 0; // bit 2
+    bool useSpecularMap = (renderFlags & FlagSpecularMaps) != 0; // bit 3
+    bool useBumpMap = (renderFlags & FlagBumpMaps) != 0; // bit 4
+    bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
+    bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
+
+    // clip
+    vec2 clipCoord = vTexCoords2;
+    float clipMargin = uFrame.clipParams.x;
+
+    float tmin = 0.5 - clipMargin; float tmax = 0.5 + clipMargin;
+
+    if (clipCoord.y > 0.5) {
+
+        if (clipCoord.x > 0.5){
+            if (uClip[3] == 0.0 && !(clipCoord.x < tmax && uClip[2] != 0.0) && !(clipCoord.y < tmax && uClip[1] != 0.0)) discard;
+        } else {
+            if (uClip[2] == 0.0 && !(clipCoord.x > tmin && uClip[3] != 0.0) && !(clipCoord.y < tmax && uClip[0] != 0.0)) discard;
+        }
+
+    } else {
+
+        if (clipCoord.x > 0.5) {
+            if (uClip[1] == 0.0 && !(clipCoord.x < tmax && uClip[0] != 0.0) && !(clipCoord.y > tmin && uClip[3] != 0.0)) discard;
+        } else {
+            if (uClip[0] == 0.0 && !(clipCoord.x > tmin && uClip[1] != 0.0) && !(clipCoord.y > tmin && uClip[2] != 0.0)) discard;
+        }
+    }
 
     // normal
     vec3 normal;
@@ -127,7 +166,7 @@ void main() {
     vec3 diffuseColor;
 
     if (useDiffuseMap) {
-        diffuseColor = vec3(texture(material.diffuseMap, vTexCoords));
+        diffuseColor = vec3(texture(material.diffuseMap, vTexCoords2));
     } else {
         diffuseColor = vec3(0.9, 0.9, 0.8);
         //diffuseColor = vec3(0.85, 0.85, 0.85);
@@ -148,18 +187,18 @@ void main() {
     if (useLighting) {
 
         // ambient
-        vec3 ambient = light.ambient * 0.3 * diffuseColor;
+        vec3 ambient = uLight.ambient * 0.3 * diffuseColor;
 
         // diffuse
-        vec3 diffuse = light.diffuse * diffuseColor
-            * max(dot(normalize(-light.direction), normal), 0.0);
+        vec3 diffuse = uLight.diffuse * diffuseColor
+            * max(dot(normalize(-uLight.direction), normal), 0.0);
 
         // specular (blinn-phong)
         vec3 viewDir = vFragPos - virtualEyePos;
 
         vec3 halfway = - normalize(
-            normalize(viewDir) + normalize(light.direction));
-        vec3 specular = light.specular * specularColor
+            normalize(viewDir) + normalize(uLight.direction));
+        vec3 specular = uLight.specular * specularColor
             * pow(max(dot(normal, halfway), 0.0), material.shininess);
 
         // output
@@ -186,8 +225,11 @@ void main() {
             ratio = r;
 
         } else {
+
+            // relative eycenter distance
             float d = (eyeToCenter - virtualEyeToCenter) / eyeToCenter;
-            //ratio = pow(r, log(0.5)/ log(d));
+
+            // we want the ratio at virtualEyeCenter to be equal to 0.5
             ratio = pow(r, log(0.5)/ log(d));
         }
 
