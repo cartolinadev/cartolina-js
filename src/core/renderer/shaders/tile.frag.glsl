@@ -91,7 +91,7 @@ vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
 
 
 
-vec3 sampleNormal(sampler2D tex, vec2 uv, vec3 worldPos) {
+vec3 sampleNormal(sampler2D tex, vec2 uv) {
     //vec2 rg = texture(tex, uv).rg;
 
     // optionally add; manual bilinear fiterling + jitter
@@ -147,7 +147,7 @@ void main() {
 
     if (useNormalMap) {
 
-        vec3 normal_ = sampleNormal(material.normalMap, vTexCoords, vFragPos);
+        normal = sampleNormal(material.normalMap, vTexCoords2);
         //normal = normalize(texture(material.normalMap,
         //    vTexCoords).rgb * 2.0 - 1.0);
     }
@@ -187,19 +187,23 @@ void main() {
     if (useLighting) {
 
         // ambient
-        vec3 ambient = uLight.ambient * 0.3 * diffuseColor;
+        vec3 ambient = uLight.ambient * diffuseColor;
 
         // diffuse
         vec3 diffuse = uLight.diffuse * diffuseColor
             * max(dot(normalize(-uLight.direction), normal), 0.0);
 
+
+        vec3 specular = vec3(0.0);
+
+        /*
         // specular (blinn-phong)
         vec3 viewDir = vFragPos - virtualEyePos;
 
         vec3 halfway = - normalize(
             normalize(viewDir) + normalize(uLight.direction));
         vec3 specular = uLight.specular * specularColor
-            * pow(max(dot(normal, halfway), 0.0), material.shininess);
+            * pow(max(dot(normal, halfway), 0.0), material.shininess);*/
 
         // output
         color = vec4(ambient + diffuse + specular, 1.0);

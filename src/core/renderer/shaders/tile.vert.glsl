@@ -18,7 +18,7 @@ in vec2 aTexCoords2;
 
 
 // model matrix, aPosition -> worldPos
-mat4 uModel;
+uniform mat4 uModel;
 
 // output (varyings)
 
@@ -82,7 +82,7 @@ void main() {
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
 
     // apply vertical exaggeration
-    worldPos = applyVerticalExaggeration(worldPos);
+    //worldPos = applyVerticalExaggeration(worldPos);
 
     // obtain view space coords
     vec4 worldPosVC = uFrame.view * worldPos;
