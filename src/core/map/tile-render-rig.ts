@@ -9,10 +9,12 @@ import MapSubmesh from './submesh';
 import MapTexture from './texture';
 import MapBoundLayer from './bound-layer'
 import Renderer from '../renderer/renderer';
+import GpuProgram from '../renderer/gpu/program';
 import Atmosphere from './atmosphere';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
+import * as matrix from '../utils/matrix';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 
@@ -196,11 +198,57 @@ export class TileRenderRig {
     }
 
     /**
-     * Process layer stack into actual draw calls, using the tile shader program.
+     * Process layer stack into an actual draw call, using the tile shader program.
      */
-    draw(renderFlags: Partial<TileRenderRig.RenderFlags> = {}) {
+    draw(program: GpuProgram, cameraPos: math.vec3) {
 
-        let flags = {...TileRenderRig.DefaultRenderFlags, ...renderFlags };
+        // uModel
+        program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
+
+        // uClip
+        let splitMask = this.tile.splitMask || [1, 1, 1, 1];
+
+        program.setFloatArray('uClip', splitMask);
+
+        // TODO: this should be in uFrame ubo
+
+        // uLight.direction
+        let illumvecVC = this.renderer.getIlluminationVectorVC().slice();
+        let illumvec = matrix.vec3.create(), lightDir = matrix.vec3.create();
+
+        matrix.mat4.multiplyVec3_(
+            this.renderer.camera.getModelviewMatrixInverse(), illumvecVC,
+            illumvec);
+        matrix.vec3.negate(illumvec, lightDir);
+
+        program.setVec3('uLight.direction', lightDir);
+
+        // uLight.ambient
+        let ambcf = this.renderer.getIlluminationAmbientCoef();
+        program.setVec3('uLight.ambient', [ambcf, ambcf, ambcf]);
+
+        // uLight.diffuse - should be configurable
+        program.setVec3('uLight.diffuse', [1.0, 1.0, 1.0]);
+
+        // uLight.specular - should be configurable
+        program.setVec3('uLight.specular', [0.7, 0.7, 0.5]);
+
+        // temporary stuff for testing
+        // material.normalMap
+        if (!this.rt.normals) throw Error('no normal map, bud');
+        this.renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
+        program.setSampler('material.normalMap', 2);
+
+        // not needed at the moment: for specular lighting - if we use it, use uFrame
+        // virtualEyePos
+
+        // not needed at the moment: for shadows - if we use it, use uFrame
+        // eyeToCenter
+        // virtualEyeToCenter
+
+        // draw
+        this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, {
+            position: 'aPosition', uvs: 'aTexCoord', uvs2: 'aTexCoord2'});
 
         //console.log('%s: draw.', utils.idToString([...this.tile.id, this.submeshIndex]));
     }
@@ -612,6 +660,7 @@ type SurfaceTile = {
 
     map: { atmosphere?: Atmosphere };
 
+    splitMask?: [number, number, number, number];
 
     boundTextures: { [key: string]: MapTexture };
 
@@ -664,6 +713,7 @@ type Layer = {
 
 
     rt?: {
+
         layerId: string,
         hasMask: MaskStatus,
         isTransparent: boolean,
@@ -681,6 +731,7 @@ export namespace TileRenderRig {
      */
 
     export type LegacyLayerDef = {
+
         layer: MapBoundLayer,
         mode?: 'normal' | 'multiply'
         alpha: number | {
@@ -693,6 +744,7 @@ export namespace TileRenderRig {
     type LegacyLayerDefs = {
 
         diffuseSequence: {
+
             layer: MapBoundLayer,
             mode: 'normal' | 'multiply',
             alpha: {
@@ -738,7 +790,7 @@ export namespace TileRenderRig {
 
     export type Priority = typeof DefaultPriority;
 
-    export const DefaultRenderFlags = {
+    /*export const DefaultRenderFlags = {
         illumination: true,
         normalMap: true,
         bumps: true,
@@ -748,7 +800,7 @@ export namespace TileRenderRig {
         shadows: false
     };
 
-    export type RenderFlags = typeof DefaultRenderFlags;
+    export type RenderFlags = typeof DefaultRenderFlags;*/
 
     /**
      * These are passed to MapMesh.isReady() and MapTexture.isReady().

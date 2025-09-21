@@ -1,6 +1,7 @@
 #version 300 es
 precision highp float;
 
+// atmUbo + atmDensity() + uTexAtmDensity sampler
 #include "./includes/atmosphere.inc.glsl";
 
 // vertex position, in normalized submesh coordinates
@@ -12,42 +13,12 @@ in vec2 aTexCoords;
 // external texture (and/or normalmap) coordinates
 in vec2 aTexCoords2;
 
+// frameUbo + rendering flags
+#include "./includes/frame.inc.glsl";
+
 
 // model matrix, aPosition -> worldPos
 mat4 uModel;
-
-// rendering flags
-
-const int Illumination      = 1 << 0; // bit 0
-const int UseNormalMap      = 1 << 1; // bit 1
-const int useDiffuseMap     = 1 << 2; // bit 2
-const int useSpecularMap    = 1 << 3; // bit 3
-const int useBumpMaps       = 1 << 4; // bit 4
-const int useAtmosphere     = 1 << 5; // bit 5
-const int useShadows        = 1 << 6; // bit 6
-
-// the per frame configuration
-
-layout(std140) uniform uboFrame {
-
-    // view and projection matrices
-    highp mat4 view;
-    highp mat4 projection;
-
-    // celestial body params
-    highp vec4 bodyParams; // majorAxis, majorAxis / minorAxis, zw reserved
-
-    // vertical exaggeration parameters 1
-    highp vec4 vaParams1; // h1, f1, h2, f2
-    highp vec4 vaParams2; // h2 - h1, f2 - f1, 1.0 / (h2 - h1), w reserved
-
-    // renderingFlags
-    highp ivec4 renderFlags; // renderFlags (see above), yzw reserved
-
-    // clip margin
-    highp vec4 clipParams; // x = clipMargin, yzw reserved
-
-} uFrame;
 
 // output (varyings)
 
