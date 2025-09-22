@@ -198,6 +198,9 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
                     this.stats.renderBuild += performance.now() - t;
                 }
 
+                if (!doNotLoad && this.gpuCacheItem)
+                    this.map.gpuCache.updateItem(this.gpuCacheItem);
+
                 return true;
 
             default:
@@ -208,7 +211,6 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
                         return false;
                 
                     if (doNotUseGpu) return false;
-
 
                     t = performance.now();
                     this.buildGpuTexture();
@@ -516,6 +518,9 @@ MapSubtexture.prototype.buildGpuTexture = function () {
             break;
 
         case vts.TEXTURETYPE_ATMDENSITY:
+
+            //console.log('creating atmdensity gpu texture');
+
             this.gpuTexture.createFromData(
                 this.decoded.width, this.decoded.height,
                 this.decoded.data, this.type, 'nearest', false);
