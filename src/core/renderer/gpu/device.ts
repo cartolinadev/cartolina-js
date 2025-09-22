@@ -287,15 +287,17 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
 
 bindTexture(texture: GpuTexture, id?: GLint) {
 
-    if (!texture.loaded) {
-        return;
-    }
+    if (!texture.loaded) return;
 
-    let slot = id ? this.gl.TEXTURE0 + id : this.gl.TEXTURE0;
+    const gl = this.gl;
+    const prev = gl.getParameter(gl.ACTIVE_TEXTURE);
 
-    this.gl.activeTexture(slot);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, texture.texture);
-};
+    const unit = (id == null ? 0 : id);
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, texture.texture);
+
+    gl.activeTexture(prev);          // restore previous active texture
+}
 
 /**
  * WARN: The function does nothing to the gl.viewport, which is set by the

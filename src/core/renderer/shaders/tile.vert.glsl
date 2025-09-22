@@ -84,7 +84,6 @@ void main() {
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
 
     // apply vertical exaggeration
-    // world pos is actually not worldpos -> problem, possibly also for atmosphere
     worldPos = applyVerticalExaggeration(worldPos);
 
     // obtain view space coords

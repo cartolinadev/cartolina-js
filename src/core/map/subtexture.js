@@ -518,7 +518,7 @@ MapSubtexture.prototype.buildGpuTexture = function () {
         case vts.TEXTURETYPE_ATMDENSITY:
             this.gpuTexture.createFromData(
                 this.decoded.width, this.decoded.height,
-                this.decoded.data, this.type, 'linear', false);
+                this.decoded.data, this.type, 'nearest', false);
             break;
 
         default:

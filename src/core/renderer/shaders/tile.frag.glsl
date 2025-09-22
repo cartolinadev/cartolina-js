@@ -1,8 +1,6 @@
 #version 300 es
 precision mediump float;
 
-//#include "./includes/atmosphere.inc.glsl";
-
 // structures
 
 struct Material {
@@ -32,8 +30,10 @@ in float vAtmDensity;
 
 
 // frame ubo
-
 #include "./includes/frame.inc.glsl";
+
+// atm functions
+#include "./includes/atmosphere.inc.glsl";
 
 // other uniforms
 
@@ -109,7 +109,7 @@ void main() {
     // render flags
     int renderFlags = uFrame.renderFlags.x;
     //renderFlags = FlagNone;
-    renderFlags = FlagLighting | FlagNormalMap;
+    renderFlags = FlagLighting | FlagNormalMap | FlagAtmosphere;
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
     bool useNormalMap = (renderFlags & FlagNormalMap) != 0; // bit 1
@@ -216,7 +216,8 @@ void main() {
 
     // atmosphere
     if (useAtmosphere)
-        color = atmColor(vAtmDensity, color);
+        color = vec4(vec3(vAtmDensity), 1.0);
+        //color = atmColor(vAtmDensity, color);
 
     // shadows
     if (useShadows) {

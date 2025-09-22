@@ -98,8 +98,11 @@ createProgram(vertex: string, fragment: string,
     var gl = this.gl;
     if (gl == null) return;
 
+    //console.log(fragment);
+
     let vertexShader = this.createShader(vertex, true);
     let fragmentShader = this.createShader(fragment, false);
+
 
     if (!vertexShader ||  !fragmentShader) {
         return;
@@ -137,24 +140,18 @@ createProgram(vertex: string, fragment: string,
 
     // important to do this before setting any uniforms (samplers below)
     gl.useProgram(program);
+    this.program = program;
 
     // sampler unit sampler unit mappings
     Object.entries(samplerUnitMappings).forEach(([sampler, unitIdx])=>{
 
         let location = this.getUniform(sampler);
-
-        if (location === null) {
-
-            this.log(`Uniform '${sampler}' not found in program.`);
-            return;
-        }
+        if (location === null) return;
 
         gl.uniform1i(location, unitIdx);
     });
 
-
     // done
-    this.program = program;
     this.ready = true;
 };
 
@@ -299,8 +296,9 @@ getAttribLocation(name: string): GLint {
 
 
 getUniform(name: string) {
+
     let gl = this.gl;
-    if (gl == null || this.program == null) return;
+    if (gl == null || this.program == null) return null;
 
     let location = this.uniformLocationCache[name];
 
