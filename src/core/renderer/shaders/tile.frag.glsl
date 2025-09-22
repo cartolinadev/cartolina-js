@@ -216,8 +216,8 @@ void main() {
 
     // atmosphere
     if (useAtmosphere)
-        color = vec4(vec3(vAtmDensity), 1.0);
-        //color = atmColor(vAtmDensity, color);
+        //color = vec4(vec3(vAtmDensity), 1.0);
+        color = atmColor(vAtmDensity, color);
 
     // shadows
     if (useShadows) {

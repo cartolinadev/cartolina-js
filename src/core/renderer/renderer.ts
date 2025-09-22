@@ -676,6 +676,12 @@ private setSuperElevationProgression(progression: SeProgressionDef) {
 }
 
 
+private getSuperElevationProgression(): SeProgression  {
+
+    return structuredClone(this.seProgression);
+}
+
+
 private setSuperElevationRamp(se: [[number, number], [number, number]]) {
 
     if (!(se && se[0] && se[1] && se[0].length >=2 && se[1].length >=2)) {
@@ -700,17 +706,21 @@ private setSuperElevationRamp(se: [[number, number], [number, number]]) {
     this.seCounter++;
 };
 
-getSeProgressionFactor(position) {
+getSeProgressionFactor(position: MapPosition | number) {
 
     if (arguments.length !== 1)
         throw new Error('function now requires current position');
 
-    let progression = this.seProgression;
+    if (!this.seProgression) return 1.0;
+
+    let progression_ = this.seProgression;
+
+    let extent_ = typeof position === 'number' ? position : position.pos[8];
 
     let retval = math.clamp(
-        progression.baseValue *
-            (position.pos[8] / progression.baseExtent) ** progression.exponent,
-        progression.min, progression.max);
+        progression_.baseValue *
+            (extent_ / progression_.baseExtent) ** progression_.exponent,
+        progression_.min, progression_.max);
 
     //console.log("seProgressionFactor", retval);
 
@@ -720,7 +730,7 @@ getSeProgressionFactor(position) {
 
 /**
  * @returns a tuple of 7 numbers describing the vertical exaggeration
- * if the original ramp spec was [h1, h2, f1, f2], the reurned value is
+ * if the original ramp spec was [h1, h2, f1, f2], the returned value is
  * something like:
  * [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
  */
@@ -1422,10 +1432,19 @@ type Size2 = [ number, number ];
 
 type SeProgression = {
 
+    // value when view ext = baseExtent
     baseValue: number;
+
+    // base extent, reference for the value
     baseExtent: number;
+
+    // exponent of dependency on extent
     exponent: number;
+
+    // minimum
     min: number
+
+    // maximum
     max: number
 }
 
