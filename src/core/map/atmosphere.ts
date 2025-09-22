@@ -5,8 +5,9 @@ import MapTexture from './texture';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 import * as math from '../utils/math';
-import * as matrix from '../utils/matrix';
+import {vec3} from '../utils/matrix';
 import Renderer from '../renderer/renderer';
+import MapPosition from './position';
 
 /**
  * The map atmosphere object. Provides density texture retrieval and decoding,
@@ -30,12 +31,16 @@ class Atmosphere {
      * @param srs the body srs, usually physical, for radius retrieval
      * @param urlTemplate the URL template for atmdensity, usually comes
      *      from services.atmdensity in map configuration
-     * @param map Map object to pass on to MapTexture (opaque in this class)
+     * @param map Map object, largely opaque. We pass it to map texture and
+     *      we collect the Renderer object from it. The object is used to
+     *      retrieve vertical exaggeration information and also to obtain
+     *      access to gl context for buffer creation and updates.
      */
     constructor(a: MapBody.Atmosphere, srs: MapSrs, urlTemplate: string,
                 map: Map) {
 
         const srsInfo = srs.getInfo();
+        this.renderer = map.renderer;
 
         this.params = {...a,
             bodyMajorRadius: srsInfo.a,
@@ -44,12 +49,34 @@ class Atmosphere {
 
         let params = this.params;
 
+        // normalize colors
+        vec3.scale(params.colorHorizon, 1.0 / 255.0);
+        vec3.scale(params.colorZenith, 1.0 / 255.0);
+
+        // we inflate atmosphere thickness and visibility
+        // by vertical exaggeration at view extent = body diameter
+        params.thickness *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
+        params.visibility *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
+
+        // this is purely empirical. Note that visibility configured here is in
+        // fact use only as upper limit on the visibility: see the calculation
+        // in this.updateBuffers
+        params.visibility *= 12;
+
+        // the relative air density at the edge of compute
         let targetQuantile = 1e-6;
+
+        // the vertical coefficient (which is not vertical exponent)
+        // the exponential rate at which density drops with height (from 1)
         let k = - Math.log(params.thicknessQuantile) / params.thickness;
 
+        // the edge of compute (when air density drops to target quantile)
         params.boundaryThickness = - Math.log(targetQuantile) / k;
+
+        // the total drop across the shell (from surface to edge of compute)
         params.verticalExponent = - Math.log(targetQuantile);
 
+        // construct query
         let name = Atmosphere.toQueryArg({
             version: 0,
             size: { width: 512, height: 512 },
@@ -64,8 +91,6 @@ class Atmosphere {
             map, url, vts.TEXTURETYPE_ATMDENSITY);
 
         //console.log('atmDensityTexture url: ', url);
-
-        this.renderer = map.renderer;
     }
 
     /**
@@ -124,40 +149,42 @@ class Atmosphere {
             this.renderer.gpu.bindTexture(
                 this.atmDensityTexture.getGpuTexture(),
                 Atmosphere.TextureUnitIdx);
+        else
+            console.warn('No atmosphere');
 
         // compute ubo values
         const params = this.params;
 
         // this should be configurable:
         // we make the visiblity dependent on the distance from view center
-        const visibility = 3.0 * eyeToCenter;
+        const visibility = Math.min(3.0 * eyeToCenter, params.visibility);
         const horizontalExponent = - params.bodyMajorRadius
             * Math.log(params.visibilityQuantile) / visibility * 5.0;
         // times 5 as compensation for texture normalization factor
 
-        let eyePosNormalized = matrix.vec3.create();
-        matrix.vec3.scale(eyePos, 1.0 / params.bodyMajorRadius, eyePosNormalized);
+        let eyePosNormalized = vec3.create();
+        vec3.scale(eyePos, 1.0 / params.bodyMajorRadius, eyePosNormalized);
 
         let data = {
 
-                uniAtmViewInv: viewInverse,
-                uniAtmColorHorizon: params.colorHorizon,
-                uniAtmColorZenith: params.colorZenith,
-                uniAtmSizes: [
-                    params.boundaryThickness / params.bodyMajorRadius,
-                    params.bodyMajorRadius / params.bodyMinorRadius,
-                    1.0 / params.bodyMajorRadius,
-                    // this should be configurable as well
-                    // we shift the edge of atmosphere to view center
-                    // to make everything crystal clear until then
-                    eyeToCenter / params.bodyMajorRadius],
-                uniAtmCoefs: [
-                    horizontalExponent,
-                    params.colorGradientExponent,
-                    0.0, 0.0],
-                uniAtmCameraPosition: eyePosNormalized
+            uniAtmViewInv: viewInverse,
+            uniAtmColorHorizon: params.colorHorizon,
+            uniAtmColorZenith: params.colorZenith,
+            uniAtmSizes: [
+                params.boundaryThickness / params.bodyMajorRadius,
+                params.bodyMajorRadius / params.bodyMinorRadius,
+                1.0 / params.bodyMajorRadius,
+                // this should be configurable as well
+                // we shift the edge of atmosphere to view center
+                // to make everything unhazed until then
+                eyeToCenter / params.bodyMajorRadius],
+                //Math.min(eyeToCenter, 1.0/3.0 * visibility) / params.bodyMajorRadius],
+            uniAtmCoefs: [
+                horizontalExponent,
+                params.colorGradientExponent,
+                0.0, 0.0],
+            uniAtmCameraPosition: eyePosNormalized
         };
-
 
         // create and populate backing array
         const buffer = new Float32Array(36); // 144 / 4 = 36 floats
@@ -322,6 +349,7 @@ type AtmosphereTextureSpec = typeof EmptyAtmosphereTextureSpec;
 
 
 type Map = {
+
     renderer: Renderer;
 }
 

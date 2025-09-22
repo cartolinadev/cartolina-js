@@ -3,12 +3,27 @@ uniform sampler2D uTexAtmDensity;
 
 layout(std140) uniform uboAtm
 {
+
+    // inverse of view matrix (vc to ecef)
     highp mat4 uniAtmViewInv;
     highp vec4 uniAtmColorHorizon;
     highp vec4 uniAtmColorZenith;
-    highp vec4 uniAtmSizes; // atmosphere thickness (divided by major axis), major / minor axes ratio, inverse major axis, atmoshpere offset from viewer (divided by major axis, normally 0)
-    highp vec4 uniAtmCoefs; // horizontal exponent, colorGradientExponent, zw reserved
-    highp vec4 uniAtmCameraPosition; // world position of camera (divided by major axis)
+
+    // uniAtmSizes:
+    //     - atmosphere thickness (divided by major axis),
+    //     - major / minor axes ratio,
+    //     - inverse major axis,
+    //     - atmoshpere offset from viewer (divided by major axis, normally 0)
+    highp vec4 uniAtmSizes;
+
+    // uniAtmCoefs
+    //     - horizontal exponent,
+    //     - colorGradientExponent
+    //     - zw reserved
+    highp vec4 uniAtmCoefs;
+
+    // world position of camera (divided by major axis)
+    highp vec4 uniAtmCameraPosition;
 } uAtm;
 
 float atmDecodeFloat(vec4 rgba)
@@ -37,6 +52,8 @@ float atmSampleDensity(vec2 uv)
 // fragDir is in model space
 float atmDensityDir(vec3 fragDir, float fragDist)
 {
+    if (fragDist < uAtm.uniAtmSizes[3]) return 0.0;
+
     if (uAtm.uniAtmSizes[0] == 0.0) // no atmosphere
         return 0.0;
 
@@ -151,6 +168,7 @@ vec4 atmColor(float density, vec4 color)
 {
     density = clamp(density, 0.0, 1.0);
     vec3 a = mix(uAtm.uniAtmColorHorizon.rgb, uAtm.uniAtmColorZenith.rgb, pow(1.0 - density, uAtm.uniAtmCoefs[1]));
+    //return vec4(mix(color.rgb, density), color.a);
     return vec4(mix(color.rgb, a, density), color.a);
 }
 
