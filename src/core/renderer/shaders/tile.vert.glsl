@@ -20,6 +20,8 @@ in vec2 aTexCoords2;
 // model matrix, aPosition -> worldPos
 uniform mat4 uModel;
 
+uniform vec3 uPhysCamPos;
+
 // output (varyings)
 
 out vec3 vFragPos;          // fragment position in world coordinates
@@ -46,7 +48,7 @@ vec4 applyVerticalExaggeration(vec4 worldPos) {
           invhdiff = uFrame.vaParams2.z;
 
     // approximate ellipsoid by a sphere
-    vec3 geoPos = worldPos.xyz;
+    vec3 geoPos = worldPos.xyz + uPhysCamPos;
     geoPos.z *= majorToMinor;
 
     // distance from center
@@ -82,7 +84,8 @@ void main() {
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
 
     // apply vertical exaggeration
-    //worldPos = applyVerticalExaggeration(worldPos);
+    // world pos is actually not worldpos -> problem, possibly also for atmosphere
+    worldPos = applyVerticalExaggeration(worldPos);
 
     // obtain view space coords
     vec4 worldPosVC = uFrame.view * worldPos;

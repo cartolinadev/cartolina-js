@@ -107,10 +107,10 @@ class Atmosphere {
      * update the atm ubo buffer based on current map parameters, sets sampler
      * uniform
      *
-     * @param eyePos camera position in (WC)
+     * @param eyePos camera position in ECEF (physical coordinates)
      * @param eyeToCenter distance of camera to center of orbit (for dynamic
      *      visibility
-     * @param viewInverse inverse of the view matrix
+     * @param viewInverse inverse of the view matrix (VC to ECEF)
      */
     updateBuffers(eyePos: math.vec3, eyeToCenter: number, viewInverse: math.mat4) {
 
@@ -131,8 +131,8 @@ class Atmosphere {
         // this should be configurable:
         // we make the visiblity dependent on the distance from view center
         const visibility = 3.0 * eyeToCenter;
-        const horizontalExponent = params.bodyMajorRadius
-            * Math.log(1.0 / params.visibilityQuantile) / visibility * 5.0;
+        const horizontalExponent = - params.bodyMajorRadius
+            * Math.log(params.visibilityQuantile) / visibility * 5.0;
         // times 5 as compensation for texture normalization factor
 
         let eyePosNormalized = matrix.vec3.create();
