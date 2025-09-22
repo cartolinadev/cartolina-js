@@ -141,6 +141,9 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
     switch (this.type_) {
 
         case vts.TEXTURETYPE_ATMDENSITY:
+
+            gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, lx, ly, 0, gl.RGB,
                           gl.UNSIGNED_BYTE, data);
             break;
