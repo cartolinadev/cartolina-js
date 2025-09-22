@@ -17,6 +17,7 @@ import * as Illumination from '../map/illumination';
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
 import MapBody from '../map/position';
+import MapCamera from '../map/camera';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
@@ -341,8 +342,6 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     //debug
     //this.logTilePos = null;
 
-    this.setSuperElevation([[0,2],[4000,1.5]]); // why?
-
     window.addEventListener('resize', (this.onResize).bind(this), false);
 
 
@@ -467,10 +466,16 @@ updateBuffers() {
     // the uboAtm buffer
     if (this.core.map.atmosphere) {
 
+        // as noted elsewhere, the renderer world coordinates are not
+        // true physical world coordinates - they are translated relative to
+        // camera center to avoid quantization errors. Hence this.
+        let view2ecef = mat4.create(this.camera.modelviewinverse);
+        mat4.translate(view2ecef, this.core.map.camera.position);
+
         this.core.map.atmosphere.updateBuffers(
-            this.camera.position as math.vec3,
+            this.core.map.camera.position as math.vec3,
             this.core.map.position.getViewDistance(),
-            this.camera.modelviewinverse as math.mat4)
+            view2ecef as math.mat4)
     }
 
 }
@@ -1442,6 +1447,7 @@ type Map = {
     body: MapBody;
     atmosphere?: Atmosphere;
     position: MapPosition;
+    camera: MapCamera;
 
     config: {
         mapSplitMargin: number
