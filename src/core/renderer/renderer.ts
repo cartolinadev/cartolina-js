@@ -22,6 +22,10 @@ import MapCamera from '../map/camera';
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
 
+import backgroundTileVert from './shaders/background.vert.glsl';
+import backgroundTileFrag from './shaders/background.frag.glsl';
+
+
 /**
  * As with many classes in vts-browser-js, it is difficult to find any
  * meaningful abstraction behind this class. Despite its name, it's not a
@@ -116,7 +120,8 @@ export class Renderer {
 
     // programs
     programs!: {
-        tile: GpuProgram;
+        tile: GpuProgram,
+        background: GpuProgram
     }
 
     // legacy programs
@@ -365,6 +370,12 @@ initShaders() {
         'shader-tile', {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
+            uboAtm: Renderer.UniformBlockName.Atmosphere
+        },{
+            uTexAtmDensity: Atmosphere.TextureUnitIdx
+        }),
+        background: new GpuProgram(this.gpu, backgroundTileVert, backgroundTileFrag,
+        'shader-background', {
             uboAtm: Renderer.UniformBlockName.Atmosphere
         },{
             uTexAtmDensity: Atmosphere.TextureUnitIdx
