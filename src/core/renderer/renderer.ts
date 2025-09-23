@@ -124,6 +124,11 @@ export class Renderer {
         background: GpuProgram
     }
 
+    // texture unit indices
+    textureIdxs: {
+        atmosphere: GLenum
+    }
+
     // legacy programs
     progTile: Optional<GpuProgram> = null;
     progTile2: Optional<GpuProgram> = null;
@@ -174,7 +179,6 @@ export class Renderer {
     // GpuPixelLine3
     plines: any = null;
     plineJoints: any = null; // probably not used, but still initialize by init
-
 
 
     /** copied from config.mapDMapSize. hitmap (depth map) linear size in
@@ -335,20 +339,8 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.buffFloat32 = new Float32Array(1);
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
-    //this.layerGroupVisible = [];
-    
-
-    //hack for vts maps
-    //this.vtsHack = true;
-    //this.vtsHack = false;
-
-    //updateCameraMatrix = mat4.create();
-
-    //debug
-    //this.logTilePos = null;
 
     window.addEventListener('resize', (this.onResize).bind(this), false);
-
 
     // initialize resources
     this.gpu.init();
@@ -363,7 +355,14 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 };
 
 
+/**
+ * Initialize shader programs, bind buffers to their corresponding block names
+ * and set fixed samplers for every program.
+ */
+
 initShaders() {
+
+    this.initTextureIdxs();
 
     this.programs = {
         tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,
@@ -372,15 +371,37 @@ initShaders() {
             uboLayers: Renderer.UniformBlockName.Layers,
             uboAtm: Renderer.UniformBlockName.Atmosphere
         },{
-            uTexAtmDensity: Atmosphere.TextureUnitIdx
+            uTexAtmDensity: this.textureIdxs.atmosphere
         }),
         background: new GpuProgram(this.gpu, backgroundTileVert, backgroundTileFrag,
         'shader-background', {
             uboAtm: Renderer.UniformBlockName.Atmosphere
         },{
-            uTexAtmDensity: Atmosphere.TextureUnitIdx
+            uTexAtmDensity: this.textureIdxs.atmosphere
         })
     }
+}
+
+/**
+ * Compute fixed active texture units. We use the back offsets for these,
+ * reserving low numbers for dynamic allocation (this probably does not make
+ * much sense, but legacy shaders usually use indices 0 and 1 and we cannot
+ * control them.
+ */
+
+initTextureIdxs() {
+
+    let gl = this.gpu.gl;
+    const maxFragTextures = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
+
+    this.textureIdxs = {
+
+        atmosphere: maxFragTextures - TextureIdxOffsets.Atmosphere,
+    };
+
+    // diagnostics
+    __DEV__ && utils.logOnce(
+        `Atmosphere uses texture unit ${this.textureIdxs.atmosphere}.`);
 }
 
 /**
@@ -412,6 +433,7 @@ createBuffers() {
     if (this.core.map.atmosphere) this.core.map.atmosphere.createBuffers();
 
     // uboLayers not initialized here: each submesh keeps its own
+
 }
 
 /**
@@ -1488,6 +1510,15 @@ type Map = {
     }
 }
 
+/** Fixed texture indices - the actual index is computed as
+  * Idx % gl.MAX_TEXTURE_IMAGE_UNITS
+  */
+
+enum TextureIdxOffsets {
+
+    Atmosphere = -1
+}
+
 // export types
 export namespace Renderer {
 
@@ -1521,7 +1552,6 @@ export enum UniformBlockName {
     Layers = 1,
     Atmosphere = 2
 }
-
 
 } // export namespace GpuDevice
 

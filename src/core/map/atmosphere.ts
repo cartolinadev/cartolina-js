@@ -7,7 +7,6 @@ import * as vts from '../constants';
 import * as math from '../utils/math';
 import {vec3} from '../utils/matrix';
 import Renderer from '../renderer/renderer';
-import MapPosition from './position';
 
 /**
  * The map atmosphere object. Provides density texture retrieval and decoding,
@@ -148,9 +147,7 @@ class Atmosphere {
         if (atmDensity)
             this.renderer.gpu.bindTexture(
                 this.atmDensityTexture.getGpuTexture(),
-                Atmosphere.TextureUnitIdx);
-        else
-            console.warn('No atmosphere');
+                this.renderer.textureIdxs.atmosphere);
 
         // compute ubo values
         const params = this.params;
@@ -358,8 +355,6 @@ type Map = {
 
 namespace Atmosphere {
 
-    // active texture unit for atmosphere texture
-    export const TextureUnitIdx = 15;
 }
 
 export default Atmosphere;
