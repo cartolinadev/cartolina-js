@@ -596,3 +596,17 @@ export const warnOnce = (() => {
     };
 
 })();
+
+export const logOnce = (() => {
+
+    const logged = new Set();  // Each call creates new closure
+
+    return (message: string): void => {
+
+        if (!logged.has(message)) {
+            console.log(message); logged.add(message);
+        }
+    };
+
+})();
+
