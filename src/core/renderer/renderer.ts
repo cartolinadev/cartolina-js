@@ -499,7 +499,7 @@ updateBuffers() {
     // the uboAtm buffer
     if (this.core.map.atmosphere) {
 
-        let [view2ecef, eyePos] = this.calcEcefCamParams();
+        let [view2ecef, _, eyePos] = this.calcEcefCamParams();
 
         //console.log(this.core.map.camera.position);
         //console.log(view2ecef);
@@ -514,24 +514,30 @@ updateBuffers() {
 
 drawBackground() {
 
-    if (this.core.map.atmosphere) {
+    let atmosphere = this.core.map.atmosphere;
 
-            let [view2ecef, eyePos] = this.calcEcefCamParams();
-            this.core.map.atmosphere.drawBackground(eyePos, view2ecef);
+    if (atmosphere && this.core.map.atmosphere.isReady()) {
+
+            let [_, clip2ecef, eyePos] = this.calcEcefCamParams();
+            this.core.map.atmosphere.drawBackground(eyePos, clip2ecef);
     }
 }
 
-private calcEcefCamParams(): [math.mat4, math.vec3] {
+private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
 
     // as noted elsewhere, the renderer world coordinates are not
     // true physical world coordinates - they are translated relative to
     // camera center to avoid quantization errors. Hence this.
     let view2ecef = mat4.translate(mat4.identity(mat4.create()),
-                                       this.core.map.camera.position)
+                                       this.core.map.camera.position);
+    let clip2ecef = [...view2ecef];
+
     mat4.multiply(view2ecef, this.camera.modelviewinverse);
+    mat4.multiply(clip2ecef, this.camera.mvpinverse);
 
     return [
         view2ecef as math.mat4,
+        clip2ecef as math.mat4,
         this.core.map.camera.position as math.vec3];
 }
 

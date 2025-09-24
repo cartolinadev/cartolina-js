@@ -255,22 +255,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         gpu.clear(true, true, [255,255,255,255]);
     }
 
-    gpu.setState(this.drawStardomeState);
-
-    /*
-    if (this.drawChannel != 1) {
-        if (debug.drawWireframe == 2) {
-            renderer.draw.drawSkydome(renderer.whiteTexture, renderer.progStardome);
-        } else {
-            renderer.draw.drawSkydome(renderer.blackTexture, renderer.progStardome);
-        }
-    }*/
-
-
-    this.renderer.drawBackground();
-
-    gpu.setState(this.drawTileState);
-
     this.setupDetailDegradation();
 
     map.loader.setChannel(0); //0 = hires channel
@@ -292,6 +276,21 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
+    gpu.setState(this.drawStardomeState);
+
+    /*
+    if (this.drawChannel != 1) {
+        if (debug.drawWireframe == 2) {
+            renderer.draw.drawSkydome(renderer.whiteTexture, renderer.progStardome);
+        } else {
+            renderer.draw.drawSkydome(renderer.blackTexture, renderer.progStardome);
+        }
+    }*/
+
+
+    this.renderer.drawBackground();
+
+    gpu.setState(this.drawTileState);
 
     if (this.debug.drawEarth) { // debug.drawEarth? :-)
 

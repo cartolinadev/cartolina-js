@@ -5,7 +5,7 @@ import MapTexture from './texture';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 import * as math from '../utils/math';
-import {vec3, mat4} from '../utils/matrix';
+import {vec3, vec4, mat4} from '../utils/matrix';
 import Renderer from '../renderer/renderer';
 
 /**
@@ -90,7 +90,7 @@ class Atmosphere {
         this.atmDensityTexture = new MapTexture(
             map, url, vts.TEXTURETYPE_ATMDENSITY);
 
-        //console.log('atmDensityTexture url: ', url);
+        __DEV__ && utils.logOnce(`atmDensityTexture url: ${url}`);
     }
 
     /**
@@ -163,7 +163,8 @@ class Atmosphere {
      * @param doNotCheckGpu passed on to MapTexture
      * @returns true if ready to render, side effect: triggers load
      */
-    isReady(doNotLoad: boolean, priority: number, doNotCheckGpu: boolean): boolean
+    isReady(doNotLoad: boolean = false, priority: number = 0,
+            doNotCheckGpu: boolean = false): boolean
     {
         return this.atmDensityTexture.isReady(
             doNotLoad, priority, doNotCheckGpu);
@@ -259,7 +260,7 @@ class Atmosphere {
     }
 
     drawBackground(
-        eyePos: math.vec3, viewInverse: math.mat4)   {
+        eyePos: math.vec3, mvpInverse: math.mat4)   {
 
         let gl = this.renderer.gpu.gl;
         let program = this.renderer.programs.background;
@@ -270,18 +271,18 @@ class Atmosphere {
         // originally found in vts-browser-cpp (librenderer/renderView.cpp)
         const invr = 1. / this.params.bodyMajorRadius;
 
+        let mvpInverse_ = mat4.scale(mat4.identity(mat4.create()),
+                                      [invr, invr, invr]);
+        mat4.multiply(mvpInverse_, mvpInverse);
 
-        let viewInverse_ = mat4.scale(mat4.create(), [invr, invr, invr]);
-        mat4.mutiply(viewInverse_, viewInverse);
 
         let cornerDirsD: math.vec4[] = [
 
-            mat4.multiplyVec4(viewInverse_, [-1, -1, 0, 1]),
-            mat4.multiplyVec4(viewInverse_, [+1, -1, 0, 1]),
-            mat4.multiplyVec4(viewInverse_, [-1, +1, 0, 1]),
-            mat4.multiplyVec4(viewInverse_, [+1, +1, 0, 1])
+            mat4.multiplyVec4(mvpInverse_, [-1, -1, 0, 1]),
+            mat4.multiplyVec4(mvpInverse_, [+1, -1, 0, 1]),
+            mat4.multiplyVec4(mvpInverse_, [-1, +1, 0, 1]),
+            mat4.multiplyVec4(mvpInverse_, [+1, +1, 0, 1])
         ];
-
 
         let eyePos_ = vec3.create();
         vec3.scale(eyePos, invr, eyePos_);
@@ -290,22 +291,19 @@ class Atmosphere {
         for (let i = 0; i < 4; i++) {
 
             cornerDirs.push(
-                vec3.normalize(vec3.subtract(cornerDirsD, eyePos_)));
+                vec3.normalize(vec3.subtract(vec4.toVec3(cornerDirsD[i]), eyePos_)));
         }
 
         // flatten 4×vec3 into Float32Array
         const flat = new Float32Array([
-            ...cornerDirs[0], ...cornerDirs[1], ...cornerDirs[2], ...cornerDirs[3],
-        ]);
+            ...cornerDirs[0], ...cornerDirs[1],
+            ...cornerDirs[2], ...cornerDirs[3]]);
 
         // use
         this.renderer.gpu.useProgram2(this.renderer.programs.background);
 
         // Set the vec3 array uniform (query from [0], pass 12 floats)
         program.setVec3("uniCorners[0]", flat)
-
-        //const uCorners = gl.getUniformLocation(program, "uniCorners[0]");
-        //gl.uniform3fv(uCorners, flat);
 
         // draw
         gl.bindVertexArray(this.quadVao);
@@ -347,8 +345,6 @@ class Atmosphere {
             rgb[di++] = rgba[gIdx];
             rgb[di++] = rgba[bIdx];
         }
-
-        console.log('decodeAtmosphereDensity:', w, h);
 
         return { width: w, height: h, data: rgb }
     }
