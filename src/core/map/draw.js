@@ -266,6 +266,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }
     }*/
 
+
+    this.renderer.drawBackground();
+
     gpu.setState(this.drawTileState);
 
     this.setupDetailDegradation();
