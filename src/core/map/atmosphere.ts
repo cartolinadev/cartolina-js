@@ -5,7 +5,7 @@ import MapTexture from './texture';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 import * as math from '../utils/math';
-import {vec3} from '../utils/matrix';
+import {vec3, mat4} from '../utils/matrix';
 import Renderer from '../renderer/renderer';
 
 /**
@@ -23,6 +23,7 @@ class Atmosphere {
     renderer!: Renderer;
 
     uboAtm!: WebGLBuffer;
+    quadVao: WebGLVertexArrayObject;
 
     /**
      * Initialize from atmosphere parameters, initiailize atmdensity texture.
@@ -97,7 +98,13 @@ class Atmosphere {
      */
     createBuffers() {
 
-        // create gl buffer
+        this.createAtmUbo();
+        this.createQuadVao();
+    }
+
+    private createAtmUbo() {
+
+        // create atmUbo buffer
         let gl = this.renderer.gpu.gl;
 
         this.uboAtm = gl.createBuffer();
@@ -111,6 +118,41 @@ class Atmosphere {
             Renderer.UniformBlockName.Atmosphere, this.uboAtm);
 
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+    }
+
+    private createQuadVao() {
+
+        let gl = this.renderer.gpu.gl;
+        let program = this.renderer.programs.background;
+
+        this.quadVao = gl.createVertexArray()!;
+        gl.bindVertexArray(this.quadVao);
+
+        // positions -> inPosition
+        const posLoc = program.getAttribLocation("inPosition");
+        const vboPos = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboPos);
+        gl.bufferData(gl.ARRAY_BUFFER, QuadPos, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+        // uvs -> inUv
+        const uvLoc = program.getAttribLocation("inUv");
+        const vboUv = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, vboUv);
+        gl.bufferData(gl.ARRAY_BUFFER, QuadUv, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(uvLoc);
+        gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
+
+        // indices
+        const ebo = gl.createBuffer()!;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QuadIdx, gl.STATIC_DRAW);
+
+        // tidy
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindVertexArray(null);
     }
 
     /**
@@ -215,6 +257,63 @@ class Atmosphere {
         gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buffer);
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
     }
+
+    drawBackground(
+        eyePos: math.vec3, viewInverse: math.mat4)   {
+
+        let gl = this.renderer.gpu.gl;
+        let program = this.renderer.programs.background;
+
+        // compute corners here - the scaling is probably not needed at all,
+        // since we deal with directions, and divisions by huger numbers
+        // do not improve numeric stability. Still we replicate the formulas
+        // originally found in vts-browser-cpp (librenderer/renderView.cpp)
+        const invr = 1. / this.params.bodyMajorRadius;
+
+
+        let viewInverse_ = mat4.scale(mat4.create(), [invr, invr, invr]);
+        mat4.mutiply(viewInverse_, viewInverse);
+
+        let cornerDirsD: math.vec4[] = [
+
+            mat4.multiplyVec4(viewInverse_, [-1, -1, 0, 1]),
+            mat4.multiplyVec4(viewInverse_, [+1, -1, 0, 1]),
+            mat4.multiplyVec4(viewInverse_, [-1, +1, 0, 1]),
+            mat4.multiplyVec4(viewInverse_, [+1, +1, 0, 1])
+        ];
+
+
+        let eyePos_ = vec3.create();
+        vec3.scale(eyePos, invr, eyePos_);
+        let cornerDirs: math.vec3[] = [];
+
+        for (let i = 0; i < 4; i++) {
+
+            cornerDirs.push(
+                vec3.normalize(vec3.subtract(cornerDirsD, eyePos_)));
+        }
+
+        // flatten 4×vec3 into Float32Array
+        const flat = new Float32Array([
+            ...cornerDirs[0], ...cornerDirs[1], ...cornerDirs[2], ...cornerDirs[3],
+        ]);
+
+        // use
+        this.renderer.gpu.useProgram2(this.renderer.programs.background);
+
+        // Set the vec3 array uniform (query from [0], pass 12 floats)
+        program.setVec3("uniCorners[0]", flat)
+
+        //const uCorners = gl.getUniformLocation(program, "uniCorners[0]");
+        //gl.uniform3fv(uCorners, flat);
+
+        // draw
+        gl.bindVertexArray(this.quadVao);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+        // tidy
+        gl.bindVertexArray(null);
+}
 
     /**
      * decode the grayscale atmosphere density image data into interleaved rgb
@@ -350,6 +449,25 @@ type Map = {
     renderer: Renderer;
 }
 
+// 1) Quad data (matches your OBJ: positions, uvs, indices)
+const QuadPos = new Float32Array([
+  -1, -1, 0,  // v1
+   1, -1, 0,  // v2
+  -1,  1, 0,  // v3
+   1,  1, 0,  // v4
+]);
+
+const QuadUv = new Float32Array([
+  0, 0,  // vt1
+  1, 0,  // vt2
+  0, 1,  // vt3
+  1, 1,  // vt4
+]);
+
+const QuadIdx = new Uint16Array([
+  0, 1, 2,   // f 1/1/1 2/2/1 3/3/1
+  1, 3, 2,   // f 2/2/1 4/4/1 3/3/1
+]);
 
 // export types
 

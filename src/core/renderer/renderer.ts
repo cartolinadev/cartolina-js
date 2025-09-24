@@ -499,23 +499,42 @@ updateBuffers() {
     // the uboAtm buffer
     if (this.core.map.atmosphere) {
 
-        // as noted elsewhere, the renderer world coordinates are not
-        // true physical world coordinates - they are translated relative to
-        // camera center to avoid quantization errors. Hence this.
-        let view2ecef = mat4.translate(mat4.identity(mat4.create()),
-                                       this.core.map.camera.position)
-        mat4.multiply(view2ecef, this.camera.modelviewinverse);
+        let [view2ecef, eyePos] = this.calcEcefCamParams();
 
         //console.log(this.core.map.camera.position);
         //console.log(view2ecef);
 
         this.core.map.atmosphere.updateBuffers(
-            this.core.map.camera.position as math.vec3,
+            eyePos,
             this.core.map.position.getViewDistance(),
             view2ecef as math.mat4)
     }
 
 }
+
+drawBackground() {
+
+    if (this.core.map.atmosphere) {
+
+            let [view2ecef, eyePos] = this.calcEcefCamParams();
+            this.core.map.atmosphere.drawBackground(eyePos, view2ecef);
+    }
+}
+
+private calcEcefCamParams(): [math.mat4, math.vec3] {
+
+    // as noted elsewhere, the renderer world coordinates are not
+    // true physical world coordinates - they are translated relative to
+    // camera center to avoid quantization errors. Hence this.
+    let view2ecef = mat4.translate(mat4.identity(mat4.create()),
+                                       this.core.map.camera.position)
+    mat4.multiply(view2ecef, this.camera.modelviewinverse);
+
+    return [
+        view2ecef as math.mat4,
+        this.core.map.camera.position as math.vec3];
+}
+
 
 initProceduralShaders() {
     this.init.initProceduralShaders();
