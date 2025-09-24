@@ -43,6 +43,14 @@ vec4.dot3 = function (a, b, i, x, y, z) {
 };
 
 
+vec4.toVec3 = function(a, division = true) {
+
+    if (!division)
+        return a.slice(0, 3);
+    else
+        return [a[0] / a[3], a[1] / a[3], a[2] / a[3]];
+}
+
 var vec3 = {};
 
 

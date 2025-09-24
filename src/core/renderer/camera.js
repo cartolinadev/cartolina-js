@@ -27,6 +27,7 @@ var Camera = function(parent, fov, near, far) {
     this.rotationview = mat4.create();
     this.projection = mat4.create();
     this.modelviewinverse = mat4.create();
+    this.mvpinverse = mat4.create();
     this.mvp = mat4.create();
     this.mvp32 = new Float32Array(16);
     this.modelview32 = new Float32Array(16);
@@ -146,6 +147,13 @@ Camera.prototype.getModelviewMatrixInverse = function(){
     //console.log("modelviewinverse: ", this.modelviewinverse);
     return this.modelviewinverse;
 };
+
+Camera.prototype.getMvpInverse = function(){
+    if (this.dirty) this.update();
+    //console.log("modelviewinverse: ", this.modelviewinverse);
+    return this.mvpinverse;
+};
+
 
 Camera.prototype.getModelviewFMatrix = function(){
     if (this.dirty) this.update();
@@ -412,6 +420,7 @@ Camera.prototype.update = function(zoffset) {
     }
 
     mat4.multiply(this.projection, this.modelview, this.mvp);
+    mat4.inverse(this.mvp, this.mvpinverse);
 
     // prepare frustum planes (in normalized device coordinates)
     this.frustumPlanes[0] = [ 0, 0, 1, 1 ]; // far
