@@ -31,7 +31,7 @@ float atmDecodeFloat(vec4 rgba)
     return dot(rgba, vec4(1.0, 1.0 / 256.0, 1.0 / (256.0*256.0), 0.0));
 }
 
-float atmSampleDensity(vec2 uv)
+/*float atmSampleDensity(vec2 uv)
 {
     // since some color channels of the density texture are not continuous
     //   it is important to first decode the float from rgba and only after
@@ -47,6 +47,37 @@ float atmSampleDensity(vec2 uv)
     vec2 f = fract(uvp); // interpolation factors
     vec2 a = mix(s.xz, s.yw, f.x);
     return mix(a.x, a.y, f.y);
+}*/
+
+/*
+ * slightly better version of the above, avoiding the radial singularity
+ */
+
+highp float atmSampleDensity(vec2 uv) {
+    ivec2 res = textureSize(uTexAtmDensity, 0);
+    highp vec2 pixel = uv * vec2(res) - 0.5;  // Shift to texel centers for accurate bilinear
+    ivec2 bl = ivec2(floor(pixel));  // Bottom-left
+    highp vec2 f = fract(pixel);
+
+    // Compute and clamp the four corners to [0, res-1]
+    ivec2 br = bl + ivec2(1, 0);
+    ivec2 tl = bl + ivec2(0, 1);
+    ivec2 tr = bl + ivec2(1, 1);
+    bl = clamp(bl, ivec2(0), res - 1);
+    br = clamp(br, ivec2(0), res - 1);
+    tl = clamp(tl, ivec2(0), res - 1);
+    tr = clamp(tr, ivec2(0), res - 1);
+
+    // Fetch and decode
+    highp float s00 = atmDecodeFloat(texelFetch(uTexAtmDensity, bl, 0));
+    highp float s10 = atmDecodeFloat(texelFetch(uTexAtmDensity, br, 0));
+    highp float s01 = atmDecodeFloat(texelFetch(uTexAtmDensity, tl, 0));
+    highp float s11 = atmDecodeFloat(texelFetch(uTexAtmDensity, tr, 0));
+
+    // Bilinear interpolation
+    highp float bottom = mix(s00, s10, f.x);
+    highp float top = mix(s01, s11, f.x);
+    return mix(bottom, top, f.y);
 }
 
 // fragDir is in model space
