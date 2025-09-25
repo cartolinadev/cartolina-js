@@ -128,6 +128,11 @@ MapCamera.prototype.getCameraHeight = function() {
     return this.cameraHeight;
 };
 
+MapCamera.prototype.getCenter = function () {
+
+    return this.center;
+}
+
 
 MapCamera.prototype.getMvpMatrix = function() {
     return this.camera.getMvpMatrix();

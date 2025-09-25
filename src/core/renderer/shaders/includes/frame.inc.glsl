@@ -34,11 +34,11 @@ layout(std140) uniform uboFrame {
     // illumination
     highp vec4 lightDirection; // z reserved
     mediump vec4 lightAmbient; // z reserved
-    mediump vec4 lighDiffuse;  // z reserved
+    mediump vec4 lightDiffuse;  // z reserved
     mediump vec4 lightSpecular; // z reserved
 
     // virtual eye (for shadows and specular reflections)
-    highp virtualEye; // xyz: virtualEyePos, w: virtualEyeToCenter
+    highp vec4 virtualEye; // xyz: virtualEyePos, w: virtualEyeToCenter
 
     // clip margin
     highp vec4 clipParams; // x = clipMargin, yzw reserved

@@ -445,19 +445,20 @@ createBuffers() {
 
 updateBuffers() {
 
+    let map = this.core.map;
+
     // one backing buffer, two typed views.
     const buf = new ArrayBuffer(304);
     const f32 = new Float32Array(buf); // for mat4/vec4
     const i32 = new Int32Array(buf);   // for ivec4
 
-    let data: {[key:string]: any}
+    let data: {[key:string]: any} = {};
 
     // obtain the data: matrices
     data.view = this.camera.getModelviewFMatrix();
     data.projection = this.camera.getProjectionFMatrix();
 
     // obtain the data: body params and vertical exaggeration
-    let map = this.core.map;
 
     let se = this.getSuperElevation(map.position);
     let srsInfo = this.core.map.getPhysicalSrs().getSrsInfo();
@@ -481,9 +482,11 @@ updateBuffers() {
     let ambcf = this.getIlluminationAmbientCoef();
 
     // physicalEyePos, eyeToCenter
-    // TODO
+    data.physicalEyePos = map.camera.position;
+    data.eyeToCenter =  [map.position.getViewDistance()];
 
     data.lightAmbient = [ambcf, ambcf, ambcf]
+
     // these should be configurable
     data.lightDiffuse = [1.0, 1.0, 1.0];
     data.lightSpecular = [0.7, 0.7, 0.5];
@@ -494,6 +497,26 @@ updateBuffers() {
 
     // clip params
     data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
+
+    // virtualEeye, virtualEyeToCenter
+    const center_ = map.camera.getCenter();
+    const eye_ = map.camera.position;
+
+    let centerToEyeV = vec3.create();
+    vec3.subtract(eye_, center_, centerToEyeV);
+
+    // we set the viewPosFactor to virtual FOV 60 degrees
+    // the virtual eye distance corresponds to vertical extent
+    // TODO: make this configurable
+    let viewPosFactor = map.position.getViewExtent()
+        / map.position.getViewDistance();
+
+    vec3.scale(centerToEyeV, viewPosFactor);
+    let virtualEye = vec3.create();
+    vec3.add(center_, centerToEyeV, virtualEye);
+
+    data.virtualEye = virtualEye;
+    data.virtualEyeToCenter = [vec3.length(centerToEyeV)];
 
 
     // offsets in bytes (std140): see frame.inc.glsl/ uboFrame
@@ -515,13 +538,23 @@ updateBuffers() {
         clipParams:     288         // 72
     };
 
+    //console.log(data);
+
     // write floats (indices = byteOffset / 4)
-    f32.set(data.view,        OFF.view / 4);
-    f32.set(data.projection,  OFF.projection / 4);
-    f32.set(data.bodyParams,  OFF.bodyParams / 4);
-    f32.set(data.vaParams1,   OFF.vaParams1 / 4);
-    f32.set(data.vaParams2,   OFF.vaParams2 / 4);
-    f32.set(data.clipParams,  OFF.clipParams / 4);
+    f32.set(data.view,                  OFF.view / 4);
+    f32.set(data.projection,            OFF.projection / 4);
+    f32.set(data.bodyParams,            OFF.bodyParams / 4);
+    f32.set(data.vaParams1,             OFF.vaParams1 / 4);
+    f32.set(data.vaParams2,             OFF.vaParams2 / 4);
+    f32.set(data.physicalEyePos,        OFF.physicalEyePos / 4);
+    f32.set(data.eyeToCenter,           OFF.eyeToCenter / 4);
+    f32.set(data.lightDirection,        OFF.lightDirection / 4);
+    f32.set(data.lightAmbient,          OFF.lightAmbient / 4);
+    f32.set(data.lightDiffuse,          OFF.lightDiffuse / 4);
+    f32.set(data.lightSpecular,         OFF.lightSpecular / 4);
+    f32.set(data.virtualEye,            OFF.virtualEye / 4);
+    f32.set(data.virtualEyeToCenter,    OFF.virtualEyeToCenter / 4);
+    f32.set(data.clipParams,            OFF.clipParams / 4);
 
     // write ints for ivec4
     const ri = OFF.renderFlags / 4;
@@ -545,7 +578,7 @@ updateBuffers() {
 
         this.core.map.atmosphere.updateBuffers(
             eyePos,
-            this.core.map.position.getViewDistance(),
+            map.position.getViewDistance(),
             view2ecef as math.mat4)
     }
 
