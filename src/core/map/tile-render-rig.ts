@@ -205,8 +205,6 @@ export class TileRenderRig {
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
 
-        program.setVec3('uPhysCamPos', cameraPos);
-
         // uClip
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
 

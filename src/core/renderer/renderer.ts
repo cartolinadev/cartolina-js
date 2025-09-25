@@ -538,7 +538,7 @@ updateBuffers() {
         clipParams:     288         // 72
     };
 
-    //console.log(data);
+    // console.log(data);
 
     // write floats (indices = byteOffset / 4)
     f32.set(data.view,                  OFF.view / 4);

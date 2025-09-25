@@ -54,6 +54,28 @@ struct Light {
 };
 
 
+struct Eye {
+
+    vec3 physicalPos;
+    float eyeToCenter;
+
+    vec3 virtualPos;
+    float virtualEyeToCenter;
+};
+
+Eye frameEye() {
+
+    Eye eye;
+    eye.physicalPos = uFrame.physicalEyePos.xyz;
+    eye.eyeToCenter = uFrame.physicalEyePos.w;
+
+    eye.virtualPos = uFrame.virtualEye.xyz;
+    eye.virtualEyeToCenter = uFrame.virtualEye.w;
+
+    return eye;
+}
+
+
 Light frameLight() {
 
     Light light;
