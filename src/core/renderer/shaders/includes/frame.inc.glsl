@@ -28,7 +28,18 @@ layout(std140) uniform uboFrame {
     // renderingFlags
     highp ivec4 renderFlags; // renderFlags (see above), yzw reserved
 
+    // cameraPos, center of view
+    highp vec4 physicalEyePos; // xyz- physicalEyePos, w: eyeToCenter
+
+    // illumination
+    highp vec4 lightDirection; // z reserved
+    mediump vec4 lightAmbient; // z reserved
+    mediump vec4 lighDiffuse;  // z reserved
+    mediump vec4 lightSpecular; // z reserved
+
+    // virtual eye (for shadows and specular reflections)
+    highp virtualEye; // xyz: virtualEyePos, w: virtualEyeToCenter
+
     // clip margin
     highp vec4 clipParams; // x = clipMargin, yzw reserved
-
 } uFrame;
