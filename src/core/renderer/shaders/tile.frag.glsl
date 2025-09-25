@@ -45,9 +45,6 @@ uniform vec3 virtualEyePos;
 uniform float eyeToCenter, virtualEyeToCenter;
 uniform Material material;
 
-
-uniform int renderFlags;
-
 // render target
 out vec4 fragColor;
 

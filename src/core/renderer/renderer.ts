@@ -16,6 +16,7 @@ import * as Illumination from '../map/illumination';
 
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
+import MapSrs from '../map/srs';
 import MapBody from '../map/position';
 import MapCamera from '../map/camera';
 
@@ -421,9 +422,9 @@ createBuffers() {
     this.uboFrame = gl.createBuffer();
 
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboFrame);
-    // 2*mat4 (2*64) + 4*vec4 (4*16) + ivec4 (16) = 208
+    // 2*mat4 (2*64) + 10*vec4 (10*16) + ivec4 (16) = 304
     // see uboFrame in frame.inc.glsl
-    gl.bufferData(gl.UNIFORM_BUFFER, 208, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.UNIFORM_BUFFER, 304, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
     gl.bindBufferBase(gl.UNIFORM_BUFFER, Renderer.UniformBlockName.Frame,
@@ -445,35 +446,73 @@ createBuffers() {
 updateBuffers() {
 
     // one backing buffer, two typed views.
-    const buf = new ArrayBuffer(208);
+    const buf = new ArrayBuffer(304);
     const f32 = new Float32Array(buf); // for mat4/vec4
     const i32 = new Int32Array(buf);   // for ivec4
 
-    // obtain the data
-    let se = this.getSuperElevation(this.core.map.position);
+    let data: {[key:string]: any}
 
+    // obtain the data: matrices
+    data.view = this.camera.getModelviewFMatrix();
+    data.projection = this.camera.getProjectionFMatrix();
 
-    const data = {
-        view: this.camera.getModelviewFMatrix(),
-        projection: this.camera.getProjectionFMatrix(),
-        bodyParams: [this.earthRadius, this.earthERatio, 0, 0],
-        vaParams1: se.slice(0,4),
-        vaParams2: se.slice(4,7).concat(0),
+    // obtain the data: body params and vertical exaggeration
+    let map = this.core.map;
 
-        // TODO - use this.debug to set the flags
-        renderFlags: [0xff, 0, 0, 0],
-        clipParams: [this.core.map.config.mapSplitMargin, 0, 0, 0]
-    };
+    let se = this.getSuperElevation(map.position);
+    let srsInfo = this.core.map.getPhysicalSrs().getSrsInfo();
+    let majorAxis = srsInfo.a;
+    let minorAxis = srsInfo.b;
+
+    data.bodyParams = [majorAxis, majorAxis / minorAxis, 0, 0];
+    data.vaParams1 = se.slice(0,4);
+    data.vaParams2 = se.slice(4,7).concat(0);
+
+    // obtain the data: illumination
+    let illumvecVC = this.getIlluminationVectorVC().slice();
+    let illumvec = vec3.create(), lightDir = vec3.create();
+
+    mat4.multiplyVec3_(
+        this.camera.getModelviewMatrixInverse(), illumvecVC, illumvec);
+    vec3.negate(illumvec, lightDir);
+
+    data.lightDirection = lightDir;
+
+    let ambcf = this.getIlluminationAmbientCoef();
+
+    // physicalEyePos, eyeToCenter
+    // TODO
+
+    data.lightAmbient = [ambcf, ambcf, ambcf]
+    // these should be configurable
+    data.lightDiffuse = [1.0, 1.0, 1.0];
+    data.lightSpecular = [0.7, 0.7, 0.5];
+
+    // obtain the data: render flags and clip params
+    // TODO - use this.debug to set the flags
+    data.renderFlags = [0xff, 0, 0, 0];
+
+    // clip params
+    data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
+
 
     // offsets in bytes (std140): see frame.inc.glsl/ uboFrame
     const OFF = {
-        view:        0,     // 0
-        projection:  64,    // 16 floats
-        bodyParams:  128,   // 32 floats
-        vaParams1:   144,   // 36
-        vaParams2:   160,   // 40
-        renderFlags: 176,   // 44 (int view)
-        clipParams:  192    // 48
+        view:           0,          // 0
+        projection:     64,         // 16 floats
+        bodyParams:     128,        // 32 floats
+        vaParams1:      144,        // 36
+        vaParams2:      160,        // 40
+        renderFlags:    176,        // 44 (int view)
+        physicalEyePos: 192,        // 48
+        eyeToCenter:    204,        // 51
+        lightDirection: 208,        // 52
+        lightAmbient:   224,        // 56
+        lightDiffuse:   240,        // 60
+        lightSpecular:  256,        // 64
+        virtualEye:     272,        // 68
+        virtualEyeToCenter: 284,    // 71
+        clipParams:     288         // 72
     };
 
     // write floats (indices = byteOffset / 4)
@@ -1529,6 +1568,8 @@ type Map = {
     atmosphere?: Atmosphere;
     position: MapPosition;
     camera: MapCamera;
+
+    getPhysicalSrs(): MapSrs;
 
     config: {
         mapSplitMargin: number
