@@ -310,8 +310,8 @@ getUniform(name: string) {
             location = gl.getUniformLocation(this.program, name + "[0]");
         }
 
-        if (location === null) {
-            this.log(`uniform ${name} does not exist in program `
+        if (__DEV__ && location === null) {
+            utils.logOnce(`uniform ${name} does not exist in program `
                 + `(optimized out?)\nActive uniforms:\n\t`
                 + this.activeUniforms().join("\n\t"));
 

@@ -32,8 +32,8 @@ in float vAtmDensity;
 
 uniform float uClip[4];
 
-uniform vec3 virtualEyePos;
-uniform float eyeToCenter, virtualEyeToCenter;
+//uniform vec3 virtualEyePos;
+//uniform float eyeToCenter, virtualEyeToCenter;
 uniform Material material;
 
 // render target
@@ -97,7 +97,7 @@ void main() {
     // render flags
     int renderFlags = uFrame.renderFlags.x;
     //renderFlags = FlagNone;
-    renderFlags = FlagLighting | FlagNormalMap | FlagAtmosphere;
+    renderFlags = FlagLighting | FlagNormalMap | FlagAtmosphere | FlagShadows;
     //renderFlags = FlagLighting | FlagNormalMap ;
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
@@ -133,6 +133,7 @@ void main() {
 
     // light
     Light light = frameLight();
+    Eye eye = frameEye();
 
     // normal
     vec3 normal;
@@ -214,23 +215,30 @@ void main() {
     // shadows
     if (useShadows) {
 
-        float r = min(-vFragPosVC.z / eyeToCenter, 1.0);
+        float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
         float ratio;
 
-        if (virtualEyeToCenter / eyeToCenter > 0.9) {
+        // the below dichotomy is a little ugly but it yields decent empirical results
+        if (eye.virtualEyeToCenter / eye.eyeToCenter > 0.9) {
 
+            // scenario 1: linear ramp
             ratio = r;
 
         } else {
 
-            // relative eycenter distance
-            float d = (eyeToCenter - virtualEyeToCenter) / eyeToCenter;
+            // scenario 2: generic power function
+            // we want the ratio to be equal to 0.5 at virtualEyeCenter
+            // and to 0 at eyeCenter
 
-            // we want the ratio at virtualEyeCenter to be equal to 0.5
+            // relative eycenter distance
+            float d = (eye.eyeToCenter - eye.virtualEyeToCenter) / eye.eyeToCenter;
+
             ratio = pow(r, log(0.5)/ log(d));
         }
 
-        color = color * ratio;
+        //color = vec4(vec3(min(ratio, 1.0)), 1.0);
+
+        color = vec4(vec3(color) * ratio, 1.0);
     }
 
     // result
