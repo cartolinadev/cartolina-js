@@ -13,13 +13,6 @@ struct Material {
     float bumpWeight;
 };
 
-struct Light {
-
-    vec3 direction;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
 
 // varyings
 in vec3 vFragPos;
@@ -37,8 +30,6 @@ in float vAtmDensity;
 
 // other uniforms
 
-
-uniform Light uLight;
 uniform float uClip[4];
 
 uniform vec3 virtualEyePos;
@@ -107,6 +98,7 @@ void main() {
     int renderFlags = uFrame.renderFlags.x;
     //renderFlags = FlagNone;
     renderFlags = FlagLighting | FlagNormalMap | FlagAtmosphere;
+    //renderFlags = FlagLighting | FlagNormalMap ;
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
     bool useNormalMap = (renderFlags & FlagNormalMap) != 0; // bit 1
@@ -138,6 +130,9 @@ void main() {
             if (uClip[0] == 0.0 && !(clipCoord.x > tmin && uClip[1] != 0.0) && !(clipCoord.y > tmin && uClip[2] != 0.0)) discard;
         }
     }
+
+    // light
+    Light light = frameLight();
 
     // normal
     vec3 normal;
@@ -184,11 +179,11 @@ void main() {
     if (useLighting) {
 
         // ambient
-        vec3 ambient = uLight.ambient * diffuseColor;
+        vec3 ambient = light.ambient * diffuseColor;
 
         // diffuse
-        vec3 diffuse = uLight.diffuse * diffuseColor
-            * max(dot(normalize(-uLight.direction), normal), 0.0);
+        vec3 diffuse = light.diffuse * diffuseColor
+            * max(dot(normalize(-light.direction), normal), 0.0);
 
 
         vec3 specular = vec3(0.0);
@@ -198,8 +193,8 @@ void main() {
         vec3 viewDir = vFragPos - virtualEyePos;
 
         vec3 halfway = - normalize(
-            normalize(viewDir) + normalize(uLight.direction));
-        vec3 specular = uLight.specular * specularColor
+            normalize(viewDir) + normalize(light.direction));
+        vec3 specular = light.specular * specularColor
             * pow(max(dot(normal, halfway), 0.0), material.shininess);*/
 
         // output

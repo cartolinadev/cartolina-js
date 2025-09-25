@@ -20,8 +20,6 @@ in vec2 aTexCoords2;
 // model matrix, aPosition -> worldPos
 uniform mat4 uModel;
 
-uniform vec3 uPhysCamPos;
-
 // output (varyings)
 
 out vec3 vFragPos;          // fragment position in world coordinates
@@ -48,7 +46,7 @@ vec4 applyVerticalExaggeration(vec4 worldPos) {
           invhdiff = uFrame.vaParams2.z;
 
     // approximate ellipsoid by a sphere
-    vec3 geoPos = worldPos.xyz + uPhysCamPos;
+    vec3 geoPos = worldPos.xyz + uFrame.physicalEyePos.xyz;
     geoPos.z *= majorToMinor;
 
     // distance from center

@@ -43,3 +43,26 @@ layout(std140) uniform uboFrame {
     // clip margin
     highp vec4 clipParams; // x = clipMargin, yzw reserved
 } uFrame;
+
+
+struct Light {
+
+    vec3 direction;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+
+Light frameLight() {
+
+    Light light;
+
+    light.direction = uFrame.lightDirection.rgb;
+    light.ambient = uFrame.lightAmbient.rgb;
+    light.diffuse = uFrame.lightDiffuse.rgb;
+    light.specular = uFrame.lightSpecular.rgb;
+
+    return light;
+
+}

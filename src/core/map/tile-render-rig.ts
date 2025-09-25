@@ -212,29 +212,6 @@ export class TileRenderRig {
 
         program.setFloatArray('uClip', splitMask);
 
-        // TODO: this should be in uFrame ubo
-
-        // uLight.direction
-        let illumvecVC = this.renderer.getIlluminationVectorVC().slice();
-        let illumvec = matrix.vec3.create(), lightDir = matrix.vec3.create();
-
-        matrix.mat4.multiplyVec3_(
-            this.renderer.camera.getModelviewMatrixInverse(), illumvecVC,
-            illumvec);
-        matrix.vec3.negate(illumvec, lightDir);
-
-        program.setVec3('uLight.direction', lightDir);
-
-        // uLight.ambient
-        let ambcf = this.renderer.getIlluminationAmbientCoef();
-        program.setVec3('uLight.ambient', [ambcf, ambcf, ambcf]);
-
-        // uLight.diffuse - should be configurable
-        program.setVec3('uLight.diffuse', [1.0, 1.0, 1.0]);
-
-        // uLight.specular - should be configurable
-        program.setVec3('uLight.specular', [0.7, 0.7, 0.5]);
-
         // temporary stuff for testing
         // material.normalMap
         if (!this.rt.normals) throw Error('no normal map, bud');
@@ -242,13 +219,6 @@ export class TileRenderRig {
         program.setSampler('material.normalMap', 0);
 
         program.setFloat('material.shininess', 1.0);
-
-        // not needed at the moment: for specular lighting - if we use it, use uFrame
-        // virtualEyePos
-
-        // not needed at the moment: for shadows - if we use it, use uFrame
-        // eyeToCenter
-        // virtualEyeToCenter
 
         // draw
         this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, {
