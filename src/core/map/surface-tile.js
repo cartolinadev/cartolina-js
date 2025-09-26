@@ -88,41 +88,13 @@ var MapSurfaceTile = function(map, parent, id) {
 
 
 MapSurfaceTile.prototype.kill = function() {
+
     //kill children
     for (var i = 0; i < 4; i++) {
         if (this.children[i] != null) {
             this.children[i].kill();
         }
     }
-/*
-    if (this.surfaceMesh != null) {
-        this.surfaceMesh.kill();
-    }
-
-    for (var key in this.surfaceTextures) {
-        if (this.surfaceTextures[key] != null) {
-            this.surfaceTextures[key].kill();
-        }
-    }
-
-    if (this.surfaceGeodata != null) {
-        this.surfaceGeodata.kill();
-    }
-
-    if (this.surfaceGeodataView != null) {
-        this.surfaceGeodataView.kill();
-    }
-
-    if (this.heightMap != null) {
-        this.heightMap.kill();
-    }
-
-    for (var key in this.boundTextures) {
-        if (this.boundTextures[key] != null) {
-            this.boundTextures[key].kill();
-        }
-    }
-*/
     this.resources = null;
     this.metaresources = null;
     this.metanode = null;
@@ -157,6 +129,12 @@ MapSurfaceTile.prototype.kill = function() {
 
     this.verifyChildren = false;
     this.children = [null, null, null, null];
+
+    this.tileRenderRig.forEach((rig) => rig.dispose());
+    this.tileRenderRig = [];
+
+    this.lastRenderRig.forEach((rig) => rig.dispose());
+    this.lastRenderRig = [];
 
     var parent = this.parent;
     this.parent = null;

@@ -279,6 +279,17 @@ setFloatArray(name: string, array: Float32List): void {
 };
 
 
+setIntArray(name: string, array: Int32List): void {
+    var gl = this.gl;
+    if (gl == null || this.program == null) return;
+
+    // the correct way to query uniform arrays is to query the first element
+    var key = this.getUniform(name.endsWith("]") ? name : name + "[0]");
+    if (key != null) {
+        gl.uniform1iv(key, array);
+    }
+};
+
 getAttribLocation(name: string): GLint {
     var gl = this.gl;
     if (gl == null || this.program == null) return;

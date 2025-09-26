@@ -10,6 +10,7 @@ import MapTexture from './texture';
 import MapBoundLayer from './bound-layer'
 import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
+import GpuMesh from '../renderer/gpu/mesh';
 import Atmosphere from './atmosphere';
 
 import * as illumination from './illumination';
@@ -58,7 +59,9 @@ export class TileRenderRig {
     private submesh!: MapSubmesh;
     private submeshIndex!: number;
 
-    normalMap?: MapTexture;
+    private normalMap?: MapTexture;
+
+    private uboLayers?: WebGLBuffer;
 
 
     private rt : {
@@ -111,12 +114,7 @@ export class TileRenderRig {
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(layerDef);
 
-        // shared resources
-        if (this.rt.internalUVs) {
-            // request internal texture
-
-        }
-
+        // prepare normal map texture if applicable
         if (this.rt.normals) {
 
             // request normal map
@@ -190,8 +188,11 @@ export class TileRenderRig {
         });
 
         /*if (ready_ && utils.compareTuples(this.tile.id, [15, 8772, 5758])) {
-            console.log('%s render-ready.', utils.idToString([...this.tile.id, this.submeshIndex]));
+            console.log('%s render-ready.', this.logSign());
         }*/
+
+        // if the rig is ready and uboLayers has not been created, create it
+        if (ready_ && !this.uboLayers) this.createBuffer();
 
         // done
         return ready_;
@@ -204,6 +205,12 @@ export class TileRenderRig {
 
         let renderer = this.renderer;
 
+
+        if (!this.uboLayers) {
+            console.warn(`draw called on an unready rig for ${this.logSign()}.`);
+            return;
+        }
+
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
 
@@ -212,43 +219,179 @@ export class TileRenderRig {
 
         program.setFloatArray('uClip', splitMask);
 
-        // let us see this performance killer: bind all textures
-        let unit = 1;
-
-        this.rt.layerStack.forEach((layer) => {
-
-            if (layer.source !== 'texture') return;
-
-            let main = layer.srcTextureTexture.getGpuTexture();
-
-            if (main) {
-                //console.log(`${utils.idToString(this.tile.id)}: binding ${layer.rt.layerId} main.`);
-                renderer.gpu.bindTexture(main, unit++);
-            }
-
-            let mask = layer.srcTextureTexture.getGpuMaskTexture();
-
-            if (mask) {
-                //console.log(`${utils.idToString(this.tile.id)}: binding ${layer.rt.layerId} mask.`);
-                renderer.gpu.bindTexture(mask, unit++);
-            }
-        })
-
-        //console.log(`${utils.idToString(this.tile.id)}: bound ${unit-1} texture units.`);
+        // rebuild the layer buffer, set sampler arrays, bind textures and buffer base
+        this.updateBuffer(program);
 
         // temporary stuff for testing
-        // material.normalMap
-        if (!this.rt.normals) throw Error('no normal map, bud');
-        renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
-        program.setSampler('material.normalMap', 0);
+        if (this.normalMap && this.normalMap.getGpuTexture()) {
+            renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
+            program.setSampler('material.normalMap', NormalMapTextureIdx);
+        }
 
         program.setFloat('material.shininess', 1.0);
 
         // draw
-        this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, {
-            position: 'aPosition', uvs: 'aTexCoords', uvs2: 'aTexCoords2'});
+        let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
+        if (this.rt.internalUVs) attrNames.uvs = 'aTexCoords';
+        if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
-        //console.log('%s: draw.', utils.idToString([...this.tile.id, this.submeshIndex]));
+
+        this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, attrNames);
+
+        //console.log(`this.logSign(): draw.`);
+    }
+
+    /**
+     * create the layer UBO
+     */
+    private createBuffer() {
+
+        let gl = this.renderer.gpu.gl;
+
+        this.uboLayers = gl.createBuffer();
+
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
+
+        gl.bufferData(gl.UNIFORM_BUFFER, UboLayersSize, gl.DYNAMIC_DRAW);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+    }
+
+    /**
+     * Rebuild the layer UBO, bind textures and set the sampler array uniform
+     */
+    private updateBuffer(program: GpuProgram) {
+
+        let renderer = this.renderer;
+        let gl = this.renderer.gpu.gl;
+
+        // bind buffer base
+        gl.bindBufferBase(gl.UNIFORM_BUFFER,
+            Renderer.UniformBlockName.Layers, this.uboLayers);
+
+
+        // update dynamic (vd) alpha values
+        // TODO
+
+        // now the buffer - one backing buffer, two typed views
+        const buf = new ArrayBuffer(UboLayersSize);
+
+        const bufacc = {
+            f32: new Float32Array(buf), // for vec4
+            i32: new Int32Array(buf),   // for ivec
+            offset: 0
+        }
+
+        let numLayers = this.rt.layerStack.length;
+
+        if (numLayers > MaxLayers) {
+            throw Error('maximum rendering layers exhausted, aborting.');
+        }
+
+
+        // struct (std140) uniform uboLayers {
+        bufacc.i32.set([numLayers], bufacc.offset / 4); bufacc.offset += 16;   // ivec4 layerCount
+
+        let samplers = {
+
+            samplers: new Int32Array(MaxTextures),
+            nextTextureUnit: FirstLayerTextureUnit,
+            ub: FirstLayerTextureUnit + MaxTextures
+        }
+
+        this.rt.layerStack.forEach((layer) => {
+
+            // LayerRaw layers[16];
+            this.encodeLayer(layer, bufacc, samplers)
+        })
+
+        // } // struct (std140) uniform uboLayers
+
+        // update buffer
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+
+        // sampler array uniform
+        program.setIntArray('uTexture[0]', samplers.samplers);
+
+
+        //console.log(`${this.logSign()}: bound `
+        //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
+    }
+
+
+    private encodeLayer(layer: Layer,
+        bufacc: { f32: Float32Array, i32: Int32Array, offset: number },
+        samplers: { samplers: Int32Array, nextTextureUnit: number,
+                    ub: number }) {
+
+        let renderer = this.renderer;
+
+        // struct LayerRaw {
+
+        // target
+        let target = -1;
+
+        switch (layer.target) {
+
+            case 'color': target = UboTarget.Color; break;
+            case 'normal': target = UboTarget.Normal; break;
+        }
+
+        bufacc.f32.set([target], bufacc.offset / 4); bufacc.offset += 4;      // ivec4 tag.x
+
+        // source
+        let source = -1;
+
+        switch (layer.source) {
+
+            case 'constant': source = UboSource.Constant; break;
+            case 'shade': source = UboSource.Shade; break;
+            case 'pop': source = UboSource.Pop; break;
+            case 'atm-density': source = UboSource.AtmDensity; break;
+            case 'texture': source = UboSource.Texture; break;
+            case 'none': source = UboSource.None; break;
+        }
+
+        bufacc.f32.set([source], bufacc.offset / 4); bufacc.offset += 4;      // ivec4 tag.y
+
+        // operation
+
+
+
+
+        // TODO
+
+        if (layer.source !== 'texture') return;
+
+        let main = layer.srcTextureTexture.getGpuTexture();
+
+        if (main) {
+            //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
+            renderer.gpu.bindTexture(main, samplers.nextTextureUnit++);
+        }
+
+        let mask = layer.srcTextureTexture.getGpuMaskTexture();
+
+        if (mask) {
+            //console.log(`${logSign()}: binding ${layer.rt.layerId} mask.`);
+            renderer.gpu.bindTexture(mask, samplers.nextTextureUnit++);
+        }
+
+    }
+
+    /*
+     * delete the external gpu resources
+     */
+    dispose() {
+
+        __DEV__ && console.log(
+            `Disposing of UBO for ${this.logSign()}.`);
+
+        let gl = this.renderer.gpu.gl;
+
+        gl.deleteBuffer(this.uboLayers);
     }
 
     /**
@@ -274,7 +417,7 @@ export class TileRenderRig {
                 ret.push(item.rt.layerId);
         });
 
-        //console.log(utils.idToString(this.tile.id), ret);
+        //console.log(this.logSign(), ret);
 
         return ret;
     }
@@ -352,7 +495,7 @@ export class TileRenderRig {
                 operation: 'blend',
                 necessity: 'essential',
                 srcShadeType: 'diffuse',
-                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+                srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
             });
@@ -386,7 +529,7 @@ export class TileRenderRig {
                 operation: 'blend',
                 necessity: 'essential', // sanity
                 srcShadeType: 'specular',
-                srcShadeNormal: this.rt.normals ? 'normal' : 'flat',
+                srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'specular-multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 }
             });
@@ -426,8 +569,7 @@ export class TileRenderRig {
         // TODO
 
         // turn off internal/external UVs if no layer needs them?
-
-        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        // console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -545,6 +687,17 @@ export class TileRenderRig {
                     illumination.CoordSystem.NED);
             }
 
+            let whitewash = 0.0;
+
+            if (layer.shaderFilters
+                && layer.shaderFilters[tile.resourceSurface.id]
+                && layer.shaderFilters[tile.resourceSurface.id].whitewash) {
+
+                whitewash = layer.shaderFilters[
+                    tile.resourceSurface.id].whitewash;
+            }
+
+
             // not a pretty side effect, copied verbatim from old code.
             // needed for credits extraction
             this.tile.boundLayers[layer.id] = layer;
@@ -562,6 +715,8 @@ export class TileRenderRig {
 
                 opBlendMode: mode,
                 opBlendAlpha: alpha,
+
+                tgtColorWhitewash: whitewash,
 
                 rt: {
                     layerId: layer.id,
@@ -642,6 +797,15 @@ export class TileRenderRig {
         return ready_;
     }
 
+
+    /*
+     * helper for diagnostics
+     */
+    private logSign(): string {
+
+        return utils.idToString([...this.tile.id, this.submeshIndex]);
+    }
+
 }; // class TileRenderRig
 
 
@@ -703,7 +867,7 @@ type Layer = {
     srcConstant?: [number, number, number],
 
     srcShadeType?: 'diffuse' | 'specular',
-    srcShadeNormal?: 'normal' | 'flat',
+    srcShadeNormal?: 'normal-map' | 'flat',
 
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
@@ -713,8 +877,7 @@ type Layer = {
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
 
-    tgtColorWhitewash?: number, // TODO: cannot see it
-
+    tgtColorWhitewash?: number,
 
     rt?: {
 
@@ -724,6 +887,72 @@ type Layer = {
         isWatertight: boolean,
         vdalpha?: number,
     }
+}
+
+
+// if you change this, change the corresponding literals in layers.inc.glsl
+const NormalMapTextureIdx = 0;
+const MaxLayers = 16;
+const MaxTextures = 14;
+const FirstLayerTextureUnit = NormalMapTextureIdx + 1;
+
+// 1x ivec4 + MaxTextures * (2x ivec4 + 2x vec4)
+const UboLayersSize = 16 + MaxLayers * 64;
+
+
+enum UboTarget {
+
+    Color              = 0,
+    Normal             = 1
+}
+
+
+enum UboSource {
+
+    Constant           = 0,
+    Texture            = 1,
+    Pop                = 2,
+    Shade              = 3,
+    AtmDensity         = 4,
+    Shadows            = 5,
+    None               = 6
+}
+
+
+enum uboOperation {
+
+    Blend           = 0,
+    Push            = 1,
+    AtmColor        = 2,
+    Shadows         = 4,
+    NormalBlend     = 5
+}
+
+enum uboShadeType {
+
+    Diffuse         = 0,
+    Specular        = 1
+}
+
+enum uboShadeNormal {
+
+    NormalMap     = 0,
+    Flat          = 1
+}
+
+enum uboBlendMode {
+
+    Overlay             = 0,
+    Add                 = 1,
+    Multiply            = 2,
+    specularMultiply    = 3
+}
+
+
+enum textureUVs {
+
+    External           = 0,
+    Internal           = 1
 }
 
 
@@ -793,18 +1022,6 @@ export namespace TileRenderRig {
     export const DefaultPriority = { essential: 0, optional: 0}
 
     export type Priority = typeof DefaultPriority;
-
-    /*export const DefaultRenderFlags = {
-        illumination: true,
-        normalMap: true,
-        bumps: true,
-        diffuse: true,
-        specular: true,
-        atmosphere: false,
-        shadows: false
-    };
-
-    export type RenderFlags = typeof DefaultRenderFlags;*/
 
     /**
      * These are passed to MapMesh.isReady() and MapTexture.isReady().

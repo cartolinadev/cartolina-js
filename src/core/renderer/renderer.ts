@@ -424,7 +424,7 @@ createBuffers() {
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboFrame);
     // 2*mat4 (2*64) + 10*vec4 (10*16) + ivec4 (16) = 304
     // see uboFrame in frame.inc.glsl
-    gl.bufferData(gl.UNIFORM_BUFFER, 304, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.UNIFORM_BUFFER, UboFrameSize, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
     gl.bindBufferBase(gl.UNIFORM_BUFFER, Renderer.UniformBlockName.Frame,
@@ -445,10 +445,14 @@ createBuffers() {
 
 updateBuffers() {
 
+    // TODO: sync these with debug.
+    let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagAll;
+
+    // map
     let map = this.core.map;
 
     // one backing buffer, two typed views.
-    const buf = new ArrayBuffer(304);
+    const buf = new ArrayBuffer(UboFrameSize);
     const f32 = new Float32Array(buf); // for mat4/vec4
     const i32 = new Int32Array(buf);   // for ivec4
 
@@ -470,30 +474,47 @@ updateBuffers() {
     data.vaParams2 = se.slice(4,7).concat(0);
 
     // obtain the data: illumination
-    let illumvecVC = this.getIlluminationVectorVC().slice();
-    let illumvec = vec3.create(), lightDir = vec3.create();
 
-    mat4.multiplyVec3_(
-        this.camera.getModelviewMatrixInverse(), illumvecVC, illumvec);
-    vec3.negate(illumvec, lightDir);
+    if (!this.useIllumination) {
 
-    data.lightDirection = lightDir;
+        data.lightDirection = [0, 0, 0];
+        data.lightAmbient = [0, 0, 0]
+        data.lightDiffuse = [0, 0, 0];
+        data.lightSpecular = [0, 0, 0];
 
-    let ambcf = this.getIlluminationAmbientCoef();
+        renderFlags &= ~Renderer.RenderFlags.FlagLighting;
+    }
+
+    if (this.useIllumination) {
+
+        let illumvecVC: math.vec3, illumvec: math.vec3, lightDir: math.vec3;
+
+        illumvecVC = this.getIlluminationVectorVC().slice() as math.vec3;
+        illumvec = vec3.create() as math.vec3;
+        lightDir = vec3.create() as math.vec3;
+
+        mat4.multiplyVec3_(
+            this.camera.getModelviewMatrixInverse(), illumvecVC, illumvec);
+        vec3.negate(illumvec, lightDir);
+
+        data.lightDirection = lightDir;
+
+        let ambcf = this.getIlluminationAmbientCoef();
+
+        data.lightAmbient = [ambcf, ambcf, ambcf]
+
+        // these should be configurable
+        data.lightDiffuse = [1.0, 1.0, 1.0];
+        data.lightSpecular = [0.7, 0.7, 0.5];
+    }
 
     // physicalEyePos, eyeToCenter
     data.physicalEyePos = map.camera.position;
     data.eyeToCenter =  [map.position.getViewDistance()];
 
-    data.lightAmbient = [ambcf, ambcf, ambcf]
-
-    // these should be configurable
-    data.lightDiffuse = [1.0, 1.0, 1.0];
-    data.lightSpecular = [0.7, 0.7, 0.5];
-
     // obtain the data: render flags and clip params
     // TODO - use this.debug to set the flags
-    data.renderFlags = [0xff, 0, 0, 0];
+    data.renderFlags = [renderFlags, 0, 0, 0];
 
     // clip params
     data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
@@ -1618,8 +1639,23 @@ enum TextureIdxOffsets {
     Atmosphere = -1
 }
 
+const UboFrameSize = 304;
+
 // export types
 export namespace Renderer {
+
+export enum RenderFlags {
+
+    FlagNone           = 0,
+    FlagLighting       = 1 << 0, // bit 0
+    FlagNormalMap      = 1 << 1, // bit 1
+    FlagDiffuseMaps    = 1 << 2, // bit 2
+    FlagSpecularMaps   = 1 << 3, // bit 3
+    FlagBumpMaps       = 1 << 4, // bit 4
+    FlagAtmosphere     = 1 << 5, // bit 5
+    FlagShadows        = 1 << 6, // bit 6
+    FlagAll            = 0xff
+}
 
 export type IlluminationDef = {
 
@@ -1652,7 +1688,7 @@ export enum UniformBlockName {
     Atmosphere = 2
 }
 
-} // export namespace GpuDevice
+} // export namespace Rendrer
 
 
 export default Renderer;

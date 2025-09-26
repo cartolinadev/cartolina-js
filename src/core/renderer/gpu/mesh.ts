@@ -5,45 +5,9 @@ import * as utils from '../../utils/utils';
 
 type Optional<T> = T | null;
 
-// export types
-export namespace Mesh {
-
-export type MeshData = {
-
-    bbox: any,
-    vertices: Uint16Array | Float32Array,
-    uvs?: Uint16Array | Float32Array,
-    uvs2?: Uint16Array | Float32Array,
-    indices?: Uint16Array
-    vertexSize?: GLint,
-    uvSize?: GLint,
-    uv2Size?: GLint
-}
-
-} // export namespace Mesh
-
-// local types
-
-type Layout = {
-
-    itemSize: GLint, numItems: GLint
-}
-
-type AttrNames = {
-
-    position: string,
-    uvs?: string,
-    uvs2?: string
-}
-
-enum VertexDataType {
-
-    FLOAT, UNSIGNED_SHORT
-}
-
 // class GpuMesh
 
-class GpuMesh {
+export class GpuMesh {
 
     gpu!: GpuDevice;
     gl!: WebGL2RenderingContext;
@@ -88,7 +52,7 @@ class GpuMesh {
      *      Note that regardless of this parameter, uv coordinates, if uint,
      *      are always normalized before being passed to the shader.
      */
-    constructor(gpu: GpuDevice, meshData: Mesh.MeshData, core: any,
+    constructor(gpu: GpuDevice, meshData: GpuMesh.MeshData, core: any,
                 use16bit: boolean = false,
                 normalize: boolean = true) {
 
@@ -189,12 +153,12 @@ class GpuMesh {
  *
  * @param program the program to use in draw call
  * @param attrNames names of attributes to bind in the program. These are
- *      honored only on the first call fo a given program, changes on subsequent
+ *      honored only on the first call for a given program, changes on subsequent
  *      calls are ignored.
  */
 
 draw2(program: GpuProgram,
-      attrNames: AttrNames = {
+      attrNames: GpuMesh.AttrNames = {
           position: 'aPosition', uvs: 'aTexCoord', uvs2: 'aTexCoord2'}) {
 
     const gl = this.gl;
@@ -223,7 +187,7 @@ draw2(program: GpuProgram,
 }
 
 
-private createVAO(program: GpuProgram, attrNames: AttrNames)
+private createVAO(program: GpuProgram, attrNames: GpuMesh.AttrNames)
     : WebGLVertexArrayObject {
 
     const gl = this.gl;
@@ -408,5 +372,44 @@ kill() {
 
 } // class GpuMesh
 
-export default GpuMesh;
 
+
+// export types
+export namespace GpuMesh {
+
+export type MeshData = {
+
+    bbox: any,
+    vertices: Uint16Array | Float32Array,
+    uvs?: Uint16Array | Float32Array,
+    uvs2?: Uint16Array | Float32Array,
+    indices?: Uint16Array
+    vertexSize?: GLint,
+    uvSize?: GLint,
+    uv2Size?: GLint
+}
+
+export type AttrNames = {
+
+    position: string,
+    uvs?: string,
+    uvs2?: string
+}
+
+} // export namespace GpuMeshTypes
+
+// local types
+
+type Layout = {
+
+    itemSize: GLint, numItems: GLint
+}
+
+
+enum VertexDataType {
+
+    FLOAT, UNSIGNED_SHORT
+}
+
+
+export default GpuMesh;
