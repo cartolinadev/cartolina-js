@@ -25,6 +25,9 @@ in float vAtmDensity;
 // frame ubo
 #include "./includes/frame.inc.glsl";
 
+// layer stack ubo
+#include "./includes/layers.inc.glsl";
+
 // atm functions
 #include "./includes/atmosphere.inc.glsl";
 

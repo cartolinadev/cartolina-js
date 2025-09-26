@@ -202,6 +202,8 @@ export class TileRenderRig {
      */
     draw(program: GpuProgram, cameraPos: math.vec3) {
 
+        let renderer = this.renderer;
+
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
 
@@ -210,10 +212,34 @@ export class TileRenderRig {
 
         program.setFloatArray('uClip', splitMask);
 
+        // let us see this performance killer: bind all textures
+        let unit = 1;
+
+        this.rt.layerStack.forEach((layer) => {
+
+            if (layer.source !== 'texture') return;
+
+            let main = layer.srcTextureTexture.getGpuTexture();
+
+            if (main) {
+                //console.log(`${utils.idToString(this.tile.id)}: binding ${layer.rt.layerId} main.`);
+                renderer.gpu.bindTexture(main, unit++);
+            }
+
+            let mask = layer.srcTextureTexture.getGpuMaskTexture();
+
+            if (mask) {
+                //console.log(`${utils.idToString(this.tile.id)}: binding ${layer.rt.layerId} mask.`);
+                renderer.gpu.bindTexture(mask, unit++);
+            }
+        })
+
+        //console.log(`${utils.idToString(this.tile.id)}: bound ${unit-1} texture units.`);
+
         // temporary stuff for testing
         // material.normalMap
         if (!this.rt.normals) throw Error('no normal map, bud');
-        this.renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
+        renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
         program.setSampler('material.normalMap', 0);
 
         program.setFloat('material.shininess', 1.0);
@@ -367,17 +393,19 @@ export class TileRenderRig {
 
             rt.layerStack.push({
                 target: 'color',
-                source: 'atm-color',
+                source: 'atm-density',
                 necessity: 'optional',
-                srcAtmColorVisibilityToCamDistance: 3.0,
-                operation: 'blend',
-                opBlendMode: 'overlay',
-                opBlendAlpha: { mode: 'atm-density', value: 1.0 }
+                operation: 'atm-color',
             });
         }
 
         // add shadows
-        // TODO
+        rt.layerStack.push({
+            target: 'color',
+            source: 'none',
+            necessity: 'optional',
+            operation: 'shadows',
+        });
 
         // add bump layers
         layerDefs.bumpSequence.forEach((item) => {
@@ -598,7 +626,7 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
                 break;
 
-            case 'atm-color':
+            case 'atm-density':
                 ready_ &&= TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
                         necessity, readiness, priority, options);
@@ -661,8 +689,8 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 type Layer = {
 
     target: 'color' | 'normal',
-    source: 'constant' | 'shade' | 'pop' | 'atm-color' | 'texture' | 'shadows',
-    operation: 'blend'  | 'normal-blend' | 'push',
+    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none',
+    operation: 'blend'  | 'normal-blend' | 'push' | 'atm-color' | 'shadows',
 
     necessity: Necessity;
 
@@ -675,13 +703,12 @@ type Layer = {
     srcTextureUVs?: 'internal' | 'external',
     //srcTextureMask?: MapTexture,
 
-    // to be replaced by runtime expressions
-    srcAtmColorVisibilityToCamDistance?: 3.0,
+    // TODO: srcTextureTransformation
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
 
-    tgtColorWhitewash?: number,
+    tgtColorWhitewash?: number, // TODO: cannot see it
 
 
     rt?: {
