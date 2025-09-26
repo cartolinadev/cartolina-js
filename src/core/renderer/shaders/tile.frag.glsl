@@ -88,7 +88,7 @@ vec3 sampleNormal(sampler2D tex, vec2 uv) {
     // optionally add; manual bilinear fiterling + jitter
     //return decodeOct(rg);
 
-    // TODO: pass texture size via unifom or textureSize once on GLSL ES 3.0
+    // TODO: use textureSize instead of fixed size
     return sampleOctBilinear(tex, uv, vec2(1./256., 1./256.));
 }
 
@@ -100,7 +100,8 @@ void main() {
     // render flags
     int renderFlags = uFrame.renderFlags.x;
     //renderFlags = FlagNone;
-    renderFlags = FlagLighting | FlagNormalMap | FlagAtmosphere | FlagShadows;
+    renderFlags = renderFlags
+        & (FlagLighting | FlagNormalMap | FlagAtmosphere | FlagShadows);
     //renderFlags = FlagLighting | FlagNormalMap ;
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
@@ -165,6 +166,7 @@ void main() {
         diffuseColor = vec3(texture(material.diffuseMap, vTexCoords2));
     } else {
         diffuseColor = vec3(0.9, 0.9, 0.8);
+        //diffuseColor = vec3(0.3, 0.6, 0.4);
         //diffuseColor = vec3(0.85, 0.85, 0.85);
     }
 

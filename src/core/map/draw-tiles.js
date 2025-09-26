@@ -120,8 +120,11 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             //if (tile.tileRenderRig[i])
                             //    console.log('Replacing rig for %s.', [...tile.id, i].join('-'));
 
+                            if (tile.lastRenderRig[i]) tile.lastRenderRig[i].dispose();
+
                             if (tile.tileRenderRig[i])
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
+
 
                             tile.tileRenderRig[i] = new TileRenderRig(
                                 i, submeshSurface, tile, this.renderer, this.config);
