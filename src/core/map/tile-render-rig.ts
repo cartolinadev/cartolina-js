@@ -286,6 +286,21 @@ export class TileRenderRig {
         const rt = this.rt;
         const tile = this.tile;
 
+        // target 'normal' layers need to come first, so that updated normal
+        // is used for target 'color'
+
+        // add bump layers, if any
+        layerDefs.bumpSequence.forEach((item) => {
+
+            let layer: Layer | false = this.layerFromDef(item, 'optional',
+                false, 'normal');
+
+            if (layer) rt.layerStack.push(layer);
+
+        }); // layerDef.bumpSequence.forEach()
+
+        // target 'color'
+
         // push a constant (default) color as background
         rt.layerStack.push({
                 target: 'color',
@@ -407,22 +422,12 @@ export class TileRenderRig {
             operation: 'shadows',
         });
 
-        // add bump layers
-        layerDefs.bumpSequence.forEach((item) => {
-
-            let layer: Layer | false = this.layerFromDef(item, 'optional',
-                false, 'normal');
-
-            if (layer) rt.layerStack.push(layer);
-
-        }); // layerDef.bumpSequence.forEach()
-
         // optimize stack,
         // TODO
 
         // turn off internal/external UVs if no layer needs them?
 
-        // console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -553,6 +558,7 @@ export class TileRenderRig {
 
                 srcTextureTexture: texture,
                 srcTextureUVs: 'external',
+                srcTextureTransform: texture.getTransform(),
 
                 opBlendMode: mode,
                 opBlendAlpha: alpha,
@@ -701,9 +707,8 @@ type Layer = {
 
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
-    //srcTextureMask?: MapTexture,
-
-    // TODO: srcTextureTransformation
+    // look for: uParams[8..11] in old tile shader
+    srcTextureTransform?: [number, number, number, number]
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,

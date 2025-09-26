@@ -25,8 +25,9 @@ const int blendMode_specularMultiply    = 3;
 const int textureUVs_External           = 0;
 const int textureUVs_Internal           = 1;
 
+/* raw layer,  as encoded in ubo */
 
-struct OpRaw {
+struct LayerRaw {
 
     highp ivec4 tag; // x: target
                      // y: source
@@ -43,13 +44,31 @@ struct OpRaw {
     vec4 p3;  // xyz: tgColorWhitewash, w: reserved
 };
 
-/*layout (std140) uniform uboLayers {
+/* the ubo with raw layer array */
 
-    OpRaw ops[32];
-};*/
+layout (std140) uniform uboLayers {
 
+    ivec4 layerCount; // x: layerCount, yzw: reserved
+
+    LayerRaw layers[32];
+};
+
+
+/* sampler array, a referenced in layer */
 
 uniform sampler2D uTexture[64];
 
-//struct Operation {
-//};
+/* the decoded layer for processing */
+
+struct Layer {
+
+    int target;
+    int source;
+    int operation;
+
+    // TODO
+};
+
+/* the decode func, transforming ubo-encoded layer into processing format */
+
+// Layer decodeLayer(int index) {}
