@@ -284,7 +284,7 @@ export class TileRenderRig {
         const bufacc = {
             f32: new Float32Array(buf), // for vec4
             i32: new Int32Array(buf),   // for ivec
-            offset: 0
+            woffset: 0                   // word offset
         }
 
         // samplers array
@@ -298,7 +298,7 @@ export class TileRenderRig {
         // we encode the layers first: due to fallback rendering, we
         // do not know the count until we process all of them
         let numLayers = 0;
-        bufacc.offset = 16;
+        bufacc.woffset = 4;
 
         this.rt.layerStack.forEach((layer) => {
 
@@ -342,79 +342,29 @@ export class TileRenderRig {
 
 
     private encodeLayer(layer: Layer,
-        bufacc: { f32: Float32Array, i32: Int32Array, offset: number },
+        bufacc: { f32: Float32Array, i32: Int32Array, woffset: number },
         samplers: { samplers: Int32Array, nextTextureUnit: number,
                     ub: number }) {
 
         let renderer = this.renderer;
 
-        // struct LayerRaw {
+        const i32 = bufacc.i32, f32 = bufacc.f32;
+        let w = bufacc.woffset;
 
-
-        // ivec4 tag
-        // target
-        let target = -1;
-
-        switch (layer.target) {
-
-            case 'color': target = UboTarget.Color; break;
-            case 'normal': target = UboTarget.Normal; break;
-        }
-
-        bufacc.i32.set([target], bufacc.offset / 4); bufacc.offset += 4;    // tag.x
-
-        // source
-        let source = -1;
-
-        switch (layer.source) {
-
-            case 'constant': source = UboSource.Constant; break;
-            case 'shade': source = UboSource.Shade; break;
-            case 'pop': source = UboSource.Pop; break;
-            case 'atm-density': source = UboSource.AtmDensity; break;
-            case 'texture': source = UboSource.Texture; break;
-            case 'none': source = UboSource.None; break;
-        }
-
-        bufacc.i32.set([source], bufacc.offset / 4); bufacc.offset += 4;    // tag.y
-
-        // operation
-        let operation = -1;
-
-        switch (layer.operation) {
-
-            case 'blend': operation = UboOperation.Blend; break;
-            case 'normal-blend': operation = UboOperation.NormalBlend; break;
-            case 'push': operation = UboOperation.Push; break;
-            case 'atm-color': operation = UboOperation.AtmColor; break;
-            case 'shadows': operation = UboOperation.Shadows; break;
-        }
-
-        bufacc.i32.set([operation], bufacc.offset / 4); bufacc.offset += 4; // tag.z
-        bufacc.offset += 4;                                                 // tag.w
+        // tag.x, tag.y, tag.z, tag.w
+        i32[w++] = TargetMap[layer.target] ?? -1;
+        i32[w++] = SourceMap[layer.source] ?? -1;
+        i32[w++] = OpMap[layer.operation] ?? -1;
+        i32[w++] = 0;
 
         // vec4 p0
         switch (layer.source) {
 
             case 'shade':
 
-                let shadeType = -1; let shadeNormal = -1;
-
-                switch (layer.srcShadeType) {
-
-                    case 'diffuse': shadeType = UboShadeType.Diffuse; break;
-                    case 'specular': shadeType = UboShadeType.Specular; break;
-                }
-
-                switch (layer.srcShadeNormal) {
-
-                    case 'normal-map': shadeNormal = UboShadeNormal.NormalMap; break;
-                    case 'flat': shadeNormal = UboShadeNormal.Flat; break;
-                }
-
-                bufacc.i32.set([shadeType, shadeNormal],
-                               bufacc.offset / 4); bufacc.offset += 8;     // p0.xy
-                bufacc.offset += 4;                                         // p0.z
+                i32[w++] = ShadeTypeMap[layer.srcShadeType] ?? -1;       // p0.x
+                i32[w++] = ShadeNormalMap[layer.srcShadeNormal] ?? -1;   // p0.y
+                i32[w++] = 0;                                            // p0.z
                 break;
 
             case 'texture':
@@ -423,9 +373,12 @@ export class TileRenderRig {
                 let main = layer.srcTextureTexture.getGpuTexture();
                 let mask = layer.srcTextureTexture.getGpuMaskTexture();
 
+                const needUnits = (main ? 1 : 0) + (mask ? 1 : 0);
+                if (samplers.nextTextureUnit + needUnits > samplers.ub)
+                    throw Error('no more available texture units.');
+
+
                 if (main) {
-                    if (samplers.nextTextureUnit >= samplers.ub)
-                        throw Error('no more available texture units.');
 
                     mainUnit = samplers.nextTextureUnit++;
 
@@ -434,8 +387,6 @@ export class TileRenderRig {
                 }
 
                 if (mask) {
-                    if (samplers.nextTextureUnit >= samplers.ub)
-                        throw Error('no more available texture units.');
 
                     maskUnit = samplers.nextTextureUnit++;
 
@@ -443,99 +394,76 @@ export class TileRenderRig {
                     renderer.gpu.bindTexture(mask, maskUnit);
                 }
 
-                let textureUvs = -1;
-
-                switch (layer.srcTextureUVs) {
-
-                    case 'internal': textureUvs = UboTextureUVs.Internal; break;
-                    case 'external': textureUvs = UboTextureUVs.External; break;
-                }
-
-                bufacc.i32.set([mainUnit, maskUnit, textureUvs],
-                               bufacc.offset / 4); bufacc.offset += 12;     // p0.xyz
-
+                i32[w++] = mainUnit;                                     // p0.x
+                i32[w++] = maskUnit;                                     // p0.y
+                i32[w++] = TexUVsMap[layer.srcTextureUVs] ?? -1;         // p0.z
                 break;
 
 
             default:
-                bufacc.offset += 12;                                       // p0.xyz
+                w += 3;                                                 // p0.xyz
         }
 
 
         switch (layer.operation) {
             case 'blend':
 
-                let blendMode = -1;
-
-                switch (layer.opBlendMode) {
-
-                    case 'overlay':
-                        blendMode = UboBlendMode.Overlay; break;
-                    case 'add':
-                        blendMode = UboBlendMode.Add; break;
-                    case 'multiply':
-                        blendMode = UboBlendMode.Multiply; break;
-                    case 'specular-multiply':
-                        blendMode = UboBlendMode.SpecularMultiply; break;
-                }
-
-                bufacc.i32.set([blendMode],
-                               bufacc.offset / 4); bufacc.offset += 4;       // p0.w
-
+                i32[w++] = BlendModeMap[layer.opBlendMode] ?? -1;       // p0.w
                 break;
 
 
             default:
-                bufacc.offset += 4;                                         // p0.w
+                w++;                                                     // p0.w
         }
 
         // vec4 p1
         switch (layer.source) {
 
             case 'constant':
-
-                bufacc.f32.set(layer.srcConstant,
-                               bufacc.offset / 4); bufacc.offset += 12;      // p1.xyz
-                bufacc.offset += 4;                                          // p1.w
+                const c = layer.srcConstant;
+                f32[w++] = c[0]; f32[w++] = c[1]; f32[w++] = c[2];        // p1.xyz
+                w++;                                                      // p1.w
                 break;
 
             case 'texture':
 
-                bufacc.f32.set(layer.srcTextureTransform,
-                               bufacc.offset / 4); bufacc.offset += 16;      // p1.xyzw
+                const t = layer.srcTextureTransform;
+                f32[w++] = t[0]; f32[w++] = t[1];                          // p1.xy
+                f32[w++] = t[2]; f32[w++] = t[3];                          // p1.zw
                 break;
 
             default:
-                bufacc.offset += 16;                                        // p1.xyzw
+                w += 4;                                                   // p1.xyzw
         }
 
         // vec4 p2
         switch (layer.operation) {
 
             case 'blend':
-                bufacc.f32.set([layer.rt.alpha],
-                               bufacc.offset / 4); bufacc.offset +=4;        // p2.x
+
+                f32[w++] = layer.rt.alpha;                                 // p2.x
                 break;
 
             default:
-                bufacc.offset += 4;                                         // p2.x
+                w++;                                                        // p2.x
         }
 
         switch (layer.target) {
 
             case 'color':
-                bufacc.f32.set([layer.tgtColorWhitewash],
-                               bufacc.offset / 4); bufacc.offset += 4;      // p2.y
+                f32[w++] = layer.tgtColorWhitewash;                         // p2.y
                 break;
 
             default:
-                bufacc.offset += 4;                                         // p2.y
+                w++;                                                     // p2.y
         }
 
-        bufacc.offset += 8;                                                 // p2.zw
+        w += 2;                                                 // p2.zw
 
         // done
-        //__DEV__ && console.log(`${this.logSign()}: uboLayers offset: ${bufacc.offset}`);
+        bufacc.woffset = w;
+
+        //__DEV__ && console.log(`${this.logSign()}: uboLayers offset: ${bufacc.woffset * 4}`);
     }
 
     /*
@@ -1120,6 +1048,31 @@ enum UboTextureUVs {
     Internal           = 1
 }
 
+
+// encoding helper maps
+const TargetMap = { color: UboTarget.Color, normal: UboTarget.Normal } as const;
+
+const SourceMap = { constant: UboSource.Constant, shade: UboSource.Shade,
+    pop: UboSource.Pop, 'atm-density': UboSource.AtmDensity,
+    texture: UboSource.Texture, none: UboSource.None } as const;
+
+const OpMap = { blend: UboOperation.Blend,
+    'normal-blend': UboOperation.NormalBlend, push: UboOperation.Push,
+    'atm-color': UboOperation.AtmColor,
+    shadows: UboOperation.Shadows } as const;
+
+const ShadeTypeMap = { diffuse: UboShadeType.Diffuse,
+    specular: UboShadeType.Specular } as const;
+
+const ShadeNormalMap = { 'normal-map': UboShadeNormal.NormalMap,
+    flat: UboShadeNormal.Flat } as const;
+
+const TexUVsMap = { internal: UboTextureUVs.Internal,
+    external: UboTextureUVs.External } as const;
+
+const BlendModeMap = { overlay: UboBlendMode.Overlay, add: UboBlendMode.Add,
+    multiply: UboBlendMode.Multiply,
+    'specular-multiply': UboBlendMode.SpecularMultiply } as const;
 
 // export types
 export namespace TileRenderRig {
