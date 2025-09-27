@@ -28,6 +28,9 @@ in float vAtmDensity;
 // layer stack ubo
 #include "./includes/layers.inc.glsl";
 
+// stack helper
+#include "./includes/stack.inc.glsl";
+
 // atm functions
 #include "./includes/atmosphere.inc.glsl";
 
@@ -139,16 +142,56 @@ void main() {
     Light light = frameLight();
     Eye eye = frameEye();
 
+
+    // initialize the two stacks
+    Stack normal; initStack(normal);
+    Stack color; initStack(color);
+
     // normal
-    vec3 normal;
+    vec3 normal_;
 
     if (useNormalMap) {
 
-        normal = sampleNormal(material.normalMap, vTexCoords2);
-        //normal = normalize(texture(material.normalMap,
-        //    vTexCoords).rgb * 2.0 - 1.0);
+        normal_ = sampleNormal(material.normalMap, vTexCoords2);
+
+    } else {
+
+        normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
     }
 
+    push(normal, normal_);
+
+    vec4 color_ = vec4(vec3(0.0), 1.0);
+
+    // decode and execute layers
+    for (int i = 0; i < layerCount(); i++ ) {
+
+        Layer l = decodeLayer(i);
+
+        // TODO: execute
+        vec3 operand;
+
+        if (l.source == source_Constant) {
+
+            operand = l.srcConstant;
+            color_ = errColor;
+            //color_ = vec4(vec3(operand), 1.0);
+        }
+
+        if (l.operation == operation_Push) {
+
+            color_ = vec4(vec3(operand), 1.0);
+            if (l.target == target_Color) push(color, operand);
+            if (l.target == target_Normal) push(normal, operand);
+        }
+    }
+
+
+    // done
+    //fragColor = color_;
+    fragColor = vec4(top(color), 1.0);
+
+/*
     // TODO: tangent, bitangent
     if (useBumpMap) {
         vec3 bump = normalize(
@@ -193,7 +236,7 @@ void main() {
 
 
         vec3 specular = vec3(0.0);
-
+*/
         /*
         // specular (blinn-phong)
         vec3 viewDir = vFragPos - virtualEyePos;
@@ -202,7 +245,7 @@ void main() {
             normalize(viewDir) + normalize(light.direction));
         vec3 specular = light.specular * specularColor
             * pow(max(dot(normal, halfway), 0.0), material.shininess);*/
-
+/*
         // output
         color = vec4(ambient + diffuse + specular, 1.0);
 
@@ -247,5 +290,5 @@ void main() {
     }
 
     // result
-    fragColor = color;
+    fragColor = color;  */
 }
