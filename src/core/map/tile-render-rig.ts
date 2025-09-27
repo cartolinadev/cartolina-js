@@ -281,16 +281,7 @@ export class TileRenderRig {
             offset: 0
         }
 
-        let numLayers = this.rt.layerStack.length;
-
-        if (numLayers > MaxLayers) {
-            throw Error('maximum rendering layers exhausted, aborting.');
-        }
-
-
-        // struct (std140) uniform uboLayers {
-        bufacc.i32.set([numLayers], bufacc.offset / 4); bufacc.offset += 16;   // ivec4 layerCount
-
+        // samplers array
         let samplers = {
 
             samplers: new Int32Array(MaxTextures),
@@ -298,13 +289,36 @@ export class TileRenderRig {
             ub: FirstLayerTextureUnit + MaxTextures
         }
 
+        // we encode the layers first: due to fallback rendering, we
+        // do not know the count until we process all of them
+        let numLayers = 0;
+        bufacc.offset = 16;
+
         this.rt.layerStack.forEach((layer) => {
+
+            // sanity
+            if (numLayers >= MaxLayers)
+                throw Error('maximum rendering layers exhausted, aborting.');
+
+            // a zero-trigger readiness check
+            let ready = this.isLayerReady(layer,
+                { minimum: 'full', desired: 'full' },
+                TileRenderRig.DefaultPriority,
+                { doNotLoad: true, doNotCheckGpu: true });
+
+            if (!ready) return;
 
             // LayerRaw layers[16];
             this.encodeLayer(layer, bufacc, samplers)
+            numLayers++;
         })
 
-        // } // struct (std140) uniform uboLayers
+        // set the layer count last
+        bufacc.i32.set([numLayers], 0);            // ivec4 layerCount
+
+        if (numLayers < this.rt.layerStack.length)
+            __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers}
+                / ${this.rt.layerStack.length} layers.`);
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
@@ -330,6 +344,8 @@ export class TileRenderRig {
 
         // struct LayerRaw {
 
+
+        // ivec4 tag
         // target
         let target = -1;
 
@@ -339,7 +355,7 @@ export class TileRenderRig {
             case 'normal': target = UboTarget.Normal; break;
         }
 
-        bufacc.f32.set([target], bufacc.offset / 4); bufacc.offset += 4;      // ivec4 tag.x
+        bufacc.i32.set([target], bufacc.offset / 4); bufacc.offset += 4;    // tag.x
 
         // source
         let source = -1;
@@ -354,12 +370,26 @@ export class TileRenderRig {
             case 'none': source = UboSource.None; break;
         }
 
-        bufacc.f32.set([source], bufacc.offset / 4); bufacc.offset += 4;      // ivec4 tag.y
+        bufacc.i32.set([source], bufacc.offset / 4); bufacc.offset += 4;    // tag.y
 
         // operation
+        let operation = -1;
 
+        switch (layer.operation) {
 
+            case 'blend': operation = UboOperation.Blend; break;
+            case 'normal-blend': operation = UboOperation.NormalBlend; break;
+            case 'push': operation = UboOperation.Push; break;
+            case 'atm-color': operation = UboOperation.AtmColor; break;
+            case 'shadows': operation = UboOperation.Shadows; break;
+        }
 
+        bufacc.i32.set([operation], bufacc.offset / 4); bufacc.offset += 4; // tag.z
+        bufacc.offset += 4;                                                 // tag.w
+
+        // vec4 p0
+        // vec4 p1
+        // vec4 p2
 
         // TODO
 
@@ -919,7 +949,7 @@ enum UboSource {
 }
 
 
-enum uboOperation {
+enum UboOperation {
 
     Blend           = 0,
     Push            = 1,
