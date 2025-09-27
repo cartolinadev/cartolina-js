@@ -285,6 +285,7 @@ export class TileRenderRig {
         let samplers = {
 
             samplers: new Int32Array(MaxTextures),
+            nextIdx: 0,
             nextTextureUnit: FirstLayerTextureUnit,
             ub: FirstLayerTextureUnit + MaxTextures
         }
@@ -336,8 +337,8 @@ export class TileRenderRig {
 
     private encodeLayer(layer: Layer,
         bufacc: { f32: Float32Array, i32: Int32Array, woffset: number },
-        samplers: { samplers: Int32Array, nextTextureUnit: number,
-                    ub: number }) {
+        samplers: { samplers: Int32Array, nextIdx: number,
+                    nextTextureUnit: number, ub: number }) {
 
         let renderer = this.renderer;
 
@@ -361,7 +362,7 @@ export class TileRenderRig {
                 break;
 
             case 'texture':
-                let mainUnit = -1, maskUnit = -1;
+                let mainIdx = -1, maskIdx = -1;
 
                 let main = layer.srcTextureTexture.getGpuTexture();
                 let mask = layer.srcTextureTexture.getGpuMaskTexture();
@@ -373,7 +374,10 @@ export class TileRenderRig {
 
                 if (main) {
 
-                    mainUnit = samplers.nextTextureUnit++;
+                    let mainUnit = samplers.nextTextureUnit++;
+
+                    mainIdx = samplers.nextIdx++;
+                    samplers.samplers[mainIdx] = mainUnit;
 
                     //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
                     renderer.gpu.bindTexture(main, mainUnit);
@@ -381,14 +385,17 @@ export class TileRenderRig {
 
                 if (mask) {
 
-                    maskUnit = samplers.nextTextureUnit++;
+                    let maskUnit = samplers.nextTextureUnit++;
+
+                    maskIdx = samplers.nextIdx++;
+                    samplers.samplers[maskIdx] = maskUnit;
 
                     //console.log(`${this.logSign()}: binding ${layer.rt.layerId} mask.`);
                     renderer.gpu.bindTexture(mask, maskUnit);
                 }
 
-                i32[w++] = mainUnit;                                     // p0.x
-                i32[w++] = maskUnit;                                     // p0.y
+                i32[w++] = mainIdx;                                     // p0.x
+                i32[w++] = maskIdx;                                     // p0.y
                 i32[w++] = TexUVsMap[layer.srcTextureUVs] ?? -1;         // p0.z
                 break;
 
@@ -597,18 +604,12 @@ export class TileRenderRig {
                 necessity: 'essential',
                 srcTextureTexture: internalTexture,
                 srcTextureUVs: 'internal',
+                srcTextureTransform: [1,1,0,0],
                 opBlendMode: 'overlay',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
                 rt: {}
             });
 
-        }
-
-        // add diffuse bound layers
-        let clampToLodRange = (tile: SurfaceTile, lodRange: number[]) => {
-
-            while(tile && tile.id[0] > lodRange[1]) { tile = tile.parent; }
-            return tile;
         }
 
         layerDefs.diffuseSequence.forEach((item) => {
