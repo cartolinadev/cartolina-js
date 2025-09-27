@@ -261,7 +261,6 @@ export class TileRenderRig {
      */
     private updateBuffer(program: GpuProgram) {
 
-        let renderer = this.renderer;
         let gl = this.renderer.gpu.gl;
 
         // bind buffer base
@@ -271,6 +270,13 @@ export class TileRenderRig {
 
         // update dynamic (vd) alpha values
         // TODO
+        // temporary stuff: we just set hot alphas to the constant alpha
+        // values, so viwedep alphas won't work
+        this.rt.layerStack.forEach((layer) => {
+            if (layer.operation === 'blend') {
+                layer.rt.alpha = layer.opBlendAlpha.value;
+            }
+        });
 
         // now the buffer - one backing buffer, two typed views
         const buf = new ArrayBuffer(UboLayersSize);
@@ -316,9 +322,9 @@ export class TileRenderRig {
         // set the layer count last
         bufacc.i32.set([numLayers], 0);            // ivec4 layerCount
 
-        if (numLayers < this.rt.layerStack.length)
-            __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers} `
-                + `/ ${this.rt.layerStack.length} layers.`);
+        //if (numLayers < this.rt.layerStack.length)
+        //    __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers} `
+        //        + `/ ${this.rt.layerStack.length} layers.`);
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
@@ -484,9 +490,52 @@ export class TileRenderRig {
         }
 
         // vec4 p1
-        // vec4 p2
+        switch (layer.source) {
 
-        // TODO
+            case 'constant':
+
+                bufacc.f32.set(layer.srcConstant,
+                               bufacc.offset / 4); bufacc.offset += 12;      // p1.xyz
+                bufacc.offset += 4;                                          // p1.w
+                break;
+
+            case 'texture':
+
+                bufacc.f32.set(layer.srcTextureTransform,
+                               bufacc.offset / 4); bufacc.offset += 16;      // p1.xyzw
+                break;
+
+            default:
+                bufacc.offset += 16;                                        // p1.xyzw
+        }
+
+        // vec4 p2
+        switch (layer.operation) {
+
+            case 'blend':
+                bufacc.f32.set([layer.rt.alpha],
+                               bufacc.offset / 4); bufacc.offset +=4;        // p2.x
+                break;
+
+            default:
+                bufacc.offset += 4;                                         // p2.x
+        }
+
+        switch (layer.target) {
+
+            case 'color':
+                bufacc.f32.set([layer.tgtColorWhitewash],
+                               bufacc.offset / 4); bufacc.offset += 4;      // p2.y
+                break;
+
+            default:
+                bufacc.offset += 4;                                         // p2.y
+        }
+
+        bufacc.offset += 8;                                                 // p2.zw
+
+        // done
+        //__DEV__ && console.log(`${this.logSign()}: uboLayers offset: ${bufacc.offset}`);
     }
 
     /*
@@ -494,8 +543,8 @@ export class TileRenderRig {
      */
     dispose() {
 
-        __DEV__ && console.log(
-            `${this.logSign()}: disposing of UBO.`);
+        //__DEV__ && console.log(
+        //    `${this.logSign()}: disposing of UBO.`);
 
         let gl = this.renderer.gpu.gl;
 
@@ -554,11 +603,12 @@ export class TileRenderRig {
 
         // push a constant (default) color as background
         rt.layerStack.push({
-                target: 'color',
-                source: 'constant',
-                operation: 'push',
-                necessity: 'essential',
-                srcConstant: [0.9, 0.9, 0.8] // this could be configurable
+            target: 'color',
+            source: 'constant',
+            operation: 'push',
+            necessity: 'essential',
+            srcConstant: [0.9, 0.9, 0.8], // this could be configurable
+            rt: {},
         });
 
         // if internal textures exist, overlay an internal texture
@@ -577,6 +627,7 @@ export class TileRenderRig {
                 srcTextureUVs: 'internal',
                 opBlendMode: 'overlay',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                rt: {}
             });
 
         }
@@ -606,6 +657,7 @@ export class TileRenderRig {
                 srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                rt: {}
             });
         }
 
@@ -618,7 +670,8 @@ export class TileRenderRig {
                 source: 'constant',
                 operation: 'push',
                 necessity: 'essential',  // sanity
-                srcConstant: [0, 0, 0]
+                srcConstant: [0, 0, 0],
+                rt: {}
             });
 
 
@@ -639,7 +692,8 @@ export class TileRenderRig {
                 srcShadeType: 'specular',
                 srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'specular-multiply',
-                opBlendAlpha: { mode: 'constant', value: 1.0 }
+                opBlendAlpha: { mode: 'constant', value: 1.0 },
+                rt: {}
             });
 
             // pop-add, to add to the underlying color
@@ -649,7 +703,8 @@ export class TileRenderRig {
                 operation: 'blend',
                 necessity: 'essential', // sanity
                 opBlendMode: 'add',
-                opBlendAlpha: { mode: 'constant', value: 1.0 }
+                opBlendAlpha: { mode: 'constant', value: 1.0 },
+                rt: {}
             });
 
         } // if (rt.illumination && layerDef.specularSequence.length > 0)
@@ -662,6 +717,7 @@ export class TileRenderRig {
                 source: 'atm-density',
                 necessity: 'optional',
                 operation: 'atm-color',
+                rt: {}
             });
         }
 
@@ -671,6 +727,7 @@ export class TileRenderRig {
             source: 'none',
             necessity: 'optional',
             operation: 'shadows',
+            rt: {}
         });
 
         // optimize stack,
@@ -948,7 +1005,7 @@ type SurfaceTile = {
 
 type Necessity = 'essential' | 'optional';
 
-type AlphaMode = 'constant' | 'viewdep' | 'atm-density';
+type AlphaMode = 'constant' | 'viewdep';
 
 type Alpha = {
     mode: AlphaMode,
@@ -987,13 +1044,13 @@ type Layer = {
 
     tgtColorWhitewash?: number,
 
-    rt?: {
+    rt: {
 
-        layerId: string,
-        hasMask: MaskStatus,
-        isTransparent: boolean,
-        isWatertight: boolean,
-        vdalpha?: number,
+        layerId?: string,
+        hasMask?: MaskStatus,
+        isTransparent?: boolean,
+        isWatertight?: boolean,
+        alpha?: number,
     }
 }
 
