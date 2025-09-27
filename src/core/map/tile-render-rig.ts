@@ -706,8 +706,10 @@ export class TileRenderRig {
         // optimize stack,
         // TODO
 
-        // turn off internal/external UVs if no layer needs them?
-        // console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        // also, turn off internal/external UVs if no layer needs them?
+
+        // done
+        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -1047,8 +1049,8 @@ enum UboTarget {
 
 enum UboSource {
 
-    Constant           = 0,
-    Texture            = 1,
+    Constant           = 1,
+    Texture            = 0,
     Pop                = 2,
     Shade              = 3,
     AtmDensity         = 4,

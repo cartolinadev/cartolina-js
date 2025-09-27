@@ -3,8 +3,8 @@
 const int target_Color              = 0;
 const int target_Normal             = 1;
 
-const int source_Constant           = 0;
-const int source_Texture            = 1;
+const int source_Constant           = 1;
+const int source_Texture            = 0;
 const int source_Pop                = 2;
 const int source_Shade              = 3;
 const int source_AtmDensity         = 4;
@@ -94,6 +94,9 @@ struct Layer {
     float targetColorWhitewash;
 };
 
+
+int layerCount() { return uLayers.layerCount.x; }
+
 /* the decode func, transforming ubo-encoded layer into processing format */
 
 Layer decodeLayer(int index) {
@@ -148,7 +151,7 @@ Layer decodeLayer(int index) {
 
 
 /* a cyan error pixel for diagnostics */
-const vec4 errPixel = vec4(0.0, 1.0, 1.0, 1.0);
+const vec4 errColor = vec4(0.0, 1.0, 1.0, 1.0);
 
 
 /** the switch ladder needs to be defined to overcome limitation in ESSL which
@@ -173,6 +176,6 @@ vec4 sample2D(int idx, vec2 uv) {
     case 11: return texture(uTexture[11], uv);
     case 12: return texture(uTexture[12], uv);
     case 13: return texture(uTexture[13], uv);
-    default: return errPixel;
+    default: return errColor;
   }
 }
