@@ -161,8 +161,6 @@ void main() {
 
     push(normal, normal_);
 
-    vec4 color_ = vec4(vec3(0.0), 1.0);
-
     // decode and execute layers
     for (int i = 0; i < layerCount(); i++ ) {
 
@@ -174,13 +172,10 @@ void main() {
         if (l.source == source_Constant) {
 
             operand = l.srcConstant;
-            color_ = errColor;
-            //color_ = vec4(vec3(operand), 1.0);
         }
 
         if (l.operation == operation_Push) {
 
-            color_ = vec4(vec3(operand), 1.0);
             if (l.target == target_Color) push(color, operand);
             if (l.target == target_Normal) push(normal, operand);
         }
