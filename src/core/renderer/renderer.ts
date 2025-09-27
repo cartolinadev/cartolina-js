@@ -640,7 +640,7 @@ initProceduralShaders() {
 
 updateIllumination(position: MapPosition) {
 
-    if (!this.getIlluminationState()) return;
+    if (!this.illumination) return;
 
     this.illumination.vectorNED =
         Illumination.lned2ned(this.illumination.vectorLNED, position);
@@ -730,6 +730,9 @@ setIllumination(definition: Renderer.IlluminationDef) {
     let azimuth = utils.validateNumber(light[1], 0, 360, 315);
     let elevation = utils.validateNumber(light[2], 0, 90, 45);
 
+    // if the illumination object exists, we presume that lighting is on
+    let useLighting = definition.useLighting ?? true;
+
     this.illumination = {
         ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
         trackingLight : {
@@ -741,7 +744,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
         vectorLNED : Illumination.illuminationVector(
                         azimuth, elevation, Illumination.CoordSystem.LNED),
 
-        useLighting: true
+        useLighting: !! useLighting
     }
 
     //console.log("Illumination: ", this.illumination);
@@ -749,7 +752,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
 getIlluminationVectorVC() {
 
-    if (!this.getIlluminationState())
+    if (!this.illumination)
         throw Error('illumination vector requested, but no illumination defined.');
 
     //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
@@ -758,10 +761,10 @@ getIlluminationVectorVC() {
 
 getIlluminationVectorNED() {
 
-    if (!this.getIlluminationState())
+    if (!this.illumination)
         throw Error('illumination vector requested, but no illumination defined.');
 
-    //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
+    //console.log("Illumination: vector", this.illumination.vectorNED);
     return this.illumination.vectorNED;
 };
 
@@ -1683,6 +1686,8 @@ export type IlluminationDef = {
 
     // azimuth and elevation in VC
     light: ["tracking", number, number];
+
+    useLighting: boolean;
 
     ambientCoef?: number;
 }

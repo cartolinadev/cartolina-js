@@ -494,6 +494,8 @@ export class TileRenderRig {
             vdalphaSum += layer.rt.alpha;
         });
 
+        //console.log(vdalphaSum);
+
         if ( vdalphaSum === 0) return;
         const factor = 1.0 / vdalphaSum;
 
