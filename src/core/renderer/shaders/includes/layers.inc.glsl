@@ -45,7 +45,7 @@ struct LayerRaw {
               // z: srcTextureUVs
               // w: opBlendMode
 
-    highp vec4 p1;  // xyz: srcConstant / xyzw: srcTextureTransformation
+    highp vec4 p1;  // xyz: srcConstant / xyzw: srcTextureTransform
     highp vec4 p2;  // x: opBlendAlpha, y: tgtColorWhitewash, zw: reserved
 };
 
