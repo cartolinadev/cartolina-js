@@ -159,7 +159,6 @@ export class Renderer {
     earthERatio: Optional<number> = null;
 
     // illumination
-    useIllumination = false;
     illumination:  Optional<Renderer.Illumination> = null;
 
     // textures
@@ -475,7 +474,7 @@ updateBuffers() {
 
     // obtain the data: illumination
 
-    if (!this.useIllumination) {
+    if (!this.getIlluminationState()) {
 
         data.lightDirection = [0, 0, 0];
         data.lightAmbient = [0, 0, 0]
@@ -485,7 +484,7 @@ updateBuffers() {
         renderFlags &= ~Renderer.RenderFlags.FlagLighting;
     }
 
-    if (this.useIllumination) {
+    if (this.getIlluminationState()) {
 
         let illumvecVC: math.vec3, illumvec: math.vec3, lightDir: math.vec3;
 
@@ -639,6 +638,13 @@ initProceduralShaders() {
     this.init.initProceduralShaders();
 };
 
+updateIllumination(position: MapPosition) {
+
+    if (!this.getIlluminationState()) return;
+
+    this.illumination.vectorNED =
+        Illumination.lned2ned(this.illumination.vectorLNED, position);
+}
 
 onResize() {
     if (this.killed){
@@ -703,17 +709,16 @@ project2(point, mvp, cameraPos, includeDistance: boolean = false) {
 };
 
 setIlluminationState(state: boolean) {
-    this.useIllumination = state;
+
+    if (this.illumination) this.illumination.useLighting = state;
 };
 
 
 getIlluminationState(): boolean {
-    return this.useIllumination;
+    return this.illumination && this.illumination.useLighting;
 };
 
 setIllumination(definition: Renderer.IlluminationDef) {
-
-    this.useIllumination = true;
 
     if (!definition.hasOwnProperty('light') || !Array.isArray(definition.light))
         throw new Error("Light missing, or no an array.");
@@ -731,8 +736,12 @@ setIllumination(definition: Renderer.IlluminationDef) {
             azimuth : azimuth,
             elevation: elevation
         },
-        illuminationVectorVC : Illumination.illuminationVector(
-                        azimuth, elevation, Illumination.CoordSystem.VC)
+        vectorVC : Illumination.illuminationVector(
+                        azimuth, elevation, Illumination.CoordSystem.VC),
+        vectorLNED : Illumination.illuminationVector(
+                        azimuth, elevation, Illumination.CoordSystem.LNED),
+
+        useLighting: true
     }
 
     //console.log("Illumination: ", this.illumination);
@@ -740,9 +749,22 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
 getIlluminationVectorVC() {
 
+    if (!this.getIlluminationState())
+        throw Error('illumination vector requested, but no illumination defined.');
+
     //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
-    return this.illumination.illuminationVectorVC;
+    return this.illumination.vectorVC;
 };
+
+getIlluminationVectorNED() {
+
+    if (!this.getIlluminationState())
+        throw Error('illumination vector requested, but no illumination defined.');
+
+    //console.log("Illumination: vector", this.illumination.illuminationVectorVC);
+    return this.illumination.vectorNED;
+};
+
 
 getIlluminationAmbientCoef() {
 
@@ -1667,9 +1689,19 @@ export type IlluminationDef = {
 
 export type Illumination = {
 
+    // the definition (relative to the position of the viewer)
     trackingLight: { azimuth: number, elevation: number };
-    illuminationVectorVC: math.vec3;
+
+    // the local representation
+    vectorVC: math.vec3;
+    vectorLNED: math.vec3;
+
+    // runtime value, dependent on map position and calculated on update
+    vectorNED?: math.vec3;
+
     ambientCoef: number;
+
+    useLighting: boolean;
 }
 
 

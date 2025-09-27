@@ -15,7 +15,7 @@ import Atmosphere from './atmosphere';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
-import * as matrix from '../utils/matrix';
+import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
 import * as vts from '../constants';
 
@@ -268,15 +268,9 @@ export class TileRenderRig {
             Renderer.UniformBlockName.Layers, this.uboLayers);
 
 
-        // update dynamic (vd) alpha values
-        // TODO
-        // temporary stuff: we just set hot alphas to the constant alpha
-        // values, so viwedep alphas won't work
-        this.rt.layerStack.forEach((layer) => {
-            if (layer.operation === 'blend') {
-                layer.rt.alpha = layer.opBlendAlpha.value;
-            }
-        });
+        // update hot alpha blending values, both static and dynamic
+        this.updateAlphas();
+
 
         // now the buffer - one backing buffer, two typed views
         const buf = new ArrayBuffer(UboLayersSize);
@@ -339,7 +333,6 @@ export class TileRenderRig {
         //console.log(`${this.logSign()}: bound `
         //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
     }
-
 
     private encodeLayer(layer: Layer,
         bufacc: { f32: Float32Array, i32: Int32Array, woffset: number },
@@ -464,6 +457,55 @@ export class TileRenderRig {
         bufacc.woffset = w;
 
         //__DEV__ && console.log(`${this.logSign()}: uboLayers offset: ${bufacc.woffset * 4}`);
+    }
+
+    /**
+     *  Update the alpha values for rendering - a suboptimial implementation
+     */
+    updateAlphas() {
+
+        let renderer = this.renderer;
+
+        // normalize viewdep alphas for bound layers
+        let vdalphaSum = 0;
+        const epsilon = 1E-3;
+
+        // pass 1
+        this.rt.layerStack.forEach((layer) => {
+
+            if (layer.operation !== 'blend') return;
+
+            if (layer.opBlendAlpha.mode === 'constant') {
+                layer.rt.alpha = layer.opBlendAlpha.value;
+                return;
+            }
+
+            if (layer.opBlendAlpha.mode !== 'viewdep') return;
+
+            // FIXME doing this for every frame mad everu tile is suboptimal,
+            // the alphas may be stored in renderer object and not updated
+            // until the the map updates
+            layer.rt.alpha = math.clamp(
+                    Math.pow(vec3.dot(
+                        layer.opBlendAlpha.illuminationNED,
+                        renderer.getIlluminationVectorNED()), 5),
+                    0.0, 1.0) + epsilon;
+
+            vdalphaSum += layer.rt.alpha;
+        });
+
+        if ( vdalphaSum === 0) return;
+        const factor = 1.0 / vdalphaSum;
+
+        // pass 2: normalization
+        this.rt.layerStack.forEach((layer) => {
+
+            if (layer.operation !== 'blend'
+                || layer.opBlendAlpha.mode !== 'viewdep') return;
+
+            layer.rt.alpha /= vdalphaSum;
+        });
+
     }
 
     /*
