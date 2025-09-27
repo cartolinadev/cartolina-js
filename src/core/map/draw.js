@@ -239,6 +239,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.tiltFactor = (Math.abs(renderer.cameraOrientation[1]/-90));
     renderer.localViewExtentFactor = 2 * Math.tan(math.radians(map.position.getFov()*0.5));
 
+    // update renderer illumination information
+    renderer.updateIllumination(map.position);
+
     // update per frame UBOs
     renderer.updateBuffers();
 

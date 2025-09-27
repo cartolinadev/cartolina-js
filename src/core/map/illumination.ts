@@ -70,7 +70,7 @@ export function illuminationVector(azimuth: number = 315,
         return [-sin(el), sin(az) * cos(el), - cos(az) * cos(el)];
     }
 
-    if (cs == CoordSystem.VC) {
+    if (cs === CoordSystem.VC) {
 
         // (X,Y,Z) = (lE, -lD, -lN)
         // should be shorthand for Rx(e) * Rz(-a) * [0, 1, 0]
