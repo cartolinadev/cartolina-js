@@ -317,8 +317,8 @@ export class TileRenderRig {
         bufacc.i32.set([numLayers], 0);            // ivec4 layerCount
 
         if (numLayers < this.rt.layerStack.length)
-            __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers}
-                / ${this.rt.layerStack.length} layers.`);
+            __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers} `
+                + `/ ${this.rt.layerStack.length} layers.`);
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
@@ -388,27 +388,105 @@ export class TileRenderRig {
         bufacc.offset += 4;                                                 // tag.w
 
         // vec4 p0
+        switch (layer.source) {
+
+            case 'shade':
+
+                let shadeType = -1; let shadeNormal = -1;
+
+                switch (layer.srcShadeType) {
+
+                    case 'diffuse': shadeType = UboShadeType.Diffuse; break;
+                    case 'specular': shadeType = UboShadeType.Specular; break;
+                }
+
+                switch (layer.srcShadeNormal) {
+
+                    case 'normal-map': shadeNormal = UboShadeNormal.NormalMap; break;
+                    case 'flat': shadeNormal = UboShadeNormal.Flat; break;
+                }
+
+                bufacc.i32.set([shadeType, shadeNormal],
+                               bufacc.offset / 4); bufacc.offset += 8;     // p0.xy
+                bufacc.offset += 4;                                         // p0.z
+                break;
+
+            case 'texture':
+                let mainUnit = -1, maskUnit = -1;
+
+                let main = layer.srcTextureTexture.getGpuTexture();
+                let mask = layer.srcTextureTexture.getGpuMaskTexture();
+
+                if (main) {
+                    if (samplers.nextTextureUnit >= samplers.ub)
+                        throw Error('no more available texture units.');
+
+                    mainUnit = samplers.nextTextureUnit++;
+
+                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
+                    renderer.gpu.bindTexture(main, mainUnit);
+                }
+
+                if (mask) {
+                    if (samplers.nextTextureUnit >= samplers.ub)
+                        throw Error('no more available texture units.');
+
+                    maskUnit = samplers.nextTextureUnit++;
+
+                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} mask.`);
+                    renderer.gpu.bindTexture(mask, maskUnit);
+                }
+
+                let textureUvs = -1;
+
+                switch (layer.srcTextureUVs) {
+
+                    case 'internal': textureUvs = UboTextureUVs.Internal; break;
+                    case 'external': textureUvs = UboTextureUVs.External; break;
+                }
+
+                bufacc.i32.set([mainUnit, maskUnit, textureUvs],
+                               bufacc.offset / 4); bufacc.offset += 12;     // p0.xyz
+
+                break;
+
+
+            default:
+                bufacc.offset += 12;                                       // p0.xyz
+        }
+
+
+        switch (layer.operation) {
+            case 'blend':
+
+                let blendMode = -1;
+
+                switch (layer.opBlendMode) {
+
+                    case 'overlay':
+                        blendMode = UboBlendMode.Overlay; break;
+                    case 'add':
+                        blendMode = UboBlendMode.Add; break;
+                    case 'multiply':
+                        blendMode = UboBlendMode.Multiply; break;
+                    case 'specular-multiply':
+                        blendMode = UboBlendMode.SpecularMultiply; break;
+                }
+
+                bufacc.i32.set([blendMode],
+                               bufacc.offset / 4); bufacc.offset += 4;       // p0.w
+
+                break;
+
+
+            default:
+                bufacc.offset += 4;                                         // p0.w
+        }
+
         // vec4 p1
         // vec4 p2
 
         // TODO
-
-        if (layer.source !== 'texture') return;
-
-        let main = layer.srcTextureTexture.getGpuTexture();
-
-        if (main) {
-            //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
-            renderer.gpu.bindTexture(main, samplers.nextTextureUnit++);
-        }
-
-        let mask = layer.srcTextureTexture.getGpuMaskTexture();
-
-        if (mask) {
-            //console.log(`${logSign()}: binding ${layer.rt.layerId} mask.`);
-            renderer.gpu.bindTexture(mask, samplers.nextTextureUnit++);
-        }
-
     }
 
     /*
@@ -417,7 +495,7 @@ export class TileRenderRig {
     dispose() {
 
         __DEV__ && console.log(
-            `Disposing of UBO for ${this.logSign()}.`);
+            `${this.logSign()}: disposing of UBO.`);
 
         let gl = this.renderer.gpu.gl;
 
@@ -958,28 +1036,28 @@ enum UboOperation {
     NormalBlend     = 5
 }
 
-enum uboShadeType {
+enum UboShadeType {
 
     Diffuse         = 0,
     Specular        = 1
 }
 
-enum uboShadeNormal {
+enum UboShadeNormal {
 
     NormalMap     = 0,
     Flat          = 1
 }
 
-enum uboBlendMode {
+enum UboBlendMode {
 
     Overlay             = 0,
     Add                 = 1,
     Multiply            = 2,
-    specularMultiply    = 3
+    SpecularMultiply    = 3
 }
 
 
-enum textureUVs {
+enum UboTextureUVs {
 
     External           = 0,
     Internal           = 1
