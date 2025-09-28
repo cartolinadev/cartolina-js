@@ -183,7 +183,15 @@ void main() {
                     * max(dot(-light.direction, top(normal)), 0.0), 1.0);
         }
 
+        if (l.source == source_Pop) {
+
+            if (l.target == target_Color) operand = vec4(pop(color), 1.0);
+            if (l.target == target_Normal) operand = vec4(pop(normal), 1.0);
+        }
+
         if (l.operation == operation_Push) {
+
+            //operand = vec4(1,0,0,1);
 
             if (l.target == target_Color) push(color, operand.xyz);
             if (l.target == target_Normal) push(normal, operand.xyz);
@@ -200,8 +208,13 @@ void main() {
 
             switch(l.opBlendMode) {
 
-                //case blendMode_Overlay: break;
-                //case blendMode_Add: break;
+                /*case blendMode_Overlay:
+                    blend = (1.0 - alpha) * base + alpha * operand;
+                    break;*/
+
+                case blendMode_Add:
+                    result = base + alpha * operand.xyz;
+                    break;
 
                 case blendMode_Multiply:
                     result = (1.0 - alpha * (1.0 - operand.xyz)) * base;
@@ -214,8 +227,9 @@ void main() {
             if (l.target == target_Color) swapTop(color, result);
             if (l.target == target_Normal) swapTop(normal, result);
         }
-    }
 
+
+    }
 
     // done
     //fragColor = color_;
