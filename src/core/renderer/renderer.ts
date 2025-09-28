@@ -319,6 +319,8 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.hitmapCopyIntervalMs
         = config.mapDMapCopyIntervalMs | this.hitmapCopyIntervalMs;
 
+    __DEV__ && console.log(`hitmapCopyIntervalMs: ${this.hitmapCopyIntervalMs}`);
+
     for (var i = 0, li = this.jobZBuffer.length; i < li; i++) {
         this.jobZBuffer[i] = [];
         this.jobZBufferSize[i] = 0;
@@ -371,7 +373,7 @@ initShaders() {
             uboLayers: Renderer.UniformBlockName.Layers,
             uboAtm: Renderer.UniformBlockName.Atmosphere
         },{
-            //uTexAtmDensity: this.textureIdxs.atmosphere
+            uTexAtmDensity: this.textureIdxs.atmosphere
         }),
         background: new GpuProgram(this.gpu, backgroundTileVert, backgroundTileFrag,
         'shader-background', {

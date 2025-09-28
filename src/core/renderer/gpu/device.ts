@@ -38,6 +38,7 @@ export class GpuDevice {
     antialias!: boolean;
     anisoLevel!: GLfloat;
     maxAniso!: GLfloat;
+    activeTexture?: GLint;
 
     //currentOffset = 0; //used fot direct offset
 
@@ -290,13 +291,15 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     if (!texture.loaded) return;
 
     const gl = this.gl;
-    const prev = gl.getParameter(gl.ACTIVE_TEXTURE);
 
     const unit = (id == null ? 0 : id);
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, texture.texture);
 
-    gl.activeTexture(prev);          // restore previous active texture
+    if (this.activeTexture)
+        gl.activeTexture(this.activeTexture);    // restore previous active texture
+
+    this.activeTexture = gl.TEXTURE0 + unit;
 }
 
 /**
