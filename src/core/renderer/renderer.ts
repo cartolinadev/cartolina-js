@@ -371,7 +371,7 @@ initShaders() {
             uboLayers: Renderer.UniformBlockName.Layers,
             uboAtm: Renderer.UniformBlockName.Atmosphere
         },{
-            uTexAtmDensity: this.textureIdxs.atmosphere
+            //uTexAtmDensity: this.textureIdxs.atmosphere
         }),
         background: new GpuProgram(this.gpu, backgroundTileVert, backgroundTileFrag,
         'shader-background', {

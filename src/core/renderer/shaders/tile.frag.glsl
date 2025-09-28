@@ -168,12 +168,35 @@ void main() {
 
         Layer l = decodeLayer(i);
 
-        // TODO: execute
         vec4 operand;
 
+        // source
         if (l.source == source_Constant) {
 
             operand = vec4(l.srcConstant, 1.0);
+        }
+
+        if (l.source == source_Texture) {
+
+            // obtain and transform uvs
+            vec2 uv = vTexCoords2;
+
+            if (l.srcTextureUVs == textureUVs_Internal)
+                uv = vTexCoords;
+
+            float xform[4] = l.srcTextureTransform;
+
+            uv = vec2(
+                xform[0] * uv.x + xform[2], xform[1] * uv.y + xform[3]);
+
+            // result
+            operand = sample2D(l.srcTextureIdx, uv);
+
+            // mask
+            if (l.srcTextureMaskIdx != -1)
+                operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
+
+            //operand = vec4(1.0, 0.0, 0.0, 1.0);
         }
 
         if (l.source == source_Shade) {
@@ -189,6 +212,7 @@ void main() {
             if (l.target == target_Normal) operand = vec4(pop(normal), 1.0);
         }
 
+        // operation
         if (l.operation == operation_Push) {
 
             //operand = vec4(1,0,0,1);
@@ -208,9 +232,12 @@ void main() {
 
             switch(l.opBlendMode) {
 
-                /*case blendMode_Overlay:
-                    blend = (1.0 - alpha) * base + alpha * operand;
-                    break;*/
+                case blendMode_Overlay:
+                    result = (1.0 - alpha) * base + alpha * operand.xyz;
+
+                    //if (l.target == target_Normal) result = vec3(alpha);
+
+                    break;
 
                 case blendMode_Add:
                     result = base + alpha * operand.xyz;
