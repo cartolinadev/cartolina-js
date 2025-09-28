@@ -96,6 +96,8 @@ vec3 sampleNormal(sampler2D tex, vec2 uv) {
 }
 
 
+
+
 // main
 
 void main() {
@@ -167,17 +169,50 @@ void main() {
         Layer l = decodeLayer(i);
 
         // TODO: execute
-        vec3 operand;
+        vec4 operand;
 
         if (l.source == source_Constant) {
 
-            operand = l.srcConstant;
+            operand = vec4(l.srcConstant, 1.0);
+        }
+
+        if (l.source == source_Shade) {
+
+            if (l.srcShadeType == shadeType_Diffuse)
+                operand = vec4(light.ambient + light.diffuse
+                    * max(dot(-light.direction, top(normal)), 0.0), 1.0);
         }
 
         if (l.operation == operation_Push) {
 
-            if (l.target == target_Color) push(color, operand);
-            if (l.target == target_Normal) push(normal, operand);
+            if (l.target == target_Color) push(color, operand.xyz);
+            if (l.target == target_Normal) push(normal, operand.xyz);
+        }
+
+        if (l.operation == operation_Blend) {
+
+            vec3 base, result;
+
+            if (l.target == target_Color) base = top(color);
+            if (l.target == target_Normal) base = top(normal);
+
+            float alpha = l.opBlendAlpha * operand.w;
+
+            switch(l.opBlendMode) {
+
+                //case blendMode_Overlay: break;
+                //case blendMode_Add: break;
+
+                case blendMode_Multiply:
+                    result = (1.0 - alpha * (1.0 - operand.xyz)) * base;
+                    break;
+
+                //case blendMode_specularMultiply: break;
+                default: result = base;
+            }
+
+            if (l.target == target_Color) swapTop(color, result);
+            if (l.target == target_Normal) swapTop(normal, result);
         }
     }
 
