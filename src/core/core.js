@@ -106,7 +106,7 @@ var Core = function(element, config, coreInterface) {
 
         mapExposeFpsToWindow: false,
 
-        mapDMapSize : 1024,
+        mapDMapSize : 512,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
         mapDMapCopyIntervalMs : 1500, // minimum interval between expensive hitmap copy reads - throttling
         mapDMapDilatePx : 2, // depth map dilation on sampling

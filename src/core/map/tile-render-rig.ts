@@ -115,13 +115,13 @@ export class TileRenderRig {
         this.buildLayerStack(layerDef);
 
         // prepare normal map texture if applicable
-        if (this.rt.normals) {
+        /*if (this.rt.normals) {
 
             // request normal map
             let path = surface.getNormalsUrl(tile.id, submeshIndex);
             this.normalMap = tile.resources.getTexture(
                 path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
-        }
+        }*/
 
         // done
 
@@ -222,14 +222,6 @@ export class TileRenderRig {
         // rebuild the layer buffer, set sampler arrays, bind textures and buffer base
         this.updateBuffer(program);
 
-        // temporary stuff for testing
-        if (this.normalMap && this.normalMap.getGpuTexture()) {
-            renderer.gpu.bindTexture(this.normalMap.getGpuTexture(), 0);
-            program.setSampler('material.normalMap', NormalMapTextureIdx);
-        }
-
-        program.setFloat('material.shininess', 1.0);
-
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
         if (this.rt.internalUVs) attrNames.uvs = 'aTexCoords';
@@ -327,8 +319,9 @@ export class TileRenderRig {
 
 
         // texture uniforms
-        for (let i = 0; i < samplers.nextIdx; i++)
-            program.setSampler(`uTexture${i}`, samplers.samplers[i]);
+        //for (let i = 0; i < samplers.nextIdx; i++)
+        //    program.setSampler(`uTexture${i}`, samplers.samplers[i]);
+        program.setIntArray('uTexture[0]', samplers.samplers);
 
         //console.log(`${this.logSign()}: bound `
         //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
@@ -396,6 +389,29 @@ export class TileRenderRig {
                 i32[w++] = mainIdx;                                     // p0.x
                 i32[w++] = maskIdx;                                     // p0.y
                 i32[w++] = TexUVsMap[layer.srcTextureUVs] ?? -1;         // p0.z
+                break;
+
+            case 'normal-map':
+                let idx = -1;
+
+                if (samplers.nextTextureUnit + 1 > samplers.ub)
+                    throw Error('no more available texture units.');
+
+                let tex = layer.srcNormalMapTexture.getGpuTexture();
+
+                if (tex) {
+
+                    let unit = samplers.nextTextureUnit++;
+
+                    idx = samplers.nextIdx++;
+                    samplers.samplers[idx] = unit;
+
+                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
+                    renderer.gpu.bindTexture(tex, unit);
+                }
+
+                i32[w++] = idx;                                         // p0.x
+                w += 2;                                                 // p0.yz
                 break;
 
 
@@ -567,13 +583,47 @@ export class TileRenderRig {
         // target 'normal' layers need to come first, so that updated normal
         // is used for target 'color'
 
+        // add normal map
+        if (this.rt.illumination) {
+
+            if (this.rt.normals) {
+
+                // use normal maps
+                let path = tile.resourceSurface.getNormalsUrl(
+                    tile.id, this.submeshIndex);
+
+                this.normalMap = tile.resources.getTexture(
+                        path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
+
+                rt.layerStack.push({
+                    target: 'normal',
+                    source: 'normal-map',
+                    srcNormalMapTexture: this.normalMap,
+                    operation: 'push',
+                    necessity: 'essential',
+                    rt: {}
+                });
+
+            } else {
+
+                // use gl-based flat shading
+                rt.layerStack.push({
+                    target: 'normal',
+                    source: 'normal-flat',
+                    operation: 'push',
+                    necessity: 'essential',
+                    rt: {}
+                });
+            }
+        }
+
         // add bump layers, if any
         layerDefs.bumpSequence.forEach((item) => {
 
             let layer: Layer | false = this.layerFromDef(item, 'optional',
                 false, 'normal');
 
-            if (layer) rt.layerStack.push(layer);
+            //if (layer) rt.layerStack.push(layer);
 
         }); // layerDef.bumpSequence.forEach()
 
@@ -708,7 +758,7 @@ export class TileRenderRig {
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -926,6 +976,11 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
                 break;
 
+            case 'normal-map':
+                ready_ &&= TileRenderRig.isResourceReady(layer.srcNormalMapTexture,
+                        necessity, readiness, priority, options);
+                break;
+
             case 'atm-density':
                 ready_ &&= TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
@@ -998,7 +1053,8 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 type Layer = {
 
     target: 'color' | 'normal',
-    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none',
+    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none' |
+        'normal-map' | 'normal-flat',
     operation: 'blend'  | 'normal-blend' | 'push' | 'atm-color' | 'shadows',
 
     necessity: Necessity;
@@ -1012,6 +1068,8 @@ type Layer = {
     srcTextureUVs?: 'internal' | 'external',
     // look for: uParams[8..11] in old tile shader
     srcTextureTransform?: [number, number, number, number]
+
+    srcNormalMapTexture?: MapTexture,
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
@@ -1054,7 +1112,9 @@ enum UboSource {
     Shade              = 3,
     AtmDensity         = 4,
     Shadows            = 5,
-    None               = 6
+    None               = 6,
+    NormalMap          = 7,
+    NormalFlat         = 8
 }
 
 
@@ -1063,8 +1123,7 @@ enum UboOperation {
     Blend           = 0,
     Push            = 1,
     AtmColor        = 2,
-    Shadows         = 4,
-    NormalBlend     = 5
+    Shadows         = 3
 }
 
 enum UboShadeType {
@@ -1100,10 +1159,10 @@ const TargetMap = { color: UboTarget.Color, normal: UboTarget.Normal } as const;
 
 const SourceMap = { constant: UboSource.Constant, shade: UboSource.Shade,
     pop: UboSource.Pop, 'atm-density': UboSource.AtmDensity,
-    texture: UboSource.Texture, none: UboSource.None } as const;
+    texture: UboSource.Texture, none: UboSource.None,
+    'normal-map': UboSource.NormalMap, 'normal-flat': UboSource.NormalFlat } as const;
 
-const OpMap = { blend: UboOperation.Blend,
-    'normal-blend': UboOperation.NormalBlend, push: UboOperation.Push,
+const OpMap = { blend: UboOperation.Blend, push: UboOperation.Push,
     'atm-color': UboOperation.AtmColor,
     shadows: UboOperation.Shadows } as const;
 
