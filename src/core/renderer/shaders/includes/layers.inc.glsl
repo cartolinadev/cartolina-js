@@ -10,12 +10,13 @@ const int source_Shade              = 3;
 const int source_AtmDensity         = 4;
 const int source_Shadows            = 5;
 const int source_None               = 6;
+const int source_NormalMap          = 7;
+const int source_NormalFlat         = 8;
 
 const int operation_Blend           = 0;
 const int operation_Push            = 1;
 const int operation_AtmColor        = 2;
-const int operation_Shadows         = 4;
-const int operation_NormalBlend     = 5;
+const int operation_Shadows         = 3;
 
 const int shadeType_Diffuse         = 0;
 const int shadeType_Specular        = 1;
@@ -41,7 +42,7 @@ struct LayerRaw {
                      // z: operation
                      // w: reserved
 
-    highp ivec4 p0; // x: srcShadeType / srcTextureTexture sampler array idx
+    highp ivec4 p0; // x: srcShadeType / srcTextureTexture / srcNormalMapTexture sampler array idx
               // y: srcShadeNormal / srcTextureMask sampler array idx
               // z: srcTextureUVs
               // w: opBlendMode
@@ -80,6 +81,8 @@ struct Layer {
     int srcTextureMaskIdx;
     int srcTextureUVs;
 
+    int srcNormalMapTextureIdx;
+
     int opBlendMode;
 
     vec3 srcConstant;
@@ -99,10 +102,12 @@ Layer decodeLayer(int index) {
 
     Layer layer;
 
+    // tag
     layer.target = raw.tag.x;
     layer.source = raw.tag.y;
     layer.operation = raw.tag.z;
 
+    // p0
     if (layer.source == source_Shade) {
 
         layer.srcShadeType = raw.p0.x;
@@ -116,13 +121,16 @@ Layer decodeLayer(int index) {
         layer.srcTextureUVs = raw.p0.z;
     }
 
+    if (layer.source == source_NormalMap) {
+        layer.srcNormalMapTextureIdx = raw.p0.x;
+    }
+
     if (layer.operation == operation_Blend)
         layer.opBlendMode = raw.p0.w;
 
-
+    // p1
     if (layer.source == source_Constant)
         layer.srcConstant = raw.p1.xyz;
-
 
     if (layer.source == source_Texture) {
 
@@ -132,6 +140,7 @@ Layer decodeLayer(int index) {
         layer.srcTextureTransform[3] = raw.p1.w;
     }
 
+    // p2
     if (layer.operation == operation_Blend)
         layer.opBlendAlpha = raw.p2.x;
 
@@ -146,20 +155,10 @@ Layer decodeLayer(int index) {
 
 /* Individually named samplers to avoid array indexing issues in iOS/Metal */
 
-// MAX_TEXTURES = 14
+// MAX_TEXTURES = 12
 
-uniform sampler2D uTexture0;
-uniform sampler2D uTexture1;
-uniform sampler2D uTexture2;
-uniform sampler2D uTexture3;
-uniform sampler2D uTexture4;
-uniform sampler2D uTexture5;
-uniform sampler2D uTexture6;
-uniform sampler2D uTexture7;
-uniform sampler2D uTexture8;
-uniform sampler2D uTexture9;
-uniform sampler2D uTexture10;
-uniform sampler2D uTexture11;
+uniform sampler2D uTexture[MAX_TEXTURES];
+
 
 /* a cyan error pixel for diagnostics */
 const vec4 errColor = vec4(0.0, 1.0, 1.0, 1.0);
@@ -167,18 +166,18 @@ const vec4 errColor = vec4(0.0, 1.0, 1.0, 1.0);
 /* Switch ladder with constant cases */
 vec4 sample2D(int idx, vec2 uv) {
 
-  if (idx == 0) return texture(uTexture0, uv);
-  if (idx == 1) return texture(uTexture1, uv);
-  if (idx == 2) return texture(uTexture2, uv);
-  if (idx == 3) return texture(uTexture3, uv);
-  if (idx == 4) return texture(uTexture4, uv);
-  if (idx == 5) return texture(uTexture5, uv);
-  if (idx == 6) return texture(uTexture6, uv);
-  if (idx == 7) return texture(uTexture7, uv);
-  if (idx == 8) return texture(uTexture8, uv);
-  if (idx == 9) return texture(uTexture9, uv);
-  if (idx == 10) return texture(uTexture10, uv);
-  if (idx == 11) return texture(uTexture11, uv);
+  if (idx == 0) return texture(uTexture[0], uv);
+  if (idx == 1) return texture(uTexture[1], uv);
+  if (idx == 2) return texture(uTexture[2], uv);
+  if (idx == 3) return texture(uTexture[3], uv);
+  if (idx == 4) return texture(uTexture[4], uv);
+  if (idx == 5) return texture(uTexture[5], uv);
+  if (idx == 6) return texture(uTexture[6], uv);
+  if (idx == 7) return texture(uTexture[7], uv);
+  if (idx == 8) return texture(uTexture[8], uv);
+  if (idx == 9) return texture(uTexture[9], uv);
+  if (idx == 10) return texture(uTexture[10], uv);
+  if (idx == 11) return texture(uTexture[11], uv);
 
   return errColor;
 

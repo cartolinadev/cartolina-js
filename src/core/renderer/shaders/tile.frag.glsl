@@ -7,7 +7,7 @@ struct Material {
 
     //sampler2D diffuseMap;
     //sampler2D specularMap;
-    sampler2D normalMap;
+    //sampler2D normalMap;
     //sampler2D bumpMap;
     float shininess;
     float bumpWeight;
@@ -63,7 +63,7 @@ vec3 decodeOct(vec2 rg, bool normalize_) {
 // manual biliniear filtering of decoded values
 // (we cannot rely on gl interpolation, octahedron encoding is not continuous)
 
-vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
+vec3 sampleOctBilinear(int tex, vec2 uv, vec2 texel) {
 
   vec2 pos = uv / texel - 0.5;
   vec2 f = fract(pos);
@@ -74,10 +74,10 @@ vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
   vec2 uv01 = base + vec2(0.0,texel.y);
   vec2 uv11 = base + texel;
 
-  vec3 n00 = decodeOct(texture(tex, uv00).rg, false);
-  vec3 n10 = decodeOct(texture(tex, uv10).rg, false);
-  vec3 n01 = decodeOct(texture(tex, uv01).rg, false);
-  vec3 n11 = decodeOct(texture(tex, uv11).rg, false);
+  vec3 n00 = decodeOct(sample2D(tex, uv00).rg, false);
+  vec3 n10 = decodeOct(sample2D(tex, uv10).rg, false);
+  vec3 n01 = decodeOct(sample2D(tex, uv01).rg, false);
+  vec3 n11 = decodeOct(sample2D(tex, uv11).rg, false);
 
   vec3 n0 = mix(n00, n10, f.x), n1 = mix(n01, n11, f.x);
   return normalize(mix(n0, n1, f.y));
@@ -85,7 +85,7 @@ vec3 sampleOctBilinear(sampler2D tex, vec2 uv, vec2 texel) {
 
 
 
-vec3 sampleNormal(sampler2D tex, vec2 uv) {
+vec3 sampleNormal(int tex, vec2 uv) {
     //vec2 rg = texture(tex, uv).rg;
 
     // optionally add; manual bilinear fiterling + jitter
@@ -94,8 +94,6 @@ vec3 sampleNormal(sampler2D tex, vec2 uv) {
     // TODO: use textureSize instead of fixed size
     return sampleOctBilinear(tex, uv, vec2(1./256., 1./256.));
 }
-
-
 
 
 // main
@@ -149,20 +147,6 @@ void main() {
     Stack normal; initStack(normal);
     Stack color; initStack(color);
 
-    // normal
-    vec3 normal_;
-
-    if (useNormalMap) {
-
-        normal_ = sampleNormal(material.normalMap, vTexCoords2);
-
-    } else {
-
-        normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
-    }
-
-    push(normal, normal_);
-
     // decode and execute layers
     for (int i = 0; i < MAX_LAYERS; i++ ) {
 
@@ -200,11 +184,25 @@ void main() {
                 operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
         }
 
+        if (l.source == source_NormalMap) {
+
+            // result
+            operand = vec4(sampleNormal(l.srcNormalMapTextureIdx,
+                vTexCoords2), 1.0);
+        }
+
         if (l.source == source_Shade) {
+
+            vec3 normal_;
+
+            if (useNormalMap)
+                normal_ = top(normal);
+            else
+                normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
 
             if (l.srcShadeType == shadeType_Diffuse)
                 operand = vec4(light.ambient + light.diffuse
-                    * max(dot(-light.direction, top(normal)), 0.0), 1.0);
+                    * max(dot(-light.direction, normal_), 0.0), 1.0);
         }
 
         if (l.source == source_Pop) {
