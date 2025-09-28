@@ -709,7 +709,7 @@ export class TileRenderRig {
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 

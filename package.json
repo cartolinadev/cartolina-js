@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.49.85-ondra_cartolina23.2c4caa1",
+  "version": "2.49.86-ondra_cartolina23.040eecd",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
