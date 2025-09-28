@@ -267,7 +267,6 @@ export class TileRenderRig {
         gl.bindBufferBase(gl.UNIFORM_BUFFER,
             Renderer.UniformBlockName.Layers, this.uboLayers);
 
-
         // update hot alpha blending values, both static and dynamic
         this.updateAlphas();
 
@@ -327,9 +326,9 @@ export class TileRenderRig {
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
 
-        // sampler array uniform
-        program.setIntArray('uTexture[0]', samplers.samplers);
-
+        // texture uniforms
+        for (let i = 0; i < samplers.nextIdx; i++)
+            program.setSampler(`uTexture${i}`, samplers.samplers[i]);
 
         //console.log(`${this.logSign()}: bound `
         //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
@@ -1033,7 +1032,7 @@ type Layer = {
 // if you change this, change the corresponding literals in layers.inc.glsl
 const NormalMapTextureIdx = 0;
 const MaxLayers = 16;
-const MaxTextures = 14;
+const MaxTextures = 12;
 const FirstLayerTextureUnit = NormalMapTextureIdx + 1;
 
 // 1x ivec4 + MaxTextures * (2x ivec4 + 2x vec4)

@@ -5,10 +5,10 @@ precision mediump float;
 
 struct Material {
 
-    sampler2D diffuseMap;
-    sampler2D specularMap;
+    //sampler2D diffuseMap;
+    //sampler2D specularMap;
     sampler2D normalMap;
-    sampler2D bumpMap;
+    //sampler2D bumpMap;
     float shininess;
     float bumpWeight;
 };
@@ -164,7 +164,10 @@ void main() {
     push(normal, normal_);
 
     // decode and execute layers
-    for (int i = 0; i < layerCount(); i++ ) {
+    for (int i = 0; i < MAX_LAYERS; i++ ) {
+
+        // fixed iterations + early exit allows compiler unrolling
+        if (i >= layerCount()) continue;
 
         Layer l = decodeLayer(i);
 
@@ -195,8 +198,6 @@ void main() {
             // mask
             if (l.srcTextureMaskIdx != -1)
                 operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
-
-            //operand = vec4(1.0, 0.0, 0.0, 1.0);
         }
 
         if (l.source == source_Shade) {
@@ -259,7 +260,6 @@ void main() {
     }
 
     // done
-    //fragColor = color_;
     fragColor = vec4(top(color), 1.0);
 
 /*
@@ -268,9 +268,9 @@ void main() {
         vec3 bump = normalize(
             texture(material.bumpMap, vTexCoords).rgb * 2.0  - 1.0);
 
-        normal = (1.0 - material.bumpWeight) * normal
+        normal_ = (1.0 - material.bumpWeight) * normal_
             + material.bumpWeight * bump;
-        //normal = normalize(normal + material.bumpWeight * bump);
+        //normal_ = normalize(normal_ + material.bumpWeight * bump);
     }
 
     // diffuse and ambient color
@@ -293,7 +293,7 @@ void main() {
         specularColor = vec3(0.0);
     }
 
-    vec4 color;
+    vec4 color_;
 
     // base color
     if (useLighting) {
@@ -303,33 +303,33 @@ void main() {
 
         // diffuse
         vec3 diffuse = light.diffuse * diffuseColor
-            * max(dot(normalize(-light.direction), normal), 0.0);
+            * max(dot(normalize(-light.direction), normal_), 0.0);
 
 
         vec3 specular = vec3(0.0);
-*/
-        /*
+
+#if 0
         // specular (blinn-phong)
         vec3 viewDir = vFragPos - virtualEyePos;
 
         vec3 halfway = - normalize(
             normalize(viewDir) + normalize(light.direction));
         vec3 specular = light.specular * specularColor
-            * pow(max(dot(normal, halfway), 0.0), material.shininess);*/
-/*
+            * pow(max(dot(normal, halfway), 0.0), material.shininess);
+#endif
         // output
-        color = vec4(ambient + diffuse + specular, 1.0);
+        color_ = vec4(ambient + diffuse + specular, 1.0);
 
 
     } else {
 
-         color = vec4(diffuseColor, 1.0);
+         color_ = vec4(diffuseColor, 1.0);
     }
 
     // atmosphere
     if (useAtmosphere)
-        //color = vec4(vec3(vAtmDensity), 1.0);
-        color = atmColor(vAtmDensity, color);
+        //color_ = vec4(vec3(vAtmDensity), 1.0);
+        color_ = atmColor(vAtmDensity, color_);
 
     // shadows
     if (useShadows) {
@@ -355,11 +355,12 @@ void main() {
             ratio = pow(r, log(0.5)/ log(d));
         }
 
-        //color = vec4(vec3(min(ratio, 1.0)), 1.0);
+        //color_ = vec4(vec3(min(ratio, 1.0)), 1.0);
 
-        color = vec4(vec3(color) * ratio, 1.0);
+        color_ = vec4(vec3(color_) * ratio, 1.0);
     }
 
     // result
-    fragColor = color;  */
+    fragColor = color_;
+*/
 }

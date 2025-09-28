@@ -32,7 +32,6 @@ const int textureUVs_External           = 0;
 const int textureUVs_Internal           = 1;
 
 
-
 /* raw layer,  as encoded in ubo */
 
 struct LayerRaw {
@@ -53,10 +52,10 @@ struct LayerRaw {
 
 /* the ubo with raw layer array */
 
-/* see the sample ladders below before you change these constants. */
+/* see the individual uniforms below before you change these constants. */
 
 #define MAX_LAYERS                      16
-#define MAX_TEXTURES                    14
+#define MAX_TEXTURES                    12
 
 layout (std140) uniform uboLayers {
 
@@ -64,11 +63,6 @@ layout (std140) uniform uboLayers {
 
     LayerRaw layers[MAX_LAYERS];
 } uLayers;
-
-
-/* sampler array, a referenced in layer */
-
-uniform sampler2D uTexture[MAX_TEXTURES];
 
 
 /* the decoded layer for processing */
@@ -150,32 +144,42 @@ Layer decodeLayer(int index) {
 }
 
 
+/* Individually named samplers to avoid array indexing issues in iOS/Metal */
+
+// MAX_TEXTURES = 14
+
+uniform sampler2D uTexture0;
+uniform sampler2D uTexture1;
+uniform sampler2D uTexture2;
+uniform sampler2D uTexture3;
+uniform sampler2D uTexture4;
+uniform sampler2D uTexture5;
+uniform sampler2D uTexture6;
+uniform sampler2D uTexture7;
+uniform sampler2D uTexture8;
+uniform sampler2D uTexture9;
+uniform sampler2D uTexture10;
+uniform sampler2D uTexture11;
+
 /* a cyan error pixel for diagnostics */
 const vec4 errColor = vec4(0.0, 1.0, 1.0, 1.0);
 
-
-/** the switch ladder needs to be defined to overcome limitation in ESSL which
-  * requires all texture array indices to be compile-time constants.
-  */
-
-// MAX_TEXTURES = 14
+/* Switch ladder with constant cases */
 vec4 sample2D(int idx, vec2 uv) {
 
-  switch (idx) {
-    case 0:  return texture(uTexture[0], uv);
-    case 1:  return texture(uTexture[1], uv);
-    case 2:  return texture(uTexture[2], uv);
-    case 3:  return texture(uTexture[3], uv);
-    case 4:  return texture(uTexture[4], uv);
-    case 5:  return texture(uTexture[5], uv);
-    case 6:  return texture(uTexture[6], uv);
-    case 7:  return texture(uTexture[7], uv);
-    case 8:  return texture(uTexture[8], uv);
-    case 9:  return texture(uTexture[9], uv);
-    case 10: return texture(uTexture[10], uv);
-    case 11: return texture(uTexture[11], uv);
-    case 12: return texture(uTexture[12], uv);
-    case 13: return texture(uTexture[13], uv);
-    default: return errColor;
-  }
+  if (idx == 0) return texture(uTexture0, uv);
+  if (idx == 1) return texture(uTexture1, uv);
+  if (idx == 2) return texture(uTexture2, uv);
+  if (idx == 3) return texture(uTexture3, uv);
+  if (idx == 4) return texture(uTexture4, uv);
+  if (idx == 5) return texture(uTexture5, uv);
+  if (idx == 6) return texture(uTexture6, uv);
+  if (idx == 7) return texture(uTexture7, uv);
+  if (idx == 8) return texture(uTexture8, uv);
+  if (idx == 9) return texture(uTexture9, uv);
+  if (idx == 10) return texture(uTexture10, uv);
+  if (idx == 11) return texture(uTexture11, uv);
+
+  return errColor;
+
 }

@@ -108,7 +108,7 @@ var Core = function(element, config, coreInterface) {
 
         mapDMapSize : 1024,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
-        mapDMapCopyIntervalMs : 500, // minimum interval between expensive hitmap copy reads - throttling
+        mapDMapCopyIntervalMs : 1500, // minimum interval between expensive hitmap copy reads - throttling
         mapDMapDilatePx : 2, // depth map dilation on sampling
 
         mapDegradeHorizon : false,
