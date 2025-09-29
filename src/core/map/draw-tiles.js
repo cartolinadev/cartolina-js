@@ -961,7 +961,7 @@ MapDrawTiles.prototype.updateTileSurfaceBounds = function(tile, submesh, surface
                     extraBound = {
                         sourceTile : this.getParentTile(tile, specular.layer.lodRange[1]),
                         sourceTexture : null,
-                        layer : layer,
+                        layer : specular.layer,
                         tile : tile
                     };
                 }

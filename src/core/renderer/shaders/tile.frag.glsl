@@ -129,6 +129,8 @@ void main() {
 
     int numLayers = layerCount();
 
+    vec3 flatNormal = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
+
     // decode and execute layers
     for (int i = 0; i < numLayers; i++ ) {
 
@@ -161,8 +163,10 @@ void main() {
             if (l.srcTextureSampling == textureSampling_Raw)
                 operand = sample2D(l.srcTextureIdx, uv);
 
-            if (l.srcTextureSampling == textureSampling_Normal)
-                operand =  vec4(sampleNormal(l.srcTextureIdx, uv), 1.0);
+            if (l.srcTextureSampling == textureSampling_Normal) {
+
+                operand = vec4(sampleNormal(l.srcTextureIdx, uv), 1.0);
+            }
 
             // mask
             if (l.srcTextureMaskIdx != -1)
@@ -171,8 +175,7 @@ void main() {
 
         if (l.source == source_NormalFlat) {
 
-            operand = vec4(normalize(
-                cross(dFdx(vFragPos), dFdy(vFragPos))), 1.0);
+            operand = vec4(flatNormal, 1.0);
         }
 
         if (l.source == source_Shade) {
@@ -182,11 +185,23 @@ void main() {
             if (useNormalMaps)
                 normal_ = top(normal);
             else
-                normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
+                normal_ = flatNormal;
 
             if (l.srcShadeType == shadeType_Diffuse)
                 operand = vec4(light.ambient + light.diffuse
                     * max(dot(-light.direction, normal_), 0.0), 1.0);
+
+            if (l.srcShadeType == shadeType_Specular) {
+
+                // specular (blinn-phong)
+                vec3 viewDir = vFragPos - eye.virtualPos;
+
+                vec3 halfway = - normalize(
+                    normalize(viewDir) + normalize(light.direction));
+
+                operand = vec4(vec3(max(dot(normal_, halfway), 0.0)), 1.0);
+            }
+
         }
 
         if (l.source == source_Pop) {
@@ -217,20 +232,38 @@ void main() {
 
                 case blendMode_Overlay:
                     result = (1.0 - alpha) * base + alpha * operand.xyz;
-
-                    //if (l.target == target_Normal) result = vec3(alpha);
-
                     break;
 
                 case blendMode_Add:
                     result = base + alpha * operand.xyz;
+                    //result = operand.xyz;
                     break;
 
                 case blendMode_Multiply:
                     result = (1.0 - alpha * (1.0 - operand.xyz)) * base;
                     break;
 
-                //case blendMode_specularMultiply: break;
+                case blendMode_specularMultiply:
+                    // specular reflectivity
+                    int shininessBits = 4;
+                    int shmask = (1 << shininessBits) - 1;
+                    int cmask = 0xff & ~shmask;
+                    float cdivisor = float((1 << (8 - shininessBits)) - 1);
+
+                    int value = int(base.x * 255.0);
+
+                    float specularColor = float((value & cmask) >> shininessBits);
+                    specularColor /= cdivisor;
+
+                    float shininess = float(value & shmask);
+
+                    //result = light.specular
+                    //    * specularColor * pow(operand.x, shininess);
+                    result = light.specular
+                        * specularColor * pow(operand.x, 32.0);
+
+                    break;
+
                 default: result = base;
             }
 
