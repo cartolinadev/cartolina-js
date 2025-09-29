@@ -505,8 +505,9 @@ updateBuffers() {
         data.lightAmbient = [ambcf, ambcf, ambcf]
 
         // these should be configurable
-        data.lightDiffuse = [1.0, 1.0, 1.0];
-        data.lightSpecular = [0.7, 0.7, 0.5];
+        data.lightDiffuse = [1.0 - ambcf, 1.0 - ambcf, 1.0 - ambcf];
+        data.lightSpecular = [0.6, 0.6, 0.5];
+        //data.lightSpecular = [1.0, 0.2, 0.2];
     }
 
     // physicalEyePos, eyeToCenter
@@ -536,6 +537,7 @@ updateBuffers() {
     vec3.scale(centerToEyeV, viewPosFactor);
     let virtualEye = vec3.create();
     vec3.add(center_, centerToEyeV, virtualEye);
+    vec3.subtract(virtualEye, map.camera.position); // physical space -> renderer world space
 
     data.virtualEye = virtualEye;
     data.virtualEyeToCenter = [vec3.length(centerToEyeV)];
@@ -749,7 +751,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
         useLighting: !! useLighting
     }
 
-    //console.log("Illumination: ", this.illumination);
+    __DEV__ && console.log("Illumination: ", this.illumination);
 };
 
 getIlluminationVectorVC() {

@@ -152,19 +152,25 @@ export class TileRenderRig {
 
                 item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
 
-                item.rt.isWatertight =
-                    item.rt.hasMask == 'no'
-                    && item.opBlendAlpha.value === 1.0
-                    && item.opBlendAlpha.mode == 'constant'
-                    && item.opBlendMode == 'overlay'
-                    && ! item.rt.isTransparent;
 
                 if (item.rt.hasMask === 'notSureYet') unsureMasks = true;
+            }
 
+            if (item.source === 'texture') {
+
+                    item.rt.isWatertight =
+                        item.rt.hasMask === 'no'
+                        && item.opBlendAlpha.value === 1.0
+                        && item.opBlendAlpha.mode === 'constant'
+                        && item.opBlendMode === 'overlay'
+                        && ! item.rt.isTransparent;
             }
         });
 
         if (unsureMasks) return false;
+
+        // optmize stack here
+        // TODO
 
         // actual readiness starts
         let ready_: boolean = true;
