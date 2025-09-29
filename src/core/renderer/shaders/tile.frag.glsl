@@ -1,26 +1,12 @@
 #version 300 es
 precision mediump float;
 
-// structures
-
-struct Material {
-
-    //sampler2D diffuseMap;
-    //sampler2D specularMap;
-    //sampler2D normalMap;
-    //sampler2D bumpMap;
-    float shininess;
-    float bumpWeight;
-};
-
-
 // varyings
 in vec3 vFragPos;
 in vec3 vFragPosVC;
 in vec2 vTexCoords;
 in vec2 vTexCoords2;
 in float vAtmDensity;
-
 
 // frame ubo
 #include "./includes/frame.inc.glsl";
@@ -37,10 +23,6 @@ in float vAtmDensity;
 // other uniforms
 
 uniform float uClip[4];
-
-//uniform vec3 virtualEyePos;
-//uniform float eyeToCenter, virtualEyeToCenter;
-uniform Material material;
 
 // render target
 out vec4 fragColor;
@@ -142,16 +124,14 @@ void main() {
     Light light = frameLight();
     Eye eye = frameEye();
 
-
     // initialize the two stacks
     Stack normal; initStack(normal);
     Stack color; initStack(color);
 
-    // decode and execute layers
-    for (int i = 0; i < MAX_LAYERS; i++ ) {
+    int numLayers = layerCount();
 
-        // fixed iterations + early exit allows compiler unrolling
-        if (i >= layerCount()) continue;
+    // decode and execute layers
+    for (int i = 0; i < numLayers; i++ ) {
 
         Layer l = decodeLayer(i);
 
@@ -175,6 +155,8 @@ void main() {
 
             uv = vec2(
                 xform[0] * uv.x + xform[2], xform[1] * uv.y + xform[3]);
+
+            operand = vec4(0.0);
 
             // result
             operand = sample2D(l.srcTextureIdx, uv);
@@ -260,7 +242,13 @@ void main() {
     // done
     fragColor = vec4(top(color), 1.0);
 
-/*
+/*    vec3 normal_;
+
+    if (useNormalMap)
+        normal_ = top(normal);
+    else
+        normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
+
     // TODO: tangent, bitangent
     if (useBumpMap) {
         vec3 bump = normalize(

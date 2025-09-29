@@ -114,15 +114,6 @@ export class TileRenderRig {
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(layerDef);
 
-        // prepare normal map texture if applicable
-        /*if (this.rt.normals) {
-
-            // request normal map
-            let path = surface.getNormalsUrl(tile.id, submeshIndex);
-            this.normalMap = tile.resources.getTexture(
-                path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
-        }*/
-
         // done
 
     } // constructor
@@ -203,9 +194,6 @@ export class TileRenderRig {
      */
     draw(program: GpuProgram, cameraPos: math.vec3) {
 
-        let renderer = this.renderer;
-
-
         if (!this.uboLayers) {
             console.warn(`draw called on an unready rig for ${this.logSign()}.`);
             return;
@@ -218,6 +206,7 @@ export class TileRenderRig {
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
 
         program.setFloatArray('uClip', splitMask);
+        //program.setSampler('material.normalMap', this.normalMap.getGpuTexture());
 
         // rebuild the layer buffer, set sampler arrays, bind textures and buffer base
         this.updateBuffer(program);
@@ -623,7 +612,7 @@ export class TileRenderRig {
             let layer: Layer | false = this.layerFromDef(item, 'optional',
                 false, 'normal');
 
-            //if (layer) rt.layerStack.push(layer);
+            if (layer) rt.layerStack.push(layer);
 
         }); // layerDef.bumpSequence.forEach()
 
@@ -758,7 +747,7 @@ export class TileRenderRig {
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
