@@ -1675,7 +1675,7 @@ export enum RenderFlags {
 
     FlagNone           = 0,
     FlagLighting       = 1 << 0, // bit 0
-    FlagNormalMap      = 1 << 1, // bit 1
+    FlagNormalMaps     = 1 << 1, // bit 1
     FlagDiffuseMaps    = 1 << 2, // bit 2
     FlagSpecularMaps   = 1 << 3, // bit 3
     FlagBumpMaps       = 1 << 4, // bit 4

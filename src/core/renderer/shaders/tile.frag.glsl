@@ -86,11 +86,10 @@ void main() {
     int renderFlags = uFrame.renderFlags.x;
     //renderFlags = FlagNone;
     renderFlags = renderFlags
-        & (FlagLighting | FlagNormalMap | FlagAtmosphere | FlagShadows);
-    //renderFlags = FlagLighting | FlagNormalMap ;
+        & (FlagLighting | FlagNormalMaps | FlagAtmosphere | FlagShadows);
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
-    bool useNormalMap = (renderFlags & FlagNormalMap) != 0; // bit 1
+    bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // bit 1
     bool useDiffuseMap = (renderFlags & FlagDiffuseMaps) != 0; // bit 2
     bool useSpecularMap = (renderFlags & FlagSpecularMaps) != 0; // bit 3
     bool useBumpMap = (renderFlags & FlagBumpMaps) != 0; // bit 4
@@ -159,25 +158,28 @@ void main() {
             operand = vec4(0.0);
 
             // result
-            operand = sample2D(l.srcTextureIdx, uv);
+            if (l.srcTextureSampling == textureSampling_Raw)
+                operand = sample2D(l.srcTextureIdx, uv);
+
+            if (l.srcTextureSampling == textureSampling_Normal)
+                operand =  vec4(sampleNormal(l.srcTextureIdx, uv), 1.0);
 
             // mask
             if (l.srcTextureMaskIdx != -1)
                 operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
         }
 
-        if (l.source == source_NormalMap) {
+        if (l.source == source_NormalFlat) {
 
-            // result
-            operand = vec4(sampleNormal(l.srcNormalMapTextureIdx,
-                vTexCoords2), 1.0);
+            operand = vec4(normalize(
+                cross(dFdx(vFragPos), dFdy(vFragPos))), 1.0);
         }
 
         if (l.source == source_Shade) {
 
             vec3 normal_;
 
-            if (useNormalMap)
+            if (useNormalMaps)
                 normal_ = top(normal);
             else
                 normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
@@ -244,7 +246,7 @@ void main() {
 
 /*    vec3 normal_;
 
-    if (useNormalMap)
+    if (useNormalMaps)
         normal_ = top(normal);
     else
         normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));

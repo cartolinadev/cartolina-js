@@ -10,8 +10,7 @@ const int source_Shade              = 3;
 const int source_AtmDensity         = 4;
 const int source_Shadows            = 5;
 const int source_None               = 6;
-const int source_NormalMap          = 7;
-const int source_NormalFlat         = 8;
+const int source_NormalFlat         = 7;
 
 const int operation_Blend           = 0;
 const int operation_Push            = 1;
@@ -32,6 +31,8 @@ const int blendMode_specularMultiply    = 3;
 const int textureUVs_External           = 0;
 const int textureUVs_Internal           = 1;
 
+const int textureSampling_Raw           = 0;
+const int textureSampling_Normal        = 1;
 
 /* raw layer,  as encoded in ubo */
 
@@ -40,9 +41,9 @@ struct LayerRaw {
     highp ivec4 tag; // x: target
                      // y: source
                      // z: operation
-                     // w: reserved
+                     // w: srcTextureSampling
 
-    highp ivec4 p0; // x: srcShadeType / srcTextureTexture / srcNormalMapTexture sampler array idx
+    highp ivec4 p0; // x: srcShadeType / srcTextureTexture
               // y: srcShadeNormal / srcTextureMask sampler array idx
               // z: srcTextureUVs
               // w: opBlendMode
@@ -80,6 +81,7 @@ struct Layer {
     int srcTextureIdx;
     int srcTextureMaskIdx;
     int srcTextureUVs;
+    int srcTextureSampling;
 
     int srcNormalMapTextureIdx;
 
@@ -107,6 +109,11 @@ Layer decodeLayer(int index) {
     layer.source = raw.tag.y;
     layer.operation = raw.tag.z;
 
+    if (layer.source == source_Texture) {
+
+        layer.srcTextureSampling = raw.tag.w;
+    }
+
     // p0
     if (layer.source == source_Shade) {
 
@@ -119,10 +126,6 @@ Layer decodeLayer(int index) {
         layer.srcTextureIdx = raw.p0.x;
         layer.srcTextureMaskIdx = raw.p0.y;
         layer.srcTextureUVs = raw.p0.z;
-    }
-
-    if (layer.source == source_NormalMap) {
-        layer.srcNormalMapTextureIdx = raw.p0.x;
     }
 
     if (layer.operation == operation_Blend)

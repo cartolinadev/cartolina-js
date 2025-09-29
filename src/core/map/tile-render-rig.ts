@@ -326,11 +326,22 @@ export class TileRenderRig {
         const i32 = bufacc.i32, f32 = bufacc.f32;
         let w = bufacc.woffset;
 
-        // tag.x, tag.y, tag.z, tag.w
+        // tag.x, tag.y, tag.z
         i32[w++] = TargetMap[layer.target] ?? -1;
         i32[w++] = SourceMap[layer.source] ?? -1;
         i32[w++] = OpMap[layer.operation] ?? -1;
-        i32[w++] = 0;
+
+
+        // tag.w
+        switch (layer.source) {
+
+            case 'texture':
+                i32[w++] = TexSamplingMap[layer.srcTextureSampling];
+                break;
+
+            default:
+                w++;
+        }
 
         // vec4 p0
         switch (layer.source) {
@@ -379,30 +390,6 @@ export class TileRenderRig {
                 i32[w++] = maskIdx;                                     // p0.y
                 i32[w++] = TexUVsMap[layer.srcTextureUVs] ?? -1;         // p0.z
                 break;
-
-            case 'normal-map':
-                let idx = -1;
-
-                if (samplers.nextTextureUnit + 1 > samplers.ub)
-                    throw Error('no more available texture units.');
-
-                let tex = layer.srcNormalMapTexture.getGpuTexture();
-
-                if (tex) {
-
-                    let unit = samplers.nextTextureUnit++;
-
-                    idx = samplers.nextIdx++;
-                    samplers.samplers[idx] = unit;
-
-                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
-                    renderer.gpu.bindTexture(tex, unit);
-                }
-
-                i32[w++] = idx;                                         // p0.x
-                w += 2;                                                 // p0.yz
-                break;
-
 
             default:
                 w += 3;                                                 // p0.xyz
@@ -586,8 +573,11 @@ export class TileRenderRig {
 
                 rt.layerStack.push({
                     target: 'normal',
-                    source: 'normal-map',
-                    srcNormalMapTexture: this.normalMap,
+                    source: 'texture',
+                    srcTextureTexture: this.normalMap,
+                    srcTextureUVs: 'external',
+                    srcTextureTransform: [1, 1, 0, 0],
+                    srcTextureSampling: 'normal',
                     operation: 'push',
                     necessity: 'essential',
                     rt: {}
@@ -643,6 +633,7 @@ export class TileRenderRig {
                 srcTextureTexture: internalTexture,
                 srcTextureUVs: 'internal',
                 srcTextureTransform: [1,1,0,0],
+                srcTextureSampling: 'raw',
                 opBlendMode: 'overlay',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
                 rt: {}
@@ -890,6 +881,7 @@ export class TileRenderRig {
                 srcTextureTexture: texture,
                 srcTextureUVs: 'external',
                 srcTextureTransform: texture.getTransform(),
+                srcTextureSampling: target == 'normal' ? 'normal' : 'raw',
 
                 opBlendMode: mode,
                 opBlendAlpha: alpha,
@@ -965,11 +957,6 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
                 break;
 
-            case 'normal-map':
-                ready_ &&= TileRenderRig.isResourceReady(layer.srcNormalMapTexture,
-                        necessity, readiness, priority, options);
-                break;
-
             case 'atm-density':
                 ready_ &&= TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
@@ -1042,8 +1029,7 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 type Layer = {
 
     target: 'color' | 'normal',
-    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none' |
-        'normal-map' | 'normal-flat',
+    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none' | 'normal-flat',
     operation: 'blend'  | 'normal-blend' | 'push' | 'atm-color' | 'shadows',
 
     necessity: Necessity;
@@ -1055,10 +1041,9 @@ type Layer = {
 
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
-    // look for: uParams[8..11] in old tile shader
-    srcTextureTransform?: [number, number, number, number]
+    srcTextureSampling?: 'raw' | 'normal',
 
-    srcNormalMapTexture?: MapTexture,
+    srcTextureTransform?: [number, number, number, number]
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
@@ -1102,8 +1087,7 @@ enum UboSource {
     AtmDensity         = 4,
     Shadows            = 5,
     None               = 6,
-    NormalMap          = 7,
-    NormalFlat         = 8
+    NormalFlat         = 7
 }
 
 
@@ -1142,6 +1126,12 @@ enum UboTextureUVs {
     Internal           = 1
 }
 
+enum UboTextureSampling {
+
+    Raw                 = 0,
+    Normal              = 1
+}
+
 
 // encoding helper maps
 const TargetMap = { color: UboTarget.Color, normal: UboTarget.Normal } as const;
@@ -1149,7 +1139,7 @@ const TargetMap = { color: UboTarget.Color, normal: UboTarget.Normal } as const;
 const SourceMap = { constant: UboSource.Constant, shade: UboSource.Shade,
     pop: UboSource.Pop, 'atm-density': UboSource.AtmDensity,
     texture: UboSource.Texture, none: UboSource.None,
-    'normal-map': UboSource.NormalMap, 'normal-flat': UboSource.NormalFlat } as const;
+    'normal-flat': UboSource.NormalFlat } as const;
 
 const OpMap = { blend: UboOperation.Blend, push: UboOperation.Push,
     'atm-color': UboOperation.AtmColor,
@@ -1163,6 +1153,9 @@ const ShadeNormalMap = { 'normal-map': UboShadeNormal.NormalMap,
 
 const TexUVsMap = { internal: UboTextureUVs.Internal,
     external: UboTextureUVs.External } as const;
+
+const TexSamplingMap = { raw: UboTextureSampling.Raw,
+    normal: UboTextureSampling.Normal } as const;
 
 const BlendModeMap = { overlay: UboBlendMode.Overlay, add: UboBlendMode.Add,
     multiply: UboBlendMode.Multiply,
