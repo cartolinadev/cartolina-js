@@ -210,6 +210,12 @@ void main() {
             if (l.target == target_Normal) operand = vec4(pop(normal), 1.0);
         }
 
+        if (l.source == source_AtmDensity && useAtmosphere) {
+
+            if (l.target == target_Color)
+                operand = vec4(vec3(vAtmDensity), 1.0);
+        }
+
         // operation
         if (l.operation == operation_Push) {
 
@@ -272,6 +278,11 @@ void main() {
         }
 
 
+        if (l.operation == operation_AtmColor && useAtmosphere) {
+
+            if (l.target == target_Color)
+                swapTop(color, atmColor(operand.x, vec4(top(color), 1.0)).xyz);
+        }
     }
 
     // done
