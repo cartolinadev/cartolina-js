@@ -28,7 +28,8 @@ layout(std140) uniform uboAtm
 
 float atmDecodeFloat(vec4 rgba)
 {
-    return dot(rgba, vec4(1.0, 1.0 / 256.0, 1.0 / (256.0*256.0), 0.0));
+    //return dot(rgba, vec4(1.0, 1.0 / 256.0, 1.0 / (256.0*256.0), 0.0));
+    return dot(rgba, vec4(256., 1., 1.0 / 256.0, 1.));
 }
 
 /*float atmSampleDensity(vec2 uv)
@@ -175,7 +176,7 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     float density = ds[0] - ds[1];
     if (swapDirection)
         density *= -1.0;
-    float transmittance = exp(-uAtm.uniAtmCoefs[0] * density);
+    float transmittance = exp(-uAtm.uniAtmCoefs[0] * density/256.0);
     return 1.0 - transmittance;
 }
 
