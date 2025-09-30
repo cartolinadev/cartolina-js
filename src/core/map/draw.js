@@ -471,10 +471,11 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                     this.zbufferOffset = layer.zFactor;
                 }
 
-                // hot path
                 if (layer.type == 'geodata') {
+                    // monolitic geodata hot path
                     this.drawMonoliticGeodata(layer);
                 } else {
+                    // geodata-tiles hot path
                     layer.tree.draw();
                 }
 
@@ -521,7 +522,15 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
     var body = map.referenceFrame.body;
 
-    //draw skydome before geodata
+    // drawGPUJobs needs these
+    var navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
+    var earthRadius =  navigationSrsInfo['a'];
+    var earthRadius2 =  navigationSrsInfo['b'];
+    renderer.earthRadius = earthRadius;
+    renderer.earthRadius2 = earthRadius2;
+    renderer.earthERatio = earthRadius / earthRadius2;
+
+    /* //draw skydome before geodata
     if (this.drawChannel != 1 && !projected && debug.drawFog &&
         ((body && body.atmosphere) || map.referenceFrame.id == 'melown2015' || map.referenceFrame.id == 'mars-qsc' || map.referenceFrame.id == 'earth-qsc') &&
         renderer.progAtmo.isReady() && renderer.progAtmo2.isReady()) {    
@@ -529,7 +538,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         var navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
         var earthRadius =  navigationSrsInfo['a'];
         var earthRadius2 =  navigationSrsInfo['b'];
-        var atmoSize = this.atmoHeight;
+        //var atmoSize = this.atmoHeight;
         renderer.earthRadius = earthRadius;
         renderer.earthRadius2 = earthRadius2;
         renderer.earthERatio = earthRadius / earthRadius2;
@@ -556,16 +565,16 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         var params = [Math.max(2,heightFactor*128),0,0,0], params2, params3;
         
-        /*
-        if (cameraHeight > earthRadius*2) { //prevent foggy earth from larger distance
-            params[0] = 2-Math.min(1.0, (camera.height - earthRadius*2) / (earthRadius*2));
-        }*/
+
+        //if (cameraHeight > earthRadius*2) { //prevent foggy earth from larger distance
+        //    params[0] = 2-Math.min(1.0, (camera.height - earthRadius*2) / (earthRadius*2));
+        //}
 
         //gpu.setState(this.drawAtmoState);
         //renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
           //                       earthRadius + 3000, earthRadius2 + 3000, renderer.progAtmo2, params,  cameraPosToEarthCenter, null, this.atmoColor3, this.atmoColor2, true);// this.cameraHeight > atmoSize ? 1 : -1);
         
-        var safetyFactor = 2.0; 
+        var safetyFactor = 2.0;
         params = [safetyFactor, safetyFactor * ((earthRadius + atmoSize) / earthRadius), 0.25, safetyFactor* ((earthRadius + atmoSize) / earthRadius)];
         var factor = (1 / (earthRadius) ) * safetyFactor;  
         params2 = [camera.position[0] * factor, camera.position[1] * factor, camera.position[2] * factor, 1];
@@ -583,13 +592,13 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         //console.log("a1: " + a1 + " t2: " + t2);
 
-        /*gpu.setState(this.drawAuraState);
+        gpu.setState(this.drawAuraState);
 
         renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
                                  earthRadius + atmoSize, earthRadius2 + atmoSize, renderer.progAtmo, params,  params2, params3, this.atmoColor, this.atmoColor2);// this.camera.height > atmoSize ? 1 : -1);
 
-        gpu.setState(this.drawTileState);*/
-    }
+        gpu.setState(this.drawTileState);
+    }*/
     
 
     if (debug.drawEarth) {
@@ -597,6 +606,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
                 renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
+                // geodata hot path
                 renderer.draw.drawGpuJobs(this.map.position);
             }
         }

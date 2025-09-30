@@ -1,5 +1,5 @@
 
-uniform sampler2D uTexAtmDensity;
+uniform highp usampler2D uTexAtmDensity;
 
 layout(std140) uniform uboAtm
 {
@@ -26,10 +26,10 @@ layout(std140) uniform uboAtm
     highp vec4 uniAtmCameraPosition;
 } uAtm;
 
-float atmDecodeFloat(vec4 rgba)
+float atmDecodeFloat(uvec4 rgba)
 {
-    //return dot(rgba, vec4(1.0, 1.0 / 256.0, 1.0 / (256.0*256.0), 0.0));
-    return dot(rgba, vec4(256., 1., 1.0 / 256.0, 1.));
+    return dot(vec4(rgba), vec4(1.0, 1.0 / 256.0, 1.0 / (256.0*256.0), 0.0));
+    //return dot(rgba, vec4(256., 1., 1.0 / 256.0, 1.));
 }
 
 /*float atmSampleDensity(vec2 uv)
