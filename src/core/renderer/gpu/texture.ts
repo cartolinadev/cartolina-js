@@ -142,15 +142,17 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
         case vts.TEXTURETYPE_ATMDENSITY:
 
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, lx, ly, 0, gl.RGB,
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI, lx, ly, 0, gl.RGB_INTEGER,
                           gl.UNSIGNED_BYTE, data);
             break;
 
         case vts.TEXTURETYPE_COLOR:
         default:
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lx, ly, 0, gl.RGBA,
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lx, ly, 0, gl.RGBA,
                           gl.UNSIGNED_BYTE, data);
             break;
     }

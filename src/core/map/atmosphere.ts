@@ -52,6 +52,8 @@ class Atmosphere {
         // normalize colors
         vec3.scale(params.colorHorizon, 1.0 / 255.0);
         vec3.scale(params.colorZenith, 1.0 / 255.0);
+        //params.colorHorizon = [0.71, 0.81, 0.95, 1.0];
+        //params.colorHorizon = [0.71, 0.81, 0.95, 1.0];
 
         // we inflate atmosphere thickness and visibility
         // by vertical exaggeration at view extent = body diameter
