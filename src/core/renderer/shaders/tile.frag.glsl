@@ -273,7 +273,12 @@ void main() {
                 default: result = base;
             }
 
-            if (l.target == target_Color) swapTop(color, result);
+            if (l.target == target_Color) {
+
+                result = mix(result, vec3(1.0), l.targetColorWhitewash);
+                swapTop(color, result);
+            }
+
             if (l.target == target_Normal) swapTop(normal, result);
         }
 
