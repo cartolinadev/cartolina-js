@@ -288,116 +288,36 @@ void main() {
             if (l.target == target_Color)
                 swapTop(color, atmColor(operand.x, vec4(top(color), 1.0)).xyz);
         }
-    }
+
+        if (l.operation == operation_Shadows && useShadows) {
+
+            float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
+            float ratio;
+
+            // the below dichotomy is not pretty but it yields decent empirical results
+            if (eye.virtualEyeToCenter / eye.eyeToCenter > 0.9) {
+
+                // scenario 1: linear ramp
+                ratio = r;
+
+            } else {
+
+                // scenario 2: generic power function
+                // we want the ratio to be equal to 0.5 at virtualEyeCenter
+                // and to 0 at eyeCenter
+
+                // relative eycenter distance
+                float d = (eye.eyeToCenter - eye.virtualEyeToCenter) / eye.eyeToCenter;
+
+                ratio = pow(r, log(0.5)/ log(d));
+            }
+
+            if (l.target == target_Color) swapTop(color, top(color) * ratio);
+        }
+
+
+    } // end iterate layers
 
     // done
     fragColor = vec4(top(color), 1.0);
-
-/*    vec3 normal_;
-
-    if (useNormalMaps)
-        normal_ = top(normal);
-    else
-        normal_ = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
-
-    // TODO: tangent, bitangent
-    if (useBumpMap) {
-        vec3 bump = normalize(
-            texture(material.bumpMap, vTexCoords).rgb * 2.0  - 1.0);
-
-        normal_ = (1.0 - material.bumpWeight) * normal_
-            + material.bumpWeight * bump;
-        //normal_ = normalize(normal_ + material.bumpWeight * bump);
-    }
-
-    // diffuse and ambient color
-    vec3 diffuseColor;
-
-    if (useDiffuseMap) {
-        diffuseColor = vec3(texture(material.diffuseMap, vTexCoords2));
-    } else {
-        diffuseColor = vec3(0.9, 0.9, 0.8);
-        //diffuseColor = vec3(0.3, 0.6, 0.4);
-        //diffuseColor = vec3(0.85, 0.85, 0.85);
-    }
-
-    // specular color
-    vec3 specularColor;
-
-    if (useSpecularMap) {
-        specularColor = vec3(texture(material.specularMap, vTexCoords));
-    } else {
-        specularColor = vec3(0.0);
-    }
-
-    vec4 color_;
-
-    // base color
-    if (useLighting) {
-
-        // ambient
-        vec3 ambient = light.ambient * diffuseColor;
-
-        // diffuse
-        vec3 diffuse = light.diffuse * diffuseColor
-            * max(dot(normalize(-light.direction), normal_), 0.0);
-
-
-        vec3 specular = vec3(0.0);
-
-#if 0
-        // specular (blinn-phong)
-        vec3 viewDir = vFragPos - virtualEyePos;
-
-        vec3 halfway = - normalize(
-            normalize(viewDir) + normalize(light.direction));
-        vec3 specular = light.specular * specularColor
-            * pow(max(dot(normal, halfway), 0.0), material.shininess);
-#endif
-        // output
-        color_ = vec4(ambient + diffuse + specular, 1.0);
-
-
-    } else {
-
-         color_ = vec4(diffuseColor, 1.0);
-    }
-
-    // atmosphere
-    if (useAtmosphere)
-        //color_ = vec4(vec3(vAtmDensity), 1.0);
-        color_ = atmColor(vAtmDensity, color_);
-
-    // shadows
-    if (useShadows) {
-
-        float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
-        float ratio;
-
-        // the below dichotomy is a little ugly but it yields decent empirical results
-        if (eye.virtualEyeToCenter / eye.eyeToCenter > 0.9) {
-
-            // scenario 1: linear ramp
-            ratio = r;
-
-        } else {
-
-            // scenario 2: generic power function
-            // we want the ratio to be equal to 0.5 at virtualEyeCenter
-            // and to 0 at eyeCenter
-
-            // relative eycenter distance
-            float d = (eye.eyeToCenter - eye.virtualEyeToCenter) / eye.eyeToCenter;
-
-            ratio = pow(r, log(0.5)/ log(d));
-        }
-
-        //color_ = vec4(vec3(min(ratio, 1.0)), 1.0);
-
-        color_ = vec4(vec3(color_) * ratio, 1.0);
-    }
-
-    // result
-    fragColor = color_;
-*/
 }
