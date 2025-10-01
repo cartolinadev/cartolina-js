@@ -211,6 +211,17 @@ export class TileRenderRig {
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
 
+        // this shouldn't be necessary, this is set once per frame in
+        // renderer.updateBuffer. Ooddly, we keep loosing the binding
+        /*if (false && this.renderer.core.map.atmosphere) {
+
+            this.renderer.gpu.bindTexture(
+                this.renderer.core.map.atmosphere.atmDensityTexture.getGpuTexture(),
+                this.renderer.textureIdxs.atmosphere);
+
+            program.setSampler('uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
+        }*/
+
         // uClip
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
 
