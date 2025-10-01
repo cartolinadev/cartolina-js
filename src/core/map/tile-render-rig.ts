@@ -169,8 +169,8 @@ export class TileRenderRig {
 
         if (unsureMasks) return false;
 
-        // optmize stack here
-        // TODO
+        // optimize stack here
+        this.optimizeStack();
 
         // actual readiness starts
         let ready_: boolean = true;
@@ -181,6 +181,9 @@ export class TileRenderRig {
 
         // process layerStack
         layerStack.forEach((item: Layer) => {
+
+            if (item.rt.optimizedOut) return;
+
             ready_ &&= this.isLayerReady(item, readiness, priority, options)
         });
 
@@ -287,12 +290,21 @@ export class TileRenderRig {
             if (numLayers >= MaxLayers)
                 throw Error('maximum rendering layers exhausted, aborting.');
 
+            // skip optimized-out layer
+            if (layer.rt.optimizedOut) return;
+
             // a zero-trigger readiness check
             let ready = this.isLayerReady(layer,
                 { minimum: 'full', desired: 'full' },
                 TileRenderRig.DefaultPriority,
                 { doNotLoad: true, doNotCheckGpu: true });
 
+            // sanity
+            if (!ready && layer.necessity == 'essential')
+                __DEV__ && utils.warnOnce(
+                    `${this.logSign()}: Essential layer unready, bad flow.`);
+
+            // skip nonessential unready leayers
             if (!ready) return;
 
             // LayerRaw layers[16];
@@ -318,7 +330,7 @@ export class TileRenderRig {
         //    program.setSampler(`uTexture${i}`, samplers.samplers[i]);
         program.setIntArray('uTexture[0]', samplers.samplers);
 
-        //console.log(`${this.logSign()}: bound `
+        //__DEV__ && console.log(`${this.logSign()}: bound `
         //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
     }
 
@@ -448,7 +460,7 @@ export class TileRenderRig {
         switch (layer.target) {
 
             case 'color':
-                f32[w++] = layer.tgtColorWhitewash;                         // p2.y
+                f32[w++] = layer.tgtColorWhitewash ?? 0;                   // p2.y
                 break;
 
             default:
@@ -486,7 +498,7 @@ export class TileRenderRig {
 
             if (layer.opBlendAlpha.mode !== 'viewdep') return;
 
-            // FIXME doing this for every frame mad everu tile is suboptimal,
+            // FIXME doing this for every frame and every tile is suboptimal,
             // the alphas may be stored in renderer object and not updated
             // until the the map updates
             layer.rt.alpha = math.clamp(
@@ -503,13 +515,13 @@ export class TileRenderRig {
         if ( vdalphaSum === 0) return;
         const factor = 1.0 / vdalphaSum;
 
-        // pass 2: normalization
+        // pass 2: normalization (and application of original alpha as multiplier)
         this.rt.layerStack.forEach((layer) => {
 
             if (layer.operation !== 'blend'
                 || layer.opBlendAlpha.mode !== 'viewdep') return;
 
-            layer.rt.alpha /= vdalphaSum;
+            layer.rt.alpha *= layer.opBlendAlpha.value / vdalphaSum;
         });
 
     }
@@ -621,6 +633,7 @@ export class TileRenderRig {
             operation: 'push',
             necessity: 'essential',
             srcConstant: [0.9, 0.9, 0.8], // this could be configurable
+            tgtColorWhitewash: 0,
             rt: {},
         });
 
@@ -642,6 +655,7 @@ export class TileRenderRig {
                 srcTextureSampling: 'raw',
                 opBlendMode: 'overlay',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                tgtColorWhitewash: 0,
                 rt: {}
             });
 
@@ -665,6 +679,7 @@ export class TileRenderRig {
                 srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                tgtColorWhitewash: 0,
                 rt: {}
             });
         }
@@ -679,6 +694,7 @@ export class TileRenderRig {
                 operation: 'push',
                 necessity: 'essential',  // sanity
                 srcConstant: [0, 0, 0],
+                tgtColorWhitewash: 0,
                 rt: {}
             });
 
@@ -701,6 +717,7 @@ export class TileRenderRig {
                 srcShadeNormal: this.rt.normals ? 'normal-map' : 'flat',
                 opBlendMode: 'specular-multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                tgtColorWhitewash: 0,
                 rt: {}
             });
 
@@ -712,6 +729,7 @@ export class TileRenderRig {
                 necessity: 'essential', // sanity
                 opBlendMode: 'add',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
+                tgtColorWhitewash: 0,
                 rt: {}
             });
 
@@ -725,6 +743,7 @@ export class TileRenderRig {
                 source: 'atm-density',
                 necessity: 'optional',
                 operation: 'atm-color',
+                tgtColorWhitewash: 0,
                 rt: {}
             });
         }
@@ -735,16 +754,14 @@ export class TileRenderRig {
             source: 'none',
             necessity: 'optional',
             operation: 'shadows',
+            tgtColorWhitewash: 0,
             rt: {}
         });
-
-        // optimize stack,
-        // TODO
 
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        //console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        __DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -764,6 +781,40 @@ export class TileRenderRig {
         return 'no';
     }
 
+
+    /**
+     * rudimentary layer stack optimization
+     */
+    optimizeStack() {
+
+        // watertight optimization
+        // start of accumulation
+        let cleanSlate = 0;
+
+        for (let i = 0; i < this.rt.layerStack.length; i++) {
+
+            let layer = this.rt.layerStack[i];
+
+            // if there is a tile which always fully covers underlying tiles
+            if (layer.target == 'color' && layer.rt.isWatertight) {
+
+                // optimize out all tiles from teh start of accumulation
+                for (let k = cleanSlate; k < i; k++)
+                    if (this.rt.layerStack[k].target == 'color')
+                        this.rt.layerStack[k].rt.optimizedOut = true;
+
+                cleanSlate = i;
+            }
+
+            // push -> new accumulation
+            if (layer.operation == 'push') cleanSlate = i + 1;
+
+            // we could stack the slates on stack, optimize after pop,
+            // but stacks are never this complicated
+        }
+
+        // TODO: merge of subsequent static blends (bump maps)
+    }
 
     /**
      * Create an internal layer operation (blend) with texture source from
@@ -816,6 +867,7 @@ export class TileRenderRig {
             if (!texture) {
 
                 let path = layer.getUrl(tile.id);
+
                 texture = tile.resources.getTexture(
                     path, layer.dataType, extraBound,
                     {tile: tile, layer: layer}, tile, false);
@@ -871,7 +923,6 @@ export class TileRenderRig {
                 whitewash = layer.shaderFilters[
                     tile.resourceSurface.id].whitewash;
             }
-
 
             // not a pretty side effect, copied verbatim from old code.
             // needed for credits extraction
@@ -1062,6 +1113,7 @@ type Layer = {
         hasMask?: MaskStatus,
         isTransparent?: boolean,
         isWatertight?: boolean,
+        optimizedOut?: boolean,
         alpha?: number,
     }
 }
