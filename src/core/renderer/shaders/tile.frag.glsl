@@ -138,12 +138,13 @@ void main() {
 
         vec4 operand;
 
-        // source
+        // source: constant
         if (l.source == source_Constant) {
 
             operand = vec4(l.srcConstant, 1.0);
         }
 
+        // source: texture
         if (l.source == source_Texture) {
 
             // obtain and transform uvs
@@ -173,11 +174,13 @@ void main() {
                 operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
         }
 
+        // source: normal-flat
         if (l.source == source_NormalFlat) {
 
             operand = vec4(flatNormal, 1.0);
         }
 
+        // source: shade
         if (l.source == source_Shade) {
 
             vec3 normal_;
@@ -204,19 +207,27 @@ void main() {
 
         }
 
+        // source: pop
         if (l.source == source_Pop) {
 
             if (l.target == target_Color) operand = vec4(pop(color), 1.0);
             if (l.target == target_Normal) operand = vec4(pop(normal), 1.0);
         }
 
+        // source: atmdensity
         if (l.source == source_AtmDensity && useAtmosphere) {
 
             if (l.target == target_Color)
                 operand = vec4(vec3(vAtmDensity), 1.0);
         }
 
-        // operation
+        // operation: common
+        if (l.target == target_Color) {
+            operand = vec4(mix(vec3(operand), vec3(1.0),
+                l.targetColorWhitewash), operand.w);
+        }
+
+        // operation: push
         if (l.operation == operation_Push) {
 
             //operand = vec4(1,0,0,1);
@@ -225,6 +236,7 @@ void main() {
             if (l.target == target_Normal) push(normal, operand.xyz);
         }
 
+        // operation: blend
         if (l.operation == operation_Blend) {
 
             vec3 base, result;
@@ -273,22 +285,18 @@ void main() {
                 default: result = base;
             }
 
-            if (l.target == target_Color) {
-
-                result = mix(result, vec3(1.0), l.targetColorWhitewash);
-                swapTop(color, result);
-            }
-
+            if (l.target == target_Color) swapTop(color, result);
             if (l.target == target_Normal) swapTop(normal, result);
         }
 
-
+        // operation: atmcolor
         if (l.operation == operation_AtmColor && useAtmosphere) {
 
             if (l.target == target_Color)
                 swapTop(color, atmColor(operand.x, vec4(top(color), 1.0)).xyz);
         }
 
+        // operation: shadows
         if (l.operation == operation_Shadows && useShadows) {
 
             float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
