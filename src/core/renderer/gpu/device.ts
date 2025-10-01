@@ -296,10 +296,7 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, texture.texture);
 
-    if (this.activeTexture)
-        gl.activeTexture(this.activeTexture);    // restore previous active texture
-
-    this.activeTexture = gl.TEXTURE0 + unit;
+    gl.activeTexture(gl.TEXTURE0);
 }
 
 /**

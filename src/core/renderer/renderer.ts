@@ -603,7 +603,7 @@ updateBuffers() {
         this.core.map.atmosphere.updateBuffers(
             eyePos,
             map.position.getViewDistance(),
-            view2ecef as math.mat4)
+            view2ecef as math.mat4);
     }
 
 }

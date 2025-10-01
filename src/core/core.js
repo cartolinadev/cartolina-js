@@ -137,7 +137,6 @@ var Core = function(element, config, coreInterface) {
     this.element = element;
     this.coreInterface = coreInterface;
     //this.options = options;
-    this.ready = false;
     this.listeners = [];
     this.listenerCounter = 0;
     this.tokenCookieHost = null;

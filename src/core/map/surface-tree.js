@@ -148,6 +148,7 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
         return;
     }
 
+
     if (periodicity != null) {
         this.drawSurface([0,0,0]);
 
@@ -1619,6 +1620,9 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         //clear zbuffer
         map.renderer.gpu.clear(true, false);
     }
+
+    // update renderer buffers
+    map.renderer.updateBuffers();
 
     //draw surface
     for (i = drawBufferIndex - 1; i >= 0; i--) {

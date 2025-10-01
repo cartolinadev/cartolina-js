@@ -15,7 +15,9 @@
 
   var map, overlay = document.getElementById('overlay');
 
-  browser.on('map-loaded', function () {
+  console.log(browser);
+
+  browser.ready.then(() => {
     map = browser.map;
   });
 
