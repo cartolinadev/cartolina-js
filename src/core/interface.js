@@ -11,6 +11,7 @@ var proj4 = Proj4;
 
 
 var CoreInterface = function(element, config) {
+
     this.core = new Core(element, config, this);
 
     Object.defineProperty(this, 'map', {

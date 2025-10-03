@@ -5,7 +5,7 @@ var MapSurfaceSequence = function(map) {
 
 
 MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
-    var view = this.map.currentView;
+    var view = this.map.getCurrentView();
     var tree = this.map.tree;
     
     if (!tree) {
@@ -171,13 +171,19 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
         }
     }    
 
+    //console.log('map.glues: ', this.map.glues);
+    //console.log('map virtual surfaces: ', this.map.virtualSurfaces);
+    //console.log('surface sequence: ', tree.surfaceSequence);
+    //console.log('surface only: ', tree.surfaceOnlySequence);
+
     //just in case
     this.map.renderer.draw.clearJobBuffer();
 };
 
 
 MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
-    var view = this.map.currentView;
+
+    var view = this.map.getCurrentView();
     var key, item, layer, i, li, item2;
     
     //zero bound layer filters
@@ -253,7 +259,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             let alpha_ = item['alpha'];
                         
                             if (typeof alpha_ === 'number' ) {
-                            
+
                                 alpha.value = parseFloat(alpha_);
                             }
                                                

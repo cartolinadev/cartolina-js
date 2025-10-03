@@ -2,9 +2,9 @@
 import {vec3 as vec3_} from '../utils/matrix';
 import * as utils from '../utils/utils';
 import {platform as platform_} from '../utils/platform';
-import MapView_ from './view';
-import MapSurfaceTree_ from './surface-tree';
-import MapResourceTree_ from './resource-tree';
+import MapView from './view';
+import MapSurfaceTree from './surface-tree';
+import MapResourceTree from './resource-tree';
 import MapSrs_ from './srs';
 import MapCache_ from './cache';
 import MapCamera_ from './camera';
@@ -25,9 +25,6 @@ import Atmosphere from './atmosphere';
 //get rid of compiler mess
 var vec3 = vec3_;
 var platform = platform_;
-var MapView = MapView_;
-var MapSurfaceTree = MapSurfaceTree_;
-var MapResourceTree = MapResourceTree_;
 var MapSrs = MapSrs_;
 var MapCache = MapCache_;
 var MapCamera = MapCamera_;
@@ -42,11 +39,10 @@ var MapSurfaceSequence = MapSurfaceSequence_;
 var GpuTexture = GpuTexture_;
 
 
-var Map = function(core, mapConfig, path, config, configStorage) {
+var Map = function(core, path, config, configStorage) {
 
     this.config = config || {};
     this.setConfigParams(config);
-    this.setLoaderParams(mapConfig, configStorage);
     this.core = core;
     this.proj4 = this.core.getProj4();
     this.coreConfig = core.coreConfig;
@@ -77,7 +73,7 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.surfaceSequence = new MapSurfaceSequence(this);
 
     this.initialView = null;
-    this.currentView = new MapView(this, {});
+    this.currentView_ = new MapView(this, {});
     this.currentViewString = '';
     this.namedViews = {};
     this.viewCounter = 0;
@@ -111,23 +107,6 @@ var Map = function(core, mapConfig, path, config, configStorage) {
 
     this.stats = new MapStats(this);
     this.resourcesTree = new MapResourceTree(this);
-   
-    this.mapConfig = new MapConfig(this, mapConfig);
-    this.convert = new MapConvert(this);
-    this.measure = new MapMeasure(this);
-    this.convert.measure = this.measure;
-
-    this.isGeocent = !this.getNavigationSrs().isProjected();
-
-    this.tree = new MapSurfaceTree(this, false);
-    this.mapConfig.afterConfigParsed();
-
-    this.updateCoutner = 0;
-
-    this.dirty = true;
-    this.dirtyCountdown = 0;
-    this.hitMapDirty = true;
-    this.geoHitMapDirty = true;
 
     this.clickEvent = null;
     this.hoverEvent = null;
@@ -137,55 +116,63 @@ var Map = function(core, mapConfig, path, config, configStorage) {
     this.lastHoverFeatureId = null;
     this.hoverFeatureCounter = 0;
     this.hoverFeatureList = [];
-    
-    this.draw = new MapDraw(this);
-    this.draw.setupDetailDegradation();
+}
 
-    var body = this.referenceFrame.body, c;
-    let services = this.services;
+Map.createMapFromStyle = function(core, style, path, config, configStorage) {
 
+    let map = new Map(core, path, config, configStorage);
+
+    map.setLoaderParams(null, configStorage);
+
+    // MapStyle.loadStyle(map, style);
+
+    throw new Error ('not implemented yet.');
+}
+
+Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStorage) {
+
+    let map = new Map(core, path, config, configStorage);
+
+    map.setLoaderParams(mapConfig, configStorage);
+
+    // most of initialization happens here
+    map.mapConfig = new MapConfig(map, mapConfig);
+
+
+    map.convert = new MapConvert(map);
+    map.measure = new MapMeasure(map);
+    map.convert.measure = map.measure;
+
+    map.isGeocent = !map.getNavigationSrs().isProjected();
+
+    map.tree = new MapSurfaceTree(map, false);
+    map.mapConfig.afterConfigParsed();
+
+    map.updateCoutner = 0;
+
+    map.dirty = true;
+    map.dirtyCountdown = 0;
+    map.hitMapDirty = true;
+    map.geoHitMapDirty = true;
+
+    map.draw = new MapDraw(map);
+    map.draw.setupDetailDegradation();
+
+    var body = map.referenceFrame.body;
+    let services = map.services;
+
+    // atmosphere
     if (body && body.atmosphere && services && services.atmdensity)
-        this.atmosphere = new Atmosphere(
-            body.atmosphere, this.getPhysicalSrs(),
-            this.url.makeUrl(services.atmdensity.url, {}), this);
+        map.atmosphere = new Atmosphere(
+            body.atmosphere, map.getPhysicalSrs(),
+            map.url.makeUrl(services.atmdensity.url, {}), map);
 
-    // old atmosphere starts
-    if (body && body.atmosphere) {
-        c = body.atmosphere.colorHorizon;
-        this.draw.atmoColor = [c[0]/255.0, c[1]/255.0, c[2]/255.0, c[3]/255.0];
-        c = body.atmosphere.colorZenith;
-        this.draw.atmoColor2 = [c[0]/255.0, c[1]/255.0, c[2]/255.0, c[3]/255.0];
-        this.draw.atmoHeight = 50000 * (body.atmosphere.thickness / 100000);
-        this.draw.atmoDensity = (body.atmosphere.visibility / 100000) * (100000 / body.atmosphere.thickness);
-    } else {
-        switch(this.referenceFrame.id) {
-            case 'melown2015':
-            case 'earth-qsc':
-                this.draw.atmoColor = [216.0/255.0, 232.0/255.0, 243.0/255.0, 1.0];
-                this.draw.atmoColor2 = [72.0/255.0, 154.0/255.0, 255.0/255.0, 1.0];
-                //this.draw.atmoColor3 = [216.0/255.0, 232.0/255.0, 243.0/255.0, 1.0];
-                this.draw.atmoHeight = 50000;
-                break;
+    // render slots
+    map.renderSlots = new MapRenderSlots(map);
+    map.renderSlots.addRenderSlot('map', map.drawMap.bind(map), true);
 
-            case 'mars-qsc':
-                this.draw.atmoColor = [255.0/255.0, 187.0/255.0, 157.0/255.0, 1.0];
-                this.draw.atmoColor2 = [255.0/255.0, 155.0/255.0, 113.0/255.0, 1.0];
-                //this.draw.atmoColor3 = [255.0/255.0, 187.0/255.0, 157.0/255.0, 0.5];
-                this.draw.atmoHeight = 25000;
-                this.draw.atmoDensity = 1.0 / 0.25;
-                break;
-        }
-    }
-
-    this.draw.atmoHeightFactor = this.draw.atmoHeight / 50000;
-    // old atmosphere ends
-
-    this.renderSlots = new MapRenderSlots(this);
-    this.renderSlots.addRenderSlot('map', this.drawMap.bind(this), true);
-
-    // TODO: make azimuth and elevation configurable
-    this.idealIlluminationLNED = Illumination.illuminationVector(
-        315, 45, Illumination.CoordSystem.LNED);
+    // done
+    return map;
 };
 
 
@@ -547,9 +534,14 @@ Map.prototype.getNamedViews = function() {
 
 
 Map.prototype.setView = function(view, forceRefresh, posToFixed) {
+
     if (view == null) {
         return;
     }
+
+    if (this.currentStyle)
+        throw Error(`legacy setView may not be used when map `
+            + `is initialized via style.`);
 
     if (posToFixed && this.convert) {
         var p = this.getPosition();
@@ -612,7 +604,7 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
     }
 
     if (string != this.currentViewString || forceRefresh) {
-        this.currentView.parse(view);
+        this.currentView_.parse(view);
         this.currentViewString = string;
         this.viewCounter++;  //this also cause rest of geodata
         renderer.draw.clearJobHBuffer(); //hotfix - reset hysteresis buffer
@@ -691,14 +683,21 @@ Map.prototype.setStylesheetData = function(id, data) {
     //TODO: reset geodatview in free layers
 };
 
+Map.prototype.getCurrentView = function() {
+
+    if (this.style)
+        return this.style.legacyView();
+
+    return this.currentView_;
+}
 
 Map.prototype.getView = function() {
-    return this.currentView.getInfo();
+    return this.getCurrentView().getInfo();
 };
 
 
 Map.prototype.refreshFreelayesInView = function() {
-    var freeLayers = this.currentView.freeLayers;
+    var freeLayers = this.getCurrentView().freeLayers;
     this.freeLayerSequence = [];
 
     for (var key in freeLayers) {

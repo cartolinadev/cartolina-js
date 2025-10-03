@@ -1,5 +1,5 @@
 
-import MapBoundLayer_ from './bound-layer';
+import MapBoundLayer from './bound-layer';
 import MapCredit_ from './credit';
 import MapRefFrame_ from './refframe';
 import MapView_ from './view';
@@ -11,7 +11,6 @@ import MapStylesheet_ from './stylesheet';
 
 //get rid of compiler mess
 var MapCredit = MapCredit_;
-var MapBoundLayer = MapBoundLayer_;
 var MapRefFrame = MapRefFrame_;
 var MapView = MapView_;
 var MapSrs = MapSrs_;
