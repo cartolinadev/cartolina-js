@@ -143,7 +143,9 @@ var Core = function(element, config, coreInterface) {
     this.tokenIFrame = null;
     this.xhrParams = {};
     this.inspector = (Inspector != null) ? (new Inspector(this)) : null;
+
     this.setConfigParams(config);
+    this.config.style = config.style;
 
     this.map = null;
     this.mapInterface = null;
@@ -174,7 +176,15 @@ var Core = function(element, config, coreInterface) {
                function() { return new Date().getTime(); };
     })();
 
-    this.loadMap(this.config.map);
+    if (this.config.style) {
+
+        this.loadMapFromStyle(this.config.style);
+    }
+
+    if (!this.config.style && this.config.map) {
+
+        this.loadMap(this.config.map);
+    }
 
     this.requestAnimFrame.call(window, this.onUpdate.bind(this));
 };
@@ -186,6 +196,34 @@ Core.prototype.onResize = function() {
     }
 };
 
+
+Core.prototype.loadMapFromStyle = async function(style) {
+
+    let style_ = style;
+    let path = window.location.href;
+
+    if (typeof(style) === 'string') {
+
+        path = utilsUrl.getProcessUrl(style, path);
+        let style_ = await fetch(path);
+    }
+
+    // TODO: validate style
+
+    // create map
+    this.map = await Map.createMapFromStyle(this, style_, path,
+                    this.config, this.configStorage);
+    this.mapInterface = new MapInterface(this.map);
+    this.setConfigParams(this.configStorage);
+
+    if (this.config.position) {
+        this.map.setPosition(this.config.position);
+        this.config.position = null;
+    }
+
+    // map needs to exist before renderer ubos are initialized
+    this.renderer.createBuffers();
+}
 
 Core.prototype.loadMap = function(path) {
     if (this.map != null) {
@@ -216,7 +254,8 @@ Core.prototype.loadMap = function(path) {
 
         this.callListener('map-mapconfig-loaded', data);
 
-        this.map = new Map(this, data, path, this.config, this.configStorage);
+        //this.map = new Map(this, data, path, this.config, this.configStorage);
+        this.map = Map.createMapFromMapConfig(this, data, path, this.config, this.configStorage);
         this.mapInterface = new MapInterface(this.map);
         this.setConfigParams(this.map.browserOptions, true);
         this.setConfigParams(this.configStorage);
@@ -516,6 +555,8 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
 
     case 'map':
         this.config.map = utils.validateString(value, null); break;
+    case 'style':
+        this.config.style = utils.validateString(value, null); break;
     case 'mapVirtualSurfaces':
         this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
     case 'mapForcePipeline':

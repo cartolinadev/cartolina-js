@@ -28,7 +28,7 @@ var plugins = [
     }),
     new CopyPlugin({
       patterns: [
-        { from: './LICENSE', to: 'vts-browser.js' + (isProd ? '.min' : '') + '.LICENSE' },
+        { from: './LICENSE', to: 'cartolina.js' + (isProd ? '.min' : '') + '.LICENSE' },
         { from: './LICENSE', to: 'vts-core.js' + (isProd ? '.min' : '') + '.LICENSE' }
       ],
     }),    
@@ -41,8 +41,8 @@ var plugins = [
 // Base webpack config used by both outputs (global + ESM)
 const baseConfig = {
   entry: {
-    'vts-core': __dirname + '/src/core/index.js',
-    'vts-browser': __dirname + '/src/browser/index.js'
+    'vts-core': __dirname + '/src/core/index',
+    'cartolina': __dirname + '/src/browser/index'
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js"]
@@ -97,7 +97,7 @@ const baseConfig = {
     path: TARGET_DIR,
     filename: '[name]' + (isProd ? '.min' : '') + '.js',
     libraryTarget: "var",
-    library: "vts",
+    library: "cartolina",
     publicPath: '',
     workerPublicPath: process.env.WORKER_PATH || 
       (isProd ? '/libs/vtsjs/browser/' : '/build/')
@@ -140,25 +140,12 @@ const baseConfig = {
   plugins: plugins  
 };
 
-// 1) Global build: window.vts (unchanged behavior)
+// 1) Global build: window.cartolina.browser
 var globalConfig = Object.assign({}, baseConfig);
 globalConfig.name = 'global';
-// IMPORTANT: attach devServer ONLY to ONE config, so we get a single server instance.
-/*globalConfig.devServer = {
-  port: 8080,
-  static: [
-    { directory: path.join(__dirname, 'build') },
-    { directory: path.join(__dirname, 'demos') },
-    { directory: path.join(__dirname, 'test') }
-  ],
-  hot: false,
-  client: { overlay: true },
-  compress: false,
-  historyApiFallback: false
-};*/
 
 
-// 2) ESM build: `import { browser } from 'vts-browser-js'`
+// 2) ESM build: `import { browser } from 'cartolina.esm.js'`
 var esmConfig = Object.assign({}, baseConfig);
 esmConfig.name = 'esm';
 esmConfig.output = Object.assign({}, baseConfig.output, {

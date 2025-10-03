@@ -1,6 +1,6 @@
 /* vts-browser-js demo: full-screen map, crosshair cursor, elevation & depth overlay */
 (function () {
-  var browser = vts.browser('map', {
+  var browser = cartolina.browser('map', {
     map: 'https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/mapConfig.json',
     position: ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00],
     controlSearch: false,

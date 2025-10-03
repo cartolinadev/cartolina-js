@@ -1,5 +1,5 @@
 
-import { browser, utils } from "../../build/vts-browser.esm.js";
+import { browser, utils } from "../../build/cartolina.esm.js";
 
 
 function vtsParseUrlParams(initialParams_, url_) {
@@ -212,7 +212,7 @@ async function startBrowser() {
     params_['positionInUrl'] = true;
     
     let browser_ = browser('map-canvas', params_);
-    await browser_.ready;
+    //await browser_.ready;
 }
 
 export default startBrowser;
