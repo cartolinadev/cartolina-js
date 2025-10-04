@@ -770,7 +770,7 @@ export class TileRenderRig {
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        //__DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        __DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 
@@ -869,9 +869,9 @@ export class TileRenderRig {
         if (!(layer && layer.ready && layer.hasTileOrInfluence(tile.id)))
                 return;
 
-            let extraBound = null;
+        let extraBound = null;
 
-            if (propagate) {
+        if (propagate) {
 
                 // normally, we want to fallback to higher lod tiles if
                 // tiles are not available on the requested lod. This provides
@@ -882,11 +882,11 @@ export class TileRenderRig {
                         sourceTile: clampToLodRange(tile, layer.lodRange),
                         sourceTexture: null, layer: layer, tile: tile };
 
-            }
+        }
 
-            let texture: MapTexture = tile.boundTextures[layer.id];
+        let texture: MapTexture = tile.boundTextures[layer.id];
 
-            if (!texture) {
+        if (!texture) {
 
                 let path = layer.getUrl(tile.id);
 
@@ -900,80 +900,59 @@ export class TileRenderRig {
 
                 texture.isReady(true); //check metatile/mask but do not load
                 tile.boundTextures[layer.id] = texture;
-            }
+        }
 
-            if (texture.neverReady) return;
+        if (texture.neverReady) return;
 
-            let hasMask = TileRenderRig.hasMask(texture);
+        let hasMask = TileRenderRig.hasMask(texture);
 
-            let alpha_: any = layerDef.alpha;
+        let alpha: Alpha, mode: BlendMode;
+        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerDef);
 
-            if (typeof layerDef.alpha === "number")
-                alpha_ = { mode: 'constant', value: layerDef.alpha };
-
-
-            let isWatertight = !(hasMask != 'no' || alpha_.value < 1.0
-                || alpha_.mode != 'constant' || layerDef.mode != 'normal'
+        let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
+                || alpha.mode != 'constant' || mode != 'overlay'
                 || layer.isTransparent );
 
-            let mode: BlendMode;
-            switch (layerDef.mode) {
 
-                case 'multiply': mode = 'multiply'; break;
-                case 'normal': default: mode = 'overlay'; break;
+        let whitewash = 0.0;
+
+        if (layer.shaderFilters
+            && layer.shaderFilters[tile.resourceSurface.id]
+            && layer.shaderFilters[tile.resourceSurface.id].whitewash) {
+
+            whitewash = layer.shaderFilters[
+                tile.resourceSurface.id].whitewash;
+        }
+
+        // not a pretty side effect, copied verbatim from old code.
+        // needed for credits extraction
+        this.tile.boundLayers[layer.id] = layer;
+
+        return ({
+            operation: 'blend',
+            source: 'texture',
+            target: target,
+
+            necessity: necessity,
+
+            srcTextureTexture: texture,
+            srcTextureUVs: 'external',
+            srcTextureTransform: texture.getTransform(),
+            srcTextureSampling: target == 'normal' ? 'normal' : 'raw',
+
+            opBlendMode: mode,
+            opBlendAlpha: alpha,
+
+            tgtColorWhitewash: whitewash,
+
+            rt: {
+                layerId: layer.id,
+                isWatertight: isWatertight,
+                hasMask: hasMask,
+                isTransparent: layer.isTransparent
             }
+        });
 
-            let alpha: Alpha = {
-                mode: alpha_.mode,
-                value:alpha_.value
-            }
-
-            if (alpha_.mode === 'viewdep') {
-
-                alpha.illuminationNED = illumination.illuminationVector(
-                    alpha_.illumination[0],
-                    alpha_.illumination[1],
-                    illumination.CoordSystem.NED);
-            }
-
-            let whitewash = 0.0;
-
-            if (layer.shaderFilters
-                && layer.shaderFilters[tile.resourceSurface.id]
-                && layer.shaderFilters[tile.resourceSurface.id].whitewash) {
-
-                whitewash = layer.shaderFilters[
-                    tile.resourceSurface.id].whitewash;
-            }
-
-            // not a pretty side effect, copied verbatim from old code.
-            // needed for credits extraction
-            this.tile.boundLayers[layer.id] = layer;
-
-            return ({
-                operation: 'blend',
-                source: 'texture',
-                target: target,
-
-                necessity: necessity,
-
-                srcTextureTexture: texture,
-                srcTextureUVs: 'external',
-                srcTextureTransform: texture.getTransform(),
-                srcTextureSampling: target == 'normal' ? 'normal' : 'raw',
-
-                opBlendMode: mode,
-                opBlendAlpha: alpha,
-
-                tgtColorWhitewash: whitewash,
-
-                rt: {
-                    layerId: layer.id,
-                    isWatertight: isWatertight,
-                    hasMask: hasMask,
-                    isTransparent: layer.isTransparent
-                }
-            });
     } // textureLayerFromDef
 
     private constantLayerFromDef(layerDef: TileRenderRig.LayerDef,
@@ -981,29 +960,28 @@ export class TileRenderRig {
                          propagate: boolean = true,
                          target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
-        let alpha_: Alpha, mode: BlendMode;
-        [mode, alpha_] =  TileRenderRig.alphaBlendModeFromDef(layerDef);
+        let alpha: Alpha, mode: BlendMode;
+        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerDef);
 
-        let isWatertight = !(alpha_.value < 1.0
-            || alpha_.mode != 'constant' || layerDef.mode != 'normal');
+        let isWatertight = !(alpha.value < 1.0
+            || alpha.mode != 'constant' || mode != 'overlay');
 
         return {
-                target: 'color',
-                source: 'constant',
-                operation: 'blend',
-                necessity: necessity,
-                srcConstant: layerDef.value,
-                tgtColorWhitewash: 0,
-                rt: {},
+
+            target: 'color',
+            source: 'constant',
+            operation: 'blend',
+            opBlendMode: mode,
+            opBlendAlpha: alpha,
+            necessity: necessity,
+            srcConstant: layerDef.value,
+            tgtColorWhitewash: 0,
+            rt: { isWatertight: isWatertight }
+
         }
     }
 
-    private static alphaBlendModeFromDef(layerDef: TileRenderRig.LayerDef): [BlendMode, Alpha] {
-
-        let alpha_: any = layerDef.alpha;
-
-        if (typeof layerDef.alpha === "number")
-            alpha_ = { mode: 'constant', value: layerDef.alpha };
+    private static blendInfoFromDef(layerDef: TileRenderRig.LayerDef): [BlendMode, Alpha] {
 
         let mode: BlendMode;
 
@@ -1012,6 +990,11 @@ export class TileRenderRig {
             case 'multiply': mode = 'multiply'; break;
             case 'normal': default: mode = 'overlay'; break;
         }
+
+        let alpha_: any = layerDef.alpha;
+
+        if (typeof layerDef.alpha === "number")
+            alpha_ = { mode: 'constant', value: layerDef.alpha };
 
         let alpha: Alpha = {
             mode: alpha_.mode,
@@ -1026,7 +1009,7 @@ export class TileRenderRig {
                 illumination.CoordSystem.NED);
         }
 
-        return [mode, alpha_];
+        return [mode, alpha];
     }
 
 
