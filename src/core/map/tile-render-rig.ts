@@ -110,7 +110,6 @@ export class TileRenderRig {
             || surface.specularSequence.length > 0
             || surface.bumpSequence.length > 0;
 
-
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(layerDef);
 
@@ -709,7 +708,6 @@ export class TileRenderRig {
                 rt: {}
             });
 
-
             // process specular sequence
             layerDefs.specularSequence.forEach((item) => {
 
@@ -845,6 +843,19 @@ export class TileRenderRig {
                          propagate: boolean = true,
                          target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
+        if (layerDef.type === 'texture')
+            return this.textureLayerFromDef(layerDef, necessity, propagate, target);
+
+        if (layerDef.type === 'constant')
+            return this.constantLayerFromDef(layerDef, necessity, propagate, target);
+    }
+
+    private textureLayerFromDef(layerDef: TileRenderRig.LayerDef,
+                         necessity: Necessity = 'essential',
+                         propagate: boolean = true,
+                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
+
+
         let tile = this.tile;
         const layer = layerDef.layer;
 
@@ -963,7 +974,61 @@ export class TileRenderRig {
                     isTransparent: layer.isTransparent
                 }
             });
-    } // layerFromDef
+    } // textureLayerFromDef
+
+    private constantLayerFromDef(layerDef: TileRenderRig.LayerDef,
+                         necessity: Necessity = 'essential',
+                         propagate: boolean = true,
+                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
+
+        let alpha_: Alpha, mode: BlendMode;
+        [mode, alpha_] =  TileRenderRig.alphaBlendModeFromDef(layerDef);
+
+        let isWatertight = !(alpha_.value < 1.0
+            || alpha_.mode != 'constant' || layerDef.mode != 'normal');
+
+        return {
+                target: 'color',
+                source: 'constant',
+                operation: 'blend',
+                necessity: necessity,
+                srcConstant: layerDef.value,
+                tgtColorWhitewash: 0,
+                rt: {},
+        }
+    }
+
+    private static alphaBlendModeFromDef(layerDef: TileRenderRig.LayerDef): [BlendMode, Alpha] {
+
+        let alpha_: any = layerDef.alpha;
+
+        if (typeof layerDef.alpha === "number")
+            alpha_ = { mode: 'constant', value: layerDef.alpha };
+
+        let mode: BlendMode;
+
+        switch (layerDef.mode) {
+
+            case 'multiply': mode = 'multiply'; break;
+            case 'normal': default: mode = 'overlay'; break;
+        }
+
+        let alpha: Alpha = {
+            mode: alpha_.mode,
+            value:alpha_.value
+        }
+
+        if (alpha_.mode === 'viewdep') {
+
+            alpha.illuminationNED = illumination.illuminationVector(
+                alpha_.illumination[0],
+                alpha_.illumination[1],
+                illumination.CoordSystem.NED);
+        }
+
+        return [mode, alpha_];
+    }
+
 
     /**
      * Check if a given resource satifies the readiness condition, given the
@@ -1239,7 +1304,9 @@ export namespace TileRenderRig {
 
     export type LegacyLayerDef = {
 
-        layer: MapBoundLayer,
+        type: 'texture' | 'constant',
+        layer?: MapBoundLayer,
+        value?: [number, number, number],
         mode?: 'normal' | 'multiply'
         alpha: number | {
             value: number,
@@ -1250,24 +1317,17 @@ export namespace TileRenderRig {
 
     type LegacyLayerDefs = {
 
-        diffuseSequence: {
-
-            layer: MapBoundLayer,
-            mode: 'normal' | 'multiply',
-            alpha: {
-                    value: number,
-                    mode?: AlphaMode,
-                    illumination?: [number, number]
-                }
-            }[];
+        diffuseSequence: LegacyLayerDef[];
 
         specularSequence: {
+            type: 'texture',
             layer: MapBoundLayer,
             alpha: number
 
         }[];
 
         bumpSequence: {
+            type: 'texture',
             layer: MapBoundLayer,
             alpha: number
         }[];
