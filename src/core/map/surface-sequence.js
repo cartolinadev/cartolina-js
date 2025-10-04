@@ -214,6 +214,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                     if (layer) {
 
                         surface.diffuseSequence.push({
+                            type: 'texture',
                             layer: layer,
                             mode: 'normal',
                             alpha: alpha
@@ -260,7 +261,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         
                             if (typeof alpha_ === 'number' ) {
 
-                                alpha.value = parseFloat(alpha_);
+                                alpha.value = alpha_;
                             }
                                                
                             if (typeof alpha_ === 'object' ) {
@@ -268,7 +269,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 // alpha.value
                                 if (alpha_['value'] != null) {
                                     console.assert(typeof alpha_['value'] === 'number');
-                                    alpha.value = parseFloat(alpha_['value']);
+                                    alpha.value = alpha_['value'];
                                 }
                             
                                 // alpha.mode
@@ -288,8 +289,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                         && typeof(illum_[0]) === 'number'
                                         && typeof(illum_[1]) === 'number');
                                 
-                                    alpha['illumination']
-                                        = [parseFloat(illum_[0]), parseFloat(illum_[1])];
+                                    alpha['illumination'] = [illum_[0], illum_[1]];
                                 }
                             }
 
@@ -298,7 +298,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 "defined for view dependent bound layer alpha (%o).",
                                 alpha);
 
-                            // FIXME: though options are defined per view
+                            // WARN: though options are defined per view
                             // BL instance, they are applied directly to the map
                             // bound layer array. This means that a single BL
                             // cannot be used more than once with
@@ -344,6 +344,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
                             // add to sequence
                             surface.diffuseSequence.push({
+                                type: 'texture',
                                 layer: layer,
                                 mode: mode,
                                 alpha: alpha
@@ -364,6 +365,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             }
 
                             surface.specularSequence.push({
+                                type: 'texture',
                                 layer: layer,
                                 alpha: alpha
                             });
@@ -386,6 +388,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                             }
 
                             surface.bumpSequence.push({
+                                type: 'texture',
                                 layer: layer,
                                 alpha: alpha
                             });
