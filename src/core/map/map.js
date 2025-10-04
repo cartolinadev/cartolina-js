@@ -21,6 +21,7 @@ import MapUrl from './url';
 import * as Illumination from './illumination';
 import GpuTexture_ from '../renderer/gpu/texture';
 import Atmosphere from './atmosphere';
+import MapStyle from './style';
 
 //get rid of compiler mess
 var vec3 = vec3_;
@@ -124,9 +125,31 @@ Map.createMapFromStyle = function(core, style, path, config, configStorage) {
 
     map.setLoaderParams(null, configStorage);
 
-    // MapStyle.loadStyle(map, style);
+    // load style
+    MapStyle.loadStyle(map, style);
 
-    throw new Error ('not implemented yet.');
+    // force update
+    map.dirty = true;
+    map.hitMapDirty = true; map.geoHitMapDirty = true;
+
+    map.draw = new MapDraw(map);
+    map.draw.setupDetailDegradation();  // probably not needed
+
+    let body = map.referenceFrame.body;
+    let services = map.services;
+
+    // atmosphere
+    if (body && body.atmosphere && services && services.atmdensity)
+        map.atmosphere = new Atmosphere(
+            body.atmosphere, map.getPhysicalSrs(),
+            map.url.makeUrl(services.atmdensity.url, {}), map);
+
+    // render slots
+    map.renderSlots = new MapRenderSlots(map);
+    map.renderSlots.addRenderSlot('map', map.drawMap.bind(map), true);
+
+    // done
+    return map;
 }
 
 Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStorage) {
