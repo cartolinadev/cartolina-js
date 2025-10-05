@@ -58,6 +58,7 @@ var Map = function(core, path, config, configStorage) {
     this.srses = {};
     this.bodies = {};
     this.referenceFrame = {};
+    this.services = {};
     this.credits = {};
     this.creditsByNumber = {};
     this.surfaces = {};
@@ -72,8 +73,10 @@ var Map = function(core, path, config, configStorage) {
 
     this.surfaceSequence = new MapSurfaceSequence(this);
 
+    this.style = null;
+
     this.initialView = null;
-    this.currentView_ = new MapView(this, {});
+    this.currentView_ = null; // new MapView(this, {});
     this.currentViewString = '';
     this.namedViews = {};
     this.viewCounter = 0;
@@ -180,6 +183,8 @@ Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStora
     map.isGeocent = !map.getNavigationSrs().isProjected();
 
     map.tree = new MapSurfaceTree(map, false);
+    map.currentView_ =  new MapView(this, {});
+
     map.mapConfig.afterConfigParsed();
 
     map.updateCoutner = 0;
@@ -491,7 +496,7 @@ Map.prototype.getBoundLayers = function() {
 
 Map.prototype.addFreeLayer = function(id, layer) {
     this.freeLayers[id] = layer;
-    this.setView(this.getView());
+    //this.setView(this.getView());
     this.markDirty();
 };
 
@@ -500,7 +505,7 @@ Map.prototype.removeFreeLayer = function(id) {
     if (this.freeLayers[id]) {
         this.freeLayers[id].kill();
         this.freeLayers[id] = null;
-        this.setView(this.getView());
+        //this.setView(this.getView());
         this.markDirty();
     }
 };
@@ -573,8 +578,8 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
         return;
     }
 
-    if (this.currentStyle)
-        throw Error(`legacy setView may not be used when map `
+    if (this.style)
+        throw Error(`setView may not be used when the map `
             + `is initialized via style.`);
 
     if (posToFixed && this.convert) {
@@ -758,12 +763,11 @@ Map.prototype.refreshFreelayesInView = function() {
 Map.prototype.refreshView = function() {
     this.viewCounter++;
 
-    // if the map is style-based
-    if (this.style)
-        style.refreshSequences();
+    // style-based map
+    if (this.style) this.style.refreshSequences();
 
-    // otherwise, it's map-config based, use the legacy methods
-    if (!this.style) {
+    // mapconfig-based map, use the legacy methods
+    if (!this.style && this.currentView_) {
 
         this.surfaceSequence.generateSurfaceSequence();
         this.surfaceSequence.generateBoundLayerSequence();

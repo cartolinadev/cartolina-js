@@ -1,6 +1,9 @@
 
 import Map from '../map/map';
+
 import MapRefFrame from '../map/refframe';
+import MapSrs from '../map/srs';
+import MapBody from '../map/body';
 
 import typia from "typia";
 
@@ -23,6 +26,9 @@ export interface StyleSpecification  {
     constants?: Record<string, any>;
     bitmaps?: Record<string, Expression>;
     fonts?: Record<string, string>;
+
+    illumination?: IlluminationSpecification;
+    verticalExaggeration?: VerticalExaggerationSpecification;
 }
 
 export type SourceSpecification =
@@ -195,7 +201,17 @@ type AlphaMode = 'constant' | 'viewdep'
 
 type Alpha = number | { mode: AlphaMode, value: number }
 
+type IlluminationSpecification = {
 
+    light: ['tracking', number, number],
+    ambientCoef?: number
+}
+
+type VerticalExaggerationSpecification =  {
+
+    heightRamp?: [[number, number], [number, number]],
+    viewExtentProgression?: [number, number, number, number, number]
+}
 
 const validateStyle = typia.createValidate<StyleSpecification>();
 
@@ -243,6 +259,7 @@ export class MapStyle {
         map.freeLayers = {}
         map.boundLayers = {}
         map.stylesheets = {}
+        map.services = {}
         map.initialView = null;
         map.currentView_ = null;
 
@@ -273,27 +290,53 @@ export class MapStyle {
                         mc.referenceFrame.id === map.referenceFrame.id);
 
                 if (!map.referenceFrame) {
+                    // ok, this is first surface, so we extract all the map metadata
 
-                    // first surface
+                    // the srses
+                    for (let key in mc.srses)
+                        map.addSrs(key, new MapSrs(map, key, mc.srses[key]));
 
-                    // first the reference frame
+                    // the bodies
+                    for (let key in mc.bodies)
+                        map.addBody(key, new MapBody(map, mc.bodies[key]));
+
+                    // the reference frame
                     map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
 
-                    // the body
-
                     // the services
-
-                    // the surface
-
+                    map.services = mc.services ?? {};
                 }
+
+                // the surface
+                // the credits
+
 
             }
 
+        // illumination
+        if (styleSpec.illumination) {
+
+            map.renderer.setIllumination(styleSpec.illumination);
+        }
+
+
+        // vertical exaggeration
+        if (styleSpec.verticalExaggeration) {
+
+            map.renderer.setSuperElevationState(true);
+            map.renderer.setSuperElevation(styleSpec.verticalExaggeration);
+        }
+
         // parse bound layers from style layers
+        // TODO
 
         // parse free layers from style layers
+        // TODO
 
-        throw new Error('unimplemented');
+
+        // done
+        console.log(map);
+        map.style = new MapStyle(map, styleSpec);
     }
 
 
@@ -314,6 +357,8 @@ export class MapStyle {
      * objects according to the style content.
      */
     refreshSequences(): void {
+
+        // TODO
 
         // build  surface sequence
         // build bound layer sequences
