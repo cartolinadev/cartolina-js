@@ -83,6 +83,8 @@ var Map = function(core, path, config, configStorage) {
     this.srsReady = false;
     this.surfaceCounter = 0;
 
+    this.tree = null;
+
     this.freeLayerSequence = [];
 
     this.freeLayersHaveGeodata = false;

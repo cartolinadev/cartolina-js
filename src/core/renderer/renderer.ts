@@ -751,7 +751,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
         useLighting: !! useLighting
     }
 
-    __DEV__ && console.log("Illumination: ", this.illumination);
+    //__DEV__ && console.log("Illumination: ", this.illumination);
 };
 
 getIlluminationVectorVC() {

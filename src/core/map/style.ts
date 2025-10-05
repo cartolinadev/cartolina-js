@@ -4,6 +4,9 @@ import Map from '../map/map';
 import MapRefFrame from '../map/refframe';
 import MapSrs from '../map/srs';
 import MapBody from '../map/body';
+import MapSurface from '../map/surface';
+import MapCredit from '../map/credit';
+import MapUrl from '../map/url';
 
 import typia from "typia";
 
@@ -253,7 +256,7 @@ export class MapStyle {
         map.srses = {}
         map.bodies = {}
         map.credits = {}
-        map.surfaces = {}
+        map.surfaces = []
         map.virtualSurfaces = {}
         map.glues = {}
         map.freeLayers = {}
@@ -275,14 +278,10 @@ export class MapStyle {
                 let mc = await utils.loadJson(path);
 
                 // TODO: validation
-                __DEV__ && console.log(mc);
+                //__DEV__ && console.log(mc);
 
-                // only single surfce map configs are admissible
-                if (mc.surfaces.length != 1) {
-
-                    throw Error(`The url for source ${id} does not define `
-                        + `exactly one surface, bailing out.`);
-                }
+                // not pretty, but constructors called below silently rely on this
+                map.url = new MapUrl(map, path);
 
                 // sanity: all surfaces need to share the same frame of reference
                 if (map.referenceFrame)
@@ -307,9 +306,19 @@ export class MapStyle {
                     map.services = mc.services ?? {};
                 }
 
-                // the surface
-                // the credits
+                // the surface, only single-surface mapconfigs are admissible
+                if (mc.surfaces.length != 1) {
 
+                    throw Error(`The url for source ${id} does not define `
+                        + `exactly one surface, bailing out.`);
+                }
+
+                let surface = new MapSurface(map, mc.surfaces[0]);
+                map.addSurface(surface.id, surface);
+
+                // the credits
+                if (mc.credits) for (let key in mc.credits)
+                    map.addCredit(key, new MapCredit(map, mc.credits[key]));
 
             }
 
@@ -319,12 +328,11 @@ export class MapStyle {
             map.renderer.setIllumination(styleSpec.illumination);
         }
 
-
         // vertical exaggeration
-        if (styleSpec.verticalExaggeration) {
+        if (styleSpec['vertical-exaggeration']) {
 
             map.renderer.setSuperElevationState(true);
-            map.renderer.setSuperElevation(styleSpec.verticalExaggeration);
+            map.renderer.setSuperElevation(styleSpec['vertical-exaggeration']);
         }
 
         // parse bound layers from style layers
@@ -360,11 +368,21 @@ export class MapStyle {
 
         // TODO
 
+        let map = this.map;
+
         // build  surface sequence
+        map.tree.surfaceSequence = [];
+        map.tree.surfaceOnlySequence = [];
+
+        map.surfaces.forEach((surface: MapSurface) => {
+            map.tree.surfaceSequence.push([surface, false]);
+            map.tree.surfaceOnlySequence.push([surface, false]);
+        });
+
         // build bound layer sequences
         // compile free layer stylesheets from style layers and set them
 
-        throw new Error('unimplemented');
+        //throw new Error('unimplemented');
     }
 
 

@@ -53,11 +53,23 @@ export type MapOptions = {
 
 export function map(options: MapOptions): BrowserInterface {
 
-    let bi = new BrowserInterface(
-        options.container, {style: options.style, ...options});
-
     // all browser controls are disabled by default on the style api
+    let dflts = {
 
+        "controlMeasure": false
+        , "jumpAllowed": true
+        , "controlSearch": false
+        , "controlZoom": false
+        , "controlFalback": false
+        , "controlSpace": false
+        , "controlCompass": false
+    }
+
+    let bi = new BrowserInterface(
+        options.container, {
+            style: options.style, ...dflts, ...options.options, position: options.position});
+
+    // return
     return bi.core ? bi: null;
 }
 
