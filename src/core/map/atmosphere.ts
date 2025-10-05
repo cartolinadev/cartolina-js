@@ -130,7 +130,7 @@ class Atmosphere {
     private createQuadVao() {
 
         let gl = this.renderer.gpu.gl;
-        let program = this.renderer.programs.background;
+        let program = this.renderer.programBackground();
 
         this.quadVao = gl.createVertexArray()!;
         gl.bindVertexArray(this.quadVao);
@@ -269,7 +269,7 @@ class Atmosphere {
         eyePos: math.vec3, mvpInverse: math.mat4)   {
 
         let gl = this.renderer.gpu.gl;
-        let program = this.renderer.programs.background;
+        let program = this.renderer.programBackground();
 
         // compute corners here - the scaling is probably not needed at all,
         // since we deal with directions, and divisions by huger numbers
@@ -306,7 +306,7 @@ class Atmosphere {
             ...cornerDirs[2], ...cornerDirs[3]]);
 
         // use
-        this.renderer.gpu.useProgram2(this.renderer.programs.background);
+        this.renderer.gpu.useProgram2(this.renderer.programBackground());
 
         // Set the vec3 array uniform (query from [0], pass 12 floats)
         program.setVec3("uniCorners[0]", flat)
