@@ -1282,9 +1282,8 @@ const BlendModeMap = { overlay: UboBlendMode.Overlay, add: UboBlendMode.Add,
 export namespace TileRenderRig {
 
     /**
-     * the legacy layer definition (the three sequences in MapSurface)
+     * the legacy layer definition (the three sequences in MapSurfaceTree)
      */
-
     export type LegacyLayerDef = {
 
         type: 'texture' | 'constant',

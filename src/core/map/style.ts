@@ -347,7 +347,14 @@ export class MapStyle {
             }
 
         // parse free layers from sources
-        // TODO
+        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+            if (sourceSpec.type === 'cartolina-freelayer') {
+
+                // asynchronous: callbacks force repeated map.refreshView()
+                let fl = new MapSurface(map, sourceSpec.url, id);
+                map.addFreeLayer(id, fl);
+            }
+
 
         // illumination
         if (styleSpec.illumination) {
