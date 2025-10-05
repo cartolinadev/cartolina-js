@@ -1,6 +1,6 @@
 {
   "name": "vts-browser-js",
-  "version": "2.49.102-ondra_cartolina23.3911ed8",
+  "version": "2.49.103-ondra_cartolina23.ac0dfb8",
   "description": "JavaScript WebGL 3D maps rendering engine",
   "main": "src/browser/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "clean": "node_modules/.bin/rimraf build test/perf/results/ dist/",
     "dist": "NODE_ENV=production node_modules/.bin/webpack --progress",
     "start": "node_modules/.bin/webpack-dev-server --content-base ./ --inline",
-    "prepare": "husky install",
+    "prepare": "ts-patch install && husky install",
     "perf:install": "npx playwright install chromium",
     "test": "test:perf",
     "test:perf": "node ./test/perf/run-bundle.js",
@@ -50,7 +50,10 @@
     "rimraf": "^3.0.2",
     "serve": "^14.2.5",
     "style-loader": "^1.2.1",
+    "ts-patch": "^3.3.0",
     "ts-shader-loader": "^2.0.2",
+    "typescript": "~5.9.2",
+    "typia": "^9.7.2",
     "webpack": "^5.101.0",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"
@@ -60,7 +63,6 @@
     "geographiclib": "^1.50.0",
     "npm": "^10.9.3",
     "proj4": "^2.19.10",
-    "ts-loader": "^8.4.0",
-    "typescript": "^5.9.2"
+    "ts-loader": "^8.4.0"
   }
 }

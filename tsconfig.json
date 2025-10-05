@@ -2,17 +2,32 @@
   "compilerOptions": {
     "sourceMap": true,
     "target": "es2020",
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "es2020",
+      "dom"
+    ],
     "module": "es2020",
     "allowJs": true,
-    "checkJs": false,    
+    "checkJs": false,
     "experimentalDecorators": true,
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
     ],
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "plugins": [
+      {
+        "transform": "typia/lib/transform"
+      }
+    ],
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "strict": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/core/map/geodata-processor/**"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/core/map/geodata-processor/**"
+  ]
 }

@@ -270,6 +270,26 @@ export function loadXML(path, onLoaded, onError, withCredentials, xhrParams) {
 };
 
 
+export async function loadJson(path: string) {
+
+    let retval;
+
+    try {
+
+        let r = await fetch(path);
+        if (!r.ok) throw new Error(`HTTP ${r.status}.`);
+        retval = await r.json();
+
+    } catch(err) {
+
+        console.error(`Failed to load or parse ${path}:`, err);
+        throw new Error();
+
+    }
+
+    return retval;
+}
+
 export function loadJSON(path, onLoaded, onError, skipParse, withCredentials, xhrParams) {
     var xhr = new XMLHttpRequest();
 
