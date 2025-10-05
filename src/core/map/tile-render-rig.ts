@@ -95,11 +95,11 @@ export class TileRenderRig {
         const surface = tile.resourceSurface;
 
         this.rt.illumination
-            = surface.normalsUrl && this.renderer.getIlluminationState()
+            = !! surface.normalsUrl && this.renderer.getIlluminationState()
 
         /** WARN: glues currently don't carry normalsUrls, so normal information
            is lost even when the original surface carried it. */
-        this.rt.normals = surface.normalsUrl && ! config.mapNoNormalMaps;
+        this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
 
         // if the surface publishes texture URLs its meshes are expected to
         // carry internal UVs and the surface is expected to provide internal
@@ -770,7 +770,7 @@ export class TileRenderRig {
         // also, turn off internal/external UVs if no layer needs them?
 
         // done
-        __DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        //__DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
     }
 
 

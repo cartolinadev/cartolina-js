@@ -125,7 +125,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             if (tile.tileRenderRig[i])
                                 tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
-
+                            // create new rig from submeshSurface layer sequence
                             tile.tileRenderRig[i] = new TileRenderRig(
                                 i, submeshSurface, tile, this.renderer, this.config);
 

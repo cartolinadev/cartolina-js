@@ -4,7 +4,7 @@
         "sources": {
             "topoearth-copernicus-dem-glo30": {
                 "type": "cartolina-surface",
-                "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/",
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/"
             },
             "esa-worldcover2021": {
                 "type": "cartolina-tms",
@@ -29,7 +29,7 @@
             },
             "osm-openfreemap": {
                 "type": "cartolina-freelayer",
-                "url": "/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json",
+                "url": "/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json"
             }
         },
         "illumination": {
@@ -69,13 +69,13 @@
             {
                 "type": "diffuse-map",
                 "source": "esa-worldcover2021",
-                "whitewash": 0.0,
+                "whitewash": 0.0
             },
             {
                 "type": "constant",
                 "source": [255,255,255],
                 "blendMode": "overlay",
-                "alpha": 0.15,
+                "alpha": 0.15
 
             },
             {

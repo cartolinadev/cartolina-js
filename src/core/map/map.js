@@ -8,7 +8,7 @@ import MapResourceTree from './resource-tree';
 import MapSrs_ from './srs';
 import MapCache_ from './cache';
 import MapCamera_ from './camera';
-import MapConfig_ from './config';
+import MapConfig from './config';
 import MapConvert_ from './convert';
 import MapMeasure_ from './measure';
 import MapDraw_ from './draw';
@@ -29,7 +29,6 @@ var platform = platform_;
 var MapSrs = MapSrs_;
 var MapCache = MapCache_;
 var MapCamera = MapCamera_;
-var MapConfig = MapConfig_;
 var MapConvert = MapConvert_;
 var MapMeasure = MapMeasure_;
 var MapDraw = MapDraw_;
@@ -119,14 +118,26 @@ var Map = function(core, path, config, configStorage) {
     this.hoverFeatureList = [];
 }
 
-Map.createMapFromStyle = function(core, style, path, config, configStorage) {
+Map.createMapFromStyle = async function(core, style, path, config, configStorage) {
 
     let map = new Map(core, path, config, configStorage);
 
     map.setLoaderParams(null, configStorage);
 
     // load style
-    MapStyle.loadStyle(map, style);
+    await MapStyle.loadStyle(map, style);
+
+    // no clue what these are
+    map.convert = new MapConvert(map);
+    map.measure = new MapMeasure(map);
+    map.convert.measure = map.measure;
+
+    map.isGeocent = !map.getNavigationSrs().isProjected();
+
+    map.tree = new MapSurfaceTree(map, false);
+
+    // generate sequences
+    map.refreshView();
 
     // force update
     map.dirty = true;
@@ -746,9 +757,19 @@ Map.prototype.refreshFreelayesInView = function() {
 
 Map.prototype.refreshView = function() {
     this.viewCounter++;
-    this.surfaceSequence.generateSurfaceSequence();
-    this.surfaceSequence.generateBoundLayerSequence();
-    this.refreshFreelayesInView();
+
+    // if the map is style-based
+    if (this.style)
+        style.refreshSequences();
+
+    // otherwise, it's map-config based, use the legacy methods
+    if (!this.style) {
+
+        this.surfaceSequence.generateSurfaceSequence();
+        this.surfaceSequence.generateBoundLayerSequence();
+        this.refreshFreelayesInView();
+    }
+
     this.markDirty();
 };
 

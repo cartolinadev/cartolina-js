@@ -1,6 +1,11 @@
 
 import Map from '../map/map';
+import MapRefFrame from '../map/refframe';
 
+import typia from "typia";
+
+
+import * as utils from '../utils/utils';
 
 /**
  * The style specification.
@@ -13,11 +18,11 @@ export interface StyleSpecification  {
 
     sources: Record<string, SourceSpecification>;
 
-    layers: LayerSpecification[];
+    layers?: LayerSpecification[];
 
-    constants: Record<string, Expression>;
-    bitmaps: Record<string, Expression>;
-    fonts: Record<string, string>;
+    constants?: Record<string, any>;
+    bitmaps?: Record<string, Expression>;
+    fonts?: Record<string, string>;
 }
 
 export type SourceSpecification =
@@ -67,10 +72,9 @@ export type DiffuseMapLayer = Omit<LayerMapBase<'diffuse-map'>, 'type'> & {
 }
 
 export type DiffuseConstantLayer = Omit<LayerMapBase<
-    'diffuse' | 'diffuse-constant'>, 'source'> & {
+    'constant' | 'diffuse-constant'>, 'source'> & {
 
-
-
+    source: Color3Spec
 }
 
 export type SpecularMapLayer = LayerMapBase<'specular-map'>;
@@ -112,7 +116,7 @@ type LetteringLayerProperties = {
     'line-style-background': Property<Color4Spec>,
     'line-color': Property<Color4Spec>,
     'line-label': Property<boolean>,
-    'line-label-font': [string],
+    'line-label-font': Property<string[]>,
     'line-label-color': Property<Color4Spec>,
     'line-label-color2': Property<Color4Spec>,
     'line-label-outline': Property<[number, number, number, number]>,
@@ -136,7 +140,7 @@ type LetteringLayerProperties = {
     'icon-stick': Property<number[]>,
 
     label: Property<boolean>,
-    'label-font': [string],
+    'label-font': Property<string[]>,
     'label-source': Property<string>,
     'label-size': Property<number>,
     'label-color': Property<Color4Spec>,
@@ -182,8 +186,8 @@ type Property<T> = T | Expression;
 
 type FilterCondition = any[];
 
-type Color3Spec = [number, number, number, number]
-type Color4Spec = [number, number, number]
+type Color3Spec = [number, number, number]
+type Color4Spec = [number, number, number, number]
 
 type BlendMode = 'overlay' | 'add' | 'multiply'
 
@@ -192,17 +196,135 @@ type AlphaMode = 'constant' | 'viewdep'
 type Alpha = number | { mode: AlphaMode, value: number }
 
 
+
+const validateStyle = typia.createValidate<StyleSpecification>();
+
 /*
  * Class map style, provides a method to initialize the map object according
  * to a style spec.
  */
 
-
 export class MapStyle {
 
-    static loadStyle(map: Map, style: StyleSpecification) {
+    /**
+     * Load a map from style specification. This entails retrieving the sources,
+     * building the list of surfaces, bound layers and free layers, and serves
+     * also as a factory to initialize the mapStyle object itself and set it
+     * to style property in the map.
+     *
+     * @param map the target map object
+     * @param styleSpec the style specification
+     */
+
+    static async loadStyle(map: Map, styleSpec: StyleSpecification) {
+
+        // validation
+        const res = validateStyle(styleSpec);
+
+        if (!res.success) {
+
+            // @ts-expect-error Typia typing bug
+            let errs = res.errors ?? [];
+
+            for (const e of errs)
+                console.warn(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
+
+            throw new Error(`Invalid style (${errs.length} errors)`);
+        }
+
+        // wipe the map clean
+        map.referenceFrame = null;
+        map.srses = {}
+        map.bodies = {}
+        map.credits = {}
+        map.surfaces = {}
+        map.virtualSurfaces = {}
+        map.glues = {}
+        map.freeLayers = {}
+        map.boundLayers = {}
+        map.stylesheets = {}
+        map.initialView = null;
+        map.currentView_ = null;
+
+        // parse surfaces from style sources
+        // (with special handling of the first surface, extracting ref frame, body and services
+        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+            if (sourceSpec.type === 'cartolina-surface') {
+
+                // load surface map config
+                const path = MapStyle.slapResource(
+                    map.url.processUrl(sourceSpec.url), 'mapConfig.json');
+
+                let mc = await utils.loadJson(path);
+
+                // TODO: validation
+                __DEV__ && console.log(mc);
+
+                // only single surfce map configs are admissible
+                if (mc.surfaces.length != 1) {
+
+                    throw Error(`The url for source ${id} does not define `
+                        + `exactly one surface, bailing out.`);
+                }
+
+                // sanity: all surfaces need to share the same frame of reference
+                if (map.referenceFrame)
+                    console.assert(
+                        mc.referenceFrame.id === map.referenceFrame.id);
+
+                if (!map.referenceFrame) {
+
+                    // first surface
+
+                    // first the reference frame
+                    map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
+
+                    // the body
+
+                    // the services
+
+                    // the surface
+
+                }
+
+            }
+
+        // parse bound layers from style layers
+
+        // parse free layers from style layers
 
         throw new Error('unimplemented');
+    }
+
+
+    map: Map;
+    styleSpec: StyleSpecification;
+
+
+    /**
+     * The bare bones constructor
+     */
+    constructor(map: Map, style: StyleSpecification) {
+
+        this.map = map; this.styleSpec = style;
+    }
+
+    /**
+     * refresh the map surfaceSequence, boundLayerSequence and freeLayerSequence
+     * objects according to the style content.
+     */
+    refreshSequences(): void {
+
+        // build  surface sequence
+        // build bound layer sequences
+        // compile free layer stylesheets from style layers and set them
+
+        throw new Error('unimplemented');
+    }
+
+
+    private static slapResource(path: string, resource: string): string {
+        if (path.endsWith('/')) return path + resource;
     }
 }
 

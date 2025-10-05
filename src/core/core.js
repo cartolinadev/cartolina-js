@@ -205,14 +205,13 @@ Core.prototype.loadMapFromStyle = async function(style) {
     if (typeof(style) === 'string') {
 
         path = utilsUrl.getProcessUrl(style, path);
-        let style_ = await fetch(path);
+        style_ = await utils.loadJson(path);
     }
-
-    // TODO: validate style
 
     // create map
     this.map = await Map.createMapFromStyle(this, style_, path,
                     this.config, this.configStorage);
+
     this.mapInterface = new MapInterface(this.map);
     this.setConfigParams(this.configStorage);
 
@@ -221,7 +220,7 @@ Core.prototype.loadMapFromStyle = async function(style) {
         this.config.position = null;
     }
 
-    // map needs to exist before renderer ubos are initialized
+    // initialize ubos
     this.renderer.createBuffers();
 }
 
