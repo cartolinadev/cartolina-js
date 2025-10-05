@@ -57,6 +57,7 @@ var Map = function(core, path, config, configStorage) {
 
     this.srses = {};
     this.bodies = {};
+    this.atmosphere = null;
     this.referenceFrame = {};
     this.services = {};
     this.credits = {};
@@ -153,12 +154,6 @@ Map.createMapFromStyle = async function(core, style, path, config, configStorage
 
     let body = map.referenceFrame.body;
     let services = map.services;
-
-    // atmosphere
-    if (body && body.atmosphere && services && services.atmdensity)
-        map.atmosphere = new Atmosphere(
-            body.atmosphere, map.getPhysicalSrs(),
-            map.url.makeUrl(services.atmdensity.url, {}), map);
 
     // render slots
     map.renderSlots = new MapRenderSlots(map);

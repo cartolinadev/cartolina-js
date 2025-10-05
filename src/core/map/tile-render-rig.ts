@@ -211,7 +211,7 @@ export class TileRenderRig {
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
 
         // this shouldn't be necessary, this is set once per frame in
-        // renderer.updateBuffer. Ooddly, we keep loosing the binding
+        // renderer.updateBuffer. Oddly, we keep loosing the binding
         /*if (false && this.renderer.core.map.atmosphere) {
 
             this.renderer.gpu.bindTexture(

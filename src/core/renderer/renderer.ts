@@ -121,8 +121,8 @@ export class Renderer {
 
     // programs
     programs!: {
-        tile: GpuProgram,
-        background: GpuProgram
+        tile?: GpuProgram,
+        background?: GpuProgram
     }
 
     // texture unit indices
@@ -348,7 +348,8 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.gpu.init();
     this.init = new RenderInit(this);
 
-    this.initShaders();
+    this.initTextureIdxs();
+    this.programs = {}
 
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
@@ -356,32 +357,65 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.resizeGL(Math.floor(this.curSize[0]), Math.floor(this.curSize[1]));
 };
 
-
 /**
- * Initialize shader programs, bind buffers to their corresponding block names
- * and set fixed samplers for every program.
+ * Lazy tile program initialization, including binding buffers to block names
+ * and fixed samplers.
  */
 
-initShaders() {
+programTile() {
 
-    this.initTextureIdxs();
+    if (this.programs.tile) return this.programs.tile;
 
-    this.programs = {
-        tile: new GpuProgram(this.gpu, shaderTileVert, shaderTileFrag,
+    let atmBindings = {}
+
+    if (this.core.map.atmosphere) {
+
+        atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
+    }
+
+    __DEV__ && console.log('Initializing programs.tile');
+
+
+    this.programs.tile = new GpuProgram(
+        this.gpu, shaderTileVert, shaderTileFrag,
         'shader-tile', {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
-            uboAtm: Renderer.UniformBlockName.Atmosphere
-        },{
-            uTexAtmDensity: this.textureIdxs.atmosphere
-        }),
-        background: new GpuProgram(this.gpu, backgroundTileVert, backgroundTileFrag,
-        'shader-background', {
-            uboAtm: Renderer.UniformBlockName.Atmosphere
-        },{
-            uTexAtmDensity: this.textureIdxs.atmosphere
-        })
+            ...atmBindings
+        }, { uTexAtmDensity: this.textureIdxs.atmosphere });
+
+    return this.programs.tile;
+}
+
+/**
+ * Lazy background program initialization, including binding buffers to block names
+ * and fixed samplers.
+ */
+
+programBackground() {
+
+    if (this.programs.background) return this.programs.background;
+
+    let atmBindings = {}
+
+    if (this.core.map.atmosphere) {
+
+        atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
+
+    } else {
+
+        __DEV__ && utils.warnOnce('running programs.background without atmosphere?');
     }
+
+    __DEV__ && console.log('Initializing programs.background');
+
+    this.programs.background = new GpuProgram(
+        this.gpu, backgroundTileVert, backgroundTileFrag,
+        'shader-background', {
+            ...atmBindings
+        },{ uTexAtmDensity: this.textureIdxs.atmosphere });
+
+    return this.programs.background;
 }
 
 /**
@@ -464,7 +498,6 @@ updateBuffers() {
     data.projection = this.camera.getProjectionFMatrix();
 
     // obtain the data: body params and vertical exaggeration
-
     let se = this.getSuperElevation(map.position);
     let srsInfo = this.core.map.getPhysicalSrs().getSrsInfo();
     let majorAxis = srsInfo.a;
@@ -590,7 +623,6 @@ updateBuffers() {
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboFrame);
     gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-
 
     // the uboAtm buffer
     if (this.core.map.atmosphere) {

@@ -6,17 +6,21 @@
                 "type": "cartolina-surface",
                 "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/"
             },
+            "ne1v6plcw": {
+                "type": "cartolina-tms",
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/natural-earth1-v6p-lcw/boundlayer.json" 
+            },          
             "esa-worldcover2021": {
                 "type": "cartolina-tms",
-                "url": "/mapproxy/melown2015/tms/topoearth/esa-worldcover2021-cr4/boundlayer.json"
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover2021-cr4/boundlayer.json"
             },
             "eoxit-s2c-normalmap": {
                 "type": "cartolina-tms",
-                "url": "/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
             },
             "esa-worldcover-specularmap": {
                 "type": "cartolina-tms",
-                "url": "/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json",
+                "url": "https://cdn.tspl.re[B/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json",
             "eoxit-s2c-normalmap": "/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
             },
             "ne1lc-specularmap": {
@@ -25,11 +29,11 @@
             },
             "esa-worldcover-specularmap": {
                 "type": "cartolina-tms",
-                "url": "/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
             },
             "osm-openfreemap": {
                 "type": "cartolina-freelayer",
-                "url": "/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json"
+                "url": "https://cdn.tspl.re/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json"
             }
         },
         "illumination": {

@@ -4,9 +4,11 @@ import Map from '../map/map';
 import MapRefFrame from '../map/refframe';
 import MapSrs from '../map/srs';
 import MapBody from '../map/body';
+import Atmosphere from '../map/atmosphere';
 import MapSurface from '../map/surface';
 import MapCredit from '../map/credit';
 import MapUrl from '../map/url';
+import MapBoundLayer from '../map/bound-layer';
 
 import typia from "typia";
 
@@ -281,6 +283,8 @@ export class MapStyle {
                 //__DEV__ && console.log(mc);
 
                 // not pretty, but constructors called below silently rely on this
+                let mapurl = map.url;
+
                 map.url = new MapUrl(map, path);
 
                 // sanity: all surfaces need to share the same frame of reference
@@ -304,6 +308,15 @@ export class MapStyle {
 
                     // the services
                     map.services = mc.services ?? {};
+
+                    // atmosphere
+                    let body = map.referenceFrame.body;
+                    let services = map.services;
+
+                    if (body && body.atmosphere && services && services.atmdensity)
+                    map.atmosphere = new Atmosphere(
+                        body.atmosphere, map.getPhysicalSrs(),
+                        map.url.makeUrl(services.atmdensity.url, {}), map);
                 }
 
                 // the surface, only single-surface mapconfigs are admissible
@@ -320,7 +333,21 @@ export class MapStyle {
                 if (mc.credits) for (let key in mc.credits)
                     map.addCredit(key, new MapCredit(map, mc.credits[key]));
 
+                // restore the mapurl (style path)
+                map.url = mapurl;
             }
+
+        // parse bound layers from sources
+        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+            if (sourceSpec.type === 'cartolina-tms') {
+
+                // asynchronous: callbacks force repeated map.refreshView()
+                let bl = new MapBoundLayer(map, sourceSpec.url, id);
+                map.addBoundLayer(id, bl);
+            }
+
+        // parse free layers from sources
+        // TODO
 
         // illumination
         if (styleSpec.illumination) {
@@ -334,13 +361,6 @@ export class MapStyle {
             map.renderer.setSuperElevationState(true);
             map.renderer.setSuperElevation(styleSpec['vertical-exaggeration']);
         }
-
-        // parse bound layers from style layers
-        // TODO
-
-        // parse free layers from style layers
-        // TODO
-
 
         // done
         console.log(map);
@@ -366,8 +386,6 @@ export class MapStyle {
      */
     refreshSequences(): void {
 
-        // TODO
-
         let map = this.map;
 
         // build  surface sequence
@@ -379,10 +397,12 @@ export class MapStyle {
             map.tree.surfaceOnlySequence.push([surface, false]);
         });
 
+
+        // TODO
+
+
         // build bound layer sequences
         // compile free layer stylesheets from style layers and set them
-
-        //throw new Error('unimplemented');
     }
 
 
