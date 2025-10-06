@@ -20,8 +20,7 @@
             },
             "esa-worldcover-specularmap": {
                 "type": "cartolina-tms",
-                "url": "https://cdn.tspl.re[B/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json",
-            "eoxit-s2c-normalmap": "/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
+                "url": "https://cdn.tspl.re[B/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
             },
             "ne1lc-specularmap": {
                 "type": "cartolina-tms",
@@ -35,6 +34,9 @@
                 "type": "cartolina-freelayer",
                 "url": "https://cdn.tspl.re/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json"
             }
+        },
+        "terrain": {
+            "sources": ["topoearth-copernicus-dem-glo30"]
         },
         "illumination": {
             "light": ["tracking", 315, 45],
@@ -64,7 +66,6 @@
                 "necessity": "optional"
             },
             {
-                "type": "diffuse-map",
                 "source": "ne1v6plcw",
                 "whitewash": 0.0,
                 "blendMode": "overlay",
@@ -84,20 +85,13 @@
             },
             {
                 "type": "specular-map",
+                "surfaces": ["topoearth-copernicus-dem-glo30"],
                 "source": "ne1lc-specularmap",
                 "necessity": "optional"
             },
             {
                 "type": "specular-map",
                 "source": "esa-worldcover-specularmap",
-                "necessity": "optional"
-            },
-            {
-                "type": "atmosphere",
-                "necessity": "optional"
-            },
-            {
-                "type": "shadows",
                 "necessity": "optional"
             },
             {
