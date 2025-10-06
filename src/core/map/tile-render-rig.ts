@@ -12,7 +12,8 @@ import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
 import Atmosphere from './atmosphere';
-import Style from './style';
+import MapStyle from './style';
+import Map from './map';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
@@ -80,9 +81,12 @@ export class TileRenderRig {
         layerStack: [],
     }
 
-    constructor(submeshIndex: number,
-        layerDef: TileRenderRig.LayerDefs, tile: SurfaceTile, renderer: Renderer,
-        config: Config) {
+    /**
+     * A new tile render rig.
+     */
+
+    constructor(submeshIndex: number, style: MapStyle.StyleSpecification,
+        tile: SurfaceTile, renderer: Renderer, config: Config) {
 
         this.tile = tile;
         this.renderer = renderer;
@@ -112,7 +116,7 @@ export class TileRenderRig {
             || surface.bumpSequence.length > 0;
 
         // build the layer stack - this may change the flags due to optimization
-        this.buildLayerStack(layerDef);
+        this.buildLayerStack(style);
 
         // done
 
@@ -579,11 +583,40 @@ export class TileRenderRig {
     }
 
 
-    private buildLayerStack(layerDefs: TileRenderRig.LayerDefs) {
+    private buildLayerStack(style: MapStyle.StyleSpecification) {
 
         // build the stack
         const rt = this.rt;
         const tile = this.tile;
+
+        // first scan the style, and obtain bump, diffuse and specular layers
+        // pertaining to the active surface
+        let bumps: MapStyle.BumpMapLayer[] = [];
+        let diffuses: (MapStyle.DiffuseLayer) [] = [];
+        let speculars: MapStyle.SpecularMapLayer[] =  []
+
+        style.layers.forEach((item: MapStyle.LayerSpecification) => {
+
+            let type_ = item.type ?? 'diffuse-map';
+
+            if (!['bump-map', 'diffuse-map', 'constant', 'diffuse-constant',
+                'specular-map'].includes(type_)) return;
+
+            let item_ = item as MapStyle.TileLayer;
+
+            let pertinent = ! item_.terrain ||
+                item_.terrain.includes(this.tile.resourceSurface.id);
+            if (!pertinent) return;
+
+            if (type_ === 'bump-map')
+                bumps.push(item_ as MapStyle.BumpMapLayer);
+
+            if (type_ === 'specular-map')
+                speculars.push(item_ as MapStyle.SpecularMapLayer);
+
+            if (['diffuse-map', 'diffuse-constant', 'constant'].includes(type_))
+                diffuses.push(item_ as MapStyle.DiffuseLayer);
+        });
 
         // target 'normal' layers need to come first, so that updated normal
         // is used for target 'color'
@@ -626,10 +659,10 @@ export class TileRenderRig {
         }
 
         // add bump layers, if any
-        layerDefs.bumpSequence.forEach((item) => {
+        bumps.forEach((item) => {
 
-            let layer: Layer | false = this.layerFromDef(item, 'optional',
-                false, 'normal');
+            let layer: Layer | false
+                = this.layerFromDef(item, 'optional', false, 'normal');
 
             if (layer) rt.layerStack.push(layer);
 
@@ -672,7 +705,7 @@ export class TileRenderRig {
 
         }
 
-        layerDefs.diffuseSequence.forEach((item) => {
+        diffuses.forEach((item) => {
 
             let layer: Layer | false = this.layerFromDef(item);
             if (layer) rt.layerStack.push(layer);
@@ -696,7 +729,7 @@ export class TileRenderRig {
         }
 
         // add specular bound layers (if illuminated)
-        if (rt.illumination && layerDefs.specularSequence.length > 0) {
+        if (rt.illumination && speculars.length > 0) {
 
             // push black as background
             rt.layerStack.push({
@@ -710,7 +743,7 @@ export class TileRenderRig {
             });
 
             // process specular sequence
-            layerDefs.specularSequence.forEach((item) => {
+            speculars.forEach((item) => {
 
                 let layer: Layer | false = this.layerFromDef(item, 'optional');
                 if (layer) rt.layerStack.push(layer);
@@ -839,26 +872,38 @@ export class TileRenderRig {
      * @return resultant layer operation, or undefined if layer def yields none.
      */
 
-    private layerFromDef(layerDef: TileRenderRig.LayerDef,
-                         necessity: Necessity = 'essential',
-                         propagate: boolean = true,
-                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
+    private layerFromDef(
+        layerSpec: MapStyle.TileLayer,
+        necessity: Necessity = 'essential', propagate: boolean = true,
+        target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
-        if (layerDef.type === 'texture')
-            return this.textureLayerFromDef(layerDef, necessity, propagate, target);
+        let type_ = layerSpec.type ?? 'diffuse-map';
 
-        if (layerDef.type === 'constant')
-            return this.constantLayerFromDef(layerDef, necessity, propagate, target);
+        if (['diffuse-map', 'bump-map', 'specular-map'].includes(type_)) {
+
+            return this.textureLayerFromDef(
+                layerSpec as MapStyle.TileTextureLayer, necessity, propagate,
+                target);
+        }
+
+        if (['constant', 'diffuse-constant'].includes(layerSpec.type))
+            return this.constantLayerFromDef(layerSpec as MapStyle.DiffuseConstantLayer,
+                                             necessity, propagate, target);
     }
 
-    private textureLayerFromDef(layerDef: TileRenderRig.LayerDef,
+    private textureLayerFromDef(layerSpec: MapStyle.TileTextureLayer,
                          necessity: Necessity = 'essential',
                          propagate: boolean = true,
                          target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
 
         let tile = this.tile;
-        const layer = layerDef.layer;
+        const layer = tile.map.getBoundLayerById(layerSpec.source);
+
+        if (!layer) {
+            throw new Error(`unknown layer reference in style: `
+                + `'${layerSpec.source}'.`);
+        }
 
         let clampToLodRange = (tile: SurfaceTile, lodRange: number[]) => {
 
@@ -908,22 +953,14 @@ export class TileRenderRig {
         let hasMask = TileRenderRig.hasMask(texture);
 
         let alpha: Alpha, mode: BlendMode;
-        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerDef);
+        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
 
         let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
                 || alpha.mode != 'constant' || mode != 'overlay'
                 || layer.isTransparent );
 
 
-        let whitewash = 0.0;
-
-        if (layer.shaderFilters
-            && layer.shaderFilters[tile.resourceSurface.id]
-            && layer.shaderFilters[tile.resourceSurface.id].whitewash) {
-
-            whitewash = layer.shaderFilters[
-                tile.resourceSurface.id].whitewash;
-        }
+        let whitewash = layerSpec.whitewash ?? 0.0;
 
         // not a pretty side effect, copied verbatim from old code.
         // needed for credits extraction
@@ -934,7 +971,7 @@ export class TileRenderRig {
             source: 'texture',
             target: target,
 
-            necessity: necessity,
+            necessity: layerSpec.necessity ?? necessity,
 
             srcTextureTexture: texture,
             srcTextureUVs: 'external',
@@ -956,16 +993,20 @@ export class TileRenderRig {
 
     } // textureLayerFromDef
 
-    private constantLayerFromDef(layerDef: TileRenderRig.LayerDef,
+    private constantLayerFromDef(layerSpec: MapStyle.DiffuseConstantLayer,
                          necessity: Necessity = 'essential',
                          propagate: boolean = true,
                          target: 'color' | 'normal' = 'color' ): Layer | undefined {
 
         let alpha: Alpha, mode: BlendMode;
-        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerDef);
+        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
 
         let isWatertight = !(alpha.value < 1.0
             || alpha.mode != 'constant' || mode != 'overlay');
+
+        let srcConstant = layerSpec.source.slice() as MapStyle.Color3Spec;
+
+        for (let i = 0; i < 3 ; i++) srcConstant[i] /= 255.;
 
         return {
 
@@ -974,33 +1015,24 @@ export class TileRenderRig {
             operation: 'blend',
             opBlendMode: mode,
             opBlendAlpha: alpha,
-            necessity: necessity,
-            srcConstant: layerDef.value,
+            necessity: layerSpec.necessity ?? necessity,
+            srcConstant: srcConstant,
             tgtColorWhitewash: 0,
             rt: { isWatertight: isWatertight }
 
         }
     }
 
-    private static blendInfoFromDef(layerDef: TileRenderRig.LayerDef): [BlendMode, Alpha] {
+    private static blendInfoFromDef(layerSpec: MapStyle.TileLayer): [BlendMode, Alpha] {
 
-        let mode: BlendMode;
+        let mode: BlendMode = layerSpec.blendMode ?? 'overlay';
 
-        switch (layerDef.mode) {
+        let alpha_: MapStyle.Alpha = layerSpec.alpha ?? 1.0;
 
-            case 'multiply': mode = 'multiply'; break;
-            case 'normal': default: mode = 'overlay'; break;
-        }
+        if (typeof alpha_ === "number")
+            alpha_ = { mode: 'constant', value: alpha_ };
 
-        let alpha_: any = layerDef.alpha;
-
-        if (typeof layerDef.alpha === "number")
-            alpha_ = { mode: 'constant', value: layerDef.alpha };
-
-        let alpha: Alpha = {
-            mode: alpha_.mode,
-            value:alpha_.value
-        }
+        let alpha: Alpha = alpha_;
 
         if (alpha_.mode === 'viewdep') {
 
@@ -1012,7 +1044,6 @@ export class TileRenderRig {
 
         return [mode, alpha];
     }
-
 
     /**
      * Check if a given resource satifies the readiness condition, given the
@@ -1115,7 +1146,8 @@ type SurfaceTile = {
     resourceSurface: MapSurface;
     surfaceMesh: MapMesh;
 
-    map: { atmosphere?: Atmosphere };
+    // we acccess atmosphere, and getBoundLayerById
+    map: Map;
 
     splitMask?: [number, number, number, number];
 
@@ -1284,8 +1316,9 @@ export namespace TileRenderRig {
 
     /**
      * the legacy layer definition (the three sequences in MapSurfaceTree)
+     * no longer needed
      */
-    export type LegacyLayerDef = {
+/*    export type LegacyLayerDef = {
 
         type: 'texture' | 'constant',
         layer?: MapBoundLayer,
@@ -1318,7 +1351,7 @@ export namespace TileRenderRig {
 
     // to be widened to accomodate for new layer definition format
     export type LayerDef = LegacyLayerDef;
-    export type LayerDefs = LegacyLayerDefs;
+    export type LayerDefs = LegacyLayerDefs; */
 
 
     /**

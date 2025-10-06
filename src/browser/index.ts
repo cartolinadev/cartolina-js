@@ -1,6 +1,6 @@
 
 import BrowserInterface from './interface';
-import {StyleSpecification} from '../core/map/style';
+import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import {getCoreVersion, checkSupport} from '../core/core';
 
@@ -28,7 +28,7 @@ export type MapOptions = {
      * The map style, conforming to the style specification. Either a JSON or
      * a URL pointing to such an object.
      */
-    style: StyleSpecification,
+    style: MapStyle.StyleSpecification,
 
     /**
      * The 10-component vts-geospatial position, specifying the intial vantage point.

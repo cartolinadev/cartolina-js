@@ -19,6 +19,8 @@ import * as utils from '../utils/utils';
  * The style specification.
  */
 
+export namespace MapStyle {
+
 export interface StyleSpecification  {
 
     version: 2;
@@ -63,30 +65,33 @@ export type TerrainSpecification = {
 
 
 export type LayerSpecification =
-    | DiffuseMapLayer
-    | DiffuseConstantLayer
-    | SpecularMapLayer
-    | BumpMapLayer
-    | AtmosphereLayer
-    | ShadowsLayer
+    | TileLayer
     | LabelsLayer
     | LinesLayer
 
 
-type LayerBase<TType extends string> = {
+export type TileLayer = TileTextureLayer | TileConstantLayer;
+
+export type TileTextureLayer = DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
+
+export type TileConstantLayer = DiffuseConstantLayer;
+
+export type LayerBase<TType extends string> = {
 
     type: TType,
     necessity?: 'optional' | 'essential'
 }
 
-type TileLayerBase<TType extends string> = LayerBase<TType> & {
+export type TileLayerBase<TType extends string> = LayerBase<TType> & {
 
-    surfaces?: string[]
+    terrain?: string[]
     source: string,
     whitewash?: number,
     blendMode?: BlendMode,
     alpha?: Alpha
 }
+
+export type DiffuseLayer = DiffuseMapLayer | DiffuseConstantLayer;
 
 export type DiffuseMapLayer = Omit<TileLayerBase<'diffuse-map'>, 'type'> & {
 
@@ -102,10 +107,7 @@ export type DiffuseConstantLayer = Omit<TileLayerBase<
 export type SpecularMapLayer = TileLayerBase<'specular-map'>;
 export type BumpMapLayer = TileLayerBase<'bump-map'>;
 
-export type AtmosphereLayer = LayerBase<'atmosphere'>;
-export type ShadowsLayer = LayerBase<'shadows'>;
-
-type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
+export type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
 
     id: string,
     type: TType,
@@ -118,7 +120,7 @@ type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
 export type LabelsLayer = LetteringLayerBase<'labels'>;
 export type LinesLayer = LetteringLayerBase<'lines'>;
 
-type LetteringLayerProperties = {
+export type LetteringLayerProperties = {
 
     inherit : string,
 
@@ -204,32 +206,35 @@ type LetteringLayerProperties = {
 
 export type Expression = {} | string;
 
-type Property<T> = T | Expression;
+export type Property<T> = T | Expression;
 
-type FilterCondition = any[];
+export type FilterCondition = any[];
 
-type Color3Spec = [number, number, number]
-type Color4Spec = [number, number, number, number]
+export type Color3Spec = [number, number, number]
+export type Color4Spec = [number, number, number, number]
 
-type BlendMode = 'overlay' | 'add' | 'multiply'
+export type BlendMode = 'overlay' | 'add' | 'multiply'
 
-type AlphaMode = 'constant' | 'viewdep'
+export type AlphaMode = 'constant' | 'viewdep'
 
-type Alpha = number | { mode: AlphaMode, value: number }
+export type Alpha = number
+    | { mode: AlphaMode, value: number, illumination?: [number, number] }
 
-type IlluminationSpecification = {
+export type IlluminationSpecification = {
 
     light: ['tracking', number, number],
     ambientCoef?: number
 }
 
-type VerticalExaggerationSpecification =  {
+export type VerticalExaggerationSpecification =  {
 
     heightRamp?: [[number, number], [number, number]],
     viewExtentProgression?: [number, number, number, number, number]
 }
 
-const validateStyle = typia.createValidate<StyleSpecification>();
+} // export namespace MapStyle
+
+const validateStyle = typia.createValidate<MapStyle.StyleSpecification>();
 
 /*
  * Class map style, provides a method to initialize the map object according
@@ -248,7 +253,7 @@ export class MapStyle {
      * @param styleSpec the style specification
      */
 
-    static async loadStyle(map: Map, styleSpec: StyleSpecification) {
+    static async loadStyle(map: Map, styleSpec: MapStyle.StyleSpecification) {
 
         // validation
         const res = validateStyle(styleSpec);
@@ -393,13 +398,13 @@ export class MapStyle {
 
 
     map: Map;
-    styleSpec: StyleSpecification;
+    styleSpec: MapStyle.StyleSpecification;
 
 
     /**
      * Obtain the style specification
      */
-    style(): StyleSpecification {
+    style(): MapStyle.StyleSpecification {
 
         return this.styleSpec;
     }
@@ -422,14 +427,14 @@ export class MapStyle {
 
             map.tree.surfaceSequence.push([surface, false]);
             map.tree.surfaceOnlySequence.push([surface, false]);
+
+            // surface layer sequence is the style spec itself
+            surface.style = this.style();
         });
 
-
+        // compile free layer stylesheets from style layers and set them
         // TODO
 
-
-        // build bound layer sequences
-        // compile free layer stylesheets from style layers and set them
     }
 
     private static slapResource(path: string, resource: string): string {
@@ -439,7 +444,7 @@ export class MapStyle {
     /**
      * The bare bones constructor (to be invoked from the static factory func)
      */
-    constructor(map: Map, style: StyleSpecification) {
+    constructor(map: Map, style: MapStyle.StyleSpecification) {
 
         this.map = map; this.styleSpec = style;
     }
