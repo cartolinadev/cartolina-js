@@ -26,6 +26,8 @@ export interface StyleSpecification  {
 
     sources: Record<string, SourceSpecification>;
 
+    terrain: TerrainSpecification;
+
     layers?: LayerSpecification[];
 
     constants?: Record<string, any>;
@@ -34,6 +36,9 @@ export interface StyleSpecification  {
 
     illumination?: IlluminationSpecification;
     verticalExaggeration?: VerticalExaggerationSpecification;
+
+    atmosphere?: Partial<MapBody.Atmosphere>;
+    shadows?: any;
 }
 
 export type SourceSpecification =
@@ -50,6 +55,11 @@ type SourceBase<TType extends string> = {
 export type CartolinaSurfaceSource = SourceBase<'cartolina-surface'>
 export type CartolinaTmsSource = SourceBase<'cartolina-tms'>
 export type CartolinaFreeLayerSource = SourceBase<'cartolina-freelayer'>
+
+export type TerrainSpecification = {
+
+    sources: string[]
+}
 
 
 export type LayerSpecification =
@@ -69,27 +79,28 @@ type LayerBase<TType extends string> = {
     necessity?: 'optional' | 'essential'
 }
 
-type LayerMapBase<TType extends string> = LayerBase<TType> & {
+type TileLayerBase<TType extends string> = LayerBase<TType> & {
 
+    surfaces?: string[]
     source: string,
     whitewash?: number,
     blendMode?: BlendMode,
     alpha?: Alpha
 }
 
-export type DiffuseMapLayer = Omit<LayerMapBase<'diffuse-map'>, 'type'> & {
+export type DiffuseMapLayer = Omit<TileLayerBase<'diffuse-map'>, 'type'> & {
 
     type?: 'diffuse-map',
 }
 
-export type DiffuseConstantLayer = Omit<LayerMapBase<
+export type DiffuseConstantLayer = Omit<TileLayerBase<
     'constant' | 'diffuse-constant'>, 'source'> & {
 
     source: Color3Spec
 }
 
-export type SpecularMapLayer = LayerMapBase<'specular-map'>;
-export type BumpMapLayer = LayerMapBase<'bump-map'>;
+export type SpecularMapLayer = TileLayerBase<'specular-map'>;
+export type BumpMapLayer = TileLayerBase<'bump-map'>;
 
 export type AtmosphereLayer = LayerBase<'atmosphere'>;
 export type ShadowsLayer = LayerBase<'shadows'>;
@@ -400,6 +411,9 @@ export class MapStyle {
         map.tree.surfaceOnlySequence = [];
 
         map.surfaces.forEach((surface: MapSurface) => {
+
+            if (!this.styleSpec.terrain.sources.includes(surface.id)) return;
+
             map.tree.surfaceSequence.push([surface, false]);
             map.tree.surfaceOnlySequence.push([surface, false]);
         });
