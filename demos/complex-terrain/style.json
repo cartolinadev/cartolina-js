@@ -85,14 +85,14 @@
             },
             {
                 "type": "specular-map",
-                "surfaces": ["topoearth-copernicus-dem-glo30"],
+                "terrain": ["topoearth-copernicus-dem-glo30"],
                 "source": "ne1lc-specularmap",
-                "necessity": "optional"
+                "necessity": "essential"
             },
             {
                 "type": "specular-map",
                 "source": "esa-worldcover-specularmap",
-                "necessity": "optional"
+                "necessity": "essential"
             },
             {
                 "id": "places",

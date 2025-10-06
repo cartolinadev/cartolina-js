@@ -127,7 +127,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                             // create new rig from submeshSurface layer sequence
                             tile.tileRenderRig[i] = new TileRenderRig(
-                                i, submeshSurface, tile, this.renderer, this.config);
+                                i, submeshSurface.style, tile, this.renderer, this.config);
 
                             // WARN comment out this line if you want the old call below to work
                             tile.resetDrawCommands = tile.updateBounds = false;
