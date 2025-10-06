@@ -352,8 +352,11 @@ export class MapStyle {
         for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
             if (sourceSpec.type === 'cartolina-tms') {
 
+                const path = MapStyle.slapResource(
+                    map.url.processUrl(sourceSpec.url), 'boundlayer.json');
+
                 // asynchronous: callbacks force repeated map.refreshView()
-                let bl = new MapBoundLayer(map, sourceSpec.url, id);
+                let bl = new MapBoundLayer(map, path, id);
                 map.addBoundLayer(id, bl);
             }
 
@@ -361,8 +364,11 @@ export class MapStyle {
         for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
             if (sourceSpec.type === 'cartolina-freelayer') {
 
+                const path = MapStyle.slapResource(
+                    map.url.processUrl(sourceSpec.url), 'freelayer.json');
+
                 // asynchronous: callbacks force repeated map.refreshView()
-                let fl = new MapSurface(map, sourceSpec.url, id);
+                let fl = new MapSurface(map, path, id);
                 map.addFreeLayer(id, fl);
             }
 
@@ -391,11 +397,11 @@ export class MapStyle {
 
 
     /**
-     * The bare bones constructor
+     * Obtain the style specification
      */
-    constructor(map: Map, style: StyleSpecification) {
+    style(): StyleSpecification {
 
-        this.map = map; this.styleSpec = style;
+        return this.styleSpec;
     }
 
     /**
@@ -426,9 +432,16 @@ export class MapStyle {
         // compile free layer stylesheets from style layers and set them
     }
 
-
     private static slapResource(path: string, resource: string): string {
         if (path.endsWith('/')) return path + resource;
+    }
+
+    /**
+     * The bare bones constructor (to be invoked from the static factory func)
+     */
+    constructor(map: Map, style: StyleSpecification) {
+
+        this.map = map; this.styleSpec = style;
     }
 }
 
