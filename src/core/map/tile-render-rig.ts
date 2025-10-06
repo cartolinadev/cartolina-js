@@ -12,6 +12,7 @@ import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
 import Atmosphere from './atmosphere';
+import Style from './style';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
