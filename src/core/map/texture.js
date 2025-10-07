@@ -329,7 +329,7 @@ MapTexture.prototype.isMaskInfoReady = function() {
     if (texture.checkType == vts.TEXTURECHECK_METATILE) {
         // check for maskTexture bellow probably redundant, could be
         // if (texture.checkStatus == 2 || texture.checkStatus ==  -1) {
-        if (this.maskTexture || texture.checkStatus == 2 || texture.checkStatus ==  -1) {
+        if (this.maskTexture || texture.checkStatus == 2 || this.neverReady /* || texture.checkStatus ==  -1 */) {
             return true;
         }
 
