@@ -144,6 +144,10 @@ export class TileRenderRig {
 
         layerStack.forEach((item: Layer) => {
 
+            if (item.source !== 'texture') return;
+
+            item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
+
             if (item.rt && item.rt.hasMask === 'notSureYet') {
 
                 //console.log('Checking mask for %s (%s): ', this.tile.id.join('-'), item.rt.layerId);
@@ -160,7 +164,7 @@ export class TileRenderRig {
                 if (item.rt.hasMask === 'notSureYet') unsureMasks = true;
             }
 
-            if (item.source === 'texture') {
+            if (item.operation === 'blend') {
 
                     item.rt.isWatertight =
                         item.rt.hasMask === 'no'
@@ -171,7 +175,10 @@ export class TileRenderRig {
             }
         });
 
-        if (unsureMasks) return false;
+        if (unsureMasks) {
+            // console.log(`${this.logSign()}: unsure masks`);
+            return false;
+        }
 
         // optimize stack here
         this.optimizeStack();
@@ -315,7 +322,7 @@ export class TileRenderRig {
                 { doNotLoad: true, doNotCheckGpu: true });
 
             // sanity
-            if (!ready && layer.necessity == 'essential')
+            if (!ready && layer.necessity === 'essential')
                 __DEV__ && utils.warnOnce(
                     `${this.logSign()}: Essential layer unready, bad flow.`);
 
@@ -450,8 +457,7 @@ export class TileRenderRig {
                 break;
 
             case 'texture':
-
-                const t = layer.srcTextureTransform;
+                const t = layer.srcTextureTexture.getTransform();
                 f32[w++] = t[0]; f32[w++] = t[1];                          // p1.xy
                 f32[w++] = t[2]; f32[w++] = t[3];                          // p1.zw
                 break;
@@ -638,7 +644,6 @@ export class TileRenderRig {
                     source: 'texture',
                     srcTextureTexture: this.normalMap,
                     srcTextureUVs: 'external',
-                    srcTextureTransform: [1, 1, 0, 0],
                     srcTextureSampling: 'normal',
                     operation: 'push',
                     necessity: 'essential',
@@ -661,8 +666,10 @@ export class TileRenderRig {
         // add bump layers, if any
         bumps.forEach((item) => {
 
+            let necessity = item.necessity ?? 'optional';
+
             let layer: Layer | false
-                = this.layerFromDef(item, 'optional', false, 'normal');
+                = this.layerFromDef(item, necessity, false, 'normal');
 
             if (layer) rt.layerStack.push(layer);
 
@@ -695,7 +702,6 @@ export class TileRenderRig {
                 necessity: 'essential',
                 srcTextureTexture: internalTexture,
                 srcTextureUVs: 'internal',
-                srcTextureTransform: [1,1,0,0],
                 srcTextureSampling: 'raw',
                 opBlendMode: 'overlay',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
@@ -707,7 +713,9 @@ export class TileRenderRig {
 
         diffuses.forEach((item) => {
 
-            let layer: Layer | false = this.layerFromDef(item);
+            let necessity = item.necessity ?? 'essential';
+
+            let layer: Layer | false = this.layerFromDef(item, necessity);
             if (layer) rt.layerStack.push(layer);
         });
 
@@ -745,7 +753,9 @@ export class TileRenderRig {
             // process specular sequence
             speculars.forEach((item) => {
 
-                let layer: Layer | false = this.layerFromDef(item, 'optional');
+                let necessity = item.necessity ?? 'essential';
+
+                let layer: Layer | false = this.layerFromDef(item, necessity);
                 if (layer) rt.layerStack.push(layer);
 
             }); // layerDef.specularSequence.forEach()
@@ -815,6 +825,10 @@ export class TileRenderRig {
             if (texture.isMaskInfoReady()) {
 
                 if (texture.getMaskTexture()) return 'yes';
+
+                // originally, getMaskTexture() was not reliable
+                // source of information on (later) existence of mask
+                // seems fine now with the experimental fix in texture.js
                 return 'no';
             }
 
@@ -950,14 +964,16 @@ export class TileRenderRig {
 
         if (texture.neverReady) return;
 
-        let hasMask = TileRenderRig.hasMask(texture);
+        // moved to readiness check
+        //let hasMask = TileRenderRig.hasMask(texture);
 
         let alpha: Alpha, mode: BlendMode;
         [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
 
-        let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
+        // moved to readiness check
+        /*let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
                 || alpha.mode != 'constant' || mode != 'overlay'
-                || layer.isTransparent );
+                || layer.isTransparent);*/
 
 
         let whitewash = layerSpec.whitewash ?? 0.0;
@@ -965,6 +981,7 @@ export class TileRenderRig {
         // not a pretty side effect, copied verbatim from old code.
         // needed for credits extraction
         this.tile.boundLayers[layer.id] = layer;
+
 
         return ({
             operation: 'blend',
@@ -975,7 +992,6 @@ export class TileRenderRig {
 
             srcTextureTexture: texture,
             srcTextureUVs: 'external',
-            srcTextureTransform: texture.getTransform(),
             srcTextureSampling: target == 'normal' ? 'normal' : 'raw',
 
             opBlendMode: mode,
@@ -985,8 +1001,8 @@ export class TileRenderRig {
 
             rt: {
                 layerId: layer.id,
-                isWatertight: isWatertight,
-                hasMask: hasMask,
+                //isWatertight: isWatertight,
+                //hasMask: hasMask,
                 isTransparent: layer.isTransparent
             }
         });
@@ -1191,8 +1207,6 @@ type Layer = {
     srcTextureTexture?: MapTexture,
     srcTextureUVs?: 'internal' | 'external',
     srcTextureSampling?: 'raw' | 'normal',
-
-    srcTextureTransform?: [number, number, number, number]
 
     opBlendMode?: BlendMode,
     opBlendAlpha?: Alpha,
