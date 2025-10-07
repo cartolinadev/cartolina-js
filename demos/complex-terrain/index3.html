@@ -14,6 +14,30 @@
 <div id="map"></div>
 <script>
 
+function posFromURL() {
+
+
+  const url = new URL(window.location.href); 
+  const params = new URLSearchParams(url.search);
+  if (!params) return null; 
+  
+  let pos = params.get('pos');
+  if (!pos) return null;
+  
+  let pos_ = pos.split(',');
+    
+  for (let i = 1; i < pos_.length; i++) 
+      if (i != 3) pos_[i] = parseFloat(pos_[i]);
+      
+  return pos_;
+}
+
+
+let position = ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00];
+
+position = posFromURL() || position;
+
+
 let map = cartolina.map({
     container: 'map',
     style: {
@@ -26,16 +50,15 @@ let map = cartolina.map({
             },
             "esa-worldcover2021": {
                 type: "cartolina-tms",
-                url: "/mapproxy/melown2015/tms/topoearth/esa-worldcover2021-cr4/boundlayer.json"
+                url: "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover2021-cr4/boundlayer.json"
             },
             "eoxit-s2c-normalmap": {
                 type: "cartolina-tms",
-                url: "/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
+                url: "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
             },
             "esa-worldcover-specularmap": {
                 type: "cartolina-tms",
-                url: "/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json",
-            "eoxit-s2c-normalmap": "/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/boundlayer.json"
+                url: "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
             },
             "ne1lc-specularmap": {
                 type: "cartolina-tms",
@@ -43,12 +66,15 @@ let map = cartolina.map({
             },
             "esa-worldcover-specularmap": {
                 type: "cartolina-tms",
-                url: "/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
+                url: "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/boundlayer.json"
             },
             "osm-openfreemap": {
                 type: "cartolina-freelayer",
-                url: "/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json",
+                url: "https://cdn.tspl.re/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/freelayer.json",
             }
+        },
+        terrain: {
+            sources: ["topoearth-copernicus-dem-glo30"]
         },
         illumination: {
             "light": ["tracking", 315, 45],
@@ -71,128 +97,27 @@ let map = cartolina.map({
             "noto-serif": "https://cdn.tspl.re/fonts/noto-serif/1.0.0/noto-serif.fnt"
         },
         layers: [
-            {
-                type: "bump-map",
-                source: "eoxit-s2c-normalmap",
-                alpha: 0.2,
-                necessity: "optional"
-            },
-            {
-                type: "diffuse-map",
-                source: "ne1v6plcw",
-                whitewash: 0.0,
-                blendMode: "overlay",
-                alpha: { "mode": "constant", "value": 1.0 }
-            },
-            {
+            /*{
                 type: "diffuse-map",
                 source: "esa-worldcover2021",
-                whitewash: 0.0,
-            },
-            {
-                type: "constant",
-                source: [255,255,255],
-                blendMode: "overlay",
-                alpha: 0.15,
-
-            },
+                necessity: "essential"
+            }
+            ,*/
             {
                 type: "specular-map",
                 source: "ne1lc-specularmap",
-                necessity: "optional"
-            },
+                necessity: "essential"
+            }
+            ,  
             {
                 type: "specular-map",
                 source: "esa-worldcover-specularmap",
-                necessity: "optional"
-            },
-            {
-                type: "atmosphere",
-                necessity: "optional"
-            },
-            {
-                type: "shadows",
-                necessity: "optional"
-            },
-            {
-                "id": "places",
-                "type": "labels",
-                "source": "osm-openfreemap",
-                "filter": ["all",["==","#group","place"],["in","$class","city","town","village","suburb","hamlet"]],
-                "&population": {"str2num":{"if":[["has","$population"],"$population",1]}},
-                "&mt-rank": {"str2num":{"if":[["has", "$rank"],"$rank",11]}},
-                "&importance": {"linear2":["&mt-rank",[[3,90],[11,10]]]},
-                "&rank": {"linear2":["&mt-rank",[[1,1],[11,6]]]},
-                "importance-source": "&importance",
-                "label": true,
-                "label-source": "@name",
-                "label-size": {"linear2":["&rank",[[0,25],[6,14]]]},
-                "label-font": "@italic-font",
-                "label-color": [0,0,0,192],
-                "label-color2": [255,255,255,192],
-                "label-outline": [0.5,0.7,2.2,2.2],
-                "zbuffer-offset": [-0.35,0,0],
-                "culling": 90,
-                "&id": "{@osmid} {@name}",
-                "hysteresis": [1500,1500,"&id",true]
-            },
-            {
-                "id": "peaks",
-                "type": "labels",
-                "source": "osm-openfreemap",
-                "filter": ["all",["==","#group","mountain_peak"],["in","$class","peak","volcano","saddle"],["has","$name"],["!=","$name",""]],
-                "&prominence": {"add":[
-                    {"if":[["has","$ele"],{"mul":[0.0001,{"str2num":"$ele"}]},0]},
-                    {"if":[["has","$prominence"],{"mul":[0.3048,{"str2num":"$prominence"}]},0]}]},
-                "&importance": {"logScale":["&prominence",8848.8848]},
-                "&rank": {"discrete2":["&prominence",[[0,6],[30,5],[70,4],[150,3],[300,2],[700,1],[1500,0]]]},
-                "importance-source": "&importance",
-                "&feet": {"round":{"mul":[3.2808399,{"str2num":"$ele"}]}},
-                "&elevation-name": {"if":[["==","#metric",true],"{{'round':{'str2num':'$ele'}}} m","{&feet} ft"]},
-                "&prominence-name": "{{'round':'&prominence'}} m",
-                "&peak-name": {"if":[["==","&rank",0],{"uppercase":"{@name}"},"{@name}"]},
-                "&peak-name2": {"if":[["has","$ele"],"{&peak-name}\n{&elevation-name}","{@peak-name}"]},
-                "label": true,
-                "label-source": "&peak-name2",
-                "label-size": {"linear2":["&rank",[[0,20],[6,14]]]},
-                "label-font": "@serif-font",
-                "label-color":  {"linear2":["&rank",[[1,[0,0,0,255]],[6,[0,0,0,160]]]]},
-                "label-color2": {"linear2":["&rank",[[1,[255,255,255,96]],[6,[255,255,255,60]]]]},
-                "label-outline": [0.2,0.65,2.2,10],
-                "label-origin": "top-center",
-                "label-offset": [0,30],
-                "label-align": "left",
-                "zbuffer-offset": [-0.45,0,0],
-                "culling": 100,
-                "&id": "{@osmid} {&peak-name}",
-                "hysteresis": [1500,1500,"&id",true]
-            },
-            {
-                "id": "country-boundaries",
-                "type": "lines",
-                "source": "osm-openfreemap",
-                "filter": ["all",["==","#group","boundary"],["==","$admin_level","2"],["!=","$maritime","1"]],
-                "line": true,
-                "line-flat": false,
-                "line-width": 4,
-                "line-color": [143,117,82,128],
-                "zbuffer-offset": [-0.01,0,0]
-            },
-            {
-                "id": "state-boundaries",
-                "type": "lines",
-                "source": "osm-openfreemap",
-                "filter": ["all",["==","#group","boundary"],["==","$admin_level","4"],["!=","$maritime","1"]],
-                "line": true,
-                "line-flat": false,
-                "line-width": 2,
-                "line-color": [143,117,82,128],
-                "zbuffer-offset": [-0.01,0,0]
-            }
+                necessity: "essential",
+            } 
         ]
     },
-    position: ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00],
-    options: {}
+    position: position,
+    options: { positionInUrl: true }
   });
 </script>
 </body>
