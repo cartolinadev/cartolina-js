@@ -264,7 +264,7 @@ export class MapStyle {
             let errs = res.errors ?? [];
 
             for (const e of errs)
-                console.warn(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
+                console.error(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
 
             throw new Error(`Invalid style (${errs.length} errors)`);
         }
@@ -392,7 +392,7 @@ export class MapStyle {
         }
 
         // done
-        console.log(map);
+        //__DEV__ && console.log(map);
         map.style = new MapStyle(map, styleSpec);
     }
 
@@ -438,7 +438,9 @@ export class MapStyle {
     }
 
     private static slapResource(path: string, resource: string): string {
+
         if (path.endsWith('/')) return path + resource;
+        return path;
     }
 
     /**

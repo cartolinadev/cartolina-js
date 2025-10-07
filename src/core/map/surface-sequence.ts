@@ -1,4 +1,8 @@
 
+import MapStyle from '../map/style';
+import MapSurface from '../map/surface';
+
+
 var MapSurfaceSequence = function(map) {
     this.map = map;
 };
@@ -37,9 +41,9 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
 
     if (vsurfaceCount >= 1) { //do we have virtual surface?
         strId.sort(); 
-        strId = strId.join(';');
+        let strId_ = strId.join(';');
 
-        surface = this.map.virtualSurfaces[strId];
+        surface = this.map.virtualSurfaces[strId_];
         if (surface) {
             list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]    
             vsurfaceCount = 1;
@@ -183,46 +187,60 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
 
 MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
+    if (this.map.style)
+        throw Error('This legacy function should be called '
+            + 'for map-config based maps only.');
+
     var view = this.map.getCurrentView();
-    var key, item, layer, i, li, item2;
     
     //zero bound layer filters
-    var layers = this.map.boundLayers;
+    /*var layers = this.map.boundLayers;
     for (var key in layers) {
         layers[key].shaderFilters = null;
-    }
+    }*/
+
+    let styleSources: Record<string, MapStyle.SourceSpecification> = {};
+    let styleTerrain: MapStyle.TerrainSpecification = { sources: [] }
+    let styleLayers: MapStyle.LayerSpecification[] = [];
+
+    // a stub to make the style spec compliant
+    this.map.surfaces.forEach((surface: MapSurface) => {
+
+        styleSources[surface.id] = { 'type': 'cartolina-surface', 'url': '' }
+    });
 
     //surfaces
-    for (key in view.surfaces) {
+    for (let key in view.surfaces) {
+
         var surfaceLayers = view.surfaces[key];
-        var surface = this.map.getSurface(key);
+        var surface: MapSurface = this.map.getSurface(key);
+
         if (surface != null) {
-            surface.diffuseSequence = [];
-            surface.specularSequence = [];
-            surface.bumpSequence = [];
-            
-            for (i = 0, li = surfaceLayers.length; i < li; i++) {
-                item = surfaceLayers[i];
+
+            styleTerrain.sources.push(surface.id);
+
+            for (let i = 0; i < surfaceLayers.length; i++) {
+                let item = surfaceLayers[i];
                 
                 // implicit alpha
-                let alpha = { mode: 'constant', value: 1.0 }
-        
+                let alpha = { mode: 'constant', value: 1.0 };
+
                 if (typeof item === 'string') {
 
-                    layer = this.map.getBoundLayerById(item);
+                    let layer = this.map.getBoundLayerById(item);
 
                     if (layer) {
 
-                        surface.diffuseSequence.push({
-                            type: 'texture',
-                            layer: layer,
-                            mode: 'normal',
-                            alpha: alpha
+                        styleLayers.push({
+                            type: 'diffuse-map',
+                            source: layer.id,
+                            blendMode: 'overlay',
+                            alpha: alpha as MapStyle.Alpha
                         });
                     }
 
                 } else {
-                    layer = this.map.getBoundLayerById(item['id']);
+                    let layer = this.map.getBoundLayerById(item['id']);
                     if (layer) {
 
                         // implicit type
@@ -244,18 +262,19 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         if (['diffuse', 'diffuse-map'].includes(type)) {
 
                             // implicit mode
-                            let mode = 'normal';
+                            let mode: MapStyle.BlendMode = 'overlay';
                        
                             // mode
                             let mode_ = item['mode'];
+                            if (mode_ === 'normal') mode_ = 'overlay';
 
                             if (mode_ != null) {
-                                console.assert(['normal','multiply'].includes(mode_),
+                                console.assert(['overlay', 'normal','multiply'].includes(mode_),
                                     "unsupported BL param %s ('%s')", mode_);
                             
                                 mode = mode_;
                             }
-                        
+
                             // alpha
                             let alpha_ = item['alpha'];
                         
@@ -297,57 +316,18 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 ! alpha['illumination']), "Illumination vector not " +
                                 "defined for view dependent bound layer alpha (%o).",
                                 alpha);
-
-                            // WARN: though options are defined per view
-                            // BL instance, they are applied directly to the map
-                            // bound layer array. This means that a single BL
-                            // cannot be used more than once with
-                            // different option definitions
                         
-                            item2 = item['options'] || item;
+                            let item2 = item['options'] || item;
 
-                            if (item2['whitewash']) {
-                                if (!layer.shaderFilters) {
-                                    layer.shaderFilters = {};
-                                }
-
-                                if (!layer.shaderFilters[surface.id]) {
-                                    layer.shaderFilters[surface.id] = {};
-                                }
-
-                                layer.shaderFilters[surface.id].whitewash = item2['whitewash'];
-                            }
-
-                            if (item2['shaderVarFlatShade']) {
-                                if (!layer.shaderFilters) {
-                                    layer.shaderFilters = {};
-                                }
-                            
-                                if (!layer.shaderFilters[surface.id]) {
-                                    layer.shaderFilters[surface.id] = {};
-                                }
-
-                                layer.shaderFilters[surface.id].varFlatShade = item2['shaderVarFlatShade'];
-                            }
-
-                            if (item2['shaderFilter']) {
-                                if (!layer.shaderFilters) {
-                                    layer.shaderFilters = {};
-                                }
-                            
-                                if (!layer.shaderFilters[surface.id]) {
-                                    layer.shaderFilters[surface.id] = {};
-                                }
-
-                                layer.shaderFilters[surface.id].filter = item2['shaderFilter'];
-                            }
+                            let whitewash = item2['whitewash'] ?? 0.0;
 
                             // add to sequence
-                            surface.diffuseSequence.push({
-                                type: 'texture',
-                                layer: layer,
-                                mode: mode,
-                                alpha: alpha
+                            styleLayers.push({
+                                type: 'diffuse-map',
+                                source: layer.id,
+                                blendMode: mode,
+                                alpha: alpha as MapStyle.Alpha,
+                                whitewash: whitewash
                             });
 
                         } // ["diffuse", "diffuse-map"].includes(type)
@@ -356,7 +336,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         if (['specular', 'specular-map'].includes(type)) {
 
                             // alpha
-                            let alpha = 1.0;
+                            let alpha: MapStyle.Alpha = 1.0;
                             let alpha_ = item['alpha'];
 
                             if (alpha_ != null) {
@@ -364,14 +344,12 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 alpha = alpha_;
                             }
 
-                            surface.specularSequence.push({
-                                type: 'texture',
-                                layer: layer,
+                            styleLayers.push({
+                                type: 'specular-map',
+                                source: layer.id,
+                                blendMode: 'overlay',
                                 alpha: alpha
                             });
-
-                            //console.log("Got specular, id = ", layer.id);
-
 
                         } // ["specular", "specular-map"].includes(type)
 
@@ -379,7 +357,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                         if (['bump', 'bump-map'].includes(type)) {
 
                             // alpha
-                            let alpha = 1.0;
+                            let alpha: MapStyle.Alpha = 1.0;
                             let alpha_ = item['alpha'];
 
                             if (alpha_ != null) {
@@ -387,25 +365,28 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 alpha = alpha_;
                             }
 
-                            surface.bumpSequence.push({
-                                type: 'texture',
-                                layer: layer,
+                            styleLayers.push({
+                                type: 'bump-map',
+                                source: layer.id,
+                                blendMode: 'overlay',
                                 alpha: alpha
                             });
 
-                            //console.log("Got bump, id = ", layer.id, ", alpha = ", alpha);
 
                         } // ["bump", "bump-map"].includes(type)
                     }
                 }
             }
         }
+    }
 
-        //console.log(surface.id, surface.diffuseSequence);
+    // the style stub for tile rendering, gneerated from view
+    surface.style = {
+        sources: styleSources, terrain: styleTerrain, layers: styleLayers
     }
 
     //free layers
-    for (key in view.freeLayers) {
+    for (let key in view.freeLayers) {
         var freeLayersProperties = view.freeLayers[key];
         var freeLayer = this.map.getFreeLayer(key);
         if (freeLayer != null && freeLayer.ready) {
@@ -418,19 +399,19 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
             
             if (boundLayers && Array.isArray(boundLayers)) {
 
-                for (i = 0, li = boundLayers.length; i < li; i++) {
-                    item = boundLayers[i];
+                for (let i = 0, li = boundLayers.length; i < li; i++) {
+                    let item = boundLayers[i];
             
                     if (typeof item === 'string') {
-                        layer = this.map.getBoundLayerById(item);
+                        let layer = this.map.getBoundLayerById(item);
                         if (layer) {
                             freeLayer.diffuseSequence.push([layer, 1]);
                         }
                     } else {
-                        layer = this.map.getBoundLayerById(item['id']);
+                        let layer = this.map.getBoundLayerById(item['id']);
                         if (layer) {
     
-                            alpha = 1;
+                            let alpha = 1;
                             if (typeof item['alpha'] !== 'undefined') {
                                 alpha = parseFloat(item['alpha']);
                             }
