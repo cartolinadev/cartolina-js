@@ -21,12 +21,15 @@ function posFromURL() {
   const params = new URLSearchParams(url.search);
   if (!params) return null; 
   
-  pos = params.get('pos').split(',');
+  let pos = params.get('pos');
+  if (!pos) return null;
+  
+  let pos_ = pos.split(',');
     
-  for (let i = 1; i < pos.length; i++) 
-      if (i != 3) pos[i] = parseFloat(pos[i]);
+  for (let i = 1; i < pos_.length; i++) 
+      if (i != 3) pos_[i] = parseFloat(pos_[i]);
       
-  return pos;
+  return pos_;
 }
 
 
