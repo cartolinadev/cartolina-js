@@ -98,7 +98,7 @@ const baseConfig = {
     filename: '[name]' + (isProd ? '.min' : '') + '.js',
     libraryTarget: "var",
     library: "cartolina",
-    publicPath: '',
+    publicPath: 'auto',
     workerPublicPath: process.env.WORKER_PATH || 
       (isProd ? '/libs/vtsjs/browser/' : '/build/')
   },
@@ -108,6 +108,11 @@ const baseConfig = {
   devServer: {
     hot: false,
     liveReload: true,
+    host: '0.0.0.0',            // accept connections on any interface
+    allowedHosts: 'all',        // disable host check to stop “Invalid Host/Origin header”
+    headers: {                  // helpful if you fetch from a different origin in dev
+      'Access-Control-Allow-Origin': '*'
+    },
     devMiddleware: {
         writeToDisk: (filePath) => {
             console.log('Writing file: ', filePath);
@@ -159,5 +164,26 @@ delete esmConfig.output.library;
 esmConfig.experiments = Object.assign({}, baseConfig.experiments || {}, { outputModule: true });
 // CRUCIAL: do NOT define devServer here. One server watches BOTH compilations.
 delete esmConfig.devServer;
- 
-module.exports = [ globalConfig, esmConfig ];
+
+
+// 3) Dedicated worker bundle (single-file, classic script)
+const workerConfig = Object.assign({}, baseConfig);
+workerConfig.name = 'worker';
+workerConfig.target = 'webworker';
+workerConfig.entry = {
+  'map-loader-worker': path.resolve(__dirname, 'src/core/map/loader/worker-main.js')
+};
+workerConfig.output = Object.assign({}, baseConfig.output, {
+  path: TARGET_DIR,
+  filename: 'map-loader-worker.js',   // stable readable name
+});
+workerConfig.optimization = Object.assign({}, baseConfig.optimization || {}, {
+  splitChunks: false,
+  runtimeChunk: false
+});
+workerConfig.experiments = Object.assign({}, baseConfig.experiments || {}, {
+  outputModule: false
+});
+delete workerConfig.devServer;
+
+module.exports = [ globalConfig, esmConfig, workerConfig ];
