@@ -108,9 +108,8 @@ const baseConfig = {
   devServer: {
     hot: false,
     liveReload: true,
-    host: '0.0.0.0',            // accept connections on any interface
-    allowedHosts: 'all',        // disable host check to stop “Invalid Host/Origin header”
-    headers: {                  // helpful if you fetch from a different origin in dev
+    allowedHosts: 'all',     
+    headers: {             
       'Access-Control-Allow-Origin': '*'
     },
     devMiddleware: {
@@ -162,28 +161,43 @@ esmConfig.output = Object.assign({}, baseConfig.output, {
 // ESM library targets require this flag; also remove the global name
 delete esmConfig.output.library;
 esmConfig.experiments = Object.assign({}, baseConfig.experiments || {}, { outputModule: true });
-// CRUCIAL: do NOT define devServer here. One server watches BOTH compilations.
+// do NOT define devServer here. One server watches BOTH compilations.
 delete esmConfig.devServer;
 
+// 3) Dedicated worker bundles (single-file classic scripts), DRY helper
+function makeWorker(name, entryRelPath, outFile) {
+  const cfg = Object.assign({}, baseConfig);
+  cfg.name = `worker:${name}`;
+  cfg.target = 'webworker';
+  cfg.entry = { [name]: path.resolve(__dirname, entryRelPath) };
+  cfg.output = Object.assign({}, baseConfig.output, {
+    path: TARGET_DIR,
+    filename: outFile,             // stable, human-readable
+    // workers are classic scripts to avoid module/relative-import issues from blob:
+    library: undefined,
+    libraryTarget: undefined
+  });
+  cfg.optimization = Object.assign({}, baseConfig.optimization || {}, {
+    splitChunks: false,
+    runtimeChunk: false
+  });
+  cfg.experiments = Object.assign({}, baseConfig.experiments || {}, {
+    outputModule: false
+  });
+  delete cfg.devServer;            // independent of the dev server
+  return cfg;
+}
 
-// 3) Dedicated worker bundle (single-file, classic script)
-const workerConfig = Object.assign({}, baseConfig);
-workerConfig.name = 'worker';
-workerConfig.target = 'webworker';
-workerConfig.entry = {
-  'map-loader-worker': path.resolve(__dirname, 'src/core/map/loader/worker-main.js')
-};
-workerConfig.output = Object.assign({}, baseConfig.output, {
-  path: TARGET_DIR,
-  filename: 'map-loader-worker.js',   // stable readable name
-});
-workerConfig.optimization = Object.assign({}, baseConfig.optimization || {}, {
-  splitChunks: false,
-  runtimeChunk: false
-});
-workerConfig.experiments = Object.assign({}, baseConfig.experiments || {}, {
-  outputModule: false
-});
-delete workerConfig.devServer;
+// emit ONE copy of each worker, shared by global+esm bundles
+const workerMapLoader = makeWorker(
+  'map-loader-worker',
+  'src/core/map/loader/worker-main.js',
+  'map-loader-worker.js'
+);
+const workerGeodata = makeWorker(
+  'geodata-processor-worker',
+  'src/core/map/geodata-processor/worker-main.js',
+  'geodata-processor-worker.js'
+);
 
-module.exports = [ globalConfig, esmConfig, workerConfig ];
+module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata ];

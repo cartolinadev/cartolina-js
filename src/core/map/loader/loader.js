@@ -56,9 +56,9 @@ var MapLoader = function(map, maxThreads) {
 
     if (this.config.mapSeparateLoader) {
 
-        (async () => {
+        this.workerPromise = createProcessWorker().then((worker) => {
 
-            this.processWorker = await createProcessWorker();
+            this.processWorker = worker;
 
             this.processWorker.onerror = function(event){
                 console.log("Error event:", event);
@@ -69,8 +69,11 @@ var MapLoader = function(map, maxThreads) {
 
             this.processWorker.onmessage = this.onWorkerMessage.bind(this);
 
-            this.processWorker.postMessage({'command':'config', 'data': this.config});
-        })();
+            this.processWorker.postMessage({'command':'config',
+                'data': this.config});
+
+            return worker;
+        });
     }
 
 };
@@ -203,10 +206,20 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
             case 'geodata':
             case 'direct-3dtiles':
 
-                //console.log("kind: " + kind + " " + "path: " + path);
 
                 this.workerTask[path] = { onLoaded: onLoaded, onError: onError, kind: kind };
-                this.processWorker.postMessage({'command':'load-binary', 'path': path, 'withCredentials':withCredentials, 'xhrParams':this.map.core.xhrParams, 'responseType':responseType, 'kind': kind, 'options': options});
+
+                this.workerPromise.then(() => {
+
+                    //console.log("kind: " + kind + " " + "path: " + path);
+                    this.processWorker.postMessage({'command':'load-binary',
+                        'path': path, 'withCredentials':withCredentials,
+                        'xhrParams':this.map.core.xhrParams,
+                        'responseType':responseType,
+                        'kind': kind, 'options': options});
+
+                });
+
                 break;
 
             default:

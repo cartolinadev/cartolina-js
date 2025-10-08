@@ -1,4 +1,34 @@
 
+/**
+ * An async helper which downloads the worker chunk as a blob before creating
+ * the worker to circumvene the stringent browser CSP limitations on cross
+ * origin workers.
+ */
+
+async function createProcessWorker() {
+
+    // works in global + ESM builds with output.publicPath='auto'
+    const base = /** webpack publicPath at runtime */ __webpack_public_path__ || '';
+    const workerUrl = base + 'geodata-processor-worker.js';
+
+    const res = await fetch(workerUrl, { mode: 'cors' });
+    if (!res.ok) throw new Error(`Failed to fetch worker bundle: ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    // classic worker (no {type:'module'} for blob safety)
+
+    const worker = new Worker(blobUrl);
+    const terminate = worker.terminate.bind(worker);
+    worker.terminate = function() {
+        URL.revokeObjectURL(blobUrl);
+        terminate();
+    };
+
+    return worker;
+}
+
+
 var MapGeodataProcessor = function(surface, listener) {
     this.layer = surface;
     this.map = surface.map;
@@ -6,27 +36,31 @@ var MapGeodataProcessor = function(surface, listener) {
     this.killed = false;
     this.listener = listener;
     this.busy = false;
-    this.ready = true;
+    this.ready = false;
     this.waitingForStylesheet = false;
     this.stylesheet = null;
     this.fonts = {};
     this.processCounter = 0;
 
+    this.workerPromise = createProcessWorker().then((worker) => {
 
-    /* webpack 5 native worker bundling  —  keep this expression **inline**
-       so webpack can statically analyse it and emit the worker chunk.     */
-    this.processWorker = new Worker(
-        /* webpackChunkName: "geodata-processsor-worker" */
-        new URL('./worker-main.js', import.meta.url),  { type: 'module' }
-    );
+        this.processWorker = worker;
     
-    this.processWorker.onerror = function(event){
-        throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
-    };
+        this.processWorker.onerror = function(event){
 
-    this.processWorker.onmessage = this.onMessage.bind(this);
+            throw new Error(event.message + ' (' + event.filename + ':'
+                + event.lineno + ')');
+        };
 
-    this.processWorker.postMessage({'command':'config', 'data': this.map.config});
+        this.processWorker.onmessage = this.onMessage.bind(this);
+
+        this.processWorker.postMessage({'command':'config',
+            'data': this.map.config});
+
+        this.ready = true;
+
+        return worker;
+     });
 };
 
 
@@ -127,7 +161,7 @@ MapGeodataProcessor.prototype.sendCommand = function(command, data, tile, dpr) {
         message['dpr'] = dpr;
     }
 
-    this.processWorker.postMessage(message);
+    this.workerPromise.then(() => { this.processWorker.postMessage(message) });
 };
 
 MapGeodataProcessor.prototype.setStylesheet = function(stylesheet, fontsOnly) {
