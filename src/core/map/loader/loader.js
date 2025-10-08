@@ -1,7 +1,34 @@
 
 import * as utils from '../../utils/utils';
 
-//get rid of compiler mess
+/**
+ * An async helper which downloads the worker chunk as a blob before creating
+ * the worker to circumvene the stringent browser CSP limitations on cross
+ * origin workers.
+ */
+
+async function createProcessWorker() {
+
+    // works in global + ESM builds with output.publicPath='auto'
+    const base = /** webpack publicPath at runtime */ __webpack_public_path__ || '';
+    const workerUrl = base + 'map-loader-worker.js';
+
+    const res = await fetch(workerUrl, { mode: 'cors' });
+    if (!res.ok) throw new Error(`Failed to fetch worker bundle: ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    // classic worker (no {type:'module'} for blob safety)
+
+    const worker = new Worker(blobUrl);
+    const terminate = worker.terminate.bind(worker);
+    worker.terminate = function() {
+        URL.revokeObjectURL(blobUrl);
+        terminate();
+    };
+
+    return worker;
+}
 
 
 var MapLoader = function(map, maxThreads) {
@@ -29,23 +56,21 @@ var MapLoader = function(map, maxThreads) {
 
     if (this.config.mapSeparateLoader) {
 
-        /* webpack 5 native worker bundling  —  keep this expression **inline**
-           so webpack can statically analyse it and emit the worker chunk.     */
-        this.processWorker = new Worker(
-            /* webpackChunkName: "map-loader-worker" */
-            new URL('./worker-main.js', import.meta.url),  { type: 'module' }
-        );
+        (async () => {
 
-        this.processWorker.onerror = function(event){
-            console.log("Error event:", event);
-            console.error("Worker error:", event);
-            throw new Error((event.error?.message || 'unknown') + ' (' + event.filename + ':' + event.lineno + ')');
-            //throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
-        };
+            this.processWorker = await createProcessWorker();
 
-        this.processWorker.onmessage = this.onWorkerMessage.bind(this);
+            this.processWorker.onerror = function(event){
+                console.log("Error event:", event);
+                console.error("Worker error:", event);
+                throw new Error((event.error?.message || 'unknown') + ' (' + event.filename + ':' + event.lineno + ')');
+                //throw new Error(event.message + ' (' + event.filename + ':' + event.lineno + ')');
+            };
 
-        this.processWorker.postMessage({'command':'config', 'data': this.config});
+            this.processWorker.onmessage = this.onWorkerMessage.bind(this);
+
+            this.processWorker.postMessage({'command':'config', 'data': this.config});
+        })();
     }
 
 };
