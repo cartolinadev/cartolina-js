@@ -26,6 +26,13 @@ var Browser = function(element, config) {
     this.originalConfig = JSON.parse(JSON.stringify(config));
     
     this.element = (typeof element === 'string') ? document.getElementById(element) : element; 
+
+    // Ensure the container establishes a positioning context for .vts-browser (absolute)
+    if (this.element && window.getComputedStyle(this.element).position === 'static') {
+        // Do not clobber an explicit author choice
+        this.element.style.position = 'relative';
+    }
+
     this.ui = new UI(this, this.element);
 
     element = (typeof element !== 'string') ? element : document.getElementById(element);
