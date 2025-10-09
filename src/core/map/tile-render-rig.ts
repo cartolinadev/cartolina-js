@@ -601,7 +601,8 @@ export class TileRenderRig {
         let diffuses: (MapStyle.DiffuseLayer) [] = [];
         let speculars: MapStyle.SpecularMapLayer[] =  []
 
-        style.layers.forEach((item: MapStyle.LayerSpecification) => {
+        style.layers && style.layers.forEach(
+            (item: MapStyle.LayerSpecification) => {
 
             let type_ = item.type ?? 'diffuse-map';
 

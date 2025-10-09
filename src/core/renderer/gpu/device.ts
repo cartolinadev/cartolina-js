@@ -176,7 +176,7 @@ resize(size: NumberPair, skipCanvas: boolean = false) {
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
 
-        console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
+        __DEV__ && console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
                     pwidth, pheight, width, height);
     }
 

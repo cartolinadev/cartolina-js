@@ -1,8 +1,8 @@
 {
-  "name": "vts-browser-js",
-  "version": "2.49.115-ondra_cartolina23.b1f9e3e",
-  "description": "JavaScript WebGL 3D maps rendering engine",
-  "main": "src/browser/index.js",
+  "name": "cartolina",
+  "version": "2.49.116-ondra_cartolina23.a460d85",
+  "description": "A 3D terrain cartography engine",
+  "main": "src/browser/index.ts",
   "scripts": {
     "install": "",
     "clean": "node_modules/.bin/rimraf build test/perf/results/ dist/",
@@ -19,20 +19,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/melown/vts-browser-js.git"
+    "url": "git+https://github.com/cartolina/cartolina-js.git"
   },
   "keywords": [
     "Web",
-    "JavaScript",
     "3D",
-    "map"
+    "map",
+    "terrain",
+    "cartography"
   ],
   "author": "https://cartolina.dev",
   "license": "BSD-2-Clause",
   "bugs": {
     "url": "https://github.com/melown/vts-browser-js/issues"
   },
-  "homepage": "https://github.com/melown/vts-browser-js#readme",
+  "homepage": "https://cartolina.dev/",
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",

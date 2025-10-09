@@ -17,3 +17,4 @@ build/*.css
 DEADJOE
 .vscode
 test/perf/results
+test/sandbox
