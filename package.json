@@ -1,6 +1,6 @@
 {
   "name": "cartolina",
-  "version": "2.49.116-ondra_cartolina23.a460d85",
+  "version": "2.49.117-ondra_cartolina23.6904620",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "scripts": {

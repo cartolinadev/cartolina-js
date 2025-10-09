@@ -11,7 +11,45 @@ var UIControlCredits = function(ui, visible, visibleLock) {
     this.lastHTML2 = '';
     this.lastHTML3 = '';
     this.credits = this.control.getElement('vts-credits');
+
+    // Minimal responsive: tiny "data attributions" link for embedded maps
+    this.minControl = this.ui.addControl('credits-min',
+      '<div id="vts-credits-min" class="vts-credits-min" role="button" tabindex="0">data attributions</div>',
+      true, visibleLock);
+    this.minLink = this.minControl.getElement('vts-credits-min');
+
+    var self = this;
+    this.minLink.on('click', function() { self.onMinClick(); });
+
+    // Keep responsive state in sync with container / window size
+    this._resizeHandler = function() { self.updateResponsive(); };
+    window.addEventListener('resize', this._resizeHandler);
+
+    // Initial layout
+    this.updateResponsive();
 };
+
+UIControlCredits.prototype.isFullPage = function() {
+    var r = this.ui.element.getBoundingClientRect();
+    // Consider "full page" only when both dimensions match the viewport
+    return (Math.round(r.width) >= window.innerWidth &&
+            Math.round(r.height) >= window.innerHeight);
+};
+
+UIControlCredits.prototype.updateResponsive = function() {
+    var notFull = !this.isFullPage();
+    // Hide the default credits box when not fullpage; show the tiny link instead
+    this.credits.element.style.display = notFull ? 'none' : 'block';
+    this.minControl.setVisible(notFull);
+};
+
+UIControlCredits.prototype.onMinClick = function() {
+    // Prefer the detailed lists if available; otherwise fall back to the inline credits
+    var html = (this.lastHTML2 || '') + (this.lastHTML3 || '');
+    if (!html) { html = this.lastHTML || ''; }
+    this.ui.popup.show({'right':'6px','bottom':'6px'}, html);
+};
+
 
 
 UIControlCredits.prototype.getCreditsString = function(array, separator, full) {
@@ -99,7 +137,7 @@ UIControlCredits.prototype.update = function() {
     }
 
     html += '<div class="vts-credits-supercell">';
-    html += '<div class="vts-credits-cell">Powered by <a class="vts-logo" href="https://vts-geospatial.org/" target="blank">vts-geospatial </a></div>';
+    html += '<div class="vts-credits-cell">Powered by <a class="vts-logo" href="https://cartolina.dev/" target="blank">Cartolina</a></div>';
     //html += '<div class="vts-credits-separator">|</div>';
     html += '</div>';
 
@@ -150,6 +188,10 @@ UIControlCredits.prototype.onMoreButton = function(butt, html) {
     this.ui.popup.show({'right' : Math.max(0,(rect['fromRight']-rect['width'])) + 'px',
         'bottom' : (rect['fromBottom']+7) + 'px'}, html);
 };
+
+
+// Ensure we remove the resize listener if this control is ever torn down
+UIControlCredits.prototype.kill = function() { if (this._resizeHandler) { window.removeEventListener('resize', this._resizeHandler); } };
 
 
 export default UIControlCredits;
