@@ -184,7 +184,7 @@ UI.prototype.setParam = function(key) {
     case 'controlLink':        this.setControlVisible('link', this.config.controlLink); break;
     case 'controlMeasure':     this.setControlVisible('measure', this.config.controlMeasure); break;
     case 'controlLogo':        this.setControlVisible('logo', this.config.controlLogo); break;
-    case 'controlFullscreen':  this.setControlVisible('fullscreeen', this.config.controlFullscreen); break;
+    case 'controlFullscreen':  this.setControlVisible('fullscreen', this.config.controlFullscreen); break;
     case 'controlCredits':     this.setControlVisible('credits', this.config.controlCredits); break;
         //case "controlLoading":     this.setControlVisible("loading", this.config.controlLogo); break;
     }
