@@ -55,17 +55,19 @@ UIControlFullscreen.prototype.fullscreenEnabled = function() {
 
 
 UIControlFullscreen.prototype.onClick = function() {
-    var element = this.ui.element;
-    
-    if (!this.enabled) {
-    //if (!this.fullscreenEnabled()) {
-        this.enabled = true;
-        this.requestFullscreen(element);
-    } else {
-        this.enabled = false;
-        this.exitFullscreen();  
-    } 
-};
 
+    let fe = document.fullscreenElement;
+
+    if (fe) {
+
+        document.exitFullscreen();
+        this.enabled = false;
+
+    } else {
+
+        this.ui.element.requestFullscreen();
+        this.enabled = true;
+    }
+};
 
 export default UIControlFullscreen;
