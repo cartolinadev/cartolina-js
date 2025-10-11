@@ -123,7 +123,7 @@ var Core = function(element, config, coreInterface) {
         mapForcePipeline: 0,
         mapLogGeodataStyles: true,
         mapBenevolentMargins: false,
-        mapLabelFreeMargins: [0, 0, 0, 0],
+        mapLabelFreeMargins: [30, 30, 30, 30],
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,

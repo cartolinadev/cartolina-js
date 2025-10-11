@@ -1,223 +1,201 @@
-<img width="390" alt="VTS Browser JS" src="https://github.com/melowntech/assets/blob/master/vts-browser-js/vts-browser-js-no-left-padding.png?raw=true">
+<img width="320" alt="VTS Browser JS" src="https://github.com/cartolinadev/assets/blob/master/brand/cartolina-logo.png?raw=true">
 
-**VTS Browser JS** is a powerful JavaScript 3D map rendering engine with a very small footprint (about 163 kB of gziped JS code). It provides almost all features for web-based 3D mapping you will ever want.
+# cartolina-js
 
-VTS Browser JS is independently usable part of [VTS 3D Geospatial Software Stack](https://vts-geospatial.org): a state-of-the-art, full-stack open source platform for 3D geospatial application development. 
+**cartolina-js** is a TS/JS/WebGL2 library for authoring web-based 3D 
+terrain maps. It's the primary frontend component of [cartolina](http://cartolina.dev/), 
+an experimental software stack for web-based 3D terrain cartography. 
 
-With VTS Browser JS you may combine and render diverse geospatial data in a single online map, style and display various types of geodata, render textured polygonal meshes or OBJ models, or even render topographic labels in almost any international writing system.
+`cartolina-js` is a heavily divergent fork of [vts-browser-js](https://github.com/melowntech/vts-browser-js/), 
+which was authored and developed by Melown Technologies/Leica Geosystems in 
+2017-2023 and which is now officially discontinued.  
 
+Please refer to the [cartolina](http://cartolina.dev/) website for more information,
+live examples, etc.
 
-- [Features](#features)
-- [Live Demos](#live-demos)
-- [Getting Started with VTS Browser JS](#examples)
-  - [First Steps](#first-steps)
-  - [More examples](https://github.com/Melown/vts-browser-js/wiki/Examples)
-- [Get the library](#get-the-library)
-  - [Our CDN](#our-cdn)
-  - [Prebuilt package](#prebuilt)
-  - [NPM](#npm-repository)
-  - [From Source code](#build-from-code)
-- [Documentation](#documentation)
-- [Roadmap](https://github.com/Melown/vts-browser-js/wiki/Roadmap)
-- [Map Configuration](#map-configuration)
-- [Licence](#licence)
-- [How to Contribute](#how-to-contribute)
-
-<img width="888" alt="VTS Browser JS showcase" src="https://github.com/melowntech/assets/blob/master/vts-browser-js/vts-browser-js-readme-2-880.jpg?raw=true">
 
 ## Features
-* [x] part of a comprehensive open-source 3D geospatial software Stack
-* [x] supports all modern web browsers
-* [x] photorealistic rendering
-* [x] geocoding API support
-* [x] tiled, hierarchical data model
-* [x] optimized for web-based rendering
-* [x] supports any coordinate system
-* [x] multiple surfaces
-* [x] multiple bound layers on each surface
-* [x] vector layers (geodata)
-* [x] geodata styling and geodata interaction
-* [x] dynamic surfaces and layer switching
-* [x] international writing systems (e.g. Arabic, Devangaric, Chinese, Japanese, ...)
-* [x] extensive, yet simple API (including UI extensions)
-* [x] custom meshes, lines, polygons, icons, OBJ models, etc
-* [x] rendering and styling of GeoJSON files
-* [x] very small footprint (163KB minified and gzipped)
-* [x] large set of ready-to-use data
-* [x] open-source under BSD-2 license
 
-### Comparison to CesiumJS library
+- interactive cartographic renditions of DEMs at arbitrary resolution and scale
 
-The open-source [CesiumJS](https://cesiumjs.org) is an excellent JavaScript 3D mapping library which is widely used and frequently compared to VTS Browser JS. The following table might help you to identify the application scenarios where VTS Browser JS may be an alternative, or simply a straightforward software platform of choice for your project.  
+- hillshading based on a native lighting model
 
-| Feature | VTS&nbsp;Browser&nbsp;JS | CesiumJS |
-| --- | --- | --- |
-| Different [coordinate systems](https://vts-geospatial.org/reference/concepts.html#reference-frame) support | yes | limited |
-| Dynamic tiled [surfaces](https://vts-geospatial.org/reference/concepts.html#surface) mixing (including [glues](https://vts-geospatial.org/reference/concepts.html#glue)) | yes | no |
-| Multiple surfaces and multiple bound layers support (including transparent layers) | yes | no |
-| Bound layers with optimized [masks](https://vts-geospatial.org/reference/concepts.html#mask) | yes | no |
-| Out-of-the-box OSM data support with [custom styling](https://github.com/Melown/vts-browser-js/wiki/VTS-Geodata-Format) | yes | limited |
-| Open-source backend components | yes | no |
-| Backend data-fusion capabilities | yes | no |
-| Support for international writing systems | yes | limited |
-| Compact-size library (gzipped and minified) | 221&nbsp;KB | 577&nbsp;KB&nbsp;+&nbsp;Workers |
+- scale-dependent vertical exaggeration 
 
-## Live Demos
+- bump-mapping based on satelitte or aerial imagery
 
-These are some of the applications built with VTS browser JS:
+- background haze and foreground shadows
 
- * [Planet Mercury](https://www.melown.com/mercury/)
- * [Intergeo presentation](https://www.melown.com/intergeo2017/)
- * [Mapy.cz](https://mapy.cz/zakladni?x=14.4125847&y=50.0517997&z=17&m3d=1&height=687&yaw=41.252&pitch=-26) (cs)
- * [GPX Demo](https://gpx-demo.mlwn.se)
+- sun glints based on land-cover classifications
+
+- seamless support for high-latitude and polar regions
+
+- arbitrary frames of reference, including extra-terrestrial bodies for planetary science
+
+- point labels with well defined visual hierarchy 
+
+
+## What's different from legacy vts-browser-js
+
+Unlike its predecessor, which strived to be a general-purpose web-based 3D 
+mapping engine, `cartolina-js` has a more narrow focus: cartographic 
+3D terrain representation. 
+
+To achieve the desired functionality, I made numerous changes to the 
+original code and data design. These changes were feature-driven, byt I have 
+also tried to make things more modern: I use TypeScript  and whenever possible, 
+I made the long-verdue transition to WebGL2 for the new code and I redesigned 
+much of the tile-rendering pipeline in the process. 
+
+For better or worse `cartolina-js` retains large part of the old `vts-browser-js` 
+codebase and some degree of backward compatibility. The old vts-geospatial 
+map configurations *can* still work, though I make no guarantee that they will 
+and have no desire to maintain backward compatibility in any future release.
+
+
+## Usage
+
+There is both a global/UMD and an ESM build hosted at 
+
+```
+https://cdn.tspl.re/libs/cartolina/dist/current/
+```
+
+or, if you prefer specific version
+
+```
+https://cdn.tspl.re/libs/cartolina/dist/<version>/
+```
+
+Place the following in the head section of your page
+
+```html
+<link rel="stylesheet" type="text/css" href="https://cdn.tspl.re/libs/cartolina/dist/current/cartolina.min.css" />
+```
+
+To use the ESM build (prefered), do:
+
+```html
+<div id="map"></div>
+<script type="module">
+import { map as createMap } from 'https://cdn.tspl.re/libs/cartolina/dist/current/cartolina.min.esm.js';
+
+let map = createMap({
+    container: 'map',
+    style: './quickstart.json',
+    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45], 
+    options: {
+        controlFullscreen: true
+    }
+  });
+  
+</script>
+```
+
+To use the UMD build
+
+```html
+<script src="../../build/cartolina.js"/>
+
+let map = cartolina.map({
+    container: 'map',
+    style: './quickstart.json',
+    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45], 
+    options: {
+        controlFullscreen: true
+    }
+  });
+```
+
+<!-- ### NPM -->
+<!-- add the npm section once it is tested to work -->
 
 ## Examples
 
-### First steps
+See the usage examples on the [cartolina website](https://cartolina.dev/examples).
 
-1. Include The VTS browser JS library
-```html
-<link rel="stylesheet"
-  type="text/css" href="https://cdn.melown.com/libs/vtsjs/browser/v2/vts-browser.min.css" />
-<script type="text/javascript"
-  src="https://cdn.melown.com/libs/vtsjs/browser/v2/vts-browser.min.js"></script>
+You may also examine the [/demos] directory in this repository.
+
+
+### Build from source
+
+Clone this repository
+
+```bash
+git clone https://github.com/cartolinadev/cartolina-js.git 
 ```
 
-2. Declare map containing element (with id `map-div`)
-```html
-<div id="map-div" style="width:100%; height:100%;"></div>
-```
-
-3. Initiate vts browser (with example [map configuration](https://))
-```html
-<script>
-  var browser = vts.browser('map-div', {
-    map: 'https://cdn.melown.com/mario/store/melown2015/map-config/melown/VTS-Tutorial-map/mapConfig.json'
-  });
-</script>
- ```
-
-Wonder where to find `mapConfig.json` file? See [Map Configuration](#map-configuration) section.
-
-### Next steps
-
-You can run many [examples in JSFiddle](https://github.com/Melown/vts-browser-js/wiki/Examples).
-
-## Get the library
-
-There is several ways how to bundle The VTS Browser JS Library into your project.
-
-### Our CDN
-
-The easiest way to link The VTS Browser JS Library is to use the latest build (or specific version) from Melown Technologies CDN.
-
-```html
-<link rel="stylesheet"
-  href="https://cdn.melown.com/libs/vtsjs/browser/v2/vts-browser.min.css" />
-<script type="text/javascript"
-  src="https://cdn.melown.com/libs/vtsjs/browser/v2/vts-browser.min.js"></script>
-```
-
-### Prebuilt
-
-In case you do not want to build libray yourself or use our CDN, there is a [link](https://github.com/Melown/vts-browser-js/releases) where you can find latest compiled libraries with demo examples.
-
-### NPM repository
-
-Vts-browser-js library is in npm js repository. To add it as dependecy to your project just add it as any npm package
-```
-npm install -S vts-browser-js
-```
-
-### Build from code
-
-If you prefer, you may build The VTS Browser JS Library from source code.
-
-#### Build system
-The build system uses [webpack module bundler](http://webpack.github.io/).
-Typical development cycle starts with `npm install` for installation of
-dependenices. Then you usually run `webpack-dev-server` and build with `webpack`.
-
-#### Install
-
-Download and install all dependencies to local `node_modules` directory.
-
-**NOTE:** For some dependencies, you need `git` available in your system.
+then do
 
 ```
 npm install
+npm start
 ```
 
-or more advanced (if you are using new versions of NodeJS and Yarn)
+Point your web browser to [http://localhost:8080/demos/](http://localhost:8080/demos/)
+check cartolina-js demos running directly of your repo.
+
+`cartolina-js` uses the webpack5 module bundler, the `npm start` command runs 
+the dev server with live reload enabled.
+
+Once you're happy with your changes (if any), you can do  
 
 ```
-yarn install
+npm run dist
 ```
 
-#### Run dev server
+to obtain both the UMD and ESM production builds of cartolina-js. Find them in 
+the `./dist/<version>-branch.<short-hash>` directory.
 
-The development server is serving local files at
-[http://localhost:8080](http://localhost:8080).
-
-```
-node_modules/.bin/webpack-dev-server
-```
-
-And go to [http://localhost:8080/demos/](http://localhost:8080/demos/)
-
-
-#### Build
-
-```
-node_modules/.bin/webpack
-```
-The unzipped file (along with source map and CSS) is stored in `build/`
-directory. You may now start the dev server (see lower) and open browser at
-[http://localhost:8080](http://localhost:8080) to see some demos in the `demos/`
-directory.
-
-#### Build compressed version
-
-The compressed version - it's intended to be used in in production env. You can
-include in the `<script ...></script>` tags (along with CSS) there.
-
-Compressed version is build in the `dist/` directory.
-
-```
-NODE_ENV=production node_modules/.bin/webpack
-```
-
-#### Makefile
-
-There is also `Makefile` available in the project directory. Referer `make help`
-to specific make targets. The Makefile is just wrapper around `npm run` commands
-(which are wrappers around webpack configuration).
-
-## Map Configuration
-
-Map configuration contains a all information The VTS Browser JS library needs to display given map/model. Library is usually initialize with URL to mapConfig.json file which is JSON representation of Map configuration data.
-
-The question is, where you can get your own Map Configuration. Basically you have two options:
-
-### Melown Cloud
-
-[Melown Cloud](https://www.melown.com/cloud) is point-and-click interface to a subset of VTS technology, operated by Melown Tecchnologies. Conveniently, Melown Cloud may be also used as a source of custom map configurations for VTS browser JS application development.
-
-### VTS 3D Geospatial Software stack
-
-VTS Browser JS forms part of the [VTS 3D Geospatial Software Stack](https://vts-geospatial.org). Running the full stack gives you complete control over your map resources, provides you with powerful data fusion capabilities and allows for closed networks or other types of off-grid deployment.
 
 ## Documentation
 
-VTS Browser JavaScript API documentation is available in our wiki:
+There is currently no stand-alone documentation for the `cartolina-js` API. Refer
+to [this page](#usage), to the [examples on cartolina website](https://cartolina.dev/examples) and to the code's JSDoc 
+annotations. 
 
-* [VTS Browser API](https://github.com/Melown/vts-browser-js/wiki)
+As a last resort, use the legacy [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki)].
 
-## License
 
-See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
-`build/3rdpartylicenses.txt` file for 3rd party licenses.
+## Tests
+
+With the [devserver running](#build-from-source), you can manually compare the 
+appearance of the map for predefined test map configurations by looking at
+`http://localhost:8080/test/`.
+
+
+There are also automatic performane regression tests based on playwright, 
+
+To run them, do
+
+```bash
+npm run test:perf:headed 
+```
+
+Afterwards, you can see the performance metrics at 
+`http://localhost:8080/test/perf`.
+
+
+## Work in progress
+
+`cartolina-js` is a work in progress. There are bugs and rough edges. There may 
+be breaking changes to the API, runtime defaults etc.in future releases. Stick 
+to the specific version you base your application on and test well before 
+deploying or upgrading.
+
 
 ## How to contribute
 
 Check out the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+
+## License
+
+`cartolina-js` is open source under a permissive BSD 2-clause license. See
+[LICENSE](LICENSE) for details.
+
+See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
+`build/3rdpartylicenses.txt` file for 3rd party licenses.
+
+
+```
+
