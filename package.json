@@ -1,13 +1,13 @@
 {
-  "name": "cartolina",
-  "version": "2.49.118-ondra_cartolina23.05153cc",
+  "name": "cartolina-js",
+  "version": "2.49.119-ondra_cartolina23.3be0820",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "scripts": {
     "install": "",
     "clean": "node_modules/.bin/rimraf build test/perf/results/ dist/",
-    "dist": "NODE_ENV=production node_modules/.bin/webpack --progress",
-    "start": "node_modules/.bin/webpack-dev-server --content-base ./ --inline",
+    "dist": "NODE_ENV=production node_modules/.bin/webpack",
+    "start": "npx webpack serve",
     "prepare": "ts-patch install && husky install",
     "perf:install": "npx playwright install chromium",
     "test": "test:perf",
