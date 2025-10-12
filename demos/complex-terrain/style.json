@@ -46,6 +46,8 @@
             "heightRamp": [[0,4000], [1.5,1.3]],
             "viewExtentProgression": [12.3, 13e6, 1.38, 1, 13.5]
         },
+        "atmosphere": {},
+        "shadows": {},
         "constants": {
             "@osmid": {"if":[["has","$id_"],"$id_",""]},
             "@name": {"if":[["has","$name"],{"if":[["any",["!has","$name:en"],["==",{"has-latin":"$name"},true]],"{$name}","{$name}\n{$name:en}"]},""]},

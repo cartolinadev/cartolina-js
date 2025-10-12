@@ -790,7 +790,8 @@ export class TileRenderRig {
         } // if (rt.illumination && layerDef.specularSequence.length > 0)
 
         // add atmosphere
-        if (tile.map.atmosphere) {
+        // we do not add atmosphere on iOs until the safari alighnment bug is fixed
+        if (tile.map.isAtmospheric()) {
 
             rt.layerStack.push({
                 target: 'color',
@@ -803,16 +804,17 @@ export class TileRenderRig {
         }
 
         // add shadows
-        rt.layerStack.push({
-            target: 'color',
-            source: 'none',
-            necessity: 'optional',
-            operation: 'shadows',
-            tgtColorWhitewash: 0,
-            rt: {}
-        });
+        if (style.shadows) {
 
-        // also, turn off internal/external UVs if no layer needs them?
+            rt.layerStack.push({
+                target: 'color',
+                source: 'none',
+                necessity: 'optional',
+                operation: 'shadows',
+                tgtColorWhitewash: 0,
+                rt: {}
+            });
+        };
 
         // done
         //__DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);

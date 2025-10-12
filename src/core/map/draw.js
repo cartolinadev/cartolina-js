@@ -291,7 +291,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     }*/
 
 
-    this.renderer.drawBackground();
+    if (map.isAtmospheric()) this.renderer.drawBackground();
 
     gpu.setState(this.drawTileState);
 
@@ -530,77 +530,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.earthRadius2 = earthRadius2;
     renderer.earthERatio = earthRadius / earthRadius2;
 
-    /* //draw skydome before geodata
-    if (this.drawChannel != 1 && !projected && debug.drawFog &&
-        ((body && body.atmosphere) || map.referenceFrame.id == 'melown2015' || map.referenceFrame.id == 'mars-qsc' || map.referenceFrame.id == 'earth-qsc') &&
-        renderer.progAtmo.isReady() && renderer.progAtmo2.isReady()) {    
-
-        var navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
-        var earthRadius =  navigationSrsInfo['a'];
-        var earthRadius2 =  navigationSrsInfo['b'];
-        //var atmoSize = this.atmoHeight;
-        renderer.earthRadius = earthRadius;
-        renderer.earthRadius2 = earthRadius2;
-        renderer.earthERatio = earthRadius / earthRadius2;
-
-        if (this.renderer.useSuperElevation) {
-
-            //console.log("atmoSize: ", atmoSize);
-
-            // empirical factor... the "atmosphere" was insanely thick at 1.0
-            atmoSize = Math.max(atmoSize, 0.2 * renderer.getSuperElevatedHeight(atmoSize, this.map.position));
-
-            //console.log("new atmoSize", atmoSize);
-        }
-
-        var cameraPosToEarthCenter = [0,0,0,0];
-        vec3.normalize(camera.position, cameraPosToEarthCenter);
-
-        var pos = map.getPosition();
-        //var orientation = pos.getOrientation();
-        //var tiltFactor = (Math.max(5,-orientation[1])/90);
-
-        //var cameraHeight = Math.max(atmoSize * 0.1, camera.geocentDistance - earthRadius);
-        var heightFactor = 1-math.clamp(Math.max(atmoSize * 0.1, camera.geocentDistance - earthRadius) / (atmoSize*(10)), 0, 1);
-
-        var params = [Math.max(2,heightFactor*128),0,0,0], params2, params3;
-        
-
-        //if (cameraHeight > earthRadius*2) { //prevent foggy earth from larger distance
-        //    params[0] = 2-Math.min(1.0, (camera.height - earthRadius*2) / (earthRadius*2));
-        //}
-
-        //gpu.setState(this.drawAtmoState);
-        //renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
-          //                       earthRadius + 3000, earthRadius2 + 3000, renderer.progAtmo2, params,  cameraPosToEarthCenter, null, this.atmoColor3, this.atmoColor2, true);// this.cameraHeight > atmoSize ? 1 : -1);
-        
-        var safetyFactor = 2.0;
-        params = [safetyFactor, safetyFactor * ((earthRadius + atmoSize) / earthRadius), 0.25, safetyFactor* ((earthRadius + atmoSize) / earthRadius)];
-        var factor = (1 / (earthRadius) ) * safetyFactor;  
-        params2 = [camera.position[0] * factor, camera.position[1] * factor, camera.position[2] * factor, 1];
-        
-        var distance = (pos.getViewExtent()*0.5) / Math.tan(math.radians(pos.getFov()*0.5));
-        var a1 = (earthRadius / (distance + earthRadius)); //get angle to horion
-
-        //var n2 = 10.05;
-        var n2 = 5.00;
-
-        var t1 = math.mix(4.4, 1.01, a1);
-        var t2 = math.mix(n2, 1.05, a1); // * 1.0176;
-
-        params3 = [t1, 1 ,t2,0];
-
-        //console.log("a1: " + a1 + " t2: " + t2);
-
-        gpu.setState(this.drawAuraState);
-
-        renderer.draw.drawBall([-camera.position[0], -camera.position[1], -camera.position[2]],
-                                 earthRadius + atmoSize, earthRadius2 + atmoSize, renderer.progAtmo, params,  params2, params3, this.atmoColor, this.atmoColor2);// this.camera.height > atmoSize ? 1 : -1);
-
-        gpu.setState(this.drawTileState);
-    }*/
-    
-
+    // geodata hot path
     if (debug.drawEarth) {
         if (!skipFreeLayers) {
             if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
