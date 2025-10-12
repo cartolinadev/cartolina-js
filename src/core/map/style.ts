@@ -39,7 +39,7 @@ export interface StyleSpecification  {
     illumination?: IlluminationSpecification;
     verticalExaggeration?: VerticalExaggerationSpecification;
 
-    atmosphere?: Partial<MapBody.Atmosphere>;
+    atmosphere?: AtmosphereSpecification;
     shadows?: any;
 }
 
@@ -236,6 +236,8 @@ export type VerticalExaggerationSpecification =  {
 
 const validateStyle = typia.createValidate<MapStyle.StyleSpecification>();
 
+export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
+
 /*
  * Class map style, provides a method to initialize the map object according
  * to a style spec.
@@ -329,10 +331,17 @@ export class MapStyle {
                     let body = map.referenceFrame.body;
                     let services = map.services;
 
-                    if (body && body.atmosphere && services && services.atmdensity)
-                    map.atmosphere = new Atmosphere(
-                        body.atmosphere, map.getPhysicalSrs(),
-                        map.url.makeUrl(services.atmdensity.url, {}), map);
+                    if (styleSpec.atmosphere
+                        && body && body.atmosphere
+                        && services && services.atmdensity) {
+
+                        let spec = { ...body.atmosphere, ...styleSpec.atmosphere
+                            } as Atmosphere.Specification;
+
+                        map.atmosphere = new Atmosphere(
+                            spec, map.getPhysicalSrs(),
+                            map.url.makeUrl(services.atmdensity.url, {}), map);
+                       }
                 }
 
                 // the surface, only single-surface mapconfigs are admissible
