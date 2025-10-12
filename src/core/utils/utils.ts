@@ -630,3 +630,24 @@ export const logOnce = (() => {
 
 })();
 
+
+export function isIos(): boolean {
+
+    if (typeof navigator === "undefined") return false;
+
+    const ua = navigator.userAgent || "";
+
+    // Classic iPhone/iPad/iPod UA
+    const classicIOS = /\b(iPad|iPhone|iPod)\b/i.test(ua);
+
+    // iPadOS 13+ masquerades as Mac; touch points > 1 distinguishes it from real Macs
+    // navigator.platform is deprecated but still the most reliable cross-browser signal here.
+    const iPadOS13Plus =
+        !classicIOS &&
+        navigator.platform === "MacIntel" &&
+        (navigator as any).maxTouchPoints > 1;
+
+    return classicIOS || iPadOS13Plus;
+}
+
+

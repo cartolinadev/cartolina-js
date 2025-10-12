@@ -200,8 +200,6 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
     }*/
 
     let styleSources: Record<string, MapStyle.SourceSpecification> = {};
-    let styleTerrain: MapStyle.TerrainSpecification = { sources: [] }
-    let styleLayers: MapStyle.LayerSpecification[] = [];
 
     // a stub to make the style spec compliant
     this.map.surfaces.forEach((surface: MapSurface) => {
@@ -212,8 +210,11 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
     //surfaces
     for (let key in view.surfaces) {
 
-        var surfaceLayers = view.surfaces[key];
-        var surface: MapSurface = this.map.getSurface(key);
+        let styleTerrain: MapStyle.TerrainSpecification = { sources: [] }
+        let styleLayers: MapStyle.LayerSpecification[] = [];
+
+        let surfaceLayers = view.surfaces[key];
+        let surface: MapSurface = this.map.getSurface(key);
 
         if (surface != null) {
 
@@ -378,12 +379,16 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                 }
             }
         }
-    }
 
-    // the style stub for tile rendering, gneerated from view
-    surface.style = {
-        sources: styleSources, terrain: styleTerrain, layers: styleLayers
-    }
+
+        // the style stub for tile rendering, gneerated from view
+        surface.style = {
+            sources: styleSources, terrain: styleTerrain, layers: styleLayers
+        }
+
+
+    } // for (let key in view.surfaces
+
 
     //free layers
     for (let key in view.freeLayers) {
@@ -418,7 +423,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
     
                             freeLayer.diffuseSequence.push([layer, alpha]);
 
-                            if (item['shaderVarFlatShade']) {
+                            /*if (item['shaderVarFlatShade']) {
                                 if (!layer.shaderFilters) {
                                     layer.shaderFilters = {};
                                 }
@@ -440,7 +445,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                                 }
 
                                 layer.shaderFilters[surface.id].filter = item['shaderFilter'];
-                            }
+                            }*/
                         }
                     }
                 }

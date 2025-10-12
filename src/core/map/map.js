@@ -1627,4 +1627,26 @@ Map.prototype.update = function() {
     this.stats.end(dirty);
 };
 
+
+Map.prototype.isAtmospheric = function() {
+
+    // until the ios alignment bug is fixed...
+    if (utils.isIos()) return false;
+
+    // style based map - explicit atmosphere needed
+    if (this.style) {
+
+        if  (this.style.styleSpec.atmosphere && this.atmosphere)
+            return true;
+        else
+            return false;
+    }
+
+    // mapconfig based map - atmosphere rendered whenever available
+    if (this.atmosphere) return true;
+
+    // default
+    return false;
+}
+
 export default Map;
