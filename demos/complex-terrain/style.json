@@ -62,7 +62,8 @@
             "noto-italic": "https://cdn.tspl.re/fonts/noto-italic/1.0.0/noto-i.fnt",
             "noto-mix": "https://cdn.tspl.re/fonts/noto-extended/1.0.0/noto.fnt",
             "noto-cjk": "https://cdn.tspl.re/fonts/noto-cjk/1.0.0/noto.fnt",
-            "noto-serif": "https://cdn.tspl.re/fonts/noto-serif/1.0.0/noto-serif.fnt"
+            "noto-serif": "https://cdn.tspl.re/fonts/noto-serif/1.0.0/noto-serif.fnt",
+            "#default": "https://cdn.tspl.re/libs/vtsjs/fonts/noto-extended/1.0.0/noto.fnt"
         },
         "layers": [
             {

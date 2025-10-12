@@ -100,7 +100,7 @@ var Core = function(element, config, coreInterface) {
         mapFeaturesSortByTop : false,
 
         mapFeaturesReduceMode : 'scr-count7',
-        mapFeaturesReduceParams : null,
+        mapFeaturesReduceParams : [ 0.050000000000000003, 0.17000000000000001, 11, 1, 1000 ],
         mapFeaturesReduceFactor : 1,
         mapFeaturesReduceFactor2 : 1,
 
