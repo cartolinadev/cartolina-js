@@ -1,8 +1,8 @@
-<img width="320" alt="VTS Browser JS" src="https://github.com/cartolinadev/assets/blob/master/brand/cartolina-logo.png?raw=true">
+<p align="center"><img width="320" alt="VTS Browser JS" src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo.png"></p>
 
 # cartolina-js
 
-**cartolina-js** is a TS/JS/WebGL2 library for authoring web-based 3D 
+`cartolina-js` is a TS/JS/WebGL2 library for authoring web-based 3D 
 terrain maps. It's the primary frontend component of [cartolina](http://cartolina.dev/), 
 an experimental software stack for web-based 3D terrain cartography. 
 
@@ -22,7 +22,7 @@ live examples, etc.
 
 - scale-dependent vertical exaggeration 
 
-- bump-mapping based on satelitte or aerial imagery
+- bump-mapping based on satellite or aerial imagery
 
 - background haze and foreground shadows
 
@@ -42,16 +42,15 @@ mapping engine, `cartolina-js` has a more narrow focus: cartographic
 3D terrain representation. 
 
 To achieve the desired functionality, I made numerous changes to the 
-original code and data design. These changes were feature-driven, byt I have 
+original code and data design. These changes were feature-driven, but I have 
 also tried to make things more modern: I use TypeScript  and whenever possible, 
-I made the long-verdue transition to WebGL2 for the new code and I redesigned 
+I made the long-overdue transition to WebGL2 for the new code and I redesigned 
 much of the tile-rendering pipeline in the process. 
 
-For better or worse `cartolina-js` retains large part of the old `vts-browser-js` 
+For better or worse `cartolina-js` retains a large part of the old `vts-browser-js` 
 codebase and some degree of backward compatibility. The old vts-geospatial 
 map configurations *can* still work, though I make no guarantee that they will 
-and have no desire to maintain backward compatibility in any future release.
-
+and I have no desire to maintain backward compatibility in any future release.
 
 ## Usage
 
@@ -61,7 +60,7 @@ There is both a global/UMD and an ESM build hosted at
 https://cdn.tspl.re/libs/cartolina/dist/current/
 ```
 
-or, if you prefer specific version
+or, if you want to lock to a specific version
 
 ```
 https://cdn.tspl.re/libs/cartolina/dist/<version>/
@@ -73,7 +72,7 @@ Place the following in the head section of your page
 <link rel="stylesheet" type="text/css" href="https://cdn.tspl.re/libs/cartolina/dist/current/cartolina.min.css" />
 ```
 
-To use the ESM build (prefered), do:
+To use the ESM build (preferred), do:
 
 ```html
 <div id="map"></div>
@@ -82,11 +81,8 @@ import { map as createMap } from 'https://cdn.tspl.re/libs/cartolina/dist/curren
 
 let map = createMap({
     container: 'map',
-    style: './quickstart.json',
-    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45], 
-    options: {
-        controlFullscreen: true
-    }
+    style: './style.json',
+    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45]
   });
   
 </script>
@@ -99,12 +95,32 @@ To use the UMD build
 
 let map = cartolina.map({
     container: 'map',
-    style: './quickstart.json',
-    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45], 
-    options: {
-        controlFullscreen: true
-    }
+    style: './style.json',
+    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45]
   });
+```
+
+At bare minimum, your `style.json` should include a terrain source and a terrain
+definition referring to that source. Illumination definition is optional, but you 
+probably want to use it in this context.
+
+```json
+{
+    "version": 2,
+    "sources": {
+         "topoearth-copernicus-dem-glo30": {
+              "type": "cartolina-surface",
+               "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/",
+         },
+    },
+    "terrain": {
+        "sources": ["topoearth-copernicus-dem-glo30"]
+    },
+    "illumination": {
+        "light": ["tracking", 315, 45],
+        "ambientCoef": 0.0
+    }
+}
 ```
 
 <!-- ### NPM -->
@@ -133,9 +149,9 @@ npm start
 ```
 
 Point your web browser to [http://localhost:8080/demos/](http://localhost:8080/demos/)
-check cartolina-js demos running directly of your repo.
+to check the `cartolina-js` demos running directly off your working copy.
 
-`cartolina-js` uses the webpack5 module bundler, the `npm start` command runs 
+`cartolina-js` uses the webpack 5 module bundler, the `npm start` command runs 
 the dev server with live reload enabled.
 
 Once you're happy with your changes (if any), you can do  
@@ -144,17 +160,17 @@ Once you're happy with your changes (if any), you can do
 npm run dist
 ```
 
-to obtain both the UMD and ESM production builds of cartolina-js. Find them in 
+to obtain both the UMD and ESM production builds of `cartolina-js`. Find them in 
 the `./dist/<version>-branch.<short-hash>` directory.
 
 
 ## Documentation
 
 There is currently no stand-alone documentation for the `cartolina-js` API. Refer
-to [this page](#usage), to the [examples on cartolina website](https://cartolina.dev/examples) and to the code's JSDoc 
-annotations. 
+to [this page](#usage), to the [examples on cartolina website](https://cartolina.dev/examples) 
+and to the code's JSDoc annotations. 
 
-As a last resort, use the legacy [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki)].
+As a last resort, use the legacy [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki).
 
 
 ## Tests
@@ -164,7 +180,7 @@ appearance of the map for predefined test map configurations by looking at
 `http://localhost:8080/test/`.
 
 
-There are also automatic performane regression tests based on playwright, 
+There are also automatic performance regression tests based on Playwright, 
 
 To run them, do
 
@@ -179,8 +195,8 @@ Afterwards, you can see the performance metrics at
 ## Work in progress
 
 `cartolina-js` is a work in progress. There are bugs and rough edges. There may 
-be breaking changes to the API, runtime defaults etc.in future releases. Stick 
-to the specific version you base your application on and test well before 
+be breaking changes to the API, to the runtime defaults etc. in future releases. 
+Lock to the specific version you base your application on and test well before 
 deploying or upgrading.
 
 
@@ -194,7 +210,7 @@ Check out the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 [LICENSE](LICENSE) for details.
 
 See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
-`build/3rdpartylicenses.txt` file for 3rd party licenses.
+`build/3rdpartylicenses.txt` file for third-party licenses.
 
 
 ```

@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.119-ondra_cartolina23.3be0820",
+  "version": "2.49.120",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "scripts": {
