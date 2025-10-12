@@ -46,7 +46,11 @@
             "heightRamp": [[0,4000], [1.5,1.3]],
             "viewExtentProgression": [12.3, 13e6, 1.38, 1, 13.5]
         },
-        "atmosphere": {},
+        "atmosphere": {
+            "visibilityToEyeDistance": 3.0,
+            "edgeDistanceToEyeDistance": 1.0,
+            "maxVisibility": 1e6
+            },
         "shadows": {},
         "constants": {
             "@osmid": {"if":[["has","$id_"],"$id_",""]},

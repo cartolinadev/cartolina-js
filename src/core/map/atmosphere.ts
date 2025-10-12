@@ -36,7 +36,7 @@ class Atmosphere {
      *      retrieve vertical exaggeration information and also to obtain
      *      access to gl context for buffer creation and updates.
      */
-    constructor(a: MapBody.Atmosphere, srs: MapSrs, urlTemplate: string,
+    constructor(a: Atmosphere.Specification, srs: MapSrs, urlTemplate: string,
                 map: Map) {
 
         const srsInfo = srs.getInfo();
@@ -52,27 +52,27 @@ class Atmosphere {
         // normalize colors
         vec3.scale(params.colorHorizon, 1.0 / 255.0);
         vec3.scale(params.colorZenith, 1.0 / 255.0);
-        // natural-scene-browser (lead)
+
+        // natural-scene-browser (lead color)
         //params.colorHorizon = [0.71, 0.81, 0.95, 1.0];
         //params.colorZenith = [0.71, 0.81, 0.95, 1.0];
         // "sky color"
-        //params.colorZenith = params.colorHorizon = [0.49, 0.65, 0.86, 1.0];
-        params.colorZenith = params.colorHorizon = [0.59, 0.75, 0.96, 1.0];
+        //params.colorZenith = params.colorHorizon = [0.59, 0.75, 0.96, 1.0];
 
         // we inflate atmosphere thickness and visibility
-        // by vertical exaggeration at view extent = body diameter
+        // by vertical exaggeration at view extent equal to body diameter
         params.thickness *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
         params.visibility *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
 
         // this is purely empirical. Note that visibility configured here is in
         // fact use only as upper limit on the visibility: see the calculation
         // in this.updateBuffers
-        params.visibility *= 12;
+        //params.visibility *= 12;
 
         // the relative air density at the edge of compute
         let targetQuantile = 1e-6;
 
-        // the vertical coefficient (which is not vertical exponent)
+        // the vertical coefficient (which is not the vertical exponent)
         // the exponential rate at which density drops with height (from 1)
         let k = - Math.log(params.thicknessQuantile) / params.thickness;
 
@@ -201,9 +201,21 @@ class Atmosphere {
         // compute ubo values
         const params = this.params;
 
-        // this should be configurable:
-        // we make the visiblity dependent on the distance from view center
-        const visibility = Math.min(3.0 * eyeToCenter, params.visibility);
+        // optionally, we make the visiblity dependent on the eye distance
+        let visibility = params.visibility;
+
+        if (params.visibilityToEyeDistance)
+            visibility = params.visibilityToEyeDistance * eyeToCenter;
+
+        if (params.maxVisibility)
+            visibility = Math.min(visibility, params.maxVisibility);
+
+        // optional shift of the edge of atmosphere
+        let edgeDistance = 0;
+
+        if (params.edgeDistanceToEyeDistance)
+            edgeDistance = params.edgeDistanceToEyeDistance * eyeToCenter;
+
         const horizontalExponent = - params.bodyMajorRadius
             * Math.log(params.visibilityQuantile) / visibility * 5.0;
         // times 5 as compensation for texture normalization factor
@@ -220,10 +232,7 @@ class Atmosphere {
                 params.boundaryThickness / params.bodyMajorRadius,
                 params.bodyMajorRadius / params.bodyMinorRadius,
                 1.0 / params.bodyMajorRadius,
-                // this should be configurable as well
-                // we shift the edge of atmosphere to view center
-                // to make everything unhazed until then
-                eyeToCenter / params.bodyMajorRadius],
+                edgeDistance / params.bodyMajorRadius],
                 //Math.min(eyeToCenter, 1.0/3.0 * visibility) / params.bodyMajorRadius],
             uniAtmCoefs: [
                 horizontalExponent,
@@ -415,13 +424,18 @@ class Atmosphere {
         return spec;
     }
 
+    kill() {
+
+        this.atmDensityTexture && this.atmDensityTexture.kill();
+    }
+
 
 } // class Atmosphere
 
 
 // local types
 
-type Parameters = MapBody.Atmosphere & {
+type Parameters = Atmosphere.Specification & {
 
     bodyMajorRadius: number;
     bodyMinorRadius: number;
@@ -474,6 +488,19 @@ const QuadIdx = new Uint16Array([
 // export types
 
 namespace Atmosphere {
+
+
+export type Specification = MapBody.Atmosphere & {
+
+    /// ratio between visibility and current eye distance
+    visibilityToEyeDistance?: number;
+
+    /// ratio between the virtual edge of atmosphere and current eye distance
+    edgeDistanceToEyeDistance?: number;
+
+    /// upper limit on visibility
+    maxVisibility: number;
+}
 
 }
 
