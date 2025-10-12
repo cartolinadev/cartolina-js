@@ -66,11 +66,12 @@ export type TerrainSpecification = {
 
 export type LayerSpecification =
     | TileLayer
-    | LabelsLayer
-    | LinesLayer
+    | LetteringLayer;
 
 
 export type TileLayer = TileTextureLayer | TileConstantLayer;
+
+export type LetteringLayer = LabelsLayer | LinesLayer
 
 export type TileTextureLayer = DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
 
@@ -232,11 +233,22 @@ export type VerticalExaggerationSpecification =  {
     viewExtentProgression?: [number, number, number, number, number]
 }
 
+export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
+
 } // export namespace MapStyle
 
 const validateStyle = typia.createValidate<MapStyle.StyleSpecification>();
 
-export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
+/// vts stylesheet shape, compile from style for goedata free layer rendering
+
+type vtsStylesheet = {
+
+    constants?: Record<string, any>;
+    bitmaps?: Record<string, any>;
+    fonts?: Record<string, string>;
+    layers?: Record<string, any>
+}
+
 
 /*
  * Class map style, provides a method to initialize the map object according
@@ -382,7 +394,7 @@ export class MapStyle {
                     map.url.processUrl(sourceSpec.url), 'freelayer.json');
 
                 // asynchronous: callbacks force repeated map.refreshView()
-                let fl = new MapSurface(map, path, id);
+                let fl = new MapSurface(map, path, 'free');
                 map.addFreeLayer(id, fl);
             }
 
@@ -439,11 +451,73 @@ export class MapStyle {
 
             // surface layer sequence is the style spec itself
             surface.style = this.style();
-        });
+        })
+
 
         // compile free layer stylesheets from style layers and set them
-        // TODO
+        let freeLayerStyles: Record<string, vtsStylesheet> = {};
 
+        // iterate through layes, compiling layer style sheets along the way
+        this.styleSpec.layers && this.styleSpec.layers.forEach((layer) => {
+
+            if (['labels', 'lines'].includes(layer.type)) {
+
+                let freelayerId = layer.source as string;
+                let stylesheet: vtsStylesheet = freeLayerStyles[freelayerId];
+
+
+                // copy global properties into the layer stylesheet
+                if (!stylesheet) {
+
+                    stylesheet = freeLayerStyles[freelayerId] = {}
+                    if (this.styleSpec.fonts) stylesheet.fonts = this.styleSpec.fonts;
+                    if (this.styleSpec.constants) stylesheet.constants = this.styleSpec.constants;
+                    if (this.styleSpec.bitmaps) stylesheet.bitmaps = this.styleSpec.bitmaps;
+                    stylesheet.layers = [];
+
+                }
+
+                let stylesheetLayer: any = structuredClone(layer);
+                let id = (layer as MapStyle.LetteringLayer).id;
+
+                // remove fields specific to cartolina style layers and
+                // not present in vts stylesheets
+                delete stylesheetLayer.id; delete stylesheetLayer.type;
+                delete stylesheetLayer.source;
+
+                // final stylesheet
+                stylesheet.layers[id] = stylesheetLayer;
+            }
+        })
+
+        // build free layer sequence
+        map.freeLayerSequence = [];
+
+        for (const [id, stylesheet] of Object.entries(freeLayerStyles)) {
+
+            // copied from generatesurfacesequenece
+            // copied from Map.refreshFreeLayersInView
+            let freeLayer = map.getFreeLayer(id);
+
+            if (freeLayer) {
+
+                freeLayer.surfaceSequence = [freeLayer];
+                freeLayer.surfaceOnlySequence = [freeLayer];
+                freeLayer.options = {};
+
+                if (freeLayer.geodata)
+                    this.map.freeLayersHaveGeodata = true;
+
+                // WARN: investigage, possibly add to layer properties
+                //freeLayer.zFactor = stylesheet['depthOffset'];
+                //freeLayer.maxLod = stylesheet['maxLod'];
+
+                map.freeLayerSequence.push(freeLayer);
+                freeLayer.setStyle(stylesheet);
+            }
+        }
+
+        //console.log(map.freeLayerSequence);
     }
 
     private static slapResource(path: string, resource: string): string {

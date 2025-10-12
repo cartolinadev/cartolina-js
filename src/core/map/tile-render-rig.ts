@@ -65,6 +65,8 @@ export class TileRenderRig {
 
     private uboLayers?: WebGLBuffer;
 
+    // a failed rig, waiting to be replaced
+    private isAborted = false;
 
     private rt : {
         illumination: boolean,
@@ -138,6 +140,9 @@ export class TileRenderRig {
             options = TileRenderRig.DefaultIsReadyOptions): boolean {
 
         let layerStack = this.rt.layerStack;
+
+        // premature exit for a failed rig
+        if (this.isAborted) return false;
 
         // if we have any 'notSureYet' masks, initiate checks and exit gracefully
         let unsureMasks = false;
@@ -928,9 +933,16 @@ export class TileRenderRig {
             return tile;
         }
 
+        // if the layer is not ready, the rig will be never ready and waits
+        // to be replaced once the layer initializes. A better solution would
+        // be to finish the layer setup when a layer promise resolves
+        if (!layer.ready) {
+            //__DEV__ && console.log(`${this.logSign()}: unready layer ${layer.id}.`);
+            this.isAborted = true; return undefined;
+        }
 
-        if (!(layer && layer.ready && layer.hasTileOrInfluence(tile.id)))
-                return;
+
+        if (!layer.hasTileOrInfluence(tile.id)) return undefined;
 
         let extraBound = null;
 

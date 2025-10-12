@@ -461,9 +461,12 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             replay.storeNodes = false; 
         }
     
-        //draw free layers    
+        //draw free layers
         for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
+
             layer = map.freeLayerSequence[i];
+
+
             if (layer.ready && layer.tree && 
                 (!layer.geodata || (layer.stylesheet && layer.stylesheet.isReady())) && this.drawChannel == 0) {
                 
@@ -476,6 +479,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                     this.drawMonoliticGeodata(layer);
                 } else {
                     // geodata-tiles hot path
+                    //console.log('geodata layer tree draw');
                     layer.tree.draw();
                 }
 
@@ -537,6 +541,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
                 // geodata hot path
+                //console.log('drawGpuJob');
                 renderer.draw.drawGpuJobs(this.map.position);
             }
         }
