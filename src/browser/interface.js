@@ -54,7 +54,7 @@ var BrowserInterface = function(element, config) {
     });
 
    // Expose a Promise on the BrowserInterface that resolves with the Core's ready().
-   Object.defineProperty(BrowserInterface.prototype, 'ready', {
+   Object.defineProperty(this, 'ready', {
         get: function() {
             return this.core.ready;
         }
