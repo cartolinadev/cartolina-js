@@ -1,0 +1,26 @@
+{
+    "version": 2,
+    "reference-frame": "melown2015",
+    "sources": {
+        "topoearth-copernicus-dem-glo30": {
+            "type": "cartolina-surface",
+            "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/"
+        }
+    },
+    "terrain": {
+        "sources": ["topoearth-copernicus-dem-glo30"]
+    },
+    "illumination": {
+        "light": ["tracking", 315, 45]
+    },
+    "vertical-exaggeration" : {
+        "heightRamp": [[0,4000], [1.5,1.3]],
+        "viewExtentProgression": [12.3, 13e6, 1.38, 1, 13.5]
+    },
+    "atmosphere": {
+        "visibilityToEyeDistance": 3.0,
+        "edgeDistanceToEyeDistance": 1.0,
+        "maxVisibility": 1e6
+    },
+    "shadows": {}
+}

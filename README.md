@@ -117,8 +117,7 @@ probably want to use it in this context.
         "sources": ["topoearth-copernicus-dem-glo30"]
     },
     "illumination": {
-        "light": ["tracking", 315, 45],
-        "ambientCoef": 0.0
+        "light": ["tracking", 315, 45]
     }
 }
 ```

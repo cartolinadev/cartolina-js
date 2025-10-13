@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Cartolina JS: A complex terrain with specular reflections and lettering</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet"/>
+<style>
+  body { margin: 0; padding: 0; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+
+function posFromURL() {
+
+
+  const url = new URL(window.location.href); 
+  const params = new URLSearchParams(url.search);
+  if (!params) return null; 
+  
+  let pos = params.get('pos');
+  if (!pos) return null;
+  
+  let pos_ = pos.split(',');
+    
+  for (let i = 1; i < pos_.length; i++) 
+      if (i != 3) pos_[i] = parseFloat(pos_[i]);
+      
+  return pos_;
+}
+
+
+let position = ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00];
+
+position = posFromURL() || position;
+
+let map = cartolina.map({
+    container: 'map',
+    style: "./style.json",
+    position: position,
+    options: {
+      "positionInUrl": true/*,
+      "mapFeaturesReduceMode" : "scr-count7",
+      "mapFeaturesReduceParams" : [ 0.050000000000000003, 0.17000000000000001, 11, 1, 1000 ]*/
+    }
+  });
+</script>
+</body>
+</html>
