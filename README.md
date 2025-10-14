@@ -91,6 +91,7 @@ let map = createMap({
 To use the UMD build
 
 ```html
+<div id="map"></div>
 <script src="../../build/cartolina.js"/>
 
 let map = cartolina.map({
@@ -144,7 +145,7 @@ git clone https://github.com/cartolinadev/cartolina-js.git
 
 then do
 
-```
+```bash
 npm install
 npm start
 ```
@@ -157,7 +158,7 @@ the dev server with live reload enabled.
 
 Once you're happy with your changes (if any), you can do  
 
-```
+```bash
 npm run dist
 ```
 
