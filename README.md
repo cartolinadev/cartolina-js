@@ -215,5 +215,3 @@ See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
 `build/3rdpartylicenses.txt` file for third-party licenses.
 
 
-```
-
