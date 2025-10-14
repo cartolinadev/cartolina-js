@@ -179,7 +179,7 @@ appearance of the map for predefined test map configurations by looking at
 `http://localhost:8080/test/`.
 
 
-There are also automatic performance regression tests based on Playwright, 
+There are also automatic performance regression tests based on Playwright. 
 
 To run them, do
 
