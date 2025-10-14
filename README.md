@@ -92,7 +92,7 @@ To use the UMD build
 
 ```html
 <div id="map"></div>
-<script src="../../build/cartolina.js"/>
+<script src="../../build/cartolina.js">
 
 let map = cartolina.map({
     container: 'map',
