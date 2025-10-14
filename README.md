@@ -98,9 +98,11 @@ let map = cartolina.map({
     style: './style.json',
     position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45]
   });
+
+</script>
 ```
 
-At bare minimum, your `style.json` should include a terrain source and a terrain
+At a bare minimum, your `style.json` should include a terrain source and a terrain
 definition referring to that source. Illumination definition is optional, but you 
 probably want to use it in this context.
 
