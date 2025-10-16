@@ -297,12 +297,19 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.onResizeCall = onResize;
     this.stencilLineState = null;
 
+    const el = this.div as HTMLElement;
 
-    var rect = this.div.getBoundingClientRect();
+    // Prefer unscaled layout size; fall back if not measurable yet
+    let w = el.offsetWidth;
+    let h = el.offsetHeight;
+    if (!w || !h) {
+        const r = el.getBoundingClientRect();   // may be scaled
+        w = Math.round(r.width); h = Math.round(r.height);
+    }
 
-    this.winSize = [rect.width, rect.height]; //QSize
-    this.curSize = [rect.width, rect.height]; //QSize
-    this.oldSize = [rect.width, rect.height]; //QSize
+    this.winSize = [w, h];
+    this.curSize = [w, h];
+    this.oldSize = [w, h];
 
     this.gpu = new GpuDevice(this, div, this.curSize, this.config.rendererAllowScreenshots, this.config.rendererAntialiasing, this.config.rendererAnisotropic);
     this.camera = new Camera(this, 45, 2, 1200000.0);
@@ -687,8 +694,16 @@ onResize() {
         return;
     }
 
-    var rect = this.div.getBoundingClientRect();
-    this.resizeGL(Math.floor(rect.width), Math.floor(rect.height));
+    const el = this.div as HTMLElement;
+
+    let w = el.offsetWidth;
+    let h = el.offsetHeight;
+    if (!w || !h) {
+        const r = el.getBoundingClientRect();   // may be scaled
+        w = Math.round(r.width); h = Math.round(r.height);
+    }
+
+    this.resizeGL(w, h);
     
     if (this.onResizeCall) {
         this.onResizeCall();
