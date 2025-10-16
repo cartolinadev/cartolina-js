@@ -165,10 +165,13 @@ resize(size: NumberPair, skipCanvas: boolean = false) {
 
     let dpr = window.devicePixelRatio || 1;
 
+    // Effective pixel ratio = DPR × visual scale (S)
+    let scale = (this.renderer as any).visualScale || 1;
+
     var width = Math.floor(size[0]);
     var height = Math.floor(size[1]);
-    var pwidth = Math.floor(width * dpr);
-    var pheight = Math.floor(height * dpr);
+    let pwidth = Math.floor(width * dpr * scale);
+    let pheight = Math.floor(height * dpr * scale);
 
     if (canvas != null && skipCanvas !== true) {
         canvas.width = pwidth;

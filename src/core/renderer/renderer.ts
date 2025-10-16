@@ -299,17 +299,18 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 
     const el = this.div as HTMLElement;
 
-    // Prefer unscaled layout size; fall back if not measurable yet
-    let w = el.offsetWidth;
-    let h = el.offsetHeight;
-    if (!w || !h) {
-        const r = el.getBoundingClientRect();   // may be scaled
-        w = Math.round(r.width); h = Math.round(r.height);
-    }
+    // Unscaled layout size (not affected by CSS transforms)
+    let W = el.offsetWidth || el.clientWidth;
+    let H = el.offsetHeight || el.clientHeight;
+    // Visual rect (includes transforms)
+    const rect = el.getBoundingClientRect();
+    if (!W || !H) { W = Math.round(rect.width); H = Math.round(rect.height); }
+    // Track visual scale S so GPU can right-size backing store
+    (this as any).visualScale = W ? (rect.width / W) : 1;
 
-    this.winSize = [w, h];
-    this.curSize = [w, h];
-    this.oldSize = [w, h];
+    this.winSize = [W, H]; // QSize
+    this.curSize = [W, H]; // QSize
+    this.oldSize = [W, H]; // QSize
 
     this.gpu = new GpuDevice(this, div, this.curSize, this.config.rendererAllowScreenshots, this.config.rendererAntialiasing, this.config.rendererAnisotropic);
     this.camera = new Camera(this, 45, 2, 1200000.0);
@@ -696,15 +697,13 @@ onResize() {
 
     const el = this.div as HTMLElement;
 
-    let w = el.offsetWidth;
-    let h = el.offsetHeight;
-    if (!w || !h) {
-        const r = el.getBoundingClientRect();   // may be scaled
-        w = Math.round(r.width); h = Math.round(r.height);
-    }
+    const rect = el.getBoundingClientRect(); // visual (possibly scaled)
+    let W = el.offsetWidth || el.clientWidth;   // unscaled layout
+    let H = el.offsetHeight || el.clientHeight;
+    if (!W || !H) { W = Math.round(rect.width); H = Math.round(rect.height); }
+    (this as any).visualScale = W ? (rect.width / W) : 1;
+    this.resizeGL(Math.floor(W), Math.floor(H));
 
-    this.resizeGL(w, h);
-    
     if (this.onResizeCall) {
         this.onResizeCall();
     }
@@ -719,7 +718,7 @@ resizeGL(width: number, height: number, skipCanvas: boolean = false) {
 
     var m = new Float32Array(16);
 
-    // the matrix is column-major
+    // the matrix is a column-major
     m[0] = 2.0/width; m[1] = 0; m[2] = 0; m[3] = 0;
     m[4] = 0; m[5] = -2.0/height; m[6] = 0; m[7] = 0;
     m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
