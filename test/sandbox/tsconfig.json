@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "plugins": [],          // ← drop Typia/custom transformers here
+    "strict": false,        // ← keep sandbox non-strict
+    "skipLibCheck": true
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx",
+    "./**/*.d.ts",
+    "./**/*"
+  ]
+}

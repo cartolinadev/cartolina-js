@@ -200,4 +200,50 @@ const workerGeodata = makeWorker(
   'geodata-processor-worker.js'
 );
 
-module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata ];
+
+// 5) Sandbox/Prototypes build: compiles TS prototypes in test/sandbox/* to /build/sandbox/*.js
+var sandboxConfig = {
+  name: 'sandbox',
+  mode: (isProd) ? 'production' : 'development',
+  context: __dirname,
+  entry: {
+    'atm-density': './test/sandbox/atmosphere-density/main.ts'
+  },
+  output: {
+    path: TARGET_DIR,
+    filename: 'sandbox/[name].js',
+    publicPath: 'auto'
+  },
+  resolve: { extensions: [".ts", ".tsx", ".js"] },
+  module: {
+    rules:  [
+       {
+         test: /\.tsx?$/,
+         exclude: /node_modules/,
+         use: [{
+          loader: 'ts-loader',
+          options: {
+            // Use a sandbox-specific tsconfig that disables Typia.
+            configFile: path.join(__dirname, 'test/sandbox', 'tsconfig.json'),
+            // Force vanilla TS (not ttypescript / ts-patch), so no transformers can sneak in.
+            compiler: 'typescript',
+            transpileOnly: true
+          }
+        }]
+       },
+      {
+        test: /\.(glsl|vs|fs)$/,
+        loader: 'ts-shader-loader'
+      }        
+    ]
+  },
+  plugins:  [
+    // Replace bare identifier __DEV__ at compile time in the sandbox bundle.
+    // This prevents ReferenceError in src/core/* when importing from source.
+    new webpack.DefinePlugin({
+      __DEV__: JSON.stringify(true)
+    })
+  ]
+};
+
+module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata, sandboxConfig ];
