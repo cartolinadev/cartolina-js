@@ -5,10 +5,6 @@ import Atmosphere from './atmosphere';
 
 import * as vts from '../constants';
 
-
-//get rid of compiler mess
-
-
 var MapSubtexture = function(map, path, type, tile, internal) {
     this.map = map;
     this.stats = map.stats;

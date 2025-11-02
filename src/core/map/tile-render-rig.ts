@@ -1384,7 +1384,7 @@ export namespace TileRenderRig {
 
 
     /**
-     * resrouce readiness level, see TileRenderRig.isReady for details
+     * resource readiness level, see TileRenderRig.isReady for details
      */
     export type ReadinessLevel = 'fallback' | 'full';
 

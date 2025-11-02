@@ -1,11 +1,7 @@
 
-import MapSubtexture_ from './subtexture';
+import MapSubtexture from './subtexture';
 
 import * as vts from '../constants';
-
-//get rid of compiler mess
-var MapSubtexture = MapSubtexture_;
-
 
 var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal) {
     this.map = map;

@@ -11,8 +11,7 @@ import Renderer from '../renderer/renderer';
 /**
  * The map atmosphere object. Provides density texture retrieval and decoding,
  * readiness trigger, rendering initialization and buffer and uniform updates during
- * tile rendering loop.
- * Drawing of background (sky) might be added.
+ * tile rendering loop. A method is available for drawing of background (sky).
  */
 
 
@@ -93,6 +92,7 @@ class Atmosphere {
         });
 
         let url = utils.simpleFmtObj(urlTemplate, { 'param(0)' : name });
+    
         this.atmDensityTexture = new MapTexture(
             map, url, vts.TEXTURETYPE_ATMDENSITY);
 

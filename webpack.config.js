@@ -217,33 +217,24 @@ var sandboxConfig = {
   resolve: { extensions: [".ts", ".tsx", ".js"] },
   module: {
     rules:  [
-       {
+      {
          test: /\.tsx?$/,
          exclude: /node_modules/,
          use: [{
           loader: 'ts-loader',
           options: {
-            // Use a sandbox-specific tsconfig that disables Typia.
-            configFile: path.join(__dirname, 'test/sandbox', 'tsconfig.json'),
-            // Force vanilla TS (not ttypescript / ts-patch), so no transformers can sneak in.
-            compiler: 'typescript',
-            transpileOnly: true
+            // Use a sandbox-specific tsconfig
+            //configFile: path.join(__dirname, 'test/sandbox', 'tsconfig.json'),
           }
         }]
-       },
+      },
       {
         test: /\.(glsl|vs|fs)$/,
         loader: 'ts-shader-loader'
       }        
     ]
   },
-  plugins:  [
-    // Replace bare identifier __DEV__ at compile time in the sandbox bundle.
-    // This prevents ReferenceError in src/core/* when importing from source.
-    new webpack.DefinePlugin({
-      __DEV__: JSON.stringify(true)
-    })
-  ]
+  plugins:  plugins 
 };
 
 module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata, sandboxConfig ];

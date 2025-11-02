@@ -152,24 +152,6 @@ MapLoader.prototype.onWorkerMessage = function(message, direct) {
                 break;
         }
 
-        /*
-        if (command == 'on-loaded') {
-
-            if (task.onLoaded) {
-                if (task.kind == 'texture') {
-                    task.onLoaded(new Blob([message['data']]));
-                } else {
-                    task.onLoaded(message['data']);
-                }
-            }
-
-        } else if (command == 'on-error') {
-
-            if (task.onError) {
-                task.onError();
-            }
-        }*/
-
         delete this.workerTask[path];
     }
 
@@ -223,14 +205,17 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
                 break;
 
             default:
+                // in-thread xhr helper
                 utils.loadBinary(path, onLoaded, onError, withCredentials, this.map.core.xhrParams, responseType);
         }
 
-    } else {
+    } else { // no process worker
+
         if (kind == 'texture' && this.config.mapAsyncImageDecode) {
             responseType = 'blob';
         }
 
+        // in-thread xhr helper
         utils.loadBinary(path, onLoaded, onError, withCredentials, this.map.core.xhrParams, responseType);
     }
 };

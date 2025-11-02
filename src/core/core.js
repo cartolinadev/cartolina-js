@@ -1,27 +1,16 @@
 import Proj4 from 'proj4';
-import Map_ from './map/map';
-import Inspector_ from './inspector/inspector';
-import Renderer_ from './renderer/renderer';
-import RendererInterface_ from './renderer/interface';
-import MapPosition_ from './map/position';
-import MapInterface_ from './map/interface';
+import Map from './map/map';
+import Inspector from './inspector/inspector';
+import Renderer from './renderer/renderer';
+import RendererInterface from './renderer/interface';
+import MapPosition from './map/position';
+import MapInterface from './map/interface';
 import * as utils from './utils/utils';
-import {utilsUrl as utilsUrl_} from './utils/url';
-import {platform as platform_} from './utils/platform';
+import {utilsUrl} from './utils/url';
+import {platform} from './utils/platform';
 import getVersion from './version.js';
 
-//get rid of compiler mess
-var Map = Map_;
-var Inspector = Inspector_;
-var Renderer = Renderer_;
-var RendererInterface = RendererInterface_;
-var MapPosition = MapPosition_;
-var MapInterface = MapInterface_;
-var utilsUrl = utilsUrl_;
-var platform = platform_;
-
-
-var Core = function(element, config, coreInterface) {
+var Core = function(element, config) {
     var lang = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
     this.killed = false;
 
@@ -135,7 +124,7 @@ var Core = function(element, config, coreInterface) {
 
     this.configStorage = {};
     this.element = element;
-    this.coreInterface = coreInterface;
+    //this.coreInterface = coreInterface;
     //this.options = options;
     this.listeners = [];
     this.listenerCounter = 0;
