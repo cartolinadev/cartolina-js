@@ -1,18 +1,11 @@
 
-import Proj4 from 'proj4';
+import proj4 from 'proj4';
 import earcut from 'earcut';
-import {Core as Core_} from './core';
-//import {CoreInterface as CoreInterface_} from './interface';
-
-//get rid of compiler mess
-//var CoreInterface = CoreInterface_;
-var Core = Core_;
-var proj4 = Proj4;
-
+import {Core} from './core';
 
 var CoreInterface = function(element, config) {
 
-    this.core = new Core(element, config, this);
+    this.core = new Core(element, config);
 
     Object.defineProperty(this, 'map', {
         get: function() {

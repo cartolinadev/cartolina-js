@@ -1,77 +1,21 @@
 // test/sandbox/atmosphere-density/main.ts
 //
 // Diagnostic app: compare CPU-decoded atmosphere density RGB vs GPU sampling.
-// Uses Cartolina from the global ESM build (externalized to /build/cartolina.esm.js),
-// so the sandbox bundle only contains this prototype code.
 //
 // Engine touchpoints:
 // - Config parsing: MapConfig(map, json)  (src/core/map/config.js)
 // - Atmosphere helper: Atmosphere.decodeAtmosphereDensity(img: ImageData)
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
-import MapConfig from '../../../src/core/map/config.js';     // <-- source (line 12)
-import MapUrl from '../../../src/core/map/url.js';
+import {Core} from '../../../src/core/core.js';
 
-import Atmosphere from '../../../src/core/map/atmosphere';   // <-- source (line 13)
+import Atmosphere from '../../../src/core/map/atmosphere'; 
 
 import proj4 from 'proj4';  
 
 import * as utils from '../../../src/core/utils/utils.js';
 
 const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
-
-type AnyDict = Record<string, any>;
-
-// Minimal Map stub; enough for config.js and atmosphere to operate.
-class Renderer {
-
-  getSuperElevationState(): boolean { return false; }
-  getSeProgressionFactor(): number { return 1.0; }
-};
-
-class SandboxMap {
-  proj4: any;
-  stats = { loadedCount: 0, loadErrorCount: 0, loadFirst: 0, loadLast: 0, gpuRenderUsed: 0, renderBuild: 0 };
-  draw = { maxGpuUsed: 999999 };
-  config = { mapXhrImageLoad: true };
-
-  // Use any here because constructors come from external ESM namespace.
-  srs: Record<string, any> = {};
-  bodies: Record<string, any> = {};
-  referenceFrame: any = null;
-  services: AnyDict = {};
-  url: MapUrl;
-  renderer: Renderer;
-
-  addSrs = (id: string, srs: any) => { this.srs[id] = srs; };
-  addBody = (id: string, body: any) => { this.bodies[id] = body; };
-
-  getMapsSrs() { return this.srs; }
-  getPublicSrs() { return this.getPhysicalSrs(); }
-  getNavigationSrs() { return this.getPhysicalSrs(); }
-  getPhysicalSrs() {
-    const rf = this.referenceFrame;
-    const srsId = (rf && rf.srs) ? rf.srs : Object.keys(this.srs)[0];
-    return this.srs[srsId];
-  }
-
-  getBody(id) {
-    return this.bodies[id];
-  };
-
-  addCredit(any) {};
-  addSurface(any) {};
-
-  // no-ops required by config.js in a few places
-  setPosition() { /* noop */ }
-  setView() { /* noop */ }
-  callListener() { /* noop */ }
-  
-  constructor (path: string) {
-      this.url = new MapUrl(this, path);
-      this.renderer = new Renderer();
-  }
-}
 
 
 // WebGL2 helper: draw full-screen quad sampling a RGB8UI texture with usampler2D
@@ -123,7 +67,7 @@ function initGL(width: number, height: number, mount: HTMLElement) {
   gl.useProgram(prog);
   const uLoc = gl.getUniformLocation(prog, 'uTex');
 
-  return { gl, canvas, prog, vao, uLoc };
+  return { gl, prog, uLoc, vao };
 }
 
 // CPU path: blit interleaved RGB to <canvas>
@@ -149,39 +93,34 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   const right = document.getElementById('right')!;
   const info = document.getElementById('info')!;
 
-  // 1) Fetch and parse mapConfig.json via Cartolina's config.js
-  const cfgResp = await fetch(MAP_CONFIG_URL);
-  if (!cfgResp.ok) throw new Error(`Failed to fetch mapConfig.json: ${cfgResp.status}`);
-  const configJson = await cfgResp.json();
+  // 1) Fetch and parse mapConfig.json via Cartolina's core object
+  let div = document.createElement('div');
+  div.style.width = '10px';
+  div.style.height = '10px';
 
-  const map = new SandboxMap(MAP_CONFIG_URL);
-  map.proj4 = proj4;
+  const core = new Core(div, {'map': MAP_CONFIG_URL}); 
+  await core.ready;
+  console.log('Core ready');
 
-  // MapConfig(map, json) parses srs/bodies/services/referenceFrame internally.
-  const cfg = new MapConfig(map, configJson);
-  
-  // If your MapConfig version requires an explicit parse step, uncomment:
-  // cfg.parseConfig();
+  // 2) await atmosphere readiness
+  let atm = core.map!.atmosphere as Atmosphere;
+  let atmReady = new Promise<void>((resolve) => {
+      let tick = () => {
 
-  // Pull parsed objects
-  const bodyId = configJson.referenceFrame.body;
-  const body = map.bodies[bodyId];
-  if (!body || !body.atmosphere) throw new Error('No atmosphere in selected body');
+          if (atm.isReady()) { resolve(); return; }
+          requestAnimationFrame(tick);
+      }
 
-  const srs = map.getPhysicalSrs();
-  const services = map.services || {};
+      tick();
+  })
 
-  const atmdensityUrl = (services.atmdensity && services.atmdensity.url) || './atm-density.png';
-  console.log(atmdensityUrl);
-
-  // 2) Initialize Atmosphere similarly to engine path (constructor parity)
-  const atm = new Atmosphere(body.atmosphere, srs, atmdensityUrl, map);
-  // Note: for this diagnostic we only use Atmosphere.decodeAtmosphereDensity below.
+  await atmReady;
+  console.log('Atmosphere ready');
 
   // 3) Fetch density PNG and read to ImageData
   const img = new Image();
   img.crossOrigin = 'anonymous'
-  img.src = map.url.processUrl(atm.atmDensityTexture.mainTexture.mapLoaderUrl);
+  img.src = core.map!.url.processUrl(atm.atmDensityTexture.mainTexture.mapLoaderUrl);
 
   console.log(img.src);
   await img.decode();
@@ -201,7 +140,15 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   drawRgbToCanvas(decoded.data, decoded.width, decoded.height, left);
 
   // 6) RIGHT: WebGL2 (RGB8UI)
-  const { gl, uLoc } = initGL(decoded.width, decoded.height, right);
+  let [width, height] = atm.atmDensityTexture.getImageExtents();
+
+  /*core.map!.renderer.gpu.bindTexture(
+      atm.atmDensityTexture.getGpuTexture(),
+      core.map!.renderer.textureIdxs.atmosphere);
+
+  const pixels = new Uint8Array(width * height * 3);*/
+
+  const { gl, prog, uLoc, vao } = initGL(width, height, right);
 
   const tex = gl.createTexture()!;
   gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -213,17 +160,25 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   gl.texImage2D(
     gl.TEXTURE_2D, 0,
     gl.RGB8UI,
-    decoded.width, decoded.height, 0,
+    width, height, 0,
     gl.RGB_INTEGER, gl.UNSIGNED_BYTE,
-    decoded.data
-  );
+    atm.atmDensityTexture.mainTexture.decoded.data);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
-  gl.viewport(0, 0, decoded.width, decoded.height);
-  gl.useProgram(gl.getParameter(gl.CURRENT_PROGRAM));
+  gl.viewport(0, 0, width, height);
+  gl.useProgram(prog);
+
+  //core.map!.renderer.gpu.bindTexture(
+  //    atm.atmDensityTexture.getGpuTexture(),
+  //    core.map!.renderer.textureIdxs.atmosphere);
+
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, tex);
+
+  //gl.uniform1i(uLoc, core.map!.renderer.textureIdxs.atmosphere);
   gl.uniform1i(uLoc, 0);
+  gl.bindVertexArray(vao);
+
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   // 7) Info

@@ -179,8 +179,8 @@ resize(size: NumberPair, skipCanvas: boolean = false) {
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
 
-        //__DEV__ && console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
-        //            pwidth, pheight, width, height);
+        __DEV__ && console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
+                    pwidth, pheight, width, height);
     }
 
     this.viewport = { width: canvas.width, height: canvas.height }
@@ -291,7 +291,8 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
 
 bindTexture(texture: GpuTexture, id?: GLint) {
 
-    if (!texture.loaded) return;
+    if (!texture.loaded) 
+        throw new Error('Trying to bind a texture that is not loaded.');
 
     const gl = this.gl;
 

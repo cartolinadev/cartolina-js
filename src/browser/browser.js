@@ -1,6 +1,6 @@
 
-import {checkSupport as checkSupport_} from '../core/core';
-import {CoreInterface as CoreInterface_} from '../core/interface';
+import {checkSupport} from '../core/core';
+import {CoreInterface} from '../core/interface';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
 import Autopilot_ from './autopilot/autopilot';
@@ -9,14 +9,11 @@ import Presenter_ from './presenter/presenter';
 import Rois_ from './rois/rois';
 
 //get rid of compiler mess
-var CoreInterface = CoreInterface_;
 var UI = UI_;
 var Autopilot = Autopilot_;
 var ControlMode = ControlMode_;
 var Presenter = Presenter_;
 var Rois = Rois_;
-var checkSupport = checkSupport_;
-
 
 var Browser = function(element, config) {
     this.killed = false;

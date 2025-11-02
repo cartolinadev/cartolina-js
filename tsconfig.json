@@ -9,6 +9,8 @@
     "module": "es2020",
     "allowJs": true,
     "checkJs": false,
+    "noEmit": false,
+    "outDir": "./.tsbuild",
     "experimentalDecorators": true,
     "typeRoots": [
       "./node_modules/@types",
