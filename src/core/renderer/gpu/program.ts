@@ -12,9 +12,9 @@ export class GpuProgram {
     vertex: string;
     fragment: string;
     gl: WebGL2RenderingContext;
-    program: Optional<WebGLProgram>;
+    program: WebGLProgram;
     ready: boolean;
-    uniformLocationCache: Record<string, WebGLUniformLocation>;
+    uniformLocationCache: Record<string, WebGLUniformLocation | null>;
     attributeLocationCache: Record<string, GLint>;
     m: Float32Array;
 
@@ -40,7 +40,6 @@ export class GpuProgram {
         this.vertex = vertex;
         this.fragment = fragment;
         this.gl = gpu.gl;
-        this.program = null;
         this.uniformLocationCache = {};
         this.attributeLocationCache = {};
         this.m = new Float32Array(16);
@@ -64,10 +63,10 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
     var gl = this.gl;
 
     if (!source || !gl) {
-        return null;
+        throw new Error('Invalid shader source or GL context');
     }
 
-    let shader : WebGLShader;
+    let shader: WebGLShader | null;
 
     if (vertexShader !== true) {
         shader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -75,6 +74,8 @@ createShader(source: string, vertexShader: boolean): WebGLShader {
         shader = gl.createShader(gl.VERTEX_SHADER);
     }
 
+    if (!shader) throw new Error('Failed to create shader');
+    
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
@@ -291,9 +292,8 @@ setIntArray(name: string, array: Int32List): void {
 };
 
 getAttribLocation(name: string): GLint {
-    var gl = this.gl;
-    if (gl == null || this.program == null) return;
-
+    let gl = this.gl;
+    
     var location = this.attributeLocationCache[name];
 
     if (location == null) {
@@ -306,31 +306,29 @@ getAttribLocation(name: string): GLint {
 };
 
 
-getUniform(name: string) {
+getUniform(name: string): WebGLUniformLocation | null {
 
     let gl = this.gl;
-    if (gl == null || this.program == null) return null;
 
-    let location = this.uniformLocationCache[name];
+    if (name in this.uniformLocationCache) {
+        return this.uniformLocationCache[name];
+    } 
 
-    if (location == null) {
-        location = gl.getUniformLocation(this.program, name);
+    let location = gl.getUniformLocation(this.program, name);
 
-        if (location === null && !/\[\d+\]$/.test(name)) {
-            // try array base
-            location = gl.getUniformLocation(this.program, name + "[0]");
-        }
-
-        if (__DEV__ && location === null) {
-            utils.logOnce(`uniform ${name} does not exist in program `
-                + `(optimized out?)\nActive uniforms:\n\t`
-                + this.activeUniforms().join("\n\t"));
-
-        }
-
-        this.uniformLocationCache[name] = location;
+    if (location === null && !/\[\d+\]$/.test(name)) {
+        // try array base
+        location = gl.getUniformLocation(this.program, name + "[0]");
     }
-    
+
+    if (__DEV__ && location === null) {
+        utils.logOnce(`uniform ${name} does not exist in program `
+            + `(optimized out?)\nActive uniforms:\n\t`
+            + this.activeUniforms().join("\n\t"));
+    }
+
+    this.uniformLocationCache[name] = location;
+
     return location;
 };
 
@@ -346,7 +344,7 @@ activeUniforms(): string[] {
 
     const n = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS);
     for (let i = 0; i < n; i++)
-        ret.push(gl.getActiveUniform(this.program, i)?.name);
+        ret.push(gl.getActiveUniform(this.program, i)!.name);
 
     return ret;
 }

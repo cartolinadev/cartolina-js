@@ -263,10 +263,10 @@ GpuGroup.prototype.addExtentedLineJob = function(data) {
 
     if (job.advancedHit) {
         switch(job.type) {
-        case vts.JOB_FLAT_TLINE:   job.program2 = this.renderer.progETLine;  break;
+        case vts.JOB_FLAT_TLINE:   job.program2 = this.renderer.progETLine;  break; // undefined due to missing shader code
         case vts.JOB_FLAT_RLINE:   job.program2 = this.renderer.progERLine;  break;
         case vts.JOB_PIXEL_LINE:   job.program2 = this.renderer.progELine3;  break;
-        case vts.JOB_PIXEL_TLINE:  job.program2 = this.renderer.progETPLine; break;
+        case vts.JOB_PIXEL_TLINE:  job.program2 = this.renderer.progETPLine; break; // undefined due to missing shader code
         }
 
         if (!job.program2.isReady()) {
