@@ -42,12 +42,12 @@ export class GpuDevice {
 
     //currentOffset = 0; //used fot direct offset
 
-    canvas: Optional<HTMLCanvasElement> = null;
-    gl: Optional<WebGL2RenderingContext> = null;
-    currentProgram: Optional<WebGLProgram> = null;
+    canvas!: HTMLCanvasElement;
+    gl!: WebGL2RenderingContext
+    currentProgram?: WebGLProgram;
 
-    viewport: Optional<Viewport> = null;
-    anisoExt: Optional<EXT_texture_filter_anisotropic>;
+    viewport!: Viewport;
+    anisoExt?: EXT_texture_filter_anisotropic | null;
 
     constructor(renderer: Renderer, div: HTMLElement, size: NumberPair,
                 keepFrameBuffer: boolean, antialias: boolean,
@@ -91,15 +91,12 @@ init() {
     canvas.addEventListener("webglcontextlost", this.contextLost.bind(this), false);
     canvas.addEventListener("webglcontextrestored", this.contextRestored.bind(this), false);
 
-    let gl: WebGL2RenderingContext;
+    const context = canvas.getContext('webgl2', 
+        {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
 
-    try {
-        gl = canvas.getContext('webgl2', {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
-    } catch(e) {
-        throw new Error('Error obtaining webgl2 context, webgl not supported?');
-    }
+    if (!context) throw new Error('Error obtaining webgl2 context, webgl not supported?');
 
-    this.gl = gl;
+    let gl = this.gl = context;
 
     this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
 
@@ -139,8 +136,6 @@ init() {
 
 kill() {
     this.div.removeChild(this.canvas);
-    delete this.canvas;
-    this.canvas = null;
 };
 
 
@@ -396,8 +391,6 @@ setState(state: GpuDevice.State) {
 };
 
 } // class GpuDevice
-
-type Optional<T> = T | null;
 
 // local types
 type NumberPair = [number, number];
