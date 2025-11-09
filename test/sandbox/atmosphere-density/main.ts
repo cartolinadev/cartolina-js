@@ -8,12 +8,7 @@
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
 import {Core} from '../../../src/core/core.js';
-
 import Atmosphere from '../../../src/core/map/atmosphere'; 
-
-import proj4 from 'proj4';  
-
-import * as utils from '../../../src/core/utils/utils.js';
 
 const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
 

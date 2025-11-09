@@ -147,8 +147,8 @@ export class Renderer {
 
     // vertical exaggeration
     useSuperElevation = false;
-    seHeightRamp: Optional<SeRamp> = null; // 7 elements
-    seProgression: SeProgression;
+    seHeightRamp?: SeRamp; // 7 elements
+    seProgression?: SeProgression;
 
     // these values, important for vertical exaggeration, are calculated from
     // navigationSrs in MapDraw.drawMap as a side effect of drawing the skydome
@@ -312,7 +312,11 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.curSize = [W, H]; // QSize
     this.oldSize = [W, H]; // QSize
 
-    this.gpu = new GpuDevice(this, div, this.curSize, this.config.rendererAllowScreenshots, this.config.rendererAntialiasing, this.config.rendererAnisotropic);
+    this.gpu = new GpuDevice(this, div, this.curSize, 
+        !! this.config.rendererAllowScreenshots, 
+        !! this.config.rendererAntialiasing, 
+        this.config.rendererAnisotropic ?? 0);
+
     this.camera = new Camera(this, 45, 2, 1200000.0);
 
     //this.heightmapMesh = null;
@@ -322,10 +326,10 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     if (config.mapLabelFreeMargins)
         this.labelFreeMargins = config.mapLabelFreeMargins;
 
-    this.hitmapSize = config.mapDMapSize | this.hitmapSize;
-    this.hitmapMode = config.mapDMapMode | this.hitmapMode;
+    this.hitmapSize = config.mapDMapSize ?? this.hitmapSize;
+    this.hitmapMode = config.mapDMapMode ?? this.hitmapMode;
     this.hitmapCopyIntervalMs
-        = config.mapDMapCopyIntervalMs | this.hitmapCopyIntervalMs;
+        = config.mapDMapCopyIntervalMs ?? this.hitmapCopyIntervalMs;
 
     __DEV__ && console.log(`hitmapCopyIntervalMs: ${this.hitmapCopyIntervalMs}`);
 
@@ -652,10 +656,10 @@ drawBackground() {
 
     let atmosphere = this.core.map.atmosphere;
 
-    if (atmosphere && this.core.map.atmosphere.isReady()) {
+    if (atmosphere && atmosphere.isReady()) {
 
             let [_, clip2ecef, eyePos] = this.calcEcefCamParams();
-            this.core.map.atmosphere.drawBackground(eyePos, clip2ecef);
+            atmosphere.drawBackground(eyePos, clip2ecef);
     }
 }
 
@@ -765,7 +769,7 @@ setIlluminationState(state: boolean) {
 
 
 getIlluminationState(): boolean {
-    return this.illumination && this.illumination.useLighting;
+    return !! this.illumination && this.illumination.useLighting;
 };
 
 setIllumination(definition: Renderer.IlluminationDef) {
@@ -821,7 +825,8 @@ getIlluminationVectorNED() {
 
 getIlluminationAmbientCoef() {
 
-    //console.log("Illumination: ambient coef", this.illumination.ambientCoef);
+    if (!this.illumination)
+        throw Error('illumination ambient coef requested, but no illumination defined.');   
 
     return this.illumination.ambientCoef;
 };
@@ -857,7 +862,7 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
         } else {
 
-            this.seHeightRamp = null;
+            delete this.seHeightRamp;
         }
 
         // viewExtentProgression
@@ -869,7 +874,7 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
         } else {
 
-            this.seProgression = null;
+            delete this.seProgression;
         }
 
         return;
@@ -900,13 +905,6 @@ private setSuperElevationProgression(progression: SeProgressionDef) {
     //console.log("seProgression: ", this.seProgression);
 
 }
-
-
-private getSuperElevationProgression(): SeProgression  {
-
-    return structuredClone(this.seProgression);
-}
-
 
 private setSuperElevationRamp(se: [[number, number], [number, number]]) {
 
@@ -1013,11 +1011,10 @@ getSuperElevatedHeight(height, position) {
     return retval;
 }
 
-
 getSuperElevatedHeightRamp(height) {
 
-
-    var se = this.seHeightRamp, h = height;
+    let se = this.seHeightRamp, h = height;
+    if (!se) throw new Error('No super elevation ramp defined.');
 
     if (h < se[0]) {  // 0 - h1, 1 - f1, 2 - h2, 3 - f2, 4 - dh, 5 - df, 6 - invdh
         h = se[0];
@@ -1029,7 +1026,6 @@ getSuperElevatedHeightRamp(height) {
 
     return height * (se[1] + ((h - se[0]) * se[6]) * se[5]);
 };
-
 
 getUnsuperElevatedHeight(height, position) {
 
@@ -1056,7 +1052,8 @@ getUnsuperElevatedHeight(height, position) {
 
 
 getUnsuperElevatedHeightRamp(height) {
-    var se = this.seHeightRamp, s = height;
+    let se = this.seHeightRamp, s = height;
+    if (!se) throw new Error('No super elevation ramp defined.');
 
     if (se[1] == se[3]) {
         return s / se[1];
@@ -1079,7 +1076,7 @@ getUnsuperElevatedHeightRamp(height) {
 };
 
 
-getEllipsoidHeight(pos, shift) {
+/*getEllipsoidHeight(pos, shift) {
     var p, p2;
     this.seTmpVec3 = [0,0,0];
 
@@ -1094,7 +1091,7 @@ getEllipsoidHeight(pos, shift) {
     var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
 
     return l - this.earthRadius;
-};
+};*/
 
 
 transformPointBySE(pos, shift, position) {

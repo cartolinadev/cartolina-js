@@ -40,18 +40,12 @@ export class GpuTexture {
 
     loaded: boolean = false;
 
-    // stats
-    fileSize!: number;
-
-    constructor(gpu: GpuDevice, path: string, core: any,
-                          fileSize : number, direct: boolean, repeat: boolean,
-                          filter: GpuTexture.Filter, keepImage?: boolean,
+    constructor(gpu: GpuDevice, path: string, core: any, _?: any, direct = false, 
+        repeat = false, filter?: GpuTexture.Filter, keepImage = false,
                           onLoaded?: () => void, onError?: () => void) {
 
         this.gpu = gpu;
         this.gl = gpu.gl;
-
-        this.fileSize = fileSize; //used for stats
 
         this.repeat = repeat;
         this.filter = filter || 'linear';
@@ -215,7 +209,7 @@ createFromImage(image: HTMLImageElement,
         break;
     }
 
-    if (gpu.anisoLevel) {
+    if (gpu.anisoExt && gpu.anisoLevel) {
         gl.texParameterf(gl.TEXTURE_2D, gpu.anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, gpu.anisoLevel);
     }
 
@@ -260,8 +254,8 @@ createFromImage(image: HTMLImageElement,
     this.loaded = true;
 };
 
-load(path: string, onLoaded : () => void, onError: () => void, direct: boolean,
-    keepImage: boolean) {
+private load(path: string, onLoaded: (() => void) | undefined, 
+    onError: (() => void) | undefined, direct, keepImage) {
 
     this.image = utils.loadImage(path, (function () {
         if (this.core != null && this.core.killed) {
@@ -376,9 +370,8 @@ readFramebufferPixels(
     x: number, y: number, lx: number, ly: number, fastMode: boolean = false,
     data?: Uint8Array) : Uint8Array {
 
-    if (this.texture == null) {
-        return;
-    }
+    if (!this.texture) throw new Error(
+        "GpuTexture.readFramebufferPixels: Texture not initialized.");
 
     this.gpu.bindTexture(this);
 

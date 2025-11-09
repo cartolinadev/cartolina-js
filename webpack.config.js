@@ -237,4 +237,5 @@ var sandboxConfig = {
   plugins:  plugins 
 };
 
-module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata, sandboxConfig ];
+module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata ];
+if (!isProd) module.exports.push(sandboxConfig);
