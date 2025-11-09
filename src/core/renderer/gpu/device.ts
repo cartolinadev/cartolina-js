@@ -304,8 +304,8 @@ bindTexture(texture: GpuTexture, id?: GLint) {
  * layer issues an innocent call to this.setViewport.
  */
 
-setFramebuffer(texture: GpuTexture) {
-    if (texture != null) {
+setFramebuffer(texture: GpuTexture | null) {
+    if (texture) {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, texture.framebuffer);
     } else {
         this.gl.bindTexture(this.gl.TEXTURE_2D, null);

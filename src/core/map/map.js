@@ -1,41 +1,27 @@
 
-import {vec3 as vec3_} from '../utils/matrix';
+import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import {platform as platform_} from '../utils/platform';
+import {platform} from '../utils/platform';
 import MapView from './view';
 import MapSurfaceTree from './surface-tree';
 import MapResourceTree from './resource-tree';
-import MapSrs_ from './srs';
-import MapCache_ from './cache';
-import MapCamera_ from './camera';
+import MapSrs from './srs';
+import MapCache from './cache';
+import MapCamera from './camera';
 import MapConfig from './config';
-import MapConvert_ from './convert';
-import MapMeasure_ from './measure';
-import MapDraw_ from './draw';
+import MapConvert from './convert';
+import MapMeasure from './measure';
+import MapDraw from './draw';
 import MapLoader from './loader/loader';
 import MapPosition from './position';
-import MapRenderSlots_ from './render-slots';
-import MapStats_ from './stats';
-import MapSurfaceSequence_ from './surface-sequence';
+import MapRenderSlots from './render-slots';
+import MapStats from './stats';
+import MapSurfaceSequence from './surface-sequence';
 import MapUrl from './url';
 import * as Illumination from './illumination';
-import GpuTexture_ from '../renderer/gpu/texture';
+import GpuTexture from '../renderer/gpu/texture';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
-
-//get rid of compiler mess
-var vec3 = vec3_;
-var platform = platform_;
-var MapSrs = MapSrs_;
-var MapCache = MapCache_;
-var MapCamera = MapCamera_;
-var MapConvert = MapConvert_;
-var MapMeasure = MapMeasure_;
-var MapDraw = MapDraw_;
-var MapRenderSlots = MapRenderSlots_;
-var MapStats = MapStats_;
-var MapSurfaceSequence = MapSurfaceSequence_;
-var GpuTexture = GpuTexture_;
 
 
 var Map = function(core, path, config, configStorage) {
