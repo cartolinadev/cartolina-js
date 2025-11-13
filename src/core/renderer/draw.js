@@ -659,7 +659,10 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     gl.stencilFunc(gl.EQUAL, 0, 0xFF);
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
 
-    var screenPixelSize = [1.0 / renderer.curSize[0], 1.0 / renderer.curSize[1]];
+    var screenPixelSize = [
+        1.0 / (renderer.curSize[0] * renderer.visibleScale()[0]),
+        1.0 / (renderer.curSize[1] * renderer.visibleScale()[1])
+    ]
 
     var rmap = this.rmap;
     var clearPass = 513;
@@ -1089,6 +1092,7 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
     var reduce78 = (job.reduce && (job.reduce[0] >= 7 && job.reduce[0] <= 11));
 
     if (!renderer.drawAllLabels && job.noOverlap) { 
+
         if (!pp) {
             //if (job.type == vts.JOB_LINE_LABEL) {
               //  pp = renderer.project2(job.center2, job.mvp, [0,0,0]);
@@ -1179,6 +1183,7 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
                 return res;
             }
         } else {
+
             if (!renderer.rmap.addRectangle(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], depth, job.lastSubJob)) {
                 renderer.rmap.storeRemovedRectangle(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], depth, job.lastSubJob);
                 return res;
