@@ -140,10 +140,15 @@ export class Renderer {
     progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;
 
-    // physical window
-    winSize!: Size2;
+    /// layout size (before css tranforms, if any)
     curSize!: Size2;
     oldSize!: Size2;
+
+    /// physical size in device pixels (after dpr and css transforms)
+    private pixelSize!: Size2;
+
+    /// css transform layout size adjustment, per axis
+    private visibleScale_!: Size2;
 
     // vertical exaggeration
     useSuperElevation = false;
@@ -275,15 +280,12 @@ export class Renderer {
     lastHitPosition = [0,0,100];
 
     // encapsulated objects
-
-
     init : any = null;
     rmap: any = null; // RenderRM
     draw: any = null;
 
     // no idea
     killed = false;
-    //layerGroupVisible = [];
 
 
 constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config) {
@@ -291,37 +293,12 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.config = config; // || {};
     this.core = core;
     this.div = div;
-    //this.onUpdate = onUpdate;
     this.geometries = {};
-    //this.clearStencilPasses = [];
     this.onResizeCall = onResize;
     this.stencilLineState = null;
 
-    const el = this.div as HTMLElement;
-
-    // Unscaled layout size (not affected by CSS transforms)
-    let W = el.offsetWidth || el.clientWidth;
-    let H = el.offsetHeight || el.clientHeight;
-    // Visual rect (includes transforms)
-    const rect = el.getBoundingClientRect();
-    if (!W || !H) { W = Math.round(rect.width); H = Math.round(rect.height); }
-    // Track visual scale S so GPU can right-size backing store
-    (this as any).visualScale = W ? (rect.width / W) : 1;
-
-    this.winSize = [W, H]; // QSize
-    this.curSize = [W, H]; // QSize
-    this.oldSize = [W, H]; // QSize
-
-    this.gpu = new GpuDevice(this, div, this.curSize, 
-        !! this.config.rendererAllowScreenshots, 
-        !! this.config.rendererAntialiasing, 
-        this.config.rendererAnisotropic ?? 0);
-
+    // device
     this.camera = new Camera(this, 45, 2, 1200000.0);
-
-    //this.heightmapMesh = null;
-    //this.skydomeTexture = null;
-    //this.font = null;
 
     if (config.mapLabelFreeMargins)
         this.labelFreeMargins = config.mapLabelFreeMargins;
@@ -347,17 +324,24 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 
     this.radixCountBuffer16 = new Uint16Array(256*4);
     this.radixCountBuffer32 = new Uint32Array(256*4);
-    //this.radixOutputBufferUint32 = new Uint32Array(256*256);
-    //this.radixOutputBufferFloat32 = new Uint32Array(256*256);
 
     this.buffFloat32 = new Float32Array(1);
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
+    // device
+    this.calculateSizes();
 
-    window.addEventListener('resize', (this.onResize).bind(this), false);
+    this.gpu = new GpuDevice(this, div, this.curSize, 
+        !! this.config.rendererAllowScreenshots, 
+        !! this.config.rendererAntialiasing, 
+        this.config.rendererAnisotropic ?? 0);
+
+
+    this.resizeGL(this.curSize);
+    //window.addEventListener('resize', (this.onResize).bind(this), false);
+    new ResizeObserver(() => { this.onResize.bind(this); }).observe(this.div);
 
     // initialize resources
-    this.gpu.init();
     this.init = new RenderInit(this);
 
     this.initTextureIdxs();
@@ -365,9 +349,29 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
-
-    this.resizeGL(Math.floor(this.curSize[0]), Math.floor(this.curSize[1]));
 };
+
+
+private calculateSizes() {
+
+    const el = this.div as HTMLElement;
+
+    // css size, based on layout
+    let W = el.offsetWidth || el.clientWidth;
+    let H = el.offsetHeight || el.clientHeight;
+
+    this.curSize = [W, H]; // QSize
+    this.oldSize = [W, H]; // QSize
+
+    // pixel size, based on dpr and css transforms
+    const rect = el.getBoundingClientRect();
+    let dpr = window.devicePixelRatio || 1;
+
+    this.pixelSize = [rect.width * dpr, rect.height * dpr];
+
+    // TODO: compute this properly, applying compose of all css transforms
+    this.visibleScale_ = [rect.width / W, rect.height / H];
+}
 
 /**
  * Lazy tile program initialization, including binding buffers to block names
@@ -694,31 +698,43 @@ updateIllumination(position: MapPosition) {
         Illumination.lned2ned(this.illumination.vectorLNED, position);
 }
 
+css(): Readonly<Size2> {
+    return this.curSize;
+}
+
+pixels(): Readonly<Size2> {
+    return this.pixelSize;
+}
+
+visibleScale(): Readonly<Size2> {
+    // TODO: make this configurable, return [1, 1] as default
+    return this.visibleScale_;
+}
+
 onResize() {
     if (this.killed){
         return;
     }
 
-    const el = this.div as HTMLElement;
+    this.calculateSizes();
 
-    const rect = el.getBoundingClientRect(); // visual (possibly scaled)
-    let W = el.offsetWidth || el.clientWidth;   // unscaled layout
-    let H = el.offsetHeight || el.clientHeight;
-    if (!W || !H) { W = Math.round(rect.width); H = Math.round(rect.height); }
-    (this as any).visualScale = W ? (rect.width / W) : 1;
-    this.resizeGL(Math.floor(W), Math.floor(H));
+    // canvas size, gl viewport
+    this.resizeGL(this.curSize);
 
     if (this.onResizeCall) {
         this.onResizeCall();
     }
 };
 
-resizeGL(width: number, height: number, skipCanvas: boolean = false) {
+resizeGL(size: [number, number], skipCanvas: boolean = false) {
+
+    let [width, height] = size;
+
     this.camera.setAspect(width / height);
     this.curSize = [width, height];
     this.oldSize = [width, height];
 
-    this.gpu.resize(this.curSize, skipCanvas);
+    this.gpu.resize(skipCanvas);
 
     var m = new Float32Array(16);
 
@@ -1245,11 +1261,6 @@ getScreenRay(screenX, screenY) {
 
 hitTestGeoLayers(screenX, screenY, secondTexture) {
     var gl = this.gpu.gl;
-
-    //probably not needed
-    //if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE) {
-      //  return [false, 0,0,0,0];
-    //}
 
     var surfaceHit = false, pixel: Uint8Array;
 

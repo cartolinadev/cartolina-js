@@ -14,6 +14,7 @@ InspectorStats.prototype.init = function() {
     inspector.addStyle(
         '#vts-stats-panel {'
             + 'font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;'
+            + 'color: #000000;'
             + 'display: none;'
             + 'padding:15px;'
             + 'width: 305px;'
@@ -37,7 +38,6 @@ InspectorStats.prototype.init = function() {
         + '}'
 
         + '#vts-stats-panel-info table {'
-            + 'color:#000000;'
             + 'text-align: left;'
             + 'font-size: 12px;'
         + '}'

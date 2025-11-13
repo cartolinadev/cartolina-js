@@ -2,12 +2,14 @@
 import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
+import * as utils from '../../utils/utils';
+
 
 /**
  * GpuDevice is not an abstraction of a GPU device. Here is what it does:
  *
  *   * it manages the canvas inside the map element and sets its size properly
- *     according to the provided CSS pixel size
+ *     according to the provided CSS pixel size and device pixel ratio.
  *
  *   * it computes the size of the gl viewport, though it doen set it (it should)
  *     (setViewport)
@@ -31,7 +33,6 @@ export class GpuDevice {
 
     renderer!: Renderer;
     div!: HTMLElement;
-    curSize!: NumberPair;
     defaultState!: GpuDevice.State;
     currentState!: GpuDevice.State;
     keepFrameBuffer!: boolean;
@@ -49,26 +50,27 @@ export class GpuDevice {
     viewport!: Viewport;
     anisoExt?: EXT_texture_filter_anisotropic | null;
 
-    constructor(renderer: Renderer, div: HTMLElement, size: NumberPair,
-                keepFrameBuffer: boolean, antialias: boolean,
-                aniso: GLfloat) {
+constructor(renderer: Renderer, div: HTMLElement, size: NumberPair,
+            keepFrameBuffer: boolean, antialias: boolean,
+            aniso: GLfloat) {
 
-        this.renderer = renderer;
-        this.div = div;
-        this.curSize = size;
+    this.renderer = renderer;
+    this.div = div;
 
-        //state of device when first initialized
-        this.defaultState = this.createState({blend:false, stencil:false,
-            zequal: false, ztest:false, zwrite: false, culling:false});
-        this.currentState = this.defaultState;
+    //state of device when first initialized
+    this.defaultState = this.createState({blend:false, stencil:false,
+        zequal: false, ztest:false, zwrite: false, culling:false});
+    this.currentState = this.defaultState;
 
-        this.keepFrameBuffer = keepFrameBuffer;
-        this.antialias = antialias;
-        this.anisoLevel = aniso;
-    };
+    this.keepFrameBuffer = keepFrameBuffer;
+    this.antialias = antialias;
+    this.anisoLevel = aniso;
+
+    this.init();
+};
 
 
-init() {
+private init() {
 
     var canvas = document.createElement('canvas');
 
@@ -81,7 +83,7 @@ init() {
     canvas.style.display = 'block';
     this.div.appendChild(canvas);
 
-    this.resize(this.curSize);
+    this.resize();
 
     if (canvas.getContext == null) {
         //canvas not supported
@@ -153,20 +155,12 @@ contextRestored(): void {
 };
 
 
-resize(size: NumberPair, skipCanvas: boolean = false) {
+resize(skipCanvas: boolean = false) {
 
-    this.curSize = size;
     let canvas = this.canvas;
 
-    let dpr = window.devicePixelRatio || 1;
-
-    // Effective pixel ratio = DPR × visual scale (S)
-    let scale = (this.renderer as any).visualScale || 1;
-
-    var width = Math.floor(size[0]);
-    var height = Math.floor(size[1]);
-    let pwidth = Math.floor(width * dpr * scale);
-    let pheight = Math.floor(height * dpr * scale);
+    let [width, height] = this.renderer.css();
+    let [pwidth, pheight] = this.renderer.pixels(); 
 
     if (canvas != null && skipCanvas !== true) {
         canvas.width = pwidth;
@@ -174,8 +168,8 @@ resize(size: NumberPair, skipCanvas: boolean = false) {
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
 
-        __DEV__ && console.log('canvas size: [%d, %d], canvas css size: [%d %d]',
-                    pwidth, pheight, width, height);
+        __DEV__ && utils.logOnce(`canvas size: [${pwidth}, ${pheight}], `
+                + `canvas css size: [${width} ${height}]`);
     }
 
     this.viewport = { width: canvas.width, height: canvas.height }
