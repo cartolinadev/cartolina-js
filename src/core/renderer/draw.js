@@ -26,6 +26,14 @@ var RendererDraw = function(renderer) {
     this.vBuffer = new Float32Array(4);
 };
 
+RendererDraw.prototype.noOverlap = function(job) {
+
+    let renderer = this.renderer;
+
+    return job.noOverlap?.map(
+        (v, i) => i == 0 || i == 2 ? v / renderer.visibleScale()[0]
+        : i == 1 || i == 3 ? v / renderer.visibleScale()[1] : v);
+}
 
 RendererDraw.prototype.drawSkydome = function(texture, shader) {
     if (!texture) {
@@ -1102,7 +1110,9 @@ RendererDraw.prototype.processNoOverlap = function(renderer, job, pp, p1, p2, ca
         }
 
         res.pp = pp;
-        var o = job.noOverlap, depth = pp[2];
+
+        let o = this.noOverlap(job);
+        let depth = pp[2];
 
         if (depth < 0 || depth > 1.0) {
             return res;
@@ -2115,7 +2125,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
         }
 
         if (renderer.drawLabelBoxes) {
-            o = job.noOverlap;
+            o = this.noOverlap(job);
 
             if (o) {
                 if (!pp) {
@@ -2344,7 +2354,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
 
     var job = subjob[0], stickShift = subjob[1], texture = subjob[2],
         files = subjob[3], color = subjob[4], pp = subjob[5], s = job.stick,
-        o = job.noOverlap, localTilt, p2, p1, camVec;
+        o = this.noOverlap(job), localTilt, p2, p1, camVec;
 
     if (renderer.useSuperElevation) {
         if (job.seCounter != renderer.seCounter) {
@@ -2769,7 +2779,7 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, _, s
 
     var job = subjob[0], //texture = subjob[2],
         files = subjob[3], color = subjob[4], pp = subjob[5],
-        o = job.noOverlap, p2, prog,
+        o = this.noOverlap(job), p2, prog,
         useSE = renderer.useSuperElevation;
 
     if (useSE) {
