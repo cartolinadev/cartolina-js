@@ -384,13 +384,7 @@ GpuGroup.prototype.addLineLabelJob = function(data) {
     job.labelSize = data['labelSize'];
     job.zbufferOffset = data['zbuffer-offset'];
     job.hysteresis = data['hysteresis'];
-
-    // WARN: problematic, visible scale can change during the job lifetime
-    job.noOverlap = 
-        data['noOverlap'].map(
-            (v, i) => i == 0 || i == 2 ? v / this.renderer.visibleScale()[0]
-            : i == 1 || i == 3 ? v / this.renderer.visibleScale()[1] : v); 
-
+    job.noOverlap = data['noOverlap'];
     job.labelPointsBuffer = { id: -1, points: [], points2: [] },
     job.id = job.hysteresis ? job.hysteresis[2] : null;
     job.reduced = false;
@@ -475,13 +469,7 @@ GpuGroup.prototype.addIconJob = function(data, label, tile) {
     job.lod = data['lod'];
     job.zbufferOffset = data['zbuffer-offset'];
     job.hysteresis = data['hysteresis'];
-
-    // WARN: problematic, visible scale can change during the job lifetime
-    job.noOverlap = 
-        data['noOverlap'].map(
-            (v, i) => i == 0 || i == 2 ? v / this.renderer.visibleScale()[0]
-            : i == 1 || i == 3 ? v / this.renderer.visibleScale()[1] : v); 
-
+    job.noOverlap = data['noOverlap'];
     job.id = job.hysteresis ? job.hysteresis[2] : null;
     job.reduced = false;
     job.ready = true;
