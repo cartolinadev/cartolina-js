@@ -30,16 +30,16 @@ var UIControlCredits = function(ui, visible, visibleLock) {
 };
 
 UIControlCredits.prototype.isFullPage = function() {
-    var r = this.ui.element.getBoundingClientRect();
+    let r = this.ui.element?.getBoundingClientRect();
     // Consider "full page" only when both dimensions match the viewport
-    return (Math.round(r.width) >= window.innerWidth &&
+    return (r && Math.round(r.width) >= window.innerWidth &&
             Math.round(r.height) >= window.innerHeight);
 };
 
 UIControlCredits.prototype.updateResponsive = function() {
     var notFull = !this.isFullPage();
     // Hide the default credits box when not fullpage; show the tiny link instead
-    this.credits.element.style.display = notFull ? 'none' : 'block';
+    this.credits.element.style.display = notFull ? 'none' : 'flex';
     this.minControl.setVisible(notFull);
 };
 
@@ -137,7 +137,7 @@ UIControlCredits.prototype.update = function() {
     }
 
     html += '<div class="vts-credits-supercell">';
-    html += '<div class="vts-credits-cell">Powered by <a class="vts-logo" href="https://cartolina.dev/" target="blank">Cartolina</a></div>';
+    html += '<div class="vts-credits-cell">Powered by <a class="vts-logo" href="https://cartolina.dev/" target="blank">cartolina.dev</a></div>';
     //html += '<div class="vts-credits-separator">|</div>';
     html += '</div>';
 
