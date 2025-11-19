@@ -82,12 +82,11 @@
     color: #000000;
     font-family: Verdana, Tahoma, Geneva, Arial, Sans-serif;
     font-size: 11px;
-    left: 120px;
     overflow: hidden;    
 }
 
 .vts-credits-supercell {
-    display: inline-block;
+    display: flex;
     text-shadow: 0 0 0px #000;
     max-width: 350px;
     overflow: hidden;
