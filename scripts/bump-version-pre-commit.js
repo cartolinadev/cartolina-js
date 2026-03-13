@@ -22,7 +22,7 @@ let safeBranch = branch.replace(/[^\w]/g, '_');
 // Compose prerelease
 
 let prerelease = (branch === 'main' || branch === 'master')
-  ? `${commit}` 
+  ? `-${commit}` 
   : `-${safeBranch}.${commit}`;
 
 // Increment base patch
