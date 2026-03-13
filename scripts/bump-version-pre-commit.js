@@ -20,8 +20,9 @@ let commit = execSync('git rev-parse --short HEAD').toString().trim();
 let safeBranch = branch.replace(/[^\w]/g, '_');
 
 // Compose prerelease
+
 let prerelease = (branch === 'main' || branch === 'master')
-  ? ''
+  ? `${commit}` 
   : `-${safeBranch}.${commit}`;
 
 // Increment base patch
