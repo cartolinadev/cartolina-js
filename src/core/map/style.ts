@@ -283,6 +283,21 @@ export class MapStyle {
             throw new Error(`Invalid style (${errs.length} errors)`);
         }
 
+        const styleSurfaceSourceIds = Object.entries(styleSpec.sources)
+            .filter(([, sourceSpec]) => sourceSpec.type === 'cartolina-surface')
+            .map(([id]) => id);
+        const unknownTerrainSources = styleSpec.terrain.sources
+            .filter((id) => !styleSurfaceSourceIds.includes(id));
+
+        if (unknownTerrainSources.length > 0) {
+            const msg = 'Invalid style terrain.sources: unknown style surface source id(s): '
+                + unknownTerrainSources.join(', ')
+                + '. Expected one of: ' + styleSurfaceSourceIds.join(', ');
+
+            console.error(msg);
+            throw new Error(msg);
+        }
+
         // wipe the map clean
         map.referenceFrame = null;
         map.srses = {}
@@ -364,6 +379,7 @@ export class MapStyle {
                 }
 
                 let surface = new MapSurface(map, mc.surfaces[0]);
+                surface.styleSourceId = id;
                 map.addSurface(surface.id, surface);
 
                 // the credits
@@ -444,7 +460,7 @@ export class MapStyle {
 
         map.surfaces.forEach((surface: MapSurface) => {
 
-            if (!this.styleSpec.terrain.sources.includes(surface.id)) return;
+            if (!this.styleSpec.terrain.sources.includes(surface.styleSourceId)) return;
 
             map.tree.surfaceSequence.push([surface, false]);
             map.tree.surfaceOnlySequence.push([surface, false]);

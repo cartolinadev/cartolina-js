@@ -616,8 +616,10 @@ export class TileRenderRig {
 
             let item_ = item as MapStyle.TileLayer;
 
-            let pertinent = ! item_.terrain ||
-                item_.terrain.includes(this.tile.resourceSurface.id);
+            const terrainSourceId = this.tile.resourceSurface.styleSourceId
+                ?? this.tile.resourceSurface.id;
+            let pertinent = !item_.terrain
+                || item_.terrain.includes(terrainSourceId);
             if (!pertinent) return;
 
             if (type_ === 'bump-map')

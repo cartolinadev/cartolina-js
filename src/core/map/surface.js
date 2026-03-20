@@ -16,6 +16,7 @@ var utilsUrl = utilsUrl_;
 var MapSurface = function(map, json, type) {
     this.map = map;
     this.id = null;
+    this.styleSourceId = null;
     this.type = 'basic';
     this.metaBinaryOrder = 1;
     this.metaUrl = '';

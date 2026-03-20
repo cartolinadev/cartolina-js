@@ -804,7 +804,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
     let useLighting = definition.useLighting ?? true;
 
     this.illumination = {
-        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.0),
+        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.25),
         trackingLight : {
             azimuth : azimuth,
             elevation: elevation
