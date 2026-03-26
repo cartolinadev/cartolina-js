@@ -4,6 +4,7 @@ precision mediump float;
 // varyings
 in vec3 vFragPos;
 in vec3 vFragPosVC;
+in vec3 vEllipsoidZenith;
 in vec2 vTexCoords;
 in vec2 vTexCoords2;
 in float vAtmDensity;
@@ -65,8 +66,6 @@ vec3 sampleOctBilinear(int tex, vec2 uv, vec2 texel) {
   return normalize(mix(n0, n1, f.y));
 }
 
-
-
 vec3 sampleNormal(int tex, vec2 uv) {
     //vec2 rg = texture(tex, uv).rg;
 
@@ -77,6 +76,18 @@ vec3 sampleNormal(int tex, vec2 uv) {
     return sampleOctBilinear(tex, uv, vec2(1./256., 1./256.));
 }
 
+// obtain a transformation matrix for transformation of tangential space 
+// normals to world coordinates. See tileserver code for details on the 
+// construction of the tangential frame and the choice of upVector.
+
+mat3 tangentialFrame2Wc(vec3 zenith, vec3 upVector) {
+
+    vec3 b2 = normalize(zenith);
+    vec3 b0 = normalize(cross(upVector, b2));
+    vec3 b1 = cross(b2, b0);
+
+    return mat3(b0, b1, b2);
+}
 
 // main
 
@@ -84,15 +95,14 @@ void main() {
 
     // render flags
     int renderFlags = uFrame.renderFlags.x;
+
     //renderFlags = FlagNone;
-    renderFlags = renderFlags
-        & (FlagLighting | FlagNormalMaps | FlagAtmosphere | FlagShadows);
+    //renderFlags = renderFlags
+    //    & (FlagLighting | FlagNormalMaps | FlagAtmosphere | FlagShadows);
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
     bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // bit 1
-    bool useDiffuseMap = (renderFlags & FlagDiffuseMaps) != 0; // bit 2
-    bool useSpecularMap = (renderFlags & FlagSpecularMaps) != 0; // bit 3
-    bool useBumpMap = (renderFlags & FlagBumpMaps) != 0; // bit 4
+    // bits 2-4 not used, could be repurposed
     bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
     bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
 
@@ -186,7 +196,8 @@ void main() {
             vec3 normal_;
 
             if (useNormalMaps)
-                normal_ = top(normal);
+                normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector) 
+                    * top(normal);
             else
                 normal_ = flatNormal;
 

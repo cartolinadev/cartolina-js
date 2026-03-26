@@ -24,6 +24,7 @@ uniform mat4 uModel;
 
 out vec3 vFragPos;          // fragment position in world coordinates
 out vec3 vFragPosVC;        // fragment position in view coordinates
+out vec3 vEllipsoidZenith;  // ellipsoid normal at fragment, in world coordinates
 out vec2 vTexCoords;        // internal texture coordinates
 out vec2 vTexCoords2;       // external texture/normal coordinates
 out float vAtmDensity;      // atm density at fragment
@@ -74,6 +75,21 @@ vec4 applyVerticalExaggeration(vec4 worldPos) {
     return worldPos;
 }
 
+vec3 computeEllipsoidZenith(vec4 worldPos) {
+
+    // obtain the true world position (which, confusingly, is not the worldPos)
+    vec3 geoPos = worldPos.xyz + uFrame.physicalEyePos.xyz;
+
+    // extract axis ratio from frame metadata
+    float majorToMinorSquared = uFrame.bodyParams.y * uFrame.bodyParams.y;
+
+    // back to ellipsoid coordinates (the formula follows from the ellipsoid
+    // to auxiliary squere transformation - the z coordinate is scaled by 
+    // majorToMinor and the normal is scaled by the same factor in transformation
+    // back to ellipsoid coordinates, hence the square 
+    return normalize(vec3(geoPos.xy, geoPos.z * majorToMinorSquared));
+}
+
 // main
 
 void main() {
@@ -95,6 +111,7 @@ void main() {
 
     vFragPos = worldPos.xyz;
     vFragPosVC = worldPosVC.xyz;
+    vEllipsoidZenith = computeEllipsoidZenith(worldPos);
     vTexCoords = aTexCoords;
     vTexCoords2 = aTexCoords2;
     vAtmDensity = atmDensity_;
