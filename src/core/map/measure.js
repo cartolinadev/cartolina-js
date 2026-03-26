@@ -449,7 +449,7 @@ MapMeasure.prototype.getSpatialDivisionNodeAndExtents = function(id) {
     var ur = bestNode.extents.ur;
     var ll = bestNode.extents.ll;
     
-    //extents ll ur but tiles are ul lr!!!! 
+    // extents use ll/ur corners, but tile ids use a top-left grid (y grows downward)
     
     var dx = (ur[0] - ll[0]) * factor; 
     var dy = (ll[1] - ur[1]) * factor;
@@ -480,7 +480,7 @@ MapMeasure.prototype.getSpatialDivisionNodeAndExtents2 = function(id, res, divis
     var ur = divisionNode.extents.ur;
     var ll = divisionNode.extents.ll;
     
-    //extents ll ur but tiles are ul lr!!!! 
+    // extents use ll/ur corners, but tile ids use a top-left grid (y grows downward)
     
     var dx = (ur[0] - ll[0]) * factor; 
     var dy = (ll[1] - ur[1]) * factor;
@@ -493,6 +493,49 @@ MapMeasure.prototype.getSpatialDivisionNodeAndExtents2 = function(id, res, divis
     res[2] = ur[1] + dy * ny;
     res[3] = ll[0] + dx * (nx+1);
     res[4] = ur[1] + dy * (ny+1);
+};
+
+
+MapMeasure.prototype.getNodeInformation = function(id, height) {
+    if (!id || id.length < 3) {
+        return null;
+    }
+
+    height = (height == null) ? 0 : height;
+    const res = this.getSpatialDivisionNodeAndExtents(id);
+
+    if (!res || !res[0]) {
+        return null;
+    }
+
+    const divisionNode = res[0];
+    const ll = [res[1][0][0], res[1][1][1]];
+    const ur = [res[1][1][0], res[1][0][1]];
+
+    const physicalCorners = {
+        ul : divisionNode.getPhysicalCoords([ll[0], ur[1], height], true),
+        ur : divisionNode.getPhysicalCoords([ur[0], ur[1], height], true),
+        lr : divisionNode.getPhysicalCoords([ur[0], ll[1], height], true),
+        ll : divisionNode.getPhysicalCoords([ll[0], ll[1], height], true)
+    };
+
+    const upLeft = vec3.subtract(physicalCorners.ul, physicalCorners.ll, []);
+    const upRight = vec3.subtract(physicalCorners.ur, physicalCorners.lr, []);
+    const upVector = vec3.scale(vec3.add(upLeft, upRight, []), 0.5);
+    vec3.normalize(upVector);
+
+    return {
+        id : [id[0], id[1], id[2]],
+        height : height,
+        srs : divisionNode.srs,
+        extents : {
+            ll : ll,
+            ur : ur
+        },
+        divisionNode : divisionNode,
+        physicalCorners : physicalCorners,
+        upVector : upVector
+    };
 };
 
 
@@ -982,4 +1025,3 @@ MapMeasure.prototype.getPositionCameraInfo = function(position, projected, clamp
 
 
 export default MapMeasure;
-

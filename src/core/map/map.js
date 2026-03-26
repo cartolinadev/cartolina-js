@@ -107,6 +107,8 @@ var Map = function(core, path, config, configStorage) {
     this.lastHoverFeatureId = null;
     this.hoverFeatureCounter = 0;
     this.hoverFeatureList = [];
+
+    this.measure = null;
 }
 
 Map.createMapFromStyle = async function(core, style, path, config, configStorage) {

@@ -21,8 +21,8 @@ in float vAtmDensity;
 #include "./includes/atmosphere.inc.glsl";
 
 // other uniforms
-
 uniform float uClip[4];
+uniform vec3 uUpVector;
 
 // render target
 out vec4 fragColor;

@@ -74,6 +74,7 @@ export class TileRenderRig {
         externalUVs: boolean,
         internalUVs: boolean,
         layerStack: Layer[],
+        upVector: math.vec3
     } = {
 
         illumination: false,
@@ -81,6 +82,7 @@ export class TileRenderRig {
         externalUVs: false,
         internalUVs: false,
         layerStack: [],
+        upVector: [0, 0, 1]
     }
 
     /**
@@ -119,6 +121,16 @@ export class TileRenderRig {
 
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
+
+        // add the tile upVector to the runtime information (passed on to the program)
+        let nodeInfo: unknown = tile.map.measure.getNodeInformation(tile.id);
+
+        if (!nodeInfo || typeof nodeInfo !== 'object' || !('upVector' in nodeInfo)) {
+            __DEV__ && console.warn(`${this.logSign()}: missing upVector in node information, `);
+        }
+
+        this.rt.upVector = (nodeInfo as Record<string, math.vec3>).upVector;
+        __DEV__ && console.log(`${this.logSign()}: upVector: ${this.rt.upVector}`);
 
         // done
 
@@ -240,8 +252,11 @@ export class TileRenderRig {
 
         // uClip
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
-
         program.setFloatArray('uClip', splitMask);
+    
+        // uUpVector
+        program.setVec3('uUpVector', this.rt.upVector);
+
         //program.setSampler('material.normalMap', this.normalMap.getGpuTexture());
 
         // rebuild the layer buffer, set sampler arrays, bind textures and buffer base
@@ -1179,7 +1194,7 @@ type SurfaceTile = {
     resourceSurface: MapSurface;
     surfaceMesh: MapMesh;
 
-    // we acccess atmosphere, and getBoundLayerById
+    // we acccess atmosphere, and getBoundLayerById, measure
     map: Map;
 
     splitMask?: [number, number, number, number];
