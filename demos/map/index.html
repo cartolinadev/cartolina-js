@@ -96,15 +96,16 @@ async function main() {
 
   const params = getSearchParams();
   const style = await loadStyle(params);
+  const options = cartolina.runtimeOptionsFromUrl({
+    positionInUrl: true,
+    mapExposeFpsToWindow: true
+  });
 
   cartolina.map({
     container: 'map',
     style: style,
     position: position,
-    options: {
-      "positionInUrl": true,
-      "mapExposeFpsToWindow": true
-    }
+    options: options
   });
 }
 

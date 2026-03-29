@@ -11,38 +11,53 @@ import * as utils from '../core/utils/utils';
 import * as math from '../core/utils/math';
 import {platform} from '../core/utils/platform';
 import dom from './utility/dom';
+import {
+    configFromUrl as configFromUrl_,
+    runtimeOptionsFromUrl as runtimeOptionsFromUrl_,
+    UrlConfigOptions
+} from './url-config';
 
+
+/** The canonical shared option value type used for cartolina runtime options. */
+export type MapRuntimeOptionValue =
+    boolean | number | number[] | string | string[] | null | unknown;
 
 /**
- * The {@link map} options object
+ * The canonical shared options object for browser, core, renderer, and
+ * debug runtime settings.
+ *
+ * This type intentionally excludes structural initialization fields such as
+ * `container`, `style`, `map`, `position`, and `view`, which belong to
+ * the entrypoint-specific wrappers.
  */
+export type MapRuntimeOptions = Record<string, MapRuntimeOptionValue>;
+
+/** The preferred style-based initialization options object. */
 
 export type MapOptions = {
 
-    /**
-     * the HTML Element in which cartolina will render the map
-     */
+    /** the HTML Element in which cartolina will render the map */
     container: HTMLElement | string,
 
     /**
-     * The map style, conforming to the style specification. Either a JSON or
-     * a URL pointing to such an object.
+     * The map style, conforming to the style specification. Either a JSON
+     * or a URL pointing to such an object.
      */
     style: MapStyle.StyleSpecification,
 
     /**
-     * The 10-component vts-geospatial position, specifying the intial vantage point.
-     * If not provided, cartolina will try to find a suitable default.
+     * The 10-component vts-geospatial position, specifying the intial
+     * vantage point. If not provided, cartolina will try to find a
+     * suitable default.
      */
     position: MapPosition,
 
     /**
-     * Any of the valid options controling the various rendering components
-     * (browser, core, renderer, etc.)
+     * Any of the valid options controling the various rendering
+     * components (browser, core, renderer, etc.)
      */
-    options?: { string: number | number[] | string | boolean }
+    options?: MapRuntimeOptions
 }
-
 
 /**
  * The style based API for map initialization.
@@ -65,36 +80,114 @@ export function map(options: MapOptions): BrowserInterface {
         , "controlCompass": false
     }
 
-    let bi = new BrowserInterface(
-        options.container, {
-            style: options.style, ...dflts, ...options.options, position: options.position});
+    let bi = new BrowserInterface(options.container, {
+        style: options.style,
+        ...dflts,
+        ...options.options,
+        position: options.position
+    });
 
     // return
     return bi.core ? bi: null;
 }
 
+/**
+ * The legacy mapConfig-based initialization options object.
+ *
+ * Prefer the style-based `map` API for new code.
+ */
+export type BrowserConfig = MapRuntimeOptions & {
+
+    /** The legacy vts-geospatial mapConfig, usually as a URL. */
+    map: unknown,
+
+    /**
+     * The 10-component vts-geospatial position, specifying the initial
+     * vantage point.
+     */
+    position?: MapPosition,
+
+    /** The legacy view definition. */
+    view?: unknown
+};
+
 
 /**
- * The traditional vts-geospatial mapConfig-based API for map
+ * The legacy vts-geospatial mapConfig-based API for map
  * initialization.
  *
+ * Prefer the style-based `map` API for new code.
+ *
  * @param element the DOM element mean for the map
- * @param config the map configuration, which includes the mapConfig, the
- *      JSON object containing the map configuration, optional position
- *      and various browser options.
+ * @param config the legacy map configuration, which includes the mapConfig,
+ *      the JSON object containing the map configuration, optional
+ *      position and various browser options.
  * @return the browser interface
  */
 
-export function browser (element: HTMLElement | string, config: {
-    map: unknown, position?: MapPosition, string: any }): BrowserInterface {
+export function browser(
+    element: HTMLElement | string,
+    config: BrowserConfig
+): BrowserInterface {
 
     var browserInterface = new BrowserInterface(element, config);
     return browserInterface.core ? browserInterface : null;
 }
 
-export function getBrowserVersion() {
-//    return "Browser: 2.0.0, Core: " + getCoreVersion();
+/**
+ * Returns the core library version.
+ * @return the core library version
+ */
+export function getBrowserVersion(): string {
     return '' + getCoreVersion();
+}
+
+/**
+ * Converts URL query parameters into runtime options for the preferred
+ * style-based `map` API.
+ *
+ * This is mainly intended for simple demos and applications that want to
+ * accept browser, core, renderer, or debug options from the query
+ * string without maintaining their own parsing table.
+ *
+ * Unlike `configFromUrl`, this helper removes structural fields
+ * such as `map`, `position`, `pos`, `view`, `style`, and `container`,
+ * so the result can be explicitly typed as `MapRuntimeOptions`.
+ *
+ * @param defaults initial runtime option values to merge with URL parameters
+ * @param url the URL to parse, defaults to `window.location.href`
+ * @param options parsing options such as map parameter requirements
+ * @return runtime options parsed from the query string
+ */
+export function runtimeOptionsFromUrl(
+    defaults?: MapRuntimeOptions,
+    url?: string,
+    options?: UrlConfigOptions
+): MapRuntimeOptions {
+    return runtimeOptionsFromUrl_(defaults, url, options) as MapRuntimeOptions;
+}
+
+/**
+ * Converts URL query parameters into cartolina configuration values for
+ * the legacy `browser` API.
+ *
+ * This helper parses the same runtime option vocabulary as
+ * `runtimeOptionsFromUrl`, but it also preserves legacy structural
+ * fields such as `map`, `position`, and `view` when present in the URL
+ * or defaults.
+ *
+ * @param defaults initial values to merge with URL parameters
+ * @param url the URL to parse, defaults to `window.location.href`
+ * @param options parsing options such as map parameter requirements
+ * @return config object with parsed query parameter values
+ */
+export function configFromUrl(
+    defaults?: MapRuntimeOptions & Partial<BrowserConfig>,
+    url?: string,
+    options?: UrlConfigOptions
+): MapRuntimeOptions & Partial<BrowserConfig> {
+    return configFromUrl_(defaults, url, options) as
+        MapRuntimeOptions & Partial<BrowserConfig>;
 }
 
 export {vec2, vec3, vec4, mat3, mat4, math, utils, getCoreVersion, checkSupport,
