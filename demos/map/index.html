@@ -46,32 +46,14 @@ function getSearchParams() {
   return new URLSearchParams(window.location.search);
 }
 
-function normalizeStyleUrl(styleValue) {
-  if (!styleValue) return './style.json';
+function resolveStyleUrl(styleValue) {
+  const normalizedStyle = styleValue || 'default';
 
-  const currentDirUrl = new URL('./', window.location.href);
-  const currentDirPath = currentDirUrl.pathname;
-
-  try {
-    const resolvedUrl = new URL(styleValue, currentDirUrl);
-
-    // If the URL points into the same directory as index.html on the same origin,
-    // strip that prefix and keep it relative.
-    if (resolvedUrl.origin === window.location.origin &&
-        resolvedUrl.pathname.startsWith(currentDirPath)) {
-      let relativePath = resolvedUrl.pathname.slice(currentDirPath.length);
-      if (!relativePath) relativePath = 'style.json';
-      return relativePath + resolvedUrl.search + resolvedUrl.hash;
-    }
-
-    return resolvedUrl.href;
-  } catch (e) {
-    // Fallback for unusual but still usable relative paths.
-    if (styleValue.startsWith('./')) {
-      return styleValue.slice(2);
-    }
-    return styleValue;
+  if (/^[a-zA-Z0-9_-]+$/.test(normalizedStyle)) {
+    return `./styles/${normalizedStyle}.json`;
   }
+
+  return normalizedStyle;
 }
 
 function resolvePlaceholderValue(identifier, params) {
@@ -91,8 +73,7 @@ function expandStyleTemplate(styleText, params) {
 }
 
 async function loadStyle(params) {
-  const styleParam = params.get('style');
-  const styleUrl = normalizeStyleUrl(styleParam || './style.json');
+  const styleUrl = resolveStyleUrl(params.get('style'));
 
   const response = await fetch(styleUrl);
   if (!response.ok) {

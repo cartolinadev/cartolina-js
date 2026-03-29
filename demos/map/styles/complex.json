@@ -4,7 +4,7 @@
         "sources": {
             "topoearth-copernicus-dem-glo30": {
                 "type": "cartolina-surface",
-                "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/"
+                "url": "__backend__/melown2015/surface/topoearth/copernicus-dem-glo30/"
             },
             "ne1v6plcw": {
                 "type": "cartolina-tms",
@@ -16,7 +16,7 @@
             },
             "eoxit-s2c-normalmap": {
                 "type": "cartolina-tms",
-                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/"
+                "url": "__backend__/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/"
             },
             "esa-worldcover-specularmap": {
                 "type": "cartolina-tms",
