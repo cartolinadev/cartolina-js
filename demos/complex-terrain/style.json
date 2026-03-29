@@ -18,10 +18,6 @@
                 "type": "cartolina-tms",
                 "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/"
             },
-            "esa-worldcover-specularmap": {
-                "type": "cartolina-tms",
-                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/"
-            },
             "ne1lc-specularmap": {
                 "type": "cartolina-tms",
                 "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/ne1-lc-500m-specularmap/"

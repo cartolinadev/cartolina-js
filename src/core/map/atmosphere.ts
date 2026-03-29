@@ -499,7 +499,7 @@ export type Specification = MapBody.Atmosphere & {
     edgeDistanceToEyeDistance?: number;
 
     /// upper limit on visibility
-    maxVisibility: number;
+    maxVisibility?: number;
 }
 
 }

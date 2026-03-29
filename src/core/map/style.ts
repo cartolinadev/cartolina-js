@@ -362,8 +362,13 @@ export class MapStyle {
                         && body && body.atmosphere
                         && services && services.atmdensity) {
 
-                        let spec = { ...body.atmosphere, ...styleSpec.atmosphere
-                            } as Atmosphere.Specification;
+                        let spec: Atmosphere.Specification = {
+                            visibilityToEyeDistance: 5.0,
+                            edgeDistanceToEyeDistance: 1.0,
+                            maxVisibility: 1e6,
+                            ...body.atmosphere, 
+                            ...styleSpec.atmosphere
+                        };
 
                         map.atmosphere = new Atmosphere(
                             spec, map.getPhysicalSrs(),

@@ -42,9 +42,9 @@ vec4 applyVerticalExaggeration(vec4 worldPos) {
     float majorToMinor = uFrame.bodyParams.y;
 
     float h1 = uFrame.vaParams1.x, f1 = uFrame.vaParams1.y,
-          h2 = uFrame.vaParams1.z, f2 = uFrame.vaParams1.w;
-    float hdiff = uFrame.vaParams2.x, fdiff = uFrame.vaParams2.y,
-          invhdiff = uFrame.vaParams2.z;
+         h2 = uFrame.vaParams1.z, f2 = uFrame.vaParams1.w;
+    //float hdiff = uFrame.vaParams2.x, fdiff = uFrame.vaParams2.y,
+    //      invhdiff = uFrame.vaParams2.z;
 
     // approximate ellipsoid by a sphere
     vec3 geoPos = worldPos.xyz + uFrame.physicalEyePos.xyz;

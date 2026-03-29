@@ -130,7 +130,7 @@ export class TileRenderRig {
         }
 
         this.rt.upVector = (nodeInfo as Record<string, math.vec3>).upVector;
-        __DEV__ && console.log(`${this.logSign()}: upVector: ${this.rt.upVector}`);
+        //__DEV__ && console.log(`${this.logSign()}: upVector: ${this.rt.upVector}`);
 
         // done
 

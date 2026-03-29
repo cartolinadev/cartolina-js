@@ -202,8 +202,9 @@ void main() {
                 normal_ = flatNormal;
 
             if (l.srcShadeType == shadeType_Diffuse)
-                operand = vec4(light.ambient + light.diffuse
-                    * max(dot(-light.direction, normal_), 0.0), 1.0);
+                operand = vec4(
+                    light.ambient + /*(1.0 - light.ambient) **/ light.diffuse
+                        * max(dot(-light.direction, normal_), 0.0), 1.0);
 
             if (l.srcShadeType == shadeType_Specular) {
 
