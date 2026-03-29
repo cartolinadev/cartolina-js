@@ -1,17 +1,138 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>vts-browser-js</title>
-    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" type="text/css" href="../../build/cartolina.css" />
-    <script type="module">
-         //import { browser } from "../../build/vts-browser.esm.js";
-         import startBrowser from "./start-browser.js";
-         
-         startBrowser();
-    </script>     
+<title>Cartolina JS: A trivial map application (supports styles with placeholders)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet"/>
+<style>
+  body { margin: 0; padding: 0; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
 </head>
-<body style = "padding: 0; margin: 0;">
-    <div id="map-canvas" style="width:100%; height:100%;"></div>
+<body>
+<div id="map"></div>
+<script>
+
+const translationDict = {
+  backend: {
+    dev:  'http://localhost:3071',
+    test: 'http://localhost/mapproxy/',
+    prod: 'https://cdn.tspl.re/mapproxy/'
+  }
+};
+
+const defaultParams = {
+  backend: 'prod'
+};
+
+function posFromURL() {
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+
+  let pos = params.get('pos');
+  if (!pos) return null;
+
+  let pos_ = pos.split(',');
+
+  for (let i = 1; i < pos_.length; i++) {
+    if (i !== 3) pos_[i] = parseFloat(pos_[i]);
+  }
+
+  return pos_;
+}
+
+function getSearchParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+function normalizeStyleUrl(styleValue) {
+  if (!styleValue) return './style.json';
+
+  const currentDirUrl = new URL('./', window.location.href);
+  const currentDirPath = currentDirUrl.pathname;
+
+  try {
+    const resolvedUrl = new URL(styleValue, currentDirUrl);
+
+    // If the URL points into the same directory as index.html on the same origin,
+    // strip that prefix and keep it relative.
+    if (resolvedUrl.origin === window.location.origin &&
+        resolvedUrl.pathname.startsWith(currentDirPath)) {
+      let relativePath = resolvedUrl.pathname.slice(currentDirPath.length);
+      if (!relativePath) relativePath = 'style.json';
+      return relativePath + resolvedUrl.search + resolvedUrl.hash;
+    }
+
+    return resolvedUrl.href;
+  } catch (e) {
+    // Fallback for unusual but still usable relative paths.
+    if (styleValue.startsWith('./')) {
+      return styleValue.slice(2);
+    }
+    return styleValue;
+  }
+}
+
+function resolvePlaceholderValue(identifier, params) {
+  const rawValue = params.get(identifier) ?? defaultParams[identifier];
+  if (rawValue == null) return '';
+
+  const dict = translationDict[identifier];
+  if (!dict) return rawValue;
+
+  return Object.prototype.hasOwnProperty.call(dict, rawValue) ? dict[rawValue] : rawValue;
+}
+
+function expandStyleTemplate(styleText, params) {
+  return styleText.replace(/__([a-zA-Z0-9_-]+)__/g, (match, identifier) => {
+    return resolvePlaceholderValue(identifier, params);
+  });
+}
+
+async function loadStyle(params) {
+  const styleParam = params.get('style');
+  const styleUrl = normalizeStyleUrl(styleParam || './style.json');
+
+  const response = await fetch(styleUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to load style "${styleUrl}": ${response.status} ${response.statusText}`);
+  }
+
+  const styleText = await response.text();
+  const expandedStyleText = expandStyleTemplate(styleText, params);
+
+  try {
+    return JSON.parse(expandedStyleText);
+  } catch (e) {
+    throw new Error(`Expanded style is not valid JSON: ${e.message}`);
+  }
+}
+
+async function main() {
+  let position = ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00];
+  position = posFromURL() || position;
+
+  const params = getSearchParams();
+  const style = await loadStyle(params);
+
+  cartolina.map({
+    container: 'map',
+    style: style,
+    position: position,
+    options: {
+      "positionInUrl": true
+      /*,
+      "mapFeaturesReduceMode" : "scr-count7",
+      "mapFeaturesReduceParams" : [ 0.050000000000000003, 0.17000000000000001, 11, 1, 1000 ]*/
+    }
+  });
+}
+
+main().catch((error) => {
+  console.error(error);
+});
+
+</script>
 </body>
 </html>

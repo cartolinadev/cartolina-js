@@ -1,5 +1,5 @@
 
-import { browser, utils } from "../../build/cartolina.esm.js";
+import { browser, utils } from "../../../build/cartolina.esm.js";
 
 
 function vtsParseUrlParams(initialParams_, url_) {
