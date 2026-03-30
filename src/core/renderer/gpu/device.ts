@@ -143,6 +143,7 @@ kill() {
 
 contextLost(event: WebGLContextEvent) {
 
+    console.error('WebGL context lost', new Date().toISOString());
     event.preventDefault();
     this.renderer.core.contextLost = true;
     this.renderer.core.callListener('gpu-context-lost', {});

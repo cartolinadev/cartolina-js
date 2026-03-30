@@ -125,6 +125,50 @@
           return a;
         }
 
+        function hasOwn(obj, key) {
+          return Object.prototype.hasOwnProperty.call(obj, key);
+        }
+
+        function getTemplatePair(namedTemplates, pairName) {
+          const pair = namedTemplates[pairName];
+          if (!pair) throw new Error(`Unknown template pair "${pairName}"`);
+          if (typeof pair.dev !== 'string' || typeof pair.prod !== 'string') {
+            throw new Error(`Template pair "${pairName}" must define string dev and prod templates`);
+          }
+          return pair;
+        }
+
+        function resolveTemplates(namedTemplates, item) {
+          const resolved = { ...getTemplatePair(namedTemplates, 'default') };
+
+          if (hasOwn(item, 'template')) {
+            const selection = item.template;
+            if (typeof selection === 'string') {
+              const pair = getTemplatePair(namedTemplates, selection);
+              resolved.dev = pair.dev;
+              resolved.prod = pair.prod;
+            } else if (selection && typeof selection === 'object' && !Array.isArray(selection)) {
+              if (hasOwn(selection, 'dev')) {
+                resolved.dev = getTemplatePair(namedTemplates, selection.dev).dev;
+              }
+              if (hasOwn(selection, 'prod')) {
+                resolved.prod = getTemplatePair(namedTemplates, selection.prod).prod;
+              }
+            } else {
+              throw new Error(`Item "${item.id}" has invalid template selector; expected string or object`);
+            }
+          }
+
+          if (hasOwn(item, 'dev')) resolved.dev = item.dev;
+          if (hasOwn(item, 'prod')) resolved.prod = item.prod;
+
+          if (typeof resolved.dev !== 'string' || typeof resolved.prod !== 'string') {
+            throw new Error(`Item "${item.id}" resolved to invalid dev/prod templates`);
+          }
+
+          return resolved;
+        }
+
         function addRow(item, templates) {
           const tr = document.createElement('tr');
 
@@ -155,8 +199,8 @@
           })
           .then(cfg => {
             if (!cfg || !cfg.templates || !cfg.urls) throw new Error('Invalid urls.json format');
-            const templates = { dev: cfg.templates.dev, prod: cfg.templates.prod };
-            cfg.urls.forEach(item => addRow(item, templates));
+            if (!cfg.templates.default) throw new Error('Invalid urls.json format: missing templates.default');
+            cfg.urls.forEach(item => addRow(item, resolveTemplates(cfg.templates, item)));
           })
           .catch(err => showError(err.message || String(err)));
       })();

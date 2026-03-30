@@ -1,50 +1,65 @@
 {
   "templates": {
-      "dev": "http://localhost:8080/demos/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
+
+    "default": {
+      "dev": "http://localhost:8080/demos/map/?style=${style}&pos=${pos}&mapExposeFpsToWindow=1${extras}"
+      , "prod": "https://cdn.tspl.re/libs/cartolina/tests/?style=${style}&pos=${pos}&mapExposeFpsToWindow=1${extras}" 
+    },
+
+    "legacy": {
+      "dev": "http://localhost:8080/demos/legacy/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
       , "prod": "${url}/?pos=${pos}&mapExposeFpsToWindow=1${extras}" 
+    }
   },
 
   "urls": [
   {  
+    "id": "simple-terrain"
+    , "description": "global terrain, lighting, no texture"
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/simple.json"
+    , "pos": "obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00"
+  }
+  ,{  
     "id": "a-3d-mountain-map"
     , "description": "global terrain + single layer, lettering (Mount Whitney)"
+    , "template": { "dev": "default", "prod": "legacy" }
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/satellite.json"
     , "url": "https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/"
     , "pos": "obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00"
   }
   , {
-    "id": "tacoma-005c-fitonly"
-    , "description": "Illlumination, normal map + bump map, lettering, 'fitonly' tree traversal (Glacier Peak)"
+    "id": "tacoma-fitonly"
+    , "description": "Illlumination, bump maps, lettering, 'fitonly' tree traversal (Glacier Peak)"
+    , "template": { "dev": "default", "prod": "legacy" }
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/nc-bump-lettering.json" 
     , "url": "https://cdn.tspl.re/store/tacoma/005c-fitonly/"
     , "pos": "obj,-121.167759,48.160547,fix,1545.58,198.97,-38.28,0.00,13440.07,30.00"
   }
   , {
-    "id": "tacoma-005b-lettering"
-    , "description": "Illlumination, normal map + bump map, lettering (Grossglockner)"
-    , "url": "https://cdn.tspl.re/store/tacoma/005b-lettering/"
+    "id": "complex-terrain"
+    , "description": "Illlumination, bump maps, specular maps, lettering (Grossglockner)"
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/complex.json"
     , "pos": "obj,12.721290,47.084420,fix,2727.44,-46.93,-44.97,0.00,12643.36,30.00"
   }
   , {
-    "id": "tacoma-005a-normalmap-bumpmap-se"
-    , "description": "Illlumination, normal map + bump map, high oblique (Wetterstein)"
-    , "url": "https://cdn.tspl.re/store/tacoma/005a-surfacedem-normalmap-bumpmap-se/"
+    "id": "full-terrain"
+    , "description": "Illlumination, bump maps, specular maps, high oblique (Wetterstein)"
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/full.json"
     , "pos": "obj,11.089189,47.412804,fix,1744.54,-151.48,-30.00,0.00,14002.15,30.00"
   }
   , {
-    "id": "tacoma-005b-lettering-noxhrimage"
-    , "description": "Illlumination, normal map + bump map, lettering, no xhr on images (Grossglockner)"
-    , "url": "https://cdn.tspl.re/store/tacoma/005b-lettering/"
-    , "pos": "obj,12.721290,47.084420,fix,2727.44,-46.93,-44.97,0.00,12643.36,30.00"
-    , "extras": "&mapXhrImageLoad=0"
-  }
-  , {
-    "id": "cart23-04b"
-    , "description": "Multiply blending modes and view-dependent alphas (Washington state)"
+    "id": "nacis-2023"
+    , "description": "Combined shading vs multiply blending modes and view-dependent alphas (Washington state)"
+    , "template": { "dev": "default", "prod": "legacy" }
+    , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/full.json"
     , "url": "https://cdn.tspl.re/store/cartolina23/cart23-04b4/"
     , "pos": "obj,-123.175367,47.237582,fix,307.52,75.22,-50.80,0.00,221617.71,25.00"
+    , "extras": "&mapShadingMode=combined"
   }
   , {
     "id": "legacy-benatky"
     , "description": "Tileset with internal texture, global terrain with single layer + glue (Benatky nad Jizerou)"
+    , "template": "legacy"
     , "url": "https://cdn.tspl.re/store/tests/benatky/"
     , "pos": "obj,14.823046,50.290797,fix,300.67,-250.11,-22.97,0.00,131.87,30.00"
   }

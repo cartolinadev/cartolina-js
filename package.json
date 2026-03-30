@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.142-76d6e09",
+  "version": "2.49.143-5437b80",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {
@@ -14,7 +14,7 @@
     "typecheck": "node_modules/.bin/tsc -p tsconfig.typecheck.json",
     "prepare": "ts-patch install && husky install",
     "perf:install": "npx playwright install chromium",
-    "test": "test:perf",
+    "test": "npm run test:perf:headed",
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
     "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",

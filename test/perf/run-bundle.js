@@ -15,6 +15,52 @@ function sanitizeUrl(href) {
   return href.replace(/([^:]\/)\/+/g, '$1');
 }
 
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function getTemplatePair(namedTemplates, pairName) {
+  const pair = namedTemplates[pairName];
+  if (!pair) {
+    throw new Error(`Unknown template pair "${pairName}"`);
+  }
+  if (typeof pair.dev !== 'string' || typeof pair.prod !== 'string') {
+    throw new Error(`Template pair "${pairName}" must define string dev and prod templates`);
+  }
+  return pair;
+}
+
+function resolveTemplates(namedTemplates, item) {
+  const resolved = { ...getTemplatePair(namedTemplates, 'default') };
+
+  if (hasOwn(item, 'template')) {
+    const selection = item.template;
+    if (typeof selection === 'string') {
+      const pair = getTemplatePair(namedTemplates, selection);
+      resolved.dev = pair.dev;
+      resolved.prod = pair.prod;
+    } else if (selection && typeof selection === 'object' && !Array.isArray(selection)) {
+      if (hasOwn(selection, 'dev')) {
+        resolved.dev = getTemplatePair(namedTemplates, selection.dev).dev;
+      }
+      if (hasOwn(selection, 'prod')) {
+        resolved.prod = getTemplatePair(namedTemplates, selection.prod).prod;
+      }
+    } else {
+      throw new Error(`Item "${item.id}" has invalid template selector; expected string or object`);
+    }
+  }
+
+  if (hasOwn(item, 'dev')) resolved.dev = item.dev;
+  if (hasOwn(item, 'prod')) resolved.prod = item.prod;
+
+  if (typeof resolved.dev !== 'string' || typeof resolved.prod !== 'string') {
+    throw new Error(`Item "${item.id}" resolved to invalid dev/prod templates`);
+  }
+
+  return resolved;
+}
+
 function humanBytes(n) {
   if (n == null || !isFinite(n)) return '—';
   const units = ['B','KB','MB','GB','TB'];
@@ -65,12 +111,12 @@ function forceSymlink(target, linkPath, type = 'file') {
     process.exit(1);
   }
 
-  const templates = cfg.templates;                         // e.g. { dev: "...", prod: "..." }
-  const templateNames = Object.keys(templates);            // preserve declared order
-  if (templateNames.length === 0) {
-    console.error('[perf] No templates declared in urls.json.');
+  if (!cfg.templates.default) {
+    console.error('[perf] Invalid urls.json format: missing templates.default');
     process.exit(1);
   }
+  const namedTemplates = cfg.templates;
+  const templateNames = ['dev', 'prod'];
 
   // ----- output dir -----
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -80,8 +126,9 @@ function forceSymlink(target, linkPath, type = 'file') {
   // ----- run all (serialize for stability) -----
   const flatResults = []; // array of { id, description, template, url, result }
   for (const item of cfg.urls) {
+    const itemTemplates = resolveTemplates(namedTemplates, item);
     for (const tName of templateNames) {
-      const tpl = templates[tName];
+      const tpl = itemTemplates[tName];
       const url = sanitizeUrl(expandTemplate(tpl, item));
 
       // per-run config: pass optional perf knobs through
