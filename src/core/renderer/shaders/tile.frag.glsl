@@ -200,9 +200,16 @@ void main() {
 
                 normal_ = top(normal);
 
-                if ((vVerticalExaggeration - 1.0) > 1e-3 && normal_.z < 0.9999) {
+                // skip this for no exaggeration (optimization)
+                if (vVerticalExaggeration - 1.0 > 1e-3) {
 
-                    normal_.z *= 1.0 / vVerticalExaggeration;
+                    float va = vVerticalExaggeration;
+
+                    // numerical stability for near-flat areas
+                    if (abs(1.0 - normal_.z) < 5e-4)
+                        va = 1.0 + abs(1.0 - normal_.z) / 5e-4 * (va - 1.0);
+
+                    normal_.z *= 1.0 / va;
                     normal_ = normalize(normal_);
                 }
 
