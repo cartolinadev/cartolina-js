@@ -28,11 +28,13 @@ out vec3 vEllipsoidZenith;  // ellipsoid normal at fragment, in world coordinate
 out vec2 vTexCoords;        // internal texture coordinates
 out vec2 vTexCoords2;       // external texture/normal coordinates
 out float vAtmDensity;      // atm density at fragment
+out float vVerticalExaggeration; // vertical exaggeration factor at fragment
+
 
 
 // apply vertical exaggeration on a world position, based on frame configuration
 
-vec4 applyVerticalExaggeration(vec4 worldPos) {
+vec4 applyVerticalExaggeration(vec4 worldPos, out float verticalExaggeration) {
 
     // this is in an approximation, but sufficient for the purpose
     // we use an estimate of ellipsoidal height to apply exaggeration
@@ -59,8 +61,11 @@ vec4 applyVerticalExaggeration(vec4 worldPos) {
     // h_ = clamp(h, h1, h2)
     float h_ = clamp(h, h1, h2);
 
+    // exaggeration factor at h
+    verticalExaggeration = f1 + (h_ - h1) / (h2 - h1) * (f2 - f1);
+
     // obtain exaggerated height
-    float hNew = h * (f1 + (h_ - h1) / (h2 - h1) * (f2 - f1));
+    float hNew = h * verticalExaggeration;
 
     // local normal (on sphere)
     vec3 v = geoPos.xyz;
@@ -98,7 +103,7 @@ void main() {
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
 
     // apply vertical exaggeration
-    worldPos = applyVerticalExaggeration(worldPos);
+    worldPos = applyVerticalExaggeration(worldPos, vVerticalExaggeration);
 
     // obtain view space coords
     vec4 worldPosVC = uFrame.view * worldPos;

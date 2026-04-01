@@ -8,6 +8,7 @@ in vec3 vEllipsoidZenith;
 in vec2 vTexCoords;
 in vec2 vTexCoords2;
 in float vAtmDensity;
+in float vVerticalExaggeration;
 
 // frame ubo
 #include "./includes/frame.inc.glsl";
@@ -195,10 +196,19 @@ void main() {
 
             vec3 normal_;
 
-            if (useNormalMaps)
+            if (useNormalMaps) {
+
+                normal_ = top(normal);
+
+                if ((vVerticalExaggeration - 1.0) > 1e-3 && normal_.z < 0.9999) {
+
+                    normal_.z *= 1.0 / vVerticalExaggeration;
+                    normal_ = normalize(normal_);
+                }
+
                 normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector) 
-                    * top(normal);
-            else
+                    * normal_;
+            } else
                 normal_ = flatNormal;
 
             if (l.srcShadeType == shadeType_Diffuse)
