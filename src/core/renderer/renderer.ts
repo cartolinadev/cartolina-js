@@ -565,7 +565,12 @@ updateBuffers() {
 
     // obtain the data: render flags and clip params
     // TODO - use this.debug to set the flags
-    data.renderFlags = [renderFlags, 0, 0, 0];
+    renderFlags &= ~Renderer.RenderFlags.FlagCombinedShading;
+    if (map.config.mapCombinedShading) {
+        renderFlags |= Renderer.RenderFlags.FlagCombinedShading;
+    }
+
+    data.renderFlags = [renderFlags & 0xff, (renderFlags >> 8) & 0xff, 0, 0];
 
     // clip params
     data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
@@ -631,7 +636,8 @@ updateBuffers() {
 
     // write ints for ivec4
     const ri = OFF.renderFlags / 4;
-    i32[ri + 0] = data.renderFlags[0] | 0;
+    i32[ri + 0] = data.renderFlags[0];
+    i32[ri + 1] = data.renderFlags[1];
 
     // upload
     let gl = this.gpu.gl;
@@ -1709,6 +1715,7 @@ type Map = {
     getPhysicalSrs(): MapSrs;
 
     config: {
+        mapCombinedShading: boolean;
         mapSplitMargin: number
     }
 }
@@ -1737,7 +1744,8 @@ export enum RenderFlags {
     FlagBumpMaps       = 1 << 4, // bit 4
     FlagAtmosphere     = 1 << 5, // bit 5
     FlagShadows        = 1 << 6, // bit 6
-    FlagAll            = 0xff
+    FlagCombinedShading = 1 << 7, // bit 7
+    FlagAll            = 0xffff
 }
 
 export type IlluminationDef = {

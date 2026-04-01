@@ -95,7 +95,7 @@ mat3 tangentialFrame2Wc(vec3 zenith, vec3 upVector) {
 void main() {
 
     // render flags
-    int renderFlags = uFrame.renderFlags.x;
+    int renderFlags = frameRenderFlags();
 
     //renderFlags = FlagNone;
     //renderFlags = renderFlags

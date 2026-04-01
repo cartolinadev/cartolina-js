@@ -113,6 +113,7 @@ var Core = function(element, config) {
         mapLogGeodataStyles: true,
         mapBenevolentMargins: false,
         mapLabelFreeMargins: [30, 30, 30, 30],
+        mapCombinedShading: false,
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,
@@ -547,6 +548,8 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.style = utils.validateString(value, null); break;
     case 'mapVirtualSurfaces':
         this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
+    case 'mapCombinedShading':
+        this.config.mapCombinedShading = utils.validateBool(value, false); break;
     case 'mapForcePipeline':
         this.config.mapForcePipeline = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapDMapSize':

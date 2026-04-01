@@ -77,6 +77,7 @@ const BOOLEAN_KEYS = new Set([
     'mapLogGeodataStyles',
     'mapOnlyOneUVs',
     'mapIndexBuffers',
+    'mapCombinedShading',
     'mapSoftViewSwitch',
     'mapAsyncImageDecode',
     'mapSplitMeshes',

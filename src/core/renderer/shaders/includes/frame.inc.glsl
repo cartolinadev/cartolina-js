@@ -9,6 +9,7 @@ const int FlagSpecularMaps   = 1 << 3; // bit 3
 const int FlagBumpMaps       = 1 << 4; // bit 4
 const int FlagAtmosphere     = 1 << 5; // bit 5
 const int FlagShadows        = 1 << 6; // bit 6
+const int FlagCombinedShading = 1 << 7; // bit 7
 
 // the per frame configuration
 
@@ -26,7 +27,7 @@ layout(std140) uniform uboFrame {
     highp vec4 vaParams2; // h2 - h1, f2 - f1, 1.0 / (h2 - h1), w reserved
 
     // renderingFlags
-    highp ivec4 renderFlags; // renderFlags (see above), yzw reserved
+    highp ivec4 renderFlags; // x: low byte, y: high byte, zw reserved
 
     // cameraPos, center of view
     highp vec4 physicalEyePos; // xyz- physicalEyePos, w: eyeToCenter
@@ -73,6 +74,10 @@ Eye frameEye() {
     eye.virtualEyeToCenter = uFrame.virtualEye.w;
 
     return eye;
+}
+
+int frameRenderFlags() {
+    return uFrame.renderFlags.x | (uFrame.renderFlags.y << 8);
 }
 
 
