@@ -12,7 +12,7 @@ import RenderInit from './init';
 import RenderDraw from './draw';
 import RendererRMap from './rmap';
 
-import * as Illumination from '../map/illumination';
+import * as IlluminationMath from '../map/illumination';
 
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
@@ -164,7 +164,7 @@ export class Renderer {
     earthERatio: Optional<number> = null;
 
     // illumination
-    illumination:  Optional<Renderer.Illumination> = null;
+    illumination:  Optional<Illumination> = null;
 
     // textures
     heightmapTexture: Optional<GpuTexture> = null;
@@ -528,9 +528,10 @@ updateBuffers() {
     if (!this.getIlluminationState()) {
 
         data.lightDirection = [0, 0, 0];
-        data.lightAmbient = [0, 0, 0]
-        data.lightDiffuse = [0, 0, 0];
-        data.lightSpecular = [0, 0, 0];
+        data.lightAmbient = [0, 0, 0, 0];
+        data.lightDiffuse = [0, 0, 0, 0];
+        data.lightSpecular = [0, 0, 0, 0];
+        data.shadingParams = [0.0, 0.0, 0.0, 0.0];
 
         renderFlags &= ~Renderer.RenderFlags.FlagLighting;
     }
@@ -549,14 +550,19 @@ updateBuffers() {
 
         data.lightDirection = lightDir;
 
-        let ambcf = this.getIlluminationAmbientCoef();
+        let illumination = this.illumination as Illumination;
+        let ambcf = illumination.ambientCoef;
 
-        data.lightAmbient = [ambcf, ambcf, ambcf]
+        data.lightAmbient = [ambcf, ambcf, ambcf, 0.0];
+        data.lightDiffuse = [1.0 - ambcf, 1.0 - ambcf, 1.0 - ambcf, 0.0];
 
-        // these should be configurable
-        data.lightDiffuse = [1.0 - ambcf, 1.0 - ambcf, 1.0 - ambcf];
-        data.lightSpecular = [0.6, 0.6, 0.5];
-        //data.lightSpecular = [1.0, 0.2, 0.2];
+        data.lightSpecular = [...illumination.light.specular, 0.0];
+        data.shadingParams = [
+            illumination.shadingLambertianWeight,
+            illumination.shadingSlopeWeight,
+            0.0,
+            0.0
+        ];
     }
 
     // physicalEyePos, eyeToCenter
@@ -565,9 +571,14 @@ updateBuffers() {
 
     // obtain the data: render flags and clip params
     // TODO - use this.debug to set the flags
-    renderFlags &= ~Renderer.RenderFlags.FlagCombinedShading;
-    if (map.config.mapCombinedShading) {
-        renderFlags |= Renderer.RenderFlags.FlagCombinedShading;
+    renderFlags &= ~Renderer.RenderFlags.FlagShadingLambertian;
+    if (map.config.mapShadingLambertian) {
+        renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
+    }
+
+    renderFlags &= ~Renderer.RenderFlags.FlagShadingSlope;
+    if (map.config.mapShadingSlope) {
+        renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
     }
 
     data.renderFlags = [renderFlags & 0xff, (renderFlags >> 8) & 0xff, 0, 0];
@@ -611,9 +622,10 @@ updateBuffers() {
         lightAmbient:   224,        // 56
         lightDiffuse:   240,        // 60
         lightSpecular:  256,        // 64
-        virtualEye:     272,        // 68
-        virtualEyeToCenter: 284,    // 71
-        clipParams:     288         // 72
+        shadingParams:  272,        // 68
+        virtualEye:     288,        // 72
+        virtualEyeToCenter: 300,    // 75
+        clipParams:     304         // 76
     };
 
     // console.log(data);
@@ -630,6 +642,7 @@ updateBuffers() {
     f32.set(data.lightAmbient,          OFF.lightAmbient / 4);
     f32.set(data.lightDiffuse,          OFF.lightDiffuse / 4);
     f32.set(data.lightSpecular,         OFF.lightSpecular / 4);
+    f32.set(data.shadingParams,         OFF.shadingParams / 4);
     f32.set(data.virtualEye,            OFF.virtualEye / 4);
     f32.set(data.virtualEyeToCenter,    OFF.virtualEyeToCenter / 4);
     f32.set(data.clipParams,            OFF.clipParams / 4);
@@ -701,7 +714,7 @@ updateIllumination(position: MapPosition) {
     if (!this.illumination) return;
 
     this.illumination.vectorNED =
-        Illumination.lned2ned(this.illumination.vectorLNED, position);
+        IlluminationMath.lned2ned(this.illumination.vectorLNED, position);
 }
 
 css(): Readonly<Size2> {
@@ -796,29 +809,58 @@ getIlluminationState(): boolean {
 
 setIllumination(definition: Renderer.IlluminationDef) {
 
-    if (!definition.hasOwnProperty('light') || !Array.isArray(definition.light))
-        throw new Error("Light missing, or no an array.");
+    if (!definition.light || typeof definition.light !== 'object') {
+        throw new Error('Light missing, or invalid.');
+    }
 
     let light = definition.light;
+    let azimuth: number;
+    let elevation: number;
+    let specular: math.vec3;
 
-    if (light[0] != "tracking") throw new Error('Only tracking lights supported.');
+    if (Array.isArray(light)) {
 
-    let azimuth = utils.validateNumber(light[1], 0, 360, 315);
-    let elevation = utils.validateNumber(light[2], 0, 90, 45);
+        // legacy format: [type, azimuth, elevation]
+        if (light[0] != 'tracking') {
+            throw new Error('Only tracking lights supported.');
+        }
+
+        azimuth = utils.validateNumber(light[1], 0, 360, 315);
+        elevation = utils.validateNumber(light[2], 0, 90, 45);
+        specular = [0.6, 0.6, 0.5];
+
+    } else {
+
+        // new format: { type, azimuth, elevation, specular }
+        if (light.type != 'tracking') {
+            throw new Error('Only tracking lights supported.');
+        }
+
+        azimuth = utils.validateNumber(light.azimuth, 0, 360, 315);
+        elevation = utils.validateNumber(light.elevation, 0, 90, 45);
+        specular = utils.validateNumberArray(
+            light.specular, 3, [0, 0, 0], [1, 1, 1], [0.6, 0.6, 0.5]) as math.vec3;
+    }
 
     // if the illumination object exists, we presume that lighting is on
     let useLighting = definition.useLighting ?? true;
 
     this.illumination = {
-        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.26),
-        trackingLight : {
+        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
+        light: {
+            type: 'tracking',
             azimuth : azimuth,
-            elevation: elevation
+            elevation: elevation,
+            specular
         },
-        vectorVC : Illumination.illuminationVector(
-                        azimuth, elevation, Illumination.CoordSystem.VC),
-        vectorLNED : Illumination.illuminationVector(
-                        azimuth, elevation, Illumination.CoordSystem.LNED),
+        shadingLambertianWeight: utils.validateNumber(
+            definition.shadingLambertianWeight, 0.0, 1.0, 0.75),
+        shadingSlopeWeight: utils.validateNumber(
+            definition.shadingSlopeWeight, 0.0, 1.0, 0.25),
+        vectorVC : IlluminationMath.illuminationVector(
+                        azimuth, elevation, IlluminationMath.CoordSystem.VC),
+        vectorLNED : IlluminationMath.illuminationVector(
+                        azimuth, elevation, IlluminationMath.CoordSystem.LNED),
 
         useLighting: !! useLighting
     }
@@ -1696,6 +1738,30 @@ type SeRamp =
 
 type SeRampDef = [[number, number], [number, number]];
 
+type Illumination = {
+
+    // the normalized style-facing definition
+    light: {
+        type: 'tracking';
+        azimuth: number;
+        elevation: number;
+        specular: math.vec3;
+    };
+
+    // the local representation
+    vectorVC: math.vec3;
+    vectorLNED: math.vec3;
+
+    // runtime value, dependent on map position and calculated on update
+    vectorNED?: math.vec3;
+
+    ambientCoef: number;
+    shadingLambertianWeight: number;
+    shadingSlopeWeight: number;
+
+    useLighting: boolean;
+}
+
 type Core = {
 
     map: Map;
@@ -1715,7 +1781,8 @@ type Map = {
     getPhysicalSrs(): MapSrs;
 
     config: {
-        mapCombinedShading: boolean;
+        mapShadingLambertian: boolean;
+        mapShadingSlope: boolean;
         mapSplitMargin: number
     }
 }
@@ -1729,7 +1796,7 @@ enum TextureIdxOffsets {
     Atmosphere = -1
 }
 
-const UboFrameSize = 304;
+const UboFrameSize = 320;
 
 // export types
 export namespace Renderer {
@@ -1743,38 +1810,29 @@ export enum RenderFlags {
     FlagSpecularMaps   = 1 << 3, // bit 3
     FlagBumpMaps       = 1 << 4, // bit 4
     FlagAtmosphere     = 1 << 5, // bit 5
-    FlagShadows        = 1 << 6, // bit 6
-    FlagCombinedShading = 1 << 7, // bit 7
+    FlagShadows            = 1 << 6, // bit 6
+    FlagShadingLambertian  = 1 << 7, // bit 7
+    FlagShadingSlope       = 1 << 8, // bit 8
     FlagAll            = 0xffff
 }
 
 export type IlluminationDef = {
 
-    // azimuth and elevation in VC
-    light: ["tracking", number, number];
+    light:
+        | ['tracking', number, number]
+        | {
+            type: 'tracking';
+            azimuth: number;
+            elevation: number;
+            specular?: [number, number, number];
+        };
 
-    useLighting: boolean;
+    useLighting?: boolean;
 
     ambientCoef?: number;
+    shadingLambertianWeight?: number;
+    shadingSlopeWeight?: number;
 }
-
-export type Illumination = {
-
-    // the definition (relative to the position of the viewer)
-    trackingLight: { azimuth: number, elevation: number };
-
-    // the local representation
-    vectorVC: math.vec3;
-    vectorLNED: math.vec3;
-
-    // runtime value, dependent on map position and calculated on update
-    vectorNED?: math.vec3;
-
-    ambientCoef: number;
-
-    useLighting: boolean;
-}
-
 
 export type SeDefinition = SeRampDef | {
     heightRamp?: SeRampDef;

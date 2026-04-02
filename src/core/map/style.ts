@@ -223,8 +223,19 @@ export type Alpha = number
 
 export type IlluminationSpecification = {
 
-    light: ['tracking', number, number],
-    ambientCoef?: number
+    light: LightSpecification | LegacyLightSpecification,
+    ambientCoef?: number,
+    shadingLambertianWeight?: number,
+    shadingSlopeWeight?: number
+}
+
+export type LegacyLightSpecification = ['tracking', number, number]
+
+export type LightSpecification = {
+    type: 'tracking',
+    azimuth: number,
+    elevation: number,
+    specular?: Color3Spec
 }
 
 export type VerticalExaggerationSpecification =  {

@@ -111,7 +111,8 @@ void main() {
     // bits 2-4 not used, could be repurposed
     bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
     bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
-    bool useCombinedShading = (renderFlags & FlagCombinedShading) != 0; // bit 7
+    bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0; // bit 7
+    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0; // bit 8
 
     // clip
     vec2 clipCoord = vTexCoords2;
@@ -201,7 +202,7 @@ void main() {
         if (l.source == source_Shade) {
 
             vec3 normal_;
-            float slope; // for combined shading
+            float slope = 0.0;
 
             if (useNormalMaps) {
 
@@ -220,35 +221,46 @@ void main() {
                     normal_ = normalize(normal_);
                 }
 
-                if (useCombinedShading) {
-
-                    slope = atan(
-                        normal_.x * normal_.x + normal_.y * normal_.y);
-                }
+                if (useSlopeShading)
+                    slope = acos(clamp(normal_.z, -1.0, 1.0));
 
         
                 normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector) 
                     * normal_;
             }
 
-            if (!useNormalMaps) normal_ = flatNormal;
+            if (!useNormalMaps) {
+                normal_ = flatNormal;
+
+                if (useSlopeShading)
+                    slope = acos(clamp(dot(flatNormal, 
+                        normalize(vEllipsoidZenith)), -1.0, 1.0));
+            }
 
             if (l.srcShadeType == shadeType_Diffuse) {
 
-                float diffuseCoef;
+                float lambertianCoef = max(dot(-light.direction, normal_), 0.0);
+                float slopeCoef = slope / SQR_HALF_PI;
 
-                diffuseCoef = max(dot(-light.direction, normal_), 0.0);
+                float diffuseCoef = 1.0;
 
-                if (useCombinedShading) {
+                float lambertianWeight = light.shadingLambertianWeight;
+                float slopeWeight = light.shadingSlopeWeight;
 
-                    //diffuseCoef = 1.0 - acos(diffuseCoef)/ HALF_PI;
-                    diffuseCoef = 1.0 - pow(acos(diffuseCoef) / HALF_PI, 0.75) 
-                        * pow(slope / SQR_HALF_PI, 0.25);
+                // combined shading 
+                if (useLambertianShading && useSlopeShading) 
+                    diffuseCoef = 1.0 - pow(1.0 - lambertianCoef, lambertianWeight)
+                        * pow(slopeCoef, slopeWeight);
 
-                }
+                // pure lambertian
+                if (useLambertianShading && !useSlopeShading) 
+                    diffuseCoef = lambertianCoef;
+
+                // pure slope
+                if (!useLambertianShading && useSlopeShading) 
+                    diffuseCoef = 1.0 - slopeCoef;
 
                 operand = vec4(light.ambient +  diffuseCoef * light.diffuse, 1.0);
-                //operand = vec4(vec3(slope),1.0); // debug
 
             }
 

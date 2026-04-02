@@ -8,8 +8,9 @@ const int FlagDiffuseMaps    = 1 << 2; // bit 2
 const int FlagSpecularMaps   = 1 << 3; // bit 3
 const int FlagBumpMaps       = 1 << 4; // bit 4
 const int FlagAtmosphere     = 1 << 5; // bit 5
-const int FlagShadows        = 1 << 6; // bit 6
-const int FlagCombinedShading = 1 << 7; // bit 7
+const int FlagShadows            = 1 << 6; // bit 6
+const int FlagShadingLambertian  = 1 << 7; // bit 7
+const int FlagShadingSlope       = 1 << 8; // bit 8
 
 // the per frame configuration
 
@@ -37,6 +38,7 @@ layout(std140) uniform uboFrame {
     mediump vec4 lightAmbient; // z reserved
     mediump vec4 lightDiffuse;  // z reserved
     mediump vec4 lightSpecular; // z reserved
+    mediump vec4 shadingParams; // x: lambertian weight, y: slope weight, zw reserved
 
     // virtual eye (for shadows and specular reflections)
     highp vec4 virtualEye; // xyz: virtualEyePos, w: virtualEyeToCenter
@@ -52,6 +54,8 @@ struct Light {
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+    float shadingLambertianWeight;
+    float shadingSlopeWeight;
 };
 
 
@@ -89,6 +93,8 @@ Light frameLight() {
     light.ambient = uFrame.lightAmbient.rgb;
     light.diffuse = uFrame.lightDiffuse.rgb;
     light.specular = uFrame.lightSpecular.rgb;
+    light.shadingLambertianWeight = uFrame.shadingParams.x;
+    light.shadingSlopeWeight = uFrame.shadingParams.y;
 
     return light;
 

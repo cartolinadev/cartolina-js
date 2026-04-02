@@ -120,7 +120,11 @@ probably want to use it in this context.
         "sources": ["topoearth-copernicus-dem-glo30"]
     },
     "illumination": {
-        "light": ["tracking", 315, 45]
+        "light": {
+            "type": "tracking",
+            "azimuth": 315,
+            "elevation": 45
+        }
     }
 }
 ```
@@ -213,5 +217,4 @@ Check out the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
 See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
 `build/3rdpartylicenses.txt` file for third-party licenses.
-
 

@@ -930,7 +930,8 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapRefreshCycles':              this.config.mapRefreshCycles = utils.validateNumber(value, 0, Number.MAXINTEGER, 3); break;
     case 'mapDefaultFont':                this.config.mapDefaultFont = utils.validateString(value, ''); break;
     case 'mapMetricUnits':                this.config.mapMetricUnits = utils.validateBool(value, true); break;
-    case 'mapCombinedShading':            this.config.mapCombinedShading = utils.validateBool(value, false); this.markDirty(); break;
+    case 'mapShadingLambertian':         this.config.mapShadingLambertian = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapShadingSlope':              this.config.mapShadingSlope = utils.validateBool(value, false); this.markDirty(); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
     case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
@@ -1023,7 +1024,8 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapRefreshCycles':              return this.config.mapRefreshCycles;
     case 'mapDefaultFont':                return this.config.mapDefaultFont;
     case 'mapMetricUnits':                return this.config.mapMetricUnits;
-    case 'mapCombinedShading':            return this.config.mapCombinedShading;
+    case 'mapShadingLambertian':         return this.config.mapShadingLambertian;
+    case 'mapShadingSlope':              return this.config.mapShadingSlope;
     case 'mapLanguage':                   return this.config.mapLanguage;
     case 'mapNoTextures':                 return this.config.mapNoTextures;
     case 'mapForceFrameTime':             return this.config.mapForceFrameTime;

@@ -46,6 +46,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 return true;
             }
 
+            // update tile counts in inspector
             if (!preventRedener) {
                 this.stats.renderedLods[tile.id[0]]++;
                 this.stats.drawnTiles++;

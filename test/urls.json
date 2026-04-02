@@ -54,7 +54,7 @@
     , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/full.json"
     , "url": "https://cdn.tspl.re/store/cartolina23/cart23-04b4/"
     , "pos": "obj,-123.175367,47.237582,fix,307.52,75.22,-50.80,0.00,221617.71,25.00"
-    , "extras": "&mapShadingMode=combined"
+    , "extras": "&mapShadingSlope=1"
   }
   , {
     "id": "legacy-benatky"
