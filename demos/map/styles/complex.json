@@ -18,10 +18,6 @@
                 "type": "cartolina-tms",
                 "url": "__backend__/melown2015/tms/topoearth/eoxit-s2c-2020-normalmap/"
             },
-            "esa-worldcover-specularmap": {
-                "type": "cartolina-tms",
-                "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/"
-            },
             "ne1lc-specularmap": {
                 "type": "cartolina-tms",
                 "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/ne1-lc-500m-specularmap/"
@@ -40,7 +36,7 @@
         },
         "illumination": {
             "light": ["tracking", 315, 45],
-            "ambientCoef": 0.0
+            "ambientCoef": 0.45
         },
         "vertical-exaggeration" : {
             "heightRamp": [[0,4000], [1.5,1.3]],
@@ -69,7 +65,7 @@
             {
                 "type": "bump-map",
                 "source": "eoxit-s2c-normalmap",
-                "alpha": 0.2,
+                "alpha": 0.3,
                 "necessity": "optional"
             },
             {

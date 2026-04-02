@@ -1137,30 +1137,28 @@ export class TileRenderRig {
         priority: TileRenderRig.Priority,
         options: TileRenderRig.IsReadyOptions) : boolean {
 
-        let ready_ = true;
         let necessity = layer.necessity;
 
         switch (layer.source) {
 
             case 'shade':
-                if (this.rt.normals)
-                    ready_ &&= TileRenderRig.isResourceReady(this.normalMap,
+                if (this.rt.normals) {
+                    return TileRenderRig.isResourceReady(this.normalMap,
                         necessity, readiness, priority, options);
+                }
                 break;
 
             case 'texture':
-                ready_ &&= TileRenderRig.isResourceReady(layer.srcTextureTexture,
+                return TileRenderRig.isResourceReady(layer.srcTextureTexture,
                         necessity, readiness, priority, options);
-                break;
 
             case 'atm-density':
-                ready_ &&= TileRenderRig.isResourceReady(
+                return TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
                         necessity, readiness, priority, options);
-                break;
         }
 
-        return ready_;
+        return true;
     }
 
 

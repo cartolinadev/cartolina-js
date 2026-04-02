@@ -29,6 +29,11 @@ uniform vec3 uUpVector;
 // render target
 out vec4 fragColor;
 
+// consts
+const float HALF_PI = 1.5707963267948966;
+const float SQR_HALF_PI = HALF_PI * HALF_PI;
+
+
 // octahedron rg decoding of normals
 
 vec3 decodeOct(vec2 rg, bool normalize_) {
@@ -106,6 +111,7 @@ void main() {
     // bits 2-4 not used, could be repurposed
     bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
     bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
+    bool useCombinedShading = (renderFlags & FlagCombinedShading) != 0; // bit 7
 
     // clip
     vec2 clipCoord = vTexCoords2;
@@ -195,6 +201,7 @@ void main() {
         if (l.source == source_Shade) {
 
             vec3 normal_;
+            float slope; // for combined shading
 
             if (useNormalMaps) {
 
@@ -213,15 +220,37 @@ void main() {
                     normal_ = normalize(normal_);
                 }
 
+                if (useCombinedShading) {
+
+                    slope = atan(
+                        normal_.x * normal_.x + normal_.y * normal_.y);
+                }
+
+        
                 normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector) 
                     * normal_;
-            } else
-                normal_ = flatNormal;
+            }
 
-            if (l.srcShadeType == shadeType_Diffuse)
-                operand = vec4(
-                    light.ambient + /*(1.0 - light.ambient) **/ light.diffuse
-                        * max(dot(-light.direction, normal_), 0.0), 1.0);
+            if (!useNormalMaps) normal_ = flatNormal;
+
+            if (l.srcShadeType == shadeType_Diffuse) {
+
+                float diffuseCoef;
+
+                diffuseCoef = max(dot(-light.direction, normal_), 0.0);
+
+                if (useCombinedShading) {
+
+                    //diffuseCoef = 1.0 - acos(diffuseCoef)/ HALF_PI;
+                    diffuseCoef = 1.0 - pow(acos(diffuseCoef) / HALF_PI, 0.75) 
+                        * pow(slope / SQR_HALF_PI, 0.25);
+
+                }
+
+                operand = vec4(light.ambient +  diffuseCoef * light.diffuse, 1.0);
+                //operand = vec4(vec3(slope),1.0); // debug
+
+            }
 
             if (l.srcShadeType == shadeType_Specular) {
 
