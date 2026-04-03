@@ -68,16 +68,74 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
             keyCode = event.charCode;
         }
 
-        if (this.shiftDown) {
-            if (this.ctrlDown) {
-                switch(keyCode) {
-                case 68:
-                case 100:
-                    inspector.preventDefault(event); break;  //key D pressed
-                }
-            }
-        }
 
+
+        // render-flags sub-mode: active after Shift+F in diagnostic mode.
+        // plain letter keys toggle individual render flags; Shift+F or Escape exits.
+        if (this.diagnosticMode && this.renderFlagsMode && !press && !this.shiftDown) {
+            var rfRenderer = map.renderer;
+            switch (keyCode) {
+            case 27:  // Escape — exit render-flags mode
+                this.renderFlagsMode = false;
+                inspector.showNotification('Diagnostic mode');
+                hit = true; break;
+            case 70: case 102: { // f — lighting
+                var rfF = !(rfRenderer.debug.flagLighting ?? map.config.mapFlagLighting);
+                rfRenderer.debug.flagLighting = rfF;
+                inspector.showNotification('Lighting ' + (rfF ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 78: case 110: { // n — normal maps
+                var rfN = !(rfRenderer.debug.flagNormalMaps ?? map.config.mapFlagNormalMaps);
+                rfRenderer.debug.flagNormalMaps = rfN;
+                inspector.showNotification('Normal maps ' + (rfN ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 68: case 100: { // d — diffuse maps
+                var rfD = !(rfRenderer.debug.flagDiffuseMaps ?? map.config.mapFlagDiffuseMaps);
+                rfRenderer.debug.flagDiffuseMaps = rfD;
+                inspector.showNotification('Diffuse maps ' + (rfD ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 83: case 115: { // s — specular maps
+                var rfS = !(rfRenderer.debug.flagSpecularMaps ?? map.config.mapFlagSpecularMaps);
+                rfRenderer.debug.flagSpecularMaps = rfS;
+                inspector.showNotification('Specular maps ' + (rfS ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 66: case 98: { // b — bump maps
+                var rfB = !(rfRenderer.debug.flagBumpMaps ?? map.config.mapFlagBumpMaps);
+                rfRenderer.debug.flagBumpMaps = rfB;
+                inspector.showNotification('Bump maps ' + (rfB ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 65: case 97: { // a — atmosphere
+                var rfA = !(rfRenderer.debug.flagAtmosphere ?? map.config.mapFlagAtmosphere);
+                rfRenderer.debug.flagAtmosphere = rfA;
+                inspector.showNotification('Atmosphere ' + (rfA ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 72: case 104: { // h — shadows
+                var rfH = !(rfRenderer.debug.flagShadows ?? map.config.mapFlagShadows);
+                rfRenderer.debug.flagShadows = rfH;
+                inspector.showNotification('Shadows ' + (rfH ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 76: case 108: { // l — Lambertian shading
+                var rfL = !(rfRenderer.debug.flagShadingLambertian ?? map.config.mapShadingLambertian);
+                rfRenderer.debug.flagShadingLambertian = rfL;
+                inspector.showNotification('Lambertian shading ' + (rfL ? 'on' : 'off'));
+                hit = true; break;
+            }
+            case 80: case 112: { // p — slope shading
+                var rfP = !(rfRenderer.debug.flagShadingSlope ?? map.config.mapShadingSlope);
+                rfRenderer.debug.flagShadingSlope = rfP;
+                inspector.showNotification('Slope shading ' + (rfP ? 'on' : 'off'));
+                hit = true; break;
+            }
+            }
+            if (hit) { inspector.preventDefault(event); }
+        }
 
         if (this.shiftDown && press !== true) {
 
@@ -96,11 +154,16 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
                 switch(keyCode) {
                 case 68:
                 case 100:
-                    
-                    inspector.enableInspector();
-                    this.diagnosticMode = true;
-                    inspector.showNotification('Diagnostic mode activated');
-                    hit = true; break;  //key D pressed
+                    if (!this.ctrlDown) {
+                        this.diagnosticMode = !this.diagnosticMode;
+                        if (this.diagnosticMode) {
+                            inspector.enableInspector();
+                            this.renderFlagsMode = false;
+                        }
+                        inspector.showNotification(this.diagnosticMode ? 'Diagnostic mode' : 'Diagnostic mode off');
+                        hit = true;
+                    }
+                    break;  //key D pressed
                 }
             //}
 
@@ -265,11 +328,11 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
 
                 case 70:
                 case 102:
-                    debug.drawWireframe = debug.drawWireframe != 3 ? 3 : 0;
-
-                    console.log('debug.wireframe=%d', debug.drawWireframe);
-
-                    break; //key F pressed
+                    this.renderFlagsMode = !this.renderFlagsMode;
+                    inspector.showNotification(this.renderFlagsMode
+                        ? 'Render flags mode — f:light n:normal d:diffuse s:specular b:bump a:atm h:shadows l:lambert p:slope'
+                        : 'Diagnostic mode');
+                    hit = true; break; //key F — toggle render-flags mode
 
                 case 85:
                 case 117:

@@ -91,7 +91,7 @@ export class Renderer {
     hitmapCounter = 0;
     hitmapData: Optional<Uint8Array> = null;
 
-    debug: { [key: string] : boolean }  = {}
+    debug: Renderer.Debug = {}
 
     geometries = {} // no clue, see MapInterface.getGeodataGeometry
 
@@ -496,8 +496,7 @@ createBuffers() {
 
 updateBuffers() {
 
-    // TODO: sync these with debug.
-    let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagAll;
+    let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagNone;
 
     // map
     let map = this.core.map;
@@ -532,8 +531,6 @@ updateBuffers() {
         data.lightDiffuse = [0, 0, 0, 0];
         data.lightSpecular = [0, 0, 0, 0];
         data.shadingParams = [0.0, 0.0, 0.0, 0.0];
-
-        renderFlags &= ~Renderer.RenderFlags.FlagLighting;
     }
 
     if (this.getIlluminationState()) {
@@ -569,17 +566,24 @@ updateBuffers() {
     data.physicalEyePos = map.camera.position;
     data.eyeToCenter =  [map.position.getViewDistance()];
 
-    // obtain the data: render flags and clip params
-    // TODO - use this.debug to set the flags
-    renderFlags &= ~Renderer.RenderFlags.FlagShadingLambertian;
-    if (map.config.mapShadingLambertian) {
-        renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
-    }
+    // obtain the data: render flags
+    // debug fields override config defaults (undefined = use config);
+    // flags start at FlagNone so any flag not explicitly set remains 0.
+    const d = this.debug;
+    const cfg = map.config;
 
-    renderFlags &= ~Renderer.RenderFlags.FlagShadingSlope;
-    if (map.config.mapShadingSlope) {
-        renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
-    }
+    // FlagLighting requires both the debug/config flag AND active illumination.
+    if ((d.flagLighting ?? cfg.mapFlagLighting) && this.getIlluminationState())
+        renderFlags |= Renderer.RenderFlags.FlagLighting;
+
+    if (d.flagNormalMaps    ?? cfg.mapFlagNormalMaps)    renderFlags |= Renderer.RenderFlags.FlagNormalMaps;
+    if (d.flagDiffuseMaps   ?? cfg.mapFlagDiffuseMaps)   renderFlags |= Renderer.RenderFlags.FlagDiffuseMaps;
+    if (d.flagSpecularMaps  ?? cfg.mapFlagSpecularMaps)  renderFlags |= Renderer.RenderFlags.FlagSpecularMaps;
+    if (d.flagBumpMaps      ?? cfg.mapFlagBumpMaps)      renderFlags |= Renderer.RenderFlags.FlagBumpMaps;
+    if (d.flagAtmosphere    ?? cfg.mapFlagAtmosphere)    renderFlags |= Renderer.RenderFlags.FlagAtmosphere;
+    if (d.flagShadows       ?? cfg.mapFlagShadows)       renderFlags |= Renderer.RenderFlags.FlagShadows;
+    if (d.flagShadingLambertian ?? cfg.mapShadingLambertian) renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
+    if (d.flagShadingSlope  ?? cfg.mapShadingSlope)      renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
 
     data.renderFlags = [renderFlags & 0xff, (renderFlags >> 8) & 0xff, 0, 0];
 
@@ -1783,7 +1787,14 @@ type Map = {
     config: {
         mapShadingLambertian: boolean;
         mapShadingSlope: boolean;
-        mapSplitMargin: number
+        mapFlagLighting: boolean;
+        mapFlagNormalMaps: boolean;
+        mapFlagDiffuseMaps: boolean;
+        mapFlagSpecularMaps: boolean;
+        mapFlagBumpMaps: boolean;
+        mapFlagAtmosphere: boolean;
+        mapFlagShadows: boolean;
+        mapSplitMargin: number;
     }
 }
 
@@ -1814,6 +1825,38 @@ export enum RenderFlags {
     FlagShadingLambertian  = 1 << 7, // bit 7
     FlagShadingSlope       = 1 << 8, // bit 8
     FlagAll            = 0xffff
+}
+
+/** Per-frame debug overrides for the renderer. Exported from the namespace
+ *  only so the Renderer class can use it as a member type; treat as internal.
+ *  Flag fields are optional: undefined means "fall back to the config default". */
+export type Debug = {
+    // render flag overrides (undefined = use config default)
+    flagLighting?: boolean;
+    flagNormalMaps?: boolean;
+    flagDiffuseMaps?: boolean;
+    flagSpecularMaps?: boolean;
+    flagBumpMaps?: boolean;
+    flagAtmosphere?: boolean;
+    flagShadows?: boolean;
+    flagShadingLambertian?: boolean;
+    flagShadingSlope?: boolean;
+    // fields from MapDraw.debug read by the renderer
+    shaderIllumination?: boolean; // TODO: remove when legacy draw path is retired
+    drawFog?: boolean;
+    drawWireframe?: number;
+    heightmapOnly?: boolean;
+    drawBBoxes?: boolean;
+    drawNBBoxes?: boolean;
+    drawEarth?: boolean;
+    drawLabelBoxes?: boolean;
+    drawGridCells?: boolean;
+    drawAllLabels?: boolean;
+    drawHiddenLabels?: boolean;
+    meshStats?: boolean;
+    maxZoom?: boolean;
+    drawTestData?: number;
+    [key: string]: boolean | number | undefined;
 }
 
 export type IlluminationDef = {

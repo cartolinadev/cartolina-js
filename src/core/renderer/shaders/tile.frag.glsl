@@ -108,7 +108,9 @@ void main() {
 
     bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
     bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // bit 1
-    // bits 2-4 not used, could be repurposed
+    bool useDiffuseMaps = (renderFlags & FlagDiffuseMaps) != 0; // bit 2
+    bool useSpecularMaps = (renderFlags & FlagSpecularMaps) != 0; // bit 3
+    bool useBumpMaps = (renderFlags & FlagBumpMaps) != 0; // bit 4
     bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
     bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
     bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0; // bit 7
@@ -199,7 +201,7 @@ void main() {
         }
 
         // source: shade
-        if (l.source == source_Shade) {
+        if (l.source == source_Shade && useLighting) {
 
             vec3 normal_;
             float slope = 0.0;

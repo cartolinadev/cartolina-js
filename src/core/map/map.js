@@ -932,6 +932,13 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMetricUnits':                this.config.mapMetricUnits = utils.validateBool(value, true); break;
     case 'mapShadingLambertian':         this.config.mapShadingLambertian = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapShadingSlope':              this.config.mapShadingSlope = utils.validateBool(value, false); this.markDirty(); break;
+    case 'mapFlagLighting':              this.config.mapFlagLighting = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagNormalMaps':            this.config.mapFlagNormalMaps = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagDiffuseMaps':           this.config.mapFlagDiffuseMaps = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagSpecularMaps':          this.config.mapFlagSpecularMaps = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagBumpMaps':              this.config.mapFlagBumpMaps = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagAtmosphere':            this.config.mapFlagAtmosphere = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagShadows':               this.config.mapFlagShadows = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
     case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
@@ -1026,6 +1033,13 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapMetricUnits':                return this.config.mapMetricUnits;
     case 'mapShadingLambertian':         return this.config.mapShadingLambertian;
     case 'mapShadingSlope':              return this.config.mapShadingSlope;
+    case 'mapFlagLighting':              return this.config.mapFlagLighting;
+    case 'mapFlagNormalMaps':            return this.config.mapFlagNormalMaps;
+    case 'mapFlagDiffuseMaps':           return this.config.mapFlagDiffuseMaps;
+    case 'mapFlagSpecularMaps':          return this.config.mapFlagSpecularMaps;
+    case 'mapFlagBumpMaps':              return this.config.mapFlagBumpMaps;
+    case 'mapFlagAtmosphere':            return this.config.mapFlagAtmosphere;
+    case 'mapFlagShadows':               return this.config.mapFlagShadows;
     case 'mapLanguage':                   return this.config.mapLanguage;
     case 'mapNoTextures':                 return this.config.mapNoTextures;
     case 'mapForceFrameTime':             return this.config.mapForceFrameTime;

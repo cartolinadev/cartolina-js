@@ -115,6 +115,13 @@ var Core = function(element, config) {
         mapLabelFreeMargins: [30, 30, 30, 30],
         mapShadingLambertian: true,
         mapShadingSlope: false,
+        mapFlagLighting: true,
+        mapFlagNormalMaps: true,
+        mapFlagDiffuseMaps: true,
+        mapFlagSpecularMaps: true,
+        mapFlagBumpMaps: true,
+        mapFlagAtmosphere: true,
+        mapFlagShadows: true,
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,
