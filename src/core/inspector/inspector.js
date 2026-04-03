@@ -80,6 +80,21 @@ Inspector.prototype.addStyle = function(string) {
 };
 
 
+Inspector.prototype.showNotification = function(message) {
+    if (!this.notificationEl) {
+        this.notificationEl = document.createElement('div');
+        this.notificationEl.id = 'vts-notification';
+        document.body.appendChild(this.notificationEl);
+    }
+    this.notificationEl.textContent = message;
+    this.notificationEl.style.opacity = '1';
+    clearTimeout(this.notificationTimer);
+    this.notificationTimer = setTimeout(function() {
+        this.notificationEl.style.opacity = '0';
+    }.bind(this), 2000);
+};
+
+
 //used to block mouse events
 Inspector.prototype.doNothing = function(e) {
     e.stopPropagation();

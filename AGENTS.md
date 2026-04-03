@@ -79,6 +79,8 @@ node test/screenshot.js complex-terrain
 
 Screenshots are saved to `/tmp/screenshots/<id>-dev.png` and `/tmp/screenshots/<id>-prod.png`. The script waits for network idle before capturing (same quiet-window strategy as the perf runner) and prints any console or network errors it finds.
 
+When writing Playwright-based diagnostic or interactive test scripts, always listen to **both** `page.on('console', ...)` and `page.on('pageerror', ...)`. Uncaught exceptions thrown inside event handlers (e.g. from simulated keyboard or mouse interaction) surface as `pageerror` events, not as `console` errors. A test that only monitors the `console` channel will silently miss these failures.
+
 3. A URL **renders correctly** when all of the following hold:
    - No network errors (failed tile or resource fetches).
    - No console errors.

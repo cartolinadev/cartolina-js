@@ -26,6 +26,7 @@
     , "style": "https://cdn.tspl.re/libs/cartolina/tests/styles/satellite.json"
     , "url": "https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/"
     , "pos": "obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00"
+    , "extras": "&mapShadingSlope=1"
   }
   , {
     "id": "tacoma-fitonly"

@@ -98,7 +98,9 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
                 case 100:
                     
                     inspector.enableInspector();
-                    this.diagnosticMode = true; hit = true; break;  //key D pressed
+                    this.diagnosticMode = true;
+                    inspector.showNotification('Diagnostic mode activated');
+                    hit = true; break;  //key D pressed
                 }
             //}
 
@@ -119,8 +121,43 @@ InspectorInput.prototype.onKeyUp = function(event, press) {
 
                     break; //key C pressed
 
-                case 49: /*this.core.setControlMode("manual"); done();*/  break;  //key 1 pressed
-                case 50: /*this.core.setControlMode("drone"); done();*/   break;  //key 2 pressed
+                case 49: {  //key 1 — copy position
+                    var map1 = this.core.getMap();
+                    if (map1) {
+                        var p1 = map1.getPosition();
+                        p1 = map1.convert.convertPositionHeightMode(p1, 'fix', true);
+                        var c1 = p1.getCoords(), o1 = p1.getOrientation();
+                        var posStr = p1.getViewMode() + ','
+                            + c1[0].toFixed(6) + ',' + c1[1].toFixed(6) + ','
+                            + p1.getHeightMode() + ',' + c1[2].toFixed(2) + ','
+                            + o1[0].toFixed(2) + ',' + o1[1].toFixed(2) + ',' + o1[2].toFixed(2) + ','
+                            + p1.getViewExtent().toFixed(2) + ',' + p1.getFov().toFixed(2);
+                        navigator.clipboard.writeText('pos=' + posStr).then(function() {
+                            inspector.showNotification('Position copied to clipboard');
+                        });
+                    }
+                    break;
+                }
+                case 50: {  //key 2 — paste position
+                    var self2 = this;
+                    navigator.clipboard.readText().then(function(text) {
+                        var match = text.match(/pos=([^\s&]+)/);
+                        if (match) {
+                            var items = match[1].split(',');
+                            for (var i = 1; i < items.length; i++) {
+                                if (i !== 3) { items[i] = parseFloat(items[i]); }
+                            }
+                            var map2 = self2.core.getMap();
+                            if (map2) {
+                                map2.setPosition(items);
+                                inspector.showNotification('Position applied from clipboard');
+                            }
+                        } else {
+                            inspector.showNotification('No position found in clipboard');
+                        }
+                    });
+                    break;
+                }
                 case 51: /*this.core.setControlMode("observer"); done();*/ break; //key 3 pressed
 
                 case 48:  //key 0 pressed
