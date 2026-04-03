@@ -32,7 +32,7 @@
         {
             "type": "bump-map",
             "source": "eoxit-s2c-normalmap",
-            "alpha": 0.2,
+            "alpha": 0.35,
             "necessity": "optional"
         },
         {

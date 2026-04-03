@@ -2,6 +2,8 @@
 
 ## Orientation
 
+The goal is to become a modern web-based cartography library with a truly three-dimensional underlying data model. It is a heavily diverged fork of the now-discontinued `vts-browser-js`. The codebase is a ten-year-old project in gradual, **feature-driven** refactoring. Most legacy JavaScript code still exists alongside newer TypeScript modules.
+
 Read [README.md](README.md) first. Two legacy documentation sources are available as on-demand references for understanding the codebase:
 
 - [vts-browser-js wiki](https://github.com/melowntech/vts-browser-js/wiki) — documents the upstream fork; useful when working with legacy code.
@@ -9,7 +11,7 @@ Read [README.md](README.md) first. Two legacy documentation sources are availabl
 
 `cartolina-js` is a WebGL2 3D terrain cartography library for the web. It is the frontend half of a two-component stack; the backend is [`cartolina-tileserver`](https://github.com/cartolinadev/cartolina-tileserver), a C++ Unix daemon that processes geospatial data and streams formatted tiles to the client. Consult that repository when working on features that involve the data or network interface between the two projects.
 
-The tileserver serves terrain surfaces (TIN meshes) and raster tile layers over an nginx reverse proxy (default: `localhost:8070/mapproxy`). Tile types consumed by `cartolina-js` include terrain surfaces, normal maps, specular reflection maps, bump maps, and shaded-relief rasters. Normal maps are bundled with terrain surfaces and discovered automatically via tileserver-provided metadata — no special client configuration is needed. Authoritative resource-definition documentation is in [`docs/resources.md`](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/resources.md) in the tileserver repository; the [legacy vts-mapproxy docs](https://web.archive.org/web/20230206094802/https://vts-geospatial.org/reference/server/mapproxy/index.html) cover most resource types and are still accurate.
+The tileserver serves terrain surfaces (TIN meshes) and raster tile layers over an nginx reverse proxy (default: `localhost:8070/mapproxy`). Tile types consumed by `cartolina-js` include terrain surfaces, overlay raster imagery, bump maps, specular reflection maps. Normal maps are bundled with terrain surfaces and discovered automatically via tileserver-provided metadata — no special client configuration is needed. Authoritative resource-definition documentation is in [`docs/resources.md`](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/resources.md) in the tileserver repository; the [legacy vts-mapproxy docs](https://web.archive.org/web/20230206094802/https://vts-geospatial.org/reference/server/mapproxy/index.html) cover most resource types and are still accurate.
 
 Key capabilities the library implements:
 - Digital elevation model rendering at varying resolutions
@@ -20,14 +22,13 @@ Key capabilities the library implements:
 - Multiple frames of reference, including planetary bodies
 - Point labels with visual hierarchy
 
-The goal is to become a modern web-based cartography library with a truly three-dimensional underlying data model. It is a heavily diverged fork of the now-discontinued `vts-browser-js`. The codebase is a ten-year-old project in gradual, **feature-driven** refactoring. Most legacy JavaScript code still exists alongside newer TypeScript modules.
 
 ## Environment
 
-- `nvm`-managed Node 18 is the expected runtime for repo commands. Before running `npm` or `node` commands in a fresh shell, explicitly load `nvm` and select Node 18, for example:
+- `nvm`-managed Node is the expected runtime for repo commands. Before running `npm` or `node` commands in a fresh shell, load `nvm` and select the version specified in `.nvmrc`:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 18
+source ~/.nvm/nvm.sh && nvm use
 ```
 
 - Do not assume the default `node` on `PATH` is correct; verify with `node -v` if a command fails unexpectedly.
@@ -43,7 +44,12 @@ Code is liability. Less code means fewer bugs and easier maintenance. We like to
 
 - **Backward compatibility with vts-browser-js APIs is not a goal.** Old APIs may be removed without deprecation periods.
 
+- **Funcitonality of applications under src/demos needs to be ensured.** When changes are made to the API, it shall either preserve backward compatibility or the demo applications need
+to be modified to reflect the changes. 
+
 - **Do not add abstraction layers, helpers, or utilities for hypothetical future use.** Only the minimum complexity needed for the current task.
+
+- **Test URLs under test/urls.json shall render correctly after any code change.** Backward compatiblity needs to be preserved to make these URLs work. 
 
 Refactoring is feature-driven, not an end in itself:
 
@@ -58,11 +64,25 @@ Refactoring is feature-driven, not an end in itself:
 
 The canonical set of test cases is defined in [test/urls.json](test/urls.json). Each entry describes a map configuration (style + camera position) accessible from the webpack dev server.
 
-**After any code change, verify that all test URLs still render correctly:**
+For regression testing, use only these three entries unless instructed otherwise: `simple-terrain`, `complex-terrain`, `full-terrain`.
 
-1. Start the dev server: `npm start`
-2. Open each URL listed under `"urls"` in `test/urls.json`, substituting the `"dev"` template.
-3. Check for visual regressions and console errors.
+1. Ensure the dev server is running: check whether `http://localhost:8080` is reachable; if not, start it with `npm start` in the background. If it is already running, connect to it directly — do not start a second instance.
+2. Use [test/screenshot.js](test/screenshot.js) to capture and compare renders:
+
+```bash
+# all test URLs
+node test/screenshot.js
+
+# one entry by id
+node test/screenshot.js complex-terrain
+```
+
+Screenshots are saved to `/tmp/screenshots/<id>-dev.png` and `/tmp/screenshots/<id>-prod.png`. The script waits for network idle before capturing (same quiet-window strategy as the perf runner) and prints any console or network errors it finds.
+
+3. A URL **renders correctly** when all of the following hold:
+   - No network errors (failed tile or resource fetches).
+   - No console errors.
+   - The dev screenshot is visually indistinguishable from the prod screenshot — same shading, labels, and imagery.
 
 The test index page is at `http://localhost:8080/test/`.
 
@@ -73,6 +93,8 @@ npm run test:perf:headed
 ```
 
 Results are viewable at `http://localhost:8080/test/perf`. A result is a regression if FPS drops by more than 10% or load time increases by more than 30%.
+
+Performeance regressiopn tests are normally not needed after every change. Perform them when they are part of the plan.
 
 
 ## Language and module rules
