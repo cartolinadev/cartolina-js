@@ -132,6 +132,11 @@ const baseConfig = {
         directory: path.join(__dirname, 'test'),
         publicPath: '/test',
         watch: true
+    },
+    {
+        directory: path.join(__dirname, 'src', 'sandbox'),
+        publicPath: '/sandbox',
+        watch: true
     }],
     open: false,
     client: {
