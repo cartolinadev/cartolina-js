@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cartolina-js overlay style prototype</title>
+    <link rel="stylesheet" href="./overlay-style.css" />
+  </head>
+  <body>
+    <main class="showcase">
+      <header class="showcase-header">
+        <div>
+          <h1 class="showcase-title">Overlay Style Prototype</h1>
+          <p class="showcase-note">
+            Demo-only shared overlay language for future diagnostic panels,
+            layer controls, attributions, and notifications.
+          </p>
+        </div>
+        <a class="showcase-link" href="/sandbox/">Back to sandbox index</a>
+      </header>
+
+      <section class="showcase-grid" aria-label="Light and dark theme panels">
+        <div class="showcase-theme">
+          <h2 class="showcase-theme-heading">Light Translucent Theme</h2>
+          <div class="showcase-stack">
+            <div class="mini-map" aria-hidden="true">
+              <div class="mini-map-label">Grossglockner massif</div>
+            </div>
+
+            <article class="vts-panel vts-panel--light">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Map Diagnostics</h3>
+                <p class="vts-panel-subtitle">
+                  Rendering metrics and terrain state
+                </p>
+                <table class="vts-panel-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Frame rate</td>
+                      <td class="vts-panel-value">58 fps</td>
+                    </tr>
+                    <tr>
+                      <td>GPU cache</td>
+                      <td class="vts-panel-value">412 MB</td>
+                    </tr>
+                    <tr>
+                      <td>Terrain LOD</td>
+                      <td class="vts-panel-value">11.8</td>
+                    </tr>
+                    <tr>
+                      <td>Visible tiles</td>
+                      <td class="vts-panel-value">143</td>
+                    </tr>
+                    <tr>
+                      <td>Sun azimuth</td>
+                      <td class="vts-panel-value">312°</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="vts-panel-section">
+                <div class="vts-panel-meta">
+                  <div class="vts-panel-row">
+                    <span class="vts-panel-label">Status</span>
+                    <span class="vts-panel-text">Stable render cadence</span>
+                  </div>
+                  <p class="vts-panel-text vts-panel-muted">
+                    Compact, restrained, and meant to sit over terrain without
+                    pulling the eye away from the map itself.
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            <article class="vts-panel vts-panel--light">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Layer Controls</h3>
+                <p class="vts-panel-subtitle">
+                  Example of a future browser overlay panel
+                </p>
+                <div class="sample-list">
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Terrain shading</p>
+                      <p class="sample-item-meta">
+                        Hillshade blended with native lighting
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" checked />
+                  </div>
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Aerial imagery</p>
+                      <p class="sample-item-meta">
+                        Surface bound layer, opacity at 72%
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" checked />
+                  </div>
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Lettering</p>
+                      <p class="sample-item-meta">
+                        Point labels with scale-dependent hierarchy
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" />
+                  </div>
+                </div>
+              </div>
+              <div class="vts-panel-section">
+                <div class="cluster">
+                  <div>
+                    <label class="vts-panel-label" for="light-opacity">
+                      Layer opacity
+                    </label>
+                    <div class="vts-panel-row">
+                      <input
+                        id="light-opacity"
+                        class="vts-panel-slider"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value="72"
+                      />
+                      <span class="vts-panel-slider-readout">72%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="vts-panel-label" for="light-style">
+                      Illumination style
+                    </label>
+                    <select id="light-style" class="vts-panel-select">
+                      <option>Alpine balanced</option>
+                      <option>Low sun contrast</option>
+                      <option>Terrain only</option>
+                    </select>
+                  </div>
+                  <div class="cluster-compact">
+                    <button class="vts-panel-button vts-panel-button--primary">
+                      Apply
+                    </button>
+                    <button class="vts-panel-button">Reset</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="vts-panel vts-panel--light">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Form Controls</h3>
+                <p class="vts-panel-subtitle">
+                  Text input and color selection
+                </p>
+                <div class="cluster">
+                  <div>
+                    <label class="vts-panel-label" for="light-input-name">
+                      Layer title
+                    </label>
+                    <input
+                      id="light-input-name"
+                      class="vts-panel-input"
+                      type="text"
+                      value="North-facing relief shading"
+                    />
+                  </div>
+                  <div>
+                    <label class="vts-panel-label" for="light-input-search">
+                      Filter layers
+                    </label>
+                    <input
+                      id="light-input-search"
+                      class="vts-panel-input"
+                      type="search"
+                      placeholder="Search imagery, labels, terrain..."
+                    />
+                  </div>
+                  <div class="showcase-row">
+                    <div>
+                      <label class="vts-panel-label" for="light-color-line">
+                        Contour color
+                      </label>
+                      <input
+                        id="light-color-line"
+                        class="vts-panel-color"
+                        type="color"
+                        value="#245da8"
+                      />
+                    </div>
+                    <div>
+                      <label class="vts-panel-label" for="light-color-haze">
+                        Atmosphere tint
+                      </label>
+                      <input
+                        id="light-color-haze"
+                        class="vts-panel-color"
+                        type="color"
+                        value="#9bb9cf"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <div class="showcase-row">
+              <article class="vts-panel vts-panel--light">
+                <div class="vts-panel-section">
+                  <h3 class="vts-panel-title">Notification Study</h3>
+                  <p class="vts-panel-subtitle">
+                    Toast and compact status language
+                  </p>
+                  <div class="cluster">
+                    <div class="vts-toast vts-panel--light">
+                      <span>Position copied to clipboard.</span>
+                    </div>
+                    <div class="vts-toast vts-panel--light">
+                      <span>Radar LOD override set to 9.</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article class="vts-panel vts-panel--light">
+                <div class="vts-panel-section">
+                  <h3 class="vts-panel-title">Attribution Study</h3>
+                  <p class="vts-panel-subtitle">
+                    Compact pill and stacked variants
+                  </p>
+                  <div class="cluster">
+                    <div class="vts-attribution vts-panel--light">
+                      <span>Imagery: <a href="/">Sentinel-2</a></span>
+                      <span class="vts-attribution-sep">|</span>
+                      <span>Terrain: <a href="/">EU-DEM</a></span>
+                    </div>
+                    <div
+                      class="vts-attribution vts-attribution--stacked
+                        vts-panel--light"
+                    >
+                      <span>Map data: <a href="/">swisstopo</a></span>
+                      <span>Shading: <a href="/">cartolina terrain rig</a></span>
+                      <span>Powered by <a href="/">cartolina.dev</a></span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <article class="vts-panel vts-panel--light">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Graph Container</h3>
+                <p class="vts-panel-subtitle">
+                  Placeholder styling for interactive analytical graphs
+                </p>
+                <div class="vts-panel-graph" aria-hidden="true">
+                  <svg viewBox="0 0 640 132" preserveAspectRatio="none">
+                    <polyline
+                      fill="none"
+                      stroke="rgba(36, 93, 168, 0.55)"
+                      stroke-width="2.5"
+                      points="0,96 48,88 102,74 151,72 196,58 246,49 295,60
+                        342,44 392,37 448,53 503,47 553,28 640,34"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="showcase-theme">
+          <h2 class="showcase-theme-heading showcase-theme-heading--dark">
+            Dark Translucent Theme
+          </h2>
+          <div class="showcase-stack">
+            <div class="mini-map" aria-hidden="true">
+              <div class="mini-map-label">Grossglockner massif</div>
+            </div>
+
+            <article class="vts-panel vts-panel--dark">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Map Diagnostics</h3>
+                <p class="vts-panel-subtitle">
+                  Rendering metrics and terrain state
+                </p>
+                <table class="vts-panel-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Frame rate</td>
+                      <td class="vts-panel-value">58 fps</td>
+                    </tr>
+                    <tr>
+                      <td>GPU cache</td>
+                      <td class="vts-panel-value">412 MB</td>
+                    </tr>
+                    <tr>
+                      <td>Terrain LOD</td>
+                      <td class="vts-panel-value">11.8</td>
+                    </tr>
+                    <tr>
+                      <td>Visible tiles</td>
+                      <td class="vts-panel-value">143</td>
+                    </tr>
+                    <tr>
+                      <td>Sun azimuth</td>
+                      <td class="vts-panel-value">312°</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="vts-panel-section">
+                <div class="vts-panel-meta">
+                  <div class="vts-panel-row">
+                    <span class="vts-panel-label">Status</span>
+                    <span class="vts-panel-text">Stable render cadence</span>
+                  </div>
+                  <p class="vts-panel-text vts-panel-muted">
+                    Compact, restrained, and meant to sit over terrain without
+                    pulling the eye away from the map itself.
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            <article class="vts-panel vts-panel--dark">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Layer Controls</h3>
+                <p class="vts-panel-subtitle">
+                  Example of a future browser overlay panel
+                </p>
+                <div class="sample-list">
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Terrain shading</p>
+                      <p class="sample-item-meta">
+                        Hillshade blended with native lighting
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" checked />
+                  </div>
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Aerial imagery</p>
+                      <p class="sample-item-meta">
+                        Surface bound layer, opacity at 72%
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" checked />
+                  </div>
+                  <div class="sample-item">
+                    <div class="sample-item-main">
+                      <p class="sample-item-name">Lettering</p>
+                      <p class="sample-item-meta">
+                        Point labels with scale-dependent hierarchy
+                      </p>
+                    </div>
+                    <input class="vts-panel-checkbox" type="checkbox" />
+                  </div>
+                </div>
+              </div>
+              <div class="vts-panel-section">
+                <div class="cluster">
+                  <div>
+                    <label class="vts-panel-label" for="dark-opacity">
+                      Layer opacity
+                    </label>
+                    <div class="vts-panel-row">
+                      <input
+                        id="dark-opacity"
+                        class="vts-panel-slider"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value="72"
+                      />
+                      <span class="vts-panel-slider-readout">72%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="vts-panel-label" for="dark-style">
+                      Illumination style
+                    </label>
+                    <select id="dark-style" class="vts-panel-select">
+                      <option>Alpine balanced</option>
+                      <option>Low sun contrast</option>
+                      <option>Terrain only</option>
+                    </select>
+                  </div>
+                  <div class="cluster-compact">
+                    <button class="vts-panel-button vts-panel-button--primary">
+                      Apply
+                    </button>
+                    <button class="vts-panel-button">Reset</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="vts-panel vts-panel--dark">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Form Controls</h3>
+                <p class="vts-panel-subtitle">
+                  Text input and color selection
+                </p>
+                <div class="cluster">
+                  <div>
+                    <label class="vts-panel-label" for="dark-input-name">
+                      Layer title
+                    </label>
+                    <input
+                      id="dark-input-name"
+                      class="vts-panel-input"
+                      type="text"
+                      value="North-facing relief shading"
+                    />
+                  </div>
+                  <div>
+                    <label class="vts-panel-label" for="dark-input-search">
+                      Filter layers
+                    </label>
+                    <input
+                      id="dark-input-search"
+                      class="vts-panel-input"
+                      type="search"
+                      placeholder="Search imagery, labels, terrain..."
+                    />
+                  </div>
+                  <div class="showcase-row">
+                    <div>
+                      <label class="vts-panel-label" for="dark-color-shadow">
+                        Contour color
+                      </label>
+                      <input
+                        id="dark-color-shadow"
+                        class="vts-panel-color"
+                        type="color"
+                        value="#245da8"
+                      />
+                    </div>
+                    <div>
+                      <label class="vts-panel-label" for="dark-color-glint">
+                        Atmosphere tint
+                      </label>
+                      <input
+                        id="dark-color-glint"
+                        class="vts-panel-color"
+                        type="color"
+                        value="#9bb9cf"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <div class="showcase-row">
+              <article class="vts-panel vts-panel--dark">
+                <div class="vts-panel-section">
+                  <h3 class="vts-panel-title">Notification Study</h3>
+                  <p class="vts-panel-subtitle">
+                    Toast and compact status language
+                  </p>
+                  <div class="cluster">
+                    <div class="vts-toast vts-panel--dark">
+                      <span>Position copied to clipboard.</span>
+                    </div>
+                    <div class="vts-toast vts-panel--dark">
+                      <span>Radar LOD override set to 9.</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article class="vts-panel vts-panel--dark">
+                <div class="vts-panel-section">
+                  <h3 class="vts-panel-title">Attribution Study</h3>
+                  <p class="vts-panel-subtitle">
+                    Compact pill and stacked variants
+                  </p>
+                  <div class="cluster">
+                    <div class="vts-attribution vts-panel--dark">
+                      <span>Imagery: <a href="/">Sentinel-2</a></span>
+                      <span class="vts-attribution-sep">|</span>
+                      <span>Terrain: <a href="/">EU-DEM</a></span>
+                    </div>
+                    <div
+                      class="vts-attribution vts-attribution--stacked
+                        vts-panel--dark"
+                    >
+                      <span>Map data: <a href="/">swisstopo</a></span>
+                      <span>Shading: <a href="/">cartolina terrain rig</a></span>
+                      <span>Powered by <a href="/">cartolina.dev</a></span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <article class="vts-panel vts-panel--dark">
+              <div class="vts-panel-section">
+                <h3 class="vts-panel-title">Graph Container</h3>
+                <p class="vts-panel-subtitle">
+                  Placeholder styling for interactive analytical graphs
+                </p>
+                <div class="vts-panel-graph" aria-hidden="true">
+                  <svg viewBox="0 0 640 132" preserveAspectRatio="none">
+                    <polyline
+                      fill="none"
+                      stroke="rgba(214, 230, 255, 0.82)"
+                      stroke-width="2.5"
+                      points="0,96 48,88 102,74 151,72 196,58 246,49 295,60
+                        342,44 392,37 448,53 503,47 553,28 640,34"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function() {
+        function syncSliderFill(slider) {
+          var min = Number(slider.min || 0);
+          var max = Number(slider.max || 100);
+          var value = Number(slider.value || 0);
+          var ratio = max > min ? ((value - min) / (max - min)) * 100 : 0;
+          slider.style.setProperty('--vts-slider-fill', ratio + '%');
+        }
+
+        var sliders = document.querySelectorAll('.vts-panel-slider');
+        for (var i = 0; i < sliders.length; i++) {
+          syncSliderFill(sliders[i]);
+          sliders[i].addEventListener('input', function(event) {
+            syncSliderFill(event.currentTarget);
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>
