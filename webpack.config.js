@@ -134,8 +134,9 @@ const baseConfig = {
         watch: true
     },
     {
-        directory: path.join(__dirname, 'src', 'sandbox'),
+        directory: path.join(__dirname, 'sandbox'),
         publicPath: '/sandbox',
+        serveIndex: true,
         watch: true
     }],
     open: false,
@@ -206,13 +207,13 @@ const workerGeodata = makeWorker(
 );
 
 
-// 5) Sandbox/Prototypes build: compiles TS prototypes in test/sandbox/* to /build/sandbox/*.js
+// 5) Sandbox build: compiles TS sandbox apps to /build/sandbox/*.js
 var sandboxConfig = {
   name: 'sandbox',
   mode: (isProd) ? 'production' : 'development',
   context: __dirname,
   entry: {
-    'atm-density': './test/sandbox/atmosphere-density/main.ts'
+    'atm-density': './sandbox/atmosphere-density/main.ts'
   },
   output: {
     path: TARGET_DIR,
@@ -229,7 +230,7 @@ var sandboxConfig = {
           loader: 'ts-loader',
           options: {
             // Use a sandbox-specific tsconfig
-            //configFile: path.join(__dirname, 'test/sandbox', 'tsconfig.json'),
+            //configFile: path.join(__dirname, 'sandbox', 'tsconfig.json'),
           }
         }]
       },

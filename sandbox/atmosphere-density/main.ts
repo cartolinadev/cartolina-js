@@ -1,4 +1,4 @@
-// test/sandbox/atmosphere-density/main.ts
+// sandbox/atmosphere-density/main.ts
 //
 // Diagnostic app: compare CPU-decoded atmosphere density RGB vs GPU sampling.
 //
@@ -7,8 +7,8 @@
 // - Atmosphere helper: Atmosphere.decodeAtmosphereDensity(img: ImageData)
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
-import {Core} from '../../../src/core/core.js';
-import Atmosphere from '../../../src/core/map/atmosphere'; 
+import {Core} from '../../src/core/core.js';
+import Atmosphere from '../../src/core/map/atmosphere';
 
 const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
 
