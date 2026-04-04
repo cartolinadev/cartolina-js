@@ -139,7 +139,7 @@ Every new class and every new module shall have a JSDoc block:
 
 Use [tile-render-rig.ts](src/core/map/tile-render-rig.ts) and [atmosphere.ts](src/core/map/atmosphere.ts) as reference examples for documentation style.
 
-Internal/private methods do not require JSDoc unless the logic is non-obvious.
+Private methods usually don't need JSDoc unless their functionality is non obvious. But if they do, it must be kept up to date — stale documentation is worse than none.
 
 
 ## WebGL2 shaders

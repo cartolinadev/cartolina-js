@@ -585,7 +585,7 @@ updateBuffers() {
     if (d.flagShadingLambertian ?? cfg.mapShadingLambertian) renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
     if (d.flagShadingSlope  ?? cfg.mapShadingSlope)      renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
 
-    data.renderFlags = [renderFlags & 0xff, (renderFlags >> 8) & 0xff, 0, 0];
+    data.renderFlags = Renderer.encodeRenderFlags(renderFlags);
 
     // clip params
     data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
@@ -1825,6 +1825,12 @@ export enum RenderFlags {
     FlagShadingLambertian  = 1 << 7, // bit 7
     FlagShadingSlope       = 1 << 8, // bit 8
     FlagAll            = 0xffff
+}
+
+/** Encode a RenderFlags value into the ivec4 format used by frame and layer UBOs.
+ *  Returns [low byte, high byte, 0, 0] matching the GLSL decode: x | (y << 8). */
+export function encodeRenderFlags(flags: RenderFlags): [number, number, number, number] {
+    return [flags & 0xff, (flags >> 8) & 0xff, 0, 0];
 }
 
 /** Per-frame debug overrides for the renderer. Exported from the namespace

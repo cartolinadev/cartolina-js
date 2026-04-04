@@ -80,8 +80,12 @@ Eye frameEye() {
     return eye;
 }
 
+int decodeRenderFlags(ivec4 raw) {
+    return raw.x | (raw.y << 8);
+}
+
 int frameRenderFlags() {
-    return uFrame.renderFlags.x | (uFrame.renderFlags.y << 8);
+    return decodeRenderFlags(uFrame.renderFlags);
 }
 
 

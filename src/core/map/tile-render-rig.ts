@@ -510,6 +510,12 @@ export class TileRenderRig {
 
         w += 2;                                                 // p2.zw
 
+        // ivec4 p3
+        const fm = Renderer.encodeRenderFlags(
+            layer.flagMask ?? Renderer.RenderFlags.FlagNone);
+        i32[w++] = fm[0]; i32[w++] = fm[1];                    // p3.xy — flag mask
+        i32[w++] = fm[2]; i32[w++] = fm[3];                    // p3.zw reserved
+
         // done
         bufacc.woffset = w;
 
@@ -670,20 +676,14 @@ export class TileRenderRig {
                     srcTextureSampling: 'normal',
                     operation: 'push',
                     necessity: 'essential',
+                    flagMask: Renderer.RenderFlags.FlagNormalMaps,
                     rt: {}
                 });
 
-            } else {
-
-                // use gl-based flat shading
-                rt.layerStack.push({
-                    target: 'normal',
-                    source: 'normal-flat',
-                    operation: 'push',
-                    necessity: 'essential',
-                    rt: {}
-                });
             }
+            // normal-flat push removed: the shader pre-pushes flatNormal as the
+            // normal-stack baseline before the layer loop, so bump layers always
+            // have a valid normal to blend into even when FlagNormalMaps is off.
         }
 
         // add bump layers, if any
@@ -692,7 +692,8 @@ export class TileRenderRig {
             let necessity = item.necessity ?? 'optional';
 
             let layer: Layer | false
-                = this.layerFromDef(item, necessity, false, 'normal');
+                = this.layerFromDef(item, necessity, false, 'normal',
+                    Renderer.RenderFlags.FlagBumpMaps);
 
             if (layer) rt.layerStack.push(layer);
 
@@ -738,7 +739,8 @@ export class TileRenderRig {
 
             let necessity = item.necessity ?? 'essential';
 
-            let layer: Layer | false = this.layerFromDef(item, necessity);
+            let layer: Layer | false = this.layerFromDef(item, necessity,
+                true, 'color', Renderer.RenderFlags.FlagDiffuseMaps);
             if (layer) rt.layerStack.push(layer);
         });
 
@@ -755,12 +757,15 @@ export class TileRenderRig {
                 opBlendMode: 'multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
                 tgtColorWhitewash: 0,
+                flagMask: Renderer.RenderFlags.FlagLighting,
                 rt: {}
             });
         }
 
         // add specular bound layers (if illuminated)
         if (rt.illumination && speculars.length > 0) {
+
+            const specularMask = Renderer.RenderFlags.FlagLighting | Renderer.RenderFlags.FlagSpecularMaps;
 
             // push black as background
             rt.layerStack.push({
@@ -770,6 +775,7 @@ export class TileRenderRig {
                 necessity: 'essential',  // sanity
                 srcConstant: [0, 0, 0],
                 tgtColorWhitewash: 0,
+                flagMask: specularMask,
                 rt: {}
             });
 
@@ -778,7 +784,8 @@ export class TileRenderRig {
 
                 let necessity = item.necessity ?? 'essential';
 
-                let layer: Layer | false = this.layerFromDef(item, necessity);
+                let layer: Layer | false = this.layerFromDef(item, necessity,
+                    true, 'color', specularMask);
                 if (layer) rt.layerStack.push(layer);
 
             }); // layerDef.specularSequence.forEach()
@@ -794,6 +801,7 @@ export class TileRenderRig {
                 opBlendMode: 'specular-multiply',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
                 tgtColorWhitewash: 0,
+                flagMask: specularMask,
                 rt: {}
             });
 
@@ -806,6 +814,7 @@ export class TileRenderRig {
                 opBlendMode: 'add',
                 opBlendAlpha: { mode: 'constant', value: 1.0 },
                 tgtColorWhitewash: 0,
+                flagMask: specularMask,
                 rt: {}
             });
 
@@ -821,6 +830,7 @@ export class TileRenderRig {
                 necessity: 'optional',
                 operation: 'atm-color',
                 tgtColorWhitewash: 0,
+                flagMask: Renderer.RenderFlags.FlagAtmosphere,
                 rt: {}
             });
         }
@@ -834,6 +844,7 @@ export class TileRenderRig {
                 necessity: 'optional',
                 operation: 'shadows',
                 tgtColorWhitewash: 0,
+                flagMask: Renderer.RenderFlags.FlagShadows,
                 rt: {}
             });
         };
@@ -908,13 +919,16 @@ export class TileRenderRig {
      *      higher lods? Usually true.
      * @param target 'color' (for the fragment color stack) or 'normal'
      *      (for the surface normal stack), normally 'color'.
+     * @param flagMask render flag bits that must all be set in the frame renderFlags
+     *      for the layer to execute; use FlagNone (0) to always execute.
      * @return resultant layer operation, or undefined if layer def yields none.
      */
 
     private layerFromDef(
         layerSpec: MapStyle.TileLayer,
-        necessity: Necessity = 'essential', propagate: boolean = true,
-        target: 'color' | 'normal' = 'color' ): Layer | undefined {
+        necessity: Necessity, propagate: boolean,
+        target: 'color' | 'normal',
+        flagMask: Renderer.RenderFlags): Layer | undefined {
 
         let type_ = layerSpec.type ?? 'diffuse-map';
 
@@ -922,18 +936,19 @@ export class TileRenderRig {
 
             return this.textureLayerFromDef(
                 layerSpec as MapStyle.TileTextureLayer, necessity, propagate,
-                target);
+                target, flagMask);
         }
 
         if (['constant', 'diffuse-constant'].includes(layerSpec.type))
             return this.constantLayerFromDef(layerSpec as MapStyle.DiffuseConstantLayer,
-                                             necessity, propagate, target);
+                                             necessity, propagate, target, flagMask);
     }
 
     private textureLayerFromDef(layerSpec: MapStyle.TileTextureLayer,
-                         necessity: Necessity = 'essential',
-                         propagate: boolean = true,
-                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
+                         necessity: Necessity,
+                         propagate: boolean,
+                         target: 'color' | 'normal',
+                         flagMask: Renderer.RenderFlags): Layer | undefined {
 
 
         let tile = this.tile;
@@ -1030,6 +1045,7 @@ export class TileRenderRig {
             opBlendAlpha: alpha,
 
             tgtColorWhitewash: whitewash,
+            flagMask: flagMask,
 
             rt: {
                 layerId: layer.id,
@@ -1042,9 +1058,10 @@ export class TileRenderRig {
     } // textureLayerFromDef
 
     private constantLayerFromDef(layerSpec: MapStyle.DiffuseConstantLayer,
-                         necessity: Necessity = 'essential',
-                         propagate: boolean = true,
-                         target: 'color' | 'normal' = 'color' ): Layer | undefined {
+                         necessity: Necessity,
+                         propagate: boolean,
+                         target: 'color' | 'normal',
+                         flagMask: Renderer.RenderFlags): Layer | undefined {
 
         let alpha: Alpha, mode: BlendMode;
         [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
@@ -1066,6 +1083,7 @@ export class TileRenderRig {
             necessity: layerSpec.necessity ?? necessity,
             srcConstant: srcConstant,
             tgtColorWhitewash: 0,
+            flagMask: flagMask,
             rt: { isWatertight: isWatertight }
 
         }
@@ -1243,6 +1261,8 @@ type Layer = {
 
     tgtColorWhitewash?: number,
 
+    flagMask?: Renderer.RenderFlags,
+
     rt: {
 
         layerId?: string,
@@ -1261,8 +1281,8 @@ const MaxLayers = 16;
 const MaxTextures = 12;
 const FirstLayerTextureUnit = NormalMapTextureIdx + 1;
 
-// 1x ivec4 + MaxTextures * (2x ivec4 + 2x vec4)
-const UboLayersSize = 16 + MaxLayers * 64;
+// 1x ivec4 + MaxLayers * (2x ivec4 + 2x vec4 + 1x ivec4)
+const UboLayersSize = 16 + MaxLayers * 80;
 
 
 enum UboTarget {

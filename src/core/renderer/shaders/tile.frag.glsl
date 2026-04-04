@@ -106,15 +106,9 @@ void main() {
     //renderFlags = renderFlags
     //    & (FlagLighting | FlagNormalMaps | FlagAtmosphere | FlagShadows);
 
-    bool useLighting = (renderFlags & FlagLighting) != 0; // bit 0
-    bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // bit 1
-    bool useDiffuseMaps = (renderFlags & FlagDiffuseMaps) != 0; // bit 2
-    bool useSpecularMaps = (renderFlags & FlagSpecularMaps) != 0; // bit 3
-    bool useBumpMaps = (renderFlags & FlagBumpMaps) != 0; // bit 4
-    bool useAtmosphere = (renderFlags & FlagAtmosphere) != 0; // bit 5
-    bool useShadows = (renderFlags & FlagShadows) != 0; // bit 6
-    bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0; // bit 7
-    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0; // bit 8
+    bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
+    bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0;
+    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
 
     // clip
     vec2 clipCoord = vTexCoords2;
@@ -151,10 +145,17 @@ void main() {
 
     vec3 flatNormal = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));
 
+    // pre-push flat normal as baseline so bump layers always have a normal to blend into,
+    // even when FlagNormalMaps is off and the normal-map push layer is skipped
+    push(normal, flatNormal);
+
     // decode and execute layers
     for (int i = 0; i < numLayers; i++ ) {
 
         Layer l = decodeLayer(i);
+
+        // skip layer if its required render flags are not all set
+        if (l.flagMask != 0 && (renderFlags & l.flagMask) != l.flagMask) continue;
 
         vec4 operand;
 
@@ -201,14 +202,14 @@ void main() {
         }
 
         // source: shade
-        if (l.source == source_Shade && useLighting) {
+        if (l.source == source_Shade) {
 
             vec3 normal_;
             float slope = 0.0;
 
-            if (useNormalMaps) {
+            normal_ = top(normal);
 
-                normal_ = top(normal);
+            if (useNormalMaps) {
 
                 // skip this for no exaggeration (optimization)
                 if (vVerticalExaggeration - 1.0 > 1e-3) {
@@ -226,16 +227,14 @@ void main() {
                 if (useSlopeShading)
                     slope = acos(clamp(normal_.z, -1.0, 1.0));
 
-        
-                normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector) 
+                normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector)
                     * normal_;
             }
 
             if (!useNormalMaps) {
-                normal_ = flatNormal;
 
                 if (useSlopeShading)
-                    slope = acos(clamp(dot(flatNormal, 
+                    slope = acos(clamp(dot(flatNormal,
                         normalize(vEllipsoidZenith)), -1.0, 1.0));
             }
 
@@ -287,7 +286,7 @@ void main() {
         }
 
         // source: atmdensity
-        if (l.source == source_AtmDensity && useAtmosphere) {
+        if (l.source == source_AtmDensity) {
 
             if (l.target == target_Color)
                 operand = vec4(vec3(vAtmDensity), 1.0);
@@ -362,14 +361,14 @@ void main() {
         }
 
         // operation: atmcolor
-        if (l.operation == operation_AtmColor && useAtmosphere) {
+        if (l.operation == operation_AtmColor) {
 
             if (l.target == target_Color)
                 swapTop(color, atmColor(operand.x, vec4(top(color), 1.0)).xyz);
         }
 
         // operation: shadows
-        if (l.operation == operation_Shadows && useShadows) {
+        if (l.operation == operation_Shadows) {
 
             float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
             float ratio;

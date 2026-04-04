@@ -50,6 +50,8 @@ struct LayerRaw {
 
     highp vec4 p1;  // xyz: srcConstant / xyzw: srcTextureTransform
     highp vec4 p2;  // x: opBlendAlpha, y: tgtColorWhitewash, zw: reserved
+    highp ivec4 p3; // x: flagMask low byte, y: flagMask high byte (same encoding as frame renderFlags)
+                    // zw: reserved
 };
 
 /* the ubo with raw layer array */
@@ -86,6 +88,7 @@ struct Layer {
     int srcNormalMapTextureIdx;
 
     int opBlendMode;
+    int flagMask;
 
     vec3 srcConstant;
     float srcTextureTransform[4];
@@ -147,10 +150,11 @@ Layer decodeLayer(int index) {
     if (layer.operation == operation_Blend)
         layer.opBlendAlpha = raw.p2.x;
 
-
     if (layer.target == target_Color)
         layer.targetColorWhitewash = raw.p2.y;
 
+    // p3
+    layer.flagMask = decodeRenderFlags(raw.p3);
 
     return layer;
 }

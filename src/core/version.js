@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.152-feature_rendering_flags.ef8f3de';
+  return '2.49.153-feature_rendering_flags.917367c';
 }
