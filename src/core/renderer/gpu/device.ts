@@ -11,8 +11,8 @@ import * as utils from '../../utils/utils';
  *   * it manages the canvas inside the map element and sets its size properly
  *     according to the provided CSS pixel size and device pixel ratio.
  *
- *   * it computes the size of the gl viewport, though it doen set it (it should)
- *     (setViewport)
+ *   * it tracks the current render target and keeps framebuffer binding and the
+ *     gl viewport in sync with it
  *
  *   * it abstracts various GL rendering flags (gl.BLEND, gl.STENCIL_TEST,
  *     gl.DEPTH) into a single state object, with getState and setState accessors.
@@ -48,9 +48,11 @@ export class GpuDevice {
     currentProgram?: WebGLProgram;
 
     viewport!: Viewport;
+    canvasRenderTarget!: GpuDevice.RenderTarget;
+    currentRenderTarget!: GpuDevice.RenderTarget;
     anisoExt?: EXT_texture_filter_anisotropic | null;
 
-constructor(renderer: Renderer, div: HTMLElement, size: NumberPair,
+constructor(renderer: Renderer, div: HTMLElement,
             keepFrameBuffer: boolean, antialias: boolean,
             aniso: GLfloat) {
 
@@ -82,8 +84,6 @@ private init() {
     this.canvas = canvas;
     canvas.style.display = 'block';
     this.div.appendChild(canvas);
-
-    this.resize();
 
     if (canvas.getContext == null) {
         //canvas not supported
@@ -117,6 +117,12 @@ private init() {
         this.anisoLevel = 0;
     }
 
+    this.canvasRenderTarget = {
+        kind: 'canvas',
+        viewportSize: [canvas.width, canvas.height],
+        logicalSize: [canvas.width, canvas.height]
+    };
+    this.currentRenderTarget = this.canvasRenderTarget;
     this.viewport = { width: canvas.width, height: canvas.height };
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -156,24 +162,28 @@ contextRestored(): void {
 };
 
 
-resize(skipCanvas: boolean = false) {
+resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
 
     let canvas = this.canvas;
 
-    let [width, height] = this.renderer.css();
-    let [pwidth, pheight] = this.renderer.pixels(); 
+    if (canvas != null) {
+        canvas.width = pixelSize[0];
+        canvas.height = pixelSize[1];
+        canvas.style.width = cssSize[0] + 'px';
+        canvas.style.height = cssSize[1] + 'px';
 
-    if (canvas != null && skipCanvas !== true) {
-        canvas.width = pwidth;
-        canvas.height = pheight;
-        canvas.style.width = width + 'px';
-        canvas.style.height = height + 'px';
-
-        __DEV__ && utils.logOnce(`canvas size: [${pwidth}, ${pheight}], `
-                + `canvas css size: [${width} ${height}]`);
+        __DEV__ && utils.logOnce(`canvas size: [${pixelSize[0]}, ${pixelSize[1]}], `
+                + `canvas css size: [${cssSize[0]} ${cssSize[1]}]`);
     }
 
-    this.viewport = { width: canvas.width, height: canvas.height }
+    if (this.canvasRenderTarget) {
+        this.canvasRenderTarget.viewportSize = [...pixelSize];
+        this.canvasRenderTarget.logicalSize = [...cssSize];
+    }
+
+    if (this.currentRenderTarget?.kind === 'canvas') {
+        this.viewport = { width: pixelSize[0], height: pixelSize[1] };
+    }
 };
 
 
@@ -198,6 +208,23 @@ getCanvas(): HTMLCanvasElement {
 setViewport() {
     this.gl.viewport(0, 0, this.viewport.width, this.viewport.height);
 };
+
+setRenderTarget(target: GpuDevice.RenderTarget) {
+
+    this.currentRenderTarget = target;
+    this.viewport = {
+        width: target.viewportSize[0],
+        height: target.viewportSize[1]
+    };
+
+    if (target.kind === 'canvas') {
+        this.setFramebuffer(null);
+    } else {
+        this.setFramebuffer(target.texture);
+    }
+
+    this.setViewport();
+}
 
 
 clear(clearDepth: boolean, clearColor: boolean, color : Color): void {
@@ -294,7 +321,7 @@ bindTexture(texture: GpuTexture, id?: GLint) {
 }
 
 /**
- * WARN: The function does nothing to the gl.viewport, which is set by the
+ * WARN: The function does nothing to the this.viewport, which is set by the
  * calling layer. Pretty ugly, things may fall appart as soon as the upper
  * layer issues an innocent call to this.setViewport.
  */
@@ -405,11 +432,20 @@ export type State = {
     culling: boolean
 }
 
+export type RenderTarget =
+    | {
+        kind: 'canvas',
+        viewportSize: NumberPair,
+        logicalSize: NumberPair
+    }
+    | {
+        kind: 'framebuffer',
+        texture: GpuTexture,
+        viewportSize: NumberPair,
+        logicalSize: NumberPair
+    }
+
 } // export namespace GpuDevice
 
 
 export default GpuDevice;
-
-
-
-
