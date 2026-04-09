@@ -147,7 +147,7 @@ var Core = function(element, config) {
 
     this.map = null;
     this.mapInterface = null;
-    this.renderer = new Renderer(this, this.element, this.onResize.bind(this), this.config);
+    this.renderer = new Renderer(this, this.element, this.config);
     this.rendererInterface = new RendererInterface(this.renderer);
     this.proj4 = Proj4;
     this.contextLost = false;
@@ -186,15 +186,6 @@ var Core = function(element, config) {
 
     this.requestAnimFrame.call(window, this.onUpdate.bind(this));
 };
-
-
-Core.prototype.onResize = function() {
-    if (this.map != null) {
-        this.map.markDirty();
-    }
-};
-
-
 Core.prototype.loadMapFromStyle = async function(style) {
 
     let style_ = style;

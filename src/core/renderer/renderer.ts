@@ -64,7 +64,6 @@ export class Renderer {
     config: Config;
     core: Core;
     div: HTMLElement;
-    onResizeCall: () => void;
 
     marginFlags = 0; // see rmap.js
 
@@ -288,13 +287,12 @@ export class Renderer {
     killed = false;
 
 
-constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config) {
+constructor(core: Core, div: HTMLElement, config : Config) {
 
     this.config = config; // || {};
     this.core = core;
     this.div = div;
     this.geometries = {};
-    this.onResizeCall = onResize;
     this.stencilLineState = null;
 
     // device
@@ -329,17 +327,16 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
     // device
-    this.calculateSizes();
+    const sizes = this.calculateSizes();
+    this.applySizes(sizes);
 
     this.gpu = new GpuDevice(this, div, this.curSize, 
         !! this.config.rendererAllowScreenshots, 
         !! this.config.rendererAntialiasing, 
         this.config.rendererAnisotropic ?? 0);
 
-
-    this.resizeGL(this.curSize);
-    //window.addEventListener('resize', (this.onResize).bind(this), false);
-    new ResizeObserver(() => { this.onResize.bind(this); }).observe(this.div);
+    this.updateScreenSize(this.curSize);
+    this.syncCanvasSize();
 
     // initialize resources
     this.init = new RenderInit(this);
@@ -352,7 +349,7 @@ constructor(core: Core, div: HTMLElement, onResize : () => void, config : Config
 };
 
 
-private calculateSizes() {
+private calculateSizes(): Renderer.SizeState {
 
     const el = this.div as HTMLElement;
 
@@ -360,17 +357,24 @@ private calculateSizes() {
     let W = el.offsetWidth || el.clientWidth;
     let H = el.offsetHeight || el.clientHeight;
 
-    this.curSize = [W, H]; // QSize
-    this.oldSize = [W, H]; // QSize
-
     // pixel size, based on dpr and css transforms
     const rect = el.getBoundingClientRect();
     let dpr = window.devicePixelRatio || 1;
 
-    this.pixelSize = [rect.width * dpr, rect.height * dpr];
-
     // TODO: compute this properly, applying compose of all css transforms
-    this.visibleScale_ = [rect.width / W, rect.height / H];
+    return {
+        cssSize: [W, H],
+        pixelSize: [rect.width * dpr, rect.height * dpr],
+        visibleScale: [rect.width / W, rect.height / H]
+    };
+}
+
+private applySizes(sizes: Renderer.SizeState) {
+
+    this.curSize = [...sizes.cssSize];
+    this.oldSize = [...sizes.cssSize];
+    this.pixelSize = [...sizes.pixelSize];
+    this.visibleScale_ = [...sizes.visibleScale];
 }
 
 /**
@@ -734,30 +738,39 @@ visibleScale(): Readonly<Size2> {
     return this.visibleScale_;
 }
 
-onResize() {
-    if (this.killed){
-        return;
+updateSizeIfNeeded(skipCanvas: boolean = false): boolean {
+
+    if (this.killed) {
+        return false;
     }
 
-    this.calculateSizes();
+    const nextSizes = this.calculateSizes();
+    const changed =
+        this.curSize[0] !== nextSizes.cssSize[0] ||
+        this.curSize[1] !== nextSizes.cssSize[1] ||
+        this.pixelSize[0] !== nextSizes.pixelSize[0] ||
+        this.pixelSize[1] !== nextSizes.pixelSize[1] ||
+        this.visibleScale_[0] !== nextSizes.visibleScale[0] ||
+        this.visibleScale_[1] !== nextSizes.visibleScale[1];
 
-    // canvas size, gl viewport
-    this.resizeGL(this.curSize);
-
-    if (this.onResizeCall) {
-        this.onResizeCall();
+    if (!changed) {
+        return false;
     }
-};
 
-resizeGL(size: [number, number], skipCanvas: boolean = false) {
+    this.applySizes(nextSizes);
+    this.updateScreenSize(nextSizes.cssSize);
+    this.syncCanvasSize(skipCanvas);
+
+    return true;
+}
+
+updateScreenSize(size: [number, number]) {
 
     let [width, height] = size;
 
     this.camera.setAspect(width / height);
     this.curSize = [width, height];
     this.oldSize = [width, height];
-
-    this.gpu.resize(skipCanvas);
 
     var m = new Float32Array(16);
 
@@ -768,7 +781,12 @@ resizeGL(size: [number, number], skipCanvas: boolean = false) {
     m[12] = -width*0.5*m[0]; m[13] = -height*0.5*m[5]; m[14] = 0; m[15] = 1;
 
     this.imageProjectionMatrix = m;
-};
+}
+
+syncCanvasSize(skipCanvas: boolean = false) {
+
+    this.gpu.resize(skipCanvas);
+}
 
 
 project2(point, mvp, cameraPos, includeDistance: boolean = false) {
@@ -1863,6 +1881,12 @@ export type Debug = {
     maxZoom?: boolean;
     drawTestData?: number;
     [key: string]: boolean | number | undefined;
+}
+
+export type SizeState = {
+    cssSize: Size2;
+    pixelSize: Size2;
+    visibleScale: Size2;
 }
 
 export type IlluminationDef = {

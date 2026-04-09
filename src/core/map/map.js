@@ -1530,12 +1530,10 @@ Map.prototype.update = function() {
     this.camera.lastTerrainHeight = this.camera.terrainHeight;
     this.drawFog = this.config.mapFog;
 
-    var rect = this.renderer.div.getBoundingClientRect();
     var renderer = this.renderer, p;
     var camPos = renderer.cameraPosition;
 
-    if (renderer.curSize[0] != rect.width || renderer.curSize[1] != rect.height) {
-        renderer.onResize();
+    if (renderer.updateSizeIfNeeded()) {
         this.dirty = true;
     }
 
