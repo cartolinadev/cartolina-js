@@ -767,7 +767,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         if (useSuperElevation) {
 
             // TODO: this should be done in LNED, not VC
-            //ilumvecVC[2] /= renderer.getSeProgressionFactor(this.map.position);
+            //ilumvecVC[2] /= renderer.getVeScaleFactor(this.map.position);
             //vec3.normalize(ilumvecVC);
         }
 

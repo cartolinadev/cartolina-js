@@ -240,7 +240,6 @@ export type LightSpecification = {
 
 export type VerticalExaggerationSpecification =
     | {
-        // New format: scale-denominator based
         elevationRamp?: {
             min: [number, number];
             max: [number, number];
@@ -250,8 +249,8 @@ export type VerticalExaggerationSpecification =
             max: [number, number];
         };
     }
+    /** @deprecated Use the scale-denominator format above instead. */
     | {
-        // Legacy format: extent-based (compatibility only)
         heightRamp?: [[number, number], [number, number]];
         viewExtentProgression?: [number, number, number, number, number];
     };
@@ -461,7 +460,8 @@ export class MapStyle {
 
             } else {
 
-                map.renderer.setSuperElevation(veSpec);
+                // @deprecated legacy heightRamp / viewExtentProgression format
+                map.renderer.setSuperElevation(veSpec as any);
             }
         }
 

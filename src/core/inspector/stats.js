@@ -154,7 +154,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         if (renderer && renderer.veScaleRamp) {
             const position = this.core.getMap().position;
             text2 += '<br/>VE scale factor: ' +
-                renderer.getSeProgressionFactor(position).toFixed(2) + '<br/>';
+                renderer.getVeScaleFactor(position).toFixed(2) + '<br/>';
             text2 += 'Map scale : 1 : ' +
                 Math.round(renderer.getScaleDenominator(
                     position.pos[8])).toLocaleString() + '<br/>';

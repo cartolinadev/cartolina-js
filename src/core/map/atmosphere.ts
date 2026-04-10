@@ -60,8 +60,8 @@ class Atmosphere {
 
         // we inflate atmosphere thickness and visibility
         // by vertical exaggeration at view extent equal to body diameter
-        params.thickness *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
-        params.visibility *= this.renderer.getSeProgressionFactor(2 * srsInfo.a);
+        params.thickness *= this.renderer.getVeScaleFactor(2 * srsInfo.a);
+        params.visibility *= this.renderer.getVeScaleFactor(2 * srsInfo.a);
 
         // this is purely empirical. Note that visibility configured here is in
         // fact use only as upper limit on the visibility: see the calculation

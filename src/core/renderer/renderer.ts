@@ -934,6 +934,10 @@ getSuperElevationState(): boolean {
     return this.useSuperElevation;
 };
 
+/**
+ * @deprecated Use {@link setVerticalExaggeration} instead.
+ *   Kept for mapConfig-based map compatibility.
+ */
 setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
     // old format
@@ -960,7 +964,7 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
         if (seDefinition.viewExtentProgression
             && Array.isArray(seDefinition.viewExtentProgression)) {
 
-            this.setSuperElevationProgression(
+            this.setVeScaleRampFromProgression(
                 seDefinition.viewExtentProgression);
 
         } else {
@@ -971,9 +975,7 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
         return;
     }
 
-    // default
     throw new Error("Unsupported super elevation option.");
-
 }
 
 /**
@@ -1010,6 +1012,40 @@ setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec) {
 }
 
 /**
+ * @deprecated Use {@link setVerticalExaggeration} instead.
+ *   Converts a legacy `viewExtentProgression` spec to a {@link VeScaleRamp}
+ *   using a canonical canvas height of 1113 CSS px for a 1:1 behavioural match.
+ */
+private setVeScaleRampFromProgression(progression: SeProgressionDef) {
+
+    if (!(progression && progression[0] && progression[1] && progression[3]
+            && progression[3] && progression[4])) {
+        throw new Error("Unsupported super elevation option.");
+    }
+
+    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
+    const canonicalH = 1113; // CSS px — matches legacy tuning baseline
+    const toSd = (ext: number) => ext / (canonicalH / cssDpi * 0.0254);
+
+    const baseValue  = progression[0];
+    const baseExtent = progression[1];
+    const exponent   = Math.log2(progression[2]);
+    const min        = progression[3];
+    const max        = progression[4];
+
+    // Invert the old formula: extent at which old VA equals `va`
+    const extfromva = (va: number) =>
+        Math.pow(va / baseValue, 1 / exponent) * baseExtent;
+
+    this.veScaleRamp = this.makeVeScaleRamp(
+        toSd(extfromva(min)), min,
+        toSd(extfromva(max)), max
+    );
+
+    this.useSuperElevation = true;
+}
+
+/**
  * Return the current map scale denominator computed from the given
  * view extent and the current canvas dimensions.
  *
@@ -1039,34 +1075,6 @@ private makeVeScaleRamp(
     };
 }
 
-private setSuperElevationProgression(progression: SeProgressionDef) {
-
-    if (!(progression && progression[0] && progression[1] && progression[3]
-            && progression[3] && progression[4])) {
-        throw new Error("Unsupported super elevation option.");
-    }
-
-    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    const canonicalH = 1113; // CSS px — tests must run at this height
-    const toSd = (ext: number) => ext / (canonicalH / cssDpi * 0.0254);
-
-    const baseValue  = progression[0];
-    const baseExtent = progression[1];
-    const exponent   = Math.log2(progression[2]);
-    const min        = progression[3];
-    const max        = progression[4];
-
-    // Invert the old formula: extent at which old VA equals `va`
-    const extfromva = (va: number) =>
-        Math.pow(va / baseValue, 1 / exponent) * baseExtent;
-
-    this.veScaleRamp = this.makeVeScaleRamp(
-        toSd(extfromva(min)), min,
-        toSd(extfromva(max)), max
-    );
-
-    this.useSuperElevation = true;
-}
 
 private setSuperElevationRamp(se: [[number, number], [number, number]]) {
 
@@ -1092,7 +1100,7 @@ private setSuperElevationRamp(se: [[number, number], [number, number]]) {
     this.seCounter++;
 };
 
-getSeProgressionFactor(position: MapPosition | number) {
+getVeScaleFactor(position: MapPosition | number) {
 
     if (arguments.length !== 1)
         throw new Error('function now requires current position');
@@ -1132,8 +1140,8 @@ getSuperElevation(position) : SeRamp {
 
     // progression
     if (this.veScaleRamp) {
-        retval[1] *= this.getSeProgressionFactor(position);
-        retval[3] *= this.getSeProgressionFactor(position);
+        retval[1] *= this.getVeScaleFactor(position);
+        retval[3] *= this.getVeScaleFactor(position);
 
         retval[5] = retval[3] - retval[1];
     }
@@ -1161,7 +1169,7 @@ getSuperElevatedHeight(height, position) {
 
     // progression
     if (this.veScaleRamp) {
-        retval *= this.getSeProgressionFactor(position);
+        retval *= this.getVeScaleFactor(position);
     }
 
     return retval;
@@ -1200,7 +1208,7 @@ getUnsuperElevatedHeight(height, position) {
 
     // progression
     if (this.veScaleRamp) {
-        retval /= this.getSeProgressionFactor(position);
+        retval /= this.getVeScaleFactor(position);
     }
 
     return retval;
@@ -1823,13 +1831,15 @@ type VeScaleRamp = {
     exponent: number;
 }
 
-type SeProgressionDef =
-    [number, number, number, number, number];
-
 type SeRamp =
     [number, number, number, number, number, number, number];
 
+/** @deprecated Part of the legacy superelevation API. */
+type SeProgressionDef = [number, number, number, number, number];
+
+/** @deprecated Part of the legacy superelevation API. */
 type SeRampDef = [[number, number], [number, number]];
+
 
 type Illumination = {
 
@@ -1978,6 +1988,10 @@ export type IlluminationDef = {
     shadingSlopeWeight?: number;
 }
 
+/**
+ * @deprecated Use {@link VerticalExaggerationSpec} instead.
+ *   Kept for mapConfig-based map compatibility.
+ */
 export type SeDefinition = SeRampDef | {
     heightRamp?: SeRampDef;
     viewExtentProgression?: SeProgressionDef;
