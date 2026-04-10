@@ -96,7 +96,13 @@ BrowserInterface.prototype.destroyMap = function() {
     if (this.killed) return;
     this.core.destroyMap();
     this.map = null;
-    return this;    
+    return this;
+};
+
+
+BrowserInterface.prototype.setVerticalExaggeration = function(spec) {
+    if (this.killed) return;
+    return this.renderer.setVerticalExaggeration(spec);
 };
 
 

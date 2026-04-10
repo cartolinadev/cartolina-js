@@ -151,10 +151,13 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
             text3 += 'TexelsPerPoly: ' + (stats.meshesUVArea / Math.max(1,stats.meshesFaces)).toFixed(2) +'<br/><br/>';
         }
 
-        if (renderer && renderer.seProgression) {
-            text2 += '<br/>Superelevation factor: ' +
-                renderer.getSeProgressionFactor(
-                    this.core.getMap().position).toFixed(2) + '<br/>';
+        if (renderer && renderer.veScaleRamp) {
+            const position = this.core.getMap().position;
+            text2 += '<br/>VE scale factor: ' +
+                renderer.getSeProgressionFactor(position).toFixed(2) + '<br/>';
+            text2 += 'Map scale : 1 : ' +
+                Math.round(renderer.getScaleDenominator(
+                    position.pos[8])).toLocaleString() + '<br/>';
         }
     }
 

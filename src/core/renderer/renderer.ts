@@ -149,10 +149,14 @@ export class Renderer {
     /// css transform layout size adjustment, per axis
     private visibleScale_!: Size2;
 
+    /// stable viewport CSS height (css()[1] * visibleScale_[1]) — only updated
+    /// during the main render pass, not during hitmap/depth framebuffer passes
+    private mainViewportCssH!: number;
+
     // vertical exaggeration
     useSuperElevation = false;
     seHeightRamp?: SeRamp; // 7 elements
-    seProgression?: SeProgression;
+    veScaleRamp?: VeScaleRamp;
 
     // these values, important for vertical exaggeration, are calculated from
     // navigationSrs in MapDraw.drawMap as a side effect of drawing the skydome
@@ -375,6 +379,7 @@ private applySizes(sizes: Renderer.SizeState) {
     this.oldSize = [...sizes.cssSize];
     this.pixelSize = [...sizes.pixelSize];
     this.visibleScale_ = [...sizes.visibleScale];
+    this.mainViewportCssH = sizes.cssSize[1] * sizes.visibleScale[1];
 }
 
 /**
@@ -960,7 +965,7 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
         } else {
 
-            delete this.seProgression;
+            delete this.veScaleRamp;
         }
 
         return;
@@ -971,6 +976,69 @@ setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
 }
 
+/**
+ * Set vertical exaggeration using the new cartographic interface.
+ *
+ * @param spec - elevation and/or scale-denominator ramp pivots;
+ *   see {@link Renderer.VerticalExaggerationSpec}
+ */
+setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec) {
+
+    if (spec.elevationRamp) {
+
+        const { min, max } = spec.elevationRamp;
+        this.setSuperElevationRamp([[min[0], max[0]], [min[1], max[1]]]);
+
+    } else {
+
+        delete this.seHeightRamp;
+    }
+
+    if (spec.scaleRamp) {
+
+        const { min, max } = spec.scaleRamp;
+        this.veScaleRamp = this.makeVeScaleRamp(
+            min[0], min[1], max[0], max[1]);
+
+    } else {
+
+        delete this.veScaleRamp;
+    }
+
+    this.useSuperElevation = true;
+    this.seCounter++;
+}
+
+/**
+ * Return the current map scale denominator computed from the given
+ * view extent and the current canvas dimensions.
+ *
+ * @param extent - view extent in map units (metres)
+ */
+getScaleDenominator(extent: number): number {
+
+    return this.currentScaleDenominator(extent);
+}
+
+/** Compute scale denominator from a view extent value. */
+private currentScaleDenominator(extent: number): number {
+
+    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
+    return extent / (this.mainViewportCssH / cssDpi * 0.0254);
+}
+
+/** Build a VeScaleRamp from two pivot pairs, precomputing the exponent. */
+private makeVeScaleRamp(
+    sd0: number, va0: number,
+    sd1: number, va1: number
+): VeScaleRamp {
+
+    return {
+        sd0, va0, sd1, va1,
+        exponent: Math.log(va1 / va0) / Math.log(sd1 / sd0)
+    };
+}
+
 private setSuperElevationProgression(progression: SeProgressionDef) {
 
     if (!(progression && progression[0] && progression[1] && progression[3]
@@ -978,18 +1046,26 @@ private setSuperElevationProgression(progression: SeProgressionDef) {
         throw new Error("Unsupported super elevation option.");
     }
 
-    this.seProgression = {
-        baseValue: progression[0],
-        baseExtent: progression[1],
-        exponent: Math.log2(progression[2]),
-        min: progression[3],
-        max: progression[4]
-    };
+    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
+    const canonicalH = 1113; // CSS px — tests must run at this height
+    const toSd = (ext: number) => ext / (canonicalH / cssDpi * 0.0254);
+
+    const baseValue  = progression[0];
+    const baseExtent = progression[1];
+    const exponent   = Math.log2(progression[2]);
+    const min        = progression[3];
+    const max        = progression[4];
+
+    // Invert the old formula: extent at which old VA equals `va`
+    const extfromva = (va: number) =>
+        Math.pow(va / baseValue, 1 / exponent) * baseExtent;
+
+    this.veScaleRamp = this.makeVeScaleRamp(
+        toSd(extfromva(min)), min,
+        toSd(extfromva(max)), max
+    );
 
     this.useSuperElevation = true;
-
-    //console.log("seProgression: ", this.seProgression);
-
 }
 
 private setSuperElevationRamp(se: [[number, number], [number, number]]) {
@@ -1021,20 +1097,14 @@ getSeProgressionFactor(position: MapPosition | number) {
     if (arguments.length !== 1)
         throw new Error('function now requires current position');
 
-    if (!this.seProgression) return 1.0;
+    if (!this.veScaleRamp) return 1.0;
 
-    let progression_ = this.seProgression;
-
-    let extent_ = typeof position === 'number' ? position : position.pos[8];
-
-    let retval = math.clamp(
-        progression_.baseValue *
-            (extent_ / progression_.baseExtent) ** progression_.exponent,
-        progression_.min, progression_.max);
-
-    //console.log("seProgressionFactor", retval);
-
-    return retval;
+    const extent = typeof position === 'number'
+        ? position : position.pos[8];
+    const r = this.veScaleRamp;
+    const sd = this.currentScaleDenominator(extent);
+    const clamped = math.clamp(sd, r.sd0, r.sd1);
+    return r.va0 * Math.pow(clamped / r.sd0, r.exponent);
 }
 
 
@@ -1061,7 +1131,7 @@ getSuperElevation(position) : SeRamp {
     }
 
     // progression
-    if (this.seProgression) {
+    if (this.veScaleRamp) {
         retval[1] *= this.getSeProgressionFactor(position);
         retval[3] *= this.getSeProgressionFactor(position);
 
@@ -1090,7 +1160,7 @@ getSuperElevatedHeight(height, position) {
     }
 
     // progression
-    if (this.seProgression) {
+    if (this.veScaleRamp) {
         retval *= this.getSeProgressionFactor(position);
     }
 
@@ -1129,7 +1199,7 @@ getUnsuperElevatedHeight(height, position) {
     }
 
     // progression
-    if (this.seProgression) {
+    if (this.veScaleRamp) {
         retval /= this.getSeProgressionFactor(position);
     }
 
@@ -1730,26 +1800,27 @@ type Config = {
     mapDMapMode?: number;
     mapDMapCopyIntervalMs?: number;
     mapLabelFreeMargins?: [number, number, number, number];
+    rendererCssDpi?: number;
 }
 
 type Size2 = [ number, number ];
 
-type SeProgression = {
+type VeScaleRamp = {
 
-    // value when view ext = baseExtent
-    baseValue: number;
+    // scale denominator at lower pivot
+    sd0: number;
 
-    // base extent, reference for the value
-    baseExtent: number;
+    // VA factor at lower pivot
+    va0: number;
 
-    // exponent of dependency on extent
+    // scale denominator at upper pivot
+    sd1: number;
+
+    // VA factor at upper pivot
+    va1: number;
+
+    // log(va1/va0)/log(sd1/sd0), precomputed
     exponent: number;
-
-    // minimum
-    min: number
-
-    // maximum
-    max: number
 }
 
 type SeProgressionDef =
@@ -1910,6 +1981,17 @@ export type IlluminationDef = {
 export type SeDefinition = SeRampDef | {
     heightRamp?: SeRampDef;
     viewExtentProgression?: SeProgressionDef;
+}
+
+export type VerticalExaggerationSpec = {
+    elevationRamp?: {
+        min: [number, number];
+        max: [number, number];
+    };
+    scaleRamp?: {
+        min: [number, number];
+        max: [number, number];
+    };
 }
 
 

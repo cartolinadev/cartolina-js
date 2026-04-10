@@ -96,4 +96,10 @@ CoreInterface.prototype.callListener = function(name, event) {
 };
 
 
+CoreInterface.prototype.setVerticalExaggeration = function(spec) {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().setVerticalExaggeration(spec);
+};
+
+
 export {CoreInterface};

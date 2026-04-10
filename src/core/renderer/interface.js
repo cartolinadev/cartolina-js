@@ -473,6 +473,16 @@ RendererInterface.prototype.setSuperElevation = function(seDefinition) {
 };
 
 
+RendererInterface.prototype.setVerticalExaggeration = function(spec) {
+    return this.renderer.setVerticalExaggeration(spec);
+};
+
+
+RendererInterface.prototype.getScaleDenominator = function(extent) {
+    return this.renderer.getScaleDenominator(extent);
+};
+
+
 RendererInterface.prototype.setMarginFlags = function(flags) {
     return this.renderer.marginFlags = flags;
 };

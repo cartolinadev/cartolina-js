@@ -238,11 +238,23 @@ export type LightSpecification = {
     specular?: Color3Spec
 }
 
-export type VerticalExaggerationSpecification =  {
-
-    heightRamp?: [[number, number], [number, number]],
-    viewExtentProgression?: [number, number, number, number, number]
-}
+export type VerticalExaggerationSpecification =
+    | {
+        // New format: scale-denominator based
+        elevationRamp?: {
+            min: [number, number];
+            max: [number, number];
+        };
+        scaleRamp?: {
+            min: [number, number];
+            max: [number, number];
+        };
+    }
+    | {
+        // Legacy format: extent-based (compatibility only)
+        heightRamp?: [[number, number], [number, number]];
+        viewExtentProgression?: [number, number, number, number, number];
+    };
 
 export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 
@@ -440,8 +452,17 @@ export class MapStyle {
         // vertical exaggeration
         if (styleSpec['vertical-exaggeration']) {
 
+            const veSpec = styleSpec['vertical-exaggeration'];
             map.renderer.setSuperElevationState(true);
-            map.renderer.setSuperElevation(styleSpec['vertical-exaggeration']);
+
+            if ('elevationRamp' in veSpec || 'scaleRamp' in veSpec) {
+
+                map.renderer.setVerticalExaggeration(veSpec as any);
+
+            } else {
+
+                map.renderer.setSuperElevation(veSpec);
+            }
         }
 
         // done
