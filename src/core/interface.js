@@ -102,4 +102,10 @@ CoreInterface.prototype.setVerticalExaggeration = function(spec) {
 };
 
 
+CoreInterface.prototype.setIllumination = function(spec) {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().setIllumination(spec);
+};
+
+
 export {CoreInterface};

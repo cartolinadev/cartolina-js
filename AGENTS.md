@@ -270,6 +270,12 @@ function process(items: Item[]) {
 }
 ```
 
+**Avoid `else if` chains.** Prefer a more hierarchical structure with
+nested blocks when one condition refines another, or use explicitly
+conditioned independent blocks when the cases are separate. Reach for
+`else if` only when there is a strong reason not to express the control
+flow in one of those clearer forms.
+
 ### Declaration merging for exported types
 
 Modules that export a class as their default export use a

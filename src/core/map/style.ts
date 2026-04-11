@@ -233,7 +233,7 @@ export type IlluminationSpecification = {
 export type LegacyLightSpecification = ['tracking', number, number]
 
 export type LightSpecification = {
-    type: 'tracking',
+    type: 'tracking' | 'geographic',
     azimuth: number,
     elevation: number,
     specular?: Color3Spec

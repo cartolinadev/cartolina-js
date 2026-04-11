@@ -727,8 +727,20 @@ updateIllumination(position: MapPosition) {
 
     if (!this.illumination) return;
 
-    this.illumination.vectorNED =
-        IlluminationMath.lned2ned(this.illumination.vectorLNED, position);
+    switch (this.illumination.light.type) {
+
+    case 'tracking':
+        // vectorVC is initialized once in setIllumination().
+        this.illumination.vectorNED = IlluminationMath.lned2ned(
+            this.illumination.authoredVector, position);
+        break;
+
+    case 'geographic':
+        // vectorNED is initialized once in setIllumination().
+        this.illumination.vectorVC = IlluminationMath.ned2vc(
+            this.illumination.authoredVector, position);
+        break;
+    }
 }
 
 css(): Readonly<Size2> {
@@ -842,6 +854,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
     }
 
     let light = definition.light;
+    let type: 'tracking' | 'geographic';
     let azimuth: number;
     let elevation: number;
     let specular: math.vec3;
@@ -850,9 +863,11 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
         // legacy format: [type, azimuth, elevation]
         if (light[0] != 'tracking') {
-            throw new Error('Only tracking lights supported.');
+            throw new Error(
+                'Legacy tuple lights support only the tracking type.');
         }
 
+        type = 'tracking';
         azimuth = utils.validateNumber(light[1], 0, 360, 315);
         elevation = utils.validateNumber(light[2], 0, 90, 45);
         specular = [0.6, 0.6, 0.5];
@@ -860,23 +875,23 @@ setIllumination(definition: Renderer.IlluminationDef) {
     } else {
 
         // new format: { type, azimuth, elevation, specular }
-        if (light.type != 'tracking') {
-            throw new Error('Only tracking lights supported.');
+        if (light.type != 'tracking' && light.type != 'geographic') {
+            throw new Error('Unsupported light type.');
         }
 
+        type = light.type;
         azimuth = utils.validateNumber(light.azimuth, 0, 360, 315);
         elevation = utils.validateNumber(light.elevation, 0, 90, 45);
         specular = utils.validateNumberArray(
             light.specular, 3, [0, 0, 0], [1, 1, 1], [0.6, 0.6, 0.5]) as math.vec3;
     }
 
-    // if the illumination object exists, we presume that lighting is on
     let useLighting = definition.useLighting ?? true;
 
     this.illumination = {
         ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
         light: {
-            type: 'tracking',
+            type,
             azimuth : azimuth,
             elevation: elevation,
             specular
@@ -887,12 +902,36 @@ setIllumination(definition: Renderer.IlluminationDef) {
             definition.shadingSlopeWeight, 0.0, 1.0, 0.25),
         shadingAspectWeight: utils.validateNumber(
             definition.shadingAspectWeight, 0.0, 1.0, 0.25),
-        vectorVC : IlluminationMath.illuminationVector(
-                        azimuth, elevation, IlluminationMath.CoordSystem.VC),
-        vectorLNED : IlluminationMath.illuminationVector(
-                        azimuth, elevation, IlluminationMath.CoordSystem.LNED),
+        authoredVector: [0, 0, 0],
+        vectorVC: [0, 0, 0],
+        vectorNED: [0, 0, 0],
 
         useLighting: !! useLighting
+    }
+
+    if (type === 'tracking') {
+
+        this.illumination.authoredVector = IlluminationMath.illuminationVector(
+            azimuth,
+            elevation,
+            IlluminationMath.CoordSystem.LNED);
+
+        let authored = this.illumination.authoredVector;
+        this.illumination.vectorVC = [authored[1], -authored[2], -authored[0]];
+    }
+
+    if (type === 'geographic') {
+
+        this.illumination.authoredVector = IlluminationMath.illuminationVector(
+            azimuth,
+            elevation,
+            IlluminationMath.CoordSystem.NED);
+        this.illumination.vectorNED = [...this.illumination.authoredVector];
+    }
+
+    if (this.core.map?.position) {
+
+        this.updateIllumination(this.core.map.position);
     }
 
     //__DEV__ && console.log("Illumination: ", this.illumination);
@@ -1848,18 +1887,18 @@ type Illumination = {
 
     // the normalized style-facing definition
     light: {
-        type: 'tracking';
+        type: 'tracking' | 'geographic';
         azimuth: number;
         elevation: number;
         specular: math.vec3;
     };
 
-    // the local representation
-    vectorVC: math.vec3;
-    vectorLNED: math.vec3;
+    // the authored light vector in the coordinate system implied by the type
+    authoredVector: math.vec3;
 
-    // runtime value, dependent on map position and calculated on update
-    vectorNED?: math.vec3;
+    // runtime vectors updated from the current map position
+    vectorVC: math.vec3;
+    vectorNED: math.vec3;
 
     ambientCoef: number;
     shadingLambertianWeight: number;
@@ -1982,7 +2021,7 @@ export type IlluminationDef = {
     light:
         | ['tracking', number, number]
         | {
-            type: 'tracking';
+            type: 'tracking' | 'geographic';
             azimuth: number;
             elevation: number;
             specular?: [number, number, number];

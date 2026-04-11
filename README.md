@@ -129,6 +129,9 @@ probably want to use it in this context.
 }
 ```
 
+Use `"tracking"` for observer-relative lighting, or `"geographic"` for
+lighting defined in the local north-east-down frame at the scene center.
+
 <!-- ### NPM -->
 <!-- add the npm section once it is tested to work -->
 
@@ -217,4 +220,3 @@ Check out the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
 See the `LICENSE` file for VTS Browser JS license, run `webpack` and check the
 `build/3rdpartylicenses.txt` file for third-party licenses.
-

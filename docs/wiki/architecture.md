@@ -42,6 +42,19 @@ overwritten during hitmap/depth-map passes to the framebuffer dimensions.
 Code that needs the stable viewport size must use `mainViewportCssH`
 (updated only in `applySizes`) rather than reading `curSize` directly.
 
+Illumination supports two light frames:
+
+- `tracking` — azimuth/elevation authored in observer-relative lNED.
+- `geographic` — azimuth/elevation authored in the scene-center NED
+  frame and converted each frame through the existing `NED -> lNED ->
+  VC` position/orientation machinery.
+
+The geographic implementation deliberately does not build its own
+physical tangent-frame basis. In this codebase, current north is already
+established by the map-position/NED logic, so illumination should reuse
+that machinery rather than layering a separate pole or basis convention
+on top.
+
 ## Vertical exaggeration
 
 VE is the product of two independent factors:

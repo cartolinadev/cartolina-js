@@ -7,7 +7,7 @@
  * and elevation, and to transform vectors from lNED and NED.
  */
 
-import * as Matrix from '../utils/matrix';
+import {mat4} from '../utils/matrix';
 import * as math from '../utils/math';
 
 import MapPosition from './position';
@@ -93,7 +93,6 @@ export function lned2ned(arg: math.vec3, pos: MapPosition) : math.vec3 {
 
     const rad = math.radians;
     const R = math.rotationMatrix;
-    const mat4 = Matrix.mat4;
 
     let yaw = rad(pos.pos[5]), pitch = rad(pos.pos[6]), roll = rad(pos.pos[7]);
 
@@ -109,3 +108,46 @@ export function lned2ned(arg: math.vec3, pos: MapPosition) : math.vec3 {
     return retval_;
 }
 
+/**
+ * Convert a local NED vector into observer-relative lNED coordinates.
+ *
+ * This is the inverse of {@link lned2ned}; the position contributes only
+ * its Euler angles.
+ *
+ * @param arg vector in NED coordinates
+ * @param pos current map position
+ * @returns corresponding vector in lNED coordinates
+ */
+export function ned2lned(arg: math.vec3, pos: MapPosition) : math.vec3 {
+
+    const rad = math.radians;
+    const R = math.rotationMatrix;
+
+    let yaw = rad(pos.pos[5]), pitch = rad(pos.pos[6]), roll = rad(pos.pos[7]);
+
+    let retval_: math.vec3 = [...arg];
+
+    mat4.multiplyVec3(R(Axis.Z, -yaw), retval_);
+
+    // WARNING: math module's Y-rotation is inverted, ouch
+    mat4.multiplyVec3(R(Axis.Y, pitch), retval_);
+
+    mat4.multiplyVec3(R(Axis.X, -roll), retval_);
+
+    return retval_;
+}
+
+/**
+ * Convert a local NED vector into OpenGL camera space for the current
+ * observer orientation.
+ *
+ * @param arg vector in NED coordinates
+ * @param pos current map position
+ * @returns corresponding vector in camera coordinates
+ */
+export function ned2vc(arg: math.vec3, pos: MapPosition) : math.vec3 {
+
+    let lned = ned2lned(arg, pos);
+
+    return [lned[1], -lned[2], -lned[0]];
+}

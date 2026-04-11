@@ -106,6 +106,12 @@ BrowserInterface.prototype.setVerticalExaggeration = function(spec) {
 };
 
 
+BrowserInterface.prototype.setIllumination = function(spec) {
+    if (this.killed) return;
+    return this.renderer.setIllumination(spec);
+};
+
+
 BrowserInterface.prototype.on = function(eventName, call) {
     if (this.killed) return;
     return this.core.on(eventName, call);

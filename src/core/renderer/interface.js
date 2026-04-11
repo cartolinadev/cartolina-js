@@ -478,6 +478,11 @@ RendererInterface.prototype.setVerticalExaggeration = function(spec) {
 };
 
 
+RendererInterface.prototype.setIllumination = function(spec) {
+    return this.renderer.setIllumination(spec);
+};
+
+
 RendererInterface.prototype.getScaleDenominator = function(extent) {
     return this.renderer.getScaleDenominator(extent);
 };

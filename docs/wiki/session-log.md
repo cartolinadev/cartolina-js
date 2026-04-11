@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-04-11 — Geographic illumination mode
+
+**Branch:** main
+
+### Spec
+
+Add a second illumination light type, `geographic`, alongside the
+existing observer-relative `tracking` light.
+
+### Design decisions
+
+- The public light shape stays shared across modes:
+  `{ type, azimuth, elevation, specular? }`, with legacy tuple syntax
+  kept for `tracking` only.
+- Runtime illumination state stores one authored vector plus the two
+  renderer-facing derived vectors, `vectorNED` and `vectorVC`.
+- `tracking` keeps the existing lNED-authored behavior: `vectorVC` is
+  initialized once in `setIllumination()`, while `updateIllumination()`
+  recomputes only `vectorNED`.
+- `geographic` authors the vector in scene-center NED: `vectorNED` is
+  initialized once in `setIllumination()`, while
+  `updateIllumination()` derives only `vectorVC` through the existing
+  `ned2lned`/`ned2vc` path.
+- `setIllumination()` is now proxied on renderer, core, and browser
+  interfaces just like `setVerticalExaggeration()`.
+
+### Non-obvious finding
+
+Style loading can call `setIllumination()` before `map.position` is
+initialized. The geographic runtime recompute therefore needs a guarded
+initialization path and must defer the full position-dependent update to
+the first render-frame refresh.
+
 ## 2026-04-11 — Fully functional aspect-based shading
 
 **Branch:** main

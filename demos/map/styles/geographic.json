@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "reference-frame": "melown2015",
+  "sources": {
+    "viewfinder-dem3": {
+      "type": "cartolina-surface",
+      "url": "__backend__/melown2015/surface/topoearth/viewfinder-dem3/"
+    }
+  },
+  "terrain": {
+    "sources": ["viewfinder-dem3"]
+  },
+  "illumination": {
+    "light": {
+      "type": "geographic",
+      "azimuth": 315,
+      "elevation": 45
+    }
+  },
+  "vertical-exaggeration": {
+    "heightRamp": [[0, 4000], [1.5, 1.3]],
+    "viewExtentProgression": [12.3, 13000000.0, 1.38, 1, 13.5]
+  },
+  "atmosphere": {
+    "visibilityToEyeDistance": 3.0,
+    "edgeDistanceToEyeDistance": 1.0,
+    "maxVisibility": 1000000.0
+  },
+  "shadows": {}
+}
