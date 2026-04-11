@@ -85,6 +85,7 @@ vec3 sampleNormal(int tex, vec2 uv) {
 // obtain a transformation matrix for transformation of tangential space 
 // normals to world coordinates. See tileserver code for details on the 
 // construction of the tangential frame and the choice of upVector.
+// *note that zenith is expected to be normalized*
 
 mat3 tangentialFrame2Wc(vec3 zenith, vec3 upVector) {
 
@@ -95,21 +96,102 @@ mat3 tangentialFrame2Wc(vec3 zenith, vec3 upVector) {
     return mat3(b0, b1, b2);
 }
 
+// obtain the diffuse coefficient for the given normal (passed explicitely)
+// and the light params and rendering flags from the frame ubo. This is used 
+// for source_Shade layers with diffuse shading type.
+
+float diffuseCoef(vec3 normal, Light light, vec3 zenithNorm, float slope,
+        int renderFlags) {
+
+    float lambertianWeight = light.shadingLambertianWeight;
+    float slopeWeight = light.shadingSlopeWeight;
+    float aspectWeight = light.shadingAspectWeight;
+
+    bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0 
+        && (light.shadingLambertianWeight > 1e-3);
+    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0 
+        && (light.shadingSlopeWeight > 1e-3);
+    bool useAspectShading = (renderFlags & FlagShadingAspect) != 0 
+        && (light.shadingAspectWeight > 1e-3);
+
+    // lambertian coef
+    float lambertianCoef = 0.0;
+
+    if (useLambertianShading)
+        lambertianCoef = max(dot(-light.direction, normal), 0.0);
+        
+    // slope coef
+    float slopeCoef = 0.0;
+    
+    if (useSlopeShading)
+        slopeCoef = slope / SQR_HALF_PI;
+
+    // aspect coef
+    float aspectCoef = 0.0;
+
+    if (useAspectShading) {
+
+        // we compute the aspect coefficient in a compact form 
+        // this is a cosine of normalized projections of normal and light 
+        // direction onto the plane perpendicular to zenith, remapped from 
+        // [-1,1] to [0,1]
+        float an = dot(normal, zenithNorm);
+        float bn = dot(-light.direction, zenithNorm);
+        float ab = dot(normal, -light.direction);
+
+        float norm_ap =  sqrt(max(1.0 - an * an, 0.0));
+        float norm_bp =  sqrt(max(1.0 - bn * bn, 0.0));
+
+        aspectCoef = 0.5;
+
+        if (norm_ap > 1e-4 && norm_bp > 1e-4) {
+
+            float aspectCos = (ab - an * bn) / (norm_ap * norm_bp);
+            aspectCoef = 0.5 * (clamp(aspectCos, -1.0, 1.0) + 1.0);
+        }
+    }
+
+    // no shading
+    if (!useLambertianShading && !useSlopeShading && !useAspectShading) 
+        return 1.0;
+
+    // optimization path (pure Lambertian)
+    if (useLambertianShading && !useSlopeShading && !useAspectShading) 
+        return lambertianCoef;
+
+    // optimization path (pure slope)
+    if (!useLambertianShading && useSlopeShading && !useAspectShading) 
+        return 1.0 - slopeCoef;
+
+    // combined shading 
+    float diffuseComplement = 1.0;
+    float weightSum = 0.0;
+
+    if (useLambertianShading) {
+        diffuseComplement *= pow(1.0 - lambertianCoef,
+            lambertianWeight);
+        weightSum += lambertianWeight;
+    }
+
+    if (useSlopeShading) {
+        diffuseComplement *= pow(slopeCoef, slopeWeight);
+        weightSum += slopeWeight;
+    }
+    
+    if (useAspectShading) {
+        diffuseComplement *= pow(1.0 - aspectCoef, aspectWeight);
+        weightSum += aspectWeight;
+    }
+
+    return 1.0 - pow(diffuseComplement, 1.0 / weightSum);
+}
+
 // main
 
 void main() {
 
     // render flags
     int renderFlags = frameRenderFlags();
-
-    //renderFlags = FlagNone;
-    //renderFlags = renderFlags
-    //    & (FlagLighting | FlagNormalMaps | FlagAtmosphere | FlagShadows);
-
-    bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
-    bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0;
-    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
-    bool useAspectShading = (renderFlags & FlagShadingAspect) != 0;
 
     // clip
     vec2 clipCoord = vTexCoords2;
@@ -209,6 +291,10 @@ void main() {
             float slope = 0.0;
 
             normal_ = top(normal);
+            vec3 zenithNorm = normalize(vEllipsoidZenith);
+
+            bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
+            bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
 
             if (useNormalMaps) {
 
@@ -228,61 +314,21 @@ void main() {
                 if (useSlopeShading)
                     slope = acos(clamp(normal_.z, -1.0, 1.0));
 
-                normal_ = tangentialFrame2Wc(vEllipsoidZenith, uUpVector)
-                    * normal_;
+                normal_ = tangentialFrame2Wc(zenithNorm, uUpVector) * normal_;
             }
 
             if (!useNormalMaps) {
 
                 if (useSlopeShading)
-                    slope = acos(clamp(dot(flatNormal,
-                        normalize(vEllipsoidZenith)), -1.0, 1.0));
+                    slope = acos(clamp(dot(flatNormal, zenithNorm), -1.0, 1.0));
             }
 
+            
             if (l.srcShadeType == shadeType_Diffuse) {
 
-                float lambertianCoef = max(dot(-light.direction, normal_), 0.0);
-                float slopeCoef = slope / SQR_HALF_PI;
-
-                float aspectCoef = 0.5;
-
-                vec3 znorm = normalize(vEllipsoidZenith);
-
-                float an = dot(normal_, znorm);
-                float bn = dot(-light.direction, znorm);
-                float ab = dot(normal_, -light.direction);
-
-                float norm_ap =  sqrt(1.0 - an * an);
-                float norm_bp =  sqrt(1.0 - bn * bn);
-
-                if (norm_ap > 1e-4 && norm_bp > 1e-4) 
-                    aspectCoef = 0.5 * ((ab - an * bn) / (norm_ap * norm_bp) + 1.0);
-
-                float diffuseCoef = 1.0;
-
-                float lambertianWeight = light.shadingLambertianWeight;
-                float slopeWeight = light.shadingSlopeWeight;
-                float aspectWeight = light.shadingAspectWeight;
-
-                // combined shading 
-                if (useLambertianShading && useSlopeShading) 
-                    diffuseCoef = 1.0 - pow(1.0 - lambertianCoef, lambertianWeight)
-                        * pow(slopeCoef, slopeWeight);
-
-                // pure lambertian
-                if (useLambertianShading && !useSlopeShading) 
-                    diffuseCoef = lambertianCoef;
-
-                // pure slope
-                if (!useLambertianShading && useSlopeShading) 
-                    diffuseCoef = 1.0 - slopeCoef;
-
-                if (useAspectShading)
-                    aspectCoef += 0.0 * aspectWeight;
-
-                //diffuseCoef = aspectCoef;
-
-                operand = vec4(light.ambient +  diffuseCoef * light.diffuse, 1.0);
+                float diffuse_ = diffuseCoef(
+                    normal_, light, zenithNorm, slope, renderFlags);
+                operand = vec4(light.ambient +  diffuse_ * light.diffuse, 1.0);
 
             }
 
