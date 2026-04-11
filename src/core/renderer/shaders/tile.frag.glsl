@@ -243,6 +243,20 @@ void main() {
                 float lambertianCoef = max(dot(-light.direction, normal_), 0.0);
                 float slopeCoef = slope / SQR_HALF_PI;
 
+                float aspectCoef = 0.5;
+
+                vec3 znorm = normalize(vEllipsoidZenith);
+
+                float an = dot(normal_, znorm);
+                float bn = dot(-light.direction, znorm);
+                float ab = dot(normal_, -light.direction);
+
+                float norm_ap =  sqrt(1.0 - an * an);
+                float norm_bp =  sqrt(1.0 - bn * bn);
+
+                if (norm_ap > 1e-4 && norm_bp > 1e-4) 
+                    aspectCoef = 0.5 * ((ab - an * bn) / (norm_ap * norm_bp) + 1.0);
+
                 float diffuseCoef = 1.0;
 
                 float lambertianWeight = light.shadingLambertianWeight;
@@ -260,6 +274,8 @@ void main() {
                 // pure slope
                 if (!useLambertianShading && useSlopeShading) 
                     diffuseCoef = 1.0 - slopeCoef;
+
+                //diffuseCoef = aspectCoef;
 
                 operand = vec4(light.ambient +  diffuseCoef * light.diffuse, 1.0);
 
