@@ -67,3 +67,16 @@ The legacy `viewExtentProgression` format is converted to `veScaleRamp`
 at load time using a canonical canvas height of 1113 CSS px (matching
 the historical tuning baseline). The legacy public API is kept and
 marked `@deprecated`; new code uses `setVerticalExaggeration()`.
+
+## Terrain shading
+
+Diffuse terrain shading in `tile.frag.glsl` combines up to three
+coefficients: Lambertian, slope, and aspect. The mixed case is
+expressed as a weighted geometric mean of their complements, then
+remapped back to the final shading coefficient with `1.0 - ...`.
+
+Aspect shading is computed from the cosine between the projected surface
+normal and projected light direction in the local tangent plane. On
+nearly flat terrain this quantity becomes ill-defined because the normal
+projection approaches zero, so the shader treats those cases with a
+neutral aspect value to avoid visible artifacts.

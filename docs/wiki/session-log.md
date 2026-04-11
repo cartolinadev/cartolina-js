@@ -1,5 +1,33 @@
 # Session log
 
+## 2026-04-11 — Fully functional aspect-based shading
+
+**Branch:** main
+
+### Spec
+
+Finish the previously plumbed aspect shading mode so it affects diffuse
+terrain shading together with Lambertian and slope shading.
+
+### Design decisions
+
+- `diffuseCoef()` now centralizes the shading combination logic instead
+  of duplicating the per-term calculations inline in `main()`.
+- The combined shading formula is treated as a weighted geometric mean
+  of the three shading coefficients' complements, then remapped back to
+  the final shading coefficient.
+- The accumulator was named `diffuseComplement` to reflect the math more
+  accurately than the earlier `invDiffuseCoef`.
+
+### Non-obvious finding
+
+Aspect shading produced black speckles on nearly flat terrain. The
+underlying issue was not the weighted-product formula itself but numeric
+instability in the projected-direction cosine used by the aspect term:
+on flat areas the tangent-plane projection of the normal approaches
+zero, so aspect needs a neutral fallback in those degenerate cases to
+avoid visible artifacts.
+
 ## 2026-04-11 — Aspect shading flag/weight plumbing
 
 **Branch:** main
