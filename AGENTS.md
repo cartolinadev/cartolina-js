@@ -1,5 +1,38 @@
 # Agent Guidelines — cartolina-js
 
+## Wiki
+
+The [docs/wiki/](docs/wiki/) directory is a shared knowledge base for
+agents and human contributors alike. Read it at the start of a session
+to orient yourself before touching unfamiliar code.
+
+**What belongs in the wiki:**
+
+- Architecture notes and non-obvious design decisions.
+- Findings that are not obvious from reading the code — e.g. subtle
+  runtime interactions, historical reasons for a design choice,
+  gotchas discovered during debugging.
+- A session log entry for each significant body of work: goal, key
+  decisions, and anything surprising found along the way.
+
+**What does not belong:**
+
+- Transcripts of conversation or iterative back-and-forth.
+- Things that are obvious from reading the code or git history.
+- Temporary notes or in-progress state.
+
+Keep entries concise. A future engineer (or agent) should be able to
+read a page and immediately understand the decision, not reconstruct it
+from noise.
+
+**Files:**
+
+- [architecture.md](docs/wiki/architecture.md) — system structure,
+  key subsystems, and non-obvious implementation details.
+- [session-log.md](docs/wiki/session-log.md) — chronological record
+  of significant work sessions.
+
+
 ## Orientation
 
 The goal is to become a modern web-based cartography library with a
