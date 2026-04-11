@@ -115,6 +115,7 @@ var Core = function(element, config) {
         mapLabelFreeMargins: [30, 30, 30, 30],
         mapShadingLambertian: true,
         mapShadingSlope: false,
+        mapShadingAspect: false,
         mapFlagLighting: true,
         mapFlagNormalMaps: true,
         mapFlagDiffuseMaps: true,
@@ -551,6 +552,8 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.mapShadingLambertian = utils.validateBool(value, true); break;
     case 'mapShadingSlope':
         this.config.mapShadingSlope = utils.validateBool(value, false); break;
+    case 'mapShadingAspect':
+        this.config.mapShadingAspect = utils.validateBool(value, false); break;
     case 'mapForcePipeline':
         this.config.mapForcePipeline = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapDMapSize':

@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-04-11 — Aspect shading flag/weight plumbing
+
+**Branch:** main
+
+### Spec
+
+Add a third diagnostic/configurable shading mode, `aspect`, following
+the existing Lambertian and slope plumbing. The new mode must expose:
+
+- `mapShadingAspect` config flag, default `false`
+- `shadingAspectWeight` illumination/style option, default `0.25`
+- renderer debug override and frame-UBO propagation
+- diagnostic render-flags toggle on plain `x` inside `Shift+F`
+
+The fragment shader must receive the new flag and weight but must not
+change rendered output yet.
+
+### Design decisions
+
+- Aspect shading uses the next render-flag bit after slope
+  (`FlagShadingAspect = 1 << 9`).
+- `shadingParams.z` carries the aspect weight; `w` stays reserved.
+- The diagnostic shortcut remains `a` for atmosphere; aspect uses `x`
+  to avoid conflicting with the existing render-flags key map.
+
+### Non-obvious finding
+
+The tile fragment shader already computes an `aspectCoef`, so the
+plumbing work only needed a no-op reference to the new flag/weight to
+keep them live without changing shading behavior.
+
 ## 2026-04-10 — Scale-denominator vertical exaggeration
 
 **Branch:** main

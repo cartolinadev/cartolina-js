@@ -109,6 +109,7 @@ void main() {
     bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
     bool useLambertianShading = (renderFlags & FlagShadingLambertian) != 0;
     bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
+    bool useAspectShading = (renderFlags & FlagShadingAspect) != 0;
 
     // clip
     vec2 clipCoord = vTexCoords2;
@@ -261,6 +262,7 @@ void main() {
 
                 float lambertianWeight = light.shadingLambertianWeight;
                 float slopeWeight = light.shadingSlopeWeight;
+                float aspectWeight = light.shadingAspectWeight;
 
                 // combined shading 
                 if (useLambertianShading && useSlopeShading) 
@@ -274,6 +276,9 @@ void main() {
                 // pure slope
                 if (!useLambertianShading && useSlopeShading) 
                     diffuseCoef = 1.0 - slopeCoef;
+
+                if (useAspectShading)
+                    aspectCoef += 0.0 * aspectWeight;
 
                 //diffuseCoef = aspectCoef;
 

@@ -932,6 +932,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMetricUnits':                this.config.mapMetricUnits = utils.validateBool(value, true); break;
     case 'mapShadingLambertian':         this.config.mapShadingLambertian = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapShadingSlope':              this.config.mapShadingSlope = utils.validateBool(value, false); this.markDirty(); break;
+    case 'mapShadingAspect':             this.config.mapShadingAspect = utils.validateBool(value, false); this.markDirty(); break;
     case 'mapFlagLighting':              this.config.mapFlagLighting = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagNormalMaps':            this.config.mapFlagNormalMaps = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagDiffuseMaps':           this.config.mapFlagDiffuseMaps = utils.validateBool(value, true); this.markDirty(); break;
@@ -1033,6 +1034,7 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapMetricUnits':                return this.config.mapMetricUnits;
     case 'mapShadingLambertian':         return this.config.mapShadingLambertian;
     case 'mapShadingSlope':              return this.config.mapShadingSlope;
+    case 'mapShadingAspect':             return this.config.mapShadingAspect;
     case 'mapFlagLighting':              return this.config.mapFlagLighting;
     case 'mapFlagNormalMaps':            return this.config.mapFlagNormalMaps;
     case 'mapFlagDiffuseMaps':           return this.config.mapFlagDiffuseMaps;

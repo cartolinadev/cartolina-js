@@ -79,6 +79,7 @@ const BOOLEAN_KEYS = new Set([
     'mapIndexBuffers',
     'mapShadingLambertian',
     'mapShadingSlope',
+    'mapShadingAspect',
     'mapFlagLighting',
     'mapFlagNormalMaps',
     'mapFlagDiffuseMaps',

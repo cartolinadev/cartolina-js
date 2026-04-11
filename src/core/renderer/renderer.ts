@@ -566,7 +566,7 @@ updateBuffers() {
         data.shadingParams = [
             illumination.shadingLambertianWeight,
             illumination.shadingSlopeWeight,
-            0.0,
+            illumination.shadingAspectWeight,
             0.0
         ];
     }
@@ -593,6 +593,7 @@ updateBuffers() {
     if (d.flagShadows       ?? cfg.mapFlagShadows)       renderFlags |= Renderer.RenderFlags.FlagShadows;
     if (d.flagShadingLambertian ?? cfg.mapShadingLambertian) renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
     if (d.flagShadingSlope  ?? cfg.mapShadingSlope)      renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
+    if (d.flagShadingAspect ?? cfg.mapShadingAspect)     renderFlags |= Renderer.RenderFlags.FlagShadingAspect;
 
     data.renderFlags = Renderer.encodeRenderFlags(renderFlags);
 
@@ -884,6 +885,8 @@ setIllumination(definition: Renderer.IlluminationDef) {
             definition.shadingLambertianWeight, 0.0, 1.0, 0.75),
         shadingSlopeWeight: utils.validateNumber(
             definition.shadingSlopeWeight, 0.0, 1.0, 0.25),
+        shadingAspectWeight: utils.validateNumber(
+            definition.shadingAspectWeight, 0.0, 1.0, 0.25),
         vectorVC : IlluminationMath.illuminationVector(
                         azimuth, elevation, IlluminationMath.CoordSystem.VC),
         vectorLNED : IlluminationMath.illuminationVector(
@@ -1861,6 +1864,7 @@ type Illumination = {
     ambientCoef: number;
     shadingLambertianWeight: number;
     shadingSlopeWeight: number;
+    shadingAspectWeight: number;
 
     useLighting: boolean;
 }
@@ -1886,6 +1890,7 @@ type Map = {
     config: {
         mapShadingLambertian: boolean;
         mapShadingSlope: boolean;
+        mapShadingAspect: boolean;
         mapFlagLighting: boolean;
         mapFlagNormalMaps: boolean;
         mapFlagDiffuseMaps: boolean;
@@ -1923,6 +1928,7 @@ export enum RenderFlags {
     FlagShadows            = 1 << 6, // bit 6
     FlagShadingLambertian  = 1 << 7, // bit 7
     FlagShadingSlope       = 1 << 8, // bit 8
+    FlagShadingAspect      = 1 << 9, // bit 9
     FlagAll            = 0xffff
 }
 
@@ -1946,6 +1952,7 @@ export type Debug = {
     flagShadows?: boolean;
     flagShadingLambertian?: boolean;
     flagShadingSlope?: boolean;
+    flagShadingAspect?: boolean;
     // fields from MapDraw.debug read by the renderer
     shaderIllumination?: boolean; // TODO: remove when legacy draw path is retired
     drawFog?: boolean;
@@ -1986,6 +1993,7 @@ export type IlluminationDef = {
     ambientCoef?: number;
     shadingLambertianWeight?: number;
     shadingSlopeWeight?: number;
+    shadingAspectWeight?: number;
 }
 
 /**

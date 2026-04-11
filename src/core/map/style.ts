@@ -226,7 +226,8 @@ export type IlluminationSpecification = {
     light: LightSpecification | LegacyLightSpecification,
     ambientCoef?: number,
     shadingLambertianWeight?: number,
-    shadingSlopeWeight?: number
+    shadingSlopeWeight?: number,
+    shadingAspectWeight?: number
 }
 
 export type LegacyLightSpecification = ['tracking', number, number]

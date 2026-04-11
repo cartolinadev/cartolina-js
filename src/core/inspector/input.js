@@ -75,7 +75,7 @@ export default class InspectorInput {
 
         const rfLabel = 'Diagnostics mode > Render flags'
             + ' — f:light n:normal d:diffuse s:specular'
-            + ' b:bump a:atm h:shadows l:lambert p:slope';
+            + ' b:bump a:atm h:shadows l:lambert p:slope x:aspect';
         const labels = {
             renderFlags: rfLabel,
             tileBBox:    'Diagnostics mode > Tile bounding boxes',
@@ -239,6 +239,15 @@ export default class InspectorInput {
                         rfRenderer.debug.flagShadingSlope = rfP;
                         inspector.showNotification(
                             'Slope shading ' + (rfP ? 'on' : 'off'));
+                        hit = true; break;
+                    }
+                    case 88: case 120: {  // x — aspect shading
+
+                        const rfX = !(rfRenderer.debug.flagShadingAspect
+                            ?? map.config.mapShadingAspect);
+                        rfRenderer.debug.flagShadingAspect = rfX;
+                        inspector.showNotification(
+                            'Aspect shading ' + (rfX ? 'on' : 'off'));
                         hit = true; break;
                     }
                     }
