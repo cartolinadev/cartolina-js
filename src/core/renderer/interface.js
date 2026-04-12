@@ -483,8 +483,23 @@ RendererInterface.prototype.setIllumination = function(spec) {
 };
 
 
+RendererInterface.prototype.getIllumination = function() {
+    return this.renderer.getIllumination();
+};
+
+
 RendererInterface.prototype.setRenderingOptions = function(options) {
     return this.renderer.setRenderingOptions(options);
+};
+
+
+RendererInterface.prototype.getRenderingOptions = function() {
+    return this.renderer.getRenderingOptions();
+};
+
+
+RendererInterface.prototype.getVerticalExaggeration = function() {
+    return this.renderer.getVerticalExaggeration();
 };
 
 

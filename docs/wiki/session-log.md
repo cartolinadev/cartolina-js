@@ -1,5 +1,34 @@
 # Session log
 
+## 2026-04-12 — relief-lab live state sync
+
+**Branch:** main
+
+### Spec
+
+Make the `relief-lab` control panel read and follow live map state
+instead of initializing itself from the input style JSON.
+
+### Design decisions
+
+- Added public renderer readback methods for illumination, rendering
+  options, and vertical exaggeration, proxied on all public interface
+  layers.
+- `setIllumination()`, `setRenderingOptions()`, and
+  `setVerticalExaggeration()` now mark the map dirty so runtime changes
+  redraw immediately.
+- The demo now polls public getters on each `tick` and reconciles the
+  panel from that live state instead of inspecting style contents.
+- Rendering-option overrides continue to live on `renderer.debug`; this
+  work intentionally does not introduce a second storage layer.
+
+### Non-obvious finding
+
+The relief-lab shading checkboxes do not map to independent renderer
+flags in normal operation. Their effective state is derived from the
+stored illumination weights, so polling reconstructs checkbox state from
+the current weights rather than from diagnostic render-flag overrides.
+
 ## 2026-04-12 — relief-lab demo and diffuse color API
 
 **Branch:** main

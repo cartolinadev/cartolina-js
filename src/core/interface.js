@@ -102,15 +102,33 @@ CoreInterface.prototype.setVerticalExaggeration = function(spec) {
 };
 
 
+CoreInterface.prototype.getVerticalExaggeration = function() {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().getVerticalExaggeration();
+};
+
+
 CoreInterface.prototype.setIllumination = function(spec) {
     if (!this.core) return null;
     return this.core.getRendererInterface().setIllumination(spec);
 };
 
 
+CoreInterface.prototype.getIllumination = function() {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().getIllumination();
+};
+
+
 CoreInterface.prototype.setRenderingOptions = function(options) {
     if (!this.core) return null;
     return this.core.getRendererInterface().setRenderingOptions(options);
+};
+
+
+CoreInterface.prototype.getRenderingOptions = function() {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().getRenderingOptions();
 };
 
 

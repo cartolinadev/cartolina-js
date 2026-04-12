@@ -144,7 +144,7 @@ float diffuseCoef(vec3 normal, Light light, vec3 zenithNorm, float slope,
 
         aspectCoef = 0.5;
 
-        if (norm_ap > 1e-4 && norm_bp > 1e-4) {
+        if (norm_ap > 1e-2 && norm_bp > 1e-2) {
 
             float aspectCos = (ab - an * bn) / (norm_ap * norm_bp);
             aspectCoef = 0.5 * (clamp(aspectCos, -1.0, 1.0) + 1.0);

@@ -106,15 +106,33 @@ BrowserInterface.prototype.setVerticalExaggeration = function(spec) {
 };
 
 
+BrowserInterface.prototype.getVerticalExaggeration = function() {
+    if (this.killed) return;
+    return this.renderer.getVerticalExaggeration();
+};
+
+
 BrowserInterface.prototype.setIllumination = function(spec) {
     if (this.killed) return;
     return this.renderer.setIllumination(spec);
 };
 
 
+BrowserInterface.prototype.getIllumination = function() {
+    if (this.killed) return;
+    return this.renderer.getIllumination();
+};
+
+
 BrowserInterface.prototype.setRenderingOptions = function(options) {
     if (this.killed) return;
     return this.renderer.setRenderingOptions(options);
+};
+
+
+BrowserInterface.prototype.getRenderingOptions = function() {
+    if (this.killed) return;
+    return this.renderer.getRenderingOptions();
 };
 
 

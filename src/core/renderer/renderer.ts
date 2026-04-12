@@ -945,7 +945,34 @@ setIllumination(definition: Renderer.IlluminationDef) {
         this.updateIllumination(this.core.map.position);
     }
 
+    this.core.map?.markDirty();
+
     //__DEV__ && console.log("Illumination: ", this.illumination);
+};
+
+
+getIllumination(): Renderer.IlluminationDef | null {
+
+    if (!this.illumination) {
+        return null;
+    }
+
+    const illumination = this.illumination;
+
+    return {
+        useLighting: illumination.useLighting,
+        light: {
+            type: illumination.light.type,
+            azimuth: illumination.light.azimuth,
+            elevation: illumination.light.elevation,
+            specular: [...illumination.light.specular] as [number, number, number]
+        },
+        ambientCoef: illumination.ambientCoef,
+        diffuseColor: [...illumination.diffuseColor] as [number, number, number],
+        shadingLambertianWeight: illumination.shadingLambertianWeight,
+        shadingSlopeWeight: illumination.shadingSlopeWeight,
+        shadingAspectWeight: illumination.shadingAspectWeight
+    };
 };
 
 
@@ -980,6 +1007,46 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
     if (options.useShadingAspect !== undefined)
         d.flagShadingAspect = options.useShadingAspect;
 
+    this.core.map?.markDirty();
+
+};
+
+
+getRenderingOptions(): Renderer.RenderingOptions {
+
+    const d = this.debug;
+    const cfg = (this.core.map?.config ?? this.config) as {
+        mapShadingLambertian: boolean;
+        mapShadingSlope: boolean;
+        mapShadingAspect: boolean;
+        mapFlagNormalMaps: boolean;
+        mapFlagDiffuseMaps: boolean;
+        mapFlagSpecularMaps: boolean;
+        mapFlagBumpMaps: boolean;
+        mapFlagAtmosphere: boolean;
+        mapFlagShadows: boolean;
+    };
+
+    return {
+        useNormalMaps:
+            d.flagNormalMaps ?? cfg.mapFlagNormalMaps,
+        useDiffuseMaps:
+            d.flagDiffuseMaps ?? cfg.mapFlagDiffuseMaps,
+        useSpecularMaps:
+            d.flagSpecularMaps ?? cfg.mapFlagSpecularMaps,
+        useBumpMaps:
+            d.flagBumpMaps ?? cfg.mapFlagBumpMaps,
+        useAtmosphere:
+            d.flagAtmosphere ?? cfg.mapFlagAtmosphere,
+        useShadows:
+            d.flagShadows ?? cfg.mapFlagShadows,
+        useShadingLambertian:
+            d.flagShadingLambertian ?? cfg.mapShadingLambertian,
+        useShadingSlope:
+            d.flagShadingSlope ?? cfg.mapShadingSlope,
+        useShadingAspect:
+            d.flagShadingAspect ?? cfg.mapShadingAspect
+    };
 };
 
 
@@ -1097,6 +1164,31 @@ setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec) {
 
     this.useSuperElevation = true;
     this.seCounter++;
+    this.core.map?.markDirty();
+}
+
+
+getVerticalExaggeration(): Renderer.VerticalExaggerationSpec {
+
+    const spec: Renderer.VerticalExaggerationSpec = {};
+
+    if (this.seHeightRamp) {
+
+        spec.elevationRamp = {
+            min: [this.seHeightRamp[0], this.seHeightRamp[1]],
+            max: [this.seHeightRamp[2], this.seHeightRamp[3]]
+        };
+    }
+
+    if (this.veScaleRamp) {
+
+        spec.scaleRamp = {
+            min: [this.veScaleRamp.sd0, this.veScaleRamp.va0],
+            max: [this.veScaleRamp.sd1, this.veScaleRamp.va1]
+        };
+    }
+
+    return spec;
 }
 
 /**
@@ -1972,6 +2064,7 @@ type Map = {
     camera: MapCamera;
 
     getPhysicalSrs(): MapSrs;
+    markDirty(): void;
 
     config: {
         mapShadingLambertian: boolean;
