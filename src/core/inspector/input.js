@@ -75,7 +75,8 @@ export default class InspectorInput {
 
         const rfLabel = 'Diagnostics mode > Render flags'
             + ' — f:light n:normal d:diffuse s:specular'
-            + ' b:bump a:atm h:shadows l:lambert p:slope x:aspect';
+            + ' b:bump a:atm h:shadows k:labels'
+            + ' l:lambert p:slope x:aspect';
         const labels = {
             renderFlags: rfLabel,
             tileBBox:    'Diagnostics mode > Tile bounding boxes',
@@ -221,6 +222,15 @@ export default class InspectorInput {
                         rfRenderer.debug.flagShadows = rfH;
                         inspector.showNotification(
                             'Shadows ' + (rfH ? 'on' : 'off'));
+                        hit = true; break;
+                    }
+                    case 75: case 107: {  // k — labels
+
+                        const rfK = !(rfRenderer.debug.flagLabels
+                            ?? map.config.mapFlagLabels);
+                        rfRenderer.debug.flagLabels = rfK;
+                        inspector.showNotification(
+                            'Labels ' + (rfK ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 76: case 108: {  // l — Lambertian shading

@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-04-12 — labels render flag
+
+**Branch:** main
+
+### Spec
+
+Add a `labels` render flag (`useLabels`, `FlagUseLabels`) that
+suppresses style-defined labels from the user’s perspective and expose
+it through map options, diagnostics render-flags mode, and
+`demos/relief-lab`.
+
+### Design decisions
+
+- The public-facing `labels` flag is implemented by suppressing the
+  geodata/free-layer render paths in the draw loop, because authored
+  label layers are compiled into synthetic geodata free layers.
+- The effective value follows the same precedence as the other render
+  flags: `renderer.debug.flagLabels ?? map.config.mapFlagLabels`.
+- The flag is propagated through the frame render-flags UBO even though
+  no current shader consumes it directly.
+- Geodata hit-testing is gated by the same effective flag so hidden
+  labels do not remain hoverable or clickable.
+- Diagnostics render-flags mode uses plain `k` for labels, leaving the
+  existing `Shift+K` “all labels” debug shortcut intact.
+
 ## 2026-04-12 — relief-lab demo and runtime-state sync
 
 **Branch:** main

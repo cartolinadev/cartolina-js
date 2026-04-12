@@ -123,6 +123,7 @@ var Core = function(element, config) {
         mapFlagBumpMaps: true,
         mapFlagAtmosphere: true,
         mapFlagShadows: true,
+        mapFlagLabels: true,
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,

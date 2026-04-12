@@ -926,6 +926,7 @@ const state = {
     useBumpMaps: true,
     useAtmosphere: true,
     useShadows: true,
+    useLabels: true,
   },
 };
 
@@ -1747,6 +1748,9 @@ function buildOptsTab() {
     { label: 'Foreground shadows', key: 'useShadows',   stateObj: state.opts,
       description: 'Adds progressive shadows in the foreground.',
       apply() { applyRenderingOptions({ useShadows:      state.opts.useShadows      }); } },
+    { label: 'Labels',            key: 'useLabels',     stateObj: state.opts,
+      description: 'Render style-defined labels.',
+      apply() { applyRenderingOptions({ useLabels:       state.opts.useLabels       }); } },
   ];
 
   const list = document.getElementById('opts-list');
@@ -1958,6 +1962,7 @@ function syncRenderingOptionsFromMap() {
   state.opts.useBumpMaps = !!options.useBumpMaps;
   state.opts.useAtmosphere = !!options.useAtmosphere;
   state.opts.useShadows = !!options.useShadows;
+  state.opts.useLabels = !!options.useLabels;
   state.illum.lambertianActive = !!options.useShadingLambertian;
   state.illum.slopeActive = !!options.useShadingSlope;
   state.illum.aspectActive = !!options.useShadingAspect;

@@ -274,6 +274,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     this.drawTileCounter = 0;
     var cameraPos = camera.position;
     var i, li, j, lj, tile, tiles, tmp, layer, drawnTiles, nodeBuffer;
+    var labelsEnabled = renderer.debug.flagLabels
+        ?? map.config.mapFlagLabels;
 
     if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
         renderer.draw.clearJobBuffer();
@@ -409,7 +411,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 console.log("here6");
 
                     
-                if (this.freeLayersHaveGeodata && this.drawChannel == 0) {
+                if (labelsEnabled
+                    && this.freeLayersHaveGeodata
+                    && this.drawChannel == 0) {
                     renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                     renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
                     renderer.draw.drawGpuJobs(this.map.position);
@@ -465,6 +469,10 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
 
             layer = map.freeLayerSequence[i];
+
+            if (!labelsEnabled && (layer.type == 'geodata' || layer.geodata)) {
+                continue;
+            }
 
 
             if (layer.ready && layer.tree && 
@@ -537,7 +545,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     // geodata hot path
     if (debug.drawEarth) {
         if (!skipFreeLayers) {
-            if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
+            if (labelsEnabled
+                && map.freeLayersHaveGeodata
+                && this.drawChannel == 0) {
                 renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
                 // geodata hot path
@@ -1075,4 +1085,3 @@ MapDraw.prototype.setupDetailDegradation = function(degradeMore) {
 
 
 export default MapDraw;
-

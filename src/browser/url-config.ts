@@ -87,6 +87,7 @@ const BOOLEAN_KEYS = new Set([
     'mapFlagBumpMaps',
     'mapFlagAtmosphere',
     'mapFlagShadows',
+    'mapFlagLabels',
     'mapSoftViewSwitch',
     'mapAsyncImageDecode',
     'mapSplitMeshes',

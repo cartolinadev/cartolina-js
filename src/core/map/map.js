@@ -940,6 +940,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapFlagBumpMaps':              this.config.mapFlagBumpMaps = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagAtmosphere':            this.config.mapFlagAtmosphere = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagShadows':               this.config.mapFlagShadows = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapFlagLabels':                this.config.mapFlagLabels = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
     case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
@@ -1042,6 +1043,7 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapFlagBumpMaps':              return this.config.mapFlagBumpMaps;
     case 'mapFlagAtmosphere':            return this.config.mapFlagAtmosphere;
     case 'mapFlagShadows':               return this.config.mapFlagShadows;
+    case 'mapFlagLabels':                return this.config.mapFlagLabels;
     case 'mapLanguage':                   return this.config.mapLanguage;
     case 'mapNoTextures':                 return this.config.mapNoTextures;
     case 'mapForceFrameTime':             return this.config.mapForceFrameTime;
@@ -1301,6 +1303,18 @@ Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
 
 
 Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
+    var labelsEnabled = this.renderer.debug.flagLabels
+        ?? this.config.mapFlagLabels;
+
+    if (!labelsEnabled) {
+        this.lastHoverFeature = null;
+        this.lastHoverFeatureId = null;
+        this.hoverFeature = null;
+        this.hoverFeatureId = null;
+
+        return [null, false, []];
+    }
+
     if (this.geoHitMapDirty) {
         if (this.freeLayersHaveGeodata) {
             this.draw.drawGeodataHitmap();

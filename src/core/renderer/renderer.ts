@@ -600,6 +600,7 @@ updateBuffers() {
     if (d.flagBumpMaps      ?? cfg.mapFlagBumpMaps)      renderFlags |= Renderer.RenderFlags.FlagBumpMaps;
     if (d.flagAtmosphere    ?? cfg.mapFlagAtmosphere)    renderFlags |= Renderer.RenderFlags.FlagAtmosphere;
     if (d.flagShadows       ?? cfg.mapFlagShadows)       renderFlags |= Renderer.RenderFlags.FlagShadows;
+    if (d.flagLabels        ?? cfg.mapFlagLabels)        renderFlags |= Renderer.RenderFlags.FlagUseLabels;
     if (d.flagShadingLambertian ?? cfg.mapShadingLambertian) renderFlags |= Renderer.RenderFlags.FlagShadingLambertian;
     if (d.flagShadingSlope  ?? cfg.mapShadingSlope)      renderFlags |= Renderer.RenderFlags.FlagShadingSlope;
     if (d.flagShadingAspect ?? cfg.mapShadingAspect)     renderFlags |= Renderer.RenderFlags.FlagShadingAspect;
@@ -998,6 +999,9 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
     if (options.useShadows !== undefined)
         d.flagShadows = options.useShadows;
 
+    if (options.useLabels !== undefined)
+        d.flagLabels = options.useLabels;
+
     if (options.useShadingLambertian !== undefined)
         d.flagShadingLambertian = options.useShadingLambertian;
 
@@ -1033,6 +1037,8 @@ getRenderingOptions(): Renderer.RenderingOptions {
             d.flagAtmosphere ?? cfg.mapFlagAtmosphere,
         useShadows:
             d.flagShadows ?? cfg.mapFlagShadows,
+        useLabels:
+            d.flagLabels ?? cfg.mapFlagLabels,
         useShadingLambertian:
             d.flagShadingLambertian ?? cfg.mapShadingLambertian,
         useShadingSlope:
@@ -2009,6 +2015,7 @@ type Config = {
     mapFlagBumpMaps?: boolean;
     mapFlagAtmosphere?: boolean;
     mapFlagShadows?: boolean;
+    mapFlagLabels?: boolean;
     mapDMapSize?: number;
     mapDMapMode?: number;
     mapDMapCopyIntervalMs?: number;
@@ -2121,9 +2128,10 @@ export enum RenderFlags {
     FlagBumpMaps       = 1 << 4, // bit 4
     FlagAtmosphere     = 1 << 5, // bit 5
     FlagShadows            = 1 << 6, // bit 6
-    FlagShadingLambertian  = 1 << 7, // bit 7
-    FlagShadingSlope       = 1 << 8, // bit 8
-    FlagShadingAspect      = 1 << 9, // bit 9
+    FlagUseLabels      = 1 << 7, // bit 7
+    FlagShadingLambertian  = 1 << 8, // bit 8
+    FlagShadingSlope       = 1 << 9, // bit 9
+    FlagShadingAspect      = 1 << 10, // bit 10
     FlagAll            = 0xffff
 }
 
@@ -2145,6 +2153,7 @@ export type Debug = {
     flagBumpMaps?: boolean;
     flagAtmosphere?: boolean;
     flagShadows?: boolean;
+    flagLabels?: boolean;
     flagShadingLambertian?: boolean;
     flagShadingSlope?: boolean;
     flagShadingAspect?: boolean;
@@ -2200,6 +2209,7 @@ export type RenderingOptions = {
     useBumpMaps?:          boolean;
     useAtmosphere?:        boolean;
     useShadows?:           boolean;
+    useLabels?:            boolean;
     useShadingLambertian?: boolean;
     useShadingSlope?:      boolean;
     useShadingAspect?:     boolean;
