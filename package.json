@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.172-feature_relief_lab.4cad467",
+  "version": "2.49.173-feature_relief_lab.72e8596",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {

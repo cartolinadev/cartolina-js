@@ -91,6 +91,48 @@
     min-width: 0;
   }
 
+  /* ── brand ─────────────────────────────────────────────── */
+  #panel-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 16px 16px;
+    flex-shrink: 0;
+  }
+
+  .brand-logo-frame {
+    position: relative;
+    width: 164px;
+    height: 35px;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  .brand-logo {
+    position: absolute;
+    left: -3px;
+    top: -1px;
+    display: block;
+    width: 170px;
+    height: auto;
+  }
+
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .brand-subtitle {
+    margin-top: 6px;
+    font: 11px/1 var(--font);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #586779;
+  }
+
   /* ── tabs ───────────────────────────────────────────────── */
   #tabs {
     display: flex;
@@ -344,6 +386,33 @@
     user-select: none;
   }
 
+  .option-row {
+    display: grid;
+    grid-template-columns: 15px 1fr;
+    column-gap: 8px;
+    row-gap: 4px;
+    align-items: start;
+    margin-bottom: 12px;
+  }
+
+  .option-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .option-row .rl-check {
+    margin-top: 2px;
+  }
+
+  .option-copy {
+    min-width: 0;
+  }
+
+  .option-description {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--panel-muted);
+  }
+
   .shading-inline-label {
     flex: 0 0 92px;
     font-size: 12px;
@@ -459,7 +528,7 @@
     padding: 0 16px 12px;
     font-size: 11px;
     font-weight: 600;
-    color: #b0203a;
+    color: #1b1b1b;
     font-variant-numeric: tabular-nums;
   }
 
@@ -492,6 +561,19 @@
 
 <div id="shell">
   <div id="panel" class="vts-panel--light">
+
+    <div id="panel-brand">
+      <div class="brand-copy">
+        <div class="brand-logo-frame">
+          <img
+            class="brand-logo"
+            src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo.png"
+            alt="cartolina"
+          />
+        </div>
+        <div class="brand-subtitle">relief lab</div>
+      </div>
+    </div>
 
     <div id="tabs">
       <button class="tab-btn active" data-tab="illum">Light &amp; Shading</button>
@@ -605,24 +687,23 @@
       <div class="tab-pane" id="pane-ve">
 
         <div class="section">
-          <div class="row" id="row-ppi">
-            <span class="row-label">Device PPI</span>
-            <div class="row-control">
-              <input type="number" class="rl-num" id="ve-ppi" min="1" max="1200" step="1" />
-            </div>
-          </div>
-          <div class="row-note row-note-offset">
-            The true scale at map center is determined by the device
-            physical CSS PPI. Set it accordingly for more accurate
-            scale-based vertical exaggeration settings and scale
-            readings.
+          <div class="row-note">
+            Vertical exaggeration may be expressed as a power-law
+            function of the scale denominator, as a linear function of
+            elevation, or both. When both are used, the final vertical
+            exaggeration is determined as the product of the two
+            contributing factors.
           </div>
         </div>
 
         <div class="section">
           <div class="check-row">
             <input type="checkbox" class="rl-check" id="chk-scale-ve" />
-            <label class="check-label" for="chk-scale-ve" style="font-weight:600;">Scale-based vertical exaggeration</label>
+            <label class="check-label" for="chk-scale-ve" style="font-weight:500;">Scale-based vertical exaggeration</label>
+          </div>
+          <div class="row-note" style="margin: 0 0 12px;">
+            Vertical exaggeration factor, depending on scale
+            denominator. Note the logarithmic scale.
           </div>
           <div id="graph-scale-gate">
             <div class="graph-wrap">
@@ -663,7 +744,11 @@
         <div class="section">
           <div class="check-row">
             <input type="checkbox" class="rl-check" id="chk-elev-ve" />
-            <label class="check-label" for="chk-elev-ve" style="font-weight:600;">Elevation-based vertical exaggeration</label>
+            <label class="check-label" for="chk-elev-ve" style="font-weight:500;">Elevation-based vertical exaggeration</label>
+          </div>
+          <div class="row-note" style="margin: 0 0 12px;">
+            Vertical exaggeration factor, depending on elevation in
+            meters above sea level.
           </div>
           <div id="graph-elev-gate">
             <div class="graph-wrap">
@@ -689,6 +774,21 @@
                 <input type="number" class="rl-num" id="en-y2" step="0.1" />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row" id="row-ppi">
+            <span class="row-label">Device PPI</span>
+            <div class="row-control">
+              <input type="number" class="rl-num" id="ve-ppi" min="1" max="1200" step="1" />
+            </div>
+          </div>
+          <div class="row-note row-note-offset">
+            The true scale at map center is determined by the device
+            physical CSS PPI. Set it accordingly for more accurate
+            scale-based vertical exaggeration settings and scale
+            readings.
           </div>
         </div>
 
@@ -731,14 +831,29 @@ function fmtScaleDenominator(v) {
   const fmtSig = n => Number.parseFloat(n.toPrecision(3)).toString();
 
   if (abs >= 1000000) {
-    return '1 : ' + fmtSig(v / 1000000) + ' M';
+    return '1:' + fmtSig(v / 1000000) + 'M';
   }
 
   if (abs >= 1000) {
-    return '1 : ' + fmtSig(v / 1000) + ' k';
+    return '1:' + fmtSig(v / 1000) + 'k';
   }
 
-  return '1 : ' + fmtSig(v);
+  return '1:' + fmtSig(v);
+}
+
+function fmtScaleDenominatorReadable(v) {
+  const abs = Math.abs(v);
+  const fmtSig = n => Number.parseFloat(n.toPrecision(3)).toString();
+
+  if (abs >= 1000000) {
+    return '1:' + fmtSig(v / 1000000) + ' M';
+  }
+
+  if (abs >= 1000) {
+    return '1:' + fmtSig(v / 1000) + ' k';
+  }
+
+  return '1:' + fmtSig(v);
 }
 
 function syncSliderFill(el) {
@@ -1612,18 +1727,25 @@ function buildVeTab() {
 function buildOptsTab() {
   const items = [
     { label: 'Illumination (lighting)', key: 'useLighting', stateObj: state.opts,
+      description: 'Enables light for shading via the Blinn-Phong lighting model.',
       apply() { state.illum.useLighting = state.opts.useLighting; applyIllumination(); } },
     { label: 'Normal maps',      key: 'useNormalMaps',   stateObj: state.opts,
+      description: 'Uses server-side terrain normal maps instead of mere geometry derivatives.',
       apply() { applyRenderingOptions({ useNormalMaps:   state.opts.useNormalMaps   }); } },
     { label: 'Diffuse maps (textures)', key: 'useDiffuseMaps', stateObj: state.opts,
+      description: 'Uses style-defined diffuse-map layers for texturing.',
       apply() { applyRenderingOptions({ useDiffuseMaps:  state.opts.useDiffuseMaps  }); } },
     { label: 'Specular maps',    key: 'useSpecularMaps', stateObj: state.opts,
+      description: 'Uses style-defined specular-map layers for specular reflections.',
       apply() { applyRenderingOptions({ useSpecularMaps: state.opts.useSpecularMaps }); } },
     { label: 'Bump maps',        key: 'useBumpMaps',     stateObj: state.opts,
+      description: 'Uses style-defined bump maps for normal-map undulation.',
       apply() { applyRenderingOptions({ useBumpMaps:     state.opts.useBumpMaps     }); } },
     { label: 'Haze (atmosphere)',key: 'useAtmosphere',   stateObj: state.opts,
+      description: 'Enables atmospheric haze and aerial perspective.',
       apply() { applyRenderingOptions({ useAtmosphere:   state.opts.useAtmosphere   }); } },
     { label: 'Foreground shadows', key: 'useShadows',   stateObj: state.opts,
+      description: 'Adds progressive shadows in the foreground.',
       apply() { applyRenderingOptions({ useShadows:      state.opts.useShadows      }); } },
   ];
 
@@ -1631,7 +1753,7 @@ function buildOptsTab() {
   items.forEach(item => {
     const id = 'opt-' + item.key;
     const row = document.createElement('div');
-    row.className = 'check-row';
+    row.className = 'option-row';
 
     const chk = document.createElement('input');
     chk.type = 'checkbox';
@@ -1650,8 +1772,17 @@ function buildOptsTab() {
     lbl.htmlFor = id;
     lbl.textContent = item.label;
 
+    const copy = document.createElement('div');
+    copy.className = 'option-copy';
+    copy.appendChild(lbl);
+
+    const desc = document.createElement('div');
+    desc.className = 'option-description';
+    desc.textContent = item.description;
+    copy.appendChild(desc);
+
     row.appendChild(chk);
-    row.appendChild(lbl);
+    row.appendChild(copy);
     list.appendChild(row);
   });
 }
@@ -1765,7 +1896,7 @@ function updateComputedScaleIndicator() {
   const currentVeScaleFactor = map.renderer.getVeScaleFactor(position);
   scaleGraph.setCurrentX(currentScale);
   document.getElementById('sg-status').textContent =
-    fmtScaleDenominator(currentScale);
+    fmtScaleDenominatorReadable(currentScale);
   document.getElementById('sg-factor-status').textContent =
     Number.parseFloat(currentVeScaleFactor.toPrecision(3)).toString();
 }
