@@ -120,6 +120,18 @@ CoreInterface.prototype.getIllumination = function() {
 };
 
 
+CoreInterface.prototype.setAtmosphere = function(spec) {
+    if (!this.core) return null;
+    this.core.map?.atmosphere?.setRuntimeParameters(spec);
+};
+
+
+CoreInterface.prototype.getAtmosphere = function() {
+    if (!this.core) return null;
+    return this.core.map?.atmosphere?.getRuntimeParameters() ?? null;
+};
+
+
 CoreInterface.prototype.setRenderingOptions = function(options) {
     if (!this.core) return null;
     return this.core.getRendererInterface().setRenderingOptions(options);

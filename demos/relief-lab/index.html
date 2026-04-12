@@ -126,6 +126,7 @@
 
   .brand-subtitle {
     margin-top: 6px;
+    margin-left: 1px;
     font: 11px/1 var(--font);
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -238,6 +239,15 @@
     flex: 1 1 auto;
     min-width: 0;
     margin-left: auto;
+  }
+
+  .atm-inline-label {
+    flex: 0 0 148px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #263444;
+    cursor: pointer;
+    user-select: none;
   }
 
   /* ── select ─────────────────────────────────────────────── */
@@ -460,6 +470,10 @@
 
   .rl-num:focus { border-color: rgba(var(--accent-rgb), 0.34); }
 
+  .rl-num-wide {
+    width: 128px;
+  }
+
   /* ── graph widget ───────────────────────────────────────── */
   .graph-wrap {
     border: 1px solid var(--panel-rule);
@@ -593,6 +607,12 @@
               Illumination (lighting)
             </label>
           </div>
+          <div class="check-row">
+            <input type="checkbox" class="rl-check" id="chk-atmosphere-top" checked />
+            <label class="check-label" for="chk-atmosphere-top" style="font-weight:600;">
+              Haze (atmosphere)
+            </label>
+          </div>
         </div>
 
         <div id="illum-pane-controls">
@@ -678,6 +698,52 @@
               <span class="row-readout" id="read-aspect-w"></span>
             </div>
           </div>
+        </div>
+
+        <div id="atmos-pane-controls">
+        <div class="section">
+          <div class="section-title">Haze</div>
+          <div class="row-note" style="margin: 0 0 12px;">
+            Haze uses a simplified physical atmospheric scattering
+            model. Optionally, visibility can be made a function of
+            distance to the map center, and edge of atmosphere may be
+            moved away from the viewer.
+          </div>
+
+          <div class="row" id="row-atm-visibility-factor">
+            <input type="checkbox" class="rl-check"
+              id="chk-atm-visibility-factor" />
+            <label class="atm-inline-label"
+              for="chk-atm-visibility-factor">Visibility to distance ratio</label>
+            <div class="shading-inline-controls"
+              id="row-atm-visibility-factor-controls">
+              <div class="row-control" id="ctrl-atm-visibility-factor"></div>
+              <span class="row-readout" id="read-atm-visibility-factor"></span>
+            </div>
+          </div>
+          <div class="row-note row-note-offset row-note-gap">
+            Make visibility a multiple of distance to map center. This
+            can help make atmospheric effects more pronounced as you
+            move closer to the object of interest, leading to better
+            visual hierarchy.
+          </div>
+
+          <div class="row" id="row-atm-edge-factor">
+            <input type="checkbox" class="rl-check" id="chk-atm-edge-factor" />
+            <label class="atm-inline-label"
+              for="chk-atm-edge-factor">Edge to distance ratio</label>
+            <div class="shading-inline-controls"
+              id="row-atm-edge-factor-controls">
+              <div class="row-control" id="ctrl-atm-edge-factor"></div>
+              <span class="row-readout" id="read-atm-edge-factor"></span>
+            </div>
+          </div>
+          <div class="row-note row-note-offset">
+            Make atmosphere start at a distance, derived from how far
+            the viewer is from the center. This ensures the center of
+            the view and the foreground stay clear of haze.
+          </div>
+        </div>
         </div>
         </div>
 
@@ -928,11 +994,19 @@ const state = {
     useShadows: true,
     useLabels: true,
   },
+  atm: {
+    maxVisibility: 1000000,
+    visibilityEnabled: true,
+    visibilityToEyeDistance: 5.0,
+    edgeEnabled: true,
+    edgeDistanceToEyeDistance: 1.0,
+  },
 };
 
 const ui = {
   illum: {},
   ve: {},
+  atm: {},
   opts: {},
 };
 
@@ -1131,6 +1205,22 @@ function applyRenderingOptions(partial) {
   map.setRenderingOptions(partial);
 }
 
+function applyAtmosphere() {
+  if (!map) return;
+
+  const spec = {
+    maxVisibility: state.atm.maxVisibility,
+    visibilityToEyeDistance: state.atm.visibilityEnabled
+      ? state.atm.visibilityToEyeDistance
+      : undefined,
+    edgeDistanceToEyeDistance: state.atm.edgeEnabled
+      ? state.atm.edgeDistanceToEyeDistance
+      : undefined,
+  };
+
+  map.setAtmosphere(spec);
+}
+
 /* ── Tab 1: Illumination UI ──────────────────────────────── */
 
 function wireSliderLock(el, lockKey) {
@@ -1290,6 +1380,58 @@ function buildIllumTab() {
     'useShadingSlope');
   wireCheck('chk-aspect', 'aspectActive', 'row-aspect-w-controls',
     'useShadingAspect');
+
+  ui.atm.useAtmosphereTop = document.getElementById('chk-atmosphere-top');
+  ui.atm.useAtmosphereTop.addEventListener('change', e => {
+    state.opts.useAtmosphere = e.target.checked;
+    applyRenderingOptions({ useAtmosphere: e.target.checked });
+  });
+
+  ui.atm.visibilityToEyeDistance = makeSlider({
+    min: 1,
+    max: 10,
+    step: 0.1,
+    value: state.atm.visibilityToEyeDistance,
+    lockKey: 'atm-visibility-factor',
+    onChange(v) {
+      state.atm.visibilityToEyeDistance = v;
+      syncReadout('read-atm-visibility-factor', v.toFixed(2));
+      applyAtmosphere();
+    }
+  });
+  document.getElementById('ctrl-atm-visibility-factor')
+    .appendChild(ui.atm.visibilityToEyeDistance);
+
+  ui.atm.edgeDistanceToEyeDistance = makeSlider({
+    min: 0,
+    max: 3,
+    step: 0.1,
+    value: state.atm.edgeDistanceToEyeDistance,
+    lockKey: 'atm-edge-factor',
+    onChange(v) {
+      state.atm.edgeDistanceToEyeDistance = v;
+      syncReadout('read-atm-edge-factor', v.toFixed(2));
+      applyAtmosphere();
+    }
+  });
+  document.getElementById('ctrl-atm-edge-factor')
+    .appendChild(ui.atm.edgeDistanceToEyeDistance);
+
+  ui.atm.visibilityEnabled = document.getElementById(
+    'chk-atm-visibility-factor');
+  ui.atm.edgeEnabled = document.getElementById('chk-atm-edge-factor');
+
+  ui.atm.visibilityEnabled.addEventListener('change', e => {
+    state.atm.visibilityEnabled = e.target.checked;
+    applyAtmosphere();
+    syncAtmosphereUi();
+  });
+
+  ui.atm.edgeEnabled.addEventListener('change', e => {
+    state.atm.edgeEnabled = e.target.checked;
+    applyAtmosphere();
+    syncAtmosphereUi();
+  });
 }
 
 /* ── Graph widget (reusable) ─────────────────────────────── */
@@ -1871,6 +2013,32 @@ function syncIlluminationUi() {
   syncReadout('read-aspect-w', state.illum.aspectWeight.toFixed(2));
 }
 
+function syncAtmosphereUi() {
+  syncCheckbox(ui.atm.useAtmosphereTop, state.opts.useAtmosphere);
+  document.getElementById('atmos-pane-controls').classList.toggle(
+    'disabled',
+    !state.opts.useAtmosphere);
+
+  syncCheckbox(ui.atm.visibilityEnabled, state.atm.visibilityEnabled);
+  syncCheckbox(ui.atm.edgeEnabled, state.atm.edgeEnabled);
+  syncSliderValue(
+    ui.atm.visibilityToEyeDistance,
+    state.atm.visibilityToEyeDistance);
+  syncSliderValue(
+    ui.atm.edgeDistanceToEyeDistance,
+    state.atm.edgeDistanceToEyeDistance);
+  document.getElementById('row-atm-visibility-factor-controls')
+    .classList.toggle('disabled', !state.atm.visibilityEnabled);
+  document.getElementById('row-atm-edge-factor-controls')
+    .classList.toggle('disabled', !state.atm.edgeEnabled);
+  syncReadout(
+    'read-atm-visibility-factor',
+    state.atm.visibilityToEyeDistance.toFixed(2));
+  syncReadout(
+    'read-atm-edge-factor',
+    state.atm.edgeDistanceToEyeDistance.toFixed(2));
+}
+
 function syncVeUi() {
   syncCheckbox(ui.ve.scaleEnabled, state.ve.scaleEnabled);
   syncCheckbox(ui.ve.elevEnabled, state.ve.elevEnabled);
@@ -1950,6 +2118,30 @@ function syncIlluminationFromMap() {
   }
 }
 
+function syncAtmosphereFromMap() {
+  const atmosphere = map.getAtmosphere();
+
+  if (!atmosphere) {
+    return;
+  }
+
+  state.atm.visibilityEnabled =
+    atmosphere.visibilityToEyeDistance !== undefined;
+  state.atm.edgeEnabled =
+    atmosphere.edgeDistanceToEyeDistance !== undefined;
+
+  if (!isInteractionLocked('atm-visibility-factor')
+      && atmosphere.visibilityToEyeDistance !== undefined) {
+    state.atm.visibilityToEyeDistance = atmosphere.visibilityToEyeDistance;
+  }
+
+  if (!isInteractionLocked('atm-edge-factor')
+      && atmosphere.edgeDistanceToEyeDistance !== undefined) {
+    state.atm.edgeDistanceToEyeDistance =
+      atmosphere.edgeDistanceToEyeDistance;
+  }
+}
+
 function syncRenderingOptionsFromMap() {
   const options = map.getRenderingOptions();
   if (!options) return;
@@ -2000,12 +2192,14 @@ function startMapStateSync() {
     if (!map) return;
 
     syncIlluminationFromMap();
+    syncAtmosphereFromMap();
     syncRenderingOptionsFromMap();
     normalizeActiveShadingWeights();
     syncVerticalExaggerationFromMap();
     updateComputedScaleIndicator();
 
     syncIlluminationUi();
+    syncAtmosphereUi();
 
     if (!rampEquals(lastScaleRamp, state.ve.scale)
         || ui.ve.scaleEnabled.checked !== state.ve.scaleEnabled) {

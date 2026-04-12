@@ -124,6 +124,18 @@ BrowserInterface.prototype.getIllumination = function() {
 };
 
 
+BrowserInterface.prototype.setAtmosphere = function(spec) {
+    if (this.killed) return;
+    return this.core.setAtmosphere(spec);
+};
+
+
+BrowserInterface.prototype.getAtmosphere = function() {
+    if (this.killed) return;
+    return this.core.getAtmosphere();
+};
+
+
 BrowserInterface.prototype.setRenderingOptions = function(options) {
     if (this.killed) return;
     return this.renderer.setRenderingOptions(options);

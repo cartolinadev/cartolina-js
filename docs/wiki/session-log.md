@@ -25,6 +25,36 @@ it through map options, diagnostics render-flags mode, and
 - Diagnostics render-flags mode uses plain `k` for labels, leaving the
   existing `Shift+K` “all labels” debug shortcut intact.
 
+## 2026-04-12 — relief-lab atmosphere controls
+
+**Branch:** main
+
+### Spec
+
+Add live atmosphere controls to the `Light & Shading` tab in
+`demos/relief-lab`, with public core/browser API readback and update
+support.
+
+### Design decisions
+
+- The public atmosphere API exposes only the three runtime-tunable
+  fields: `maxVisibility`, `visibilityToEyeDistance`, and
+  `edgeDistanceToEyeDistance`. These are defined on
+  `Atmosphere.RuntimeParameters`; `Atmosphere.Specification` is derived
+  as `MapBody.Atmosphere & RuntimeParameters` (not the reverse) to avoid
+  duplicating the field definitions.
+- `setAtmosphere()` / `getAtmosphere()` are on `CoreInterface` and
+  `BrowserInterface` only. They reach `map.atmosphere` directly — the
+  renderer interface is not in the chain.
+- `markDirty()` is called inside `Atmosphere.setRuntimeParameters()`
+  via `this.renderer.core.map.markDirty()`, so the interface layer does
+  not need to handle it.
+- The `useAtmosphere` render flag remains the master on/off switch and
+  is replicated at the top of the new panel section; disabling it does
+  not discard the authored atmosphere parameter state.
+- The two ratio parameters remain presence-based optionals, so the UI
+  uses checkboxes to control whether each field is authored at all.
+
 ## 2026-04-12 — relief-lab demo and runtime-state sync
 
 **Branch:** main

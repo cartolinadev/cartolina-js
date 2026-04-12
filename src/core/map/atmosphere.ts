@@ -177,6 +177,55 @@ class Atmosphere {
     }
 
     /**
+     * Update the live, user-facing atmosphere parameters.
+     *
+     * Only the three runtime-tunable parameters are touched here. Geometry,
+     * color, and density-profile parameters remain as authored by the body
+     * and style configuration.
+     *
+     * @param spec new values; set a field to undefined to clear it
+     */
+    setRuntimeParameters(spec: Atmosphere.RuntimeParameters) {
+
+        if (spec.maxVisibility !== undefined) {
+            this.params.maxVisibility = utils.validateNumber(
+                spec.maxVisibility, 1, Number.MAX_VALUE, 1e6);
+        } else {
+            delete this.params.maxVisibility;
+        }
+
+        if (spec.visibilityToEyeDistance !== undefined) {
+            this.params.visibilityToEyeDistance = utils.validateNumber(
+                spec.visibilityToEyeDistance, 0, Number.MAX_VALUE, 5.0);
+        } else {
+            delete this.params.visibilityToEyeDistance;
+        }
+
+        if (spec.edgeDistanceToEyeDistance !== undefined) {
+            this.params.edgeDistanceToEyeDistance = utils.validateNumber(
+                spec.edgeDistanceToEyeDistance, 0, Number.MAX_VALUE, 1.0);
+        } else {
+            delete this.params.edgeDistanceToEyeDistance;
+        }
+
+        this.renderer.core.map.markDirty();
+    }
+
+    /**
+     * Return the current runtime atmosphere parameters.
+     *
+     * @returns the three tunable fields; unset fields are undefined
+     */
+    getRuntimeParameters(): Atmosphere.RuntimeParameters {
+
+        return {
+            maxVisibility: this.params.maxVisibility,
+            visibilityToEyeDistance: this.params.visibilityToEyeDistance,
+            edgeDistanceToEyeDistance: this.params.edgeDistanceToEyeDistance,
+        };
+    }
+
+    /**
      * update the atm ubo buffer based on current map parameters, sets sampler
      * uniform
      *
@@ -490,7 +539,7 @@ const QuadIdx = new Uint16Array([
 namespace Atmosphere {
 
 
-export type Specification = MapBody.Atmosphere & {
+export type RuntimeParameters = {
 
     /// ratio between visibility and current eye distance
     visibilityToEyeDistance?: number;
@@ -501,6 +550,8 @@ export type Specification = MapBody.Atmosphere & {
     /// upper limit on visibility
     maxVisibility?: number;
 }
+
+export type Specification = MapBody.Atmosphere & RuntimeParameters;
 
 }
 
