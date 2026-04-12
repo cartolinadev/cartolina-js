@@ -508,6 +508,11 @@ RendererInterface.prototype.getScaleDenominator = function(extent) {
 };
 
 
+RendererInterface.prototype.getVeScaleFactor = function(position) {
+    return this.renderer.getVeScaleFactor(position);
+};
+
+
 RendererInterface.prototype.setMarginFlags = function(flags) {
     return this.renderer.marginFlags = flags;
 };

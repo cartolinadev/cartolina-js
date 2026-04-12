@@ -61,6 +61,7 @@
 
   #panel-toggle {
     position: fixed;
+    left: 0;
     top: 50%;
     transform: translateY(-50%);
     width: 18px;
@@ -307,7 +308,7 @@
 
   /* ── numeric input (graph companion) ────────────────────── */
   .rl-num {
-    width: 72px;
+    width: 88px;
     padding: 5px 6px;
     border: 1px solid var(--panel-rule);
     border-radius: 5px;
@@ -340,9 +341,10 @@
   }
 
   .graph-inputs {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 132px 1fr 1fr;
+    column-gap: 10px;
+    row-gap: 6px;
     align-items: center;
     padding: 6px 8px;
     border-top: 1px solid var(--panel-rule);
@@ -350,23 +352,66 @@
     color: var(--panel-muted);
   }
 
-  .graph-inputs label { white-space: nowrap; }
+  .graph-inputs label {
+    white-space: nowrap;
+  }
+
+  .graph-input-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    grid-column: 2 / 4;
+  }
 
   .g-grid { stroke: var(--graph-grid); stroke-width: 1; }
   .g-axis { stroke: #888; stroke-width: 1; }
   .g-path { fill: none; stroke: var(--graph-stroke); stroke-width: 2; stroke-linejoin: round; }
   .g-hairline { stroke: var(--graph-hairline); stroke-width: 1; stroke-dasharray: 4 3; }
   .g-marker { stroke: #b0203a; stroke-width: 1.25; }
+  .g-marker-handle {
+    fill: #fff5f7;
+    stroke: #b0203a;
+    stroke-width: 1.25;
+    pointer-events: none;
+  }
+  .g-marker-hit {
+    stroke: transparent;
+    stroke-width: 10;
+    cursor: ew-resize;
+  }
   .g-knob { fill: #fff; stroke: var(--graph-stroke); stroke-width: 1.8; cursor: move; }
   .g-knob:hover, .g-knob.drag { r: 6; }
   .g-tick { font-size: 9px; fill: #999; font-family: monospace; }
   .g-label { font-size: 10px; fill: #333; font-family: monospace; pointer-events: none; }
   .graph-status {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px;
     padding: 0 8px 8px;
     font-size: 11px;
     font-weight: 600;
     color: #b0203a;
     font-variant-numeric: tabular-nums;
+  }
+
+  .graph-status-label {
+    white-space: nowrap;
+  }
+
+  .graph-status-value {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .row-note {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--panel-muted);
+  }
+
+  .row-note-offset {
+    margin: 6px 0 0;
+    max-width: 100%;
   }
 </style>
 </head>
@@ -469,6 +514,12 @@
               <input type="number" class="rl-num" id="ve-ppi" min="1" max="1200" step="1" />
             </div>
           </div>
+          <div class="row-note row-note-offset">
+            The true scale at map center is determined by the device
+            physical CSS PPI. Set it accordingly for more accurate
+            scale-based vertical exaggeration settings and scale
+            readings.
+          </div>
         </div>
 
         <div class="section">
@@ -489,14 +540,25 @@
                 <text class="g-label" id="sg-lbl2"></text>
               </svg>
             </div>
-            <div class="graph-status" id="sg-status">Computed map scale : --</div>
+            <div class="graph-status">
+              <span class="graph-status-label">Computed map scale at map center</span>
+              <span class="graph-status-value" id="sg-status">--</span>
+            </div>
+            <div class="graph-status">
+              <span class="graph-status-label">Scale-based VE factor</span>
+              <span class="graph-status-value" id="sg-factor-status">--</span>
+            </div>
             <div class="graph-inputs">
               <label>Scale denominator (1:n)</label>
-              <input type="number" class="rl-num" id="sn-x1" />
-              <input type="number" class="rl-num" id="sn-x2" />
+              <div class="graph-input-pair">
+                <input type="number" class="rl-num" id="sn-x1" />
+                <input type="number" class="rl-num" id="sn-x2" />
+              </div>
               <label>VA factor</label>
-              <input type="number" class="rl-num" id="sn-y1" step="0.1" />
-              <input type="number" class="rl-num" id="sn-y2" step="0.1" />
+              <div class="graph-input-pair">
+                <input type="number" class="rl-num" id="sn-y1" step="0.1" />
+                <input type="number" class="rl-num" id="sn-y2" step="0.1" />
+              </div>
             </div>
           </div>
         </div>
@@ -520,11 +582,15 @@
             </div>
             <div class="graph-inputs">
               <label>Elevation (m)</label>
-              <input type="number" class="rl-num" id="en-x1" />
-              <input type="number" class="rl-num" id="en-x2" />
+              <div class="graph-input-pair">
+                <input type="number" class="rl-num" id="en-x1" />
+                <input type="number" class="rl-num" id="en-x2" />
+              </div>
               <label>VA factor</label>
-              <input type="number" class="rl-num" id="en-y1" step="0.1" />
-              <input type="number" class="rl-num" id="en-y2" step="0.1" />
+              <div class="graph-input-pair">
+                <input type="number" class="rl-num" id="en-y1" step="0.1" />
+                <input type="number" class="rl-num" id="en-y2" step="0.1" />
+              </div>
             </div>
           </div>
         </div>
@@ -1117,6 +1183,28 @@ function makeRampGraph(cfg) {
     const x1s = toSX(s.x1), y1s = toSY(s.y1);
     const x2s = toSX(s.x2), y2s = toSY(s.y2);
     const x0s = toSX(g.xMin), xEs = toSX(g.xMax);
+    let lbl1Dx = 8;
+    let lbl1Dy = -8;
+    let lbl1Anchor = 'start';
+    let lbl2Dx = 8;
+    let lbl2Dy = -8;
+    let lbl2Anchor = 'start';
+
+    if (s.y2 > s.y1) {
+      lbl1Dx = 8;
+      lbl1Dy = 16;
+      lbl1Anchor = 'start';
+      lbl2Dx = -8;
+      lbl2Dy = -8;
+      lbl2Anchor = 'end';
+    } else if (s.y2 < s.y1) {
+      lbl1Dx = 8;
+      lbl1Dy = -8;
+      lbl1Anchor = 'start';
+      lbl2Dx = -8;
+      lbl2Dy = 16;
+      lbl2Anchor = 'end';
+    }
 
     document.getElementById(g.pathId).setAttribute('d',
       `M${x0s} ${y1s} L${x1s} ${y1s} L${x2s} ${y2s} L${xEs} ${y2s}`);
@@ -1127,14 +1215,16 @@ function makeRampGraph(cfg) {
     document.getElementById(g.k2Id).setAttribute('cy', y2s);
 
     const lbl1 = document.getElementById(g.lbl1Id);
-    lbl1.setAttribute('x', x1s - 6); lbl1.setAttribute('y', y1s + 16);
-    lbl1.setAttribute('text-anchor', 'end');
+    lbl1.setAttribute('x', x1s + lbl1Dx);
+    lbl1.setAttribute('y', y1s + lbl1Dy);
+    lbl1.setAttribute('text-anchor', lbl1Anchor);
     lbl1.textContent = (g.xValueFormatter || fmtTick)(s.x1)
       + ', ' + s.y1.toFixed(2);
 
     const lbl2 = document.getElementById(g.lbl2Id);
-    lbl2.setAttribute('x', x2s + 6); lbl2.setAttribute('y', y2s - 8);
-    lbl2.setAttribute('text-anchor', 'start');
+    lbl2.setAttribute('x', x2s + lbl2Dx);
+    lbl2.setAttribute('y', y2s + lbl2Dy);
+    lbl2.setAttribute('text-anchor', lbl2Anchor);
     lbl2.textContent = (g.xValueFormatter || fmtTick)(s.x2)
       + ', ' + s.y2.toFixed(2);
 
@@ -1145,8 +1235,28 @@ function makeRampGraph(cfg) {
 
     if (g.currentX !== undefined && g.markerId) {
       const markerX = toSX(Math.max(g.xMin, Math.min(g.xMax, g.currentX)));
+      const handleY = PAD + (H - 2 * PAD) * 0.5;
+      const handleSize = 6;
       document.getElementById(g.markerId).innerHTML =
-        `<line class="g-marker" x1="${markerX}" y1="${PAD}" x2="${markerX}" y2="${H - PAD}"/>`;
+        `<line class="g-marker" x1="${markerX}" y1="${PAD}" x2="${markerX}" y2="${H - PAD}"/>`
+        + `<polygon class="g-marker-handle" points="${
+          markerX
+        },${
+          handleY - handleSize
+        } ${
+          markerX + handleSize
+        },${
+          handleY
+        } ${
+          markerX
+        },${
+          handleY + handleSize
+        } ${
+          markerX - handleSize
+        },${
+          handleY
+        }"/>`
+        + `<line class="g-marker-hit" x1="${markerX}" y1="${PAD}" x2="${markerX}" y2="${H - PAD}"/>`;
     }
 
     // sync numeric inputs
@@ -1185,6 +1295,14 @@ function makeRampGraph(cfg) {
       setInteractionLock(g.lockKey, true);
       document.getElementById(g.k2Id).classList.add('drag');
     }
+    else if (g.currentX !== undefined && g.onMarkerChange
+        && my >= PAD && my <= H - PAD) {
+      const markerX = toSX(Math.max(g.xMin, Math.min(g.xMax, g.currentX)));
+      if (Math.abs(mx - markerX) < 10) {
+        active = 'marker';
+        setInteractionLock(g.markerLockKey || g.lockKey, true);
+      }
+    }
   });
 
   window.addEventListener('mousemove', e => {
@@ -1195,6 +1313,12 @@ function makeRampGraph(cfg) {
     const s = g.state;
     const vx = Math.max(g.xMin, Math.min(g.xMax, fromSX(mx)));
     const vy = Math.max(g.yMin, Math.min(g.yMax, fromSY(my)));
+    if (active === 'marker') {
+      setCurrentX(vx);
+      g.onMarkerChange(vx);
+      return;
+    }
+
     if (active === 1) {
       s.x1 = Math.min(vx, s.x2 * 0.99);
       s.y1 = vy;
@@ -1208,8 +1332,13 @@ function makeRampGraph(cfg) {
 
   window.addEventListener('mouseup', () => {
     if (active) {
-      document.getElementById(active === 1 ? g.k1Id : g.k2Id).classList.remove('drag');
+      if (active === 1 || active === 2) {
+        document.getElementById(
+          active === 1 ? g.k1Id : g.k2Id
+        ).classList.remove('drag');
+      }
       active = null;
+      setInteractionLock(g.markerLockKey || g.lockKey, false);
       setInteractionLock(g.lockKey, false);
     }
   });
@@ -1274,6 +1403,23 @@ function revertPpiDraft() {
   setInteractionLock('ve-ppi', false);
 }
 
+function setMapScaleDenominator(targetScale) {
+  if (!map || !Number.isFinite(targetScale) || targetScale <= 0) {
+    return;
+  }
+
+  const position = map.map.getPosition();
+  const currentExtent = position.getViewExtent();
+  const currentScale = map.renderer.getScaleDenominator(currentExtent);
+
+  if (!Number.isFinite(currentScale) || currentScale <= 0) {
+    return;
+  }
+
+  position.setViewExtent(currentExtent * (targetScale / currentScale));
+  map.map.setPosition(position);
+}
+
 function buildVeTab() {
   ui.ve.ppi = document.getElementById('ve-ppi');
 
@@ -1315,6 +1461,8 @@ function buildVeTab() {
     xTickFormatter: fmtScaleDenominator,
     xValueFormatter: fmtScaleDenominator,
     markerId: 'sg-marker',
+    markerLockKey: 've-scale-marker',
+    onMarkerChange: setMapScaleDenominator,
     yTicks: [0.5, 1, 2, 4, 8, 16, 32, 64, 128],
     state: state.ve.scale,
     n1Id: 'sn-x1', n2Id: 'sn-x2', n3Id: 'sn-y1', n4Id: 'sn-y2',
@@ -1419,18 +1567,32 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 const panelEl = document.getElementById('panel');
 const toggleBtn = document.getElementById('panel-toggle');
+let expandedPanelWidth = 0;
+
+function measureExpandedPanelWidth() {
+  if (panelEl.classList.contains('collapsed')) {
+    return;
+  }
+
+  expandedPanelWidth = panelEl.getBoundingClientRect().width;
+}
 
 function updateTogglePos() {
-  toggleBtn.style.left = panelEl.getBoundingClientRect().right + 'px';
+  measureExpandedPanelWidth();
+  const left = panelEl.classList.contains('collapsed')
+    ? 0
+    : expandedPanelWidth;
+  toggleBtn.style.left = left + 'px';
 }
 
 toggleBtn.addEventListener('click', () => {
   const collapsed = panelEl.classList.toggle('collapsed');
   toggleBtn.textContent = collapsed ? '▶' : '◀';
-  // after transition ends, update position; also update immediately
   updateTogglePos();
-  setTimeout(updateTogglePos, 250);
 });
+
+panelEl.addEventListener('transitionend', updateTogglePos);
+window.addEventListener('resize', updateTogglePos);
 
 // set initial position once layout is ready
 requestAnimationFrame(updateTogglePos);
@@ -1493,9 +1655,12 @@ function updateComputedScaleIndicator() {
   const position = map.map.getPosition();
   const currentScale = map.renderer.getScaleDenominator(
     position.getViewExtent());
+  const currentVeScaleFactor = map.renderer.getVeScaleFactor(position);
   scaleGraph.setCurrentX(currentScale);
   document.getElementById('sg-status').textContent =
-    'Computed map scale : ' + fmtScaleDenominator(currentScale);
+    fmtScaleDenominator(currentScale);
+  document.getElementById('sg-factor-status').textContent =
+    Number.parseFloat(currentVeScaleFactor.toPrecision(3)).toString();
 }
 
 function syncIlluminationFromMap() {
