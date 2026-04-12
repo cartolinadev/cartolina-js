@@ -1226,6 +1226,28 @@ getScaleDenominator(extent: number): number {
     return this.currentScaleDenominator(extent);
 }
 
+setConfigParams(params: Record<string, unknown>) {
+
+    if (!params || typeof params !== 'object') {
+        return;
+    }
+
+    for (const [key, value] of Object.entries(params)) {
+        this.setConfigParam(key, value);
+    }
+}
+
+setConfigParam(key: string, value: unknown) {
+
+    this.core.setRendererConfigParam(key, value);
+    this.core.map?.markDirty();
+}
+
+getConfigParam(key: string) {
+
+    return this.core.getRendererConfigParam(key);
+}
+
 /** Compute scale denominator from a view extent value. */
 private currentScaleDenominator(extent: number): number {
 
@@ -2054,6 +2076,8 @@ type Core = {
     contextLost: boolean;
 
     callListener(name: string, event: any, log?: boolean): void;
+    setRendererConfigParam(key: string, value: unknown): void;
+    getRendererConfigParam(key: string): unknown;
 
 }
 

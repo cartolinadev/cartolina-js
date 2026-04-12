@@ -356,10 +356,18 @@
   .g-axis { stroke: #888; stroke-width: 1; }
   .g-path { fill: none; stroke: var(--graph-stroke); stroke-width: 2; stroke-linejoin: round; }
   .g-hairline { stroke: var(--graph-hairline); stroke-width: 1; stroke-dasharray: 4 3; }
+  .g-marker { stroke: #b0203a; stroke-width: 1.25; }
   .g-knob { fill: #fff; stroke: var(--graph-stroke); stroke-width: 1.8; cursor: move; }
   .g-knob:hover, .g-knob.drag { r: 6; }
   .g-tick { font-size: 9px; fill: #999; font-family: monospace; }
   .g-label { font-size: 10px; fill: #333; font-family: monospace; pointer-events: none; }
+  .graph-status {
+    padding: 0 8px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #b0203a;
+    font-variant-numeric: tabular-nums;
+  }
 </style>
 </head>
 <body>
@@ -455,6 +463,15 @@
       <div class="tab-pane" id="pane-ve">
 
         <div class="section">
+          <div class="row" id="row-ppi">
+            <span class="row-label">Device PPI</span>
+            <div class="row-control">
+              <input type="number" class="rl-num" id="ve-ppi" min="1" max="1200" step="1" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
           <div class="check-row">
             <input type="checkbox" class="rl-check" id="chk-scale-ve" />
             <label class="check-label" for="chk-scale-ve" style="font-weight:600;">Scale-based vertical exaggeration</label>
@@ -463,6 +480,7 @@
             <div class="graph-wrap">
               <svg class="graph-svg" id="svg-scale" viewBox="0 0 320 360" preserveAspectRatio="none">
                 <g id="sg-grid"></g>
+                <g id="sg-marker"></g>
                 <g id="sg-hairlines"></g>
                 <path class="g-path" id="sg-path" />
                 <circle class="g-knob" id="sg-k1" r="4.5" />
@@ -471,6 +489,7 @@
                 <text class="g-label" id="sg-lbl2"></text>
               </svg>
             </div>
+            <div class="graph-status" id="sg-status">Computed map scale : --</div>
             <div class="graph-inputs">
               <label>Scale denominator (1:n)</label>
               <input type="number" class="rl-num" id="sn-x1" />
@@ -545,15 +564,18 @@ function rgb01ToHex(rgb) {
 }
 
 function fmtScaleDenominator(v) {
-  if (Math.abs(v) >= 1000000) {
-    return '1:' + (v / 1000000).toFixed(0) + 'M';
+  const abs = Math.abs(v);
+  const fmtSig = n => Number.parseFloat(n.toPrecision(3)).toString();
+
+  if (abs >= 1000000) {
+    return '1 : ' + fmtSig(v / 1000000) + ' M';
   }
 
-  if (Math.abs(v) >= 1000) {
-    return '1:' + (v / 1000).toFixed(0) + 'k';
+  if (abs >= 1000) {
+    return '1 : ' + fmtSig(v / 1000) + ' k';
   }
 
-  return '1:' + Math.round(v);
+  return '1 : ' + fmtSig(v);
 }
 
 function syncSliderFill(el) {
@@ -686,6 +708,12 @@ function syncReadout(id, value) {
   const el = document.getElementById(id);
   if (el.textContent !== value) {
     el.textContent = value;
+  }
+}
+
+function syncNumberValue(el, value) {
+  if (parseFloat(el.value) !== value) {
+    el.value = value;
   }
 }
 
@@ -1115,11 +1143,22 @@ function makeRampGraph(cfg) {
       `<line class="g-hairline" x1="${x1s}" y1="${y1s}" x2="${x1s}" y2="${H - PAD}"/>` +
       `<line class="g-hairline" x1="${x2s}" y1="${y2s}" x2="${x2s}" y2="${H - PAD}"/>`;
 
+    if (g.currentX !== undefined && g.markerId) {
+      const markerX = toSX(Math.max(g.xMin, Math.min(g.xMax, g.currentX)));
+      document.getElementById(g.markerId).innerHTML =
+        `<line class="g-marker" x1="${markerX}" y1="${PAD}" x2="${markerX}" y2="${H - PAD}"/>`;
+    }
+
     // sync numeric inputs
     document.getElementById(g.n1Id).value = Math.round(s.x1);
     document.getElementById(g.n2Id).value = Math.round(s.x2);
     document.getElementById(g.n3Id).value = s.y1.toFixed(2);
     document.getElementById(g.n4Id).value = s.y2.toFixed(2);
+  }
+
+  function setCurrentX(value) {
+    g.currentX = value;
+    draw();
   }
 
   drawGrid();
@@ -1195,7 +1234,10 @@ function makeRampGraph(cfg) {
   wireNum(g.n3Id, v => { g.state.y1 = Math.max(g.yMin, Math.min(g.yMax, v)); });
   wireNum(g.n4Id, v => { g.state.y2 = Math.max(g.yMin, Math.min(g.yMax, v)); });
 
-  return { redraw: draw };
+  return {
+    redraw: draw,
+    setCurrentX,
+  };
 }
 
 /* ── Tab 2: Vertical Exaggeration UI ────────────────────── */
@@ -1203,7 +1245,64 @@ function makeRampGraph(cfg) {
 let scaleGraph = null;
 let elevGraph  = null;
 
+function getLiveRendererPpi() {
+  if (!map) {
+    return 96;
+  }
+
+  const value = map.renderer.getConfigParam('rendererCssDpi');
+  return Number.isFinite(value) ? value : 96;
+}
+
+function applyPpiValue() {
+  const value = parseFloat(ui.ve.ppi.value);
+
+  if (!map || !Number.isFinite(value) || value <= 0) {
+    syncNumberValue(ui.ve.ppi, getLiveRendererPpi());
+    setInteractionLock('ve-ppi', false);
+    return;
+  }
+
+  map.renderer.setConfigParam('rendererCssDpi', value);
+  map.map.redraw();
+  updateComputedScaleIndicator();
+  setInteractionLock('ve-ppi', false);
+}
+
+function revertPpiDraft() {
+  syncNumberValue(ui.ve.ppi, getLiveRendererPpi());
+  setInteractionLock('ve-ppi', false);
+}
+
 function buildVeTab() {
+  ui.ve.ppi = document.getElementById('ve-ppi');
+
+  ui.ve.ppi.addEventListener('focus', () => {
+    setInteractionLock('ve-ppi', true);
+  });
+
+  ui.ve.ppi.addEventListener('input', () => {
+    setInteractionLock('ve-ppi', true);
+  });
+
+  ui.ve.ppi.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyPpiValue();
+      ui.ve.ppi.blur();
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      revertPpiDraft();
+      ui.ve.ppi.blur();
+    }
+  });
+
+  ui.ve.ppi.addEventListener('blur', () => {
+    applyPpiValue();
+  });
+
   // scale ramp — log/log
   scaleGraph = makeRampGraph({
     svgId: 'svg-scale',    gridId: 'sg-grid',    hairlineId: 'sg-hairlines',
@@ -1215,6 +1314,7 @@ function buildVeTab() {
     xTicks: [8000, 40000, 200000, 1000000, 5000000, 25000000, 125000000],
     xTickFormatter: fmtScaleDenominator,
     xValueFormatter: fmtScaleDenominator,
+    markerId: 'sg-marker',
     yTicks: [0.5, 1, 2, 4, 8, 16, 32, 64, 128],
     state: state.ve.scale,
     n1Id: 'sn-x1', n2Id: 'sn-x2', n3Id: 'sn-y1', n4Id: 'sn-y2',
@@ -1370,6 +1470,9 @@ function syncIlluminationUi() {
 function syncVeUi() {
   syncCheckbox(ui.ve.scaleEnabled, state.ve.scaleEnabled);
   syncCheckbox(ui.ve.elevEnabled, state.ve.elevEnabled);
+  if (!isInteractionLocked('ve-ppi')) {
+    syncNumberValue(ui.ve.ppi, getLiveRendererPpi());
+  }
   document.getElementById('graph-scale-gate').classList.toggle('disabled',
     !state.ve.scaleEnabled);
   document.getElementById('graph-elev-gate').classList.toggle('disabled',
@@ -1382,6 +1485,17 @@ function syncOptsUi() {
   Object.keys(ui.opts).forEach(key => {
     syncCheckbox(ui.opts[key], state.opts[key]);
   });
+}
+
+function updateComputedScaleIndicator() {
+  if (!map || !scaleGraph) return;
+
+  const position = map.map.getPosition();
+  const currentScale = map.renderer.getScaleDenominator(
+    position.getViewExtent());
+  scaleGraph.setCurrentX(currentScale);
+  document.getElementById('sg-status').textContent =
+    'Computed map scale : ' + fmtScaleDenominator(currentScale);
 }
 
 function syncIlluminationFromMap() {
@@ -1479,6 +1593,7 @@ function startMapStateSync() {
     syncIlluminationFromMap();
     syncRenderingOptionsFromMap();
     syncVerticalExaggerationFromMap();
+    updateComputedScaleIndicator();
 
     syncIlluminationUi();
 
