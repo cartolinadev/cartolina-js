@@ -225,6 +225,7 @@ export type IlluminationSpecification = {
 
     light: LightSpecification | LegacyLightSpecification,
     ambientCoef?: number,
+    diffuseColor?: Color3Spec,
     shadingLambertianWeight?: number,
     shadingSlopeWeight?: number,
     shadingAspectWeight?: number

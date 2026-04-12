@@ -483,6 +483,11 @@ RendererInterface.prototype.setIllumination = function(spec) {
 };
 
 
+RendererInterface.prototype.setRenderingOptions = function(options) {
+    return this.renderer.setRenderingOptions(options);
+};
+
+
 RendererInterface.prototype.getScaleDenominator = function(extent) {
     return this.renderer.getScaleDenominator(extent);
 };

@@ -112,6 +112,12 @@ BrowserInterface.prototype.setIllumination = function(spec) {
 };
 
 
+BrowserInterface.prototype.setRenderingOptions = function(options) {
+    if (this.killed) return;
+    return this.renderer.setRenderingOptions(options);
+};
+
+
 BrowserInterface.prototype.on = function(eventName, call) {
     if (this.killed) return;
     return this.core.on(eventName, call);

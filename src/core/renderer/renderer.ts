@@ -560,7 +560,16 @@ updateBuffers() {
         let ambcf = illumination.ambientCoef;
 
         data.lightAmbient = [ambcf, ambcf, ambcf, 0.0];
-        data.lightDiffuse = [1.0 - ambcf, 1.0 - ambcf, 1.0 - ambcf, 0.0];
+
+        const dc = illumination.diffuseColor;
+        const maxComp = Math.max(dc[0], dc[1], dc[2]);
+
+        if (maxComp > 0) {
+            const s = (1.0 - ambcf) / maxComp;
+            data.lightDiffuse = [dc[0] * s, dc[1] * s, dc[2] * s, 0.0];
+        } else {
+            data.lightDiffuse = [0.0, 0.0, 0.0, 0.0];
+        }
 
         data.lightSpecular = [...illumination.light.specular, 0.0];
         data.shadingParams = [
@@ -890,6 +899,8 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
     this.illumination = {
         ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
+        diffuseColor: utils.validateNumberArray(
+            definition.diffuseColor, 3, [0,0,0], [1,1,1], [1,1,1]) as math.vec3,
         light: {
             type,
             azimuth : azimuth,
@@ -936,6 +947,41 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
     //__DEV__ && console.log("Illumination: ", this.illumination);
 };
+
+
+setRenderingOptions(options: Renderer.RenderingOptions) {
+
+    const d = this.debug;
+
+    if (options.useNormalMaps !== undefined)
+        d.flagNormalMaps = options.useNormalMaps;
+
+    if (options.useDiffuseMaps !== undefined)
+        d.flagDiffuseMaps = options.useDiffuseMaps;
+
+    if (options.useSpecularMaps !== undefined)
+        d.flagSpecularMaps = options.useSpecularMaps;
+
+    if (options.useBumpMaps !== undefined)
+        d.flagBumpMaps = options.useBumpMaps;
+
+    if (options.useAtmosphere !== undefined)
+        d.flagAtmosphere = options.useAtmosphere;
+
+    if (options.useShadows !== undefined)
+        d.flagShadows = options.useShadows;
+
+    if (options.useShadingLambertian !== undefined)
+        d.flagShadingLambertian = options.useShadingLambertian;
+
+    if (options.useShadingSlope !== undefined)
+        d.flagShadingSlope = options.useShadingSlope;
+
+    if (options.useShadingAspect !== undefined)
+        d.flagShadingAspect = options.useShadingAspect;
+
+};
+
 
 getIlluminationVectorVC() {
 
@@ -1901,6 +1947,7 @@ type Illumination = {
     vectorNED: math.vec3;
 
     ambientCoef: number;
+    diffuseColor: math.vec3;
     shadingLambertianWeight: number;
     shadingSlopeWeight: number;
     shadingAspectWeight: number;
@@ -2030,9 +2077,22 @@ export type IlluminationDef = {
     useLighting?: boolean;
 
     ambientCoef?: number;
+    diffuseColor?: [number, number, number];
     shadingLambertianWeight?: number;
     shadingSlopeWeight?: number;
     shadingAspectWeight?: number;
+}
+
+export type RenderingOptions = {
+    useNormalMaps?:        boolean;
+    useDiffuseMaps?:       boolean;
+    useSpecularMaps?:      boolean;
+    useBumpMaps?:          boolean;
+    useAtmosphere?:        boolean;
+    useShadows?:           boolean;
+    useShadingLambertian?: boolean;
+    useShadingSlope?:      boolean;
+    useShadingAspect?:     boolean;
 }
 
 /**

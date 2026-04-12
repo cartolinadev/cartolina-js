@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Relief Lab — cartolina</title>
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet" />
+<style>
+  /* ── tokens ─────────────────────────────────────────────── */
+  :root {
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --accent-rgb: 36, 93, 168;
+    --panel-bg: rgba(255, 255, 255, 0.72);
+    --panel-fg: #16202b;
+    --panel-muted: #5b6673;
+    --panel-border: rgba(255, 255, 255, 0.58);
+    --panel-rule: rgba(16, 24, 40, 0.09);
+    --panel-input-bg: rgba(255, 255, 255, 0.60);
+    --panel-track: rgba(15, 23, 42, 0.10);
+    --panel-graph-bg: rgba(249, 250, 251, 0.64);
+    --panel-w: min(360px, 25vw);
+    --tab-h: 38px;
+    --grid: #e5e5e5;
+    --graph-stroke: #1a1a1a;
+    --graph-grid: #e0e0e0;
+    --graph-hairline: #b0b0b0;
+  }
+
+  /* ── reset ──────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 var(--font); color: var(--panel-fg); }
+
+  /* ── layout ─────────────────────────────────────────────── */
+  #shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+  }
+
+  #panel {
+    position: relative;
+    flex: 0 0 var(--panel-w);
+    width: var(--panel-w);
+    display: flex;
+    flex-direction: column;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 2px 0 20px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    transition: flex-basis 240ms ease, width 240ms ease;
+    z-index: 10;
+  }
+
+  #panel.collapsed {
+    flex-basis: 0;
+    width: 0;
+  }
+
+  #panel-toggle {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 48px;
+    border: 1px solid var(--panel-border);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--panel-muted);
+    z-index: 20;
+    padding: 0;
+    box-shadow: 2px 0 8px rgba(15, 23, 42, 0.08);
+    transition: left 240ms ease;
+  }
+
+  #panel-toggle:hover { color: var(--panel-fg); }
+
+  #map {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* ── tabs ───────────────────────────────────────────────── */
+  #tabs {
+    display: flex;
+    border-bottom: 1px solid var(--panel-rule);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .tab-btn {
+    flex: 1;
+    height: var(--tab-h);
+    border: none;
+    background: transparent;
+    color: var(--panel-muted);
+    font: 11px/1 var(--font);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 120ms, border-color 120ms;
+    white-space: nowrap;
+    padding: 0 6px;
+  }
+
+  .tab-btn:hover { color: var(--panel-fg); }
+
+  .tab-btn.active {
+    color: rgb(var(--accent-rgb));
+    border-bottom-color: rgb(var(--accent-rgb));
+  }
+
+  /* ── tab content ────────────────────────────────────────── */
+  #tab-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── section headings ───────────────────────────────────── */
+  .section {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--panel-rule);
+  }
+
+  .section:last-child { border-bottom: none; }
+
+  .section-title {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--panel-muted);
+  }
+
+  /* ── form rows ──────────────────────────────────────────── */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .row:last-child { margin-bottom: 0; }
+
+  .row-label {
+    flex: 0 0 110px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--panel-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .row-control { flex: 1 1 auto; min-width: 0; }
+  .row-readout {
+    flex: 0 0 42px;
+    text-align: right;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--panel-muted);
+  }
+
+  /* ── select ─────────────────────────────────────────────── */
+  .rl-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--panel-rule);
+    border-radius: 6px;
+    background: var(--panel-input-bg);
+    color: inherit;
+    font: inherit;
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%235b6673' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 26px;
+  }
+
+  .rl-select:focus {
+    border-color: rgba(var(--accent-rgb), 0.34);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.10);
+  }
+
+  /* ── slider ─────────────────────────────────────────────── */
+  .rl-slider {
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+  }
+
+  .rl-slider::-webkit-slider-runnable-track {
+    height: 5px;
+    border-radius: 999px;
+    background:
+      linear-gradient(
+        to right,
+        rgb(var(--accent-rgb)) 0%,
+        rgb(var(--accent-rgb)) var(--fill, 50%),
+        rgba(15, 23, 42, 0.18) var(--fill, 50%),
+        rgba(15, 23, 42, 0.18) 100%
+      );
+  }
+
+  .rl-slider::-webkit-slider-thumb {
+    width: 6px;
+    height: 20px;
+    margin-top: -7.5px;
+    border: 0;
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb));
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
+    -webkit-appearance: none;
+  }
+
+  .rl-slider::-moz-range-track {
+    height: 5px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.18);
+  }
+
+  .rl-slider::-moz-range-progress {
+    height: 5px;
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb));
+  }
+
+  .rl-slider::-moz-range-thumb {
+    width: 6px;
+    height: 20px;
+    border: 0;
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb));
+  }
+
+  /* ── color picker ───────────────────────────────────────── */
+  .rl-color {
+    width: 100%;
+    height: 32px;
+    padding: 3px;
+    border: 1px solid var(--panel-rule);
+    border-radius: 6px;
+    background: var(--panel-input-bg);
+    cursor: pointer;
+  }
+
+  .rl-color:focus { outline: none; border-color: rgba(var(--accent-rgb), 0.34); }
+  .rl-color::-webkit-color-swatch-wrapper { padding: 0; }
+  .rl-color::-webkit-color-swatch { border: 0; border-radius: 3px; }
+  .rl-color::-moz-color-swatch { border: 0; border-radius: 3px; }
+
+  /* ── checkbox row ───────────────────────────────────────── */
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .check-row:last-child { margin-bottom: 0; }
+
+  .rl-check {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    accent-color: rgb(var(--accent-rgb));
+    cursor: pointer;
+  }
+
+  .check-label {
+    font-size: 12px;
+    color: var(--panel-fg);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  /* ── disabled overlay ───────────────────────────────────── */
+  .disabled {
+    opacity: 0.38;
+    pointer-events: none;
+  }
+
+  /* ── numeric input (graph companion) ────────────────────── */
+  .rl-num {
+    width: 72px;
+    padding: 5px 6px;
+    border: 1px solid var(--panel-rule);
+    border-radius: 5px;
+    background: var(--panel-input-bg);
+    color: inherit;
+    font: 12px/1 var(--font);
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    text-align: right;
+  }
+
+  .rl-num:focus { border-color: rgba(var(--accent-rgb), 0.34); }
+
+  /* ── graph widget ───────────────────────────────────────── */
+  .graph-wrap {
+    border: 1px solid var(--panel-rule);
+    border-radius: 8px;
+    background: var(--panel-graph-bg);
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .graph-svg {
+    display: block;
+    width: 100%;
+    height: 180px;
+    cursor: crosshair;
+    user-select: none;
+    overflow: visible;
+  }
+
+  .graph-inputs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 8px;
+    border-top: 1px solid var(--panel-rule);
+    font-size: 11px;
+    color: var(--panel-muted);
+  }
+
+  .graph-inputs label { white-space: nowrap; }
+
+  .g-grid { stroke: var(--graph-grid); stroke-width: 1; }
+  .g-axis { stroke: #888; stroke-width: 1; }
+  .g-path { fill: none; stroke: var(--graph-stroke); stroke-width: 2; stroke-linejoin: round; }
+  .g-hairline { stroke: var(--graph-hairline); stroke-width: 1; stroke-dasharray: 4 3; }
+  .g-knob { fill: #fff; stroke: var(--graph-stroke); stroke-width: 1.8; cursor: move; }
+  .g-knob:hover, .g-knob.drag { r: 6; }
+  .g-tick { font-size: 9px; fill: #999; font-family: monospace; }
+  .g-label { font-size: 10px; fill: #333; font-family: monospace; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <div id="panel" class="vts-panel--light">
+
+    <div id="tabs">
+      <button class="tab-btn active" data-tab="illum">Illumination</button>
+      <button class="tab-btn" data-tab="ve">Vert. Exag.</button>
+      <button class="tab-btn" data-tab="opts">Options</button>
+    </div>
+
+    <div id="tab-content">
+
+      <!-- ── Tab 1: Illumination & Shading ─────────────────── -->
+      <div class="tab-pane active" id="pane-illum">
+
+        <div class="section">
+          <div class="section-title">Light</div>
+
+          <div class="row" id="row-type">
+            <span class="row-label">Type</span>
+            <div class="row-control" id="ctrl-type"></div>
+          </div>
+
+          <div class="row" id="row-azimuth">
+            <span class="row-label">Azimuth</span>
+            <div class="row-control" id="ctrl-azimuth"></div>
+            <span class="row-readout" id="read-azimuth"></span>
+          </div>
+
+          <div class="row" id="row-elevation">
+            <span class="row-label">Elevation</span>
+            <div class="row-control" id="ctrl-elevation"></div>
+            <span class="row-readout" id="read-elevation"></span>
+          </div>
+
+          <div class="row" id="row-ambient">
+            <span class="row-label">Ambient coef</span>
+            <div class="row-control" id="ctrl-ambient"></div>
+            <span class="row-readout" id="read-ambient"></span>
+          </div>
+
+          <div class="row" id="row-diffuse">
+            <span class="row-label">Diffuse color</span>
+            <div class="row-control" id="ctrl-diffuse"></div>
+          </div>
+
+          <div class="row" id="row-specular">
+            <span class="row-label">Specular color</span>
+            <div class="row-control" id="ctrl-specular"></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Shading</div>
+
+          <div class="check-row">
+            <input type="checkbox" class="rl-check" id="chk-lambertian" checked />
+            <label class="check-label" for="chk-lambertian">Lambertian</label>
+          </div>
+          <div class="row" id="row-lambertian-w">
+            <span class="row-label">Weight</span>
+            <div class="row-control" id="ctrl-lambertian-w"></div>
+            <span class="row-readout" id="read-lambertian-w"></span>
+          </div>
+
+          <div class="check-row" style="margin-top:8px;">
+            <input type="checkbox" class="rl-check" id="chk-slope" checked />
+            <label class="check-label" for="chk-slope">Slope</label>
+          </div>
+          <div class="row" id="row-slope-w">
+            <span class="row-label">Weight</span>
+            <div class="row-control" id="ctrl-slope-w"></div>
+            <span class="row-readout" id="read-slope-w"></span>
+          </div>
+
+          <div class="check-row" style="margin-top:8px;">
+            <input type="checkbox" class="rl-check" id="chk-aspect" />
+            <label class="check-label" for="chk-aspect">Aspect</label>
+          </div>
+          <div class="row" id="row-aspect-w">
+            <span class="row-label">Weight</span>
+            <div class="row-control" id="ctrl-aspect-w"></div>
+            <span class="row-readout" id="read-aspect-w"></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Tab 2: Vertical Exaggeration ──────────────────── -->
+      <div class="tab-pane" id="pane-ve">
+
+        <div class="section">
+          <div class="check-row">
+            <input type="checkbox" class="rl-check" id="chk-scale-ve" />
+            <label class="check-label" for="chk-scale-ve" style="font-weight:600;">Scale-based vertical exaggeration</label>
+          </div>
+          <div id="graph-scale-gate">
+            <div class="graph-wrap">
+              <svg class="graph-svg" id="svg-scale" viewBox="0 0 320 180" preserveAspectRatio="none">
+                <g id="sg-grid"></g>
+                <g id="sg-hairlines"></g>
+                <path class="g-path" id="sg-path" />
+                <circle class="g-knob" id="sg-k1" r="4.5" />
+                <circle class="g-knob" id="sg-k2" r="4.5" />
+                <text class="g-label" id="sg-lbl1"></text>
+                <text class="g-label" id="sg-lbl2"></text>
+              </svg>
+            </div>
+            <div class="graph-inputs">
+              <label>Scale thresholds</label>
+              <input type="number" class="rl-num" id="sn-x1" />
+              <input type="number" class="rl-num" id="sn-x2" />
+              <label>VA factor</label>
+              <input type="number" class="rl-num" id="sn-y1" step="0.1" />
+              <input type="number" class="rl-num" id="sn-y2" step="0.1" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="check-row">
+            <input type="checkbox" class="rl-check" id="chk-elev-ve" />
+            <label class="check-label" for="chk-elev-ve" style="font-weight:600;">Elevation-based vertical exaggeration</label>
+          </div>
+          <div id="graph-elev-gate">
+            <div class="graph-wrap">
+              <svg class="graph-svg" id="svg-elev" viewBox="0 0 320 180" preserveAspectRatio="none">
+                <g id="eg-grid"></g>
+                <g id="eg-hairlines"></g>
+                <path class="g-path" id="eg-path" />
+                <circle class="g-knob" id="eg-k1" r="4.5" />
+                <circle class="g-knob" id="eg-k2" r="4.5" />
+                <text class="g-label" id="eg-lbl1"></text>
+                <text class="g-label" id="eg-lbl2"></text>
+              </svg>
+            </div>
+            <div class="graph-inputs">
+              <label>Elevation (m)</label>
+              <input type="number" class="rl-num" id="en-x1" />
+              <input type="number" class="rl-num" id="en-x2" />
+              <label>VA factor</label>
+              <input type="number" class="rl-num" id="en-y1" step="0.1" />
+              <input type="number" class="rl-num" id="en-y2" step="0.1" />
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Tab 3: Options ────────────────────────────────── -->
+      <div class="tab-pane" id="pane-opts">
+        <div class="section">
+          <div class="section-title">Rendering</div>
+          <div id="opts-list"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+
+  </div><!-- /panel -->
+
+  <button id="panel-toggle" title="Toggle panel">◀</button>
+
+  <div id="map"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ── helpers ─────────────────────────────────────────────── */
+
+function hexToRgb01(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+}
+
+function rgb01ToHex(rgb) {
+  const c = rgb.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255));
+  return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function syncSliderFill(el) {
+  const ratio = (el.value - el.min) / (el.max - el.min) * 100;
+  el.style.setProperty('--fill', ratio + '%');
+}
+
+/* ── URL / position / style ──────────────────────────────── */
+
+const translationDict = {
+  backend: {
+    dev:  'http://localhost:3071',
+    test: 'http://localhost/mapproxy',
+    prod: 'https://cdn.tspl.re/mapproxy',
+  },
+};
+
+const defaultParams = { backend: 'prod' };
+
+function posFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const pos = params.get('pos');
+  if (!pos) return null;
+  return pos.split(',').map((v, i) => i === 3 ? v : parseFloat(v));
+}
+
+function resolvePlaceholder(identifier, params) {
+  const raw = params.get(identifier) ?? defaultParams[identifier];
+  if (raw == null) return '';
+  const dict = translationDict[identifier];
+  if (!dict) return raw;
+  return Object.prototype.hasOwnProperty.call(dict, raw) ? dict[raw] : raw;
+}
+
+async function loadStyle(params) {
+  const styleParam = params.get('style') || 'http://localhost:8080/demos/map/styles/full.json';
+  const res = await fetch(styleParam);
+  if (!res.ok) throw new Error(`Failed to load style: ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  const expanded = text.replace(/__([a-zA-Z0-9_-]+)__/g, (_, id) => resolvePlaceholder(id, params));
+  return JSON.parse(expanded);
+}
+
+/* ── app state ───────────────────────────────────────────── */
+
+const state = {
+  illum: {
+    useLighting: true,
+    type: 'tracking',
+    azimuth: 315,
+    elevation: 45,
+    ambientCoef: 0.3,
+    diffuseColor: '#ffffff',
+    specularColor: '#999980',
+    lambertianActive: true,  lambertianWeight: 0.75,
+    slopeActive: true,       slopeWeight: 0.25,
+    aspectActive: false,     aspectWeight: 0.0,
+  },
+  ve: {
+    scaleEnabled: false,
+    scale: { x1: 200000, y1: 1.0, x2: 500000, y2: 12.3 },
+    elevEnabled: false,
+    elev:  { x1: 0, y1: 1.5, x2: 4000, y2: 1.3 },
+  },
+  opts: {
+    useLighting: true,
+    useNormalMaps: true,
+    useDiffuseMaps: true,
+    useSpecularMaps: true,
+    useBumpMaps: true,
+    useAtmosphere: true,
+    useShadows: true,
+  },
+};
+
+/* ── API bridges ─────────────────────────────────────────── */
+
+let map = null;
+
+function applyIllumination() {
+  if (!map) return;
+  const s = state.illum;
+  let lw = s.lambertianActive ? s.lambertianWeight : 0;
+  let sw = s.slopeActive      ? s.slopeWeight      : 0;
+  let aw = s.aspectActive     ? s.aspectWeight     : 0;
+  const total = lw + sw + aw || 1;
+
+  map.setIllumination({
+    useLighting: s.useLighting,
+    light: {
+      type: s.type,
+      azimuth: s.azimuth,
+      elevation: s.elevation,
+      specular: hexToRgb01(s.specularColor),
+    },
+    ambientCoef: s.ambientCoef,
+    diffuseColor: hexToRgb01(s.diffuseColor),
+    shadingLambertianWeight: lw / total,
+    shadingSlopeWeight:      sw / total,
+    shadingAspectWeight:     aw / total,
+  });
+}
+
+function applyVerticalExaggeration() {
+  if (!map) return;
+  const spec = {};
+  if (state.ve.scaleEnabled) {
+    const sc = state.ve.scale;
+    spec.scaleRamp = { min: [sc.x1, sc.y1], max: [sc.x2, sc.y2] };
+  }
+  if (state.ve.elevEnabled) {
+    const el = state.ve.elev;
+    spec.elevationRamp = { min: [el.x1, el.y1], max: [el.x2, el.y2] };
+  }
+  map.setVerticalExaggeration(spec);
+}
+
+function applyRenderingOptions(partial) {
+  if (!map) return;
+  map.setRenderingOptions(partial);
+}
+
+/* ── Tab 1: Illumination UI ──────────────────────────────── */
+
+function makeSlider(cfg) {
+  const el = document.createElement('input');
+  el.type = 'range';
+  el.className = 'rl-slider';
+  el.min = cfg.min;
+  el.max = cfg.max;
+  el.step = cfg.step || 1;
+  el.value = cfg.value;
+  syncSliderFill(el);
+  el.addEventListener('input', () => {
+    syncSliderFill(el);
+    cfg.onChange(parseFloat(el.value));
+  });
+  return el;
+}
+
+function makeSelect(cfg) {
+  const el = document.createElement('select');
+  el.className = 'rl-select';
+  cfg.options.forEach(([val, label]) => {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = label;
+    if (val === cfg.value) opt.selected = true;
+    el.appendChild(opt);
+  });
+  el.addEventListener('change', () => cfg.onChange(el.value));
+  return el;
+}
+
+function makeColor(cfg) {
+  const el = document.createElement('input');
+  el.type = 'color';
+  el.className = 'rl-color';
+  el.value = cfg.value;
+  el.addEventListener('input', () => cfg.onChange(el.value));
+  return el;
+}
+
+function buildIllumTab() {
+  const s = state.illum;
+
+  // type select
+  document.getElementById('ctrl-type').appendChild(makeSelect({
+    options: [['tracking', 'Tracking'], ['geographic', 'Geographic']],
+    value: s.type,
+    onChange(v) { s.type = v; applyIllumination(); },
+  }));
+
+  // azimuth
+  const azEl = makeSlider({ min: 0, max: 360, step: 1, value: s.azimuth,
+    onChange(v) { s.azimuth = v; document.getElementById('read-azimuth').textContent = v + '°'; applyIllumination(); } });
+  document.getElementById('ctrl-azimuth').appendChild(azEl);
+  document.getElementById('read-azimuth').textContent = s.azimuth + '°';
+
+  // elevation
+  const elEl = makeSlider({ min: 0, max: 90, step: 1, value: s.elevation,
+    onChange(v) { s.elevation = v; document.getElementById('read-elevation').textContent = v + '°'; applyIllumination(); } });
+  document.getElementById('ctrl-elevation').appendChild(elEl);
+  document.getElementById('read-elevation').textContent = s.elevation + '°';
+
+  // ambient
+  const amEl = makeSlider({ min: 0, max: 100, step: 1, value: Math.round(s.ambientCoef * 100),
+    onChange(v) { s.ambientCoef = v / 100; document.getElementById('read-ambient').textContent = (v / 100).toFixed(2); applyIllumination(); } });
+  document.getElementById('ctrl-ambient').appendChild(amEl);
+  document.getElementById('read-ambient').textContent = s.ambientCoef.toFixed(2);
+
+  // diffuse color
+  document.getElementById('ctrl-diffuse').appendChild(makeColor({
+    value: s.diffuseColor,
+    onChange(v) { s.diffuseColor = v; applyIllumination(); },
+  }));
+
+  // specular color
+  document.getElementById('ctrl-specular').appendChild(makeColor({
+    value: s.specularColor,
+    onChange(v) { s.specularColor = v; applyIllumination(); },
+  }));
+
+  // shading checkboxes + weight sliders
+  function makeShadingSlider(stateKey, ctrlId, readId, activeKey) {
+    const sl = makeSlider({ min: 0, max: 100, step: 1, value: Math.round(state.illum[stateKey] * 100),
+      onChange(v) { state.illum[stateKey] = v / 100; document.getElementById(readId).textContent = (v / 100).toFixed(2); applyIllumination(); } });
+    document.getElementById(ctrlId).appendChild(sl);
+    document.getElementById(readId).textContent = state.illum[stateKey].toFixed(2);
+    return sl;
+  }
+
+  makeShadingSlider('lambertianWeight', 'ctrl-lambertian-w', 'read-lambertian-w', 'lambertianActive');
+  makeShadingSlider('slopeWeight',      'ctrl-slope-w',      'read-slope-w',      'slopeActive');
+  makeShadingSlider('aspectWeight',     'ctrl-aspect-w',     'read-aspect-w',     'aspectActive');
+
+  // initially disable aspect weight row
+  document.getElementById('row-aspect-w').classList.add('disabled');
+
+  function wireCheck(id, activeKey, rowId) {
+    document.getElementById(id).addEventListener('change', e => {
+      state.illum[activeKey] = e.target.checked;
+      document.getElementById(rowId).classList.toggle('disabled', !e.target.checked);
+      applyIllumination();
+    });
+  }
+
+  wireCheck('chk-lambertian', 'lambertianActive', 'row-lambertian-w');
+  wireCheck('chk-slope',      'slopeActive',      'row-slope-w');
+  wireCheck('chk-aspect',     'aspectActive',     'row-aspect-w');
+}
+
+/* ── Graph widget (reusable) ─────────────────────────────── */
+
+function makeRampGraph(cfg) {
+  /*
+   * cfg = {
+   *   svgId, gridId, hairlineId, pathId, k1Id, k2Id, lbl1Id, lbl2Id,
+   *   logX, logY,          // bool: use log scale on that axis
+   *   xMin, xMax, yMin, yMax,
+   *   state,               // { x1, y1, x2, y2 } — mutated in place
+   *   n1Id, n2Id, n3Id, n4Id,  // numeric input element ids
+   *   onChange,
+   * }
+   */
+
+  const W = 320, H = 180, PAD = 30;
+  const g = cfg;
+
+  function toLog(v, lo, hi) {
+    return (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
+  }
+
+  function fromLog(t, lo, hi) {
+    return Math.exp(Math.log(lo) + t * (Math.log(hi) - Math.log(lo)));
+  }
+
+  function toSX(v) {
+    const t = g.logX ? toLog(v, g.xMin, g.xMax) : (v - g.xMin) / (g.xMax - g.xMin);
+    return PAD + t * (W - 2 * PAD);
+  }
+
+  function toSY(v) {
+    const t = g.logY ? toLog(v, g.yMin, g.yMax) : (v - g.yMin) / (g.yMax - g.yMin);
+    return (H - PAD) - t * (H - 2 * PAD);
+  }
+
+  function fromSX(sx) {
+    const t = (sx - PAD) / (W - 2 * PAD);
+    return g.logX ? fromLog(Math.max(0.0001, Math.min(1, t)), g.xMin, g.xMax)
+                  : g.xMin + t * (g.xMax - g.xMin);
+  }
+
+  function fromSY(sy) {
+    const t = ((H - PAD) - sy) / (H - 2 * PAD);
+    return g.logY ? fromLog(Math.max(0.0001, Math.min(1, t)), g.yMin, g.yMax)
+                  : g.yMin + t * (g.yMax - g.yMin);
+  }
+
+  function logTicks(lo, hi) {
+    const ticks = [];
+    const p0 = Math.floor(Math.log10(lo));
+    const p1 = Math.ceil(Math.log10(hi));
+    for (let p = p0; p <= p1; p++) {
+      for (const m of [1, 2, 5]) {
+        const v = m * Math.pow(10, p);
+        if (v >= lo && v <= hi) ticks.push(v);
+      }
+    }
+    return ticks;
+  }
+
+  function linTicks(lo, hi, count) {
+    const raw = (hi - lo) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const nice = [1, 2, 2.5, 5, 10].find(f => f * mag >= raw) * mag;
+    const ticks = [];
+    let v = Math.ceil(lo / nice) * nice;
+    while (v <= hi + 1e-9) { ticks.push(parseFloat(v.toFixed(10))); v += nice; }
+    return ticks;
+  }
+
+  function fmtTick(v) {
+    if (Math.abs(v) >= 10000) return (v / 1000).toFixed(0) + 'k';
+    if (Math.abs(v) >= 1000)  return (v / 1000).toFixed(0) + 'k';
+    if (Number.isInteger(v))  return v.toString();
+    return v.toPrecision(2);
+  }
+
+  function drawGrid() {
+    const gridEl = document.getElementById(g.gridId);
+    let html = '';
+
+    const xTicks = g.logX ? logTicks(g.xMin, g.xMax) : linTicks(g.xMin, g.xMax, 5);
+    for (const v of xTicks) {
+      const sx = toSX(v);
+      html += `<line class="g-grid" x1="${sx}" y1="${PAD}" x2="${sx}" y2="${H - PAD}"/>`;
+      html += `<text class="g-tick" x="${sx}" y="${H - PAD + 12}" text-anchor="middle">${fmtTick(v)}</text>`;
+    }
+
+    const yTicks = g.logY ? logTicks(g.yMin, g.yMax) : linTicks(g.yMin, g.yMax, 4);
+    for (const v of yTicks) {
+      const sy = toSY(v);
+      html += `<line class="g-grid" x1="${PAD}" y1="${sy}" x2="${W - PAD}" y2="${sy}"/>`;
+      html += `<text class="g-tick" x="${PAD - 4}" y="${sy + 3}" text-anchor="end">${fmtTick(v)}</text>`;
+    }
+
+    // axes
+    html += `<line class="g-axis" x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}"/>`;
+    html += `<line class="g-axis" x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}"/>`;
+
+    gridEl.innerHTML = html;
+  }
+
+  function draw() {
+    const s = g.state;
+    const x1s = toSX(s.x1), y1s = toSY(s.y1);
+    const x2s = toSX(s.x2), y2s = toSY(s.y2);
+    const x0s = toSX(g.xMin), xEs = toSX(g.xMax);
+
+    document.getElementById(g.pathId).setAttribute('d',
+      `M${x0s} ${y1s} L${x1s} ${y1s} L${x2s} ${y2s} L${xEs} ${y2s}`);
+
+    document.getElementById(g.k1Id).setAttribute('cx', x1s);
+    document.getElementById(g.k1Id).setAttribute('cy', y1s);
+    document.getElementById(g.k2Id).setAttribute('cx', x2s);
+    document.getElementById(g.k2Id).setAttribute('cy', y2s);
+
+    const lbl1 = document.getElementById(g.lbl1Id);
+    lbl1.setAttribute('x', x1s - 6); lbl1.setAttribute('y', y1s + 16);
+    lbl1.setAttribute('text-anchor', 'end');
+    lbl1.textContent = fmtTick(s.x1) + ', ' + s.y1.toFixed(2);
+
+    const lbl2 = document.getElementById(g.lbl2Id);
+    lbl2.setAttribute('x', x2s + 6); lbl2.setAttribute('y', y2s - 8);
+    lbl2.setAttribute('text-anchor', 'start');
+    lbl2.textContent = fmtTick(s.x2) + ', ' + s.y2.toFixed(2);
+
+    const hlEl = document.getElementById(g.hairlineId);
+    hlEl.innerHTML =
+      `<line class="g-hairline" x1="${x1s}" y1="${y1s}" x2="${x1s}" y2="${H - PAD}"/>` +
+      `<line class="g-hairline" x1="${x2s}" y1="${y2s}" x2="${x2s}" y2="${H - PAD}"/>`;
+
+    // sync numeric inputs
+    document.getElementById(g.n1Id).value = Math.round(s.x1);
+    document.getElementById(g.n2Id).value = Math.round(s.x2);
+    document.getElementById(g.n3Id).value = s.y1.toFixed(2);
+    document.getElementById(g.n4Id).value = s.y2.toFixed(2);
+  }
+
+  drawGrid();
+  draw();
+
+  // drag interaction
+  const svgEl = document.getElementById(g.svgId);
+  let active = null;
+
+  svgEl.addEventListener('mousedown', e => {
+    const bounds = svgEl.getBoundingClientRect();
+    const mx = ((e.clientX - bounds.left) / bounds.width) * W;
+    const my = ((e.clientY - bounds.top) / bounds.height) * H;
+    const s = g.state;
+    const d1 = Math.hypot(mx - toSX(s.x1), my - toSY(s.y1));
+    const d2 = Math.hypot(mx - toSX(s.x2), my - toSY(s.y2));
+    if (d1 < 20) { active = 1; document.getElementById(g.k1Id).classList.add('drag'); }
+    else if (d2 < 20) { active = 2; document.getElementById(g.k2Id).classList.add('drag'); }
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!active) return;
+    const bounds = svgEl.getBoundingClientRect();
+    const mx = ((e.clientX - bounds.left) / bounds.width) * W;
+    const my = ((e.clientY - bounds.top) / bounds.height) * H;
+    const s = g.state;
+    const vx = Math.max(g.xMin, Math.min(g.xMax, fromSX(mx)));
+    const vy = Math.max(g.yMin, Math.min(g.yMax, fromSY(my)));
+    if (active === 1) {
+      s.x1 = Math.min(vx, s.x2 * 0.99);
+      s.y1 = vy;
+    } else {
+      s.x2 = Math.max(vx, s.x1 * 1.01);
+      s.y2 = vy;
+    }
+    draw();
+    g.onChange();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (active) {
+      document.getElementById(active === 1 ? g.k1Id : g.k2Id).classList.remove('drag');
+      active = null;
+    }
+  });
+
+  // numeric input sync
+  function wireNum(id, setter) {
+    document.getElementById(id).addEventListener('change', e => {
+      setter(parseFloat(e.target.value));
+      const s = g.state;
+      if (s.x1 >= s.x2) s.x1 = s.x2 * 0.99;
+      draw();
+      g.onChange();
+    });
+  }
+
+  wireNum(g.n1Id, v => { g.state.x1 = Math.max(g.xMin, Math.min(g.xMax, v)); });
+  wireNum(g.n2Id, v => { g.state.x2 = Math.max(g.xMin, Math.min(g.xMax, v)); });
+  wireNum(g.n3Id, v => { g.state.y1 = Math.max(g.yMin, Math.min(g.yMax, v)); });
+  wireNum(g.n4Id, v => { g.state.y2 = Math.max(g.yMin, Math.min(g.yMax, v)); });
+
+  return { redraw: draw };
+}
+
+/* ── Tab 2: Vertical Exaggeration UI ────────────────────── */
+
+let scaleGraph = null;
+let elevGraph  = null;
+
+function buildVeTab() {
+  // scale ramp — log/log
+  scaleGraph = makeRampGraph({
+    svgId: 'svg-scale',    gridId: 'sg-grid',    hairlineId: 'sg-hairlines',
+    pathId: 'sg-path',     k1Id: 'sg-k1',        k2Id: 'sg-k2',
+    lbl1Id: 'sg-lbl1',    lbl2Id: 'sg-lbl2',
+    logX: true,            logY: true,
+    xMin: 8000, xMax: 1000000, yMin: 0.5, yMax: 15,
+    state: state.ve.scale,
+    n1Id: 'sn-x1', n2Id: 'sn-x2', n3Id: 'sn-y1', n4Id: 'sn-y2',
+    onChange: applyVerticalExaggeration,
+  });
+
+  // elevation ramp — linear/linear
+  elevGraph = makeRampGraph({
+    svgId: 'svg-elev',    gridId: 'eg-grid',    hairlineId: 'eg-hairlines',
+    pathId: 'eg-path',    k1Id: 'eg-k1',        k2Id: 'eg-k2',
+    lbl1Id: 'eg-lbl1',   lbl2Id: 'eg-lbl2',
+    logX: false,          logY: false,
+    xMin: -1000, xMax: 9000, yMin: 1.0, yMax: 2.0,
+    state: state.ve.elev,
+    n1Id: 'en-x1', n2Id: 'en-x2', n3Id: 'en-y1', n4Id: 'en-y2',
+    onChange: applyVerticalExaggeration,
+  });
+
+  // gate checkboxes
+  function wireVeCheck(chkId, stateKey, gateId) {
+    const chk = document.getElementById(chkId);
+    const gate = document.getElementById(gateId);
+    gate.classList.add('disabled');
+    chk.addEventListener('change', e => {
+      state.ve[stateKey] = e.target.checked;
+      gate.classList.toggle('disabled', !e.target.checked);
+      applyVerticalExaggeration();
+    });
+  }
+
+  wireVeCheck('chk-scale-ve', 'scaleEnabled', 'graph-scale-gate');
+  wireVeCheck('chk-elev-ve',  'elevEnabled',  'graph-elev-gate');
+}
+
+/* ── Tab 3: Options UI ───────────────────────────────────── */
+
+function buildOptsTab() {
+  const items = [
+    { label: 'Illumination (lighting)', key: 'useLighting', stateObj: state.opts,
+      apply() { state.illum.useLighting = state.opts.useLighting; applyIllumination(); } },
+    { label: 'Normal maps',      key: 'useNormalMaps',   stateObj: state.opts,
+      apply() { applyRenderingOptions({ useNormalMaps:   state.opts.useNormalMaps   }); } },
+    { label: 'Diffuse maps (textures)', key: 'useDiffuseMaps', stateObj: state.opts,
+      apply() { applyRenderingOptions({ useDiffuseMaps:  state.opts.useDiffuseMaps  }); } },
+    { label: 'Specular maps',    key: 'useSpecularMaps', stateObj: state.opts,
+      apply() { applyRenderingOptions({ useSpecularMaps: state.opts.useSpecularMaps }); } },
+    { label: 'Bump maps',        key: 'useBumpMaps',     stateObj: state.opts,
+      apply() { applyRenderingOptions({ useBumpMaps:     state.opts.useBumpMaps     }); } },
+    { label: 'Haze (atmosphere)',key: 'useAtmosphere',   stateObj: state.opts,
+      apply() { applyRenderingOptions({ useAtmosphere:   state.opts.useAtmosphere   }); } },
+    { label: 'Foreground shadows', key: 'useShadows',   stateObj: state.opts,
+      apply() { applyRenderingOptions({ useShadows:      state.opts.useShadows      }); } },
+  ];
+
+  const list = document.getElementById('opts-list');
+  items.forEach(item => {
+    const id = 'opt-' + item.key;
+    const row = document.createElement('div');
+    row.className = 'check-row';
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'rl-check';
+    chk.id = id;
+    chk.checked = item.stateObj[item.key];
+    chk.addEventListener('change', e => {
+      item.stateObj[item.key] = e.target.checked;
+      item.apply();
+    });
+
+    const lbl = document.createElement('label');
+    lbl.className = 'check-label';
+    lbl.htmlFor = id;
+    lbl.textContent = item.label;
+
+    row.appendChild(chk);
+    row.appendChild(lbl);
+    list.appendChild(row);
+  });
+}
+
+/* ── Tab switching ───────────────────────────────────────── */
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('pane-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ── Panel collapse ──────────────────────────────────────── */
+
+const panelEl = document.getElementById('panel');
+const toggleBtn = document.getElementById('panel-toggle');
+
+function updateTogglePos() {
+  toggleBtn.style.left = panelEl.getBoundingClientRect().right + 'px';
+}
+
+toggleBtn.addEventListener('click', () => {
+  const collapsed = panelEl.classList.toggle('collapsed');
+  toggleBtn.textContent = collapsed ? '▶' : '◀';
+  // after transition ends, update position; also update immediately
+  updateTogglePos();
+  setTimeout(updateTogglePos, 250);
+});
+
+// set initial position once layout is ready
+requestAnimationFrame(updateTogglePos);
+
+/* ── Main ────────────────────────────────────────────────── */
+
+async function main() {
+  const defaultPos = ['obj', 15.588508, 50.732641, 'fix',
+    1059.58, 55.91, -50.14, 0.00, 19305.21, 30.00];
+  const position = posFromURL() || defaultPos;
+  const params = new URLSearchParams(window.location.search);
+
+  let style;
+  try {
+    style = await loadStyle(params);
+  } catch (e) {
+    console.error('Failed to load style:', e);
+    return;
+  }
+
+  // Initialise VE UI from the style if it uses the new pivot-point format,
+  // so the checkboxes and graphs reflect what is actually active on load.
+  initVeFromStyle(style);
+
+  const options = cartolina.runtimeOptionsFromUrl({ positionInUrl: true });
+
+  map = cartolina.map({
+    container: 'map',
+    style,
+    position,
+    options,
+  });
+
+  await map.ready;
+
+  applyIllumination();
+  // Only push VE if the style used the new format and we initialised state
+  // from it; otherwise leave the style's own VE settings undisturbed.
+  if (state.ve.scaleEnabled || state.ve.elevEnabled) {
+    applyVerticalExaggeration();
+  }
+}
+
+function initVeFromStyle(style) {
+  const ve = style && style['vertical-exaggeration'];
+  if (!ve) return;
+
+  if (ve.scaleRamp) {
+    state.ve.scaleEnabled = true;
+    state.ve.scale.x1 = ve.scaleRamp.min[0];
+    state.ve.scale.y1 = ve.scaleRamp.min[1];
+    state.ve.scale.x2 = ve.scaleRamp.max[0];
+    state.ve.scale.y2 = ve.scaleRamp.max[1];
+  }
+
+  if (ve.elevationRamp) {
+    state.ve.elevEnabled = true;
+    state.ve.elev.x1 = ve.elevationRamp.min[0];
+    state.ve.elev.y1 = ve.elevationRamp.min[1];
+    state.ve.elev.x2 = ve.elevationRamp.max[0];
+    state.ve.elev.y2 = ve.elevationRamp.max[1];
+  }
+
+  // Sync checkboxes, graph knobs and numeric inputs to the updated state.
+  // buildVeTab has already run, so we update DOM directly.
+  if (state.ve.scaleEnabled) {
+    document.getElementById('chk-scale-ve').checked = true;
+    document.getElementById('graph-scale-gate').classList.remove('disabled');
+    if (scaleGraph) scaleGraph.redraw();
+  }
+
+  if (state.ve.elevEnabled) {
+    document.getElementById('chk-elev-ve').checked = true;
+    document.getElementById('graph-elev-gate').classList.remove('disabled');
+    if (elevGraph) elevGraph.redraw();
+  }
+}
+
+buildIllumTab();
+buildVeTab();
+buildOptsTab();
+main().catch(console.error);
+</script>
+</body>
+</html>

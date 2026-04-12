@@ -1,5 +1,37 @@
 # Session log
 
+## 2026-04-12 — relief-lab demo and diffuse color API
+
+**Branch:** main
+
+### Spec
+
+Add the `relief-lab` demo application at `demos/relief-lab/index.html`. The demo exposes
+illumination, shading, and vertical-exaggeration parameters through a collapsible side panel
+with three tabs. Full specification: [docs/wiki/relief-lab-spec.md](relief-lab-spec.md).
+
+Two API additions were required:
+
+1. **`diffuseColor`** — previously the diffuse light color was hardcoded as
+   `[1−ambcf, 1−ambcf, 1−ambcf]` in `updateBuffers()`. A `diffuseColor` field is added to
+   `Renderer.IlluminationDef`, the internal `Illumination` type, and
+   `MapStyle.IlluminationSpecification` (for style-file authoring). `updateBuffers()` now
+   scales the authored color so its maximum RGB component equals `1 − ambientCoef`.
+2. **`setRenderingOptions()`** — new public method on `Renderer` (and proxied on all three
+   interface layers) accepting `Renderer.RenderingOptions`. Allows callers to toggle rendering
+   flags (`useNormalMaps`, `useDiffuseMaps`, etc.) without accessing internal debug fields.
+
+### Design decisions
+
+- `useLighting` is **not** part of `RenderingOptions`; it remains in `IlluminationDef`.
+  The `FlagLighting` UBO bit is conditional on `getIlluminationState()` (which checks
+  `illumination.useLighting`). Keeping the two concerns separate avoids an ambiguous double
+  switch.
+- Diffuse color default is `[1, 1, 1]` (white), giving the same behaviour as before when
+  no explicit color is provided.
+- The style schema addition (`diffuseColor` in `IlluminationSpecification`) piggybacks on the
+  existing style → `setIllumination()` pipeline without any additional plumbing.
+
 ## 2026-04-11 — Geographic illumination mode
 
 **Branch:** main

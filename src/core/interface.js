@@ -108,4 +108,10 @@ CoreInterface.prototype.setIllumination = function(spec) {
 };
 
 
+CoreInterface.prototype.setRenderingOptions = function(options) {
+    if (!this.core) return null;
+    return this.core.getRendererInterface().setRenderingOptions(options);
+};
+
+
 export {CoreInterface};
