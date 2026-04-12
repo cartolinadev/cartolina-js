@@ -11,15 +11,16 @@
   :root {
     --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --accent-rgb: 36, 93, 168;
+    --control-accent-rgb: 77, 126, 190;
     --panel-bg: rgba(255, 255, 255, 0.72);
     --panel-fg: #16202b;
-    --panel-muted: #5b6673;
+    --panel-muted: #3f4d5c;
     --panel-border: rgba(255, 255, 255, 0.58);
     --panel-rule: rgba(16, 24, 40, 0.09);
     --panel-input-bg: rgba(255, 255, 255, 0.60);
     --panel-track: rgba(15, 23, 42, 0.10);
     --panel-graph-bg: rgba(249, 250, 251, 0.64);
-    --panel-w: min(360px, 25vw);
+    --panel-w: min(430px, 30vw);
     --tab-h: 38px;
     --grid: #e5e5e5;
     --graph-stroke: #1a1a1a;
@@ -99,20 +100,20 @@
   }
 
   .tab-btn {
-    flex: 1;
+    flex: 0 0 auto;
     height: var(--tab-h);
     border: none;
     background: transparent;
-    color: var(--panel-muted);
-    font: 11px/1 var(--font);
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    color: #334150;
+    font: 12px/1 var(--font);
+    font-weight: 700;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: color 120ms, border-color 120ms;
     white-space: nowrap;
-    padding: 0 6px;
+    padding: 0 16px;
   }
 
   .tab-btn:hover { color: var(--panel-fg); }
@@ -134,38 +135,37 @@
 
   /* ── section headings ───────────────────────────────────── */
   .section {
-    padding: 12px 14px 10px;
+    padding: 20px 24px 18px;
     border-bottom: 1px solid var(--panel-rule);
   }
 
   .section:last-child { border-bottom: none; }
 
   .section-title {
-    margin: 0 0 10px;
-    font-size: 11px;
+    margin: 0 0 14px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--panel-muted);
+    color: #334150;
   }
 
   /* ── form rows ──────────────────────────────────────────── */
   .row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .row:last-child { margin-bottom: 0; }
 
   .row-label {
-    flex: 0 0 110px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--panel-muted);
+    flex: 0 0 126px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: #263444;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -180,6 +180,24 @@
     color: var(--panel-muted);
   }
 
+  #pane-illum .row {
+    gap: 8px;
+  }
+
+  #pane-illum .row-label {
+    flex-basis: 110px;
+  }
+
+  #row-ambient .row-label {
+    flex-basis: 138px;
+  }
+
+  #row-ambient .row-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-left: auto;
+  }
+
   /* ── select ─────────────────────────────────────────────── */
   .rl-select {
     width: 100%;
@@ -188,7 +206,7 @@
     border-radius: 6px;
     background: var(--panel-input-bg);
     color: inherit;
-    font: inherit;
+    font: 12px/1.2 var(--font);
     outline: none;
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%235b6673' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
@@ -220,8 +238,8 @@
     background:
       linear-gradient(
         to right,
-        rgb(var(--accent-rgb)) 0%,
-        rgb(var(--accent-rgb)) var(--fill, 50%),
+        rgb(var(--control-accent-rgb)) 0%,
+        rgb(var(--control-accent-rgb)) var(--fill, 50%),
         rgba(15, 23, 42, 0.18) var(--fill, 50%),
         rgba(15, 23, 42, 0.18) 100%
       );
@@ -233,7 +251,7 @@
     margin-top: -7.5px;
     border: 0;
     border-radius: 999px;
-    background: rgb(var(--accent-rgb));
+    background: rgb(var(--control-accent-rgb));
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
     -webkit-appearance: none;
   }
@@ -248,7 +266,7 @@
   .rl-slider::-moz-range-progress {
     height: 5px;
     border-radius: 999px;
-    background: rgb(var(--accent-rgb));
+    background: rgb(var(--control-accent-rgb));
   }
 
   .rl-slider::-moz-range-thumb {
@@ -256,7 +274,7 @@
     height: 20px;
     border: 0;
     border-radius: 999px;
-    background: rgb(var(--accent-rgb));
+    background: rgb(var(--control-accent-rgb));
   }
 
   /* ── color picker ───────────────────────────────────────── */
@@ -275,6 +293,31 @@
   .rl-color::-webkit-color-swatch { border: 0; border-radius: 3px; }
   .rl-color::-moz-color-swatch { border: 0; border-radius: 3px; }
 
+  .color-row-control {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .color-row-control .rl-color {
+    width: 72px;
+    height: 28px;
+  }
+
+  .color-pair-row {
+    display: grid;
+    grid-template-columns: max-content auto max-content auto;
+    align-items: center;
+    justify-content: end;
+    gap: 10px;
+  }
+
+  .color-pair-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #263444;
+    white-space: nowrap;
+  }
+
   /* ── checkbox row ───────────────────────────────────────── */
   .check-row {
     display: flex;
@@ -289,15 +332,41 @@
     width: 15px;
     height: 15px;
     flex-shrink: 0;
-    accent-color: rgb(var(--accent-rgb));
+    accent-color: rgb(var(--control-accent-rgb));
     cursor: pointer;
   }
 
   .check-label {
     font-size: 12px;
-    color: var(--panel-fg);
+    color: #263444;
+    font-weight: 500;
     cursor: pointer;
     user-select: none;
+  }
+
+  .shading-inline-label {
+    flex: 0 0 92px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #263444;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .shading-inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .shading-inline-controls .row-control {
+    flex: 1 1 auto;
+  }
+
+  .shading-inline-controls .row-readout {
+    flex: 0 0 42px;
   }
 
   /* ── disabled overlay ───────────────────────────────────── */
@@ -343,10 +412,10 @@
   .graph-inputs {
     display: grid;
     grid-template-columns: 132px 1fr 1fr;
-    column-gap: 10px;
-    row-gap: 6px;
+    column-gap: 14px;
+    row-gap: 10px;
     align-items: center;
-    padding: 6px 8px;
+    padding: 14px 16px;
     border-top: 1px solid var(--panel-rule);
     font-size: 11px;
     color: var(--panel-muted);
@@ -359,7 +428,7 @@
   .graph-input-pair {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 14px;
     grid-column: 2 / 4;
   }
 
@@ -387,7 +456,7 @@
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: 8px;
-    padding: 0 8px 8px;
+    padding: 0 16px 12px;
     font-size: 11px;
     font-weight: 600;
     color: #b0203a;
@@ -410,8 +479,12 @@
   }
 
   .row-note-offset {
-    margin: 6px 0 0;
+    margin: 10px 0 0;
     max-width: 100%;
+  }
+
+  .row-note-gap {
+    margin-bottom: 14px;
   }
 </style>
 </head>
@@ -421,8 +494,8 @@
   <div id="panel" class="vts-panel--light">
 
     <div id="tabs">
-      <button class="tab-btn active" data-tab="illum">Illumination</button>
-      <button class="tab-btn" data-tab="ve">Vert. Exag.</button>
+      <button class="tab-btn active" data-tab="illum">Light &amp; Shading</button>
+      <button class="tab-btn" data-tab="ve">Vertical Exaggeration</button>
       <button class="tab-btn" data-tab="opts">Options</button>
     </div>
 
@@ -432,11 +505,32 @@
       <div class="tab-pane active" id="pane-illum">
 
         <div class="section">
+          <div class="check-row">
+            <input type="checkbox" class="rl-check" id="chk-illumination-top" checked />
+            <label class="check-label" for="chk-illumination-top" style="font-weight:600;">
+              Illumination (lighting)
+            </label>
+          </div>
+        </div>
+
+        <div id="illum-pane-controls">
+        <div class="section">
           <div class="section-title">Light</div>
+          <div class="row-note" style="margin: 0 0 14px;">
+            These parameters control the light-source geometry and
+            intensity under the Blinn-Phong lighting model.
+          </div>
 
           <div class="row" id="row-type">
             <span class="row-label">Type</span>
             <div class="row-control" id="ctrl-type"></div>
+          </div>
+          <div class="row-note row-note-offset row-note-gap">
+            A tracking light follows the observer, with its geometry
+            defined in the plane perpendicular to the direction of the
+            view. A
+            geographic light follows the map center, with its geometry
+            defined in the local north-east-down reference frame.
           </div>
 
           <div class="row" id="row-azimuth">
@@ -452,54 +546,57 @@
           </div>
 
           <div class="row" id="row-ambient">
-            <span class="row-label">Ambient coef</span>
+            <span class="row-label">Ambient intensity</span>
             <div class="row-control" id="ctrl-ambient"></div>
             <span class="row-readout" id="read-ambient"></span>
           </div>
 
-          <div class="row" id="row-diffuse">
-            <span class="row-label">Diffuse color</span>
-            <div class="row-control" id="ctrl-diffuse"></div>
-          </div>
-
-          <div class="row" id="row-specular">
-            <span class="row-label">Specular color</span>
-            <div class="row-control" id="ctrl-specular"></div>
+          <div class="row" id="row-colors">
+            <span class="row-label">Light colors</span>
+            <div class="row-control color-pair-row">
+              <span class="color-pair-label">Diffuse</span>
+              <div class="color-row-control" id="ctrl-diffuse"></div>
+              <span class="color-pair-label">Specular</span>
+              <div class="color-row-control" id="ctrl-specular"></div>
+            </div>
           </div>
         </div>
 
         <div class="section">
           <div class="section-title">Shading</div>
-
-          <div class="check-row">
-            <input type="checkbox" class="rl-check" id="chk-lambertian" checked />
-            <label class="check-label" for="chk-lambertian">Lambertian</label>
+          <div class="row-note" style="margin: 0 0 12px;">
+            Combined shading computes the diffuse shading coefficient
+            from a geometric average of the three available shading
+            methods.
           </div>
+
           <div class="row" id="row-lambertian-w">
-            <span class="row-label">Weight</span>
-            <div class="row-control" id="ctrl-lambertian-w"></div>
-            <span class="row-readout" id="read-lambertian-w"></span>
+            <input type="checkbox" class="rl-check" id="chk-lambertian" checked />
+            <label class="shading-inline-label" for="chk-lambertian">Lambertian</label>
+            <div class="shading-inline-controls" id="row-lambertian-w-controls">
+              <div class="row-control" id="ctrl-lambertian-w"></div>
+              <span class="row-readout" id="read-lambertian-w"></span>
+            </div>
           </div>
 
-          <div class="check-row" style="margin-top:8px;">
-            <input type="checkbox" class="rl-check" id="chk-slope" checked />
-            <label class="check-label" for="chk-slope">Slope</label>
-          </div>
           <div class="row" id="row-slope-w">
-            <span class="row-label">Weight</span>
-            <div class="row-control" id="ctrl-slope-w"></div>
-            <span class="row-readout" id="read-slope-w"></span>
+            <input type="checkbox" class="rl-check" id="chk-slope" checked />
+            <label class="shading-inline-label" for="chk-slope">Slope</label>
+            <div class="shading-inline-controls" id="row-slope-w-controls">
+              <div class="row-control" id="ctrl-slope-w"></div>
+              <span class="row-readout" id="read-slope-w"></span>
+            </div>
           </div>
 
-          <div class="check-row" style="margin-top:8px;">
-            <input type="checkbox" class="rl-check" id="chk-aspect" />
-            <label class="check-label" for="chk-aspect">Aspect</label>
-          </div>
           <div class="row" id="row-aspect-w">
-            <span class="row-label">Weight</span>
-            <div class="row-control" id="ctrl-aspect-w"></div>
-            <span class="row-readout" id="read-aspect-w"></span>
+            <input type="checkbox" class="rl-check" id="chk-aspect" />
+            <label class="shading-inline-label" for="chk-aspect">Aspect</label>
+            <div class="shading-inline-controls" id="row-aspect-w-controls">
+              <div class="row-control" id="ctrl-aspect-w"></div>
+              <span class="row-readout" id="read-aspect-w"></span>
+            </div>
           </div>
+        </div>
         </div>
 
       </div>
@@ -972,6 +1069,13 @@ function makeColor(cfg) {
 function buildIllumTab() {
   const s = state.illum;
 
+  ui.illum.useLightingTop = document.getElementById('chk-illumination-top');
+  ui.illum.useLightingTop.addEventListener('change', e => {
+    s.useLighting = e.target.checked;
+    state.opts.useLighting = e.target.checked;
+    applyIllumination();
+  });
+
   // type select
   const typeEl = makeSelect({
     options: [['tracking', 'Tracking'], ['geographic', 'Geographic']],
@@ -1046,14 +1150,14 @@ function buildIllumTab() {
     'read-aspect-w', 'illum-aspect-weight', 'aspectWeight');
 
   // initially disable aspect weight row
-  document.getElementById('row-aspect-w').classList.add('disabled');
+  document.getElementById('row-aspect-w-controls').classList.add('disabled');
 
-  function wireCheck(id, activeKey, rowId, optionKey) {
+  function wireCheck(id, activeKey, controlsId, optionKey) {
     document.getElementById(id).addEventListener('change', e => {
       state.illum[activeKey] = e.target.checked;
       normalizeActiveShadingWeights(
         e.target.checked ? activeKey.replace('Active', 'Weight') : null);
-      document.getElementById(rowId).classList.toggle('disabled', !e.target.checked);
+      document.getElementById(controlsId).classList.toggle('disabled', !e.target.checked);
       syncIlluminationUi();
       applyIllumination();
       applyRenderingOptions({ [optionKey]: e.target.checked });
@@ -1064,11 +1168,11 @@ function buildIllumTab() {
   ui.illum.slopeActive = document.getElementById('chk-slope');
   ui.illum.aspectActive = document.getElementById('chk-aspect');
 
-  wireCheck('chk-lambertian', 'lambertianActive', 'row-lambertian-w',
+  wireCheck('chk-lambertian', 'lambertianActive', 'row-lambertian-w-controls',
     'useShadingLambertian');
-  wireCheck('chk-slope', 'slopeActive', 'row-slope-w',
+  wireCheck('chk-slope', 'slopeActive', 'row-slope-w-controls',
     'useShadingSlope');
-  wireCheck('chk-aspect', 'aspectActive', 'row-aspect-w',
+  wireCheck('chk-aspect', 'aspectActive', 'row-aspect-w-controls',
     'useShadingAspect');
 }
 
@@ -1600,6 +1704,9 @@ requestAnimationFrame(updateTogglePos);
 /* ── Main ────────────────────────────────────────────────── */
 
 function syncIlluminationUi() {
+  syncCheckbox(ui.illum.useLightingTop, state.illum.useLighting);
+  document.getElementById('illum-pane-controls').classList.toggle('disabled',
+    !state.illum.useLighting);
   syncSelectValue(ui.illum.type, state.illum.type);
   syncSliderValue(ui.illum.azimuth, state.illum.azimuth);
   syncSliderValue(ui.illum.elevation, state.illum.elevation);
@@ -1615,11 +1722,11 @@ function syncIlluminationUi() {
   syncCheckbox(ui.illum.lambertianActive, state.illum.lambertianActive);
   syncCheckbox(ui.illum.slopeActive, state.illum.slopeActive);
   syncCheckbox(ui.illum.aspectActive, state.illum.aspectActive);
-  document.getElementById('row-lambertian-w').classList.toggle('disabled',
+  document.getElementById('row-lambertian-w-controls').classList.toggle('disabled',
     !state.illum.lambertianActive);
-  document.getElementById('row-slope-w').classList.toggle('disabled',
+  document.getElementById('row-slope-w-controls').classList.toggle('disabled',
     !state.illum.slopeActive);
-  document.getElementById('row-aspect-w').classList.toggle('disabled',
+  document.getElementById('row-aspect-w-controls').classList.toggle('disabled',
     !state.illum.aspectActive);
   syncReadout('read-azimuth', state.illum.azimuth + '°');
   syncReadout('read-elevation', state.illum.elevation + '°');
@@ -1712,7 +1819,8 @@ function syncRenderingOptionsFromMap() {
   const options = map.getRenderingOptions();
   if (!options) return;
 
-  state.opts.useLighting = state.illum.useLighting;
+  state.opts.useLighting = !!options.useLighting;
+  state.illum.useLighting = !!options.useLighting;
   state.opts.useNormalMaps = !!options.useNormalMaps;
   state.opts.useDiffuseMaps = !!options.useDiffuseMaps;
   state.opts.useSpecularMaps = !!options.useSpecularMaps;
@@ -1757,6 +1865,7 @@ function startMapStateSync() {
 
     syncIlluminationFromMap();
     syncRenderingOptionsFromMap();
+    normalizeActiveShadingWeights();
     syncVerticalExaggerationFromMap();
     updateComputedScaleIndicator();
 

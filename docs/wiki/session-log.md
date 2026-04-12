@@ -1,65 +1,34 @@
 # Session log
 
-## 2026-04-12 — relief-lab live state sync
+## 2026-04-12 — relief-lab demo and runtime-state sync
 
 **Branch:** main
 
 ### Spec
 
-Make the `relief-lab` control panel read and follow live map state
-instead of initializing itself from the input style JSON.
+Implement `demos/relief-lab/index.html` from
+[docs/wiki/relief-lab-spec.md](relief-lab-spec.md), then make the demo
+follow live map state rather than initializing itself from style JSON.
 
 ### Design decisions
 
-- Added public renderer readback methods for illumination, rendering
-  options, and vertical exaggeration, proxied on all public interface
-  layers.
+- Added public renderer readback for illumination, rendering options,
+  and vertical exaggeration, proxied through renderer/core/browser
+  interfaces, so the demo can treat the map as the source of truth.
 - `setIllumination()`, `setRenderingOptions()`, and
   `setVerticalExaggeration()` now mark the map dirty so runtime changes
   redraw immediately.
-- The demo now polls public getters on each `tick` and reconciles the
-  panel from that live state instead of inspecting style contents.
-- Rendering-option overrides continue to live on `renderer.debug`; this
-  work intentionally does not introduce a second storage layer.
-
-### Non-obvious finding
-
-The relief-lab shading checkboxes do not map to independent renderer
-flags in normal operation. Their effective state is derived from the
-stored illumination weights, so polling reconstructs checkbox state from
-the current weights rather than from diagnostic render-flag overrides.
-
-## 2026-04-12 — relief-lab demo and diffuse color API
-
-**Branch:** main
-
-### Spec
-
-Add the `relief-lab` demo application at `demos/relief-lab/index.html`. The demo exposes
-illumination, shading, and vertical-exaggeration parameters through a collapsible side panel
-with three tabs. Full specification: [docs/wiki/relief-lab-spec.md](relief-lab-spec.md).
-
-Two API additions were required:
-
-1. **`diffuseColor`** — previously the diffuse light color was hardcoded as
-   `[1−ambcf, 1−ambcf, 1−ambcf]` in `updateBuffers()`. A `diffuseColor` field is added to
-   `Renderer.IlluminationDef`, the internal `Illumination` type, and
-   `MapStyle.IlluminationSpecification` (for style-file authoring). `updateBuffers()` now
-   scales the authored color so its maximum RGB component equals `1 − ambientCoef`.
-2. **`setRenderingOptions()`** — new public method on `Renderer` (and proxied on all three
-   interface layers) accepting `Renderer.RenderingOptions`. Allows callers to toggle rendering
-   flags (`useNormalMaps`, `useDiffuseMaps`, etc.) without accessing internal debug fields.
-
-### Design decisions
-
-- `useLighting` is **not** part of `RenderingOptions`; it remains in `IlluminationDef`.
-  The `FlagLighting` UBO bit is conditional on `getIlluminationState()` (which checks
-  `illumination.useLighting`). Keeping the two concerns separate avoids an ambiguous double
-  switch.
-- Diffuse color default is `[1, 1, 1]` (white), giving the same behaviour as before when
-  no explicit color is provided.
-- The style schema addition (`diffuseColor` in `IlluminationSpecification`) piggybacks on the
-  existing style → `setIllumination()` pipeline without any additional plumbing.
+- The demo polls those public getters on each `tick` and reconciles its
+  controls from live renderer state instead of reading style internals.
+- Rendering-option overrides remain on `renderer.debug`; the public API
+  intentionally reuses that existing storage rather than introducing a
+  second override layer.
+- `useLighting` remains part of illumination rather than
+  `RenderingOptions`; the frame render flag follows
+  `illumination.useLighting` through the existing illumination-state
+  path.
+- `diffuseColor` was added to the authored illumination spec and
+  renderer runtime, replacing the previous hardcoded white diffuse term.
 
 ## 2026-04-11 — Geographic illumination mode
 

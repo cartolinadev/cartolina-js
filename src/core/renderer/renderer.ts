@@ -1018,6 +1018,9 @@ getRenderingOptions(): Renderer.RenderingOptions {
     const cfg = this.core.map?.config ?? this.config;
 
     return {
+        useLighting:
+            (d.flagLighting ?? cfg.mapFlagLighting)
+            && this.getIlluminationState(),
         useNormalMaps:
             d.flagNormalMaps ?? cfg.mapFlagNormalMaps,
         useDiffuseMaps:
@@ -2190,6 +2193,7 @@ export type IlluminationDef = {
 }
 
 export type RenderingOptions = {
+    useLighting?:          boolean;
     useNormalMaps?:        boolean;
     useDiffuseMaps?:       boolean;
     useSpecularMaps?:      boolean;
