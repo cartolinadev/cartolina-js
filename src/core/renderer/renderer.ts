@@ -1015,17 +1015,7 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
 getRenderingOptions(): Renderer.RenderingOptions {
 
     const d = this.debug;
-    const cfg = (this.core.map?.config ?? this.config) as {
-        mapShadingLambertian: boolean;
-        mapShadingSlope: boolean;
-        mapShadingAspect: boolean;
-        mapFlagNormalMaps: boolean;
-        mapFlagDiffuseMaps: boolean;
-        mapFlagSpecularMaps: boolean;
-        mapFlagBumpMaps: boolean;
-        mapFlagAtmosphere: boolean;
-        mapFlagShadows: boolean;
-    };
+    const cfg = this.core.map?.config ?? this.config;
 
     return {
         useNormalMaps:
@@ -1984,9 +1974,20 @@ type Config = {
     rendererAllowScreenshots?: boolean;
     rendererAntialiasing?: boolean;
     rendererAnisotropic?: number;
+    mapShadingLambertian?: boolean;
+    mapShadingSlope?: boolean;
+    mapShadingAspect?: boolean;
+    mapFlagLighting?: boolean;
+    mapFlagNormalMaps?: boolean;
+    mapFlagDiffuseMaps?: boolean;
+    mapFlagSpecularMaps?: boolean;
+    mapFlagBumpMaps?: boolean;
+    mapFlagAtmosphere?: boolean;
+    mapFlagShadows?: boolean;
     mapDMapSize?: number;
     mapDMapMode?: number;
     mapDMapCopyIntervalMs?: number;
+    mapSplitMargin?: number;
     mapLabelFreeMargins?: [number, number, number, number];
     rendererCssDpi?: number;
 }
@@ -2066,19 +2067,7 @@ type Map = {
     getPhysicalSrs(): MapSrs;
     markDirty(): void;
 
-    config: {
-        mapShadingLambertian: boolean;
-        mapShadingSlope: boolean;
-        mapShadingAspect: boolean;
-        mapFlagLighting: boolean;
-        mapFlagNormalMaps: boolean;
-        mapFlagDiffuseMaps: boolean;
-        mapFlagSpecularMaps: boolean;
-        mapFlagBumpMaps: boolean;
-        mapFlagAtmosphere: boolean;
-        mapFlagShadows: boolean;
-        mapSplitMargin: number;
-    }
+    config: Config;
 }
 
 /** Fixed texture indices - the actual index is computed as

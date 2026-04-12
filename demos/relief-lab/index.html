@@ -333,7 +333,7 @@
   .graph-svg {
     display: block;
     width: 100%;
-    height: 180px;
+    height: 360px;
     cursor: crosshair;
     user-select: none;
     overflow: visible;
@@ -461,7 +461,7 @@
           </div>
           <div id="graph-scale-gate">
             <div class="graph-wrap">
-              <svg class="graph-svg" id="svg-scale" viewBox="0 0 320 180" preserveAspectRatio="none">
+              <svg class="graph-svg" id="svg-scale" viewBox="0 0 320 360" preserveAspectRatio="none">
                 <g id="sg-grid"></g>
                 <g id="sg-hairlines"></g>
                 <path class="g-path" id="sg-path" />
@@ -472,7 +472,7 @@
               </svg>
             </div>
             <div class="graph-inputs">
-              <label>Scale thresholds</label>
+              <label>Scale denominator (1:n)</label>
               <input type="number" class="rl-num" id="sn-x1" />
               <input type="number" class="rl-num" id="sn-x2" />
               <label>VA factor</label>
@@ -489,7 +489,7 @@
           </div>
           <div id="graph-elev-gate">
             <div class="graph-wrap">
-              <svg class="graph-svg" id="svg-elev" viewBox="0 0 320 180" preserveAspectRatio="none">
+              <svg class="graph-svg" id="svg-elev" viewBox="0 0 320 360" preserveAspectRatio="none">
                 <g id="eg-grid"></g>
                 <g id="eg-hairlines"></g>
                 <path class="g-path" id="eg-path" />
@@ -542,6 +542,18 @@ function hexToRgb01(hex) {
 function rgb01ToHex(rgb) {
   const c = rgb.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255));
   return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function fmtScaleDenominator(v) {
+  if (Math.abs(v) >= 1000000) {
+    return '1:' + (v / 1000000).toFixed(0) + 'M';
+  }
+
+  if (Math.abs(v) >= 1000) {
+    return '1:' + (v / 1000).toFixed(0) + 'k';
+  }
+
+  return '1:' + Math.round(v);
 }
 
 function syncSliderFill(el) {
@@ -980,7 +992,7 @@ function makeRampGraph(cfg) {
    * }
    */
 
-  const W = 320, H = 180, PAD = 30;
+  const W = 320, H = 360, PAD = 30;
   const g = cfg;
 
   function toLog(v, lo, hi) {
@@ -1047,18 +1059,22 @@ function makeRampGraph(cfg) {
     const gridEl = document.getElementById(g.gridId);
     let html = '';
 
-    const xTicks = g.logX ? logTicks(g.xMin, g.xMax) : linTicks(g.xMin, g.xMax, 5);
+    const xTicks = g.xTicks
+      ? g.xTicks
+      : (g.logX ? logTicks(g.xMin, g.xMax) : linTicks(g.xMin, g.xMax, 5));
     for (const v of xTicks) {
       const sx = toSX(v);
       html += `<line class="g-grid" x1="${sx}" y1="${PAD}" x2="${sx}" y2="${H - PAD}"/>`;
-      html += `<text class="g-tick" x="${sx}" y="${H - PAD + 12}" text-anchor="middle">${fmtTick(v)}</text>`;
+      html += `<text class="g-tick" x="${sx}" y="${H - PAD + 12}" text-anchor="middle">${(g.xTickFormatter || fmtTick)(v)}</text>`;
     }
 
-    const yTicks = g.logY ? logTicks(g.yMin, g.yMax) : linTicks(g.yMin, g.yMax, 4);
+    const yTicks = g.yTicks
+      ? g.yTicks
+      : (g.logY ? logTicks(g.yMin, g.yMax) : linTicks(g.yMin, g.yMax, 4));
     for (const v of yTicks) {
       const sy = toSY(v);
       html += `<line class="g-grid" x1="${PAD}" y1="${sy}" x2="${W - PAD}" y2="${sy}"/>`;
-      html += `<text class="g-tick" x="${PAD - 4}" y="${sy + 3}" text-anchor="end">${fmtTick(v)}</text>`;
+      html += `<text class="g-tick" x="${PAD - 4}" y="${sy + 3}" text-anchor="end">${(g.yTickFormatter || fmtTick)(v)}</text>`;
     }
 
     // axes
@@ -1085,12 +1101,14 @@ function makeRampGraph(cfg) {
     const lbl1 = document.getElementById(g.lbl1Id);
     lbl1.setAttribute('x', x1s - 6); lbl1.setAttribute('y', y1s + 16);
     lbl1.setAttribute('text-anchor', 'end');
-    lbl1.textContent = fmtTick(s.x1) + ', ' + s.y1.toFixed(2);
+    lbl1.textContent = (g.xValueFormatter || fmtTick)(s.x1)
+      + ', ' + s.y1.toFixed(2);
 
     const lbl2 = document.getElementById(g.lbl2Id);
     lbl2.setAttribute('x', x2s + 6); lbl2.setAttribute('y', y2s - 8);
     lbl2.setAttribute('text-anchor', 'start');
-    lbl2.textContent = fmtTick(s.x2) + ', ' + s.y2.toFixed(2);
+    lbl2.textContent = (g.xValueFormatter || fmtTick)(s.x2)
+      + ', ' + s.y2.toFixed(2);
 
     const hlEl = document.getElementById(g.hairlineId);
     hlEl.innerHTML =
@@ -1193,7 +1211,11 @@ function buildVeTab() {
     lbl1Id: 'sg-lbl1',    lbl2Id: 'sg-lbl2',
     logX: true,            logY: true,
     lockKey: 've-scale',
-    xMin: 8000, xMax: 1000000, yMin: 0.5, yMax: 15,
+    xMin: 8000, xMax: 125000000, yMin: 0.5, yMax: 128,
+    xTicks: [8000, 40000, 200000, 1000000, 5000000, 25000000, 125000000],
+    xTickFormatter: fmtScaleDenominator,
+    xValueFormatter: fmtScaleDenominator,
+    yTicks: [0.5, 1, 2, 4, 8, 16, 32, 64, 128],
     state: state.ve.scale,
     n1Id: 'sn-x1', n2Id: 'sn-x2', n3Id: 'sn-y1', n4Id: 'sn-y2',
     onChange: applyVerticalExaggeration,
@@ -1206,7 +1228,9 @@ function buildVeTab() {
     lbl1Id: 'eg-lbl1',   lbl2Id: 'eg-lbl2',
     logX: false,          logY: false,
     lockKey: 've-elev',
-    xMin: -1000, xMax: 9000, yMin: 1.0, yMax: 2.0,
+    xMin: -1000, xMax: 10000, yMin: 0.5, yMax: 3.0,
+    xTicks: [0, 2000, 4000, 6000, 8000, 10000],
+    yTicks: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0],
     state: state.ve.elev,
     n1Id: 'en-x1', n2Id: 'en-x2', n3Id: 'en-y1', n4Id: 'en-y2',
     onChange: applyVerticalExaggeration,
