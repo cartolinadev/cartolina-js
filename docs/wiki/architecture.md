@@ -117,12 +117,18 @@ shading, illumination, vertical exaggeration, and all GPU resource management.
 
 ## Public API philosophy
 
-### `Viewer` is the single entry point
+### `Viewer` is the single entry point and the only place for new code
 
 `Viewer` (exported as the type alias `Map`) is the one object that new
 applications interact with. It follows the MapLibre GL JS convention: a
 single class whose methods cover all public operations, with no sub-object
 access required.
+
+**No new functionality goes into `Browser`.** `Browser` is legacy
+infrastructure on the path to dissolution. New capabilities belong on
+`Viewer` as flat, typed methods. When a feature requires something from
+`Browser`'s internals, promote it to `Viewer` directly rather than
+adding it to `Browser` first.
 
 ```ts
 import { map } from 'cartolina-js';

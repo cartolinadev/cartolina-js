@@ -2,18 +2,15 @@
  * tilerenderrig.ts - prepare and draw mesh tiles
  */
 
-import MapResourceNode from './resource-node';
-import MapSurface from './surface';
 import MapMesh from './mesh';
 import MapSubmesh from './submesh';
 import MapTexture from './texture';
-import MapBoundLayer from './bound-layer'
+import MapSurfaceTile from './surface-tile'
 import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
-import Map from './map';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
@@ -54,7 +51,7 @@ import * as vts from '../constants';
 export class TileRenderRig {
 
     private readonly config!: Config;
-    private readonly tile!: SurfaceTile;
+    private readonly tile!: MapSurfaceTile;
     private readonly renderer!: Renderer;
 
     private mesh!: MapMesh;
@@ -90,7 +87,7 @@ export class TileRenderRig {
      */
 
     constructor(submeshIndex: number, style: MapStyle.StyleSpecification,
-        tile: SurfaceTile, renderer: Renderer, config: Config) {
+        tile: MapSurfaceTile, renderer: Renderer, config: Config) {
 
         this.tile = tile;
         this.renderer = renderer;
@@ -959,7 +956,7 @@ export class TileRenderRig {
                 + `'${layerSpec.source}'.`);
         }
 
-        let clampToLodRange = (tile: SurfaceTile, lodRange: number[]) => {
+        let clampToLodRange = (tile: MapSurfaceTile, lodRange: number[]) => {
 
             while(tile && tile.id[0] > lodRange[1]) { tile = tile.parent; }
             return tile;
@@ -1200,26 +1197,6 @@ type Config = {
     mapNoNormalMaps?: boolean;
 }
 
-type SurfaceTile = {
-
-    id: [number, number, number];
-
-    parent?: SurfaceTile;
-
-    resources: MapResourceNode;
-    resourceSurface: MapSurface;
-    surfaceMesh: MapMesh;
-
-    // we acccess atmosphere, and getBoundLayerById, measure
-    map: Map;
-
-    splitMask?: [number, number, number, number];
-
-    boundTextures: { [key: string]: MapTexture };
-
-    // lookup bound layer by id
-    boundLayers: { [key:string]: MapBoundLayer };
-}
 
 type Necessity = 'essential' | 'optional';
 
@@ -1377,46 +1354,6 @@ const BlendModeMap = { overlay: UboBlendMode.Overlay, add: UboBlendMode.Add,
 
 // export types
 export namespace TileRenderRig {
-
-    /**
-     * the legacy layer definition (the three sequences in MapSurfaceTree)
-     * no longer needed
-     */
-/*    export type LegacyLayerDef = {
-
-        type: 'texture' | 'constant',
-        layer?: MapBoundLayer,
-        value?: [number, number, number],
-        mode?: 'normal' | 'multiply'
-        alpha: number | {
-            value: number,
-            mode?: AlphaMode,
-            illumination?: [number, number]
-        }
-    }
-
-    type LegacyLayerDefs = {
-
-        diffuseSequence: LegacyLayerDef[];
-
-        specularSequence: {
-            type: 'texture',
-            layer: MapBoundLayer,
-            alpha: number
-
-        }[];
-
-        bumpSequence: {
-            type: 'texture',
-            layer: MapBoundLayer,
-            alpha: number
-        }[];
-    }
-
-    // to be widened to accomodate for new layer definition format
-    export type LayerDef = LegacyLayerDef;
-    export type LayerDefs = LegacyLayerDefs; */
-
 
     /**
      * resource readiness level, see TileRenderRig.isReady for details
