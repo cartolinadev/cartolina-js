@@ -1741,7 +1741,7 @@ function getLiveRendererPpi() {
     return 96;
   }
 
-  const value = map.renderer.getConfigParam('rendererCssDpi');
+  const value = map.getParam('rendererCssDpi');
   return Number.isFinite(value) ? value : 96;
 }
 
@@ -1754,8 +1754,8 @@ function applyPpiValue() {
     return;
   }
 
-  map.renderer.setConfigParam('rendererCssDpi', value);
-  map.map.redraw();
+  map.setParam('rendererCssDpi', value);
+  map.redraw();
   updateComputedScaleIndicator();
   setInteractionLock('ve-ppi', false);
 }
@@ -1770,16 +1770,16 @@ function setMapScaleDenominator(targetScale) {
     return;
   }
 
-  const position = map.map.getPosition();
+  const position = map.getPosition();
   const currentExtent = position.getViewExtent();
-  const currentScale = map.renderer.getScaleDenominator(currentExtent);
+  const currentScale = map.getScaleDenominator(currentExtent);
 
   if (!Number.isFinite(currentScale) || currentScale <= 0) {
     return;
   }
 
   position.setViewExtent(currentExtent * (targetScale / currentScale));
-  map.map.setPosition(position);
+  map.setPosition(position);
 }
 
 function buildVeTab() {
@@ -2062,10 +2062,9 @@ function syncOptsUi() {
 function updateComputedScaleIndicator() {
   if (!map || !scaleGraph) return;
 
-  const position = map.map.getPosition();
-  const currentScale = map.renderer.getScaleDenominator(
-    position.getViewExtent());
-  const currentVeScaleFactor = map.renderer.getVeScaleFactor(position);
+  const position = map.getPosition();
+  const currentScale = map.getScaleDenominator(position.getViewExtent());
+  const currentVeScaleFactor = map.getVeScaleFactor(position);
   scaleGraph.setCurrentX(currentScale);
   document.getElementById('sg-status').textContent =
     fmtScaleDenominatorReadable(currentScale);

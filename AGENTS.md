@@ -25,6 +25,9 @@ Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it
 from noise.
 
+Write wiki entries with a maximum line length of 80 characters. Tables
+and code blocks are exempt.
+
 **Files:**
 
 - [architecture.md](docs/wiki/architecture.md) — system structure,
@@ -103,6 +106,9 @@ source ~/.nvm/nvm.sh && nvm use
 - Do not assume the default `node` on `PATH` is correct; verify with
   `node -v` if a command fails unexpectedly.
 
+- Text-analysis commands (`grep`, `awk`, `sed`, `wc`) may be run
+  against files in this repository without asking for permission.
+
 
 ## Code and refactoring philosophy
 
@@ -165,7 +171,7 @@ otherwise: `simple-terrain`, `complex-terrain`, `full-terrain`.
    it directly; do not start a second instance.
 
 2. Use [test/screenshot.js](test/screenshot.js) to capture and compare
-   renders:
+   renders. This script may be run without asking for permission:
 
 ```bash
 # all test URLs
@@ -180,12 +186,13 @@ Screenshots are saved to `/tmp/screenshots/<id>-dev.png` and
 before capturing (same quiet-window strategy as the perf runner) and
 prints any console or network errors it finds.
 
-When writing Playwright-based diagnostic or interactive test scripts,
-always listen to **both** `page.on('console', ...)` and
-`page.on('pageerror', ...)`. Uncaught exceptions thrown inside event
-handlers (e.g. from simulated keyboard or mouse interaction) surface as
-`pageerror` events, not as `console` errors. A test that only monitors
-the `console` channel will silently miss these failures.
+Custom Playwright-based diagnostic or test scripts may be created and
+run against the dev server without asking for permission. Always listen
+to **both** `page.on('console', ...)` and `page.on('pageerror', ...)`.
+Uncaught exceptions thrown inside event handlers (e.g. from simulated
+keyboard or mouse interaction) surface as `pageerror` events, not as
+`console` errors. A test that only monitors the `console` channel will
+silently miss these failures.
 
 3. A URL **renders correctly** when all of the following hold:
    - No network errors (failed tile or resource fetches).
@@ -323,6 +330,8 @@ documentation style.
 Private methods usually do not need JSDoc unless their functionality is
 non-obvious. But if they do, it must be kept up to date; stale
 documentation is worse than none.
+
+Do not use `@link` in JSDoc comments. TypeScript IDEs do not render it.
 
 
 ## WebGL2 shaders

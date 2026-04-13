@@ -1,5 +1,6 @@
 
-import BrowserInterface from './interface';
+import Viewer from './viewer';
+export type { default as Map } from './viewer';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import {getCoreVersion, checkSupport} from '../core/core';
@@ -66,7 +67,7 @@ export type MapOptions = {
  * @return the browser interface
  */
 
-export function map(options: MapOptions): BrowserInterface {
+export function map(options: MapOptions): Viewer {
 
     // all browser controls are disabled by default on the style api
     let dflts = {
@@ -80,7 +81,7 @@ export function map(options: MapOptions): BrowserInterface {
         , "controlCompass": false
     }
 
-    let bi = new BrowserInterface(options.container, {
+    let vi = new Viewer(options.container, {
         style: options.style,
         ...dflts,
         ...options.options,
@@ -88,7 +89,7 @@ export function map(options: MapOptions): BrowserInterface {
     });
 
     // return
-    return bi.core ? bi: null;
+    return (vi as any)._core ? vi : null;
 }
 
 /**
@@ -128,10 +129,10 @@ export type BrowserConfig = MapRuntimeOptions & {
 export function browser(
     element: HTMLElement | string,
     config: BrowserConfig
-): BrowserInterface {
+): Viewer {
 
-    var browserInterface = new BrowserInterface(element, config);
-    return browserInterface.core ? browserInterface : null;
+    var vi = new Viewer(element, config);
+    return (vi as any)._coreInterface ? vi : null;
 }
 
 /**

@@ -1,0 +1,436 @@
+/**
+ * The primary public API entry point for cartolina-js.
+ *
+ * `Viewer` is the single object that new applications interact with. It
+ * provides a flat, typed method surface for all map operations: lifecycle,
+ * camera, rendering controls, coordinate conversion, and hit-testing.
+ *
+ * It is constructed indirectly through the `map()` or `browser()`
+ * factory functions exported from this package. The public type alias for
+ * this class is `Map`.
+ *
+ * Sub-objects from the legacy API (`.map`, `.renderer`) are not part of this
+ * class's public interface. Methods are promoted to flat accessors on this
+ * class on a case-by-case basis as new applications require them.
+ */
+
+// @ts-ignore — legacy JS module; imported for type annotation and navigation
+import Browser from './browser';
+import type { ICoreInterface } from '../core/types';
+import Atmosphere from '../core/map/atmosphere';
+import Renderer from '../core/renderer/renderer';
+import type { MapRuntimeOptionValue } from './index';
+import MapPosition from '../core/map/position';
+import Map from '../core/map/map';
+import MapInterface from '../core/map/interface'
+
+import type {
+    HeightMode,
+    Lod,
+    CoreEventMap,
+} from '../core/types';
+
+import type { vec3 } from '../core/utils/math';
+
+/**
+ * The primary public API object returned by the `map()` factory.
+ *
+ * Exported as the type alias `Map` from the package index.
+ */
+class Viewer {
+
+    //private readonly _browser: InstanceType<typeof Browser>;
+    private readonly _browser: Browser;
+    private readonly _core: ICoreInterface;
+    private _killed = false;
+
+    /** The internal terrain engine (`Core.map`). Non-null after `ready`. */
+    private get _map(): Map | null { return this._core?.core?.map ?? null; }
+
+    /** The internal WebGL renderer (`Core.renderer`). */
+    private get _renderer(): Renderer | null {
+        return this._core?.core?.renderer ?? null;
+    }
+
+    /**
+     * The internal `MapInterface` — used for methods whose delegation
+     * logic lives there and has not yet been promoted. Not public.
+     */
+    private get _mapInterface(): MapInterface | null {
+        return this._core?.core?.mapInterface ?? null;
+    }
+
+    /** Returns true when the viewer has been destroyed. */
+    private _guard(): boolean { return this._killed; }
+
+    /**
+     * Do not construct directly — use the `map()` or `browser()` factory
+     * functions exported from this package.
+     *
+     * @param element the container element or its CSS selector / id
+     * @param config browser configuration object
+     *   (style-based or legacy mapConfig)
+     */
+    constructor(element: HTMLElement | string, config: unknown) {
+
+        this._browser = new Browser(element, config);
+        this._core = this._browser.getCore() as unknown as ICoreInterface;
+    }
+
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
+
+    /**
+     * Promise that resolves once the map is fully loaded and ready to render.
+     */
+    get ready(): Promise<unknown> {
+
+        return (this._core as any).ready;
+    }
+
+    /** Destroys the viewer and releases all GPU and DOM resources. */
+    destroy(): void {
+
+        if (this._guard()) return;
+        this._core.destroy();
+        this._browser.kill();
+        this._killed = true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    /**
+     * Subscribes to a named map event.
+     * See `CoreEventMap` for available event names.
+     *
+     * @param eventName the event to subscribe to
+     * @param callback invoked each time the event fires
+     * @returns an unsubscribe function
+     */
+    on<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+    ): (() => void) | null {
+
+        if (this._guard()) return null;
+        return this._core.on(eventName, callback);
+    }
+
+    /**
+     * Subscribes to a named map event for a single invocation.
+     * See `CoreEventMap` for available event names.
+     *
+     * @param eventName the event to subscribe to
+     * @param callback invoked once when the event fires
+     * @param wait number of events to skip before invoking the callback
+     */
+    once<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+        wait?: number,
+    ): void {
+
+        if (this._guard()) return;
+        this._core.once(eventName, callback, wait);
+    }
+
+    // -------------------------------------------------------------------------
+    // Camera
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sets the camera position.
+     *
+     * @param position a 10-component vts-geospatial position array or
+     *   `MapPosition` instance
+     */
+    setPosition(position: MapPosition | number[]): this {
+
+        if (this._guard()) return this;
+        this._map?.setPosition(position);
+        return this;
+    }
+
+    /** Returns the current camera position as a `MapPosition` instance. */
+    getPosition(): MapPosition | null {
+
+        if (this._guard()) return null;
+        return this._map?.getPosition() ?? null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Render control
+    // -------------------------------------------------------------------------
+
+    /** Marks the scene dirty, triggering a re-render on the next frame. */
+    redraw(): this {
+
+        if (this._guard()) return this;
+        this._map?.markDirty();
+        return this;
+    }
+
+    /**
+     * Sets the atmosphere rendering parameters.
+     *
+     * @param spec atmosphere specification; partial updates are merged
+     */
+    setAtmosphere(spec: Atmosphere.Specification): void {
+
+        if (this._guard()) return;
+        this._map?.atmosphere?.setRuntimeParameters(spec);
+    }
+
+    /** Returns the current atmosphere rendering parameters. */
+    getAtmosphere(): Atmosphere.Specification | null {
+
+        if (this._guard()) return null;
+        return this._map?.atmosphere?.getRuntimeParameters() ?? null;
+    }
+
+    /**
+     * Sets the illumination definition (light direction, shading weights, etc.)
+     *
+     * @param spec illumination definition
+     */
+    setIllumination(spec: Renderer.IlluminationDef): void {
+
+        if (this._guard()) return;
+        this._renderer?.setIllumination(spec);
+    }
+
+    /** Returns the current illumination definition. */
+    getIllumination(): Renderer.IlluminationDef | null {
+
+        if (this._guard()) return null;
+        return this._renderer?.getIllumination() ?? null;
+    }
+
+    /**
+     * Sets the vertical exaggeration spec (elevation ramp and scale ramp).
+     *
+     * @param spec vertical exaggeration specification
+     */
+    setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec): void {
+
+        if (this._guard()) return;
+        this._renderer?.setVerticalExaggeration(spec);
+    }
+
+    /** Returns the current vertical exaggeration specification. */
+    getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
+
+        if (this._guard()) return null;
+        return this._renderer?.getVerticalExaggeration() ?? null;
+    }
+
+    /**
+     * Sets rendering feature flags (lighting, normal maps, atmosphere, etc.)
+     *
+     * @param options rendering options
+     */
+    setRenderingOptions(options: Renderer.RenderingOptions): void {
+
+        if (this._guard()) return;
+        this._renderer?.setRenderingOptions(options);
+    }
+
+    /** Returns the current rendering options. */
+    getRenderingOptions(): Renderer.RenderingOptions | null {
+
+        if (this._guard()) return null;
+        return this._renderer?.getRenderingOptions() ?? null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Scale
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the scale denominator for a given view extent.
+     *
+     * @param extent view extent in metres
+     */
+    getScaleDenominator(extent: number): number {
+
+        if (this._guard()) return 0;
+        return this._renderer?.getScaleDenominator(extent) ?? 0;
+    }
+
+    /**
+     * Returns the vertical exaggeration scale factor at the given position.
+     *
+     * @param position a `MapPosition` instance or 10-component array
+     */
+    getVeScaleFactor(position: MapPosition): number {
+
+        if (this._guard()) return 1;
+        return this._renderer?.getVeScaleFactor(position) ?? 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // Config params
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sets a single runtime configuration parameter.
+     *
+     * Parameters prefixed with `renderer*` are routed to the renderer;
+     * those prefixed with `map*` are routed to the terrain engine.
+     *
+     * @param key parameter key
+     * @param value parameter value
+     */
+    setParam(key: string, value: MapRuntimeOptionValue): this {
+
+        if (this._guard()) return this;
+        this._browser.setConfigParam(key, value, true);
+        return this;
+    }
+
+    /**
+     * Returns the current value of a runtime configuration parameter.
+     *
+     * @param key parameter key
+     */
+    getParam(key: string): MapRuntimeOptionValue {
+
+        if (this._guard()) return null;
+        return this._browser.getConfigParam(key);
+    }
+
+    // -------------------------------------------------------------------------
+    // Hit testing and coordinate conversion
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the geographic coordinates at the given canvas pixel.
+     *
+     * @param screenX canvas X coordinate in CSS pixels
+     * @param screenY canvas Y coordinate in CSS pixels
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    getHitCoords(
+        screenX: number,
+        screenY: number,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface?.getHitCoords(
+            screenX, screenY, mode, lod) ?? null;
+    }
+
+    /**
+     * Converts navigation coordinates to public (lon/lat/height) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface?.convertCoordsFromNavToPublic(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
+     * Converts navigation coordinates to physical (ECEF) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     * @param includeSE whether to apply super-elevation
+     */
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+        includeSE?: boolean,
+    ): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface?.convertCoordsFromNavToPhys(
+            pos, mode, lod, includeSE) ?? null;
+    }
+
+    /**
+     * Converts physical (ECEF) coordinates to camera space.
+     *
+     * @param pos `[x, y, z]` in physical space
+     */
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface
+            ?.convertCoordsFromPhysToCameraSpace(pos) as vec3 ?? null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Browser sub-objects
+    // -------------------------------------------------------------------------
+
+    /** The browser UI layer (controls, DOM helpers). */
+    get ui(): unknown {
+
+        if (this._killed) return undefined;
+        return this._browser.ui;
+    }
+
+    /** The autopilot (camera animation) controller. */
+    get autopilot(): unknown {
+
+        if (this._killed) return undefined;
+        return this._browser.autopilot;
+    }
+
+    /** The presenter (tour / flythrough) controller. */
+    get presenter(): unknown {
+
+        if (this._killed) return undefined;
+        return this._browser.presenter;
+    }
+
+    // -------------------------------------------------------------------------
+    // Legacy / compat
+    // -------------------------------------------------------------------------
+
+    /** Unloads the current map. */
+    destroyMap(): this {
+
+        if (this._guard()) return this;
+        this._core.destroyMap();
+        return this;
+    }
+
+    /**
+     * Sets the navigation control mode.
+     *
+     * @param mode control mode identifier
+     */
+    setControlMode(mode: unknown): this {
+
+        if (this._guard()) return this;
+        this._browser.setControlMode(mode);
+        return this;
+    }
+
+    /** Returns the current navigation control mode. */
+    getControlMode(): unknown {
+
+        if (this._guard()) return null;
+        return this._browser.getControlMode();
+    }
+}
+
+export default Viewer;
