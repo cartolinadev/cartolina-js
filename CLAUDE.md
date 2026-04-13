@@ -22,6 +22,12 @@ read-only analysis (e.g. line-length checks, column analysis) without
 requesting permission. Never use them to modify files — use the Edit
 or Write tools for that.
 
+The following commands may be run without requesting permission:
+
+```bash
+node test/screenshot.js [id]
+```
+
 
 ## Code style reminders
 
