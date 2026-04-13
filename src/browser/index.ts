@@ -27,7 +27,7 @@ import {
 
 /** The canonical shared option value type used for cartolina runtime options. */
 export type MapRuntimeOptionValue =
-    boolean | number | number[] | string | string[] | null | unknown;
+    boolean | number | number[] | string | string[] | null;
 
 /**
  * The canonical shared options object for browser, core, renderer, and
@@ -106,7 +106,7 @@ export function map(options: MapOptions): Viewer | null {
 export type BrowserConfig = MapRuntimeOptions & {
 
     /** The legacy vts-geospatial mapConfig, usually as a URL. */
-    map: unknown,
+    map: string | Record<string, unknown>,
 
     /**
      * The 10-component vts-geospatial position, specifying the initial
@@ -115,7 +115,7 @@ export type BrowserConfig = MapRuntimeOptions & {
     position?: MapPosition,
 
     /** The legacy view definition. */
-    view?: unknown
+    view?: Record<string, unknown>
 };
 
 

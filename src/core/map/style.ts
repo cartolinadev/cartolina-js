@@ -273,6 +273,24 @@ type vtsStylesheet = {
     layers?: Record<string, any>
 }
 
+type SurfaceMapConfig = {
+
+    referenceFrame: {
+        id: string;
+    } & Record<string, unknown>;
+
+    srses: Record<string, unknown>;
+    bodies: Record<string, unknown>;
+    services?: {
+        atmdensity?: {
+            url: string;
+        };
+    } & Record<string, unknown>;
+
+    surfaces: unknown[];
+    credits?: Record<string, unknown>;
+}
+
 
 /*
  * Class map style, provides a method to initialize the map object according
@@ -298,7 +316,7 @@ export class MapStyle {
 
         if (!res.success) {
 
-            let errs = res.errors ?? [];
+            let errs = 'errors' in res ? res.errors : [];
 
             for (const e of errs)
                 console.error(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
@@ -322,7 +340,7 @@ export class MapStyle {
         }
 
         // wipe the map clean
-        (map as any).referenceFrame = null;
+        map.referenceFrame = null;
         map.srses = {}
         map.bodies = {}
         map.credits = {}
@@ -345,7 +363,7 @@ export class MapStyle {
                 const path = MapStyle.slapResource(
                     map.url.processUrl(sourceSpec.url), 'mapConfig.json');
 
-                let mc = await utils.loadJson(path) as any;
+                let mc = await utils.loadJson(path) as SurfaceMapConfig;
 
                 // TODO: validation
                 //__DEV__ && console.log(mc);
@@ -358,7 +376,7 @@ export class MapStyle {
                 // sanity: all surfaces need to share the same frame of reference
                 if (map.referenceFrame)
                     console.assert(
-                        mc.referenceFrame.id === (map as any).referenceFrame.id);
+                        mc.referenceFrame.id === map.referenceFrame.id);
 
                 if (!map.referenceFrame) {
                     // ok, this is first surface, so we extract all the map metadata
@@ -378,8 +396,8 @@ export class MapStyle {
                     map.services = mc.services ?? {};
 
                     // atmosphere
-                    let body = (map as any).referenceFrame.body;
-                    let services = map.services as any;
+                    let body = map.referenceFrame.body;
+                    let services = map.services;
 
                     if (styleSpec.atmosphere
                         && body && body.atmosphere
@@ -496,7 +514,7 @@ export class MapStyle {
         map.tree.surfaceSequence = [];
         map.tree.surfaceOnlySequence = [];
 
-        (map.surfaces as any[]).forEach((surface: MapSurface) => {
+        map.surfaces.forEach((surface: MapSurface) => {
 
             if (!this.styleSpec.terrain.sources.includes(surface.styleSourceId)) return;
 

@@ -1782,7 +1782,13 @@ hitTest(screenX: number, screenY: number) {
     y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
 
     //get pixel value from framebuffer
-    var pixel = this.hitmapTexture.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1);
+    const hitmapTexture = this.hitmapTexture;
+    if (!hitmapTexture) {
+        return [0, 0, 0, false, screenRay, Number.MAX_VALUE, cameraPos];
+    }
+
+    var pixel = hitmapTexture.readFramebufferPixels(
+        x, this.hitmapSize - y - 1, 1, 1);
 
     //convert rgb values into depth
     var depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);// + (pixel[3]*16581375.0);
@@ -1798,8 +1804,15 @@ hitTest(screenX: number, screenY: number) {
 
 copyHitmap() {
 
-    this.hitmapTexture.readFramebufferPixels(
-        0, 0, this.hitmapSize, this.hitmapSize, false, this.hitmapData
+    const hitmapTexture = this.hitmapTexture;
+    const hitmapData = this.hitmapData ?? undefined;
+
+    if (!hitmapTexture) {
+        return;
+    }
+
+    hitmapTexture.readFramebufferPixels(
+        0, 0, this.hitmapSize, this.hitmapSize, false, hitmapData
     );
 };
 
@@ -1815,7 +1828,13 @@ getDepth(screenX: number, screenY: number, dilate: number = 0) {
     if (this.hitmapMode <= 2) {
 
         //get pixel value from framebuffer
-        var pixel = this.hitmapTexture.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1, (this.hitmapMode == 2));
+        const hitmapTexture = this.hitmapTexture;
+        if (!hitmapTexture) {
+            return [false, Number.POSITIVE_INFINITY];
+        }
+
+        var pixel = hitmapTexture.readFramebufferPixels(
+            x, this.hitmapSize - y - 1, 1, 1, (this.hitmapMode == 2));
 
         //convert rgb values into depth
         depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);
@@ -1825,6 +1844,9 @@ getDepth(screenX: number, screenY: number, dilate: number = 0) {
 
         // CPU-cached path; allow small dilation, if configured to catch near-occlusions (in pixels)
         var pixels = this.hitmapData;
+        if (!pixels) {
+            return [false, Number.POSITIVE_INFINITY];
+        }
         var rpx = dilate;
         var minDepth = Number.POSITIVE_INFINITY;
         var anyHit = false;
@@ -1909,6 +1931,10 @@ saveScreenshot(output: string, filename: string, filetype: string) {
     var context = canvas.getContext('2d');
 
     // Copy the pixels to a 2D canvas
+    if (!context) {
+        throw new Error('Unable to create 2D canvas context for screenshot.');
+    }
+
     var imageData = context.createImageData(width, height);
     imageData.data.set(data);
     context.putImageData(imageData, 0, 0);
@@ -1957,7 +1983,8 @@ getBitmap(
 
     var texture = this.bitmaps[id];
     if (!texture && url) {
-        texture = new GpuTexture(this.gpu, url, this.core, null, null, tiled, filter);
+        texture = new GpuTexture(
+            this.gpu, url, this.core, null, undefined, tiled, filter);
         this.bitmaps[id] = texture;
     }
 
@@ -2010,7 +2037,7 @@ kill() {
 type Optional<T> = T | null;
 
 type Config = {
-    [key: string]: boolean | number | string | number[];
+    [key: string]: boolean | number | string | number[] | undefined;
     rendererAllowScreenshots?: boolean;
     rendererAntialiasing?: boolean;
     rendererAnisotropic?: number;

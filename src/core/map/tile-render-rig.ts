@@ -120,13 +120,13 @@ export class TileRenderRig {
         this.buildLayerStack(style);
 
         // add the tile upVector to the runtime information (passed on to the program)
-        let nodeInfo: unknown = tile.map.measure.getNodeInformation(tile.id);
+        let nodeInfo = tile.map.measure.getNodeInformation(tile.id);
 
-        if (!nodeInfo || typeof nodeInfo !== 'object' || !('upVector' in nodeInfo)) {
+        if (!isNodeInfo(nodeInfo)) {
             __DEV__ && console.warn(`${this.logSign()}: missing upVector in node information, `);
+        } else {
+            this.rt.upVector = nodeInfo.upVector;
         }
-
-        this.rt.upVector = (nodeInfo as Record<string, math.vec3>).upVector;
         //__DEV__ && console.log(`${this.logSign()}: upVector: ${this.rt.upVector}`);
 
         // done
@@ -160,7 +160,9 @@ export class TileRenderRig {
 
             if (item.source !== 'texture') return;
 
-            item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
+            const texture = item.srcTextureTexture;
+
+            item.rt.hasMask = TileRenderRig.hasMask(texture);
 
             if (item.rt && item.rt.hasMask === 'notSureYet') {
 
@@ -169,10 +171,10 @@ export class TileRenderRig {
                 console.assert(
                     item.source === 'texture', 'incompatible layer params');
 
-                item.srcTextureTexture.isReady(
+                texture.isReady(
                     options.doNotLoad, priority.essential, options.doNotCheckGpu);
 
-                item.rt.hasMask = TileRenderRig.hasMask(item.srcTextureTexture);
+                item.rt.hasMask = TileRenderRig.hasMask(texture);
 
 
                 if (item.rt.hasMask === 'notSureYet') unsureMasks = true;
@@ -180,12 +182,12 @@ export class TileRenderRig {
 
             if (item.operation === 'blend') {
 
-                    item.rt.isWatertight =
-                        item.rt.hasMask === 'no'
-                        && item.opBlendAlpha.value === 1.0
-                        && item.opBlendAlpha.mode === 'constant'
-                        && item.opBlendMode === 'overlay'
-                        && ! item.rt.isTransparent;
+                item.rt.isWatertight =
+                    item.rt.hasMask === 'no'
+                    && item.opBlendAlpha.value === 1.0
+                    && item.opBlendAlpha.mode === 'constant'
+                    && item.opBlendMode === 'overlay'
+                    && !item.rt.isTransparent;
             }
         });
 
@@ -294,7 +296,7 @@ export class TileRenderRig {
 
         // bind buffer base
         gl.bindBufferBase(gl.UNIFORM_BUFFER,
-            Renderer.UniformBlockName.Layers, this.uboLayers);
+            Renderer.UniformBlockName.Layers, this.uboLayers ?? null);
 
         // update hot alpha blending values, both static and dynamic
         this.updateAlphas();
@@ -359,7 +361,7 @@ export class TileRenderRig {
         //        + `/ ${this.rt.layerStack.length} layers.`);
 
         // update buffer
-        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers ?? null);
         gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
@@ -393,7 +395,7 @@ export class TileRenderRig {
         switch (layer.source) {
 
             case 'texture':
-                i32[w++] = TexSamplingMap[layer.srcTextureSampling];
+                i32[w++] = TexSamplingMap[layer.srcTextureSampling] ?? -1;
                 break;
 
             default:
@@ -411,10 +413,11 @@ export class TileRenderRig {
                 break;
 
             case 'texture':
+                const texture = layer.srcTextureTexture;
                 let mainIdx = -1, maskIdx = -1;
 
-                let main = layer.srcTextureTexture.getGpuTexture();
-                let mask = layer.srcTextureTexture.getGpuMaskTexture();
+                let main = texture.getGpuTexture();
+                let mask = texture.getGpuMaskTexture();
 
                 const needUnits = (main ? 1 : 0) + (mask ? 1 : 0);
                 if (samplers.nextTextureUnit + needUnits > samplers.ub)
@@ -488,7 +491,7 @@ export class TileRenderRig {
 
             case 'blend':
 
-                f32[w++] = layer.rt.alpha;                                 // p2.x
+                f32[w++] = layer.rt.alpha ?? 0;                            // p2.x
                 break;
 
             default:
@@ -535,19 +538,19 @@ export class TileRenderRig {
 
             if (layer.operation !== 'blend') return;
 
-            if (layer.opBlendAlpha.mode === 'constant') {
-                layer.rt.alpha = layer.opBlendAlpha.value;
+            const alpha = layer.opBlendAlpha;
+
+            if (alpha.mode === 'constant') {
+                layer.rt.alpha = alpha.value;
                 return;
             }
-
-            if (layer.opBlendAlpha.mode !== 'viewdep') return;
 
             // FIXME doing this for every frame and every tile is suboptimal,
             // the alphas may be stored in renderer object and not updated
             // until the the map updates
             layer.rt.alpha = math.clamp(
                     Math.pow(vec3.dot(
-                        layer.opBlendAlpha.illuminationNED,
+                        alpha.illuminationNED,
                         renderer.getIlluminationVectorNED()), 5),
                     0.0, 1.0) + epsilon;
 
@@ -557,15 +560,13 @@ export class TileRenderRig {
         //console.log(vdalphaSum);
 
         if ( vdalphaSum === 0) return;
-        const factor = 1.0 / vdalphaSum;
-
         // pass 2: normalization (and application of original alpha as multiplier)
         this.rt.layerStack.forEach((layer) => {
 
-            if (layer.operation !== 'blend'
-                || layer.opBlendAlpha.mode !== 'viewdep') return;
+            if (layer.operation !== 'blend') return;
 
-            layer.rt.alpha *= layer.opBlendAlpha.value / vdalphaSum;
+            const alpha = layer.opBlendAlpha;
+            layer.rt.alpha = (layer.rt.alpha ?? 0) * alpha.value / vdalphaSum;
         });
 
     }
@@ -580,7 +581,7 @@ export class TileRenderRig {
 
         let gl = this.renderer.gpu.gl;
 
-        gl.deleteBuffer(this.uboLayers);
+        gl.deleteBuffer(this.uboLayers ?? null);
     }
 
     /**
@@ -662,13 +663,14 @@ export class TileRenderRig {
                 let path = tile.resourceSurface.getNormalsUrl(
                     tile.id, this.submeshIndex);
 
-                this.normalMap = tile.resources.getTexture(
+                const normalMap = tile.resources.getTexture(
                         path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
+                this.normalMap = normalMap;
 
                 rt.layerStack.push({
                     target: 'normal',
                     source: 'texture',
-                    srcTextureTexture: this.normalMap,
+                    srcTextureTexture: normalMap,
                     srcTextureUVs: 'external',
                     srcTextureSampling: 'normal',
                     operation: 'push',
@@ -688,8 +690,7 @@ export class TileRenderRig {
 
             let necessity = item.necessity ?? 'optional';
 
-            let layer: Layer | false
-                = this.layerFromDef(item, necessity, false, 'normal',
+            let layer = this.layerFromDef(item, necessity, false, 'normal',
                     Renderer.RenderFlags.FlagBumpMaps);
 
             if (layer) rt.layerStack.push(layer);
@@ -736,7 +737,7 @@ export class TileRenderRig {
 
             let necessity = item.necessity ?? 'essential';
 
-            let layer: Layer | false = this.layerFromDef(item, necessity,
+            let layer = this.layerFromDef(item, necessity,
                 true, 'color', Renderer.RenderFlags.FlagDiffuseMaps);
             if (layer) rt.layerStack.push(layer);
         });
@@ -781,7 +782,7 @@ export class TileRenderRig {
 
                 let necessity = item.necessity ?? 'essential';
 
-                let layer: Layer | false = this.layerFromDef(item, necessity,
+                let layer = this.layerFromDef(item, necessity,
                     true, 'color', specularMask);
                 if (layer) rt.layerStack.push(layer);
 
@@ -936,7 +937,7 @@ export class TileRenderRig {
                 target, flagMask);
         }
 
-        if (['constant', 'diffuse-constant'].includes(layerSpec.type))
+        if (type_ === 'constant' || type_ === 'diffuse-constant')
             return this.constantLayerFromDef(layerSpec as MapStyle.DiffuseConstantLayer,
                                              necessity, propagate, target, flagMask);
     }
@@ -958,7 +959,9 @@ export class TileRenderRig {
 
         let clampToLodRange = (tile: MapSurfaceTile, lodRange: number[]) => {
 
-            while(tile && tile.id[0] > lodRange[1]) { tile = tile.parent; }
+            while (tile.parent && tile.id[0] > lodRange[1]) {
+                tile = tile.parent;
+            }
             return tile;
         }
 
@@ -1012,7 +1015,7 @@ export class TileRenderRig {
         //let hasMask = TileRenderRig.hasMask(texture);
 
         let alpha: Alpha, mode: BlendMode;
-        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
+        [mode, alpha] = TileRenderRig.blendInfoFromDef(layerSpec);
 
         // moved to readiness check
         /*let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
@@ -1061,7 +1064,7 @@ export class TileRenderRig {
                          flagMask: Renderer.RenderFlags): Layer | undefined {
 
         let alpha: Alpha, mode: BlendMode;
-        [mode, alpha] =  TileRenderRig.blendInfoFromDef(layerSpec);
+        [mode, alpha] = TileRenderRig.blendInfoFromDef(layerSpec);
 
         let isWatertight = !(alpha.value < 1.0
             || alpha.mode != 'constant' || mode != 'overlay');
@@ -1090,22 +1093,31 @@ export class TileRenderRig {
 
         let mode: BlendMode = layerSpec.blendMode ?? 'overlay';
 
-        let alpha_: MapStyle.Alpha = layerSpec.alpha ?? 1.0;
+        const alphaSpec = layerSpec.alpha ?? 1.0;
 
-        if (typeof alpha_ === "number")
-            alpha_ = { mode: 'constant', value: alpha_ };
-
-        let alpha: Alpha = alpha_;
-
-        if (alpha_.mode === 'viewdep') {
-
-            alpha.illuminationNED = illumination.illuminationVector(
-                alpha_.illumination[0],
-                alpha_.illumination[1],
-                illumination.CoordSystem.NED);
+        if (typeof alphaSpec === 'number') {
+            return [mode, { mode: 'constant', value: alphaSpec }];
         }
 
-        return [mode, alpha];
+        if (alphaSpec.mode === 'viewdep') {
+
+            const illuminationAngles = alphaSpec.illumination;
+
+            if (!illuminationAngles) {
+                throw new Error('view-dependent alpha requires illumination angles.');
+            }
+
+            return [mode, {
+                mode: 'viewdep',
+                value: alphaSpec.value,
+                illuminationNED: illumination.illuminationVector(
+                    illuminationAngles[0],
+                    illuminationAngles[1],
+                    illumination.CoordSystem.NED)
+            }];
+        }
+
+        return [mode, { mode: 'constant', value: alphaSpec.value }];
     }
 
     /**
@@ -1158,6 +1170,7 @@ export class TileRenderRig {
 
             case 'shade':
                 if (this.rt.normals) {
+                    if (!this.normalMap) return false;
                     return TileRenderRig.isResourceReady(this.normalMap,
                         necessity, readiness, priority, options);
                 }
@@ -1168,6 +1181,10 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
 
             case 'atm-density':
+                if (!this.tile.map.atmosphere) {
+                    return false;
+                }
+
                 return TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
                         necessity, readiness, priority, options);
@@ -1191,7 +1208,7 @@ export class TileRenderRig {
 // local types
 
 type Config = {
-    [key: string]: boolean | number | string | number[];
+    [key: string]: boolean | number | string | number[] | undefined;
 
     // do not download or use normal maps (use GL derivatives instead)
     mapNoNormalMaps?: boolean;
@@ -1202,11 +1219,18 @@ type Necessity = 'essential' | 'optional';
 
 type AlphaMode = 'constant' | 'viewdep';
 
-type Alpha = {
-    mode: AlphaMode,
+type AlphaConstant = {
+    mode: 'constant',
     value: number,
-    illuminationNED?: math.vec3
 }
+
+type AlphaViewDependent = {
+    mode: 'viewdep',
+    value: number,
+    illuminationNED: math.vec3,
+}
+
+type Alpha = AlphaConstant | AlphaViewDependent;
 
 type BlendMode = 'overlay' | 'add' | 'multiply' | 'specular-multiply';
 
@@ -1216,39 +1240,105 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
  * Layer stack item, basically an elementary instruction for the fragment shader.
  */
 
-type Layer = {
+type LayerRuntime = {
+
+    layerId?: string,
+    hasMask?: MaskStatus,
+    isTransparent?: boolean,
+    isWatertight?: boolean,
+    optimizedOut?: boolean,
+    alpha?: number,
+}
+
+type BaseLayer = {
 
     target: 'color' | 'normal',
-    source: 'constant' | 'shade' | 'pop' | 'atm-density' | 'texture' | 'none' | 'normal-flat',
-    operation: 'blend'  | 'normal-blend' | 'push' | 'atm-color' | 'shadows',
-
     necessity: Necessity;
-
-    srcConstant?: [number, number, number],
-
-    srcShadeType?: 'diffuse' | 'specular',
-    srcShadeNormal?: 'normal-map' | 'flat',
-
-    srcTextureTexture?: MapTexture,
-    srcTextureUVs?: 'internal' | 'external',
-    srcTextureSampling?: 'raw' | 'normal',
-
-    opBlendMode?: BlendMode,
-    opBlendAlpha?: Alpha,
-
     tgtColorWhitewash?: number,
-
     flagMask?: Renderer.RenderFlags,
+    rt: LayerRuntime,
+}
 
-    rt: {
+type ConstantBlendLayer = BaseLayer & {
+    source: 'constant',
+    operation: 'blend',
+    srcConstant: [number, number, number],
+    opBlendMode: BlendMode,
+    opBlendAlpha: Alpha,
+}
 
-        layerId?: string,
-        hasMask?: MaskStatus,
-        isTransparent?: boolean,
-        isWatertight?: boolean,
-        optimizedOut?: boolean,
-        alpha?: number,
+type ConstantPushLayer = BaseLayer & {
+    source: 'constant',
+    operation: 'push',
+    srcConstant: [number, number, number],
+}
+
+type ShadeLayer = BaseLayer & {
+    source: 'shade',
+    operation: 'blend',
+    srcShadeType: 'diffuse' | 'specular',
+    srcShadeNormal: 'normal-map' | 'flat',
+    opBlendMode: BlendMode,
+    opBlendAlpha: Alpha,
+}
+
+type TextureBlendLayer = BaseLayer & {
+    source: 'texture',
+    operation: 'blend',
+    srcTextureTexture: MapTexture,
+    srcTextureUVs: 'internal' | 'external',
+    srcTextureSampling: 'raw' | 'normal',
+    opBlendMode: BlendMode,
+    opBlendAlpha: Alpha,
+}
+
+type TexturePushLayer = BaseLayer & {
+    source: 'texture',
+    operation: 'push',
+    srcTextureTexture: MapTexture,
+    srcTextureUVs: 'internal' | 'external',
+    srcTextureSampling: 'raw' | 'normal',
+}
+
+type PopLayer = BaseLayer & {
+    source: 'pop',
+    operation: 'blend',
+    opBlendMode: BlendMode,
+    opBlendAlpha: Alpha,
+}
+
+type AtmosphereLayer = BaseLayer & {
+    source: 'atm-density',
+    operation: 'atm-color',
+}
+
+type ShadowLayer = BaseLayer & {
+    source: 'none',
+    operation: 'shadows',
+}
+
+type Layer =
+    | ConstantBlendLayer
+    | ConstantPushLayer
+    | ShadeLayer
+    | TextureBlendLayer
+    | TexturePushLayer
+    | PopLayer
+    | AtmosphereLayer
+    | ShadowLayer;
+
+type NodeInfo = {
+    upVector: math.vec3;
+}
+
+function isNodeInfo(nodeInfo: unknown): nodeInfo is NodeInfo {
+
+    if (!nodeInfo || typeof nodeInfo !== 'object' || !('upVector' in nodeInfo)) {
+        return false;
     }
+
+    const upVector = (nodeInfo as { upVector?: unknown }).upVector;
+    return Array.isArray(upVector) && upVector.length === 3;
 }
 
 

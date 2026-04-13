@@ -265,6 +265,11 @@ specific `.js` class, write a `.d.ts`. Reserve `unknown` only for
 payloads that genuinely cannot be typed yet (e.g. legacy event payloads
 from untyped JS).
 
+Do not use `: any` or `: unknown` as a convenience workaround when the
+shape is already available elsewhere in the codebase, whether via an
+existing type in `types.ts`, a sibling `.d.ts`, or direct import of a
+legacy `.js` module under `allowJs`.
+
 
 ## Language and module rules
 

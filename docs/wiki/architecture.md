@@ -60,7 +60,6 @@ look like an application failure rather than an unstyled page:
   even when WebGL support is fine, because the control exists in the DOM
   and CSS was what hid it by default.
 
-
 ## Object model
 
 The full object chain from the public API inward:
@@ -134,52 +133,19 @@ eventually renamed.
 shading, illumination, vertical exaggeration, and all GPU resource management.
 
 
-## Public API philosophy
+## Public API transformation
 
-### `Viewer` is the single entry point and the only place for new code
+### The recurring migration pattern
 
-`Viewer` (exported as the type alias `Map`) is the one object that new
-applications interact with. It follows the MapLibre GL JS convention: a
-single class whose methods cover all public operations, with no sub-object
-access required.
+The legacy codebase uses a repeated ES5 pattern:
 
-**No new functionality goes into `Browser`.** `Browser` is legacy
-infrastructure on the path to dissolution. New capabilities belong on
-`Viewer` as flat, typed methods. When a feature requires something from
-`Browser`'s internals, promote it to `Viewer` directly rather than
-adding it to `Browser` first.
+- a functional crux object that owns the real state and behavior
+- a thin `*Interface` wrapper that exposes the intended public methods
 
-```ts
-import { map } from 'cartolina-js';
-
-const viewer = map({ container: 'map', style: './style.json' });
-
-viewer.on('map-loaded', () => {
-    viewer.setAtmosphere({ visibility: 80000 });
-    viewer.setVerticalExaggeration({ scaleRamp: { min: [50000, 1], max: [500000, 4] } });
-});
-```
-
-### Why `Viewer` / `Map`?
-
-The class is named `Viewer` internally because the name `Map` would collide
-with the internal terrain engine (`Core.map`). The public type alias `Map` is
-re-exported from the package index so that consumers see the familiar name in
-their IDE.
-
-### No sub-object access in the public API
-
-The legacy API exposed `.map` (→ `MapInterface`) and `.renderer` (→
-`RendererInterface`) as public properties of `BrowserInterface`. These are
-gone from `Viewer`. All operations are flat methods.
-
-### The `*Interface` pattern — why it existed, why it is being removed
-
-The original vts-browser-js was written in ES5 JavaScript, which had no
-classes, no `private` members, and no TypeScript. The only way to expose a
-controlled public API was to build a thin wrapper object that forwarded only
-the intended public methods, while the real implementation lived in a
-separate internal object that was never handed to consumers:
+That pattern existed because ES5 had no classes, no `private` members,
+and no TypeScript. In a TypeScript class, the public API and the private
+implementation live on the same object, so the extra wrapper becomes
+unnecessary.
 
 ```js
 // ES5 pattern: internal object holds everything
@@ -192,47 +158,95 @@ MapInterface.prototype.setPosition = function(p) { this.map.setPosition(p); };
 // internalHelper is not forwarded, so it is effectively private
 ```
 
-With TypeScript and ES6 classes, this separation is unnecessary. Private
-members are enforced by the compiler and invisible to consumers. The
-public API is simply the set of `public` methods on the class itself.
+The long-term refactoring pattern in cartolina-js is therefore:
 
-`MapInterface` (`src/core/map/interface.ts`), `RendererInterface`
-(`src/core/renderer/interface.js`), `BrowserInterface` (deleted), and
-`CoreInterface` (`src/core/interface.js`) are all instances of this pattern.
-They are being removed: `BrowserInterface` is already gone (replaced by
-`Viewer`). `MapInterface` and `RendererInterface` are deleted incrementally
-— each time a new application needs a capability, the corresponding method
-is promoted as a flat, typed method on `Viewer`, bypassing the wrapper.
+1. Identify the legacy pair: `*Interface` wrapper plus internal engine.
+2. Introduce a clean TypeScript class as the new public API.
+3. Promote public methods onto that class as flat typed methods.
+4. Gradually absorb the internal engine into private fields and methods
+   of the new class, then delete the old wrapper.
 
-### Core build — `CoreInterface`
+### Browser pair: already in transition
 
-`CoreInterface` (`src/core/interface.js`) is the public API for the core
-build (headless rendering, no UI). It is another ES5-era `*Interface`
-wrapper around `Core`, and will eventually be replaced by a proper TypeScript
-class. That conversion is deferred until there are active consumers of the
-core build.
+`BrowserInterface` has already undergone the public side of this
+transformation. Its replacement is `Viewer`, exported publicly as the
+type alias `Map`.
 
+`Viewer` is the single public entry point for new application code. It
+follows the MapLibre GL JS shape: one class, flat methods, no required
+sub-object access.
 
-## Future naming and structural direction
+`Browser` is not the new public API. It is the remaining internal UI
+engine from the old pair, and it is meant to be gradually absorbed into
+`Viewer` as private implementation detail.
 
-The current internal names carry significant legacy baggage. The intended
-long-term direction:
+This means:
 
-| Current name | What it really is | Future direction |
+- no new public functionality goes into `Browser`
+- new capabilities are promoted directly onto `Viewer`
+- `.map` / `.renderer` style public sub-objects do not come back
+
+```ts
+import { map } from 'cartolina-js';
+
+const viewer = map({ container: 'map', style: './style.json' });
+
+viewer.on('map-loaded', () => {
+    viewer.setAtmosphere({ visibility: 80000 });
+    viewer.setVerticalExaggeration({
+        scaleRamp: { min: [50000, 1], max: [500000, 4] }
+    });
+});
+```
+
+### Core pair: same transformation, later stage
+
+`CoreInterface` and `Core` are meant to undergo the same conversion that
+the browser layer is already undergoing.
+
+`CoreInterface` is the current public API for the core build. `Core` is
+the current functional crux behind it. The intended end state is not
+"remove `CoreInterface` and expose `Core` directly". The intended end
+state is a clean TypeScript public class for the core build, with the
+current `Core` responsibilities absorbed behind a typed public surface as
+private implementation detail.
+
+That work is deferred until there are active consumers driving the core
+build API, but conceptually it is the same migration pattern as
+`BrowserInterface` → `Viewer` with `Browser` being phased out behind it.
+
+### Naming and structural direction
+
+The current names carry legacy baggage, but the architectural direction
+is now consistent:
+
+| Current name | Current role | Direction |
 |---|---|---|
-| `Browser` | UI engine (controls, navigation) | Dissolve into `Viewer`; its subsystems (`UI`, `Autopilot`, etc.) become private fields of `Viewer` directly |
-| `CoreInterface` | ES5 wrapper around `Core` | Replace with a proper TypeScript class once core-build consumers exist |
-| `Core` | Map engine coordinator (render loop, config routing, lifecycle) | Rename to reflect its actual role; merge with or delegate cleanly to `Map` and `Renderer` |
-| `Map` (internal) | Terrain engine (tile tree, camera, geodata) | Rename to avoid collision with the public `Map` type alias |
-| `MapInterface` | ES5 wrapper (to be deleted) | Deleted incrementally as methods are promoted to `Viewer` |
-| `RendererInterface` | ES5 wrapper (to be deleted) | Deleted incrementally as methods are promoted to `Viewer` |
+| `Viewer` | New public browser API | Absorb `Browser` and remain the browser-build public class |
+| `Browser` | Legacy UI engine | Become private implementation inside `Viewer`, then disappear |
+| `CoreInterface` | Legacy public wrapper for core build | Be replaced by a TypeScript public class for the core build |
+| `Core` | Legacy map-engine coordinator | Be absorbed/hidden behind that future core public class |
+| `MapInterface` | Legacy wrapper around `Map` | Delete incrementally as methods move to `Viewer` |
+| `RendererInterface` | Legacy wrapper around `Renderer` | Delete incrementally as methods move to `Viewer` |
+| `Map` (internal) | Terrain engine | Rename eventually to avoid collision with public `Map` alias |
 
-The priority order is: finish removing `MapInterface` / `RendererInterface`
-first (lowest risk, clear value), then tackle `Browser` dissolution into
-`Viewer`, then the `Core` / `Map` rename (highest blast radius).
+The priority order is:
 
-None of these are done speculatively. Each rename happens as part of a
-feature or refactoring that already touches the relevant code.
+- finish removing `MapInterface` / `RendererInterface` first
+- continue dissolving `Browser` into `Viewer`
+- tackle the core-build class conversion when consumers require it
+- do larger `Core` / internal `Map` renames only as feature work forces
+  the touch
+
+None of these happen speculatively. Each step is taken only when active
+feature work already touches that layer.
+
+### Why `Viewer` / `Map`?
+
+The class is named `Viewer` internally because the name `Map` would
+collide with the internal terrain engine (`Core.map`). The public type
+alias `Map` is re-exported from the package index so consumers still see
+the familiar API name in their IDE.
 
 
 ## Style-based API is canonical; mapConfig and views are deprecated
@@ -383,6 +397,25 @@ The geographic implementation deliberately does not build its own
 physical tangent-frame basis. In this codebase, current north is already
 established by the map-position/NED logic, so illumination reuses that
 machinery rather than layering a separate pole or basis convention on top.
+
+
+## Tooling details
+
+### TypeScript needs an explicit CSS module declaration
+
+The browser entrypoint imports CSS files for their side effects:
+
+- `src/browser/browser.css`
+- `src/browser/presenter/css/*.css`
+
+Webpack understands these imports through its loader pipeline, but
+TypeScript and editor tooling need an ambient `declare module '*.css'`
+declaration to accept them. In this repository that declaration lives in
+`src/types/globals.d.ts`.
+
+If the CSS declaration is missing, `npx tsc --noEmit` may still pass in
+some setups while VS Code or the webpack TypeScript path reports TS2307
+"Cannot find module ... .css" errors on the browser entrypoint.
 
 
 ## Vertical exaggeration

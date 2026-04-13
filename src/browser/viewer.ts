@@ -19,6 +19,7 @@ import { CoreInterface } from '../core/interface';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { MapRuntimeOptionValue } from './index';
+import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import Map from '../core/map/map';
 import MapInterface from '../core/map/interface'
@@ -30,6 +31,29 @@ import type {
 } from '../core/types';
 
 import type { vec3 } from '../core/utils/math';
+
+/**
+ * The internal config shape passed into `Viewer`.
+ *
+ * This exists only as constructor glue: `Viewer` has a single constructor,
+ * but the library still needs to support both the preferred `map()` entry
+ * point and the legacy `browser()` entry point. Their structural inputs are
+ * flattened here into one temporary internal object shape.
+ */
+export type ViewerConfig = {
+
+    [key: string]:
+        | MapRuntimeOptionValue
+        | MapPosition
+        | MapStyle.StyleSpecification
+        | Record<string, unknown>
+        | undefined;
+
+    style?: MapStyle.StyleSpecification;
+    map?: string | Record<string, unknown>;
+    position?: MapPosition;
+    view?: Record<string, unknown>;
+};
 
 /**
  * The primary public API object returned by the `map()` factory.
@@ -70,10 +94,9 @@ class Viewer {
      * @param config browser configuration object
      *   (style-based or legacy mapConfig)
      */
-    constructor(element: HTMLElement | string, config: unknown) {
+    constructor(element: HTMLElement | string, config: ViewerConfig) {
 
         this._browser = new Browser(element, config);
-        //this._core = this._browser.getCore() as unknown as CoreInterface;
         this._core = this._browser.getCore() as CoreInterface;
     }
 
@@ -84,9 +107,9 @@ class Viewer {
     /**
      * Promise that resolves once the map is fully loaded and ready to render.
      */
-    get ready(): Promise<unknown> {
+    get ready(): Promise<void> {
 
-        return (this._core as any).ready;
+        return this._core.ready;
     }
 
     /** Destroys the viewer and releases all GPU and DOM resources. */
@@ -184,8 +207,8 @@ class Viewer {
         this._map?.atmosphere?.setRuntimeParameters(spec);
     }
 
-    /** Returns the current atmosphere rendering parameters. */
-    getAtmosphere(): Atmosphere.Specification | null {
+    /** Returns the current runtime atmosphere rendering parameters. */
+    getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
         if (this._guard()) return null;
         return this._map?.atmosphere?.getRuntimeParameters() ?? null;
@@ -372,8 +395,8 @@ class Viewer {
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface
-            ?.convertCoordsFromPhysToCameraSpace(pos) as vec3 ?? null;
+        return this._mapInterface?.convertCoordsFromPhysToCameraSpace(pos)
+            ?? null;
     }
 
     // -------------------------------------------------------------------------
@@ -381,21 +404,21 @@ class Viewer {
     // -------------------------------------------------------------------------
 
     /** The browser UI layer (controls, DOM helpers). */
-    get ui(): unknown {
+    get ui(): Browser['ui'] | undefined {
 
         if (this._killed) return undefined;
         return this._browser.ui;
     }
 
     /** The autopilot (camera animation) controller. */
-    get autopilot(): unknown {
+    get autopilot(): Browser['autopilot'] | undefined {
 
         if (this._killed) return undefined;
         return this._browser.autopilot;
     }
 
     /** The presenter (tour / flythrough) controller. */
-    get presenter(): unknown {
+    get presenter(): Browser['presenter'] | undefined {
 
         if (this._killed) return undefined;
         return this._browser.presenter;
@@ -416,17 +439,26 @@ class Viewer {
     /**
      * Sets the navigation control mode.
      *
+     * Control modes switch navigation within a single map between the
+     * default observer mode (moving around the map) and pano mode
+     * (looking around inside a panoramic bubble). The pano path is
+     * largely obsolete, but it is still kept for now.
+     *
      * @param mode control mode identifier
      */
-    setControlMode(mode: unknown): this {
+    setControlMode(mode: Browser['controlMode']): this {
 
         if (this._guard()) return this;
         this._browser.setControlMode(mode);
         return this;
     }
 
-    /** Returns the current navigation control mode. */
-    getControlMode(): unknown {
+    /**
+     * Returns the current navigation control mode.
+     *
+     * See `setControlMode()` for the built-in mode semantics.
+     */
+    getControlMode(): Browser['controlMode'] | null {
 
         if (this._guard()) return null;
         return this._browser.getControlMode();
