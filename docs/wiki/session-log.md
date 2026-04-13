@@ -1,5 +1,70 @@
 # Session log
 
+## 2026-04-13 — Viewer TS API and JS→TS migration groundwork
+
+**Branch:** feature/relief-lab
+
+### Spec
+
+Establish `Viewer` as the typed TypeScript public API surface, put
+migration rules in place, and apply them to a first concrete case.
+
+### Work done
+
+**`src/browser/viewer.ts`** — new `Viewer` class wrapping `Browser` /
+`CoreInterface`. Flat, typed method surface covering lifecycle, events,
+camera, render control, coordinate conversion, and hit-testing.
+Exported as the type alias `Map` from the package index.
+
+**`src/core/types.ts`** — shared primitive types for the core layer:
+`HeightMode`, `Lod`, `CoreEventMap`. `CoreEventMap` types the event
+name parameter on `on()` / `once()` so unknown event names are a
+compile error.
+
+**`src/core/interface.d.ts`** — declaration file alongside
+`interface.js`, replacing the earlier `ICoreInterface` boundary
+interface in `types.ts`. Shape declaration co-located with
+implementation.
+
+**`src/core/map/surface-tile.d.ts`** — declaration file alongside
+`surface-tile.js`, covering the properties accessed by
+`tile-render-rig.ts`. Replaced the local `SurfaceTile` adapter type
+that was defined at the bottom of that file.
+
+**`AGENTS.md`** — JS→TS migration rules section added (when to use
+direct JS references, `.d.ts`, or `types.ts`).
+
+**`docs/wiki/architecture.md`** — event bus, kill pattern, and
+Browser→Viewer dissolution goal documented.
+
+### Design decisions
+
+- No parallel boundary interfaces (`IFoo` in a separate file). Use
+  `.d.ts` next to the `.js` for complex shapes; use `types.ts` for
+  simple reusable primitives. Both patterns validated this session.
+
+- `Viewer` is the only place for new public functionality. `Browser`
+  is legacy infrastructure on the path to dissolution — nothing new
+  goes there.
+
+- `CoreEventMap` payloads typed as `unknown` for now; the value is
+  in the typed event names, not the payloads.
+
+### Non-obvious findings
+
+- `@ts-ignore` is not needed on JS module imports under `allowJs`.
+  TypeScript resolves them cleanly without it.
+
+- A single `as T` cast is sufficient when the source is `any`.
+  The `as unknown as T` double cast is only needed when both the
+  source and target are concrete, non-overlapping types.
+
+- `.d.ts` alongside `.js` works correctly under `allowJs: true` —
+  TypeScript prefers the `.d.ts` over inferred JS types even when the
+  JS file is part of the compilation. The pattern is valid for
+  incremental migration.
+
+
 ## 2026-04-12 — labels render flag
 
 **Branch:** main
