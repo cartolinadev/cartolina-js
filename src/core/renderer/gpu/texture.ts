@@ -254,15 +254,20 @@ createFromImage(image: HTMLImageElement,
     this.loaded = true;
 };
 
-private load(path: string, onLoaded: (() => void) | undefined, 
-    onError: (() => void) | undefined, direct, keepImage) {
-
-    this.image = utils.loadImage(path, (function () {
+private load(
+    path: string,
+    onLoaded: (() => void) | undefined,
+    onError: (() => void) | undefined,
+    direct: boolean,
+    keepImage: boolean,
+) {
+    this.image = utils.loadImage(path, () => {
         if (this.core != null && this.core.killed) {
             return;
         }
 
-        this.createFromImage(this.image, this.type, this.filter, this.repeat);
+        this.createFromImage(this.image!, this.type_, this.filter, this.repeat);
+
         if (!keepImage) {
             this.image = null;
         }
@@ -275,7 +280,7 @@ private load(path: string, onLoaded: (() => void) | undefined,
             }
         }
 
-    }).bind(this), (function () {
+    }, () => {
 
         if (this.core != null && this.core.killed) {
             return;
@@ -284,11 +289,8 @@ private load(path: string, onLoaded: (() => void) | undefined,
         if (onError) {
             onError();
         }
-    }).bind(this),
-     
-     null, direct
-     
-     );
+
+    }, false, direct);
 
 };
 
@@ -336,7 +338,7 @@ createFramebufferFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array) {
 };
 
 
-createFramebuffer = function(lx:GLsizei, ly: GLsizei) {
+createFramebuffer = (lx: GLsizei, ly: GLsizei) => {
     if (this.texture == null){
         return;
     }
@@ -345,8 +347,6 @@ createFramebuffer = function(lx:GLsizei, ly: GLsizei) {
 
     var framebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    framebuffer.width = lx;
-    framebuffer.height = ly;
 
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
 

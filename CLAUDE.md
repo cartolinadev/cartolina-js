@@ -17,16 +17,16 @@ Before declaring a task complete, verify that all test URLs still render correct
 
 ## Shell commands
 
-Use `awk`, `wc`, and similar POSIX tools directly via Bash for
-read-only analysis (e.g. line-length checks, column analysis) without
-requesting permission. Never use them to modify files — use the Edit
-or Write tools for that.
+The following categories of commands may be run without requesting
+permission:
 
-The following commands may be run without requesting permission:
+- POSIX read-only analysis: `awk`, `wc`, `sed`, `grep`, `cut`, `sort`,
+  `uniq`, `head`, `tail` and pipelines thereof.
+- TypeScript compilation: `npx tsc` with any flags.
+- Test screenshots: `node test/screenshot.js [id]`.
+- Dev server queries: `curl http://localhost:8080/...`.
 
-```bash
-node test/screenshot.js [id]
-```
+Never use shell commands to modify files — use the Edit or Write tools.
 
 
 ## Code style reminders

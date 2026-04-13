@@ -22,7 +22,7 @@ class Atmosphere {
     renderer!: Renderer;
 
     uboAtm!: WebGLBuffer;
-    quadVao: WebGLVertexArrayObject;
+    quadVao!: WebGLVertexArrayObject;
 
     /**
      * Initialize from atmosphere parameters, initiailize atmdensity texture.

@@ -13,7 +13,7 @@ class MapBody {
     atmosphere?: MapBody.Atmosphere;
 
 
-    constructor (map, json) {
+    constructor (map: any, json: any) {
     //this.map = map;
     //this.id = json["id"] || null;
         this.parse(json);

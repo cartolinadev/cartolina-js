@@ -67,7 +67,7 @@ export class Renderer {
 
     marginFlags = 0; // see rmap.js
 
-    uboFrame: WebGLBuffer;
+    uboFrame!: WebGLBuffer;
 
     // label-free margins on  the map: [top, right, bottom, left]
     labelFreeMargins: [number, number, number, number] = [0, 0, 0, 0];
@@ -98,12 +98,12 @@ export class Renderer {
 
     mapHack: any = null; // assigned in map/draw.js
 
-    geodataSelection = []; // see geodata-click-and-hover-events/demo.j    //reduce garbage collection
+    geodataSelection: any[] = [];
 
     hoverFeatureCounter = 0;
-    hoverFeatureList = [];
+    hoverFeatureList: any[] = [];
 
-    touchSurfaceEvent = [];
+    touchSurfaceEvent: any[] = [];
 
     dirty = true;
 
@@ -125,7 +125,7 @@ export class Renderer {
     }
 
     // texture unit indices
-    textureIdxs: {
+    textureIdxs!: {
         atmosphere: GLenum
     }
 
@@ -817,7 +817,11 @@ syncCanvasSize(skipCanvas: boolean = false) {
 }
 
 
-project2(point, mvp, cameraPos, includeDistance: boolean = false) {
+project2(
+    point: ArrayLike<number>, mvp: ArrayLike<number>,
+    cameraPos: ArrayLike<number> | null | undefined,
+    includeDistance: boolean = false,
+) {
     var p = [0, 0, 0, 1];
 
     if (cameraPos) {
@@ -1324,13 +1328,13 @@ getVeScaleFactor(position: MapPosition | number) {
  * [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
  */
 
-getSuperElevation(position) : SeRamp {
+getSuperElevation(position: any) : SeRamp {
 
     if (arguments.length !== 1) {
         throw new Error('Function now requires current position.');
     }
 
-    let retval;
+    let retval: number[];
 
     // heightRamp
     if (this.seHeightRamp) {
@@ -1347,19 +1351,17 @@ getSuperElevation(position) : SeRamp {
         retval[5] = retval[3] - retval[1];
     }
 
-    //console.log('getSuperElevation: ', retval);
-
-    return retval;
+    return retval as SeRamp;
 };
 
 
-getSuperElevatedHeight(height, position) {
+getSuperElevatedHeight(height: number, position: any) {
 
     if (arguments.length !== 2) {
         throw new Error('Function now requires current position.');
     }
 
-    let retval;
+    let retval: number;
 
     // heightRamp
     if (this.seHeightRamp) {
@@ -1376,7 +1378,7 @@ getSuperElevatedHeight(height, position) {
     return retval;
 }
 
-getSuperElevatedHeightRamp(height) {
+getSuperElevatedHeightRamp(height: number) {
 
     let se = this.seHeightRamp, h = height;
     if (!se) throw new Error('No super elevation ramp defined.');
@@ -1392,13 +1394,13 @@ getSuperElevatedHeightRamp(height) {
     return height * (se[1] + ((h - se[0]) * se[6]) * se[5]);
 };
 
-getUnsuperElevatedHeight(height, position) {
+getUnsuperElevatedHeight(height: number, position: any) {
 
     if (arguments.length !== 2) {
         throw new Error('Function now requires current position.');
     }
 
-    let retval;
+    let retval: number;
 
     // heightRamp
     if (this.seHeightRamp) {
@@ -1416,7 +1418,7 @@ getUnsuperElevatedHeight(height, position) {
 }
 
 
-getUnsuperElevatedHeightRamp(height) {
+getUnsuperElevatedHeightRamp(height: number) {
     let se = this.seHeightRamp, s = height;
     if (!se) throw new Error('No super elevation ramp defined.');
 
@@ -1459,18 +1461,20 @@ getUnsuperElevatedHeightRamp(height) {
 };*/
 
 
-transformPointBySE(pos, shift, position) {
-
+transformPointBySE(
+    pos: number[], shift: number[] | null | undefined, position: any,
+) {
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
 
-    var p = pos, p2;
+    var p = pos, p2: number[];
     this.seTmpVec3 = [0,0,0];
 
     if (shift) {
-        p2 = [pos[0] + shift[0], pos[1] + shift[1], (pos[2] + shift[2]) * this.earthERatio];
+        p2 = [pos[0] + shift[0], pos[1] + shift[1],
+              (pos[2] + shift[2]) * this.earthERatio!];
     } else {
-        p2 = [p[0], p[1], p[2] * this.earthERatio];
+        p2 = [p[0], p[1], p[2] * this.earthERatio!];
     }
 
     var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
@@ -1481,7 +1485,7 @@ transformPointBySE(pos, shift, position) {
     v[1] = p2[1] * m;
     v[2] = p2[2] * m;
 
-    var h = l - this.earthRadius;
+    var h = l - this.earthRadius!;
     var h2 = this.getSuperElevatedHeight(h, position);
     m = (h2 - h);
 
@@ -1493,18 +1497,20 @@ transformPointBySE(pos, shift, position) {
 };
 
 
-transformPointBySE2(pos, shift, position) {
-
+transformPointBySE2(
+    pos: number[], shift: number[] | null | undefined, position: any,
+) {
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
 
-    var p = pos, p2;
+    var p = pos, p2: number[];
     this.seTmpVec3 = [0,0,0];
 
     if (shift) {
-        p2 = [pos[0] + shift[0], pos[1] + shift[1], (pos[2] + shift[2]) * this.earthERatio];
+        p2 = [pos[0] + shift[0], pos[1] + shift[1],
+              (pos[2] + shift[2]) * this.earthERatio!];
     } else {
-        p2 = [p[0], p[1], p[2] * this.earthERatio];
+        p2 = [p[0], p[1], p[2] * this.earthERatio!];
     }
 
     var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
@@ -1515,7 +1521,7 @@ transformPointBySE2(pos, shift, position) {
     v[1] = p2[1] * m;
     v[2] = p2[2] * m;
 
-    var h = l - this.earthRadius;
+    var h = l - this.earthRadius!;
     var h2 = this.getSuperElevatedHeight(h, position);
     m = (h2 - h);// * 10;
 
@@ -1569,7 +1575,7 @@ project(point) {
 };*/
 
 
-getScreenRay(screenX, screenY) {
+getScreenRay(screenX: number, screenY: number) {
     if (this.camera == null) {
         return [0,0,1.0];
     }
@@ -1608,10 +1614,9 @@ getScreenRay(screenX, screenY) {
 };
 
 
-hitTestGeoLayers(screenX, screenY, secondTexture) {
-    var gl = this.gpu.gl;
+hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
 
-    var surfaceHit = false, pixel: Uint8Array;
+    var surfaceHit = false, pixel: Uint8Array = new Uint8Array(4);
 
     if (screenX >= 0 && screenX < this.curSize[0] &&
         screenY >= 0 && screenY < this.curSize[1]) {
@@ -1626,9 +1631,11 @@ hitTestGeoLayers(screenX, screenY, secondTexture) {
         //get pixel value from framebuffer
 
         if (secondTexture) {
-            pixel = this.geoHitmapTexture2.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1);
+            pixel = this.geoHitmapTexture2!.readFramebufferPixels(
+                x, this.hitmapSize - y - 1, 1, 1);
         } else {
-            pixel = this.geoHitmapTexture.readFramebufferPixels(x, this.hitmapSize - y - 1, 1, 1);
+            pixel = this.geoHitmapTexture!.readFramebufferPixels(
+                x, this.hitmapSize - y - 1, 1, 1);
         }
 
         surfaceHit = !(pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 && pixel[3] == 255);
@@ -1642,8 +1649,8 @@ hitTestGeoLayers(screenX, screenY, secondTexture) {
 };
 
 
-switchToFramebuffer(type, texture) {
-    var gl = this.gpu.gl, size, width, height;
+switchToFramebuffer(type: string, texture: any) {
+    var gl = this.gpu.gl, size: number, width: number, height: number;
     
     switch(type) {
     case 'base':
@@ -1756,8 +1763,7 @@ switchToFramebuffer(type, texture) {
 };
 
 
-hitTest(screenX, screenY) {
-    var gl = this.gpu.gl;
+hitTest(screenX: number, screenY: number) {
 
     //get screen ray
     var screenRay = this.getScreenRay(screenX, screenY);
@@ -1861,12 +1867,12 @@ getDepth(screenX: number, screenY: number, dilate: number = 0) {
 };
 
 
-getZoffsetFactor(params) {
+getZoffsetFactor(params: ArrayLike<number>) {
     return (params[0] + params[1]*this.distanceFactor + params[2]*this.tiltFactor)*0.0001;
 };
 
 
-saveScreenshot(output, filename, filetype) {
+saveScreenshot(output: string, filename: string, filetype: string) {
     var gl = this.gpu.gl;
 
     //get current screen size
@@ -1943,7 +1949,10 @@ saveScreenshot(output, filename, filetype) {
 };
 
 
-getBitmap(url, filter, tiled, hash, useHash) {
+getBitmap(
+    url: string, filter: GpuTexture.Filter, tiled: boolean,
+    hash: string, useHash: boolean,
+) {
     var id = (useHash ? hash : url) + '*' + filter + '*' + tiled;
 
     var texture = this.bitmaps[id];
@@ -1956,7 +1965,7 @@ getBitmap(url, filter, tiled, hash, useHash) {
 };
 
 
-getFont(url) {
+getFont(url: string) {
     var font = this.fonts[url];
     if (!font) {
         font = new GpuFont(this.gpu, this.core, null, null, url);

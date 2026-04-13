@@ -13,11 +13,11 @@ export class TextureBlend {
     //private currentTexture: WebGLTexture | null;
 
     // State to be restored
-    private originalFramebuffer: WebGLFramebuffer | null;
-    private originalProgram: WebGLProgram | null;
-    private originalActiveTexture: GLenum;
-    private originalTextureBinding: WebGLTexture | null;
-    private originalViewport: Int32Array | null;
+    private originalFramebuffer: WebGLFramebuffer | null = null;
+    private originalProgram: WebGLProgram | null = null;
+    private originalActiveTexture: GLenum = 0;
+    private originalTextureBinding: WebGLTexture | null = null;
+    private originalViewport: Int32Array | null = null;
 
     constructor(gl: WebGLRenderingContext, width: number, height: number) {
         this.gl = gl;
@@ -86,8 +86,8 @@ export class TextureBlend {
         this.gl.activeTexture(this.originalActiveTexture);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.originalTextureBinding);
         this.gl.viewport(
-            this.originalViewport[0], this.originalViewport[1],
-            this.originalViewport[2], this.originalViewport[3]);
+            this.originalViewport![0], this.originalViewport![1],
+            this.originalViewport![2], this.originalViewport![3]);
     }
 
     // Init function to clear the framebuffer

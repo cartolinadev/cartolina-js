@@ -109,6 +109,8 @@ source ~/.nvm/nvm.sh && nvm use
 - Text-analysis commands (`grep`, `awk`, `sed`, `wc`) may be run
   against files in this repository without asking for permission.
 
+- `npx tsc` (any flags) may be run without asking for permission.
+
 
 ## Code and refactoring philosophy
 

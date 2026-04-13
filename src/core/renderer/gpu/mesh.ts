@@ -14,16 +14,16 @@ export class GpuMesh {
     bbox!: any;
     core!: any;
 
-    vertexBuffer!: WebGLBuffer;
+    vertexBuffer: WebGLBuffer | null = null;
     vertexBufferLayout!: Layout;
 
-    uvBuffer!: WebGLBuffer;
+    uvBuffer: WebGLBuffer | null = null;
     uvBufferLayout!: Layout;
 
-    uv2Buffer!: WebGLBuffer;
+    uv2Buffer: WebGLBuffer | null = null;
     uv2BufferLayout!: Layout;
 
-    indexBuffer!: WebGLBuffer;
+    indexBuffer: WebGLBuffer | null = null;
     indexBufferLayout!: Layout;
 
     use16bit!: boolean;  // old API
@@ -168,7 +168,7 @@ draw2(program: GpuProgram,
     let vao!: WebGLVertexArrayObject;
 
     if (this.vaos.has(program)) {
-        vao = this.vaos.get(program);
+        vao = this.vaos.get(program)!;
     } else {
         vao = this.createVAO(program, attrNames);
         this.vaos.set(program, vao);

@@ -298,7 +298,6 @@ export class MapStyle {
 
         if (!res.success) {
 
-            // @ts-expect-error Typia typing bug
             let errs = res.errors ?? [];
 
             for (const e of errs)
@@ -323,7 +322,7 @@ export class MapStyle {
         }
 
         // wipe the map clean
-        map.referenceFrame = null;
+        (map as any).referenceFrame = null;
         map.srses = {}
         map.bodies = {}
         map.credits = {}
@@ -346,7 +345,7 @@ export class MapStyle {
                 const path = MapStyle.slapResource(
                     map.url.processUrl(sourceSpec.url), 'mapConfig.json');
 
-                let mc = await utils.loadJson(path);
+                let mc = await utils.loadJson(path) as any;
 
                 // TODO: validation
                 //__DEV__ && console.log(mc);
@@ -359,7 +358,7 @@ export class MapStyle {
                 // sanity: all surfaces need to share the same frame of reference
                 if (map.referenceFrame)
                     console.assert(
-                        mc.referenceFrame.id === map.referenceFrame.id);
+                        mc.referenceFrame.id === (map as any).referenceFrame.id);
 
                 if (!map.referenceFrame) {
                     // ok, this is first surface, so we extract all the map metadata
@@ -379,8 +378,8 @@ export class MapStyle {
                     map.services = mc.services ?? {};
 
                     // atmosphere
-                    let body = map.referenceFrame.body;
-                    let services = map.services;
+                    let body = (map as any).referenceFrame.body;
+                    let services = map.services as any;
 
                     if (styleSpec.atmosphere
                         && body && body.atmosphere
@@ -451,9 +450,9 @@ export class MapStyle {
         }
 
         // vertical exaggeration
-        if (styleSpec['vertical-exaggeration']) {
+        if ((styleSpec as any)['vertical-exaggeration']) {
 
-            const veSpec = styleSpec['vertical-exaggeration'];
+            const veSpec = (styleSpec as any)['vertical-exaggeration'];
             map.renderer.setSuperElevationState(true);
 
             if ('elevationRamp' in veSpec || 'scaleRamp' in veSpec) {
@@ -497,7 +496,7 @@ export class MapStyle {
         map.tree.surfaceSequence = [];
         map.tree.surfaceOnlySequence = [];
 
-        map.surfaces.forEach((surface: MapSurface) => {
+        (map.surfaces as any[]).forEach((surface: MapSurface) => {
 
             if (!this.styleSpec.terrain.sources.includes(surface.styleSourceId)) return;
 
@@ -515,7 +514,7 @@ export class MapStyle {
         // iterate through layes, compiling layer style sheets along the way
         this.styleSpec.layers && this.styleSpec.layers.forEach((layer) => {
 
-            if (['labels', 'lines'].includes(layer.type)) {
+            if (['labels', 'lines'].includes(layer.type ?? '')) {
 
                 let freelayerId = layer.source as string;
                 let stylesheet: vtsStylesheet = freeLayerStyles[freelayerId];
@@ -541,7 +540,7 @@ export class MapStyle {
                 delete stylesheetLayer.source;
 
                 // final stylesheet
-                stylesheet.layers[id] = stylesheetLayer;
+                stylesheet.layers![id] = stylesheetLayer;
             }
         })
 

@@ -3,7 +3,7 @@ import MapStyle from '../map/style';
 import MapSurface from '../map/surface';
 
 
-var MapSurfaceSequence = function(map) {
+var MapSurfaceSequence = function(this: any, map: any) {
     this.map = map;
 };
 
@@ -20,7 +20,7 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
     tree.surfaceSequenceIndices = []; //probably not used
     tree.surfaceOnlySequence = [];
 
-    var vsurfaces = {}, surface, glue; 
+    var vsurfaces: Record<string, any> = {}, surface, glue;
     var vsurfaceCount = 0;
     var list = [], listId, i, li, j , lj, key;
     var strId = [];
@@ -224,7 +224,9 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
                 let item = surfaceLayers[i];
                 
                 // implicit alpha
-                let alpha = { mode: 'constant', value: 1.0 };
+                let alpha: {
+                    mode: string; value: number; illumination?: number[];
+                } = { mode: 'constant', value: 1.0 };
 
                 if (typeof item === 'string') {
 

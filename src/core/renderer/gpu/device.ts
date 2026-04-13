@@ -141,7 +141,7 @@ kill() {
 };
 
 
-contextLost(event: WebGLContextEvent) {
+contextLost(event: Event) {
 
     console.error('WebGL context lost', new Date().toISOString());
     event.preventDefault();

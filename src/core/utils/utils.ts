@@ -6,7 +6,7 @@ import {utilsUrl} from './url';
 export const useCredentials = false;
 
 
-export function validateBool(value, defaultValue) {
+export function validateBool(value: unknown, defaultValue: boolean) {
     if (typeof value === 'boolean') {
         return value;
     } else {
@@ -15,7 +15,10 @@ export function validateBool(value, defaultValue) {
 };
 
 
-export function validateNumber(value, minValue, maxValue, defaultValue) {
+export function validateNumber(
+    value: unknown, minValue: number,
+    maxValue: number, defaultValue: number,
+) {
     if (typeof value === 'number') {
         return math.clamp(value, minValue, maxValue);
     } else {
@@ -24,7 +27,10 @@ export function validateNumber(value, minValue, maxValue, defaultValue) {
 };
 
 
-export function validateNumberArray(array, arraySize, minValues, maxValues, defaultValues) {
+export function validateNumberArray(
+    array: unknown, arraySize: number,
+    minValues: number[], maxValues: number[], defaultValues: number[],
+) {
     if (Array.isArray(array) && array.length == arraySize) {
         for (var i = 0; i < arraySize; i++) {
             array[i] = math.clamp(array[i], minValues[i], maxValues[i]);
@@ -36,7 +42,7 @@ export function validateNumberArray(array, arraySize, minValues, maxValues, defa
 };
 
 
-export function validateString(value, defaultValue) {
+export function validateString(value: unknown, defaultValue: string) {
     if (typeof value === 'string') {
         return value;
     } else {
@@ -45,21 +51,23 @@ export function validateString(value, defaultValue) {
 };
 
 
-export function padNumber(n, width) {
+export function padNumber(n: number, width: number) {
     var z = '0';
 
     if (n < 0) {
-        n = (-n) + '';
-        width--;     //7
-        return n.length >= width ? ('-' + n) : '-' + (new Array(width - n.length + 1).join(z) + n);
+        const s = String(-n);
+        width--;
+        return s.length >= width
+            ? ('-' + s)
+            : '-' + (new Array(width - s.length + 1).join(z) + s);
     } else {
-        n = n + '';
-        return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
+        const s = String(n);
+        return s.length >= width ? s : new Array(width - s.length + 1).join(z) + s;
     }
 };
 
 
-export function decodeFloat16(binary) {
+export function decodeFloat16(binary: number) {
     var exponent = (binary & 0x7C00) >> 10;
     var fraction = binary & 0x03FF;
     return (binary >> 15 ? -1 : 1) * (
@@ -74,26 +82,28 @@ export function decodeFloat16(binary) {
 };
 
 
-export function simpleFmtObj(str, obj) {
+export function simpleFmtObj(str: string, obj: Record<string, unknown>) {
     if (!str || str == '') {
         return '';
     }
 
-    //return str.replace(/\{([$a-zA-Z0-9][$a-zA-Z0-9]*)\}/g, function(s, match) {
-    return str.replace(/{([$a-zA-Z0-9()][$a-zA-Z0-9()]*)}/g, function(s, match) {
-        return (match in obj ? obj[match] : s);
-    });
+    return str.replace(
+        /{([$a-zA-Z0-9()][$a-zA-Z0-9()]*)}/g,
+        (_s, match: string) => (match in obj ? String(obj[match]) : _s),
+    );
 };
 
 
-export function simpleWikiLinks(str, plain) {
+export function simpleWikiLinks(str: string, plain: boolean) {
     if (!str || str == '') {
         return '';
     }
 
-    var str2 = simpleFmtObj(str, {'copy':'&copy;', 'Y': (new Date().getFullYear())});
-    
-    return str2.replace(/\[([^\]]*)\]/g, function(s, match) {
+    var str2 = simpleFmtObj(
+        str, {'copy':'&copy;', 'Y': (new Date().getFullYear())},
+    );
+
+    return str2.replace(/\[([^\]]*)\]/g, function(_s, match: string) {
         match  = match.trim();
         var urls = match.split(' ');//, 1);
         
@@ -128,7 +138,7 @@ export function simpleFmtObjOrCall(str: string, map: Record<string, unknown>,
   );
 }
 
-export function getABGRFromHexaCode(code) {
+export function getABGRFromHexaCode(code: string) {
     var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(code);
 
     return result ?
@@ -140,33 +150,33 @@ export function getABGRFromHexaCode(code) {
 };
 
 
-export function stringifyFunction(fn) {
+export function stringifyFunction(fn: (...args: any[]) => any) {
     // Stringify the code
     return '(' + fn + ').call(self);';
 };
 
 
-export function isPowerOfTwo(value) {
+export function isPowerOfTwo(value: number) {
     return (value & (value - 1)) === 0 && value !== 0;
 };
 
 
-export function nearestPowerOfTwo(value) {
+export function nearestPowerOfTwo(value: number) {
     return Math.pow(2, Math.round(Math.log(value) / Math.LN2));
 };
 
 
-export function fitToPowerOfTwo(value) {
+export function fitToPowerOfTwo(value: number) {
     return Math.pow(2, Math.ceil(Math.log(value) / Math.LN2));
 };
 
 
-export function getHash(str) {
+export function getHash(str: string) {
     if (!str || str.length === 0) {
-        return 0;    
+        return 0;
     }
 
-    var hash = 0, c;
+    var hash = 0, c: number;
     for (var i = 0, li = str.length; i < li; i++) {
         c   = str.charCodeAt(i);
         hash  = ((hash << 5) - hash) + c;
@@ -177,22 +187,22 @@ export function getHash(str) {
 };
 
 
-export function convertRGB2YCbCr(r, g, b) {
+export function convertRGB2YCbCr(r: number, g: number, b: number) {
   return [( .299 * r + .587 * g  +  0.114 * b) + 0,
           ( -.169 * r + -.331 * g +  0.500 * b) + 128,
           ( .500 * r + -.419 * g +  -0.081 * b) + 128];
 };
 
 
-export function convertYCbCr2RGB(y, cb, cr) {
+export function convertYCbCr2RGB(y: number, cb: number, cr: number) {
   return [1 * y +  0 * (cb-128)      +  1.4 * (cr-128),
           1 * y +  -.343 * (cb-128)  +  -.711 * (cr-128),
           1 * y +  1.765 * (cb-128)  +  0 * (cr-128)];
 };
 
 
-export function convertHSL2RGB(h, s, l){
-   var r, g, b, m, c, x;
+export function convertHSL2RGB(h: number, s: number, l: number) {
+    var r: number, g: number, b: number, m: number, c: number, x: number;
 
     h /= 60;
     if (h < 0) h = 6 - (-h % 6);
@@ -226,7 +236,7 @@ export function convertHSL2RGB(h, s, l){
 }
 
 
-export function getHashColor(str) {
+export function getHashColor(str: string) {
     var h = getHash(str);
     var c = convertRGB2YCbCr(h&255,(h>>8)&255,(h>>16)&255);
     c[0] = math.clamp(c[0], 50, 200);
@@ -234,7 +244,7 @@ export function getHashColor(str) {
 };
 
 
-export function getHashColor2(counter) {
+export function getHashColor2(counter: number) {
     var h = Math.floor(counter / 18);
     var l = 50;
 
@@ -252,19 +262,31 @@ export function getHashColor2(counter) {
 };
 
 
-export function loadText(path, onLoaded, onError, withCredentials, xhrParams) {
+type XhrParams = Record<string, string> | null | undefined;
+type XhrCallback = ((data: any) => void) | null | undefined;
+type XhrErrCallback = ((status?: number) => void) | null | undefined;
+type HeadCallback =
+    ((headers: string, status: number) => void) | null | undefined;
+
+export function loadText(
+    path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
+    withCredentials: boolean, xhrParams: XhrParams,
+) {
     loadJSON(path, onLoaded, onError, true, withCredentials, xhrParams);
 };
 
 
-export function loadXML(path, onLoaded, onError, withCredentials, xhrParams) {
-    var onLoaded2 = (function(data){
-        var parser = new DOMParser();
-        data = parser.parseFromString(data, 'text/xml');
+export function loadXML(
+    path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
+    withCredentials: boolean, xhrParams: XhrParams,
+) {
+    const onLoaded2 = (data: string) => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(data, 'text/xml');
         if (onLoaded) {
-            onLoaded(data);
+            onLoaded(doc);
         }
-    });
+    };
 
     loadJSON(path, onLoaded2, onError, true, withCredentials, xhrParams);
 };
@@ -272,7 +294,7 @@ export function loadXML(path, onLoaded, onError, withCredentials, xhrParams) {
 
 export async function loadJson(path: string) {
 
-    let retval;
+    let retval: unknown;
 
     try {
 
@@ -290,11 +312,13 @@ export async function loadJson(path: string) {
     return retval;
 }
 
-export function loadJSON(path, onLoaded, onError, skipParse, withCredentials, xhrParams) {
+export function loadJSON(
+    path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
+    skipParse: boolean, withCredentials: boolean, xhrParams: XhrParams,
+) {
     var xhr = new XMLHttpRequest();
 
-    //xhr.onload  = (function() {
-    xhr.onreadystatechange = (function (){
+    xhr.onreadystatechange = () => {
 
         switch (xhr.readyState) {
         case 0 : // UNINITIALIZED
@@ -303,41 +327,41 @@ export function loadJSON(path, onLoaded, onError, skipParse, withCredentials, xh
         case 3 : // INTERACTIVE
             break;
         case 4 : // COMPLETED
-    
+
             if (xhr.status >= 400 || xhr.status == 0) {
                 if (onError) {
                     onError(xhr.status);
                 }
                 break;
             }
-    
+
             var data = xhr.response;
             var parsedData = data;
-                
+
             if (!skipParse) {
                 try {
-                        //var parsedData = skipParse ? data : eval("("+data+")");
                     parsedData = JSON.parse(data);
                 } catch(e) {
                     // eslint-disable-next-line
-                    console.log('JSON Parse Error ('+path+'): ' + (e['message'] ? e['message'] : ''));
-                        
-                    if (onError ) {
+                    const msg = e instanceof Error ? e.message : '';
+                    console.log('JSON Parse Error ('+path+'): ' + msg);
+
+                    if (onError) {
                         onError(xhr.status);
                     }
-                
+
                     return;
                 }
             }
-                
+
             if (onLoaded) {
                 onLoaded(parsedData);
             }
-    
+
             break;
         }
 
-    }).bind(this);
+    };
 
     /*
     xhr.onerror  = (function() {
@@ -363,10 +387,14 @@ export function loadJSON(path, onLoaded, onError, skipParse, withCredentials, xh
 };
 
 
-export function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, responseType) {
+export function loadBinary(
+    path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
+    withCredentials: boolean, xhrParams: XhrParams,
+    responseType: XMLHttpRequestResponseType,
+) {
     var xhr = new XMLHttpRequest();
 
-    xhr.onreadystatechange = (function (){
+    xhr.onreadystatechange = () => {
 
         switch (xhr.readyState) {
         case 0 : // UNINITIALIZED
@@ -375,45 +403,39 @@ export function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, 
         case 3 : // INTERACTIVE
             break;
         case 4 : // COMPLETED
-    
+
             if (xhr.status >= 400 || xhr.status == 0) {
                 if (onError) {
                     onError(xhr.status);
                 }
                 break;
             }
-    
+
             var abuffer = xhr.response;
-                    
+
             if (!abuffer) {
                 if (onError) {
                     onError();
                 }
                 break;
             }
-                    
-                    //if (!responseType || responseType == "arraybuffer") {
-                        //var data = new DataView(abuffer);
-                    //} else {
-                      //  var data = abuffer;
-                    //}
-    
+
             if (onLoaded) {
                 onLoaded(abuffer);
             }
-    
+
             break;
-    
+
         default:
-    
+
             if (onError) {
                 onError();
             }
-    
+
             break;
         }
 
-    }).bind(this);
+    };
     
     /*
     xhr.onerror  = (function() {
@@ -435,10 +457,13 @@ export function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, 
 };
 
 
-export function headRequest(url, onLoaded, onError, withCredentials, xhrParams) {
+export function headRequest(
+    url: string, onLoaded: HeadCallback, onError: XhrErrCallback,
+    withCredentials: boolean, xhrParams: XhrParams,
+) {
     var xhr = new XMLHttpRequest();
 
-    xhr.onreadystatechange = (function (){
+    xhr.onreadystatechange = () => {
 
         switch (xhr.readyState) {
         case 0 : // UNINITIALIZED
@@ -449,26 +474,25 @@ export function headRequest(url, onLoaded, onError, withCredentials, xhrParams) 
         case 4 : // COMPLETED
             if (onLoaded != null) {
                 onLoaded(xhr.getAllResponseHeaders(), xhr.status);
-                    //onLoaded(xhr.getResponseHeader("X-VE-Tile-Info"), xhr.status);
             }
             break;
-    
+
         default:
-    
+
             if (onError != null) {
                 onError();
             }
-    
+
             break;
         }
 
-    }).bind(this);
+    };
 
-    xhr.onerror  = (function() {
+    xhr.onerror = () => {
         if (onError != null) {
             onError();
         }
-    }).bind(this);
+    };
 
     xhr.open('HEAD', url, true);
     //xhr.responseType = responseType ? responseType : "arraybuffer";
@@ -483,7 +507,13 @@ export function headRequest(url, onLoaded, onError, withCredentials, xhrParams) 
 };
 
 
-export function loadImage(url, onload, onerror, withCredentials, direct) {
+export function loadImage(
+    url: string,
+    onload: ((this: GlobalEventHandlers, ev: Event) => any) | null,
+    onerror: OnErrorEventHandler,
+    withCredentials: boolean,
+    direct: boolean,
+) {
     var image = new Image();
     image.onerror = onerror;
     image.onload = onload;
@@ -497,7 +527,7 @@ export function loadImage(url, onload, onerror, withCredentials, direct) {
 };
 
 
-export function getParamsFromUrl(url) {
+export function getParamsFromUrl(url: string) {
     return utilsUrl.getParamsFromUrl(url);
 };
 
@@ -505,7 +535,7 @@ export function getParamsFromUrl(url) {
 //var textDecoderUtf8 = null; //(typeof TextDecoder !== 'undefined') ? (new TextDecoder('utf-8')) : null;
 var textDecoderUtf8 = (typeof TextDecoder !== 'undefined') ? (new TextDecoder('utf-8')) : null;
 
-export function unint8ArrayToString(array) {
+export function unint8ArrayToString(array: Uint8Array) {
     if (textDecoderUtf8) {
         return textDecoderUtf8.decode(array);
     } else {
@@ -567,7 +597,7 @@ export function log<T extends (...args: any[]) => any>(fn: T): T {
  * logged to use it.
  */
 export function Log(
-  target: any,
+  _target: any,
   propertyKey: string,
   descriptor: PropertyDescriptor
 ) {

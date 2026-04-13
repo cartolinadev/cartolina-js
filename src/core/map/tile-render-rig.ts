@@ -386,7 +386,7 @@ export class TileRenderRig {
         // tag.x, tag.y, tag.z
         i32[w++] = TargetMap[layer.target] ?? -1;
         i32[w++] = SourceMap[layer.source] ?? -1;
-        i32[w++] = OpMap[layer.operation] ?? -1;
+        i32[w++] = (OpMap as Record<string, number>)[layer.operation] ?? -1;
 
 
         // tag.w

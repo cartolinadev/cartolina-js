@@ -12,7 +12,7 @@ export class GpuProgram {
     vertex: string;
     fragment: string;
     gl: WebGL2RenderingContext;
-    program: WebGLProgram;
+    program!: WebGLProgram;
     ready: boolean;
     uniformLocationCache: Record<string, WebGLUniformLocation | null>;
     attributeLocationCache: Record<string, GLint>;
@@ -52,7 +52,7 @@ export class GpuProgram {
     };
 
 
-    log(message, logger: (message: string) => void = utils.warnOnce) {
+    log(message: string, logger: (message: string) => void = utils.warnOnce) {
 
         let message_ = `[GpuProgram ${this.id}:${this.name}]` + message;
         logger(message_);
