@@ -1,7 +1,3 @@
-import type Map from './map/map';
-import type Renderer from './renderer/renderer';
-import type MapInterface from './map/interface';
-
 /** Height mode for coordinate conversions and hit-testing. */
 export type HeightMode = 'fix' | 'float';
 
@@ -31,37 +27,4 @@ export interface CoreEventMap {
     'geo-feature-leave': unknown;
     'geo-feature-hover': unknown;
     'geo-feature-click': unknown;
-}
-
-/**
- * Typed boundary interface over the legacy JS `CoreInterface`.
- *
- * Describes the subset of `CoreInterface` that TypeScript modules
- * access. Cast the result of `Browser.getCore()` to this type at the
- * construction boundary; do not use `as any` past that point.
- */
-export interface ICoreInterface {
-
-    readonly ready: Promise<void>;
-
-    /** Internal engine objects — available after `ready` resolves. */
-    readonly core: {
-        map: InstanceType<typeof Map> | null;
-        renderer: Renderer | null;
-        mapInterface: InstanceType<typeof MapInterface> | null;
-    } | null;
-
-    on<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-    ): (() => void) | null;
-
-    once<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-        wait?: number,
-    ): void;
-
-    destroy(): void;
-    destroyMap(): void;
 }

@@ -218,6 +218,45 @@ Performeance regressiopn tests are normally not needed after every
 change. Perform them when they are part of the plan.
 
 
+## JavaScript → TypeScript migration rules
+
+This codebase is in gradual, feature-driven migration from ES5 JavaScript
+to TypeScript. These rules govern how type shapes are expressed when new
+TypeScript code touches legacy JavaScript.
+
+**Reference legacy ES5 types directly where possible.**
+`allowJs: true` means TypeScript infers the shape of imported `.js`
+modules. Prefer `import Foo from './foo'` over creating a parallel
+interface. IDE "go to definition" navigates to the original file.
+
+**Use a sibling `.d.ts` for complex legacy shapes that need precise
+typing.**
+JavaScript files cannot define types. When a legacy `.js` class has a
+complex shape that must be typed precisely, place a `.d.ts` declaration
+next to it (e.g. `interface.d.ts` alongside `interface.js`). TypeScript
+prefers the `.d.ts` over inferred JS types even with `allowJs`. The
+shape declaration stays co-located with the implementation.
+
+Do not create parallel boundary interfaces (`IFoo`-style types in a
+separate file) that duplicate a JS class shape. That pattern requires
+maintaining the same shape in two places.
+
+**Use a `types.ts` for simple, reusable type shapes.**
+JavaScript files cannot define types. Simple types that are reused
+across multiple modules — string literal unions, numeric aliases, tuple
+types, event maps — belong in a `types.ts` file for their layer:
+`src/core/types.ts` for the core layer, `src/browser/types.ts` for the
+browser layer. Create the file when the first such type is needed in
+that layer.
+
+**No `: any` or `: unknown` for known shapes.**
+If a shape is trivial (a fixed-shape tuple, a small string union),
+define it in `types.ts`. If a shape is complex and belongs to a
+specific `.js` class, write a `.d.ts`. Reserve `unknown` only for
+payloads that genuinely cannot be typed yet (e.g. legacy event payloads
+from untyped JS).
+
+
 ## Language and module rules
 
 - **No new JavaScript modules.** All new source files shall be

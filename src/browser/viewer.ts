@@ -14,9 +14,8 @@
  * class on a case-by-case basis as new applications require them.
  */
 
-// @ts-ignore — legacy JS module; imported for type annotation and navigation
 import Browser from './browser';
-import type { ICoreInterface } from '../core/types';
+import { CoreInterface } from '../core/interface';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { MapRuntimeOptionValue } from './index';
@@ -41,7 +40,7 @@ class Viewer {
 
     //private readonly _browser: InstanceType<typeof Browser>;
     private readonly _browser: Browser;
-    private readonly _core: ICoreInterface;
+    private readonly _core: CoreInterface;
     private _killed = false;
 
     /** The internal terrain engine (`Core.map`). Non-null after `ready`. */
@@ -74,7 +73,8 @@ class Viewer {
     constructor(element: HTMLElement | string, config: unknown) {
 
         this._browser = new Browser(element, config);
-        this._core = this._browser.getCore() as unknown as ICoreInterface;
+        //this._core = this._browser.getCore() as unknown as CoreInterface;
+        this._core = this._browser.getCore() as CoreInterface;
     }
 
     // -------------------------------------------------------------------------
