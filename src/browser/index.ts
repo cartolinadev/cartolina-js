@@ -1,3 +1,9 @@
+// Browser-build CSS must be imported from the browser entry so webpack keeps
+// the stylesheet in the dist output regardless of wrapper refactors.
+import './browser.css';
+import './presenter/css/main.css';
+import './presenter/css/panel.css';
+import './presenter/css/subtitles.css';
 
 import Viewer from './viewer';
 export type { default as Map } from './viewer';
@@ -67,7 +73,7 @@ export type MapOptions = {
  * @return the browser interface
  */
 
-export function map(options: MapOptions): Viewer {
+export function map(options: MapOptions): Viewer | null {
 
     // all browser controls are disabled by default on the style api
     let dflts = {
@@ -89,7 +95,7 @@ export function map(options: MapOptions): Viewer {
     });
 
     // return
-    return (vi as any)._core ? vi : null;
+    return vi.core ? vi : null;
 }
 
 /**
@@ -129,10 +135,10 @@ export type BrowserConfig = MapRuntimeOptions & {
 export function browser(
     element: HTMLElement | string,
     config: BrowserConfig
-): Viewer {
+): Viewer | null {
 
     var vi = new Viewer(element, config);
-    return (vi as any)._coreInterface ? vi : null;
+    return vi.core ? vi : null;
 }
 
 /**

@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.180-feature_relief_lab.e564469';
+  return '2.49.181-feature_strict_ts_checks.12986fd';
 }
