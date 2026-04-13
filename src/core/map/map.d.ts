@@ -9,6 +9,7 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type Renderer from '../renderer/renderer';
+import type { NodeInformation } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -73,7 +74,10 @@ export default class Map {
     };
 
     measure: {
-        getNodeInformation(id: [number, number, number]): unknown;
+        getNodeInformation(
+            id: [number, number, number],
+            height?: number,
+        ): NodeInformation | null;
     };
 
     setPosition(position: MapPosition | number[]): void;

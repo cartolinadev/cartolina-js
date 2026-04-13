@@ -1,5 +1,60 @@
 # Session log
 
+## 2026-04-13 — Style validation tightened around top-level schema
+
+**Branch:** feature/strict-ts-checks
+
+### Spec
+
+Make style validation catch typoed top-level fields such as
+`verticalExaggeration`, align the TypeScript style spec with the
+canonical `vertical-exaggeration` wire key, and remove the `as any`
+escape hatch from vertical-exaggeration loading.
+
+### Work done
+
+**`src/core/map/style.ts`** — changed `StyleSpecification` to use the
+canonical `'vertical-exaggeration'` key, removed the direct `any`
+escape when reading it, and routed validation through a new
+`validateStyleSpecification()` helper.
+
+That helper keeps typia's existing structural validation for nested
+objects but adds exact checking for the top-level style object. Unknown
+top-level keys now fail validation with a direct error, and the common
+camelCase typo suggests the supported hyphenated spelling.
+
+The same pass also corrected two style-spec mismatches surfaced by the
+stricter check:
+
+- `label-origin` is typed as a string-valued property.
+- `zbuffer-offset` uses the runtime spelling already consumed by the
+  geodata worker and demo styles.
+
+### Non-obvious findings
+
+- Full `typia.createValidateEquals()` exactness was too disruptive for
+  the current style ecosystem. Existing demo styles use nested
+  expression objects and legacy ad-hoc keys that are accepted by the
+  runtime but not representable as an exact recursive schema yet.
+- The practical boundary today is therefore: exact top-level style
+  object, permissive nested structures.
+- The earlier `verticalExaggeration` / `vertical-exaggeration`
+  mismatch had gone unnoticed because typia's non-exact validator does
+  not reject unknown extra keys.
+
+### Verification
+
+- `npx tsc --noEmit` passes.
+- All example styles under `demos/map/styles` load in the demo app with
+  no style-validation errors.
+- A deliberate camelCase `verticalExaggeration` style fails with:
+  `did you mean 'vertical-exaggeration'?`
+- `node test/screenshot.js simple-terrain` passes in dev and prod.
+- `node test/screenshot.js full-terrain` passes in dev and prod.
+- `node test/screenshot.js complex-terrain` passes in prod; dev hit
+  remote geodata fetch failures, so treat that as an external data-path
+  verification gap rather than a validator regression.
+
 ## 2026-04-13 — Strict TypeScript completed
 
 **Branch:** feature/relief-lab

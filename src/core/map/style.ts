@@ -37,7 +37,7 @@ export interface StyleSpecification  {
     fonts?: Record<string, string>;
 
     illumination?: IlluminationSpecification;
-    verticalExaggeration?: VerticalExaggerationSpecification;
+    'vertical-exaggeration'?: VerticalExaggerationSpecification;
 
     atmosphere?: AtmosphereSpecification;
     shadows?: any;
@@ -173,7 +173,7 @@ export type LetteringLayerProperties = {
 
     'label-outline': Property<[number, number, number, number]>,
     'label-offset': Property<[number, number]>,
-    'label-origin': Property<number[]>,
+    'label-origin': Property<string>,
     'label-align': 'left' | 'right' | 'center',
     'label-width': Property<number>,
     'label-stick': Property<number[]>,
@@ -184,7 +184,7 @@ export type LetteringLayerProperties = {
     'polygon-color': Property<Color4Spec>,
 
     'z-index': Property<number>,
-    'z-buffer-offset': Property<[number, number, number]>,
+    'zbuffer-offset': Property<[number, number, number]>,
     'selected-layer' : Property<string>,
     'selected-hover-layer': Property<string>,
     'enter-event': Property<boolean>,
@@ -280,7 +280,7 @@ type SurfaceMapConfig = {
     } & Record<string, unknown>;
 
     srses: Record<string, unknown>;
-    bodies: Record<string, unknown>;
+    bodies: Record<string, MapBody.Configuration>;
     services?: {
         atmdensity?: {
             url: string;
@@ -468,14 +468,14 @@ export class MapStyle {
         }
 
         // vertical exaggeration
-        if ((styleSpec as any)['vertical-exaggeration']) {
+        const veSpec = styleSpec['vertical-exaggeration'];
 
-            const veSpec = (styleSpec as any)['vertical-exaggeration'];
+        if (veSpec) {
             map.renderer.setSuperElevationState(true);
 
             if ('elevationRamp' in veSpec || 'scaleRamp' in veSpec) {
 
-                map.renderer.setVerticalExaggeration(veSpec as any);
+                map.renderer.setVerticalExaggeration(veSpec);
 
             } else {
 

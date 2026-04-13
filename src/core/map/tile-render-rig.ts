@@ -45,7 +45,8 @@ import * as vts from '../constants';
   * There are two levels of draw readiness: full readiness (or simply readiness)
   * and fallback readiness. The fallback readiness is meant for a tile that is
   * meant to be a replacement for better (typically higher resolution) data.
-  * This matters: not all data are made ready for the sake of fallback readiness.
+  * This matters: not all data are made ready for the sake of fallback
+  * readiness.
   */
 
 export class TileRenderRig {
@@ -119,15 +120,18 @@ export class TileRenderRig {
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
 
-        // add the tile upVector to the runtime information (passed on to the program)
-        let nodeInfo = tile.map.measure.getNodeInformation(tile.id);
+        // add the tile upVector to the runtime information
+        // (passed on to the program)
+        const nodeInfo = tile.map.measure.getNodeInformation(tile.id);
 
-        if (!isNodeInfo(nodeInfo)) {
-            __DEV__ && console.warn(`${this.logSign()}: missing upVector in node information, `);
+        if (!nodeInfo) {
+            __DEV__ && console.warn(
+                `${this.logSign()}: missing upVector in node information, `);
         } else {
             this.rt.upVector = nodeInfo.upVector;
         }
-        //__DEV__ && console.log(`${this.logSign()}: upVector: ${this.rt.upVector}`);
+        //__DEV__ && console.log(
+        //    `${this.logSign()}: upVector: ${this.rt.upVector}`);
 
         // done
 
@@ -136,7 +140,8 @@ export class TileRenderRig {
     /**
      * Make rig resources ready and check readiness.
      *
-     * @param readiness the two levels of readiness requested. *Minimum* controls
+     * @param readiness the two levels of readiness requested.
+     *     *Minimum* controls
      *     which resources suffice for the tile rig to be evaluated as ready.
      *     *Desired* controls which resources the method *attempts* to make
      *     ready (activates their readiness triggers).
@@ -153,7 +158,8 @@ export class TileRenderRig {
         // premature exit for a failed rig
         if (this.isAborted) return false;
 
-        // if we have any 'notSureYet' masks, initiate checks and exit gracefully
+        // if we have any 'notSureYet' masks, initiate checks and exit
+        // gracefully
         let unsureMasks = false;
 
         layerStack.forEach((item: Layer) => {
@@ -166,13 +172,16 @@ export class TileRenderRig {
 
             if (item.rt && item.rt.hasMask === 'notSureYet') {
 
-                //console.log('Checking mask for %s (%s): ', this.tile.id.join('-'), item.rt.layerId);
+                //console.log(
+                //    'Checking mask for %s (%s): ',
+                //    this.tile.id.join('-'),
+                //    item.rt.layerId);
 
                 console.assert(
                     item.source === 'texture', 'incompatible layer params');
 
-                texture.isReady(
-                    options.doNotLoad, priority.essential, options.doNotCheckGpu);
+                texture.isReady(options.doNotLoad, priority.essential,
+                    options.doNotCheckGpu);
 
                 item.rt.hasMask = TileRenderRig.hasMask(texture);
 
@@ -226,12 +235,14 @@ export class TileRenderRig {
     }
 
     /**
-     * Process layer stack into an actual draw call, using the tile shader program.
+     * Process layer stack into an actual draw call, using the tile shader
+     * program.
      */
     draw(program: GpuProgram, cameraPos: math.vec3) {
 
         if (!this.uboLayers) {
-            console.warn(`draw called on an unready rig for ${this.logSign()}.`);
+            console.warn(
+                `draw called on an unready rig for ${this.logSign()}.`);
             return;
         }
 
@@ -243,10 +254,12 @@ export class TileRenderRig {
         /*if (false && this.renderer.core.map.atmosphere) {
 
             this.renderer.gpu.bindTexture(
-                this.renderer.core.map.atmosphere.atmDensityTexture.getGpuTexture(),
+                this.renderer.core.map.atmosphere.atmDensityTexture
+                    .getGpuTexture(),
                 this.renderer.textureIdxs.atmosphere);
 
-            program.setSampler('uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
+            program.setSampler(
+                'uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
         }*/
 
         // uClip
@@ -256,9 +269,11 @@ export class TileRenderRig {
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
-        //program.setSampler('material.normalMap', this.normalMap.getGpuTexture());
+        //program.setSampler(
+        //    'material.normalMap', this.normalMap.getGpuTexture());
 
-        // rebuild the layer buffer, set sampler arrays, bind textures and buffer base
+        // rebuild the layer buffer, set sampler arrays, bind textures
+        // and buffer base
         this.updateBuffer(program);
 
         // draw
@@ -372,7 +387,8 @@ export class TileRenderRig {
         program.setIntArray('uTexture[0]', samplers.samplers);
 
         //__DEV__ && console.log(`${this.logSign()}: bound `
-        //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit} texture units.`);
+        //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit}`
+        //    + ` texture units.`);
     }
 
     private encodeLayer(layer: Layer,
@@ -388,7 +404,7 @@ export class TileRenderRig {
         // tag.x, tag.y, tag.z
         i32[w++] = TargetMap[layer.target] ?? -1;
         i32[w++] = SourceMap[layer.source] ?? -1;
-        i32[w++] = (OpMap as Record<string, number>)[layer.operation] ?? -1;
+        i32[w++] = OpMap[layer.operation] ?? -1;
 
 
         // tag.w
@@ -431,7 +447,9 @@ export class TileRenderRig {
                     mainIdx = samplers.nextIdx++;
                     samplers.samplers[mainIdx] = mainUnit;
 
-                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} main.`);
+                    //console.log(
+                    //    `${this.logSign()}: binding `
+                    //    + `${layer.rt.layerId} main.`);
                     renderer.gpu.bindTexture(main, mainUnit);
                 }
 
@@ -442,7 +460,9 @@ export class TileRenderRig {
                     maskIdx = samplers.nextIdx++;
                     samplers.samplers[maskIdx] = maskUnit;
 
-                    //console.log(`${this.logSign()}: binding ${layer.rt.layerId} mask.`);
+                    //console.log(
+                    //    `${this.logSign()}: binding `
+                    //    + `${layer.rt.layerId} mask.`);
                     renderer.gpu.bindTexture(mask, maskUnit);
                 }
 
@@ -452,7 +472,7 @@ export class TileRenderRig {
                 break;
 
             default:
-                w += 3;                                                 // p0.xyz
+                w += 3;                                          // p0.xyz
         }
 
 
@@ -472,18 +492,19 @@ export class TileRenderRig {
 
             case 'constant':
                 const c = layer.srcConstant;
-                f32[w++] = c[0]; f32[w++] = c[1]; f32[w++] = c[2];        // p1.xyz
-                w++;                                                      // p1.w
+                f32[w++] = c[0]; f32[w++] = c[1];
+                f32[w++] = c[2];                                  // p1.xyz
+                w++;                                              // p1.w
                 break;
 
             case 'texture':
                 const t = layer.srcTextureTexture.getTransform();
-                f32[w++] = t[0]; f32[w++] = t[1];                          // p1.xy
-                f32[w++] = t[2]; f32[w++] = t[3];                          // p1.zw
+                f32[w++] = t[0]; f32[w++] = t[1];                  // p1.xy
+                f32[w++] = t[2]; f32[w++] = t[3];                  // p1.zw
                 break;
 
             default:
-                w += 4;                                                   // p1.xyzw
+                w += 4;                                           // p1.xyzw
         }
 
         // vec4 p2
@@ -491,17 +512,17 @@ export class TileRenderRig {
 
             case 'blend':
 
-                f32[w++] = layer.rt.alpha ?? 0;                            // p2.x
+                f32[w++] = layer.rt.alpha ?? 0;                    // p2.x
                 break;
 
             default:
-                w++;                                                        // p2.x
+                w++;                                              // p2.x
         }
 
         switch (layer.target) {
 
             case 'color':
-                f32[w++] = layer.tgtColorWhitewash ?? 0;                   // p2.y
+                f32[w++] = layer.tgtColorWhitewash ?? 0;           // p2.y
                 break;
 
             default:
@@ -513,13 +534,15 @@ export class TileRenderRig {
         // ivec4 p3
         const fm = Renderer.encodeRenderFlags(
             layer.flagMask ?? Renderer.RenderFlags.FlagNone);
-        i32[w++] = fm[0]; i32[w++] = fm[1];                    // p3.xy — flag mask
+        i32[w++] = fm[0];
+        i32[w++] = fm[1];                               // p3.xy — flag mask
         i32[w++] = fm[2]; i32[w++] = fm[3];                    // p3.zw reserved
 
         // done
         bufacc.woffset = w;
 
-        //__DEV__ && console.log(`${this.logSign()}: uboLayers offset: ${bufacc.woffset * 4}`);
+        //__DEV__ && console.log(
+        //    `${this.logSign()}: uboLayers offset: ${bufacc.woffset * 4}`);
     }
 
     /**
@@ -560,10 +583,12 @@ export class TileRenderRig {
         //console.log(vdalphaSum);
 
         if ( vdalphaSum === 0) return;
-        // pass 2: normalization (and application of original alpha as multiplier)
+        // pass 2: normalization (and application of original alpha as
+        // multiplier)
         this.rt.layerStack.forEach((layer) => {
 
-            if (layer.operation !== 'blend') return;
+            if (layer.operation !== 'blend'
+                || layer.opBlendAlpha.mode !== 'viewdep') return;
 
             const alpha = layer.opBlendAlpha;
             layer.rt.alpha = (layer.rt.alpha ?? 0) * alpha.value / vdalphaSum;
@@ -586,7 +611,8 @@ export class TileRenderRig {
 
     /**
      * retrieve a list of *active* layerIds from the tile, i.e. ids of layers
-     * that have beeen actually used in rendering. This is used for assembling tile
+     * that have beeen actually used in rendering. This is used for
+     * assembling tile
      * credits.
      */
 
@@ -664,7 +690,7 @@ export class TileRenderRig {
                     tile.id, this.submeshIndex);
 
                 const normalMap = tile.resources.getTexture(
-                        path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
+                    path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
                 this.normalMap = normalMap;
 
                 rt.layerStack.push({
@@ -680,9 +706,10 @@ export class TileRenderRig {
                 });
 
             }
-            // normal-flat push removed: the shader pre-pushes flatNormal as the
-            // normal-stack baseline before the layer loop, so bump layers always
-            // have a valid normal to blend into even when FlagNormalMaps is off.
+            // normal-flat push removed: the shader pre-pushes flatNormal as
+            // the normal-stack baseline before the layer loop, so bump
+            // layers always have a valid normal to blend into even when
+            // FlagNormalMaps is off.
         }
 
         // add bump layers, if any
@@ -713,7 +740,8 @@ export class TileRenderRig {
         // if internal textures exist, overlay an internal texture
         if (rt.internalUVs && this.submesh.internalUVs)  {
 
-            let path = tile.resourceSurface.getTextureUrl(tile.id, this.submeshIndex);
+            let path = tile.resourceSurface.getTextureUrl(
+                tile.id, this.submeshIndex);
             let internalTexture = tile.resources.getTexture(
                 path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
 
@@ -763,7 +791,8 @@ export class TileRenderRig {
         // add specular bound layers (if illuminated)
         if (rt.illumination && speculars.length > 0) {
 
-            const specularMask = Renderer.RenderFlags.FlagLighting | Renderer.RenderFlags.FlagSpecularMaps;
+            const specularMask = Renderer.RenderFlags.FlagLighting
+                | Renderer.RenderFlags.FlagSpecularMaps;
 
             // push black as background
             rt.layerStack.push({
@@ -819,7 +848,8 @@ export class TileRenderRig {
         } // if (rt.illumination && layerDef.specularSequence.length > 0)
 
         // add atmosphere
-        // we do not add atmosphere on iOs until the safari alighnment bug is fixed
+        // we do not add atmosphere on iOs until the safari alighnment
+        // bug is fixed
         if (tile.map.isAtmospheric()) {
 
             rt.layerStack.push({
@@ -848,7 +878,11 @@ export class TileRenderRig {
         };
 
         // done
-        //__DEV__ && console.log('%s (%s):', this.tile.id.join('-'), tile.resourceSurface.id, this.rt.layerStack);
+        //__DEV__ && console.log(
+        //    '%s (%s):',
+        //    this.tile.id.join('-'),
+        //    tile.resourceSurface.id,
+        //    this.rt.layerStack);
     }
 
 
@@ -917,7 +951,8 @@ export class TileRenderRig {
      *      higher lods? Usually true.
      * @param target 'color' (for the fragment color stack) or 'normal'
      *      (for the surface normal stack), normally 'color'.
-     * @param flagMask render flag bits that must all be set in the frame renderFlags
+     * @param flagMask render flag bits that must all be set in the frame
+     *      renderFlags
      *      for the layer to execute; use FlagNone (0) to always execute.
      * @return resultant layer operation, or undefined if layer def yields none.
      */
@@ -938,8 +973,9 @@ export class TileRenderRig {
         }
 
         if (type_ === 'constant' || type_ === 'diffuse-constant')
-            return this.constantLayerFromDef(layerSpec as MapStyle.DiffuseConstantLayer,
-                                             necessity, propagate, target, flagMask);
+            return this.constantLayerFromDef(
+                layerSpec as MapStyle.DiffuseConstantLayer,
+                necessity, propagate, target, flagMask);
     }
 
     private textureLayerFromDef(layerSpec: MapStyle.TileTextureLayer,
@@ -969,7 +1005,8 @@ export class TileRenderRig {
         // to be replaced once the layer initializes. A better solution would
         // be to finish the layer setup when a layer promise resolves
         if (!layer.ready) {
-            //__DEV__ && console.log(`${this.logSign()}: unready layer ${layer.id}.`);
+            //__DEV__ && console.log(
+            //    `${this.logSign()}: unready layer ${layer.id}.`);
             this.isAborted = true; return undefined;
         }
 
@@ -1089,7 +1126,8 @@ export class TileRenderRig {
         }
     }
 
-    private static blendInfoFromDef(layerSpec: MapStyle.TileLayer): [BlendMode, Alpha] {
+    private static blendInfoFromDef(
+        layerSpec: MapStyle.TileLayer): [BlendMode, Alpha] {
 
         let mode: BlendMode = layerSpec.blendMode ?? 'overlay';
 
@@ -1104,7 +1142,8 @@ export class TileRenderRig {
             const illuminationAngles = alphaSpec.illumination;
 
             if (!illuminationAngles) {
-                throw new Error('view-dependent alpha requires illumination angles.');
+                throw new Error(
+                    'view-dependent alpha requires illumination angles.');
             }
 
             return [mode, {
@@ -1139,7 +1178,8 @@ export class TileRenderRig {
 
         // coalasce desired >= minimum
         let minimum = readiness.minimum;
-        let desired = readiness.minimum === 'fallback' ? readiness.desired : 'full';
+        let desired = readiness.minimum === 'fallback'
+            ? readiness.desired : 'full';
 
         if (necessity === 'optional') {
 
@@ -1181,9 +1221,7 @@ export class TileRenderRig {
                         necessity, readiness, priority, options);
 
             case 'atm-density':
-                if (!this.tile.map.atmosphere) {
-                    return false;
-                }
+                if (!this.tile.map.atmosphere) return false;
 
                 return TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
@@ -1237,7 +1275,8 @@ type BlendMode = 'overlay' | 'add' | 'multiply' | 'specular-multiply';
 type MaskStatus = 'yes' | 'no' | 'notSureYet';
 
 /**
- * Layer stack item, basically an elementary instruction for the fragment shader.
+ * Layer stack item, basically an elementary instruction for the fragment
+ * shader.
  */
 
 type LayerRuntime = {
@@ -1326,21 +1365,6 @@ type Layer =
     | PopLayer
     | AtmosphereLayer
     | ShadowLayer;
-
-type NodeInfo = {
-    upVector: math.vec3;
-}
-
-function isNodeInfo(nodeInfo: unknown): nodeInfo is NodeInfo {
-
-    if (!nodeInfo || typeof nodeInfo !== 'object' || !('upVector' in nodeInfo)) {
-        return false;
-    }
-
-    const upVector = (nodeInfo as { upVector?: unknown }).upVector;
-    return Array.isArray(upVector) && upVector.length === 3;
-}
-
 
 // if you change this, change the corresponding literals in layers.inc.glsl
 const NormalMapTextureIdx = 0;
@@ -1467,8 +1491,10 @@ export namespace TileRenderRig {
     /**
      * These are passed to MapMesh.isReady() and MapTexture.isReady().
      *
-     * The first one checks readiness without queueing requests for missing content.
-     * The second one seems to prevent checking agains exhaustion of gpu resources.
+     * The first one checks readiness without queueing requests for missing
+     * content.
+     * The second one seems to prevent checking agains exhaustion of gpu
+     * resources.
      */
     export const DefaultIsReadyOptions = {
         doNotLoad: false, doNotCheckGpu: false

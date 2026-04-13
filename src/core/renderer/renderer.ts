@@ -818,8 +818,8 @@ syncCanvasSize(skipCanvas: boolean = false) {
 
 
 project2(
-    point: ArrayLike<number>, mvp: ArrayLike<number>,
-    cameraPos: ArrayLike<number> | null | undefined,
+    point: math.vec3, mvp: math.mat4,
+    cameraPos: math.vec3 | null | undefined,
     includeDistance: boolean = false,
 ) {
     var p = [0, 0, 0, 1];
@@ -1322,13 +1322,14 @@ getVeScaleFactor(position: MapPosition | number) {
 
 
 /**
- * @returns a tuple of 7 numbers describing the vertical exaggeration
- * if the original ramp spec was [h1, h2, f1, f2], the returned value is
- * something like:
- * [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
+ * @param position current map position, or a vertical extent value
+ *   directly (the value normally sourced from `position.pos[8]`)
+ * @returns a tuple of 7 numbers describing the vertical exaggeration.
+ *   If the original ramp spec was [h1, h2, f1, f2], the returned
+ *   value is something like:
+ *   [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
  */
-
-getSuperElevation(position: any) : SeRamp {
+getSuperElevation(position: MapPosition | number) : SeRamp {
 
     if (arguments.length !== 1) {
         throw new Error('Function now requires current position.');
@@ -1355,7 +1356,7 @@ getSuperElevation(position: any) : SeRamp {
 };
 
 
-getSuperElevatedHeight(height: number, position: any) {
+getSuperElevatedHeight(height: number, position: MapPosition | number) {
 
     if (arguments.length !== 2) {
         throw new Error('Function now requires current position.');
@@ -1462,7 +1463,8 @@ getUnsuperElevatedHeightRamp(height: number) {
 
 
 transformPointBySE(
-    pos: number[], shift: number[] | null | undefined, position: any,
+    pos: math.vec3, shift: math.vec3 | null | undefined,
+    position: MapPosition | number,
 ) {
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
@@ -1498,7 +1500,8 @@ transformPointBySE(
 
 
 transformPointBySE2(
-    pos: number[], shift: number[] | null | undefined, position: any,
+    pos: number[], shift: math.vec3 | null | undefined,
+    position: MapPosition | number,
 ) {
     if (arguments.length !== 3)
         throw new Error('function now requires current position');
@@ -1649,7 +1652,10 @@ hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
 };
 
 
-switchToFramebuffer(type: string, texture: any) {
+switchToFramebuffer(
+    type: 'base' | 'depth' | 'geo' | 'geo2' | 'texture',
+    texture?: GpuTexture,
+) {
     var gl = this.gpu.gl, size: number, width: number, height: number;
     
     switch(type) {
@@ -1735,6 +1741,8 @@ switchToFramebuffer(type: string, texture: any) {
         //set texture framebuffer
 
         console.log('texture (warn: untested path)');
+
+        if (!texture) throw new Error('texture required');
 
         this.oldSize = [...this.curSize];
 

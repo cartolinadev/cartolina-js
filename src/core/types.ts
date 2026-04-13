@@ -1,3 +1,5 @@
+import type MapSrs from './map/srs';
+
 /** Height mode for coordinate conversions and hit-testing. */
 export type HeightMode = 'fix' | 'float';
 
@@ -6,6 +8,25 @@ export type HeightMode = 'fix' | 'float';
  * A higher value requests a finer terrain mesh.
  */
 export type Lod = number;
+
+/** Result of `MapMeasure.getNodeInformation()` for one spatial division node. */
+export type NodeInformation = {
+    id: [number, number, number];
+    height: number;
+    srs: MapSrs;
+    extents: {
+        ll: [number, number];
+        ur: [number, number];
+    };
+    physicalCorners: {
+        ul: [number, number, number];
+        ur: [number, number, number];
+        lr: [number, number, number];
+        ll: [number, number, number];
+    };
+    divisionNode: unknown;
+    upVector: [number, number, number];
+};
 
 /**
  * Map from event name to its payload type.

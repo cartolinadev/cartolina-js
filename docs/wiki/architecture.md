@@ -132,6 +132,36 @@ eventually renamed.
 **`Renderer`** — owns the WebGL2 context (`GpuDevice`), the render pipeline,
 shading, illumination, vertical exaggeration, and all GPU resource management.
 
+### Modern tile rendering vs the legacy draw subsystem
+
+The current tile-rendering direction is centered on
+`src/core/map/tile-render-rig.ts`.
+
+`TileRenderRig` is the newer per-tile render-preparation object. It resolves
+resources, tracks readiness, builds the layer stack, and renders a tile in a
+ single unified pass. Its purpose is to replace older rendering logic that was
+ historically split across `MapDrawTiles.drawMeshTile`,
+ `MapDrawTiles.updateTileBounds`, and `MapMesh.drawSubmesh`.
+
+The older pipeline is not just `surface-sequence.ts`. It is a broader legacy
+draw subsystem spread across modules such as:
+
+- `src/core/map/draw.js`
+- `src/core/map/draw-tiles.js`
+- `src/core/map/surface-sequence.ts`
+- related map-config-era helpers that prepare surface, glue, and bound-layer
+  ordering for the original multi-step draw path
+
+These modules still carry important runtime behavior, especially for
+map-config-based maps and older render paths, but they are not the target
+design. They represent historical orchestration that predates the
+style-driven layer stack and the newer per-tile rig model.
+
+The architectural direction is to continue consolidating tile rendering around
+style-driven layer stacks and `TileRenderRig`, while gradually shrinking this
+legacy draw subsystem as old map-config-only paths and multi-stage draw logic
+are retired.
+
 
 ## Public API transformation
 

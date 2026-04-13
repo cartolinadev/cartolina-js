@@ -270,6 +270,22 @@ shape is already available elsewhere in the codebase, whether via an
 existing type in `types.ts`, a sibling `.d.ts`, or direct import of a
 legacy `.js` module under `allowJs`.
 
+**Verify from code before inferring local history or intent.**
+When the answer can be checked directly in the current file, the branch
+diff, or git history available in the workspace, do that first. Do not
+speculate with phrases like "probably", "if", or similar hedging about
+code-local facts that are directly verifiable.
+
+**Derive normalized data shapes from canonical defaults when possible.**
+When a module defines a default plain-data object whose fields already
+describe the complete normalized runtime shape, prefer deriving the type
+with `typeof` instead of restating the same property list manually.
+This keeps the default values as the single source of truth and avoids
+parallel type drift. If authored input is looser than the normalized
+runtime shape, define the input type as a variation of that derived type
+(for example `Partial<T>` on selected fields) rather than duplicating
+the full structure.
+
 
 ## Language and module rules
 
@@ -329,6 +345,9 @@ function process(items: Item[]) {
     }
 }
 ```
+
+**Single-statement `if` bodies** go on one line without braces:
+`if (condition) return false;` — do not wrap in `{ }`.
 
 **Avoid `else if` chains.** Prefer a more hierarchical structure with
 nested blocks when one condition refines another, or use explicitly
