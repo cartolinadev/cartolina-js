@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-04-13 — dist build regression after BrowserInterface removal
+
+**Branch:** feature/relief-lab
+
+### Spec
+
+Restore the production dist bundle after the `Viewer` migration:
+`cartolina.min.css` had disappeared from output and the legacy browser
+API shape had regressed.
+
+### Work done
+
+**`src/browser/index.ts`** — moved browser CSS imports to the browser
+entry module so webpack still emits `cartolina.min.css` and
+`cartolina.min.css.map` after wrapper refactors.
+
+### Non-obvious findings
+
+- Removing `BrowserInterface` also removed the only browser-CSS side
+  effect imports, so webpack silently stopped emitting the stylesheet.
+
+- The missing browser CSS was enough to mimic a major runtime failure:
+  the browser/map wrapper lost its full-size layout and the generic
+  fallback "needs WebGL capable browser" overlay became visible because
+  CSS, not code, hides it by default.
+
 ## 2026-04-13 — Viewer TS API and JS→TS migration groundwork
 
 **Branch:** feature/relief-lab

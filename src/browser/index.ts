@@ -73,7 +73,7 @@ export type MapOptions = {
  * @return the browser interface
  */
 
-export function map(options: MapOptions): Viewer | null {
+export function map(options: MapOptions): Viewer {
 
     // all browser controls are disabled by default on the style api
     let dflts = {
@@ -95,7 +95,7 @@ export function map(options: MapOptions): Viewer | null {
     });
 
     // return
-    return vi.core ? vi : null;
+    return (vi as any)._core ? vi : null;
 }
 
 /**
@@ -135,10 +135,10 @@ export type BrowserConfig = MapRuntimeOptions & {
 export function browser(
     element: HTMLElement | string,
     config: BrowserConfig
-): Viewer | null {
+): Viewer {
 
     var vi = new Viewer(element, config);
-    return vi.core ? vi : null;
+    return (vi as any)._coreInterface ? vi : null;
 }
 
 /**

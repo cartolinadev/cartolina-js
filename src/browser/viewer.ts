@@ -43,19 +43,6 @@ class Viewer {
     private readonly _core: CoreInterface;
     private _killed = false;
 
-    private get _legacyCore(): CoreInterface & {
-        map: MapInterface | null;
-        renderer: unknown;
-        loadMap(path: unknown): unknown;
-    } {
-
-        return this._core as CoreInterface & {
-            map: MapInterface | null;
-            renderer: unknown;
-            loadMap(path: unknown): unknown;
-        };
-    }
-
     /** The internal terrain engine (`Core.map`). Non-null after `ready`. */
     private get _map(): Map | null { return this._core?.core?.map ?? null; }
 
@@ -100,15 +87,6 @@ class Viewer {
     get ready(): Promise<unknown> {
 
         return (this._core as any).ready;
-    }
-
-    /**
-     * Legacy browser API compatibility: exposes the wrapped core interface.
-     */
-    get core(): CoreInterface | null {
-
-        if (this._guard()) return null;
-        return this._core;
     }
 
     /** Destroys the viewer and releases all GPU and DOM resources. */
@@ -423,25 +401,6 @@ class Viewer {
         return this._browser.presenter;
     }
 
-    /**
-     * Legacy browser API compatibility: exposes the wrapped map interface.
-     */
-    get map(): MapInterface | null {
-
-        if (this._guard()) return null;
-        return this._legacyCore.map ?? null;
-    }
-
-    /**
-     * Legacy browser API compatibility: exposes the wrapped renderer
-     * interface.
-     */
-    get renderer(): unknown {
-
-        if (this._guard()) return null;
-        return this._legacyCore.renderer ?? null;
-    }
-
     // -------------------------------------------------------------------------
     // Legacy / compat
     // -------------------------------------------------------------------------
@@ -473,29 +432,6 @@ class Viewer {
         return this._browser.getControlMode();
     }
 
-    /**
-     * Loads a legacy mapConfig map.
-     *
-     * @param path mapConfig URL or object
-     */
-    loadMap(path: unknown): this {
-
-        if (this._guard()) return this;
-        this._legacyCore.loadMap(path);
-        return this;
-    }
-
-    /**
-     * Sets multiple runtime configuration parameters at once.
-     *
-     * @param params parameter map
-     */
-    setParams(params: Record<string, MapRuntimeOptionValue>): this {
-
-        if (this._guard()) return this;
-        this._browser.setConfigParams(params, true);
-        return this;
-    }
 }
 
 export default Viewer;

@@ -41,6 +41,25 @@ returning a `CoreInterface` instance.
 Worker bundles (`map-loader-worker.js`, `geodata-processor-worker.js`) are
 produced separately and are not application entry points.
 
+### Browser CSS is a runtime dependency, not decoration
+
+The browser build depends on `src/browser/browser.css` and presenter CSS
+for correct runtime behavior, not just appearance.
+
+- `.vts-browser` and `.vts-map` define the absolute-positioned
+  full-size layout that the browser/UI wrapper expects.
+- `.vts-fallback` is hidden by CSS (`display: none`) until the browser
+  explicitly enables it.
+
+If these stylesheets drop out of the webpack entry graph, the result can
+look like an application failure rather than an unstyled page:
+
+- the internal browser wrapper can get wrong dimensions,
+- map bootstrap can stall or behave erratically,
+- the fallback overlay text ("needs WebGL capable browser") can appear
+  even when WebGL support is fine, because the control exists in the DOM
+  and CSS was what hid it by default.
+
 
 ## Object model
 

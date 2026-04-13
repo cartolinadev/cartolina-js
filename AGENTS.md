@@ -129,7 +129,14 @@ like to delete code.
 - **Backward compatibility with vts-browser-js APIs is not a goal.**
   Old APIs may be removed without deprecation periods.
 
-- **Funcitonality of applications under src/demos needs to be
+- **Do not restore legacy browser-level compatibility surfaces on
+  `Viewer`.** Do not add back `BrowserInterface`-style sub-objects or
+  wrapper methods such as `.core`, `.map`, `.renderer`, `loadMap()`,
+  `setParams()`, or similar "temporary" bridges. If old demos or tests
+  still rely on those surfaces, update the callers or promote the
+  needed capability as a deliberate flat `Viewer` method instead.
+
+- **Functionality of applications under src/demos needs to be
   ensured.** When changes are made to the API, it shall either preserve
   backward compatibility or the demo applications need to be modified to
   reflect the changes.

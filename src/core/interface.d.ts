@@ -23,12 +23,6 @@ export class CoreInterface {
     /** Resolves once the map is fully loaded and ready to render. */
     readonly ready: Promise<void>;
 
-    /** Legacy map interface wrapper. */
-    readonly map: InstanceType<typeof MapInterface> | null;
-
-    /** Legacy renderer interface wrapper. */
-    readonly renderer: unknown;
-
     on<K extends keyof CoreEventMap>(
         eventName: K,
         callback: (event: CoreEventMap[K]) => void,
@@ -41,6 +35,5 @@ export class CoreInterface {
     ): void;
 
     destroy(): void;
-    loadMap(path: unknown): unknown;
     destroyMap(): void;
 }
