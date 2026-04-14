@@ -32,7 +32,7 @@ export interface StyleSpecification  {
 
     layers?: LayerSpecification[];
 
-    constants?: Record<string, any>;
+    constants?: Record<string, Expression>;
     bitmaps?: Record<string, Expression>;
     fonts?: Record<string, string>;
 
@@ -40,7 +40,7 @@ export interface StyleSpecification  {
     'vertical-exaggeration'?: VerticalExaggerationSpecification;
 
     atmosphere?: AtmosphereSpecification;
-    shadows?: any;
+    shadows?: Record<string, never>;
 }
 
 export type SourceSpecification =
@@ -116,7 +116,10 @@ export type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
 
     filter?: FilterCondition
 
-} & Partial<LetteringLayerProperties>
+} & Partial<LetteringLayerProperties> & {
+
+    [key: `&${string}`]: Expression | undefined;
+}
 
 export type LabelsLayer = LetteringLayerBase<'labels'>;
 export type LinesLayer = LetteringLayerBase<'lines'>;
@@ -191,7 +194,7 @@ export type LetteringLayerProperties = {
     'leave-event': Property<boolean>,
     'hover-event': Property<boolean>,
     'hover-layer': Property<string>,
-    'click-event': Property<boolean>
+    'click-event': Property<boolean>,
     'advanced-hit': Property<boolean>
 
     'visible': Property<boolean>,
@@ -204,22 +207,126 @@ export type LetteringLayerProperties = {
     'next-pass': [number, string]
 }
 
+type ExpressionScalar = string | number | boolean | null;
+type Stops = Array<[number, Expression]>;
 
-export type Expression = {} | string;
+interface IfExpression {
+    if: [Expression, Expression, Expression];
+}
+
+interface BinaryMathExpression {
+    add?: [Expression, Expression];
+    sub?: [Expression, Expression];
+    mul?: [Expression, Expression];
+    div?: [Expression, Expression];
+    mod?: [Expression, Expression];
+    pow?: [Expression, Expression];
+    tofixed?: [Expression, Expression];
+    atan2?: [Expression, Expression];
+    random?: [Expression, Expression];
+}
+
+interface UnaryMathExpression {
+    sgn?: Expression;
+    sin?: Expression;
+    cos?: Expression;
+    tan?: Expression;
+    asin?: Expression;
+    acos?: Expression;
+    atan?: Expression;
+    sqrt?: Expression;
+    abs?: Expression;
+    log?: Expression;
+    round?: Expression;
+    floor?: Expression;
+    ceil?: Expression;
+    deg2rad?: Expression;
+    rad2deg?: Expression;
+}
+
+interface UnaryStringExpression {
+    strlen?: Expression;
+    trim?: Expression;
+    str2num?: Expression;
+    lowercase?: Expression;
+    uppercase?: Expression;
+    capitalize?: Expression;
+    'has-fonts'?: Expression;
+    'has-latin'?: Expression;
+    'is-cjk'?: Expression;
+}
+
+interface BinaryStringExpression {
+    find?: [Expression, Expression];
+}
+
+interface TernaryStringExpression {
+    replace?: [Expression, Expression, Expression];
+}
+
+interface StringSliceExpression {
+    substr?: [Expression, Expression]
+        | [Expression, Expression, Expression];
+}
+
+interface ExtremumExpression {
+    min?: Expression[];
+    max?: Expression[];
+}
+
+interface ClampExpression {
+    clamp: [Expression, Expression, Expression];
+}
+
+type LogScaleExpression =
+    | { logScale: [Expression, Expression]
+        | [Expression, Expression, Expression]
+        | [Expression, Expression, Expression, Expression] }
+    | { 'log-scale': [Expression, Expression]
+        | [Expression, Expression, Expression]
+        | [Expression, Expression, Expression, Expression] };
+
+type MapExpression = {
+    map: [Expression, Array<[Expression, Expression]>, Expression];
+};
+
+type LinearExpression =
+    | { linear: Stops }
+    | { discrete: Stops }
+    | { linear2: [Expression, Stops] }
+    | { discrete2: [Expression, Stops] }
+    | { 'lod-scaled': [number, number | Stops, number] };
+
+type ExpressionObject =
+    | IfExpression
+    | BinaryMathExpression
+    | UnaryMathExpression
+    | UnaryStringExpression
+    | BinaryStringExpression
+    | TernaryStringExpression
+    | StringSliceExpression
+    | ExtremumExpression
+    | ClampExpression
+    | LogScaleExpression
+    | MapExpression
+    | LinearExpression;
+
+interface ExpressionArray extends Array<Expression> {}
+
+export type Expression = ExpressionScalar | ExpressionArray | ExpressionObject;
 
 export type Property<T> = T | Expression;
 
-export type FilterCondition = any[];
+export type FilterCondition = Expression[];
 
 export type Color3Spec = [number, number, number]
 export type Color4Spec = [number, number, number, number]
 
 export type BlendMode = 'overlay' | 'add' | 'multiply'
 
-export type AlphaMode = 'constant' | 'viewdep'
-
 export type Alpha = number
-    | { mode: AlphaMode, value: number, illumination?: [number, number] }
+    | { mode: 'constant', value: number }
+    | { mode: 'viewdep', value: number, illumination: [number, number] }
 
 export type IlluminationSpecification = {
 
@@ -261,16 +368,18 @@ export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 
 } // export namespace MapStyle
 
-const validateStyle = typia.createValidate<MapStyle.StyleSpecification>();
+const validateStyle = typia.createValidateEquals<MapStyle.StyleSpecification>();
 
 /// vts stylesheet shape, compile from style for goedata free layer rendering
 
+type VtsStylesheetLayer = Omit<MapStyle.LetteringLayer, 'id' | 'type' | 'source'>;
+
 type vtsStylesheet = {
 
-    constants?: Record<string, any>;
-    bitmaps?: Record<string, any>;
+    constants?: Record<string, MapStyle.Expression>;
+    bitmaps?: Record<string, MapStyle.Expression>;
     fonts?: Record<string, string>;
-    layers?: Record<string, any>
+    layers?: Record<string, VtsStylesheetLayer>
 }
 
 type SurfaceMapConfig = {
@@ -545,18 +654,16 @@ export class MapStyle {
                     if (this.styleSpec.fonts) stylesheet.fonts = this.styleSpec.fonts;
                     if (this.styleSpec.constants) stylesheet.constants = this.styleSpec.constants;
                     if (this.styleSpec.bitmaps) stylesheet.bitmaps = this.styleSpec.bitmaps;
-                    stylesheet.layers = [];
+                    stylesheet.layers = {};
 
                 }
 
-                let stylesheetLayer: any = structuredClone(layer);
-                let id = (layer as MapStyle.LetteringLayer).id;
+                const clonedLayer = structuredClone(
+                    layer) as MapStyle.LetteringLayer;
+                const { id, type, source, ...stylesheetLayer } = clonedLayer;
 
                 // remove fields specific to cartolina style layers and
                 // not present in vts stylesheets
-                delete stylesheetLayer.id; delete stylesheetLayer.type;
-                delete stylesheetLayer.source;
-
                 // final stylesheet
                 stylesheet.layers![id] = stylesheetLayer;
             }

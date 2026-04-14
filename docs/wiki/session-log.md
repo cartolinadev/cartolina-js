@@ -1,5 +1,57 @@
 # Session log
 
+## 2026-04-14 — Style validation moved to exact typia
+
+**Branch:** feature/strict-ts-checks
+
+### Spec
+
+Enable exact typia validation for style objects and widen the TypeScript
+style schema so the shipped demo styles validate cleanly without the
+previous manual top-level key check.
+
+### Work done
+
+**`src/core/map/style.ts`** now uses
+`typia.createValidateEquals<MapStyle.StyleSpecification>()`.
+
+The style schema was widened to reflect the actual stylesheet language
+currently in use:
+
+- `'vertical-exaggeration'` remains the canonical field name.
+- `constants` and `bitmaps` now use a recursive expression type instead
+  of placeholder `any`.
+- The expression type covers the object-form operators used by the
+  demos and supported by `worker-style.js`, including `if`, arithmetic
+  operators, `linear2`, `discrete2`, `logScale`, `str2num`,
+  `uppercase`, `round`, and related helpers.
+- Lettering layers now explicitly allow computed local fields with
+  `&...` keys instead of relying on a blanket loose object shape.
+- The internal free-layer stylesheet compilation path was tightened to
+  use concrete types instead of `any`.
+
+### Non-obvious findings
+
+- Exact validation was viable once the real stylesheet DSL was modeled
+  directly in TypeScript. The earlier need for a hand-written top-level
+  key check was a schema-gap problem, not an inherent typia limitation.
+- The important compatibility boundary is the stylesheet language
+  actually accepted by `worker-style.js`, not just the visible top-level
+  style object shape.
+- The demo styles did not reveal any suspicious authored values in this
+  pass; the main missing piece was the recursive expression vocabulary.
+
+### Verification
+
+- `npx tsc --noEmit` passes.
+- All demo styles under `demos/map/styles/*.json` load in the browser
+  smoke test with no style-validation errors.
+- `node test/screenshot.js simple-terrain` passes in dev and prod.
+- `node test/screenshot.js complex-terrain` passes in dev and prod.
+- `node test/screenshot.js full-terrain` passes in prod; dev still hit
+  external fetch failures, so treat that as a data-path verification gap
+  rather than an exact-validation regression.
+
 ## 2026-04-13 — Style validation tightened around top-level schema
 
 **Branch:** feature/strict-ts-checks
