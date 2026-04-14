@@ -64,18 +64,18 @@
  *   Using symbolic names keeps filters stable when positions are
  *   reordered or new entries are inserted.
  *
- * DEPTH / OCCLUSION
+ * DEPTH / OCCLUSION LIMITATION
  *
  *   Markers are HTML elements overlaid on top of the WebGL canvas.
- *   Placement still uses canvas projection, but actual visibility is
- *   checked against the renderer's cached depth map via
- *   viewer.checkVisibility(). This hides terrain-occluded markers,
- *   though the result can lag slightly while the camera is moving
- *   because hitmap copies are throttled.
+ *   The depth check (canvas[2] <= 1) only tests whether the geographic
+ *   point is in front of the camera's near plane — it does NOT test
+ *   occlusion by terrain geometry. A marker for a location on the far
+ *   side of the globe can remain visible during cross-planetary
+ *   navigation. Use show/hide filters to suppress markers that are not
+ *   relevant to the current waypoint.
  */
 
 const DEFAULT_MARKER_HEIGHT = 90;
-const DEFAULT_MARKER_VISIBILITY_HYSTERESIS_MS = 2000;
 
 /**
  * Fetch JSON from a URL string, or return an object passed directly.
@@ -125,9 +125,6 @@ export class WaypointMap {
         this._listeners = { 'slide-change': [], 'fly-start': [], 'fly-end': [] };
         this._markerOverlay = null;
         this._markerEls = [];
-        this._markerStates = [];
-        this._markerVisibilityHysteresisMs =
-            DEFAULT_MARKER_VISIBILITY_HYSTERESIS_MS;
         this._tickUnsub = null;
         this._keyHandler = null;
         this._destroyed = false;
@@ -245,11 +242,6 @@ export class WaypointMap {
             options:   {}
         });
 
-        const copyInterval = this._viewer.getParam('mapDMapCopyIntervalMs');
-        if (typeof copyInterval === 'number' && copyInterval >= 0) {
-            this._markerVisibilityHysteresisMs = copyInterval;
-        }
-
         this._buildMarkers(config.markers ?? []);
 
         this._tickUnsub = this._viewer.on('tick', () => {
@@ -318,40 +310,7 @@ export class WaypointMap {
             el.style.visibility = 'hidden';
             overlay.appendChild(el);
             this._markerEls.push(el);
-            this._markerStates.push({
-                visible: false,
-                pending: null,
-                changedAt: 0
-            });
         }
-    }
-
-    _setMarkerVisibility(el, state, visible) {
-        state.visible = visible;
-        state.pending = null;
-        state.changedAt = 0;
-        el.style.visibility = visible ? 'visible' : 'hidden';
-    }
-
-    _updateMarkerVisibility(el, state, visible, now) {
-        if (state.visible === visible) {
-            state.pending = null;
-            state.changedAt = 0;
-            el.style.visibility = visible ? 'visible' : 'hidden';
-            return;
-        }
-
-        if (state.pending !== visible) {
-            state.pending = visible;
-            state.changedAt = now;
-        }
-
-        if ((now - state.changedAt) < this._markerVisibilityHysteresisMs) {
-            el.style.visibility = state.visible ? 'visible' : 'hidden';
-            return;
-        }
-
-        this._setMarkerVisibility(el, state, visible);
     }
 
     _updateMarkers() {
@@ -359,30 +318,28 @@ export class WaypointMap {
         const markers     = this._config.markers ?? [];
         const currentName =
             this._config.positions?.[this._index]?.name ?? null;
-        const now = performance.now();
 
         for (let i = 0; i < markers.length; i++) {
             const marker = markers[i];
             const el     = this._markerEls[i];
-            const state  = this._markerStates[i];
-            if (!el || !state) continue;
+            if (!el) continue;
 
             // show/hide filter by waypoint name
             if (marker.show) {
                 if (!marker.show.includes(currentName)) {
-                    this._setMarkerVisibility(el, state, false);
+                    el.style.visibility = 'hidden';
                     continue;
                 }
             } else if (marker.hide) {
                 if (marker.hide.includes(currentName)) {
-                    this._setMarkerVisibility(el, state, false);
+                    el.style.visibility = 'hidden';
                     continue;
                 }
             }
 
             const coords = marker.coords;
             if (!coords || coords.length < 2) {
-                this._setMarkerVisibility(el, state, false);
+                el.style.visibility = 'hidden';
                 continue;
             }
 
@@ -396,16 +353,17 @@ export class WaypointMap {
             );
 
             if (!navCoords) {
-                this._setMarkerVisibility(el, state, false);
+                el.style.visibility = 'hidden';
                 continue;
             }
 
+            const navMode = (heightMode === 'float') ? 'fix' : heightMode;
             const canvas = this._viewer.convertCoordsFromNavToCanvas(
-                navCoords, heightMode
+                navCoords, navMode
             );
 
             if (!canvas || canvas[2] > 1) {
-                this._setMarkerVisibility(el, state, false);
+                el.style.visibility = 'hidden';
                 continue;
             }
 
@@ -431,13 +389,7 @@ export class WaypointMap {
 
             el.style.left        = (canvas[0] - elW / 2 + ox) + 'px';
             el.style.top         = (canvas[1] - elH      + oy) + 'px';
-
-            this._updateMarkerVisibility(
-                el,
-                state,
-                this._viewer.checkVisibility(pubCoords, heightMode),
-                now
-            );
+            el.style.visibility  = 'visible';
         }
     }
 }

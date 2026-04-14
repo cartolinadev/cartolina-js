@@ -23,6 +23,7 @@ import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import Map from '../core/map/map';
 import MapInterface from '../core/map/interface'
+import * as utils from '../core/utils/utils';
 
 import type {
     HeightMode,
@@ -373,6 +374,11 @@ class Viewer {
      * Returns whether a public-space point is visible in the current
      * terrain view.
      *
+     * This method is currently experimental and unreliable. The depth
+     * comparison it uses does not yet match the renderer's projection
+     * and hitmap conventions well enough for dependable application
+     * logic.
+     *
      * This uses the cached hitmap/depth-map path. Occlusion can lag
      * slightly while the camera is moving because hitmap copies are
      * throttled by runtime configuration.
@@ -399,8 +405,9 @@ class Viewer {
             return false;
         }
 
+        const navMode = (mode === 'float') ? 'fix' : mode;
         const canvasCoords = this.convertCoordsFromNavToCanvas(
-            navCoords, mode
+            navCoords, navMode
         );
 
         if (!canvasCoords || canvasCoords[2] > 1) {
@@ -419,7 +426,7 @@ class Viewer {
         }
 
         const physCoords = this.convertCoordsFromNavToPhys(
-            navCoords, mode
+            navCoords, navMode
         );
         if (!physCoords) {
             return false;
@@ -440,11 +447,17 @@ class Viewer {
         const dilate = map.config.mapDMapDilatePx ?? 0;
         const screenDepth = map.getScreenDepth(screenX, screenY, dilate);
 
+        __DEV__ && utils.logOnce(
+            '[checkVisibility] raw depth debug logging is enabled in '
+            + 'Viewer.checkVisibility(); replace it with targeted '
+            + 'instrumentation before relying on this API.'
+        );
+
         if (!screenDepth || !screenDepth[0]) {
             return true;
         }
 
-        return (pointDepth - screenDepth[1]) <= (0.03 * pointDepth);
+        return (pointDepth - screenDepth[1]) <= (0.1 * pointDepth);
     }
 
     /**

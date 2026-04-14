@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-04-14 — `Viewer.checkVisibility()` kept experimental only
+
+### Goal
+
+Keep the public visibility-check API available for future debugging or
+iteration, but stop relying on it in the waypoint demo until its depth
+comparison is made reliable.
+
+### Work done
+
+**`src/browser/viewer.ts`** — retained `checkVisibility(pos, mode)` on
+the public `Viewer` surface, but marked it in JSDoc as experimental and
+unreliable.
+
+**`demos/waypoint/waypoint.js`** — removed the demo's dependency on
+`viewer.checkVisibility(...)` and restored the original simple behavior:
+markers are shown whenever their projected point is in front of the
+camera, subject only to waypoint `show` / `hide` filtering.
+
+**`docs/wiki/waypoint-spec.md`** — reverted the demo spec to the
+front-of-camera-only marker behavior and noted that the public
+visibility API exists but is not used by the demo.
+
 ## 2026-04-14 — `waypoint` demo: terrain-occluded marker visibility
 
 ### Goal
