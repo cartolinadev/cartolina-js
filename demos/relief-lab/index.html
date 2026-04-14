@@ -892,6 +892,17 @@ function rgb01ToHex(rgb) {
   return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+function hexToRgb255(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16 & 255), (n >> 8 & 255), (n & 255)];
+}
+
+function rgb255ToHex(rgb) {
+  return '#' + rgb.map(
+    v => Math.round(Math.max(0, Math.min(255, v)))
+      .toString(16).padStart(2, '0')).join('');
+}
+
 function fmtScaleDenominator(v) {
   const abs = Math.abs(v);
   const fmtSig = n => Number.parseFloat(n.toPrecision(3)).toString();
@@ -1176,10 +1187,10 @@ function applyIllumination() {
       type: s.type,
       azimuth: s.azimuth,
       elevation: s.elevation,
-      specular: hexToRgb01(s.specularColor),
+      diffuseColor:  hexToRgb255(s.diffuseColor),
+      specularColor: hexToRgb255(s.specularColor),
     },
     ambientCoef: s.ambientCoef,
-    diffuseColor: hexToRgb01(s.diffuseColor),
     shadingLambertianWeight: s.lambertianWeight,
     shadingSlopeWeight:      s.slopeWeight,
     shadingAspectWeight:     s.aspectWeight,
@@ -2108,12 +2119,12 @@ function syncIlluminationFromMap() {
   state.illum.useLighting = illumination.useLighting ?? state.illum.useLighting;
   state.illum.type = illumination.light.type;
 
-  if (illumination.diffuseColor) {
-    state.illum.diffuseColor = rgb01ToHex(illumination.diffuseColor);
+  if (illumination.light.diffuseColor) {
+    state.illum.diffuseColor = rgb255ToHex(illumination.light.diffuseColor);
   }
 
-  if (illumination.light.specular) {
-    state.illum.specularColor = rgb01ToHex(illumination.light.specular);
+  if (illumination.light.specularColor) {
+    state.illum.specularColor = rgb255ToHex(illumination.light.specularColor);
   }
 }
 

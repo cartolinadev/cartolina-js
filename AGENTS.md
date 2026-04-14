@@ -416,7 +416,15 @@ Private methods usually do not need JSDoc unless their functionality is
 non-obvious. But if they do, it must be kept up to date; stale
 documentation is worse than none.
 
-Do not use `@link` in JSDoc comments. TypeScript IDEs do not render it.
+**Adding JSDoc to existing code is encouraged** when you encounter a
+function or method whose behaviour is non-trivial or not obvious from
+its name and signature, and where a JSDoc comment is absent. This
+applies even when the function is not otherwise being changed. Do not
+add routine boilerplate to self-evident code; use judgement.
+
+Do not use `@link` or any other JSDoc tags that produce hyperlinks.
+TypeScript IDEs do not render them. Reference other symbols by name
+in backtick code spans instead: `` `MyClass.myMethod` ``.
 
 
 ## WebGL2 shaders

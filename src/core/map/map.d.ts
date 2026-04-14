@@ -83,6 +83,8 @@ export default class Map {
         ): NodeInformation | null;
     };
 
+    setConfigParam(key: string, value: unknown): void;
+
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
     markDirty(): void;

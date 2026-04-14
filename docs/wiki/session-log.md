@@ -1,5 +1,67 @@
 # Session log
 
+## 2026-04-14 — Illumination style spec cleanup
+
+**Branch:** feature/relief-lab
+
+### Goal
+
+Wire illumination, vertical exaggeration, atmosphere, and map config
+flags correctly into the style spec, and make colour fields consistent
+with the rest of the codebase.
+
+### Work done
+
+**`src/core/map/style.ts`**
+- Added `config?: Record<string, unknown>` to `StyleSpecification`.
+  `loadStyle` iterates it and calls `map.setConfigParam()` for each
+  entry, so any map config flag can be set from style with factory
+  options acting as override. See architecture note on the known
+  awkwardness of this block.
+- Moved `diffuseColor` from `IlluminationSpecification` into
+  `LightSpecification`, where it belongs semantically alongside
+  `specularColor`.
+- Renamed `specular` → `specularColor` in `LightSpecification` for
+  consistency.
+
+**`src/core/map/map.d.ts`** — declared `setConfigParam(key, value)`
+which was missing from the type declaration.
+
+**`src/core/renderer/renderer.ts`**
+- Updated `IlluminationDef`, the internal `Illumination` type,
+  `setIllumination()`, and `getIllumination()` to match the new
+  field layout (`specularColor`, `diffuseColor` inside `light`).
+- Changed colour range for `specularColor` and `diffuseColor` from
+  0–1 to 0–255, consistent with the rest of the style/API colour
+  convention. `getIllumination()` multiplies back to 0–255 on the way
+  out so the round-trip is stable.
+- Added JSDoc to `IlluminationDef`.
+
+**`demos/relief-lab/index.html`** — updated `applyIllumination()` and
+`syncFromIllumination()` to use the new field names and `hexToRgb255`
+/ `rgb255ToHex` helpers instead of the old 0–1 converters.
+
+**`docs/wiki/architecture.md`** — added colour encoding convention
+note, style `config` block awkwardness note, and `mario` obsolete
+config key note.
+
+**`AGENTS.md`** — expanded documentation rules: adding JSDoc to
+existing non-trivial functions is encouraged; `@link` clarified to
+mean all hyperlink-producing tags.
+
+### Non-obvious findings
+
+- `validateNumberArray` mutates its input array in place. When
+  `getIllumination()` returned 0–1 values and the UI called
+  `setIllumination()` with the result, the `/255` conversion fired
+  again, driving colours to near-zero (black) on the third toggle.
+  Fixed by making `getIllumination()` return 0–255 throughout.
+- The style `config` block passes the full flat config namespace
+  through to the map, which means it can set UI-level options (compass,
+  search bar) that have nothing to do with visual styling. A cleaner
+  split between rendering config and application config is noted in
+  architecture.md as future work.
+
 ## 2026-04-14 — `Viewer.checkVisibility()` kept experimental only
 
 ### Goal

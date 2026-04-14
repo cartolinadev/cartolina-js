@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.189-feature_waypoint_demo.d48d7ce",
+  "version": "2.49.190-feature_waypoint_demo.447e0fb",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {

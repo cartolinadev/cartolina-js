@@ -41,6 +41,8 @@ export interface StyleSpecification  {
 
     atmosphere?: AtmosphereSpecification;
     shadows?: Record<string, never>;
+
+    config?: Record<string, unknown>;
 }
 
 export type SourceSpecification =
@@ -332,7 +334,6 @@ export type IlluminationSpecification = {
 
     light: LightSpecification | LegacyLightSpecification,
     ambientCoef?: number,
-    diffuseColor?: Color3Spec,
     shadingLambertianWeight?: number,
     shadingSlopeWeight?: number,
     shadingAspectWeight?: number
@@ -344,7 +345,8 @@ export type LightSpecification = {
     type: 'tracking' | 'geographic',
     azimuth: number,
     elevation: number,
-    specular?: Color3Spec
+    diffuseColor?: Color3Spec,
+    specularColor?: Color3Spec
 }
 
 export type VerticalExaggerationSpecification =
@@ -592,6 +594,11 @@ export class MapStyle {
                 map.renderer.setSuperElevation(veSpec as any);
             }
         }
+
+        // options
+        if (styleSpec.config)
+            for (const [key, value] of Object.entries(styleSpec.config))
+                map.setConfigParam(key, value);
 
         // done
         //__DEV__ && console.log(map);

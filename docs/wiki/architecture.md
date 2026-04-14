@@ -487,3 +487,34 @@ normal and projected light direction in the local tangent plane. On
 nearly flat terrain this quantity becomes ill-defined because the normal
 projection approaches zero, so the shader treats those cases with a
 neutral aspect value to avoid visible artifacts.
+
+## Colour encoding convention
+
+All colour values in the style spec and public APIs (`label-color`,
+`line-color`, `diffuseColor`, `specularColor`, atmosphere colours, etc.)
+use integer 0–255 per channel. The renderer converts them to 0.0–1.0
+internally at the point they enter the pipeline (e.g. `/ 255.` in
+`tile-render-rig.ts`, `setIllumination()` in `renderer.ts`, and
+`atmosphere.ts`). Do not pass 0–1 floats to these APIs; the conversion
+is not symmetric and values will silently clamp or wash out.
+
+The long-term direction is hex string colours (`#rrggbb`) matching
+MapLibre convention. That is a style-wide change not yet undertaken.
+
+
+## Obsolete config keys
+
+The `mario` key in `map.setConfigParam` / `map.js` is entirely obsolete
+and safe to remove along with any code it gates.
+
+## Style config block — known awkwardness
+
+The `config` block in `StyleSpecification` passes key-value pairs
+verbatim to `map.setConfigParam`. This is pragmatic but too permissive:
+the style can currently set UI-level options (compass visibility, search
+bar, etc.) that have nothing to do with visual styling. The right fix is
+a cleaner split in the config namespace — rendering and shading
+parameters belong in the style, application/UI parameters belong
+exclusively in the factory config and are not style-addressable. This
+has not been done yet because the config dict is a flat untyped bag with
+no such distinction.

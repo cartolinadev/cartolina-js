@@ -31,7 +31,7 @@ Never use shell commands to modify files — use the Edit or Write tools.
 
 ## Code style reminders
 
-- Do not add comments, docstrings, or type annotations to code you did not touch.
+- Follow the documentation rules in [AGENTS.md](AGENTS.md).
 - Maximum line length is 80 characters. This applies to all code and prose
   written or modified. Wrap before hitting the limit — no exceptions.
 - Surround multi-line statements with a blank line before and after.

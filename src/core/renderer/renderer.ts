@@ -561,7 +561,7 @@ updateBuffers() {
 
         data.lightAmbient = [ambcf, ambcf, ambcf, 0.0];
 
-        const dc = illumination.diffuseColor;
+        const dc = illumination.light.diffuseColor;
         const maxComp = Math.max(dc[0], dc[1], dc[2]);
 
         if (maxComp > 0) {
@@ -571,7 +571,7 @@ updateBuffers() {
             data.lightDiffuse = [0.0, 0.0, 0.0, 0.0];
         }
 
-        data.lightSpecular = [...illumination.light.specular, 0.0];
+        data.lightSpecular = [...illumination.light.specularColor, 0.0];
         data.shadingParams = [
             illumination.shadingLambertianWeight,
             illumination.shadingSlopeWeight,
@@ -871,7 +871,8 @@ setIllumination(definition: Renderer.IlluminationDef) {
     let type: 'tracking' | 'geographic';
     let azimuth: number;
     let elevation: number;
-    let specular: math.vec3;
+    let specularColor: math.vec3;
+    let diffuseColor: math.vec3;
 
     if (Array.isArray(light)) {
 
@@ -884,11 +885,12 @@ setIllumination(definition: Renderer.IlluminationDef) {
         type = 'tracking';
         azimuth = utils.validateNumber(light[1], 0, 360, 315);
         elevation = utils.validateNumber(light[2], 0, 90, 45);
-        specular = [0.6, 0.6, 0.5];
+        specularColor = [0.6, 0.6, 0.5];
+        diffuseColor = [1.0, 1.0, 1.0];
 
     } else {
 
-        // new format: { type, azimuth, elevation, specular }
+        // new format: { type, azimuth, elevation, diffuseColor, specularColor }
         if (light.type != 'tracking' && light.type != 'geographic') {
             throw new Error('Unsupported light type.');
         }
@@ -896,21 +898,27 @@ setIllumination(definition: Renderer.IlluminationDef) {
         type = light.type;
         azimuth = utils.validateNumber(light.azimuth, 0, 360, 315);
         elevation = utils.validateNumber(light.elevation, 0, 90, 45);
-        specular = utils.validateNumberArray(
-            light.specular, 3, [0, 0, 0], [1, 1, 1], [0.6, 0.6, 0.5]) as math.vec3;
+        specularColor = utils.validateNumberArray(
+            light.specularColor, 3,
+            [0, 0, 0], [255, 255, 255],
+            [153, 153, 128]).map(v => v / 255) as math.vec3;
+        diffuseColor = utils.validateNumberArray(
+            light.diffuseColor, 3,
+            [0, 0, 0], [255, 255, 255],
+            [255, 255, 255]).map(v => v / 255) as math.vec3;
     }
 
     let useLighting = definition.useLighting ?? true;
 
     this.illumination = {
-        ambientCoef: utils.validateNumber(definition.ambientCoef, 0.0, 1.0, 0.3),
-        diffuseColor: utils.validateNumberArray(
-            definition.diffuseColor, 3, [0,0,0], [1,1,1], [1,1,1]) as math.vec3,
+        ambientCoef: utils.validateNumber(
+            definition.ambientCoef, 0.0, 1.0, 0.3),
         light: {
             type,
-            azimuth : azimuth,
-            elevation: elevation,
-            specular
+            azimuth,
+            elevation,
+            specularColor,
+            diffuseColor
         },
         shadingLambertianWeight: utils.validateNumber(
             definition.shadingLambertianWeight, 0.0, 1.0, 0.75),
@@ -970,10 +978,12 @@ getIllumination(): Renderer.IlluminationDef | null {
             type: illumination.light.type,
             azimuth: illumination.light.azimuth,
             elevation: illumination.light.elevation,
-            specular: [...illumination.light.specular] as [number, number, number]
+            specularColor: illumination.light.specularColor.map(
+                (v: number) => v * 255) as [number, number, number],
+            diffuseColor: illumination.light.diffuseColor.map(
+                (v: number) => v * 255) as [number, number, number]
         },
         ambientCoef: illumination.ambientCoef,
-        diffuseColor: [...illumination.diffuseColor] as [number, number, number],
         shadingLambertianWeight: illumination.shadingLambertianWeight,
         shadingSlopeWeight: illumination.shadingSlopeWeight,
         shadingAspectWeight: illumination.shadingAspectWeight
@@ -2105,7 +2115,8 @@ type Illumination = {
         type: 'tracking' | 'geographic';
         azimuth: number;
         elevation: number;
-        specular: math.vec3;
+        specularColor: math.vec3;
+        diffuseColor: math.vec3;
     };
 
     // the authored light vector in the coordinate system implied by the type
@@ -2116,7 +2127,6 @@ type Illumination = {
     vectorNED: math.vec3;
 
     ambientCoef: number;
-    diffuseColor: math.vec3;
     shadingLambertianWeight: number;
     shadingSlopeWeight: number;
     shadingAspectWeight: number;
@@ -2225,6 +2235,23 @@ export type SizeState = {
     visibleScale: Size2;
 }
 
+/**
+ * Input/output type for `setIllumination` / `getIllumination`.
+ *
+ * Colour values (`specularColor`, `diffuseColor`) are in the 0–255
+ * integer range, consistent with colour properties elsewhere in the
+ * style spec (e.g. `label-color`). The renderer converts them to
+ * 0–1 internally.
+ *
+ * Combined diffuse shading is a weighted geometric mean of up to three
+ * methods — Lambertian, slope, and aspect — controlled by the
+ * corresponding weight fields. Weights are independent of the enable
+ * flags (`mapShadingLambertian` etc.), which are config-level concerns.
+ *
+ * The legacy tuple form of `light` (`['tracking', azimuth, elevation]`)
+ * is still accepted by `setIllumination` but is never returned by
+ * `getIllumination`.
+ */
 export type IlluminationDef = {
 
     light:
@@ -2233,13 +2260,15 @@ export type IlluminationDef = {
             type: 'tracking' | 'geographic';
             azimuth: number;
             elevation: number;
-            specular?: [number, number, number];
+            /** Diffuse light colour, 0–255 per channel. */
+            diffuseColor?: [number, number, number];
+            /** Specular highlight colour, 0–255 per channel. */
+            specularColor?: [number, number, number];
         };
 
     useLighting?: boolean;
 
     ambientCoef?: number;
-    diffuseColor?: [number, number, number];
     shadingLambertianWeight?: number;
     shadingSlopeWeight?: number;
     shadingAspectWeight?: number;
