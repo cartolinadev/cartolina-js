@@ -1,0 +1,86 @@
+# Task backlog
+
+Bugs and deferred work that are not yet scheduled.
+
+---
+
+## BUG: `Viewer.checkVisibility()` depth comparison is broken
+
+**Opened:** 2026-04-14
+**Status:** deferred — method kept on the API surface but marked
+experimental; the waypoint demo was reverted to not use it.
+
+### Symptom
+
+For a point sitting on the terrain surface the comparison always fails:
+`pointDepth` is consistently 700–10 000 m larger than `screenDepth`,
+so the method returns `false` (occluded) even when the point is plainly
+visible.
+
+### Root cause (partial — investigation stopped before confirming)
+
+Two different things are being compared:
+
+* **`screenDepth`** — decoded from the hitmap texture.  The GPU shader
+  (`heightmapDepthVertexShader` / `heightmapDepthFragmentShader` in
+  `src/core/renderer/gpu/shaders.js`) writes
+  `camDist = length(camSpacePos.xyz)` where
+  `camSpacePos = uMV * vec4(worldPos, 1.0)`.
+  This is the Euclidean distance from the **actual OpenGL eye** (the
+  camera origin used by the renderer) to each terrain fragment.
+
+* **`pointDepth`** — computed in `Viewer.checkVisibility()` as
+  `Math.hypot(...convertCoordsFromPhysToCameraSpace(physPos))`.
+  That conversion (`MapInterface.convertCoordsFromPhysToCameraSpace`,
+  `src/core/map/interface.js:232`) simply subtracts
+  `map.camera.position` from the world-space point.
+
+The mismatch: `map.camera.position` is **not** the GL eye.  In
+`MapCamera.update()` (`src/core/map/camera.js`) the GL camera is set
+with `this.camera.setPosition([0,0,0])` — the renderer always sits at
+the world origin — while `this.position` is set to the full absolute
+world-space position of the eye (a point on or above the ECEF
+ellipsoid, on the order of 6 400 000 m from the geocentre).  The
+distance subtracted by `convertCoordsFromPhysToCameraSpace` is
+therefore measured from the wrong origin, producing a value that is
+off by the camera-to-surface orbit distance (hundreds to thousands of
+metres depending on zoom).
+
+An existing comment in `MapConvert.getPositionCameraSpaceCoords()`
+(`src/core/map/convert.js:280`) already flags this:
+`// mmm, this does not look like camera space coords to me`.
+
+There may also be a secondary issue with how `uMV` encodes tile-local
+coordinates relative to the GL origin, but the primary cause is the
+wrong reference point.
+
+### Suggested fix direction
+
+Before computing `pointDepth`, transform the physical point into the
+same coordinate frame the renderer uses.  Concretely:
+
+1. Apply the MVP matrix (`map.camera.getMvpMatrix()`) to the physical
+   point as the renderer does — i.e. use
+   `MapConvert.getPositionCanvasCoords` with `physical = true`, which
+   already calls `renderer.project2` via the MVP path.
+2. Recover the pre-projection depth from that pipeline (the
+   `-z` component before the perspective divide), or alternatively
+   use the `w` component of the clip-space position.
+3. Compare that against `screenDepth` (which is already a Euclidean
+   camera-space distance, not NDC depth).
+
+Alternatively: reuse the existing `getHitCoords` / `hitTest` ray
+machinery to reconstruct the depth at the screen pixel and compare it
+against the projected point depth in a consistent unit.
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `src/browser/viewer.ts` | `checkVisibility()` — the broken method |
+| `src/core/map/interface.js:232` | `convertCoordsFromPhysToCameraSpace` |
+| `src/core/map/convert.js:258` | `getPositionCameraSpaceCoords` (flagged comment) |
+| `src/core/map/camera.js` | `MapCamera.update()` — shows GL eye is at `[0,0,0]` |
+| `src/core/renderer/gpu/shaders.js:850` | shader writes `camDist = length(camSpacePos.xyz)` |
+| `src/core/renderer/renderer.ts:1828` | `getDepth()` — decodes hitmap pixels |
+| `demos/waypoint/waypoint.js` | the demo that was reverted |
