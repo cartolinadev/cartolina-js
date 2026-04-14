@@ -330,6 +330,46 @@ class Viewer {
     // -------------------------------------------------------------------------
 
     /**
+     * Converts public (lon/lat/height) coordinates to navigation
+     * (Cartesian) coordinates.
+     *
+     * @param pos `[lon, lat, height]` in public space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface?.convertCoordsFromPublicToNav(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
+     * Projects navigation (Cartesian) coordinates onto the canvas.
+     *
+     * Returns `[x, y, depth]` in CSS pixels. A point is visible when
+     * `depth <= 1` (in front of the camera).
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (this._guard()) return null;
+        return this._mapInterface?.convertCoordsFromNavToCanvas(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
      * Returns the geographic coordinates at the given canvas pixel.
      *
      * @param screenX canvas X coordinate in CSS pixels

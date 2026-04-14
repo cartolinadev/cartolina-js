@@ -1,5 +1,120 @@
 # Session log
 
+## 2026-04-14 — `waypoint` demo: marker filters and occlusion docs
+
+Follow-on to the initial waypoint implementation.
+
+### Goal
+
+1. Document the HTML-overlay occlusion limitation (markers visible
+   through the planet during cross-planetary navigation).
+2. Add per-marker `show` / `hide` filter lists referencing symbolic
+   waypoint names, so authors can suppress off-context markers.
+
+### Work done
+
+**`demos/waypoint/waypoint.js`**
+- Header comment: added `DEPTH / OCCLUSION LIMITATION` and `MARKER
+  VISIBILITY FILTERING` sections; updated CONFIG SCHEMA to show
+  `name`, `show`, and `hide` fields.
+- `_updateMarkers()`: filter step added before projection. Reads
+  `this._config.positions?.[this._index]?.name` and tests against
+  `marker.show` / `marker.hide` before any coordinate conversion.
+
+**`demos/waypoint/config.example.json`** — added `"name"` to all
+three positions; added `"show": ["whitney"]` to the clip-art marker.
+
+**`docs/wiki/waypoint-spec.md`** — updated config schema, marker
+update loop, and added occlusion limitation section; updated
+Modified files list to reflect the actual screenshot.js changes.
+
+### Key decision
+
+`show` / `hide` reference symbolic waypoint names (not indices) so
+filters remain stable when positions are reordered or new entries
+are inserted.
+
+## 2026-04-14 — `waypoint` demo: implementation
+
+See [waypoint-spec.md](waypoint-spec.md) for the full specification.
+
+### Goal
+
+New `demos/waypoint/` demo: a geographic story / presentation device.
+Arrow-key navigation flies the camera between a JSON-configured list
+of map positions. HTML image markers stay pinned to geographic
+coordinates. Embeddable as a vanilla ES module in reveal.js
+presentations.
+
+### Work done
+
+**`demos/waypoint/waypoint.js`** — self-contained vanilla ES module.
+Exports `WaypointMap`. Manages flyTo navigation, marker projection
+loop (subscribes to `'tick'`), keyboard handler, and lifecycle.
+
+**`demos/waypoint/index.html`** — demo page. Fetches and
+placeholder-expands the style (same `__backend__` pattern as
+`demos/map/`) before passing the object to `WaypointMap`. URL params:
+`style=`, `config=`, `backend=`.
+
+**`demos/waypoint/config.example.json`** — three positions (Whitney,
+Grossglockner, Glacier Peak) and one marker using the clip-art URL.
+
+**`src/browser/viewer.ts`** — added
+`convertCoordsFromPublicToNav()` and `convertCoordsFromNavToCanvas()`
+in the "Hit testing and coordinate conversion" section.
+
+**`src/core/map/interface.d.ts`** — declared both new methods on
+`MapInterface`.
+
+**`test/screenshot.js`** — added `${config}` substitution; fixed
+template fallback logic so `{ "dev": "waypoint" }` entries are
+gracefully skipped on the prod side rather than falling back to the
+default CDN template.
+
+**`demos/index.html`** — new demo index listing six demos:
+simple-terrain, complex-terrain, map, relief-lab, depth-test,
+waypoint.
+
+### Key decisions
+
+- **Module shape:** vanilla ES module in `demos/waypoint/waypoint.js`.
+  No webpack entry; loaded directly alongside `cartolina.js`.
+- **Marker anchor:** bottom-center of the image sits on the geo point.
+  Default display height 90 px, proportional width. Overridable via
+  `height` / `width` per marker.
+- **Terrain-surface markers:** `coords` with 2 elements (lon/lat)
+  uses `'float'` height mode; 3 elements uses `'fix'`.
+- **Reveal.js:** one-reveal-slide-per-waypoint pattern. `keys: false`
+  disables keyboard listeners. Slides without `data-waypoint` are
+  skipped; mixed decks work.
+- **Style template expansion:** lives in `index.html`, not in
+  `WaypointMap`. The class accepts a pre-resolved style object,
+  keeping it backend-agnostic.
+
+### Non-obvious findings
+
+- The `convertCoordsFromNavToCanvas` return value uses `depth <= 1`
+  to indicate a point is in front of the camera (consistent with
+  the existing `measure.js` usage in `src/browser/ui/`).
+- The screenshot test `buildUrl` function silently fell back to
+  `default` when a template object omitted a side (e.g. prod). This
+  caused incorrect prod URLs for dev-only templates. Fixed by
+  returning `null` instead of falling back.
+- CDN-hosted styles contain `__backend__` placeholders even when
+  fetched directly; expansion must happen before `cartolina.map()`
+  receives the object.
+- `_buildMarkers` originally set `containerEl.style.position =
+  'relative'` unconditionally, collapsing a `position: absolute;
+  top: 0; bottom: 0` container to zero height. Fixed by checking
+  `getComputedStyle(el).position === 'static'` first.
+
+### Verification
+
+- `npx tsc --noEmit` passes.
+- `node test/screenshot.js simple-terrain` — dev ok, prod ok.
+- `node test/screenshot.js complex-terrain` — dev ok, prod ok.
+
 ## 2026-04-14 — Style validation moved to exact typia
 
 **Branch:** feature/strict-ts-checks

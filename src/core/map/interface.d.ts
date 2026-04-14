@@ -39,4 +39,16 @@ export default class MapInterface {
     ): vec3 | null;
 
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3;
+
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
 }

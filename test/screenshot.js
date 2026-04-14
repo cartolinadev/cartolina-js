@@ -26,16 +26,23 @@ const WORKER_GUARD_MS = 5000;
 // Build a concrete URL from a urls.json entry and template name ('dev'|'prod')
 // ---------------------------------------------------------------------------
 function buildUrl(entry, templates, side) {
-  const templateName =
-    (entry.template && (typeof entry.template === 'string' ? entry.template : entry.template[side])) ||
-    'default';
-  const tmpl = templates[templateName][side];
-
+  let templateName;
+  if (!entry.template) {
+    templateName = 'default';
+  } else if (typeof entry.template === 'string') {
+    templateName = entry.template;
+  } else {
+    templateName = entry.template[side] ?? null;
+  }
+  if (templateName == null) return null;
+  const tmpl = (templates[templateName] ?? {})[side] ?? null;
+  if (tmpl == null) return null;
   const extras = entry.extras || '';
   return tmpl
     .replace('${style}', encodeURIComponent(entry.style || ''))
     .replace('${pos}', encodeURIComponent(entry.pos || ''))
     .replace('${url}', entry.url || '')
+    .replace('${config}', encodeURIComponent(entry.config || ''))
     .replace('${extras}', extras);
 }
 
@@ -152,6 +159,10 @@ async function main() {
   for (const entry of entries) {
     for (const side of ['dev', 'prod']) {
       const url = buildUrl(entry, templates, side);
+      if (url == null) {
+        console.log(`[${entry.id}] ${side} ... skipped (no template)`);
+        continue;
+      }
       const outFile = path.join(OUT_DIR, `${entry.id}-${side}.png`);
       process.stdout.write(`[${entry.id}] ${side} ... `);
 

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cartolina JS — demos</title>
+<style>
+  body {
+    font-family: sans-serif;
+    max-width: 640px;
+    margin: 48px auto;
+    padding: 0 24px;
+    color: #222;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 2rem; }
+  dl { margin: 0; }
+  dt { margin-top: 1.4rem; }
+  dt a { font-size: 1rem; font-weight: 600; color: #0366d6; }
+  dd {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.875rem;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<h1>Cartolina JS — demos</h1>
+<dl>
+
+  <dt><a href="./simple-terrain/">Simple terrain</a></dt>
+  <dd>Global terrain with hillshading and no texture overlay.
+      Minimal style; good starting point.</dd>
+
+  <dt><a href="./complex-terrain/">Complex terrain</a></dt>
+  <dd>Illumination, bump maps, specular maps, and point labels.
+      Renders the Grossglockner area.</dd>
+
+  <dt><a href="./map/">Map — generic style loader</a></dt>
+  <dd>Parametrised demo. Accepts <code>style=</code>, <code>pos=</code>,
+      and <code>backend=</code> URL parameters; supports
+      <code>__placeholder__</code> expansion in style JSON.</dd>
+
+  <dt><a href="./relief-lab/">Relief Lab</a></dt>
+  <dd>Interactive controls for illumination, shading weights, atmosphere,
+      vertical exaggeration, and render flags. Live readback from
+      renderer state.</dd>
+
+  <dt><a href="./depth-test/">Depth test</a></dt>
+  <dd>Elevation and depth overlay diagnostic.</dd>
+
+  <dt><a href="./waypoint/">Waypoint</a></dt>
+  <dd>Geographic story map. Keyboard navigation flies between
+      JSON-configured positions; image markers stay anchored to
+      geographic coordinates. Embeddable as a plain ES module
+      (e.g. in reveal.js).</dd>
+
+</dl>
+</body>
+</html>

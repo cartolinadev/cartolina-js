@@ -3,8 +3,9 @@
 
     "default": {
       "dev": "http://localhost:8080/demos/map/?style=${style}&pos=${pos}&mapExposeFpsToWindow=1${extras}"
-      , "prod": "https://cdn.tspl.re/libs/cartolina/tests/?style=${style}&pos=${pos}&mapExposeFpsToWindow=1${extras}" 
+      , "prod": "https://cdn.tspl.re/libs/cartolina/tests/?style=${style}&pos=${pos}&mapExposeFpsToWindow=1${extras}"
     },
+
 
     "legacy": {
       "dev": "http://localhost:8080/demos/legacy/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"

@@ -1,0 +1,37 @@
+{
+  "positions": [
+    {
+      "name": "whitney",
+      "position": [
+        "obj", -118.302348, 36.560197, "fix",
+        3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00
+      ],
+      "flyTo": { "speed": 1.0 }
+    },
+    {
+      "name": "grossglockner",
+      "position": [
+        "obj", 12.721290, 47.084420, "fix",
+        2727.44, -46.93, -44.97, 0.00, 12643.36, 30.00
+      ],
+      "flyTo": { "speed": 0.8 }
+    },
+    {
+      "name": "glacier-peak",
+      "position": [
+        "obj", -121.167759, 48.160547, "fix",
+        1545.58, 198.97, -38.28, 0.00, 13440.07, 30.00
+      ],
+      "flyTo": { "speed": 1.2, "maxHeight": 80000 }
+    }
+  ],
+  "markers": [
+    {
+      "coords": [-118.302348, 36.560197],
+      "url": "https://img2.clipart-library.com/27/you-are-here-clip-art/you-are-here-clip-art-15.png",
+      "offset": [0, 0],
+      "height": 90,
+      "show": ["whitney"]
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Cartolina JS: Waypoint — geographic story map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet"/>
+<style>
+  body { margin: 0; padding: 0; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  #hud {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: 14px/1 sans-serif;
+    padding: 6px 14px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="hud">1 / 1</div>
+<script type="module">
+
+import { WaypointMap } from './waypoint.js';
+
+const BACKEND = {
+    dev:  'http://localhost:3071',
+    test: 'http://localhost/mapproxy',
+    prod: 'https://cdn.tspl.re/mapproxy'
+};
+
+function getParam(name) {
+    return new URLSearchParams(window.location.search).get(name);
+}
+
+function resolveStyleUrl(styleParam) {
+    const s = styleParam || '../map/styles/complex.json';
+    if (/^[a-zA-Z0-9_-]+$/.test(s)) return `../map/styles/${s}.json`;
+    return s;
+}
+
+async function loadStyle(styleUrl) {
+    const backendKey = getParam('backend') || 'prod';
+    const backendUrl = BACKEND[backendKey] ?? backendKey;
+
+    const response = await fetch(styleUrl);
+    if (!response.ok) {
+        throw new Error(
+            `Failed to load style "${styleUrl}": ${response.status}`
+        );
+    }
+    const text = await response.text();
+    const expanded = text.replace(
+        /__([a-zA-Z0-9_-]+)__/g,
+        (match, key) => (key === 'backend' ? backendUrl : match)
+    );
+    return JSON.parse(expanded);
+}
+
+const styleUrl  = resolveStyleUrl(getParam('style'));
+const configUrl = getParam('config') || './config.example.json';
+const hud       = document.getElementById('hud');
+
+const style = await loadStyle(styleUrl);
+
+const map = new WaypointMap('map', {
+    style:  style,
+    config: configUrl,
+    keys:   true
+});
+
+map.on('slide-change', ({ index }) => {
+    hud.textContent = `${index + 1} \u00a0/\u00a0 ${map.slideCount}`;
+});
+
+// Update HUD once config is loaded
+setTimeout(() => {
+    if (map.slideCount > 0) {
+        hud.textContent =
+            `${map.currentIndex + 1} \u00a0/\u00a0 ${map.slideCount}`;
+    }
+}, 500);
+
+</script>
+</body>
+</html>
