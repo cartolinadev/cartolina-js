@@ -338,6 +338,24 @@ by key prefix:
 `Viewer.setParam(key, value)` routes through `Browser.setConfigParam` which
 ultimately calls `Core.setConfigParam`.
 
+### URL encoding for number-array params
+
+`url-config.ts` parses number-array params (e.g. `mapFeaturesReduceParams`,
+`mapLabelFreeMargins`, `sensitivity`) by splitting on commas. Do **not**
+include brackets in the URL value — they break `parseFloat` on the first
+element and silently corrupt the array.
+
+```
+# correct
+?mapFeaturesReduceParams=0.05,0.085,11,1,1000
+
+# wrong — brackets corrupt params[0]
+?mapFeaturesReduceParams=[0.05,0.085,11,1,1000]
+```
+
+In style JSON, brackets are correct (it is a JSON array):
+`"mapFeaturesReduceParams": [0.05, 0.085, 11, 1, 1000]`
+
 
 ## Async initialization
 

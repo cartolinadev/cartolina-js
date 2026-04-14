@@ -211,6 +211,14 @@ prints any console or network errors it finds.
 Custom Playwright-based diagnostic or test scripts may be created and
 run against the dev server without asking for permission. Always listen
 to **both** `page.on('console', ...)` and `page.on('pageerror', ...)`.
+
+**Prefer testing over reasoning when investigating a problem.** Read
+enough code to understand the landscape and form a hypothesis, then
+test it against the dev server before going deeper. Use whatever
+diagnostic tools are available: browser console output, runtime
+overlays, temporary `console.log` statements added to the code. If a
+hypothesis is testable, test it first — only return to source analysis
+once the test result gives you more context.
 Uncaught exceptions thrown inside event handlers (e.g. from simulated
 keyboard or mouse interaction) surface as `pageerror` events, not as
 `console` errors. A test that only monitors the `console` channel will
