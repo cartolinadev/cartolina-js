@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-04-14 — `waypoint` demo: terrain-occluded marker visibility
+
+### Goal
+
+Hide waypoint markers when terrain in the current view occludes their
+anchored geographic position.
+
+### Work done
+
+**`src/browser/viewer.ts`** — added `checkVisibility(pos, mode)` as a
+flat public `Viewer` method. It converts public coords to nav/canvas,
+samples the existing cached hitmap via `map.getScreenDepth()`, and
+compares terrain depth against point depth with the same tolerant
+behavior used for label occlusion.
+
+**`demos/waypoint/waypoint.js`** — marker updates now call
+`viewer.checkVisibility(...)` before placing the HTML overlay element.
+Markers still use canvas projection for placement, but hidden markers
+are no longer drawn through the globe.
+
+**`docs/wiki/waypoint-spec.md`** — updated the marker loop and replaced
+the old occlusion limitation note with the new depth-map behavior and
+its cached-hitmap caveat.
+
+### Non-obvious findings
+
+The existing hitmap path is already suitable for this feature, but it
+is intentionally cached and throttled by `mapDMapCopyIntervalMs`.
+Waypoint occlusion therefore tracks terrain correctly without new render
+paths, while still allowing a small delay during camera motion.
+
 ## 2026-04-14 — `waypoint` demo: marker filters and occlusion docs
 
 Follow-on to the initial waypoint implementation.

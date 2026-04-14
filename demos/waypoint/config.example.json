@@ -30,8 +30,14 @@
       "coords": [-118.302348, 36.560197],
       "url": "https://img2.clipart-library.com/27/you-are-here-clip-art/you-are-here-clip-art-15.png",
       "offset": [0, 0],
+      "height": 90
+    },
+    {
+      "coords": [-118.291995, 36.578581, 4421],
+      "url": "https://img2.clipart-library.com/27/you-are-here-clip-art/you-are-here-clip-art-15.png",
+      "offset": [0, 0],
       "height": 90,
-      "show": ["whitney"]
+      "show": ["whitney", "grossglockner"]
     }
   ]
 }

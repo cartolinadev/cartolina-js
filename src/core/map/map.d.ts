@@ -45,6 +45,9 @@ export default class Map {
 
     renderer: Renderer;
     url: MapUrl;
+    config: {
+        mapDMapDilatePx?: number;
+    };
 
     position: MapPosition;
     atmosphere: Atmosphere | null;
@@ -94,5 +97,11 @@ export default class Map {
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;
     getPhysicalSrs(): MapSrs;
+    getScreenDepth(
+        screenX: number,
+        screenY: number,
+        dilate?: number,
+        useFallback?: boolean,
+    ): [boolean, number];
     isAtmospheric(): boolean;
 }

@@ -111,6 +111,19 @@ source ~/.nvm/nvm.sh && nvm use
 
 - `npx tsc` (any flags) may be run without asking for permission.
 
+- `curl` to local dev services such as `http://localhost:8080` may be
+  run without asking for permission.
+
+- Local Playwright diagnostic scripts may be run via the repo Node
+  runtime without asking for permission. Use:
+
+```bash
+source ~/.nvm/nvm.sh && nvm use >/dev/null && node ...
+```
+
+  Prefer `node -e '...'` when possible. Do not stop to ask for
+  permission before running local browser checks against the dev server.
+
 
 ## Code and refactoring philosophy
 

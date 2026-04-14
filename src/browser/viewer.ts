@@ -370,6 +370,84 @@ class Viewer {
     }
 
     /**
+     * Returns whether a public-space point is visible in the current
+     * terrain view.
+     *
+     * This uses the cached hitmap/depth-map path. Occlusion can lag
+     * slightly while the camera is moving because hitmap copies are
+     * throttled by runtime configuration.
+     *
+     * @param pos `[lon, lat, height]` in public space
+     * @param mode height mode (`'fix'` or `'float'`)
+     */
+    checkVisibility(
+        pos: vec3,
+        mode: HeightMode,
+    ): boolean | null {
+
+        if (this._guard()) return null;
+
+        const map = this._map;
+        const renderer = this._renderer;
+
+        if (!map || !renderer) {
+            return null;
+        }
+
+        const navCoords = this.convertCoordsFromPublicToNav(pos, mode);
+        if (!navCoords) {
+            return false;
+        }
+
+        const canvasCoords = this.convertCoordsFromNavToCanvas(
+            navCoords, mode
+        );
+
+        if (!canvasCoords || canvasCoords[2] > 1) {
+            return false;
+        }
+
+        const [screenX, screenY] = canvasCoords;
+        const viewport = renderer.curSize;
+
+        if (
+            !Number.isFinite(screenX) || !Number.isFinite(screenY)
+            || screenX < 0 || screenY < 0
+            || screenX >= viewport[0] || screenY >= viewport[1]
+        ) {
+            return false;
+        }
+
+        const physCoords = this.convertCoordsFromNavToPhys(
+            navCoords, mode
+        );
+        if (!physCoords) {
+            return false;
+        }
+
+        const cameraSpaceCoords = this.convertCoordsFromPhysToCameraSpace(
+            physCoords
+        );
+        if (!cameraSpaceCoords) {
+            return false;
+        }
+
+        const pointDepth = Math.hypot(
+            cameraSpaceCoords[0],
+            cameraSpaceCoords[1],
+            cameraSpaceCoords[2],
+        );
+        const dilate = map.config.mapDMapDilatePx ?? 0;
+        const screenDepth = map.getScreenDepth(screenX, screenY, dilate);
+
+        if (!screenDepth || !screenDepth[0]) {
+            return true;
+        }
+
+        return (pointDepth - screenDepth[1]) <= (0.03 * pointDepth);
+    }
+
+    /**
      * Returns the geographic coordinates at the given canvas pixel.
      *
      * @param screenX canvas X coordinate in CSS pixels

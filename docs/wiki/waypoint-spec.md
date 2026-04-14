@@ -99,8 +99,10 @@ Each frame, for each marker:
 3. `viewer.convertCoordsFromPublicToNav(coords, mode)` → nav `[x,y,z]`
 4. `viewer.convertCoordsFromNavToCanvas(navCoords, mode)` → canvas
    `[px, py, depth]`
-5. Set CSS size on the `<img>` from config (`height`, optional `width`).
-6. `depth <= 1` (in front of camera): position element at
+5. `viewer.checkVisibility(coords, mode)` decides whether terrain
+   occludes the marker at that screen pixel using the cached hitmap.
+6. Set CSS size on the `<img>` from config (`height`, optional `width`).
+7. If visible, position the element at
    `left = px - img.offsetWidth/2 + offset[0]`,
    `top  = py - img.offsetHeight  + offset[1]`.
    Otherwise hide.
@@ -108,14 +110,13 @@ Each frame, for each marker:
 Marker elements are absolutely-positioned `<img>` (or `<a><img>` when
 a link is provided) in a pointer-events-none overlay `<div>`.
 
-**Depth / occlusion limitation:** The depth check (`depth <= 1`) tests
-only whether the geo point is in front of the camera's near plane. It
-does **not** test occlusion by terrain geometry, because HTML overlay
-elements cannot access the WebGL depth buffer. A marker anchored to a
-location on the far side of the globe remains visible during
-cross-planetary navigation (it projects onto terrain on the near side
-instead of disappearing). Use `show` / `hide` filters to suppress
-markers that are not relevant to the current waypoint as a workaround.
+**Depth / occlusion behavior:** The demo uses
+`viewer.checkVisibility()` to compare the marker point against the
+renderer's cached depth map. This hides markers occluded by terrain,
+including cross-planetary cases where a point moves behind the globe.
+The check uses the existing cached hitmap path, so occlusion can lag
+slightly during camera motion when hitmap copies are throttled by
+`mapDMapCopyIntervalMs`.
 
 ### `demos/waypoint/index.html`
 
@@ -141,6 +142,12 @@ convertCoordsFromPublicToNav(pos: vec3, mode: HeightMode,
 
 convertCoordsFromNavToCanvas(pos: vec3, mode: HeightMode,
     lod?: Lod): vec3 | null
+```
+
+Also adds:
+
+```typescript
+checkVisibility(pos: vec3, mode: HeightMode): boolean | null
 ```
 
 ### `test/screenshot.js`
