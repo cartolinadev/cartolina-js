@@ -1,5 +1,46 @@
 # Session log
 
+## 2026-04-15 — Added pitch-related styling limitations to reference
+
+### Goal
+
+Capture the non-obvious findings from checking whether line color can
+depend on camera pitch.
+
+### Work done
+
+**`docs/wiki/label-styling-engine.md`**
+- Added that camera pitch is not currently exposed as a normal style
+  expression input.
+- Documented the nearby precedent that tilt-aware behavior already
+  exists for `dynamic-reduce` through `tilt`, `tilt-cos`, and
+  `tilt-cos2`.
+- Added the architectural note that geodata line color is resolved in
+  worker-generated render jobs rather than at draw time, so exposing a
+  `#pitch` variable alone would not be enough for live pitch-driven
+  line color changes.
+
+## 2026-04-15 — Backlog note for line dissipation by view angle
+
+### Goal
+
+Record the need for a future line-dissipation feature so the visual
+motivation and likely implementation shape are not lost.
+
+### Work done
+
+**`docs/wiki/backlog.md`**
+- Added a deferred feature item for pitch / horizon-based line
+  dissipation.
+- Captured the visual motivation: ridgeline-following boundaries become
+  noisy and unnatural at high oblique angles and near the horizon.
+- Noted the likely desired behavior: increased transparency as the view
+  approaches that state, preferably as a built-in or style-configurable
+  mechanism.
+- Recorded the current limitation that line color is not currently
+  driven by camera pitch through normal style expressions and is baked
+  into worker-generated geodata jobs.
+
 ## 2026-04-15 — Clarified legacy documentation-source wording
 
 ### Goal

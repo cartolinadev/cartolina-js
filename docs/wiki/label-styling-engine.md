@@ -86,10 +86,47 @@ expressions, including:
 - `#pixelSize`
 - `#metric`
 - `#dpr`
+- `#language`
 
 Practical consequence: a property does not have to be driven by LOD
 only. With `linear2` or `discrete2`, the driver can be another exposed
 style value.
+
+## Camera pitch is not a normal style input
+
+The style worker does not currently expose camera pitch or tilt through
+the normal `#...` expression inputs.
+
+Practical consequence: line color or opacity cannot currently be made
+style-dependent on camera pitch in the same way that line width can be
+made LOD-dependent.
+
+## Nearby precedent: tilt-aware reduction exists
+
+Although pitch is not exposed as a normal style-expression input, the
+engine does already use tilt-aware runtime behavior for geodata
+reduction via modes such as:
+
+- `tilt`
+- `tilt-cos`
+- `tilt-cos2`
+
+These are used by `dynamic-reduce`, not by ordinary color or opacity
+properties.
+
+Practical consequence: the renderer already has access to camera-angle
+information, but that information is not wired into the general
+property-expression system.
+
+## Line color is resolved before draw time
+
+For geodata lines, `line-color` is resolved in the worker and stored in
+the generated render-job data.
+
+Practical consequence: adding a hypothetical `#pitch` expression input
+would not by itself produce live pitch-dependent line color changes
+during camera motion. A proper implementation would also need a
+render-time color or opacity path for geodata lines.
 
 ## `lod-scaled`
 

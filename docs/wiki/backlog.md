@@ -29,6 +29,45 @@ Restructure the wiki into a clearer hierarchy, for example:
 Keep `architecture.md` as a high-level entry point, then move narrow
 topics into dedicated pages linked from that overview.
 
+## FEATURE: pitch / horizon-based line dissipation
+
+**Opened:** 2026-04-15
+**Status:** deferred
+
+### Motivation
+
+Lines such as boundaries that follow ridge lines become noisy and
+unnatural-looking when rendered at high oblique viewing angles or close
+to the horizon.
+
+The desired behavior is a dissipation mechanism that increases line
+transparency as the camera approaches that state, either as a built-in
+renderer behavior or as a style-configurable feature.
+
+### Current limitation
+
+The current style system does not expose camera pitch as a normal style
+expression input for line color, and geodata line color is currently
+resolved in worker-generated render jobs rather than evaluated per
+frame.
+
+### Suggested direction
+
+Possible implementation directions:
+
+- add a built-in line dissipation behavior tied to camera pitch,
+  horizon angle, or a related renderer-space measure
+- expose a camera-dependent style input so line opacity or color can be
+  driven from style
+- prefer transparency / dissipation over a hard visibility cutoff so
+  ridgeline boundaries fade out naturally instead of popping
+
+### Notes
+
+There is already tilt-aware runtime behavior in geodata reduction, so
+the renderer does have camera-angle information available. The missing
+piece is a render-time color / opacity path for geodata lines.
+
 ## BUG: `Viewer.checkVisibility()` depth comparison is broken
 
 **Opened:** 2026-04-14
