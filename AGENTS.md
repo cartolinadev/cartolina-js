@@ -6,6 +6,15 @@ The [docs/wiki/](docs/wiki/) directory is a shared knowledge base for
 agents and human contributors alike. Read it at the start of a session
 to orient yourself before touching unfamiliar code.
 
+While agents and humans do their best to keep the wiki up to date, it
+may drift from the code over time.
+
+At an appropriate moment during a session, or whenever an explicit wiki
+update is requested, check whether the changes made in the current
+session have caused the wiki to drift. If they have, update the wiki:
+remove obsolete or no longer factual parts, and add or revise the
+relevant information.
+
 **What belongs in the wiki:**
 
 - Architecture notes and non-obvious design decisions.
@@ -30,8 +39,12 @@ and code blocks are exempt.
 
 **Files:**
 
+- [index.md](docs/wiki/index.md) — wiki landing page and table of
+  contents.
 - [architecture.md](docs/wiki/architecture.md) — system structure,
   key subsystems, and non-obvious implementation details.
+- [label-styling-engine.md](docs/wiki/label-styling-engine.md) —
+  reference notes for the shared lettering/style engine.
 - [session-log.md](docs/wiki/session-log.md) — chronological record
   of significant work sessions.
 
@@ -44,18 +57,11 @@ fork of the now-discontinued `vts-browser-js`. The codebase is a
 ten-year-old project in gradual, **feature-driven** refactoring. Most
 legacy JavaScript code still exists alongside newer TypeScript modules.
 
-Read [README.md](README.md) first. Two legacy documentation sources are
-available as on-demand references for understanding the codebase:
-
-- [vts-browser-js wiki](https://github.com/melowntech/vts-browser-js/wiki)
-  — documents the upstream fork; useful when working with legacy code.
-
-- [melowntech/workshop](https://github.com/melowntech/workshop)
-  (very dated) — the Architecture Overview section defines general
-  concepts that recur throughout the codebase: `mapConfig.json` is the
-  primary interface contract between the backend and the frontend;
-  **surfaces** are streamed 3D terrain meshes; **bound layers** are
-  raster overlays; **geodata** are vector features.
+Read [README.md](README.md) first, then use
+[docs/wiki/index.md](docs/wiki/index.md) as the documentation starting
+point. The wiki index lists the main internal pages together with other
+relevant documentation sources for the legacy codebase and the backend
+interface.
 
 `cartolina-js` is a WebGL2 3D terrain cartography library for the web.
 It is the frontend half of a two-component stack; the backend is
@@ -63,17 +69,6 @@ It is the frontend half of a two-component stack; the backend is
 a C++ Unix daemon that processes geospatial data and streams formatted
 tiles to the client. Consult that repository when working on features
 that involve the data or network interface between the two projects.
-
-The tileserver serves terrain surfaces (TIN meshes) and raster tile
-layers over an nginx reverse proxy (default: `localhost:8070/mapproxy`).
-Tile types consumed by `cartolina-js` include terrain surfaces, overlay
-raster imagery, bump maps, and specular reflection maps. Normal maps are
-bundled with terrain surfaces and discovered automatically via
-tileserver-provided metadata; no special client configuration is needed.
-Authoritative resource-definition documentation is in
-`docs/resources.md` in the `cartolina-tileserver` repository; the
-legacy vts-mapproxy docs on the Web Archive cover most resource types
-and are still accurate.
 
 Key capabilities the library implements:
 - Digital elevation model rendering at varying resolutions

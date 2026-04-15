@@ -1,5 +1,7 @@
 # Architecture
 
+See `index.md` for the wiki table of contents.
+
 ## Stack overview
 
 cartolina-js is the frontend half of a two-component stack.

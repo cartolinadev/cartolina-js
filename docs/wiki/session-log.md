@@ -1,5 +1,122 @@
 # Session log
 
+## 2026-04-15 — Clarified legacy documentation-source wording
+
+### Goal
+
+Remove a ghost note in the wiki index that incorrectly implied a
+separate Web Archive documentation source.
+
+### Work done
+
+**`docs/wiki/index.md`**
+- Removed the stray Web Archive note.
+- Kept `melowntech/workshop` as the legacy conceptual reference already
+  being pointed to.
+- Kept `cartolina-tileserver/docs/resources.md` identified as the
+  authoritative source for current resource definitions.
+
+## 2026-04-15 — Wiki index as documentation hub
+
+### Goal
+
+Make the wiki landing page the actual documentation starting point by
+moving the broader documentation-source guidance there.
+
+### Work done
+
+**`docs/wiki/index.md`**
+- Added an `Other documentation sources` section.
+- Moved the useful orientation pointers for `README.md`,
+  `vts-browser-js` wiki, `melowntech/workshop`,
+  `cartolina-tileserver`, and the backend `docs/resources.md` into the
+  wiki landing page.
+- Kept the backend resource docs marked as authoritative.
+
+**`AGENTS.md`**
+- Replaced the duplicated documentation-source prose with a shorter
+  pointer to `docs/wiki/index.md` as the canonical documentation
+  starting point.
+
+## 2026-04-15 — Styling reference and wiki drift rule
+
+### Goal
+
+Turn the styling wiki note into a more reference-oriented page and make
+wiki drift checks an explicit repository rule.
+
+### Work done
+
+**`docs/wiki/label-styling-engine.md`**
+- Reworked the note into a compact styling reference page.
+- Documented the non-obvious default that plain `linear` and
+  `discrete` expressions are implicitly LOD-based.
+- Added the explicit-domain `linear2` / `discrete2` forms, built-in
+  scale-related `#...` values, `lod-scaled`, and the interaction with
+  `line-width-units`.
+- Retained the textured-line and `texture` vs `textured` findings in a
+  more reference-style structure.
+
+**`docs/wiki/index.md`**
+- Updated the entry description for the styling page to match its new
+  reference-oriented role.
+
+**`AGENTS.md`**
+- Added an explicit note that the wiki may drift from the code.
+- Added the rule that, at an appropriate moment or on explicit wiki
+  update requests, the current session must check for wiki drift and
+  update obsolete or missing information.
+- Added `index.md` and `label-styling-engine.md` to the wiki file list.
+
+## 2026-04-15 — Wiki index page
+
+### Goal
+
+Create a dedicated wiki landing page with a table of contents so the
+wiki does not depend on `architecture.md` as its navigation hub.
+
+### Work done
+
+**`docs/wiki/index.md`**
+- Added a dedicated wiki index page with a table of contents covering
+  overview pages and narrower subsystem / feature notes.
+- Added a short navigation note describing the intended direction
+  toward a more hierarchical reference-manual structure.
+
+**`docs/wiki/architecture.md`**
+- Removed the temporary wiki-guide section.
+- Repositioned the page as an architecture document and pointed readers
+  to `index.md` for navigation.
+
+## 2026-04-15 — Label styling engine wiki note
+
+### Goal
+
+Document non-obvious style-engine findings discovered while checking
+whether geodata lines support a dot-dash pattern.
+
+### Work done
+
+**`docs/wiki/label-styling-engine.md`**
+- Added a focused note describing the shared `LetteringLayerBase`
+  property family used by both `labels` and `lines`.
+- Documented the bitmap-based textured-line path as the current way to
+  achieve custom repeated line patterns.
+- Recorded the current `line-style` spelling mismatch:
+  TypeScript declares `textured`, while the runtime validator accepts
+  `texture`.
+- Described the effective shape and meaning of
+  `line-style-texture`.
+
+### Non-obvious findings
+
+- The style engine has no dedicated numeric dash-array property for
+  geodata lines. Patterned lines are authored as repeated bitmap
+  strips.
+- The `labels` and `lines` layer types share one broader styling base,
+  which is why line-decoration properties live next to text and icon
+  properties in the style spec.
+
 ## 2026-04-14 — Illumination style spec cleanup
 
 **Branch:** feature/relief-lab

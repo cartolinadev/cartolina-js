@@ -4,6 +4,31 @@ Bugs and deferred work that are not yet scheduled.
 
 ---
 
+## DOCS: split wiki into a more hierarchical reference manual
+
+**Opened:** 2026-04-15
+**Status:** deferred
+
+### Motivation
+
+`docs/wiki/architecture.md` currently acts as both the main overview
+page and a catch-all home for many detailed notes. As the wiki grows,
+it becomes harder to navigate than a more explicit reference-manual
+layout.
+
+### Suggested direction
+
+Restructure the wiki into a clearer hierarchy, for example:
+
+- overview / getting-oriented pages
+- architecture / cross-cutting system design pages
+- subsystem notes
+- feature-specific notes
+- session log
+
+Keep `architecture.md` as a high-level entry point, then move narrow
+topics into dedicated pages linked from that overview.
+
 ## BUG: `Viewer.checkVisibility()` depth comparison is broken
 
 **Opened:** 2026-04-14
