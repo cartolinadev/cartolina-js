@@ -457,7 +457,7 @@ class Viewer {
             return true;
         }
 
-        return (pointDepth - screenDepth[1]) <= (0.1 * pointDepth);
+        return (pointDepth - screenDepth[1]) <= (0.03 * pointDepth);
     }
 
     /**
