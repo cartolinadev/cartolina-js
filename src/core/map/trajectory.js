@@ -160,6 +160,21 @@ MapTrajectory.prototype.detectDuration = function() {
     
     this.duration = Math.min(this.duration, this.maxDuration);
     this.duration = Math.max(this.duration, this.minDuration);
+
+    // headingDurationStart / headingDuration are independent: start and end
+    // orientation phases may differ.  When departing from near-nadir, yaw
+    // rotation is invisible so we shrink the departure phase only and trim
+    // duration by the same amount.  pitch: 0=horizontal, -90=nadir.
+    this.headingDurationStart = this.headingDuration;
+    if (this.mode != 'direct') {
+        var startPitch = this.pp1.getOrientation()[1];
+        if (startPitch < -60) {
+            var nadirFactor = Math.max(0, (startPitch + 90) / 30); // 1 at -60°, 0 at -90°
+            var headingSaved = this.headingDuration * (1 - nadirFactor);
+            this.headingDurationStart = Math.round(this.headingDuration * nadirFactor);
+            this.duration = Math.max(this.minDuration, Math.round(this.duration - headingSaved));
+        }
+    }
 };
 
     
@@ -283,7 +298,7 @@ MapTrajectory.prototype.generate = function() {
         samples[index] = this.op2.clone().pos;
     }
 
-    //console.log("pos2: " + this.p2.toString());
+    samples.finalPhaseSample = Math.max(0, samples.length - 1 - Math.round(this.headingDuration / this.samplePeriod));
 
     return samples;
 };
@@ -376,13 +391,15 @@ MapTrajectory.prototype.getSineHeight = function(factor) {
 
 MapTrajectory.prototype.getSmoothFactor = function(time) {
     var x = 0;
+    var hds = this.headingDurationStart;
+    var hde = this.headingDuration;
 
-    if (time < this.headingDuration) {
+    if (time < hds) {
         x = 0;
-    } else if (time > (this.duration - this.headingDuration)) {
+    } else if (time > (this.duration - hde)) {
         x = 1.0;
     } else {
-        x = Math.min(1.0, (time-this.headingDuration) / (this.duration - this.headingDuration*2));
+        x = Math.min(1.0, (time - hds) / (this.duration - hds - hde));
     }
 
     x = x*x*(3 - 2*x);
@@ -403,8 +420,8 @@ MapTrajectory.prototype.getFlightOrienation = function(time) {
         fo[0] = 360 - Math.abs(fo[0]);
     }
 
-    if (time <= this.headingDuration) { //start sequence
-        factor = time / this.headingDuration;
+    if (this.headingDurationStart > 0 && time <= this.headingDurationStart) { //start sequence
+        factor = time / this.headingDurationStart;
         o1 = this.pp1.getOrientation();
         o2 = fo;
     } else if (time >= this.duration - this.headingDuration) { //end sequence

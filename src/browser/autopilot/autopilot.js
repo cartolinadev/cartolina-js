@@ -96,6 +96,8 @@ Autopilot.prototype.setTrajectory = function(trajectory, sampleDuration, options
 
     this.trajectory = trajectory;
     this.sampleDuration = sampleDuration;
+    this.finalPhaseSample = trajectory.finalPhaseSample != null ? trajectory.finalPhaseSample : trajectory.length;
+    this.finalPhaseFired = false;
     //this.
     
     this.browser.callListener('fly-start', { 'startPosition' : this.trajectory[0],
@@ -148,8 +150,13 @@ Autopilot.prototype.tick = function() {
 
     if (sampleIndex < totalSamples) {
         //interpolate
-        map.setPosition(this.trajectory[sampleIndex]);        
+        map.setPosition(this.trajectory[sampleIndex]);
         //console.log(JSON.stringify(this.trajectory[sampleIndex]));
+
+        if (!this.finalPhaseFired && sampleIndex >= this.finalPhaseSample) {
+            this.finalPhaseFired = true;
+            this.browser.callListener('fly-final-phase', { 'position': this.trajectory[sampleIndex] });
+        }
 
         this.browser.callListener('fly-progress', { 'position' : this.trajectory[sampleIndex],
             'progress' : 100 * (sampleIndex / totalSamples)

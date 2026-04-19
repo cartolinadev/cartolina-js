@@ -1,5 +1,35 @@
 # Task backlog
 
+## BUG: control-mode listens for `mousewheel` instead of `wheel`
+
+**Opened:** 2026-04-19
+**Status:** deferred
+
+### Symptom
+
+In an embed where reveal.js sits above the cartolina container in the DOM, scroll-wheel zoom does not work when events are forwarded synthetically via `dispatchEvent`. Synthetic `WheelEvent('wheel', …)` dispatched to the map container has no effect.
+
+### Root cause
+
+`src/browser/control-mode/control-mode.js` line 26 registers:
+```js
+this.mapElement.on('mousewheel', this.onWheel.bind(this));
+```
+
+`mousewheel` is a deprecated, non-standard event. Modern browsers fire `wheel` (W3C standard) and additionally still fire `mousewheel` for legacy code when a real user scrolls — but a synthetically constructed `new WheelEvent('wheel', …)` does NOT also fire `mousewheel`. So the forwarding never reaches `onWheel`.
+
+### Fix
+
+Replace `mousewheel` with `wheel` in `control-mode.js`. The `wheel` event provides `deltaX`, `deltaY`, `deltaMode` (all that `onWheel` uses). If `wheelDelta` (deprecated) is referenced anywhere downstream, replace with `-deltaY * 120 / 3` (the conventional scaling).
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `src/browser/control-mode/control-mode.js:26` | the `mousewheel` listener to replace |
+
+---
+
 Bugs and deferred work that are not yet scheduled.
 
 ---
