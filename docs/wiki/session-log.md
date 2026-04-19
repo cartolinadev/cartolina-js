@@ -1,5 +1,60 @@
 # Session log
 
+## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
+
+### Goal
+
+Fix two independent cases where ballistic flight duration was too long
+relative to what was visually meaningful:
+
+1. Departing from nadir (straight-down) view: yaw rotation during the
+   departure phase is invisible, wasting `headingDuration` ms.
+2. Translating a short distance within a tight viewport: the linear travel
+   phase is barely perceptible, yet still consumed the full computed time.
+
+### Work done
+
+**`src/core/map/trajectory.js`** — two additions at the end of
+`detectDuration()`:
+
+**Patch 1 — near-nadir departure** (pre-existing; documented here):
+- `headingDurationStart` is now independent of `headingDuration`.
+- When `startPitch < −60°`, `headingDurationStart` is scaled toward 0 via
+  `nadirFactor = (pitch + 90) / 30` (1 at −60°, 0 at −90°).
+- `duration` is trimmed by the saved departure phase, floored at
+  `minDuration`.
+
+**Patch 2 — extent-proximity short flight** (new this session):
+- After the nadir patch, checks whether `distance < min(e1, e2)`.
+- If so, scales only the linear travel portion of `duration` by
+  `max(distRatio, 0.2)`, where `distRatio = distance / min(e1, e2)`.
+- Arrival phase (`headingDuration`) is left unchanged.
+
+**`docs/wiki/trajectory-behavior.md`** — new reference page covering
+phase structure, base duration rules, and both patches with worked
+examples.
+
+**`docs/wiki/index.md`** — added entry for `trajectory-behavior.md`.
+
+### Non-obvious findings
+
+- Using `meanExtent` instead of `min(e1, e2)` as the reference incorrectly
+  triggers the short-flight patch on large-scale-change transitions (e.g.
+  krkonose regional → central Europe continental). The mean of a small and
+  a large extent is mid-range, so a 105 km flight falsely appears "short"
+  and gets compressed to ~950 ms of travel with a 2,700 ms zoom-out
+  at the destination — exactly the disorienting "pan then zoom" artifact.
+  `min(e1, e2)` is the conservative bound: if the distance fits inside the
+  *smaller* viewport, the travel is genuinely imperceptible from that view.
+
+- The arrival `headingDuration` phase holds position at the destination
+  while orientation settles. Extent and FOV continue interpolating via the
+  raw double-smoothstep factor during this time. Compressing the linear
+  phase while keeping `headingDuration` unchanged therefore makes the
+  zoom-out/zoom-in portion appear to happen *after* the pan rather than
+  during it when the two extents differ greatly — another reason to keep
+  the patch scoped to same-scale transitions.
+
 ## 2026-04-15 — Added pitch-related styling limitations to reference
 
 ### Goal

@@ -21,6 +21,9 @@ then branch into more specific documents as needed.
 - `label-styling-engine.md` — reference notes about the shared
   lettering style engine, expression domains, and textured line
   patterns
+- `trajectory-behavior.md` — flight duration and phase structure in
+  `MapTrajectory`: base rules, nadir-departure patch, and
+  extent-proximity short-flight patch
 - `waypoint-spec.md` — design and behavior notes for the waypoint demo
 - `relief-lab-spec.md` — design and behavior notes for the relief-lab
   demo

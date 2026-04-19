@@ -175,6 +175,34 @@ MapTrajectory.prototype.detectDuration = function() {
             this.duration = Math.max(this.minDuration, Math.round(this.duration - headingSaved));
         }
     }
+
+    // When the flight distance is small relative to the view extent, the
+    // linear travel phase is barely perceptible (the scene hardly moves).
+    // Scale that phase down proportionally so the transition doesn't waste
+    // time on near-stationary travel.  Arrival orientation (headingDuration)
+    // is intentionally left unchanged — it carries the semantic payload.
+    // A floor of 0.2 prevents the linear phase from collapsing to zero.
+    // We use the SMALLER of the two extents as the reference: the criterion
+    // is whether the distance fits inside the tighter viewport — using the
+    // mean would incorrectly trigger on large-scale-change flights where one
+    // extent is huge (e.g. zooming from regional to continental scale).
+    if (this.mode != 'direct') {
+        var e1 = this.pp1.getViewExtent();
+        var e2 = this.pp2.getViewExtent();
+        if (e1 > 0 && e2 > 0) {
+            var minExtent = Math.min(e1, e2);
+            var distRatio = this.distance / minExtent;
+            if (distRatio < 1.0) {
+                var arrivalPhase = this.headingDuration;
+                var linearPhase = this.duration - this.headingDurationStart - arrivalPhase;
+                if (linearPhase > 0) {
+                    var scaledLinear = Math.round(linearPhase * Math.max(distRatio, 0.2));
+                    this.duration = Math.max(this.minDuration,
+                        this.headingDurationStart + scaledLinear + arrivalPhase);
+                }
+            }
+        }
+    }
 };
 
     
