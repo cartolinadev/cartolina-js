@@ -49,6 +49,17 @@ and code blocks are exempt.
   of significant work sessions.
 
 
+## Commits
+
+Before every commit, review and update
+[docs/wiki/session-log.md](docs/wiki/session-log.md) so it reflects the
+current state of things. Commit the session log together with the other
+changes, or in a follow-up commit immediately after.
+
+On a feature branch, commit freely — at milestones during implementation
+or after completing a step — without asking first. On the main branch,
+always ask before committing.
+
 ## Orientation
 
 The goal is to become a modern web-based cartography library with a
