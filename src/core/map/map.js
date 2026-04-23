@@ -1652,9 +1652,6 @@ Map.prototype.isAtmospheric = function() {
     // until the ios alignment bug is fixed...
     if (utils.isIos()) return false;
 
-    // rendering flag gates both background sky and terrain haze
-    if (!(this.config.mapFlagAtmosphere ?? true)) return false;
-
     // style based map - explicit atmosphere needed
     if (this.style) {
 
