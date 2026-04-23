@@ -1,5 +1,89 @@
 # Task backlog
 
+## BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
+
+**Opened:** 2026-04-24
+**Status:** deferred
+
+### Symptom
+
+Calling `map.setAtmosphere(spec)` on a map whose style has no `atmosphere`
+section has no effect. `map.getAtmosphere()` continues to return `null` — the
+setter provides no error, warning, or other indication that the call was
+discarded.
+
+### Root cause
+
+`src/browser/viewer.ts` — `setAtmosphere`:
+
+```ts
+this._map?.atmosphere?.setRuntimeParameters(spec);
+```
+
+When the style has no atmosphere section, `this._map.atmosphere` is `null` and
+the optional chain silently short-circuits. The get/set pair therefore lacks
+basic symmetry: a successful `setAtmosphere` call should be reflected by a
+subsequent `getAtmosphere`.
+
+The same code path also means enabling `mapFlagAtmosphere` via
+`setRenderingOptions` has no visible effect on styles that were created without
+an atmosphere section — there are no parameters for the renderer to use.
+
+### Workaround
+
+None viable in the demo without a cartolina-js fix. Injecting a default
+`atmosphere` section into the style before `cartolina.map()` does initialise
+the subsystem and makes `setAtmosphere` work, but it also activates the
+background sky shader unconditionally — `mapFlagAtmosphere: false` does not
+suppress it. The injection was tried and reverted.
+
+### Suggested fix
+
+`setAtmosphere` should create the atmosphere subsystem if it does not yet
+exist, rather than relying on optional chaining. `getAtmosphere` should return
+the live runtime parameters set via `setAtmosphere`, not just what the original
+style declared.
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `src/browser/viewer.ts:205` | `setAtmosphere` — the silent no-op |
+| `src/browser/viewer.ts:212` | `getAtmosphere` — always returns null when no style section |
+
+---
+
+## BUG: `mapFlagAtmosphere: false` does not suppress the background sky shader
+
+**Opened:** 2026-04-24
+**Status:** deferred
+
+### Symptom
+
+Setting `mapFlagAtmosphere: false` in the style config suppresses terrain haze
+but leaves the background sky shader active. The sky is always visible whenever
+the style has an `atmosphere` section, regardless of the flag.
+
+### Root cause (suspected)
+
+The flag likely gates only the terrain haze pass. The background sky is a
+separate render pass that checks only whether an atmosphere subsystem exists,
+not the `mapFlagAtmosphere` flag.
+
+### Expected behaviour
+
+`mapFlagAtmosphere: false` should mean no atmosphere at all — no terrain haze
+and no background sky. The flag should control both components together.
+
+### Observed during
+
+Relief-lab demo investigation: injecting a default `atmosphere` section into a
+style that had `mapFlagAtmosphere: false` caused the background sky to appear
+unconditionally. Toggling `mapFlagAtmosphere` via `setRenderingOptions` had no
+effect on the background.
+
+---
+
 ## BUG: control-mode listens for `mousewheel` instead of `wheel`
 
 **Opened:** 2026-04-19
