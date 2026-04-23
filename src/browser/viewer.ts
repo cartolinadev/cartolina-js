@@ -232,11 +232,6 @@ class Viewer {
                 );
                 map.atmosphere.createBuffers();
                 if (map.style) map.style.styleSpec.atmosphere = spec;
-                // programs.tile and programs.background are lazily cached without
-                // the uboAtm binding when atmosphere was absent; invalidate them
-                // so they recompile with it now.
-                map.renderer.programs.tile = undefined;
-                map.renderer.programs.background = undefined;
                 map.markDirty();
             }
             return;
