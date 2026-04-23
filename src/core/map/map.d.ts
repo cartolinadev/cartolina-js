@@ -47,6 +47,7 @@ export default class Map {
     url: MapUrl;
     config: {
         mapDMapDilatePx?: number;
+        mapFlagAtmosphere?: boolean;
     };
 
     position: MapPosition;

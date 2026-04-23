@@ -200,18 +200,44 @@ class Viewer {
     /**
      * Sets the atmosphere rendering parameters.
      *
-     * @param spec atmosphere specification; partial updates are merged
+     * If the loaded style has no `atmosphere` section the atmosphere subsystem
+     * is created on demand, provided the reference frame body and atmdensity
+     * service are available. After this call `getAtmosphere()` reflects the
+     * new values and `mapFlagAtmosphere` controls visibility as expected.
      *
-     * BUG: if the loaded style has no `atmosphere` section, `this._map.atmosphere`
-     * is null and the optional-chain silently discards the call. `getAtmosphere()`
-     * then continues to return null, giving no indication that the set failed.
-     * Styles without an atmosphere section must have one injected before map
-     * creation for `setAtmosphere` / `getAtmosphere` to work at all.
+     * @param spec atmosphere specification; merged with body defaults
      */
     setAtmosphere(spec: Atmosphere.Specification): void {
 
         if (this._guard()) return;
-        this._map?.atmosphere?.setRuntimeParameters(spec);
+        const map = this._map;
+        if (!map) return;
+
+        if (!map.atmosphere) {
+            const body = map.referenceFrame?.body;
+            const services = map.services;
+            if (body?.atmosphere && services?.atmdensity) {
+                const fullSpec = {
+                    visibilityToEyeDistance: 5.0,
+                    edgeDistanceToEyeDistance: 1.0,
+                    maxVisibility: 1e6,
+                    ...body.atmosphere,
+                    ...spec,
+                } as Atmosphere.Specification;
+                map.atmosphere = new Atmosphere(
+                    fullSpec,
+                    map.getPhysicalSrs(),
+                    map.url.makeUrl(services.atmdensity.url, {}),
+                    map,
+                );
+                map.atmosphere.createBuffers();
+                if (map.style) map.style.styleSpec.atmosphere = spec;
+                map.markDirty();
+            }
+            return;
+        }
+
+        map.atmosphere.setRuntimeParameters(spec);
     }
 
     /** Returns the current runtime atmosphere rendering parameters. */

@@ -3,7 +3,7 @@
 ## BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
 
 **Opened:** 2026-04-24
-**Status:** deferred
+**Status:** fixed
 
 ### Symptom
 
@@ -56,7 +56,7 @@ style declared.
 ## BUG: `mapFlagAtmosphere: false` does not suppress the background sky shader
 
 **Opened:** 2026-04-24
-**Status:** deferred
+**Status:** fixed
 
 ### Symptom
 
