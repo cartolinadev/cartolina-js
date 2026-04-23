@@ -201,6 +201,12 @@ class Viewer {
      * Sets the atmosphere rendering parameters.
      *
      * @param spec atmosphere specification; partial updates are merged
+     *
+     * BUG: if the loaded style has no `atmosphere` section, `this._map.atmosphere`
+     * is null and the optional-chain silently discards the call. `getAtmosphere()`
+     * then continues to return null, giving no indication that the set failed.
+     * Styles without an atmosphere section must have one injected before map
+     * creation for `setAtmosphere` / `getAtmosphere` to work at all.
      */
     setAtmosphere(spec: Atmosphere.Specification): void {
 
