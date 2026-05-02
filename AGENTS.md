@@ -230,6 +230,34 @@ keyboard or mouse interaction) surface as `pageerror` events, not as
 `console` errors. A test that only monitors the `console` channel will
 silently miss these failures.
 
+**Trace divergence empirically, step by step.** When two branches
+produce different output, find the earliest point where they first
+differ — not the last. Confirm the divergence with a log, then move
+one step earlier. Repeat until you reach the code change that causes
+it. Do NOT reason backward from a user-reported symptom without first
+confirming it yourself via diagnostics.
+
+**When tracing a specific data entity, instrument every step it
+touches.** Log every function it passes through, every check applied
+to it, every value computed from it. Run both branches. Read the full
+output side by side. Only after reading the data should you form any
+hypothesis. "It might be X" before reading the logs is speculation —
+stop and instrument instead.
+
+**Always see the visual output yourself before drawing conclusions.**
+Take a screenshot and look at it. Do not rely on user description alone.
+
+**Diagnose by instrument, not by speculation.** One targeted log line
+beats a page of analysis. Add `console.log` to the live code (webpack
+reloads automatically), capture output via a Playwright script, and
+reason from numbers.
+
+**`update session log` command.** When the user types this, write a
+new entry in `docs/wiki/session-log.md` covering: goal, work done,
+current state, open questions, and a link to the plan file. Keep it
+brief but self-contained — a future agent picking up mid-session must
+be able to orient from it alone.
+
 3. A URL **renders correctly** when all of the following hold:
    - No network errors (failed tile or resource fetches).
 

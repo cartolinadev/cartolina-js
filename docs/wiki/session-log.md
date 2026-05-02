@@ -1,5 +1,87 @@
 # Session log
 
+## 2026-05-03 — Resurrect feature/render-targets (in progress)
+
+### Goal
+
+Resurrect the orphan branch `feature/render-targets` (RenderTarget
+abstraction refactor). The branch was abandoned due to a visual
+regression in the label hierarchy.
+
+Plan:
+`/home/prochazka/.claude/plans/there-is-an-orphan-frolicking-noodle.md`
+
+### Branches
+
+- `fix/render-targets` — cherry-pick of `ce20f7a` onto main, with the
+  `canvasCssSize` fix and all diagnostic instrumentation.
+- `diag/main-labels` — main HEAD with identical diagnostic
+  instrumentation (used as the correct-behavior reference).
+
+### Diagnostic setup
+
+Viewport: **1280×800** (Playwright headless). User's viewport is
+1920×1080; at 1280×800 Brennkogel appears on both branches (not a
+useful regression indicator). Use **Figerhorn** and **Kreuzwandspitze**
+as the regression indicators at 1280×800.
+
+Test script: `test/diag-labels.js` — loads the `complex-terrain` URL
+on the dev server, waits 12 s, prints console output.
+
+### What has been established empirically
+
+**Feature IDs:**
+- Figerhorn = OSM id **1712141446**, prominence 50.7
+- Kreuzwandspitze = OSM id **2667064383**, prominence 51.2
+
+**Sort order** (`radixSortFeatures` output, `featureCacheSize=209`):
+Both branches produce **identical** top-25. Figerhorn ranks #10,
+Kreuzwandspitze ranks #12. The bug is NOT in the sort.
+
+**Placement loop** (`gmap6-place` log, logged inside `processGMap6`
+for every feature when `featureCacheSize=209`):
+- `diag/main-labels`: Figerhorn **OK** at cnt=15, Kreuzwandspitze
+  **OK** at cnt=17. `pp=[195,468]`, `rect=[161,478,230,524]`.
+- `fix/render-targets` (BEFORE rmap.js diag): Figerhorn **SKIP** at
+  cnt=14, Kreuzwandspitze **SKIP** at cnt=15. Same `pp` and `rect`.
+- `fix/render-targets` (AFTER adding `rmap-clear` and `rmap-fig` log
+  to `rmap.js`): Figerhorn **OK** at cnt=15. Regression apparently
+  resolved — but this needs verification; the cause is not yet
+  confirmed.
+
+**Key observation:** Adding console.log instrumentation to `rmap.js`
+(no logic changes) coincided with Figerhorn becoming OK. This may
+indicate:
+- A non-determinism / flakiness in the regression.
+- OR the rmap.js recompile forced a full bundle rebuild that picked up
+  a previously-stale gmap.js.
+- OR the regression was already fixed and earlier tests were comparing
+  against a stale bundle.
+
+**rmap.clear() reads `renderer.curSize`** (lines 36-37, 46, 52-53
+in `rmap.js`). On `fix/render-targets`, `curSize` is a getter
+returning `currentRenderTarget.logicalSize`. If `rmap.clear()` fires
+while the hitmap render target (1024×1024) is active, it sets wrong
+`sx2`, `sy2`, `lx`, `ly` for all subsequent collision checks. This
+was the leading hypothesis for the regression mechanism, but it has
+not yet been confirmed or ruled out empirically.
+
+### What still needs to be done
+
+1. Confirm whether the regression is truly fixed or the last test run
+   was against a stale bundle.
+2. If still present: confirm via `rmap-clear` logs what `curSize`
+   the rmap is cleared with on fix/render-targets vs diag/main-labels.
+3. If curSize is wrong at clear time: fix `rmap.clear()` to use
+   `renderer.canvasCssSize` instead of `renderer.curSize`.
+4. Take clean screenshots on both branches and verify Figerhorn and
+   Kreuzwandspitze appear on fix/render-targets.
+5. Take a full screenshot suite (simple-terrain, complex-terrain,
+   full-terrain) and verify no regressions.
+6. Clean up all diagnostic instrumentation before merging.
+7. Delete `feature/render-targets` and `diag/main-labels` after
+   fix/render-targets is confirmed clean.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
