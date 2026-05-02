@@ -95,6 +95,16 @@ Parallel `test/screenshot.js` runs repeatedly triggered intermittent CDN
 tile/resource fetch failures. Added an `AGENTS.md` note to run canonical
 screenshot captures sequentially until that behavior is diagnosed.
 
+### Rendering size documentation
+
+Added `rendering-sizes.md` to document the renderer's size vocabulary:
+canvas layout size, physical backing size, CSS visual scale, render-target
+viewport size, render-target logical size, and `renderer.curSize`.
+The page records the intentional reveal-style behavior where label
+placement stays in pre-transform canvas coordinates while pixel-sized
+visual features compensate with `visibleScale()` so labels keep stable
+visible sizes under CSS transforms.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

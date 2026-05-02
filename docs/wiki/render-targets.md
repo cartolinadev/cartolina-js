@@ -28,3 +28,7 @@ The legacy `Map.renderToImage()` path used a temporary power-of-two
 framebuffer as a screenshot/readback workaround. It had no internal demo
 or test callers and was removed from `fix/render-targets`; it should not
 be used as the model for future multipass rendering.
+
+See `rendering-sizes.md` for the precise relationship between
+`canvasCssSize`, `pixelSize`, render-target viewport size, render-target
+logical size, `curSize`, and CSS transform compensation.
