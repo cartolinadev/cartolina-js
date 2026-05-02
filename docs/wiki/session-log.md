@@ -89,6 +89,12 @@ Removed with it:
 - the `texture` mode in `Renderer.switchToFramebuffer()`
 - unused power-of-two helpers in `utils.ts`
 
+### Screenshot test note
+
+Parallel `test/screenshot.js` runs repeatedly triggered intermittent CDN
+tile/resource fetch failures. Added an `AGENTS.md` note to run canonical
+screenshot captures sequentially until that behavior is diagnosed.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

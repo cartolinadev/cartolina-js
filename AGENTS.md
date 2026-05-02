@@ -214,6 +214,11 @@ Screenshots are saved to `/tmp/screenshots/<id>-dev.png` and
 before capturing (same quiet-window strategy as the perf runner) and
 prints any console or network errors it finds.
 
+Run `test/screenshot.js` entries sequentially. Do not launch multiple
+canonical screenshot captures in parallel; concurrent runs currently
+cause intermittent remote tile/resource fetch failures that obscure the
+rendering signal.
+
 Custom Playwright-based diagnostic or test scripts may be created and
 run against the dev server without asking for permission. Always listen
 to **both** `page.on('console', ...)` and `page.on('pageerror', ...)`.
