@@ -105,6 +105,14 @@ placement stays in pre-transform canvas coordinates while pixel-sized
 visual features compensate with `visibleScale()` so labels keep stable
 visible sizes under CSS transforms.
 
+### Offscreen render-pass backlog
+
+Added a backlog entry for the future offscreen render-pass API. It keeps
+`GpuDevice.setRenderTarget()` as a low-level binding operation and calls
+for higher-level pass setup to distinguish screen auxiliary targets from
+independent targets, so shadow maps, selective blur, zenith rendering,
+and future multipass work do not reintroduce hidden camera mutations.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

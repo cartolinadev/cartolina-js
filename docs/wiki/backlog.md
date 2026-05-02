@@ -118,6 +118,79 @@ Bugs and deferred work that are not yet scheduled.
 
 ---
 
+## FEATURE: explicit offscreen render-pass API
+
+**Opened:** 2026-05-03
+**Status:** deferred
+
+### Motivation
+
+The `GpuDevice.RenderTarget` abstraction is the right low-level direction
+for multipass rendering: it separates framebuffer binding and viewport
+state from the canvas element. The next layer above it must make camera
+and logical-size intent explicit.
+
+Upcoming renderer work will need offscreen rendering for:
+
+- shadow maps
+- selective blur and postprocessing ping-pong buffers
+- zenith rendering for direct processing of OpenMapTiles data instead of
+  server-side translations
+- masks, object IDs, and G-buffer-like data for the current view
+- generated lookup, normal, atmosphere, or compositing textures
+
+The render-target regression showed why this distinction matters:
+`updateLogicalSize()` silently mixed framebuffer size, camera aspect, and
+screen-space matrix updates. Routing a square hitmap through it changed
+the screen camera aspect to `1`, so auxiliary depth data diverged from
+screen-coordinate label placement and hit testing.
+
+### Suggested direction
+
+Keep `GpuDevice.setRenderTarget()` as the low-level GPU operation. It
+should bind the framebuffer, store the active target, and call
+`gl.viewport()`. Higher-level render-pass setup should name the intended
+projection policy.
+
+Two useful categories:
+
+- **Screen auxiliary target:** preserves the current screen camera.
+  Examples: depth hitmaps, geodata hitmaps, object IDs, masks, and
+  G-buffer data for the current view.
+- **Independent target:** uses target-native projection or no camera at
+  all. Examples: shadow maps, environment maps, postprocessing buffers,
+  blur passes, lookup textures, generated normal maps, atmosphere
+  textures, and compositing buffers.
+
+The API could express this as an explicit pass target:
+
+```ts
+type RenderPassTarget = {
+    texture: GpuTexture;
+    viewportSize: Size2;
+    logicalSize: Size2;
+    cameraMode: 'screen' | 'target';
+};
+```
+
+Alternatively, split setup into named paths:
+
+```ts
+setScreenAuxTarget(target);
+setIndependentTarget(target);
+```
+
+The important rule is that multipass code must not infer camera behavior
+from framebuffer dimensions. Target binding, camera aspect, and
+screen-space matrices are separate decisions.
+
+### Related notes
+
+See `render-targets.md` for the current auxiliary-buffer policy and
+`rendering-sizes.md` for the size vocabulary used by render targets.
+
+---
+
 ## DOCS: split wiki into a more hierarchical reference manual
 
 **Opened:** 2026-04-15
