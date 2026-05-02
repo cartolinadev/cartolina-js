@@ -120,6 +120,11 @@ legacy code, not a recommended size source for new renderer work. Do not
 use `curSize` in new code; choose explicit canvas, render-target logical,
 viewport, or visual-scale sizes according to intent.
 
+Also clarified `RenderTarget.logicalSize`: it is the width and height of
+the target-local 2D coordinate system used when mapping projected NDC
+coordinates into draw positions and when building `imageProjectionMatrix`,
+not another name for physical framebuffer pixels.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

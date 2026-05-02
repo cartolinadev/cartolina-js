@@ -49,7 +49,13 @@ Every `GpuDevice.RenderTarget` has two sizes:
 
 `RenderTarget.logicalSize`
 
-- The coordinate-space size for the active target.
+- The width and height of the target-local 2D coordinate system used by
+  renderer projection and screen-space draw helpers.
+- It is the size used when converting projected NDC coordinates into
+  target-local positions: `x = (ndcX + 1) * 0.5 * logicalWidth`,
+  `y = (1 - ndcY) * 0.5 * logicalHeight`.
+- It is also the size used by `updateLogicalSize()` to build
+  `imageProjectionMatrix`.
 - For the canvas target, this is `Renderer.canvasCssSize`.
 - For current auxiliary hitmap targets, this defaults to the framebuffer
   texture size.
