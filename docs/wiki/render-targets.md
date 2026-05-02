@@ -23,3 +23,8 @@ Auxiliary passes should therefore bind their framebuffer and viewport with
 screen camera. A future independent render-to-texture pass should make its
 camera/logical-size policy explicit instead of reusing the auxiliary
 hitmap setup.
+
+The legacy `Map.renderToImage()` path used a temporary power-of-two
+framebuffer as a screenshot/readback workaround. It had no internal demo
+or test callers and was removed from `fix/render-targets`; it should not
+be used as the model for future multipass rendering.

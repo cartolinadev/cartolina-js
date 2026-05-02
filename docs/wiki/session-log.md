@@ -62,10 +62,10 @@ Legacy rendering changed `curSize` to the hitmap size and updated the
 camera, but left the screen camera aspect intact. That is why the
 depth map no longer matched screen-coordinate label depth checks.
 
-Fix: bind the framebuffer target and viewport for `depth`, `geo`,
-`geo2`, and `texture` passes, but do not call `updateLogicalSize()` for
-those offscreen passes. The base canvas pass remains responsible for
-syncing the screen logical size and camera aspect.
+Fix: bind the framebuffer target and viewport for `depth`, `geo`, and
+`geo2` passes, but do not call `updateLogicalSize()` for those offscreen
+passes. The base canvas pass remains responsible for syncing the screen
+logical size and camera aspect.
 
 Diagnostics were removed after the fix.
 
@@ -74,6 +74,20 @@ Diagnostics were removed after the fix.
 Added `render-targets.md` to document the render-target ownership rule:
 auxiliary hitmap buffers are storage for the current screen view, so they
 bind their framebuffer and viewport without changing camera aspect.
+
+### Legacy render-to-image removal
+
+Removed the unused legacy `Map.renderToImage()` path. It rendered the
+current map view into a temporary power-of-two framebuffer texture and
+read pixels back from it, but no demos, tests, or browser UI called it.
+The real screenshot shortcut uses `Renderer.saveScreenshot()` and
+`rendererAllowScreenshots`.
+
+Removed with it:
+- `MapInterface.renderToImage()`
+- `MapDraw.drawToTexture()`
+- the `texture` mode in `Renderer.switchToFramebuffer()`
+- unused power-of-two helpers in `utils.ts`
 
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 

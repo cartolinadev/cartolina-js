@@ -565,14 +565,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     }
 };
 
-MapDraw.prototype.drawToTexture = function(texture) {
-    this.renderer.switchToFramebuffer('texture', texture);
-    this.drawChannel = 0;
-    this.map.renderSlots.processRenderSlots();
-    this.renderer.switchToFramebuffer('base');
-};
-
-
 /**
  * Triggered by map.getScreenDepth and map.getHitcoords
  */

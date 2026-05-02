@@ -1693,8 +1693,7 @@ hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
 
 
 switchToFramebuffer(
-    type: 'base' | 'depth' | 'geo' | 'geo2' | 'texture',
-    texture?: GpuTexture,
+    type: 'base' | 'depth' | 'geo' | 'geo2',
 ) {
     var gl = this.gpu.gl, size;
     
@@ -1759,27 +1758,6 @@ switchToFramebuffer(
         this.camera.update();
         break;
 
-    case 'texture':
-        console.log('texture (warn: untested path)');
-
-        if (!texture) throw new Error('texture required');
-
-        const textureTarget = this.createFramebufferRenderTarget(
-            texture, [texture.width, texture.height]
-        );
-
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.enable(gl.DEPTH_TEST);
-
-        this.gpu.setRenderTarget(textureTarget);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        this.camera.update();
-        this.onlyDepth = false;
-        this.onlyHitLayers = false;
-        this.onlyAdvancedHitLayers = false;
-        this.advancedPassNeeded = false;
-        break;        
     }
 };
 

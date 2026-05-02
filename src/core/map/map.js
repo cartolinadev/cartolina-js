@@ -19,7 +19,6 @@ import MapStats from './stats';
 import MapSurfaceSequence from './surface-sequence';
 import MapUrl from './url';
 import * as Illumination from './illumination';
-import GpuTexture from '../renderer/gpu/texture';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
 
@@ -1094,46 +1093,6 @@ Map.prototype.markDirty = function() {
 
 Map.prototype.getScreenRay = function(screenX, screenY) {
     return this.renderer.getScreenRay(screenX, screenY);
-};
-
-
-Map.prototype.renderToImage = function(texture) {
-    //var renderer = this.renderer;
-    var canvas = this.renderer.gpu.canvas;
-    var w = canvas.width;
-    var h = canvas.height;
-    var w2 = utils.fitToPowerOfTwo(w);
-    var h2 = utils.fitToPowerOfTwo(h);
-
-    var data = new Uint8Array( w2 * h2 * 4 );
-
-    var texture = new GpuTexture(this.renderer.gpu);
-    texture.createFromData(w2, h2, data);
-    texture.createFramebuffer(w2, h2);
-
-    this.draw.drawToTexture(texture);
-
-    data = texture.readFramebufferPixels(0, 0, w, h);
-
-    texture.kill();
-
-    //flip vertically
-    var data2 = new Uint8Array( w * h * 4 );
-    for (var y = 0; y < h; y++) {
-        var index = y * w * 4;
-        var index2 = (h - y - 1) * w * 4; 
-
-        for (var x = 0; x < w; x++) {
-            data2[index2] = data[index];
-            data2[index2+1] = data[index+1];
-            data2[index2+2] = data[index+2];
-            data2[index2+3] = data[index+3];
-            index += 4;
-            index2 += 4;
-        }
-    }
-
-    return { 'width': w, 'height': h, 'data': data2};
 };
 
 

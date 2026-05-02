@@ -427,11 +427,6 @@ MapInterface.prototype.getScreenRay = function(screenX, screenY) {
 };
 
 
-MapInterface.prototype.renderToImage = function() {
-    return this.map.renderToImage();
-};
-
-
 MapInterface.prototype.getCurrentGeometry = function() {
     return this.map.getCurrentGeometry();
 };

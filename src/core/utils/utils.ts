@@ -156,21 +156,6 @@ export function stringifyFunction(fn: (...args: any[]) => any) {
 };
 
 
-export function isPowerOfTwo(value: number) {
-    return (value & (value - 1)) === 0 && value !== 0;
-};
-
-
-export function nearestPowerOfTwo(value: number) {
-    return Math.pow(2, Math.round(Math.log(value) / Math.LN2));
-};
-
-
-export function fitToPowerOfTwo(value: number) {
-    return Math.pow(2, Math.ceil(Math.log(value) / Math.LN2));
-};
-
-
 export function getHash(str: string) {
     if (!str || str.length === 0) {
         return 0;
@@ -679,5 +664,4 @@ export function isIos(): boolean {
 
     return classicIOS || iPadOS13Plus;
 }
-
 
