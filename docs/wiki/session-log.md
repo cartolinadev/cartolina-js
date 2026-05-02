@@ -1,6 +1,6 @@
 # Session log
 
-## 2026-05-03 — Resurrect feature/render-targets (in progress)
+## 2026-05-03 — Resurrect feature/render-targets
 
 ### Goal
 
@@ -14,7 +14,7 @@ Plan:
 ### Branches
 
 - `fix/render-targets` — cherry-pick of `ce20f7a` onto main, with the
-  `canvasCssSize` fix and all diagnostic instrumentation.
+  render-target fix and diagnostics during investigation.
 - `diag/main-labels` — main HEAD with identical diagnostic
   instrumentation (used as the correct-behavior reference).
 
@@ -42,45 +42,32 @@ Kreuzwandspitze ranks #12. The bug is NOT in the sort.
 for every feature when `featureCacheSize=209`):
 - `diag/main-labels`: Figerhorn **OK** at cnt=15, Kreuzwandspitze
   **OK** at cnt=17. `pp=[195,468]`, `rect=[161,478,230,524]`.
-- `fix/render-targets` (BEFORE rmap.js diag): Figerhorn **SKIP** at
+- `fix/render-targets` before the fix: Figerhorn **SKIP** at
   cnt=14, Kreuzwandspitze **SKIP** at cnt=15. Same `pp` and `rect`.
-- `fix/render-targets` (AFTER adding `rmap-clear` and `rmap-fig` log
-  to `rmap.js`): Figerhorn **OK** at cnt=15. Regression apparently
-  resolved — but this needs verification; the cause is not yet
-  confirmed.
-
-**Key observation:** Adding console.log instrumentation to `rmap.js`
-(no logic changes) coincided with Figerhorn becoming OK. This may
-indicate:
-- A non-determinism / flakiness in the regression.
-- OR the rmap.js recompile forced a full bundle rebuild that picked up
-  a previously-stale gmap.js.
-- OR the regression was already fixed and earlier tests were comparing
-  against a stale bundle.
+- `fix/render-targets` after preserving the screen camera aspect for
+  offscreen passes: Figerhorn **OK** at cnt=15, Kreuzwandspitze
+  **OK** at cnt=17 through late settled frames.
 
 **rmap.clear() reads `renderer.curSize`** (lines 36-37, 46, 52-53
 in `rmap.js`). On `fix/render-targets`, `curSize` is a getter
-returning `currentRenderTarget.logicalSize`. If `rmap.clear()` fires
-while the hitmap render target (1024×1024) is active, it sets wrong
-`sx2`, `sy2`, `lx`, `ly` for all subsequent collision checks. This
-was the leading hypothesis for the regression mechanism, but it has
-not yet been confirmed or ruled out empirically.
+returning `currentRenderTarget.logicalSize`. The leading hypothesis was
+that `rmap.clear()` was seeing the 1024×1024 hitmap target. Logging
+ruled this out: failing frames cleared the rmap at `1280×800`.
 
-### What still needs to be done
+The actual regression was in `Renderer.switchToFramebuffer()`.
+The render-target refactor routed all offscreen targets through
+`updateLogicalSize()`, which calls `camera.setAspect(width / height)`.
+For square hitmap targets this changed the camera aspect to `1`.
+Legacy rendering changed `curSize` to the hitmap size and updated the
+camera, but left the screen camera aspect intact. That is why the
+depth map no longer matched screen-coordinate label depth checks.
 
-1. Confirm whether the regression is truly fixed or the last test run
-   was against a stale bundle.
-2. If still present: confirm via `rmap-clear` logs what `curSize`
-   the rmap is cleared with on fix/render-targets vs diag/main-labels.
-3. If curSize is wrong at clear time: fix `rmap.clear()` to use
-   `renderer.canvasCssSize` instead of `renderer.curSize`.
-4. Take clean screenshots on both branches and verify Figerhorn and
-   Kreuzwandspitze appear on fix/render-targets.
-5. Take a full screenshot suite (simple-terrain, complex-terrain,
-   full-terrain) and verify no regressions.
-6. Clean up all diagnostic instrumentation before merging.
-7. Delete `feature/render-targets` and `diag/main-labels` after
-   fix/render-targets is confirmed clean.
+Fix: bind the framebuffer target and viewport for `depth`, `geo`,
+`geo2`, and `texture` passes, but do not call `updateLogicalSize()` for
+those offscreen passes. The base canvas pass remains responsible for
+syncing the screen logical size and camera aspect.
+
+Diagnostics were removed after the fix.
 
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 

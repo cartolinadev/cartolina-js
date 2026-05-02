@@ -716,7 +716,6 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
     var depthOffset = -renderer.config.mapFeaturesReduceFactor3;
     var depthParams = null;
 
-    if (!renderer.onlyHitLayers) console.log('processGMap6 maxFeatures:', maxFeatures, 'featureCacheSize:', renderer.gmapIndex, 'params:', renderer.config.mapFeaturesReduceParams);
     renderer.debugStr = '<br>featuresPerScr: ' + maxFeatures;
 
     //get top features
@@ -731,9 +730,6 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
     //filter features and sort them by importance
     radixSortFeatures(renderer, featureCache, featureCacheSize, featureCache2);
 
-    if (!renderer.onlyHitLayers && featureCacheSize === 209)
-        console.log('gmap6-call: start geoRenderCounter=' + renderer.geoRenderCounter);
-
     for (i = featureCacheSize - 1; i >= 0; i--) {
         feature = featureCache[i];
         job = feature[0];
@@ -747,27 +743,13 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
 
             depthParams = depthTest ? [pp[0],pp[1]+feature[1],job.reduce,depthOffset] : null;
 
-            var _placed = false;
             if (job.type == vts.JOB_LINE_LABEL) {
                 if (renderer.rmap.addLineLabel(job.lastSubJob, position)) {
                     featureCount++;
-                    _placed = true;
                 }
             } else {
                 if (renderer.rmap.addRectangle(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3], feature[7], job.lastSubJob, true, depthParams)) {
                     featureCount++;
-                    _placed = true;
-                }
-            }
-            if (!renderer.onlyHitLayers && featureCacheSize === 209) {
-                console.log('gmap6-place:', (job.id||'?').toString().substring(0,12),
-                    (_placed?'OK':'SKIP'),
-                    'pp=[' + Math.round(pp[0]) + ',' + Math.round(pp[1]) + ']',
-                    'rect=[' + Math.round(pp[0]+o[0]) + ',' + Math.round(pp[1]+o[1]) + ',' + Math.round(pp[0]+o[2]) + ',' + Math.round(pp[1]+o[3]) + ']',
-                    'cnt=' + featureCount);
-                if (!_placed && job.id == 1712141446) {
-                    var _blocked = renderer.rmap.findOverlapping(pp[0]+o[0], pp[1]+o[1], pp[0]+o[2], pp[1]+o[3]);
-                    console.log('gmap6-blocker:', JSON.stringify(_blocked));
                 }
             }
 

@@ -33,8 +33,6 @@ var RendererRMap = function(renderer, blockSize, maxBlockRectangles) {
 RendererRMap.prototype.clear = function() {
     var renderer = this.renderer;
 
-    console.log('rmap-clear: curSize=[' + renderer.curSize[0] + ',' + renderer.curSize[1] + '] geoRenderCounter=' + renderer.geoRenderCounter + ' onlyHitLayers=' + renderer.onlyHitLayers);
-
     this.sx2 = renderer.curSize[0];
     this.sy2 = renderer.curSize[1];
 
@@ -226,8 +224,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
     var x, y, i, index, blockRectangles, blockRectanglesCount,
         rectangleIndex, t, renderer = this.renderer;
 
-    var _fig = (x1 > 155 && x1 < 170 && y1 > 470 && y1 < 485);
-
     if (this.drawAllLabels) {
         return true;
     }
@@ -237,30 +233,24 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
 
     var y3 = y2 + subjob[1]; //add stick shift
 
-    if (_fig) console.log('rmap-fig: x1=' + Math.round(x1) + ' x2=' + Math.round(x2) + ' y1=' + Math.round(y1) + ' y3=' + Math.round(y3) + ' sx1=' + this.sx1 + ' sx2=' + this.sx2 + ' sy1=' + this.sy1 + ' sy2=' + this.sy2 + ' lx=' + this.lx + ' ly=' + this.ly + ' any=' + any);
-
     if (this.benevolentMargins) {
         //screen including credits
         if (x2 < this.sx1 || x1 > this.sx2 || y3 < this.sy1 || y1 > this.sy2) {
-            if (_fig) console.log('rmap-fig: FAIL benevolent bounds');
             return false;
         }
     } else {
         //screen including credits
         if (x1 < this.sx1 || x2 > this.sx2 || y1 < this.sy1 || y3 > this.sy2) {
-            if (_fig) console.log('rmap-fig: FAIL bounds x1<sx1=' + (x1<this.sx1) + ' x2>sx2=' + (x2>this.sx2) + ' y1<sy1=' + (y1<this.sy1) + ' y3>sy2=' + (y3>this.sy2));
             return false;
         }
 
         //compass
         if ((renderer.marginFlags & 1) && x1 < this.cx2 && x2 > 0 && y1 <= this.sx2 && y3 > this.cy1) {
-            if (_fig) console.log('rmap-fig: FAIL compass');
             return false;
         }
 
         //search bar
         if ((renderer.marginFlags & 2) && x1 < this.bx2 && x2 > 0 && y1 <= this.by2 && y3 > 0) {
-            if (_fig) console.log('rmap-fig: FAIL searchbar');
             return false;
         }
     }
@@ -271,7 +261,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
     var yy2 = Math.floor(y2 * this.blockSizeFactor);
 
     if (xx2 < 0 || yy2 < 0 || xx1 >= this.lx || yy1 >= this.ly) {
-        if (_fig) console.log('rmap-fig: FAIL block bounds xx1=' + xx1 + ' xx2=' + xx2 + ' yy1=' + yy1 + ' yy2=' + yy2 + ' lx=' + this.lx + ' ly=' + this.ly);
         return false;
     }
 
@@ -305,7 +294,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
                     y1 < rectangles[rectangleIndex + 3] && y2 > rectangles[rectangleIndex + 1]) {
 
                     if (any) {
-                        if (_fig) console.log('rmap-fig: FAIL collision with rect=[' + Math.round(rectangles[rectangleIndex+0]) + ',' + Math.round(rectangles[rectangleIndex+1]) + ',' + Math.round(rectangles[rectangleIndex+2]) + ',' + Math.round(rectangles[rectangleIndex+3]) + ']');
                         return false;
                     }
 
@@ -324,7 +312,6 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
             }
 
             if ((blockRectanglesCount + 1) >= this.maxBlockRectangles) {
-                if (_fig) console.log('rmap-fig: FAIL block capacity blockRectanglesCount=' + blockRectanglesCount + ' max=' + this.maxBlockRectangles);
                 return false;
             }
 
@@ -789,4 +776,3 @@ RendererRMap.prototype.processRectangles = function(gpu, gl, renderer, screenPix
 };
 
 export default RendererRMap;
-

@@ -1727,7 +1727,6 @@ switchToFramebuffer(
         this.gpu.setRenderTarget(depthTarget);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        this.updateLogicalSize(depthTarget.logicalSize);
         this.camera.update();
         this.onlyDepth = true;
         this.onlyHitLayers = false;
@@ -1750,7 +1749,6 @@ switchToFramebuffer(
         this.gpu.setRenderTarget(geoTarget);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        this.updateLogicalSize(geoTarget.logicalSize);
         this.onlyHitLayers = true;
         this.advancedPassNeeded = false;
         this.onlyAdvancedHitLayers = (type == 'geo2');
@@ -1772,7 +1770,6 @@ switchToFramebuffer(
         this.gpu.setRenderTarget(textureTarget);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        this.updateLogicalSize(textureTarget.logicalSize);
         this.camera.update();
         this.onlyDepth = false;
         this.onlyHitLayers = false;
