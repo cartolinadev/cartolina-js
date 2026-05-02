@@ -60,7 +60,7 @@ Every `GpuDevice.RenderTarget` has two sizes:
 - A legacy compatibility surface for old renderer code.
 - During the base canvas pass, it is the canvas CSS layout size.
 - During auxiliary framebuffer passes, it is the framebuffer logical size.
-- New code should avoid it and choose an explicit size source instead.
+- Do not use it in new code. Choose an explicit size source instead.
 
 ## Base Canvas Pass
 
@@ -132,5 +132,5 @@ post-transform visible scale.
 - Use `viewportSize` for GL viewport/backing-storage dimensions.
 - Use `visibleScale()` when a pixel-sized visual feature must remain
   stable under CSS transforms.
-- Treat `curSize` as a backward-compatibility getter for existing legacy
-  code, not as the model for new renderer code.
+- Do not use `curSize` in new code. It is a backward-compatibility getter
+  for existing legacy code, not part of the new renderer size model.

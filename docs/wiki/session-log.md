@@ -116,9 +116,9 @@ and future multipass work do not reintroduce hidden camera mutations.
 ### `curSize` clarification
 
 Clarified that `renderer.curSize` is a backward-compatibility getter for
-legacy code, not a recommended size source for new renderer work. New code
-should choose explicit canvas, render-target logical, viewport, or visual
-scale sizes according to intent.
+legacy code, not a recommended size source for new renderer work. Do not
+use `curSize` in new code; choose explicit canvas, render-target logical,
+viewport, or visual-scale sizes according to intent.
 
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
