@@ -1727,6 +1727,10 @@ switchToFramebuffer(
         this.gpu.setRenderTarget(depthTarget);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+        // The depth and geodata hitmaps are auxiliary buffers for the
+        // current screen view. Their square texture size is storage
+        // resolution, not camera aspect. The base pass owns
+        // `updateLogicalSize()` so these buffers keep the screen camera.
         this.camera.update();
         this.onlyDepth = true;
         this.onlyHitLayers = false;

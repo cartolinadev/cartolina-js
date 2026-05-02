@@ -69,6 +69,12 @@ syncing the screen logical size and camera aspect.
 
 Diagnostics were removed after the fix.
 
+### Follow-up documentation
+
+Added `render-targets.md` to document the render-target ownership rule:
+auxiliary hitmap buffers are storage for the current screen view, so they
+bind their framebuffer and viewport without changing camera aspect.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

@@ -21,6 +21,8 @@ then branch into more specific documents as needed.
 - `label-styling-engine.md` — reference notes about the shared
   lettering style engine, expression domains, and textured line
   patterns
+- `render-targets.md` — render-target ownership, auxiliary framebuffer
+  policy, and camera/logical-size rules
 - `trajectory-behavior.md` — flight duration and phase structure in
   `MapTrajectory`: base rules, nadir-departure patch, and
   extent-proximity short-flight patch
