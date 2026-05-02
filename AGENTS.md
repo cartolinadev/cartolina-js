@@ -436,6 +436,14 @@ its name and signature, and where a JSDoc comment is absent. This
 applies even when the function is not otherwise being changed. Do not
 add routine boilerplate to self-evident code; use judgement.
 
+**Do not silently drop or rewrite documentation as a side effect of
+a structural change.** When restructuring or moving code (rename,
+move, extract), carry the existing JSDoc over unchanged — unless the
+change itself makes the original wording incorrect, in which case
+update it to match the new reality. The test: does the documentation
+still accurately describe the code after the change? If yes, preserve
+it. If no, fix it. Never silently discard accurate documentation.
+
 Do not use `@link` or any other JSDoc tags that produce hyperlinks.
 TypeScript IDEs do not render them. Reference other symbols by name
 in backtick code spans instead: `` `MyClass.myMethod` ``.

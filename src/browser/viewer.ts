@@ -33,28 +33,6 @@ import type {
 
 import type { vec3 } from '../core/utils/math';
 
-/**
- * The internal config shape passed into `Viewer`.
- *
- * This exists only as constructor glue: `Viewer` has a single constructor,
- * but the library still needs to support both the preferred `map()` entry
- * point and the legacy `browser()` entry point. Their structural inputs are
- * flattened here into one temporary internal object shape.
- */
-export type ViewerConfig = {
-
-    [key: string]:
-        | MapRuntimeOptionValue
-        | MapPosition
-        | MapStyle.StyleSpecification
-        | Record<string, unknown>
-        | undefined;
-
-    style?: MapStyle.StyleSpecification;
-    map?: string | Record<string, unknown>;
-    position?: MapPosition;
-    view?: Record<string, unknown>;
-};
 
 /**
  * The primary public API object returned by the `map()` factory.
@@ -95,7 +73,7 @@ class Viewer {
      * @param config browser configuration object
      *   (style-based or legacy mapConfig)
      */
-    constructor(element: HTMLElement | string, config: ViewerConfig) {
+    constructor(element: HTMLElement | string, config: Viewer.Config) {
 
         this._browser = new Browser(element, config);
         this._core = this._browser.getCore() as CoreInterface;
@@ -601,6 +579,33 @@ class Viewer {
         return this._browser.getControlMode();
     }
 
+}
+
+namespace Viewer {
+
+    /**
+     * The internal config shape passed into `Viewer`.
+     *
+     * This exists only as constructor glue: `Viewer` has a single
+     * constructor, but the library still needs to support both the
+     * preferred `map()` entry point and the legacy `browser()` entry
+     * point. Their structural inputs are flattened here into one
+     * temporary internal object shape.
+     */
+    export type Config = {
+
+        [key: string]:
+            | MapRuntimeOptionValue
+            | MapPosition
+            | MapStyle.StyleSpecification
+            | Record<string, unknown>
+            | undefined;
+
+        style?: MapStyle.StyleSpecification;
+        map?: string | Record<string, unknown>;
+        position?: MapPosition;
+        view?: Record<string, unknown>;
+    };
 }
 
 export default Viewer;
