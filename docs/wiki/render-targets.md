@@ -32,3 +32,5 @@ be used as the model for future multipass rendering.
 See `rendering-sizes.md` for the precise relationship between
 `canvasCssSize`, `pixelSize`, render-target viewport size, render-target
 logical size, `curSize`, and CSS transform compensation.
+`curSize` is documented there as a legacy compatibility getter; new code
+should choose explicit canvas or target sizes instead.

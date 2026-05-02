@@ -357,10 +357,10 @@ constructor(core: Core, div: HTMLElement, config : Config) {
 };
 
 
-/// Logical size of the **active** render target. Context-dependent:
-/// returns canvas CSS size during the main pass, hitmap dimensions during
-/// hitmap passes. Label-placement code that always needs canvas coordinates
-/// must use `canvasCssSize` instead.
+/// Legacy compatibility getter for the logical size of the active render
+/// target. New code should use an explicit size source instead: for example
+/// `canvasCssSize` for the onscreen map view, or `RenderTarget.logicalSize`
+/// when it really wants target-local coordinates.
 get curSize(): Readonly<Size2> {
 
     return this.gpu.currentRenderTarget.logicalSize;

@@ -57,10 +57,10 @@ Every `GpuDevice.RenderTarget` has two sizes:
 `Renderer.curSize`
 
 - A getter for `gpu.currentRenderTarget.logicalSize`.
+- A legacy compatibility surface for old renderer code.
 - During the base canvas pass, it is the canvas CSS layout size.
 - During auxiliary framebuffer passes, it is the framebuffer logical size.
-- Code that always needs onscreen canvas coordinates should use
-  `Renderer.canvasCssSize` instead.
+- New code should avoid it and choose an explicit size source instead.
 
 ## Base Canvas Pass
 
@@ -127,8 +127,10 @@ post-transform visible scale.
 ## Practical Rule
 
 - Use `canvasCssSize` for code that describes the onscreen map view.
-- Use `curSize` only when the active render target's logical coordinates
-  are what the code really wants.
+- Use `RenderTarget.logicalSize` when target-local coordinates are what
+  the code really wants.
 - Use `viewportSize` for GL viewport/backing-storage dimensions.
 - Use `visibleScale()` when a pixel-sized visual feature must remain
   stable under CSS transforms.
+- Treat `curSize` as a backward-compatibility getter for existing legacy
+  code, not as the model for new renderer code.
