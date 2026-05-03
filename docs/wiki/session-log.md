@@ -166,7 +166,9 @@ documented first. The legacy `useProgram()` attribute/sampler binding
 path and its attribute-cache fields are now pushed lower and explicitly
 marked deprecated. Clarified the legacy attribute-cache comment so it
 does not imply VAOs are the active direction for the newer `useProgram2`
-path, which relies on explicit draw-helper attribute binding.
+path. The comment now names `GpuMesh.draw2()` directly: newer mesh
+rendering calls `useProgram2()`, then binds attributes through a VAO
+built from caller-provided attribute names.
 
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 

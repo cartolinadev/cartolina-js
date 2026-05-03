@@ -569,8 +569,9 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
             program.setSampler('uSampler2', 1);
         }
 
-        // Legacy path only: modern draw code binds attributes explicitly
-        // through draw2-style helpers after calling useProgram2().
+        // Legacy path only: newer mesh rendering calls useProgram2(), then
+        // GpuMesh.draw2() binds attributes through a VAO built from the
+        // attribute names passed by the caller.
         var newAttributes = this.newAttributes;
         var enabledAttributes = this.enabledAttributes;
 
