@@ -334,7 +334,7 @@ constructor(core: Core, div: HTMLElement, config : Config) {
     this.syncCanvas(sizes.cssSize, sizes.pixelSize);
     const canvasTarget = this.createCanvasRenderTarget(sizes.cssSize, sizes.pixelSize);
     this.gpu.setRenderTarget(canvasTarget);
-    this.updateLogicalSize(canvasTarget.logicalSize);
+    this.setProjection(canvasTarget.logicalSize);
 
     // initialize resources
     this.init = new RenderInit(this);
@@ -789,13 +789,26 @@ updateSizeIfNeeded(): boolean {
     if (this.gpu.currentRenderTarget.kind === 'canvas') {
         const canvasTarget = this.createCanvasRenderTarget(nextSizes.cssSize, nextSizes.pixelSize);
         this.gpu.setRenderTarget(canvasTarget);
-        this.updateLogicalSize(canvasTarget.logicalSize);
+        this.setProjection(canvasTarget.logicalSize);
     }
 
     return true;
 }
 
-private updateLogicalSize(size: Readonly<Size2>) {
+/** Set projection matrices from the logical size of the active render
+ *  target. Updates two coupled pieces of state:
+ *  - camera aspect ratio (width / height), which drives the 3D scene
+ *    perspective matrix
+ *  - `imageProjectionMatrix`, the column-major orthographic matrix that
+ *    maps 2D draw-helper coordinates to NDC
+ *
+ *  The absolute dimensions matter for `imageProjectionMatrix` (scale
+ *  factors are 2/width and 2/height), not just the ratio.
+ *
+ *  Called only from the base canvas pass. Auxiliary passes deliberately
+ *  skip it so the camera aspect stays locked to the canvas view even
+ *  when the framebuffer has a different size. */
+private setProjection(size: Readonly<Size2>) {
 
     let [width, height] = size;
 
@@ -803,7 +816,7 @@ private updateLogicalSize(size: Readonly<Size2>) {
 
     var m = new Float32Array(16);
 
-    // the matrix is a column-major
+    // column-major orthographic matrix
     m[0] = 2.0/width; m[1] = 0; m[2] = 0; m[3] = 0;
     m[4] = 0; m[5] = -2.0/height; m[6] = 0; m[7] = 0;
     m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
@@ -1704,7 +1717,7 @@ switchToFramebuffer(
 
         const canvasTarget = this.createCanvasRenderTarget(baseSizes.cssSize, baseSizes.pixelSize);
         this.gpu.setRenderTarget(canvasTarget);
-        this.updateLogicalSize(canvasTarget.logicalSize);
+        this.setProjection(canvasTarget.logicalSize);
         this.camera.update();
         this.onlyDepth = false;
         this.onlyHitLayers = false;
@@ -1727,7 +1740,7 @@ switchToFramebuffer(
         // The depth and geodata hitmaps are auxiliary buffers for the
         // current screen view. Their square texture size is storage
         // resolution, not camera aspect. The base pass owns
-        // `updateLogicalSize()` so these buffers keep the screen camera.
+        // `setProjection()` so these buffers keep the canvas camera.
         this.camera.update();
         this.onlyDepth = true;
         this.onlyHitLayers = false;

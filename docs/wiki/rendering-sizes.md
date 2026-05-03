@@ -59,7 +59,7 @@ Every `GpuDevice.RenderTarget` has two sizes:
 - It is the size used when converting projected NDC coordinates into
   target-local positions: `x = (ndcX + 1) * 0.5 * logicalWidth`,
   `y = (1 - ndcY) * 0.5 * logicalHeight`.
-- It is also the size used by `updateLogicalSize()` to build
+- It is also the size used by `setProjection()` to build
   `imageProjectionMatrix`.
 - For the canvas target, this is the CSS layout size.
 - For current auxiliary hitmap targets, this defaults to the framebuffer
@@ -90,7 +90,7 @@ renderer.logicalSize       = cssSize
 
 When the canvas size changes, the renderer recalculates sizes,
 resizes the backing canvas, and creates a new canvas render target.
-The base pass then calls `updateLogicalSize(cssSize)`, which updates:
+The base pass then calls `setProjection(cssSize)`, which updates:
 
 - camera aspect
 - `imageProjectionMatrix`
@@ -110,7 +110,7 @@ hitmap target logicalSize  = [hitmapSize, hitmapSize]
 
 These passes bind their framebuffer and viewport with
 `GpuDevice.setRenderTarget()`, but they do not call
-`updateLogicalSize()`. The camera aspect must remain the screen aspect.
+`setProjection()`. The camera aspect must remain the screen aspect.
 If a square hitmap target changed the camera aspect to `1`, depth and
 geodata checks would no longer match screen-coordinate label placement
 and hit testing.

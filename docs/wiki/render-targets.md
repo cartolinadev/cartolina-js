@@ -6,7 +6,7 @@ from the canvas element. The renderer currently uses two kinds of targets:
 - the base canvas target, which represents the onscreen map view
 - auxiliary framebuffer targets, which store data for that same map view
 
-The base canvas pass is the only pass that calls `updateLogicalSize()`.
+The base canvas pass is the only pass that calls `setProjection()`.
 That method updates screen-space state: camera aspect and
 `imageProjectionMatrix`. Those values describe the current map view and
 therefore follow the canvas layout, not every framebuffer texture.

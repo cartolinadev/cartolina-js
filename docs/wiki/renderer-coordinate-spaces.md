@@ -70,7 +70,7 @@ Examples:
   `project2()` with 2D glyph or icon offsets
 
 These paths use `Renderer.imageProjectionMatrix` to map target-local 2D
-coordinates into clip space. `updateLogicalSize()` rebuilds that matrix
+coordinates into clip space. `setProjection()` rebuilds that matrix
 from a logical width and height.
 
 Many of these paths still read `renderer.curSize` internally because they
