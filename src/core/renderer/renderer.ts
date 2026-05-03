@@ -347,16 +347,16 @@ constructor(core: Core, div: HTMLElement, config : Config) {
 };
 
 
-/// Logical size of the active render target. During the canvas pass this
-/// equals `canvasCssSize`; during an independent offscreen pass it equals
-/// the target's own logical size. Use this in rendering code that must
-/// work correctly for any render target.
+/** Logical size of the active render target. Equals the canvas CSS size
+ *  during the canvas pass; equals the target's own logical size during
+ *  an independent offscreen pass. Use in rendering code that must work
+ *  correctly for any render target. */
 get logicalSize(): Readonly<Size2> {
 
     return this.gpu.currentRenderTarget.logicalSize;
 }
 
-/// @deprecated Use `logicalSize` instead.
+/** @deprecated Use `logicalSize` instead. */
 get curSize(): Readonly<Size2> {
 
     return this.logicalSize;
@@ -862,8 +862,8 @@ project2(
         var sp = [0,0,0];
 
         //x and y are in screen pixels
-        sp[0] = ((p[0]/p[3])+1.0)*0.5*this.curSize[0];
-        sp[1] = (-(p[1]/p[3])+1.0)*0.5*this.curSize[1];
+        sp[0] = ((p[0]/p[3])+1.0)*0.5*this.logicalSize[0];
+        sp[1] = (-(p[1]/p[3])+1.0)*0.5*this.logicalSize[1];
 
         //depth in meters
         sp[2] = p[2]/p[3];
@@ -1602,8 +1602,8 @@ project(point) {
         var sp = [0,0,0];
 
         //x and y are in screen pixels
-        sp[0] = ((p2[0]/p2[3])+1.0)*0.5*this.curSize[0];
-        sp[1] = (-(p2[1]/p2[3])+1.0)*0.5*this.curSize[1];
+        sp[0] = ((p2[0]/p2[3])+1.0)*0.5*this.logicalSize[0];
+        sp[1] = (-(p2[1]/p2[3])+1.0)*0.5*this.logicalSize[1];
 
         //depth in meters
         sp[2] = p2[2]/p2[3];
@@ -1623,8 +1623,8 @@ getScreenRay(screenX: number, screenY: number) {
     this.camera.dirty = true; //???? why is projection matrix distored so I have to refresh
 
     //convert screen coords
-    var x = (2.0 * screenX) / this.curSize[0] - 1.0;
-    var y = 1.0 - (2.0 * screenY) / this.curSize[1];
+    var x = (2.0 * screenX) / this.logicalSize[0] - 1.0;
+    var y = 1.0 - (2.0 * screenY) / this.logicalSize[1];
     
     var rayNormalizeDeviceSpace = [x, y, 1.0];
 
@@ -1658,15 +1658,15 @@ hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
 
     var surfaceHit = false, pixel: Uint8Array = new Uint8Array(4);
 
-    if (screenX >= 0 && screenX < this.curSize[0] &&
-        screenY >= 0 && screenY < this.curSize[1]) {
+    if (screenX >= 0 && screenX < this.logicalSize[0] &&
+        screenY >= 0 && screenY < this.logicalSize[1]) {
 
         //convert screen coords to texture coords
         var x = 0, y = 0;
 
         //get screen coords
-        x = Math.floor(screenX * (this.hitmapSize / this.curSize[0]));
-        y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
+        x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
+        y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
 
         //get pixel value from framebuffer
 
@@ -1775,8 +1775,8 @@ hitTest(screenX: number, screenY: number) {
     var x = 0, y = 0;
 
     //get screen coords
-    x = Math.floor(screenX * (this.hitmapSize / this.curSize[0]));
-    y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
+    x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
+    y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
 
     //get pixel value from framebuffer
     const hitmapTexture = this.hitmapTexture;
@@ -1816,8 +1816,8 @@ copyHitmap() {
 
 getDepth(screenX: number, screenY: number, dilate: number = 0) {
 
-    var x = Math.floor(screenX * (this.hitmapSize / this.curSize[0]));
-    var y = Math.floor(screenY * (this.hitmapSize / this.curSize[1]));
+    var x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
+    var y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
 
     var depth: number;
 
@@ -1895,8 +1895,8 @@ saveScreenshot(output: string, filename: string, filetype: string) {
     var gl = this.gpu.gl;
 
     //get current screen size
-    var width = this.curSize[0];
-    var height = this.curSize[1];
+    var width = this.logicalSize[0];
+    var height = this.logicalSize[1];
 
     //read rgba data from frame buffer
     //works only when webgl context is initialized with preserveDrawingBuffer: true
