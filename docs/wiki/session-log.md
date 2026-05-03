@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-03 — Remove render-slot target rebind
+
+### Goal
+
+Remove the remaining defensive render-target self-rebind from
+`MapRenderSlots.processRenderSlots()`.
+
+### Work done
+
+Deleted the `gpu.setRenderTarget(gpu.currentRenderTarget)` call before
+render-slot callbacks. The base and auxiliary pass setup already binds
+the intended render target before slot processing.
+
+### Current state
+
+Canonical screenshot checks pass for `simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
 ## 2026-05-03 — Move screenshot output outside watched sandbox
 
 ### Goal

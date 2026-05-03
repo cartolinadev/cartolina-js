@@ -82,11 +82,6 @@ MapRenderSlots.prototype.getRenderSlotEnabled = function(id) {
 
 
 MapRenderSlots.prototype.processRenderSlots = function() {
-    if (this.draw.drawChannel != 1) {
-        var gpu = this.renderer.gpu;
-        gpu.setRenderTarget(gpu.currentRenderTarget);
-    }
-
     for (var i = 0, li = this.renderSlots.length; i < li; i++) {
         var slot = this.renderSlots[i];
 
