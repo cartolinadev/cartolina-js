@@ -54,11 +54,6 @@ export class GpuDevice {
     private renderTarget_!: GpuDevice.RenderTarget;
 
     /**
-     * Cached GL viewport dimensions for the current render target.
-     */
-    viewport!: Viewport;
-
-    /**
      * Cached WebGL fixed-function state managed by `setState()`.
      */
     currentState!: GpuDevice.State;
@@ -197,8 +192,6 @@ private init() {
         viewportSize: [canvas.width, canvas.height],
         logicalSize: [canvas.width, canvas.height]
     };
-    this.viewport = { width: canvas.width, height: canvas.height };
-
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
     // initial state
@@ -211,7 +204,7 @@ private init() {
     gl.disable(gl.CULL_FACE);
 
     //clear screen
-    gl.viewport(0, 0, this.viewport.width, this.viewport.height);
+    this.applyViewport();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 };
 
@@ -240,8 +233,7 @@ contextRestored(): void {
  * Resize the managed canvas element.
  *
  * The upper renderer layer owns size calculation. `GpuDevice` only applies
- * the CSS and backing-store sizes to the canvas and refreshes the active
- * viewport cache when the canvas target is currently bound.
+ * the CSS and backing-store sizes to the canvas.
  *
  * @param cssSize Canvas layout size in CSS pixels.
  * @param pixelSize Canvas backing-store size in physical pixels.
@@ -258,10 +250,6 @@ resizeCanvas(cssSize: Readonly<NumberPair>, pixelSize: Readonly<NumberPair>) {
 
         __DEV__ && utils.logOnce(`canvas size: [${pixelSize[0]}, ${pixelSize[1]}], `
                 + `canvas css size: [${cssSize[0]} ${cssSize[1]}]`);
-    }
-
-    if (this.renderTarget_?.kind === 'canvas') {
-        this.viewport = { width: pixelSize[0], height: pixelSize[1] };
     }
 };
 
@@ -311,19 +299,15 @@ get currentRenderTarget(): Readonly<GpuDevice.RenderTarget> {
  * Bind a render target as the active drawing destination.
  *
  * This is the public draw-target switch. It updates `currentRenderTarget`,
- * binds the target framebuffer, caches its viewport size, and applies the GL
- * viewport. Callers that need to render to the canvas should provide a canvas
- * target built from the renderer's current canvas sizes.
+ * binds the target framebuffer, and applies the GL viewport. Callers that
+ * need to render to the canvas should provide a canvas target built from the
+ * renderer's current canvas sizes.
  *
  * @param target Canvas or framebuffer target to draw into.
  */
 setRenderTarget(target: GpuDevice.RenderTarget) {
 
     this.renderTarget_ = target;
-    this.viewport = {
-        width: target.viewportSize[0],
-        height: target.viewportSize[1]
-    };
 
     this.bindRenderTargetFramebuffer(target);
     this.applyViewport();
@@ -440,7 +424,12 @@ private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
 
 private applyViewport() {
 
-    this.gl.viewport(0, 0, this.viewport.width, this.viewport.height);
+    this.gl.viewport(
+        0,
+        0,
+        this.renderTarget_.viewportSize[0],
+        this.renderTarget_.viewportSize[1],
+    );
 }
 
 private bindReadFramebufferForRenderTarget(target: GpuDevice.RenderTarget) {
@@ -617,8 +606,6 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
 // local types
 type NumberPair = [number, number];
 type Color = [number, number, number, number]
-
-type Viewport = { width: number, height: number }
 
 // exported types
 export namespace GpuDevice {

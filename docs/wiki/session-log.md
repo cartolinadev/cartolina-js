@@ -1,5 +1,21 @@
 # Session log
 
+## 2026-05-03 — Remove cached GPU viewport field
+
+### Goal
+
+Remove duplicated viewport state from `GpuDevice`.
+
+### Work done
+
+Deleted the public `viewport` field. `GpuDevice.applyViewport()` now
+uses `renderTarget_.viewportSize` directly, so the active render target
+is the only stored source of GL viewport size.
+
+### Current state
+
+TypeScript passes. Canonical screenshot checks pass.
+
 ## 2026-05-03 — Remove renderer syncCanvas proxy
 
 ### Goal
