@@ -112,11 +112,6 @@ export class GpuDevice {
      */
     enabledAttributes = new Uint8Array(this.maxAttributesCount);
 
-    /**
-     * @deprecated Legacy texture-unit cache. It is currently unused.
-     */
-    activeTexture?: GLint;
-
 /**
  * Create the WebGL canvas/context wrapper for a renderer.
  *

@@ -170,6 +170,10 @@ path. The comment now names `GpuMesh.draw2()` directly: newer mesh
 rendering calls `useProgram2()`, then binds attributes through a VAO
 built from caller-provided attribute names.
 
+Removed the unused `GpuDevice.activeTexture` member. It was only stale
+side storage; actual texture-unit binding is done directly through
+`bindTexture()` and the few remaining raw WebGL call sites.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
