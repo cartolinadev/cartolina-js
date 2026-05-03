@@ -50,10 +50,9 @@ import backgroundTileFrag from './shaders/background.frag.glsl';
  *  * It holds a 'hitmap', a depth map of the scene. It's an offscreen framebuffer
  *    a map is rendered into in 'draw channel 1' when depth info is requested
  *
- *  * It keeps track of the CSS pixel size of the map
- *
- *  * It maintains an image projection matrix, used as projection matrix in
- *    various shaders and keeps it in sync with the CSS pixel size.
+ *  * It maintains an image projection matrix used as the 2D projection
+ *    in various shaders, rebuilt from the canvas logical size on each
+ *    base pass via `setProjection()`.
  *
  *  * It probably does many other things and is accessed through numerous
  *     undocumented backdoors.
