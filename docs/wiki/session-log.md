@@ -125,6 +125,11 @@ the target-local 2D coordinate system used when mapping projected NDC
 coordinates into draw positions and when building `imageProjectionMatrix`,
 not another name for physical framebuffer pixels.
 
+Added `renderer-coordinate-spaces.md` to define renderer projection,
+target-local 2D coordinates, screen-space draw helpers, and their
+relationship to GL viewport pixels. This removes implicit terminology
+from the render-target size docs.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

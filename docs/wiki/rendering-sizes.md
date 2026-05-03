@@ -36,6 +36,9 @@ auxiliary framebuffer targets.
 This split lets the map keep stable logical coordinates while matching
 the actual number of visible device pixels.
 
+See `renderer-coordinate-spaces.md` for definitions of renderer
+projection, target-local 2D coordinates, and screen-space draw helpers.
+
 ## Render Target Sizes
 
 Every `GpuDevice.RenderTarget` has two sizes:

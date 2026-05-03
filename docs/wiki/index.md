@@ -25,6 +25,8 @@ then branch into more specific documents as needed.
   policy, and camera/logical-size rules
 - `rendering-sizes.md` — canvas, framebuffer, logical, physical, and
   visual-scale size relationships in the renderer
+- `renderer-coordinate-spaces.md` — renderer projection, target-local 2D
+  coordinates, and legacy screen-space draw helper terminology
 - `trajectory-behavior.md` — flight duration and phase structure in
   `MapTrajectory`: base rules, nadir-departure patch, and
   extent-proximity short-flight patch
