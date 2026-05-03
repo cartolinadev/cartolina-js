@@ -51,7 +51,7 @@ export class GpuDevice {
      * Current drawing destination. All draw-target changes should go through
      * `setRenderTarget()` so framebuffer and viewport state stay in sync.
      */
-    currentRenderTarget!: GpuDevice.RenderTarget;
+    private renderTarget_!: GpuDevice.RenderTarget;
 
     /**
      * Cached GL viewport dimensions for the current render target.
@@ -192,7 +192,7 @@ private init() {
         this.anisoLevel = 0;
     }
 
-    this.currentRenderTarget = {
+    this.renderTarget_ = {
         kind: 'canvas',
         viewportSize: [canvas.width, canvas.height],
         logicalSize: [canvas.width, canvas.height]
@@ -260,7 +260,7 @@ resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
                 + `canvas css size: [${cssSize[0]} ${cssSize[1]}]`);
     }
 
-    if (this.currentRenderTarget?.kind === 'canvas') {
+    if (this.renderTarget_?.kind === 'canvas') {
         this.viewport = { width: pixelSize[0], height: pixelSize[1] };
     }
 };
@@ -295,6 +295,19 @@ getCanvas(): HTMLCanvasElement {
 
 
 /**
+ * Current drawing destination.
+ *
+ * `setRenderTarget()` is the only public operation that changes the active
+ * target. This getter lets renderer code inspect the target that is already
+ * bound without allowing assignment through `gpu.currentRenderTarget = ...`.
+ */
+get currentRenderTarget(): Readonly<GpuDevice.RenderTarget> {
+
+    return this.renderTarget_;
+}
+
+
+/**
  * Bind a render target as the active drawing destination.
  *
  * This is the public draw-target switch. It updates `currentRenderTarget`,
@@ -306,7 +319,7 @@ getCanvas(): HTMLCanvasElement {
  */
 setRenderTarget(target: GpuDevice.RenderTarget) {
 
-    this.currentRenderTarget = target;
+    this.renderTarget_ = target;
     this.viewport = {
         width: target.viewportSize[0],
         height: target.viewportSize[1]
@@ -412,7 +425,7 @@ readFramebufferPixels(
     }
 
     gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, data);
-    this.bindReadFramebufferForRenderTarget(this.currentRenderTarget);
+    this.bindReadFramebufferForRenderTarget(this.renderTarget_);
 
     return data;
 }

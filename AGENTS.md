@@ -448,6 +448,23 @@ conditioned independent blocks when the cases are separate. Reach for
 `else if` only when there is a strong reason not to express the control
 flow in one of those clearer forms.
 
+**Private TypeScript backing members** should use a trailing underscore.
+This is the preferred pattern when exposing read-only state through a
+same-name getter:
+
+```ts
+private renderTarget_!: GpuDevice.RenderTarget;
+
+get renderTarget(): Readonly<GpuDevice.RenderTarget> {
+
+    return this.renderTarget_;
+}
+```
+
+Do not rename existing private members only to satisfy this convention.
+Apply it to new members and to members already being changed for other
+reasons.
+
 ### Declaration merging for exported types
 
 Modules that export a class as their default export use a

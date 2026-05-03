@@ -37,6 +37,8 @@ be used as the model for future multipass rendering.
 See `rendering-sizes.md` for the precise relationship between canvas
 CSS size, physical pixel size, render-target viewport size, render-target
 logical size, and CSS transform compensation. `renderer.logicalSize`
-(a proxy to `currentRenderTarget.logicalSize`) is the right choice for
-rendering code that must work for any render target. `curSize` is a
-deprecated alias for it.
+is the right choice for rendering code that must work for any render
+target. It proxies `GpuDevice.currentRenderTarget.logicalSize`.
+`currentRenderTarget` is a read-only getter; target changes must go
+through `GpuDevice.setRenderTarget()`. `curSize` is a deprecated alias
+for `renderer.logicalSize`.

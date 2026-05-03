@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-03 — Encapsulate current GPU render target
+
+### Goal
+
+Prevent callers from assigning `GpuDevice.currentRenderTarget` directly.
+
+### Work done
+
+Moved storage to a private `renderTarget_` field and exposed
+`currentRenderTarget` as a read-only getter. `Renderer` reads the active
+target for size and kind checks, but target changes still go through
+`setRenderTarget()`.
+
+Added a coding-style rule: new or touched private TypeScript backing
+members should use a trailing underscore when paired with same-name
+read-only getters.
+
+### Current state
+
+No code outside `GpuDevice` can assign the current render-target field.
+TypeScript and canonical screenshot checks pass.
+
 ## 2026-05-03 — Remove render-slot target rebind
 
 ### Goal

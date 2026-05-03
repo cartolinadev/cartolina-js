@@ -141,9 +141,9 @@ post-transform visible scale.
 
 ## Practical Rule
 
-- Use `renderer.logicalSize` (proxies `currentRenderTarget.logicalSize`)
-  in rendering code that must work for any render target: geometry,
-  label-density calculations, NDC-to-pixel conversions.
+- Use `renderer.logicalSize` in rendering code that must work for any
+  render target: geometry, label-density calculations, NDC-to-pixel
+  conversions.
 - Use `RenderTarget.logicalSize` directly when you have an explicit
   target reference.
 - Use `viewportSize` for GL viewport and backing-storage dimensions.
