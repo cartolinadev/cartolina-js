@@ -142,8 +142,8 @@ export class Renderer {
     /// css transform layout size adjustment, per axis
     private visibleScale_!: Size2;
 
-    /// stable viewport CSS height (css()[1] * visibleScale_[1]) — only updated
-    /// during the main render pass, not during hitmap/depth framebuffer passes
+    /** Visible viewport height in CSS pixels, used for scale denominator
+     *  calculation. */
     private mainViewportCssH!: number;
 
     // vertical exaggeration
