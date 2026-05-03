@@ -6,7 +6,8 @@ import * as utils from '../../utils/utils';
 
 
 /**
- * GpuDevice is not an abstraction of a GPU device. Here is what it does:
+ * GpuDevice, despite its name, is not an abstraction of a GPU device.
+ * Here is what it does:
  *
  *   * it manages the canvas inside the map element and sets its size properly
  *     according to the provided CSS pixel size and device pixel ratio.

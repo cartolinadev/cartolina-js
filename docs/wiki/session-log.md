@@ -174,6 +174,9 @@ Removed the unused `GpuDevice.activeTexture` member. It was only stale
 side storage; actual texture-unit binding is done directly through
 `bindTexture()` and the few remaining raw WebGL call sites.
 
+Made the opening `GpuDevice` class documentation wording more explicit
+that the class is not truly a GPU-device abstraction despite its name.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
