@@ -139,12 +139,6 @@ export class Renderer {
     progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;
 
-    /// Layout size of the onscreen canvas (CSS pixels, before transforms).
-    /// Always the canvas size regardless of which render target is active.
-    /// Use this — not `curSize` — in label-placement code that works in
-    /// screen (canvas) space.
-    canvasCssSize!: Size2;
-
     /// physical size in device pixels (after dpr and css transforms)
     private pixelSize!: Size2;
 
@@ -340,8 +334,8 @@ constructor(core: Core, div: HTMLElement, config : Config) {
         !! this.config.rendererAntialiasing, 
         this.config.rendererAnisotropic ?? 0);
 
-    this.syncCanvas();
-    const canvasTarget = this.createCanvasRenderTarget();
+    this.syncCanvas(sizes.cssSize);
+    const canvasTarget = this.createCanvasRenderTarget(sizes.cssSize);
     this.gpu.setRenderTarget(canvasTarget);
     this.updateLogicalSize(canvasTarget.logicalSize);
 
@@ -393,7 +387,6 @@ private calculateSizes(): Renderer.CanvasState {
 
 private applyCanvasState(sizes: Renderer.CanvasState) {
 
-    this.canvasCssSize = [...sizes.cssSize];
     this.pixelSize = [...sizes.pixelSize];
     this.visibleScale_ = [...sizes.visibleScale];
     this.mainViewportCssH = sizes.cssSize[1] * sizes.visibleScale[1];
@@ -783,8 +776,8 @@ updateSizeIfNeeded(): boolean {
 
     const nextSizes = this.calculateSizes();
     const changed =
-        this.canvasCssSize[0] !== nextSizes.cssSize[0] ||
-        this.canvasCssSize[1] !== nextSizes.cssSize[1] ||
+        this.logicalSize[0] !== nextSizes.cssSize[0] ||
+        this.logicalSize[1] !== nextSizes.cssSize[1] ||
         this.pixelSize[0] !== nextSizes.pixelSize[0] ||
         this.pixelSize[1] !== nextSizes.pixelSize[1] ||
         this.visibleScale_[0] !== nextSizes.visibleScale[0] ||
@@ -795,10 +788,10 @@ updateSizeIfNeeded(): boolean {
     }
 
     this.applyCanvasState(nextSizes);
-    this.syncCanvas();
+    this.syncCanvas(nextSizes.cssSize);
 
     if (this.gpu.currentRenderTarget.kind === 'canvas') {
-        const canvasTarget = this.createCanvasRenderTarget();
+        const canvasTarget = this.createCanvasRenderTarget(nextSizes.cssSize);
         this.gpu.setRenderTarget(canvasTarget);
         this.updateLogicalSize(canvasTarget.logicalSize);
     }
@@ -823,17 +816,17 @@ private updateLogicalSize(size: Readonly<Size2>) {
     this.imageProjectionMatrix = m;
 }
 
-private syncCanvas() {
+private syncCanvas(cssSize: Readonly<Size2>) {
 
-    this.gpu.resizeCanvas(this.canvasCssSize, this.pixelSize);
+    this.gpu.resizeCanvas([...cssSize], this.pixelSize);
 }
 
-private createCanvasRenderTarget(): GpuDevice.RenderTarget {
+private createCanvasRenderTarget(cssSize: Readonly<Size2>): GpuDevice.RenderTarget {
 
     return {
         kind: 'canvas',
         viewportSize: [...this.pixelSize],
-        logicalSize: [...this.canvasCssSize]
+        logicalSize: [...cssSize]
     };
 }
 
@@ -1704,12 +1697,13 @@ switchToFramebuffer(
     
     switch(type) {
     case 'base':
-        this.applyCanvasState(this.calculateSizes());
-        this.syncCanvas();
+        const baseSizes = this.calculateSizes();
+        this.applyCanvasState(baseSizes);
+        this.syncCanvas(baseSizes.cssSize);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-        const canvasTarget = this.createCanvasRenderTarget();
+        const canvasTarget = this.createCanvasRenderTarget(baseSizes.cssSize);
         this.gpu.setRenderTarget(canvasTarget);
         this.updateLogicalSize(canvasTarget.logicalSize);
         this.camera.update();
