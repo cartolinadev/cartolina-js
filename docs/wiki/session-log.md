@@ -8,9 +8,6 @@ Resurrect the orphan branch `feature/render-targets` (RenderTarget
 abstraction refactor). The branch was abandoned due to a visual
 regression in the label hierarchy.
 
-Plan:
-`/home/prochazka/.claude/plans/there-is-an-orphan-frolicking-noodle.md`
-
 ### Branches
 
 - `fix/render-targets` — cherry-pick of `ce20f7a` onto main, with the

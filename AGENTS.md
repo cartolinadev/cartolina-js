@@ -37,6 +37,12 @@ from noise.
 Write wiki entries with a maximum line length of 80 characters. Tables
 and code blocks are exempt.
 
+Documentation must use repository-relative paths only. Do not write
+references to files or directories outside this working copy, including
+user-local absolute paths, temporary directories, editor paths, or agent
+scratch-plan locations. If an external local artifact informed the work,
+summarize the relevant conclusion without recording its path.
+
 **Files:**
 
 - [index.md](docs/wiki/index.md) — wiki landing page and table of
@@ -209,10 +215,9 @@ node test/screenshot.js
 node test/screenshot.js complex-terrain
 ```
 
-Screenshots are saved to `/tmp/screenshots/<id>-dev.png` and
-`/tmp/screenshots/<id>-prod.png`. The script waits for network idle
-before capturing (same quiet-window strategy as the perf runner) and
-prints any console or network errors it finds.
+The script prints the paths of the captured screenshots. It waits for
+network idle before capturing (same quiet-window strategy as the perf
+runner) and prints any console or network errors it finds.
 
 Run `test/screenshot.js` entries sequentially. Do not launch multiple
 canonical screenshot captures in parallel; concurrent runs currently
