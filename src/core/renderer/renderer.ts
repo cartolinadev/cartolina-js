@@ -356,13 +356,19 @@ constructor(core: Core, div: HTMLElement, config : Config) {
 };
 
 
-/// Legacy compatibility getter for the logical size of the active render
-/// target. Do not use `curSize` in new code. Use an explicit size source
-/// instead: for example `canvasCssSize` for the onscreen map view, or
-/// `RenderTarget.logicalSize` for target-local coordinates.
-get curSize(): Readonly<Size2> {
+/// Logical size of the active render target. During the canvas pass this
+/// equals `canvasCssSize`; during an independent offscreen pass it equals
+/// the target's own logical size. Use this in rendering code that must
+/// work correctly for any render target.
+get logicalSize(): Readonly<Size2> {
 
     return this.gpu.currentRenderTarget.logicalSize;
+}
+
+/// @deprecated Use `logicalSize` instead.
+get curSize(): Readonly<Size2> {
+
+    return this.logicalSize;
 }
 
 private calculateSizes(): Renderer.CanvasState {

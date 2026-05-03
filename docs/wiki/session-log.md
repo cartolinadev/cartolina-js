@@ -127,6 +127,27 @@ target-local 2D coordinates, screen-space draw helpers, and their
 relationship to GL viewport pixels. This removes implicit terminology
 from the render-target size docs.
 
+### `renderer.logicalSize` and gmap.js fix
+
+Introduced `Renderer.logicalSize` as a proper named getter proxying
+`gpu.currentRenderTarget.logicalSize`. It is the right size source for
+rendering code that must work for any render target: it returns
+`canvasCssSize` during the canvas pass and the target's own logical
+size during independent offscreen passes.
+
+`curSize` is kept as a deprecated alias pointing to `logicalSize`.
+
+The branch had cargo-culted the `canvasCssSize` change from the
+camera-aspect fix into `gmap.js`, replacing the original `curSize`
+calls there. Since `gmap.js` is only called from the canvas pass
+anyway, the values were identical in practice — but the intent was
+wrong. Reverted those calls to `renderer.logicalSize` so that gmap
+correctly expresses "use the active target's logical size" rather than
+hardcoding the screen view.
+
+Updated `rendering-sizes.md` and `render-targets.md` to document
+`logicalSize` and correct the practical rule and code examples.
+
 ### Framebuffer readback cleanup
 
 Removed the legacy hitmap readback `fastMode` behavior for

@@ -63,13 +63,18 @@ Every `GpuDevice.RenderTarget` has two sizes:
 - For current auxiliary hitmap targets, this defaults to the framebuffer
   texture size.
 
-`Renderer.curSize`
+`Renderer.logicalSize`
 
 - A getter for `gpu.currentRenderTarget.logicalSize`.
-- A legacy compatibility surface for old renderer code.
-- During the base canvas pass, it is the canvas CSS layout size.
-- During auxiliary framebuffer passes, it is the framebuffer logical size.
-- Do not use it in new code. Choose an explicit size source instead.
+- The right choice for rendering code that must work for any render
+  target: returns canvas CSS size during the canvas pass and the
+  target's own logical size during independent offscreen passes.
+- Use this in rendering geometry and label-density code.
+
+`Renderer.curSize`
+
+- Deprecated alias for `logicalSize`. Kept for backward compatibility.
+- Do not use in new code.
 
 ## Base Canvas Pass
 
@@ -78,7 +83,7 @@ The base canvas render target represents the user-visible map view:
 ```text
 canvas target viewportSize = pixelSize
 canvas target logicalSize  = canvasCssSize
-renderer.curSize           = canvasCssSize
+renderer.logicalSize       = canvasCssSize
 ```
 
 When the canvas size changes, the renderer resizes the canvas and creates
@@ -99,7 +104,6 @@ They use square textures for storage, sampling, and readback:
 ```text
 hitmap target viewportSize = [hitmapSize, hitmapSize]
 hitmap target logicalSize  = [hitmapSize, hitmapSize]
-renderer.curSize           = [hitmapSize, hitmapSize]
 ```
 
 These passes bind their framebuffer and viewport with
@@ -119,8 +123,8 @@ wrapper scales the canvas.
 
 ```js
 screenPixelSize = [
-    1.0 / (renderer.curSize[0] * renderer.visibleScale()[0]),
-    1.0 / (renderer.curSize[1] * renderer.visibleScale()[1])
+    1.0 / (renderer.logicalSize[0] * renderer.visibleScale()[0]),
+    1.0 / (renderer.logicalSize[1] * renderer.visibleScale()[1])
 ]
 ```
 
@@ -135,11 +139,15 @@ post-transform visible scale.
 
 ## Practical Rule
 
-- Use `canvasCssSize` for code that describes the onscreen map view.
-- Use `RenderTarget.logicalSize` when target-local coordinates are what
-  the code really wants.
-- Use `viewportSize` for GL viewport/backing-storage dimensions.
+- Use `canvasCssSize` for code anchored to the screen view: hit-test
+  bounds, camera aspect, event-coordinate mapping.
+- Use `renderer.logicalSize` (proxies `currentRenderTarget.logicalSize`)
+  in rendering code that must work for any render target: geometry,
+  label-density calculations, NDC-to-pixel conversions.
+- Use `RenderTarget.logicalSize` directly when you have an explicit
+  target reference.
+- Use `viewportSize` for GL viewport and backing-storage dimensions.
 - Use `visibleScale()` when a pixel-sized visual feature must remain
   stable under CSS transforms.
-- Do not use `curSize` in new code. It is a backward-compatibility getter
-  for existing legacy code, not part of the new renderer size model.
+- Do not use `curSize` in new code — it is a deprecated alias for
+  `logicalSize`.

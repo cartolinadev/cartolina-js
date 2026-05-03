@@ -36,6 +36,7 @@ be used as the model for future multipass rendering.
 
 See `rendering-sizes.md` for the precise relationship between
 `canvasCssSize`, `pixelSize`, render-target viewport size, render-target
-logical size, `curSize`, and CSS transform compensation.
-`curSize` is documented there as a legacy compatibility getter. Do not
-use it in new code; choose explicit canvas or target sizes instead.
+logical size, and CSS transform compensation. `renderer.logicalSize`
+(a proxy to `currentRenderTarget.logicalSize`) is the right choice for
+rendering code that must work for any render target. `curSize` is a
+deprecated alias for it.
