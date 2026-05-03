@@ -142,6 +142,10 @@ Added the missing JSDoc for the new readback methods and exported GPU
 types. Updated `AGENTS.md` to require a pre-commit check that new public
 TypeScript methods and exported types have JSDoc in the same commit.
 
+Clarified `AGENTS.md` module-placement guidance: new TypeScript modules
+belong where the architecture says they belong, not automatically under
+`src/core/`.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
