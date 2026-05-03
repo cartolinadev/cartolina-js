@@ -160,6 +160,12 @@ Moved `test/screenshot.js` output from an external temporary directory
 to ignored repo-local `sandbox/tmp/screenshots/`, restoring concrete
 AGENTS documentation without referencing paths outside this working copy.
 
+Restructured `src/core/renderer/gpu/device.ts` so preferred render
+target, state, texture, and program-binding members/methods are
+documented first. The legacy `useProgram()` attribute/sampler binding
+path and its attribute-cache fields are now pushed lower and explicitly
+marked deprecated.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

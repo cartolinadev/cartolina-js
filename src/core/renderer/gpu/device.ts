@@ -17,7 +17,7 @@ import * as utils from '../../utils/utils';
  *   * it abstracts various GL rendering flags (gl.BLEND, gl.STENCIL_TEST,
  *     gl.DEPTH) into a single state object, with getState and setState accessors.
  *
- *   * it provides a thin wrapper around gl.userProgram and gl.bindTexture
+ *   * it provides a thin wrapper around gl.useProgram and gl.bindTexture
  *
  *   * it reads pixels from framebuffer-backed textures without exposing raw
  *     framebuffer binding as a public rendering operation
@@ -26,34 +26,114 @@ import * as utils from '../../utils/utils';
 
 export class GpuDevice {
 
-    maxAttributesCount = 8;
-    newAttributes = new Uint8Array(this.maxAttributesCount);
-    enabledAttributes = new Uint8Array(this.maxAttributesCount);
-    //noTextures = false; // never used
-
+    /**
+     * Renderer that owns this WebGL context.
+     */
     renderer!: Renderer;
+
+    /**
+     * DOM container that receives the managed canvas.
+     */
     div!: HTMLElement;
-    defaultState!: GpuDevice.State;
-    currentState!: GpuDevice.State;
-    keepFrameBuffer!: boolean;
-    antialias!: boolean;
-    anisoLevel!: GLfloat;
-    maxAniso!: GLfloat;
-    activeTexture?: GLint;
 
-    //currentOffset = 0; //used fot direct offset
-
+    /**
+     * Canvas element whose default framebuffer is the base render target.
+     */
     canvas!: HTMLCanvasElement;
-    gl!: WebGL2RenderingContext
-    currentProgram?: WebGLProgram;
 
-    viewport!: Viewport;
+    /**
+     * WebGL2 context used by all renderer GPU objects.
+     */
+    gl!: WebGL2RenderingContext;
+
+    /**
+     * Current drawing destination. All draw-target changes should go through
+     * `setRenderTarget()` so framebuffer and viewport state stay in sync.
+     */
     currentRenderTarget!: GpuDevice.RenderTarget;
+
+    /**
+     * Cached GL viewport dimensions for the current render target.
+     */
+    viewport!: Viewport;
+
+    /**
+     * Cached WebGL fixed-function state managed by `setState()`.
+     */
+    currentState!: GpuDevice.State;
+
+    /**
+     * Initial fixed-function state used as the renderer baseline.
+     */
+    defaultState!: GpuDevice.State;
+
+    /**
+     * Currently bound GPU program, used to skip redundant gl.useProgram calls.
+     */
+    currentProgram?: GpuProgram;
+
+    /**
+     * Whether the default framebuffer should preserve contents for screenshots.
+     */
+    keepFrameBuffer!: boolean;
+
+    /**
+     * Whether the WebGL context was requested with antialiasing enabled.
+     */
+    antialias!: boolean;
+
+    /**
+     * Requested anisotropic filtering level, clamped to the device maximum.
+     */
+    anisoLevel!: GLfloat;
+
+    /**
+     * Maximum anisotropic filtering level reported by the browser.
+     */
+    maxAniso!: GLfloat;
+
+    /**
+     * Optional anisotropic filtering extension.
+     */
     anisoExt?: EXT_texture_filter_anisotropic | null;
 
-constructor(renderer: Renderer, div: HTMLElement,
-            keepFrameBuffer: boolean, antialias: boolean,
-            aniso: GLfloat) {
+    /**
+     * @deprecated Used only by legacy `useProgram()` attribute toggling.
+     */
+    maxAttributesCount = 8;
+
+    /**
+     * @deprecated Scratch buffer used only by legacy `useProgram()`.
+     */
+    newAttributes = new Uint8Array(this.maxAttributesCount);
+
+    /**
+     * @deprecated Attribute-enable cache used only by legacy `useProgram()`.
+     */
+    enabledAttributes = new Uint8Array(this.maxAttributesCount);
+
+    /**
+     * @deprecated Legacy texture-unit cache. It is currently unused.
+     */
+    activeTexture?: GLint;
+
+/**
+ * Create the WebGL canvas/context wrapper for a renderer.
+ *
+ * @param renderer Renderer that owns this device.
+ * @param div DOM container that receives the created canvas.
+ * @param keepFrameBuffer Whether the canvas should preserve drawing buffer
+ * contents for screenshots.
+ * @param antialias Whether to request an antialiased WebGL context.
+ * @param aniso Requested anisotropic filtering level.
+ */
+constructor(
+    renderer: Renderer,
+    div: HTMLElement,
+    keepFrameBuffer: boolean,
+    antialias: boolean,
+    aniso: GLfloat
+) {
 
     this.renderer = renderer;
     this.div = div;
@@ -160,6 +240,16 @@ contextRestored(): void {
 };
 
 
+/**
+ * Resize the managed canvas element.
+ *
+ * The upper renderer layer owns size calculation. `GpuDevice` only applies
+ * the CSS and backing-store sizes to the canvas and refreshes the active
+ * viewport cache when the canvas target is currently bound.
+ *
+ * @param cssSize Canvas layout size in CSS pixels.
+ * @param pixelSize Canvas backing-store size in physical pixels.
+ */
 resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
 
     let canvas = this.canvas;
@@ -180,6 +270,11 @@ resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
 };
 
 
+/**
+ * Clamp and store the requested anisotropic filtering level.
+ *
+ * @param aniso Requested anisotropic filtering level, or -1 for maximum.
+ */
 setAniso(aniso: GLfloat) {
     if (this.anisoExt) {
         if (this.anisoLevel) {
@@ -193,11 +288,26 @@ setAniso(aniso: GLfloat) {
 };
 
 
+/**
+ * Get the managed canvas element.
+ *
+ * @returns Canvas element owned by this device.
+ */
 getCanvas(): HTMLCanvasElement {
     return this.canvas;
 };
 
 
+/**
+ * Bind a render target as the active drawing destination.
+ *
+ * This is the public draw-target switch. It updates `currentRenderTarget`,
+ * binds the target framebuffer, caches its viewport size, and applies the GL
+ * viewport. Callers that need to render to the canvas should provide a canvas
+ * target built from the renderer's current canvas sizes.
+ *
+ * @param target Canvas or framebuffer target to draw into.
+ */
 setRenderTarget(target: GpuDevice.RenderTarget) {
 
     this.currentRenderTarget = target;
@@ -211,6 +321,13 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
 }
 
 
+/**
+ * Clear the active render target.
+ *
+ * @param clearDepth Whether to clear the depth buffer.
+ * @param clearColor Whether to clear the color buffer.
+ * @param color Clear color in 0-255 RGBA components.
+ */
 clear(clearDepth: boolean, clearColor: boolean, color : Color): void {
 
     if (color != null) {
@@ -222,12 +339,14 @@ clear(clearDepth: boolean, clearColor: boolean, color : Color): void {
 };
 
 /**
- * The newAPI does not enable attributes or silently set sampler uniforms.
- * Both is responsibility  of the calling layer.
+ * Binds a program without touching vertex attributes or sampler uniforms.
  *
- * @param Program the GPUProgram object to use.
+ * The caller is responsible for configuring vertex attributes and sampler
+ * uniforms explicitly. New rendering code should use this method instead of
+ * `useProgram()`.
+ *
+ * @param program GPU program object to use.
  */
-
 useProgram2(program: GpuProgram) {
 
     if (this.currentProgram != program) {
@@ -238,58 +357,11 @@ useProgram2(program: GpuProgram) {
 }
 
 /**
- * Old API, deprecated/
+ * Bind a loaded texture to a texture unit.
+ *
+ * @param texture Texture to bind.
+ * @param id Texture unit index. Unit 0 is used when omitted.
  */
-
-useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
-
-    if (this.currentProgram != program) {
-
-        this.gl.useProgram(program.program);
-        this.currentProgram = program;
-
-        // why this is done for every program statically i do not know
-        // in the tile program the first uniform identifies the main
-        // texture slot (0), the second one the mask (1)
-        program.setSampler('uSampler', 0);
-
-        if (nextSampler) {
-            program.setSampler('uSampler2', 1);
-        }
-
-        // TODO: we should handle this by switching VAOs
-        var newAttributes = this.newAttributes;
-        var enabledAttributes = this.enabledAttributes;
-
-        //reset new attributes list
-        for (var i = 0, li = newAttributes.length; i < li; i++){
-            newAttributes[i] = 0;
-        }
-
-        for (i = 0, li = attributes.length; i < li; i++){
-            var index = program.getAttribLocation(attributes[i]);
-
-            if (index != -1){
-                newAttributes[index] = 1;
-            }
-        }
-
-        //enable or disable current attributes according to new attributes list
-        for (i = 0, li = newAttributes.length; i < li; i++){
-            if (enabledAttributes[i] != newAttributes[i]) {
-                if (newAttributes[i]) {
-                    this.gl.enableVertexAttribArray(i);
-                    enabledAttributes[i] = 1;
-                } else {
-                    this.gl.disableVertexAttribArray(i);
-                    enabledAttributes[i] = 0;
-                }
-            }
-        }
-    }
-};
-
-
 bindTexture(texture: GpuTexture, id?: GLint) {
 
     if (!texture.loaded) 
@@ -385,7 +457,12 @@ private bindFramebuffer(texture: GpuTexture | null, target: GLenum) {
     this.gl.bindFramebuffer(target, null);
 };
 
-
+/**
+ * Fill unspecified fixed-function state flags with renderer defaults.
+ *
+ * @param state Legacy state object to normalize in place.
+ * @returns The normalized state object.
+ */
 createState(state: GpuDevice.State): GpuDevice.State {
 
     if (state.blend == null) { state.blend = false; }
@@ -399,6 +476,12 @@ createState(state: GpuDevice.State): GpuDevice.State {
 };
 
 
+/**
+ * Apply WebGL fixed-function state changes.
+ *
+ * @param state Desired fixed-function state. Missing/null state is ignored for
+ * legacy callers.
+ */
 setState(state: GpuDevice.State) {
 
     if (!state) {
@@ -459,6 +542,63 @@ setState(state: GpuDevice.State) {
     }
 
     this.currentState = state;
+};
+
+/**
+ * @deprecated Legacy program binding API. It silently assigns sampler
+ * uniforms and toggles global vertex-attribute enable state. New code should
+ * use `useProgram2()` and configure attributes/samplers explicitly.
+ *
+ * @param program GPU program object to use.
+ * @param attributes Attribute names to enable for the bound program.
+ * @param nextSampler Whether to bind legacy `uSampler2` to texture unit 1.
+ */
+useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
+
+    if (this.currentProgram != program) {
+
+        this.gl.useProgram(program.program);
+        this.currentProgram = program;
+
+        // why this is done for every program statically i do not know
+        // in the tile program the first uniform identifies the main
+        // texture slot (0), the second one the mask (1)
+        program.setSampler('uSampler', 0);
+
+        if (nextSampler) {
+            program.setSampler('uSampler2', 1);
+        }
+
+        // TODO: we should handle this by switching VAOs
+        var newAttributes = this.newAttributes;
+        var enabledAttributes = this.enabledAttributes;
+
+        //reset new attributes list
+        for (var i = 0, li = newAttributes.length; i < li; i++){
+            newAttributes[i] = 0;
+        }
+
+        for (i = 0, li = attributes.length; i < li; i++){
+            var index = program.getAttribLocation(attributes[i]);
+
+            if (index != -1){
+                newAttributes[index] = 1;
+            }
+        }
+
+        //enable or disable current attributes according to new attributes list
+        for (i = 0, li = newAttributes.length; i < li; i++){
+            if (enabledAttributes[i] != newAttributes[i]) {
+                if (newAttributes[i]) {
+                    this.gl.enableVertexAttribArray(i);
+                    enabledAttributes[i] = 1;
+                } else {
+                    this.gl.disableVertexAttribArray(i);
+                    enabledAttributes[i] = 0;
+                }
+            }
+        }
+    }
 };
 
 } // class GpuDevice
