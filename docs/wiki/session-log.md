@@ -156,6 +156,10 @@ previously called `setViewport()` now rebind `currentRenderTarget`, so
 framebuffer and viewport restoration still go through the render-target
 path.
 
+Moved `test/screenshot.js` output from an external temporary directory
+to ignored repo-local `sandbox/tmp/screenshots/`, restoring concrete
+AGENTS documentation without referencing paths outside this working copy.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

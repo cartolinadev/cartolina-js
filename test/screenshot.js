@@ -4,7 +4,8 @@
  * Usage:
  *   node test/screenshot.js [id]        # one entry by id, or all if omitted
  *
- * Output: /tmp/screenshots/<id>-dev.png  and  /tmp/screenshots/<id>-prod.png
+ * Output: sandbox/tmp/screenshots/<id>-dev.png
+ *     and sandbox/tmp/screenshots/<id>-prod.png
  * Prints a summary of console errors and network errors per URL.
  */
 
@@ -15,7 +16,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const URLS_FILE = path.join(__dirname, 'urls.json');
-const OUT_DIR = '/tmp/screenshots';
+const OUT_DIR = path.join('sandbox', 'tmp', 'screenshots');
 
 const IDLE_MS = 2000;
 const MAX_WAIT_MS = 40000;

@@ -215,9 +215,10 @@ node test/screenshot.js
 node test/screenshot.js complex-terrain
 ```
 
-The script prints the paths of the captured screenshots. It waits for
-network idle before capturing (same quiet-window strategy as the perf
-runner) and prints any console or network errors it finds.
+Screenshots are saved to `sandbox/tmp/screenshots/<id>-dev.png` and
+`sandbox/tmp/screenshots/<id>-prod.png`. The script waits for network
+idle before capturing (same quiet-window strategy as the perf runner)
+and prints any console or network errors it finds.
 
 Run `test/screenshot.js` entries sequentially. Do not launch multiple
 canonical screenshot captures in parallel; concurrent runs currently
