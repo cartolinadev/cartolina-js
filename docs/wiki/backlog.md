@@ -154,13 +154,17 @@ projection policy.
 
 Two useful categories:
 
-- **Screen auxiliary target:** preserves the current screen camera.
-  Examples: depth hitmaps, geodata hitmaps, object IDs, masks, and
-  G-buffer data for the current view.
-- **Independent target:** uses target-native projection or no camera at
-  all. Examples: shadow maps, environment maps, postprocessing buffers,
-  blur passes, lookup textures, generated normal maps, atmosphere
-  textures, and compositing buffers.
+- **Screen-view auxiliary target:** stores extra data for the current
+  onscreen map view. It may have its own framebuffer size, but it uses the
+  same camera/projection as the canvas pass. Examples: depth hitmaps,
+  geodata hitmaps, object IDs, masks, and G-buffer data for the current
+  view.
+- **Target-native offscreen target:** renders something whose projection
+  is defined by the offscreen target itself, not by the current screen
+  view. It may use a special camera, a target-aspect projection, or no
+  scene camera at all. Examples: shadow maps, environment maps,
+  postprocessing buffers, blur passes, lookup textures, generated normal
+  maps, atmosphere textures, and compositing buffers.
 
 The API could express this as an explicit pass target:
 
@@ -169,19 +173,28 @@ type RenderPassTarget = {
     texture: GpuTexture;
     viewportSize: Size2;
     logicalSize: Size2;
-    cameraMode: 'screen' | 'target';
+    projectionPolicy: 'screen-view' | 'target-native' | 'none';
 };
 ```
 
 Alternatively, split setup into named paths:
 
 ```ts
-setScreenAuxTarget(target);
-setIndependentTarget(target);
+setScreenViewAuxTarget(target);
+setTargetNativeOffscreenTarget(target);
 ```
 
-The important rule is that multipass code must not infer camera behavior
-from framebuffer dimensions. Target binding, camera aspect, and
+The policy names mean:
+
+- `screen-view`: preserve the current canvas camera/projection even when
+  the framebuffer has a different aspect or resolution.
+- `target-native`: update or choose a projection that belongs to the
+  offscreen target, such as a light-space projection for a shadow map.
+- `none`: the pass has no scene camera, such as a blur, lookup-table
+  generation, or compositing pass.
+
+The important rule is that multipass code must not infer projection
+behavior from framebuffer dimensions. Target binding, camera aspect, and
 screen-space matrices are separate decisions.
 
 ### Related notes

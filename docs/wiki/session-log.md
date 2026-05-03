@@ -185,6 +185,12 @@ branch from the known-good state or production build commit.
 Removed redundant wording from the `AGENTS.md` TypeScript module
 placement guidance while keeping the architectural-owner rule.
 
+Clarified the offscreen render-pass backlog terminology. Replaced the
+ambiguous `cameraMode: 'screen' | 'target'` sketch with
+`projectionPolicy: 'screen-view' | 'target-native' | 'none'`, and
+defined screen-view auxiliary targets versus target-native offscreen
+targets.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
