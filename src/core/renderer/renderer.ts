@@ -341,9 +341,9 @@ constructor(core: Core, div: HTMLElement, config : Config) {
         this.config.rendererAnisotropic ?? 0);
 
     this.syncCanvas();
-    this.syncCanvasRenderTarget();
-    this.gpu.setRenderTarget(this.gpu.canvasRenderTarget);
-    this.updateLogicalSize(this.gpu.canvasRenderTarget.logicalSize);
+    const canvasTarget = this.createCanvasRenderTarget();
+    this.gpu.setRenderTarget(canvasTarget);
+    this.updateLogicalSize(canvasTarget.logicalSize);
 
     // initialize resources
     this.init = new RenderInit(this);
@@ -790,11 +790,11 @@ updateSizeIfNeeded(): boolean {
 
     this.applyCanvasState(nextSizes);
     this.syncCanvas();
-    this.syncCanvasRenderTarget();
 
     if (this.gpu.currentRenderTarget.kind === 'canvas') {
-        this.gpu.setRenderTarget(this.gpu.canvasRenderTarget);
-        this.updateLogicalSize(this.gpu.canvasRenderTarget.logicalSize);
+        const canvasTarget = this.createCanvasRenderTarget();
+        this.gpu.setRenderTarget(canvasTarget);
+        this.updateLogicalSize(canvasTarget.logicalSize);
     }
 
     return true;
@@ -822,9 +822,9 @@ private syncCanvas() {
     this.gpu.resizeCanvas(this.canvasCssSize, this.pixelSize);
 }
 
-private syncCanvasRenderTarget() {
+private createCanvasRenderTarget(): GpuDevice.RenderTarget {
 
-    this.gpu.canvasRenderTarget = {
+    return {
         kind: 'canvas',
         viewportSize: [...this.pixelSize],
         logicalSize: [...this.canvasCssSize]
@@ -1700,12 +1700,12 @@ switchToFramebuffer(
     case 'base':
         this.applyCanvasState(this.calculateSizes());
         this.syncCanvas();
-        this.syncCanvasRenderTarget();
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-        this.gpu.setRenderTarget(this.gpu.canvasRenderTarget);
-        this.updateLogicalSize(this.gpu.canvasRenderTarget.logicalSize);
+        const canvasTarget = this.createCanvasRenderTarget();
+        this.gpu.setRenderTarget(canvasTarget);
+        this.updateLogicalSize(canvasTarget.logicalSize);
         this.camera.update();
         this.onlyDepth = false;
         this.onlyHitLayers = false;

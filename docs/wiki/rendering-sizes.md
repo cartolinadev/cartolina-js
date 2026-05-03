@@ -81,9 +81,9 @@ canvas target logicalSize  = canvasCssSize
 renderer.curSize           = canvasCssSize
 ```
 
-When the canvas size changes, `syncCanvasRenderTarget()` stores these
-values on `gpu.canvasRenderTarget`. The base pass then calls
-`updateLogicalSize(canvasCssSize)`, which updates:
+When the canvas size changes, the renderer resizes the canvas and creates
+a canvas render target from the current `pixelSize` and `canvasCssSize`.
+The base pass then calls `updateLogicalSize(canvasCssSize)`, which updates:
 
 - camera aspect
 - `imageProjectionMatrix`

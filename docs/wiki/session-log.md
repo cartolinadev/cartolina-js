@@ -146,6 +146,10 @@ Clarified `AGENTS.md` module-placement guidance: new TypeScript modules
 belong where the architecture says they belong, not automatically under
 `src/core/`.
 
+Removed `GpuDevice.canvasRenderTarget` as shared mutable side storage.
+`Renderer` now creates the canvas render-target object from the current
+`pixelSize` and `canvasCssSize` whenever it binds the base canvas pass.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

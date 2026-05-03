@@ -48,7 +48,6 @@ export class GpuDevice {
     currentProgram?: WebGLProgram;
 
     viewport!: Viewport;
-    canvasRenderTarget!: GpuDevice.RenderTarget;
     currentRenderTarget!: GpuDevice.RenderTarget;
     anisoExt?: EXT_texture_filter_anisotropic | null;
 
@@ -117,12 +116,11 @@ private init() {
         this.anisoLevel = 0;
     }
 
-    this.canvasRenderTarget = {
+    this.currentRenderTarget = {
         kind: 'canvas',
         viewportSize: [canvas.width, canvas.height],
         logicalSize: [canvas.width, canvas.height]
     };
-    this.currentRenderTarget = this.canvasRenderTarget;
     this.viewport = { width: canvas.width, height: canvas.height };
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -174,11 +172,6 @@ resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
 
         __DEV__ && utils.logOnce(`canvas size: [${pixelSize[0]}, ${pixelSize[1]}], `
                 + `canvas css size: [${cssSize[0]} ${cssSize[1]}]`);
-    }
-
-    if (this.canvasRenderTarget) {
-        this.canvasRenderTarget.viewportSize = [...pixelSize];
-        this.canvasRenderTarget.logicalSize = [...cssSize];
     }
 
     if (this.currentRenderTarget?.kind === 'canvas') {
