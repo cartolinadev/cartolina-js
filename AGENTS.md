@@ -57,10 +57,12 @@ summarize the relevant conclusion without recording its path.
 
 ## Commits
 
-Before every commit, review and update
-[docs/wiki/session-log.md](docs/wiki/session-log.md) so it reflects the
-current state of things. Commit the session log together with the other
-changes, or in a follow-up commit immediately after.
+Before every commit, review the affected wiki pages for completeness
+and correctness — stale field names, removed APIs, or outdated
+descriptions must be corrected before the commit lands. Then update
+[docs/wiki/session-log.md](docs/wiki/session-log.md) so it reflects
+the current state of things. Commit the wiki and session log together
+with the other changes, or in a follow-up commit immediately after.
 
 On a feature branch, commit freely — at milestones during implementation
 or after completing a step — without asking first. On the main branch,

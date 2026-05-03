@@ -7,32 +7,34 @@ auxiliary framebuffer targets.
 
 ## Canvas Sizes
 
-`Renderer.canvasCssSize`
+These three values are computed together by `Renderer.calculateSizes()`
+and returned as `Renderer.CanvasState`. They are passed explicitly to
+the functions that need them and are not stored as fields.
 
-- Defined in `Renderer.calculateSizes()` from `offsetWidth`/`clientWidth`
-  and `offsetHeight`/`clientHeight`.
-- It is the stable layout size of the onscreen map in CSS pixels.
-- It is measured before CSS transforms.
-- It is always the canvas size, regardless of the active render target.
+`cssSize`
 
-`Renderer.pixelSize`
+- Defined from `offsetWidth`/`clientWidth` and
+  `offsetHeight`/`clientHeight`.
+- The stable layout size of the onscreen map in CSS pixels.
+- Measured before CSS transforms.
 
-- Defined in `Renderer.calculateSizes()` from
-  `getBoundingClientRect() * devicePixelRatio`.
-- It is the physical backing-canvas size used for WebGL drawing.
-- It includes CSS transforms and DPR.
-- `GpuDevice.resizeCanvas()` writes it to `canvas.width` and
-  `canvas.height`.
+`pixelSize`
 
-`Renderer.visibleScale()`
+- Defined from `getBoundingClientRect() * devicePixelRatio`.
+- The physical backing-canvas size used for WebGL drawing.
+- Includes CSS transforms and DPR.
+- Written to `canvas.width` and `canvas.height` by
+  `GpuDevice.resizeCanvas()`.
 
-- Defined in `Renderer.calculateSizes()` as
-  `getBoundingClientRect() / layoutSize`.
-- It is the CSS transform scale between layout size and visible size.
+`visibleScale`
+
+- Defined as `getBoundingClientRect() / layoutSize`.
+- The CSS transform scale between layout size and visible size.
 - A reveal-style slide that scales a `1280 x 800` map to half size has
-  `canvasCssSize = [1280, 800]`, `visibleScale = [0.5, 0.5]`, and, at
-  DPR 1, `pixelSize = [640, 400]`.
+  `cssSize = [1280, 800]`, `visibleScale = [0.5, 0.5]`, and, at DPR 1,
+  `pixelSize = [640, 400]`.
 
+`Renderer.visibleScale()` returns the most recently computed value.
 This split lets the map keep stable logical coordinates while matching
 the actual number of visible device pixels.
 
@@ -46,7 +48,7 @@ Every `GpuDevice.RenderTarget` has two sizes:
 `RenderTarget.viewportSize`
 
 - The GL viewport size passed to `gl.viewport()`.
-- For the canvas target, this is `Renderer.pixelSize`.
+- For the canvas target, this is the physical pixel size.
 - For auxiliary framebuffer targets, this is the backing texture size
   such as `[hitmapSize, hitmapSize]`.
 
@@ -59,7 +61,7 @@ Every `GpuDevice.RenderTarget` has two sizes:
   `y = (1 - ndcY) * 0.5 * logicalHeight`.
 - It is also the size used by `updateLogicalSize()` to build
   `imageProjectionMatrix`.
-- For the canvas target, this is `Renderer.canvasCssSize`.
+- For the canvas target, this is the CSS layout size.
 - For current auxiliary hitmap targets, this defaults to the framebuffer
   texture size.
 
@@ -67,7 +69,7 @@ Every `GpuDevice.RenderTarget` has two sizes:
 
 - A getter for `gpu.currentRenderTarget.logicalSize`.
 - The right choice for rendering code that must work for any render
-  target: returns canvas CSS size during the canvas pass and the
+  target: returns CSS layout size during the canvas pass and the
   target's own logical size during independent offscreen passes.
 - Use this in rendering geometry and label-density code.
 
@@ -81,25 +83,25 @@ Every `GpuDevice.RenderTarget` has two sizes:
 The base canvas render target represents the user-visible map view:
 
 ```text
-canvas target viewportSize = pixelSize
-canvas target logicalSize  = canvasCssSize
-renderer.logicalSize       = canvasCssSize
+canvas target viewportSize = pixelSize   (physical pixels)
+canvas target logicalSize  = cssSize     (CSS layout pixels)
+renderer.logicalSize       = cssSize
 ```
 
-When the canvas size changes, the renderer resizes the canvas and creates
-a canvas render target from the current `pixelSize` and `canvasCssSize`.
-The base pass then calls `updateLogicalSize(canvasCssSize)`, which updates:
+When the canvas size changes, the renderer recalculates sizes,
+resizes the backing canvas, and creates a new canvas render target.
+The base pass then calls `updateLogicalSize(cssSize)`, which updates:
 
 - camera aspect
 - `imageProjectionMatrix`
 
-Those values describe the screen view, so they belong to the base canvas
+Those values describe the screen view, so they belong to the CSS
 layout size.
 
 ## Auxiliary Framebuffer Passes
 
-Depth and geodata hitmaps are auxiliary buffers for the same screen view.
-They use square textures for storage, sampling, and readback:
+Depth and geodata hitmaps are auxiliary buffers for the same screen
+view. They use square textures for storage, sampling, and readback:
 
 ```text
 hitmap target viewportSize = [hitmapSize, hitmapSize]
@@ -139,8 +141,6 @@ post-transform visible scale.
 
 ## Practical Rule
 
-- Use `canvasCssSize` for code anchored to the screen view: hit-test
-  bounds, camera aspect, event-coordinate mapping.
 - Use `renderer.logicalSize` (proxies `currentRenderTarget.logicalSize`)
   in rendering code that must work for any render target: geometry,
   label-density calculations, NDC-to-pixel conversions.

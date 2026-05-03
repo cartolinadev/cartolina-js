@@ -34,8 +34,8 @@ framebuffer as a screenshot/readback workaround. It had no internal demo
 or test callers and was removed from `fix/render-targets`; it should not
 be used as the model for future multipass rendering.
 
-See `rendering-sizes.md` for the precise relationship between
-`canvasCssSize`, `pixelSize`, render-target viewport size, render-target
+See `rendering-sizes.md` for the precise relationship between canvas
+CSS size, physical pixel size, render-target viewport size, render-target
 logical size, and CSS transform compensation. `renderer.logicalSize`
 (a proxy to `currentRenderTarget.logicalSize`) is the right choice for
 rendering code that must work for any render target. `curSize` is a

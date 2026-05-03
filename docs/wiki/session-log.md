@@ -191,6 +191,47 @@ path. The comment now names `GpuMesh.draw2()` directly: newer mesh
 rendering calls `useProgram2()`, then binds attributes through a VAO
 built from caller-provided attribute names.
 
+---
+
+## 2026-05-03 — Render-target size cleanup
+
+### Projection policy renaming
+
+Renamed the two projection policy categories in the backlog from
+`screen-view` / `target-native` to `auxiliary` / `independent` to
+avoid terminology drift.
+
+### `renderer.logicalSize` and gmap.js fix
+
+Introduced `Renderer.logicalSize` as the canonical getter for
+`gpu.currentRenderTarget.logicalSize`. Deprecated `curSize` as an
+alias. Migrated all internal `curSize` reads in `renderer.ts` to
+`logicalSize`.
+
+Reverted the cargo-cult change in `gmap.js` that had switched
+`renderer.curSize` to `renderer.canvasCssSize` as a side-effect of
+the camera-aspect fix. The correct replacement is `renderer.logicalSize`.
+
+### Removal of stored canvas-state fields
+
+`Renderer.canvasCssSize` and `Renderer.pixelSize` were stored fields
+that served only as a bridge between `applyCanvasState` and the two
+consumers that immediately follow it at every call site. Both were
+removed. The values are now threaded explicitly from fresh
+`calculateSizes()` results. Change-detection in `updateSizeIfNeeded`
+uses `this.logicalSize` and `gpu.currentRenderTarget.viewportSize`
+for the old-value comparisons.
+
+`visibleScale_` and `mainViewportCssH` were not removed: both are
+read at render time outside the size-sync context.
+
+### Comment style fixes
+
+Converted `///` triple-slash comments on `logicalSize`, `curSize`, and
+`mainViewportCssH` to JSDoc `/** */` style as required by AGENTS.md.
+The `@deprecated` tag in a `/** */` block is what activates TypeScript
+deprecation hints at call sites.
+
 Removed the unused `GpuDevice.activeTexture` member. It was only stale
 side storage; actual texture-unit binding is done directly through
 `bindTexture()` and the few remaining raw WebGL call sites.
