@@ -29,10 +29,14 @@ the functions that need them and are not stored as fields.
 `visibleScale`
 
 - Defined as `getBoundingClientRect() / layoutSize`.
-- The CSS transform scale between layout size and visible size.
+- The axis-aligned CSS transform scale between layout size and visible
+  bounding-box size.
 - A reveal-style slide that scales a `1280 x 800` map to half size has
   `cssSize = [1280, 800]`, `visibleScale = [0.5, 0.5]`, and, at DPR 1,
   `pixelSize = [640, 400]`.
+- This assumes scale-like transforms. Rotation, skew, and composed
+  transforms are not modeled; supporting them would require using the
+  composed DOM transform matrix rather than bounding-box ratios.
 
 `Renderer.visibleScale()` returns the most recently computed value.
 This split lets the map keep stable logical coordinates while matching

@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-05-03 — Document visible-scale transform assumption
+
+### Goal
+
+Clarify the CSS transform assumption behind `visibleScale()`.
+
+### Work done
+
+Replaced the `Renderer.calculateSizes()` TODO with a note that the code
+treats CSS transforms as axis-aligned scale factors. This matches the
+current reveal-style `scale()` use case. Rotation, skew, and composed
+transforms would need a full DOM transform matrix instead of
+`getBoundingClientRect()` ratios.
+
+Updated `rendering-sizes.md` with the same limitation.
+
+Added an `AGENTS.md` coding-style rule: multi-line comments use block
+comment syntax (`/* ... */`), while single-line comments may use `//`.
+
+### Current state
+
+Documentation/comment only; no runtime behavior changed.
+
 ## 2026-05-03 — Clarify label visual-scale notes
 
 ### Goal

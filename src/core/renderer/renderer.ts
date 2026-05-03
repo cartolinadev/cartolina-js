@@ -373,7 +373,12 @@ private calculateSizes(): Renderer.CanvasState {
     const rect = el.getBoundingClientRect();
     let dpr = window.devicePixelRatio || 1;
 
-    // TODO: compute this properly, applying compose of all css transforms
+    /*
+     * This treats CSS transforms as axis-aligned scale factors. That matches
+     * reveal-style `scale()` wrappers, which are the current reason for
+     * visible-scale compensation. Rotation, skew, and composed transforms
+     * would need a full DOM transform matrix instead of bounding-box ratios.
+     */
     return {
         cssSize: [W, H],
         pixelSize: [rect.width * dpr, rect.height * dpr],

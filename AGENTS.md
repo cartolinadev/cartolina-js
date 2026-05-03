@@ -448,6 +448,9 @@ conditioned independent blocks when the cases are separate. Reach for
 `else if` only when there is a strong reason not to express the control
 flow in one of those clearer forms.
 
+**Multi-line comments** use block comment syntax (`/* ... */`) rather
+than a stack of `//` lines. Single-line comments may use `//`.
+
 **Private TypeScript backing members** should use a trailing underscore.
 This is the preferred pattern when exposing read-only state through a
 same-name getter:
