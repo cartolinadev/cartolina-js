@@ -138,6 +138,10 @@ Moved framebuffer readback binding into `GpuDevice.readFramebufferPixels()`
 and removed public raw framebuffer binding from `GpuTexture`, so render
 target switching remains the only public draw-target operation.
 
+Added the missing JSDoc for the new readback methods and exported GPU
+types. Updated `AGENTS.md` to require a pre-commit check that new public
+TypeScript methods and exported types have JSDoc in the same commit.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

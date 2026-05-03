@@ -315,6 +315,24 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     gl.activeTexture(gl.TEXTURE0);
 }
 
+/**
+ * Read pixels from a framebuffer-backed texture without changing the
+ * tracked render target.
+ *
+ * This temporarily binds the texture framebuffer as the WebGL read
+ * framebuffer, performs `gl.readPixels()`, then restores the read
+ * framebuffer that belongs to `currentRenderTarget`. Draw-target changes
+ * must still go through `setRenderTarget()`.
+ *
+ * @param texture Framebuffer-backed texture to read from.
+ * @param x Left coordinate in framebuffer pixels.
+ * @param y Bottom coordinate in framebuffer pixels.
+ * @param lx Width of the read rectangle in pixels.
+ * @param ly Height of the read rectangle in pixels.
+ * @param data Optional destination buffer. A new buffer is allocated when
+ * omitted.
+ * @returns Pixel data in RGBA/UNSIGNED_BYTE layout.
+ */
 readFramebufferPixels(
     texture: GpuTexture,
     x: number,
@@ -460,6 +478,9 @@ type Viewport = { width: number, height: number }
 // exported types
 export namespace GpuDevice {
 
+/**
+ * Cached WebGL fixed-function state managed by `GpuDevice.setState()`.
+ */
 export type State = {
     blend: boolean,
     stencil: boolean,
@@ -469,6 +490,14 @@ export type State = {
     culling: boolean
 }
 
+/**
+ * Active drawing destination tracked by `GpuDevice`.
+ *
+ * `viewportSize` is the GL viewport/backing-store size. `logicalSize` is
+ * the target-local 2D coordinate size used by renderer projection and
+ * screen-space draw helpers. Canvas targets bind the default framebuffer;
+ * framebuffer targets bind the framebuffer attached to `texture`.
+ */
 export type RenderTarget =
     | {
         kind: 'canvas',

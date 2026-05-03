@@ -366,6 +366,20 @@ createFramebuffer = (lx: GLsizei, ly: GLsizei) => {
 };
 
 
+/**
+ * Read pixels from this texture's framebuffer attachment.
+ *
+ * The actual framebuffer binding is delegated to `GpuDevice` so readback
+ * does not expose raw framebuffer switching as public render-path state.
+ *
+ * @param x Left coordinate in framebuffer pixels.
+ * @param y Bottom coordinate in framebuffer pixels.
+ * @param lx Width of the read rectangle in pixels.
+ * @param ly Height of the read rectangle in pixels.
+ * @param data Optional destination buffer. A new buffer is allocated when
+ * omitted.
+ * @returns Pixel data in RGBA/UNSIGNED_BYTE layout.
+ */
 readFramebufferPixels(
     x: number, y: number, lx: number, ly: number,
     data?: Uint8Array) : Uint8Array {
@@ -380,4 +394,3 @@ readFramebufferPixels(
 } // class GpuTexture
 
 export default GpuTexture;
-

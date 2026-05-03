@@ -469,6 +469,11 @@ its name and signature, and where a JSDoc comment is absent. This
 applies even when the function is not otherwise being changed. Do not
 add routine boilerplate to self-evident code; use judgement.
 
+Before committing TypeScript changes, check the diff for newly added
+public classes, methods, and exported types. They must have JSDoc in the
+same commit. This applies even to small helper APIs added during a
+cleanup.
+
 **Do not silently drop or rewrite documentation as a side effect of
 a structural change.** When restructuring or moving code (rename,
 move, extract), carry the existing JSDoc over unchanged — unless the
