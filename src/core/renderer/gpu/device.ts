@@ -484,25 +484,55 @@ export type State = {
 }
 
 /**
- * Active drawing destination tracked by `GpuDevice`.
- *
- * `viewportSize` is the GL viewport/backing-store size. `logicalSize` is
- * the target-local 2D coordinate size used by renderer projection and
- * screen-space draw helpers. Canvas targets bind the default framebuffer;
- * framebuffer targets bind the framebuffer attached to `texture`.
+ * Shared size fields for every drawing destination tracked by `GpuDevice`.
  */
-export type RenderTarget =
-    | {
-        kind: 'canvas',
-        viewportSize: NumberPair,
-        logicalSize: NumberPair
-    }
-    | {
-        kind: 'framebuffer',
-        texture: GpuTexture,
-        viewportSize: NumberPair,
-        logicalSize: NumberPair
-    }
+export type RenderTargetBase = {
+
+    /**
+     * GL viewport/backing-store size, in physical pixels. This is passed to
+     * `gl.viewport()`.
+     *
+     * For the base canvas target this is the canvas backing size
+     * (`canvas.width`, `canvas.height`). For framebuffer targets this is the
+     * texture/framebuffer storage size.
+     */
+    viewportSize: NumberPair,
+
+    /**
+     * Target-local 2D coordinate size used by renderer projection and
+     * screen-space draw helpers.
+     *
+     * For the base canvas target this is the pre-transform canvas layout size
+     * in CSS pixels. For current auxiliary hitmap targets this is the hitmap
+     * texture size.
+     */
+    logicalSize: NumberPair
+}
+
+/**
+ * Drawing destination backed by the default canvas framebuffer.
+ */
+export type CanvasTarget = RenderTargetBase & {
+    kind: 'canvas'
+}
+
+/**
+ * Drawing destination backed by a texture framebuffer.
+ */
+export type FramebufferTarget = RenderTargetBase & {
+
+    /**
+     * Texture whose framebuffer is bound when this target is active.
+     */
+    texture: GpuTexture,
+
+    kind: 'framebuffer'
+}
+
+/**
+ * Active drawing destination tracked by `GpuDevice`.
+ */
+export type RenderTarget = CanvasTarget | FramebufferTarget
 
 } // export namespace GpuDevice
 

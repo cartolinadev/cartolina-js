@@ -150,6 +150,10 @@ Removed `GpuDevice.canvasRenderTarget` as shared mutable side storage.
 `Renderer` now creates the canvas render-target object from the current
 `pixelSize` and `canvasCssSize` whenever it binds the base canvas pass.
 
+Added field-level JSDoc for `GpuDevice` render-target types so
+`viewportSize` and `logicalSize` are defined in code as well as in the
+wiki.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
