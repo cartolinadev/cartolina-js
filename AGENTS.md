@@ -241,12 +241,26 @@ keyboard or mouse interaction) surface as `pageerror` events, not as
 `console` errors. A test that only monitors the `console` channel will
 silently miss these failures.
 
-**Trace divergence empirically, step by step.** When two branches
-produce different output, find the earliest point where they first
-differ — not the last. Confirm the divergence with a log, then move
-one step earlier. Repeat until you reach the code change that causes
-it. Do NOT reason backward from a user-reported symptom without first
-confirming it yourself via diagnostics.
+### Regression bug diagnostics and fixing
+
+When diagnosing a regression, first create a diagnostics branch from the
+state where the behavior still worked. This is usually `main`; when the
+regression is reported against production, use the commit recorded in
+the production build. The two comparison branches are then:
+
+- the diagnostics branch created from the known-good state, with
+  diagnostic instrumentation added;
+
+- the development branch that produced the regression, with equivalent
+  diagnostic instrumentation added.
+
+**Trace divergence empirically, step by step.** When the diagnostics
+branch and the regression branch produce different output, find the
+earliest point where they first differ — not the last. Confirm the
+divergence with a log, then move one step earlier. Repeat until you
+reach the code change that causes it. Do NOT reason backward from a
+user-reported symptom without first confirming it yourself via
+diagnostics.
 
 **When tracing a specific data entity, instrument every step it
 touches.** Log every function it passes through, every check applied

@@ -177,6 +177,11 @@ side storage; actual texture-unit binding is done directly through
 Made the opening `GpuDevice` class documentation wording more explicit
 that the class is not truly a GPU-device abstraction despite its name.
 
+Updated `AGENTS.md` regression diagnostics guidance: empirical
+divergence tracing now sits under a regression bug diagnostics and
+fixing heading, with the first step defined as creating a diagnostics
+branch from the known-good state or production build commit.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
