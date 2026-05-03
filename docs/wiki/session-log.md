@@ -164,7 +164,9 @@ Restructured `src/core/renderer/gpu/device.ts` so preferred render
 target, state, texture, and program-binding members/methods are
 documented first. The legacy `useProgram()` attribute/sampler binding
 path and its attribute-cache fields are now pushed lower and explicitly
-marked deprecated.
+marked deprecated. Clarified the legacy attribute-cache comment so it
+does not imply VAOs are the active direction for the newer `useProgram2`
+path, which relies on explicit draw-helper attribute binding.
 
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 

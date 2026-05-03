@@ -569,7 +569,8 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
             program.setSampler('uSampler2', 1);
         }
 
-        // TODO: we should handle this by switching VAOs
+        // Legacy path only: modern draw code binds attributes explicitly
+        // through draw2-style helpers after calling useProgram2().
         var newAttributes = this.newAttributes;
         var enabledAttributes = this.enabledAttributes;
 
