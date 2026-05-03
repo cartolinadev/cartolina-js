@@ -154,6 +154,11 @@ Added field-level JSDoc for `GpuDevice` render-target types so
 `viewportSize` and `logicalSize` are defined in code as well as in the
 wiki.
 
+Made `GpuDevice` viewport application private. Legacy callers that
+previously called `setViewport()` now rebind `currentRenderTarget`, so
+framebuffer and viewport restoration still go through the render-target
+path.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

@@ -198,10 +198,6 @@ getCanvas(): HTMLCanvasElement {
 };
 
 
-setViewport() {
-    this.gl.viewport(0, 0, this.viewport.width, this.viewport.height);
-};
-
 setRenderTarget(target: GpuDevice.RenderTarget) {
 
     this.currentRenderTarget = target;
@@ -211,7 +207,7 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
     };
 
     this.bindRenderTargetFramebuffer(target);
-    this.setViewport();
+    this.applyViewport();
 }
 
 
@@ -359,6 +355,11 @@ private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
         target.kind === 'canvas' ? null : target.texture,
         this.gl.FRAMEBUFFER,
     );
+}
+
+private applyViewport() {
+
+    this.gl.viewport(0, 0, this.viewport.width, this.viewport.height);
 }
 
 private bindReadFramebufferForRenderTarget(target: GpuDevice.RenderTarget) {
