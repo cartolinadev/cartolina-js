@@ -560,7 +560,6 @@ implementation ideas, not API surface.
 ## Source layout (new modules)
 
 Place new TypeScript modules according to their architectural owner.
-Do not put modules under `src/core/` merely because they are new.
 
 Use `src/core/` for core map-rendering functionality. Its existing
 sub-structure is:

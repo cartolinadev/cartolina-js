@@ -182,6 +182,9 @@ divergence tracing now sits under a regression bug diagnostics and
 fixing heading, with the first step defined as creating a diagnostics
 branch from the known-good state or production build commit.
 
+Removed redundant wording from the `AGENTS.md` TypeScript module
+placement guidance while keeping the architectural-owner rule.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal
