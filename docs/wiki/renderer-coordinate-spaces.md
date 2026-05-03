@@ -3,32 +3,45 @@
 This page defines renderer terms used by `rendering-sizes.md` and
 `render-targets.md`.
 
-## Renderer World Space
+## Renderer-Local 3D Space
 
-Renderer world space is the 3D coordinate system consumed by renderer
-draw jobs and camera matrices. Map-level code often works in physical or
-navigation coordinates first, then prepares renderer-local positions for
-the draw layer.
+Renderer-local 3D space is the 3D coordinate system consumed by renderer
+draw jobs and camera matrices. A renderer-local 3D position is a
+physical position translated so the camera center is the origin:
+
+```text
+rendererLocalPosition = physicalPosition - physicalCameraPosition
+```
+
+The current code stores the physical camera position in
+`map.camera.position`, exposes it to draw code as
+`renderer.cameraPosition`, and keeps the renderer camera itself at
+`[0, 0, 0]` during normal map rendering. `MapConvert` and legacy
+`RendererDraw` paths subtract `map.camera.position` or
+`renderer.cameraPosition` before projection.
+
+Map-level code often works in physical or navigation coordinates first,
+then prepares renderer-local 3D positions for the draw layer.
 
 The renderer camera provides model-view, projection, and combined MVP
 matrices. Terrain, meshes, lines, labels, and hitmap passes use these
-matrices to transform 3D renderer-space positions into clip space.
+matrices to transform renderer-local 3D positions into clip space.
 
 ## Renderer Projection
 
 Renderer projection means this transform chain:
 
 ```text
-renderer 3D position
+renderer-local 3D position
 -> model-view-projection matrix
 -> clip coordinates
 -> normalized device coordinates
 -> target-local 2D coordinates
 ```
 
-`Renderer.project2()` is the clearest CPU-side example. It multiplies a
-3D point by an MVP matrix, divides by `w`, then maps NDC to target-local
-2D coordinates:
+`Renderer.project2()` performs this transform on the CPU. It multiplies
+a 3D point by an MVP matrix, divides by `w`, then maps NDC to
+target-local 2D coordinates:
 
 ```text
 x = (ndcX + 1) * 0.5 * logicalWidth
@@ -74,22 +87,27 @@ coordinates into clip space. `setProjection()` rebuilds that matrix
 from a logical width and height.
 
 Many of these paths still read `renderer.curSize` internally because they
-come from legacy code. Do not copy that pattern into new code. New
-renderer work should choose the size explicitly: canvas layout size,
-render-target logical size, GL viewport size, or visual scale.
+come from legacy code. New renderer work should use the active
+`RenderTarget.logicalSize` for target-local 2D coordinates. These helpers
+belong in the base canvas pass; calling them while an auxiliary target is
+active indicates a scheduling problem.
 
 ## Relationship To Viewport Pixels
 
 GL finally maps clip/NDC coordinates to physical viewport pixels via
 `gl.viewport()`. That viewport size is `RenderTarget.viewportSize`.
 
-So the full 2D path is:
+For CPU-projected 2D draw helpers, the path is:
 
 ```text
-renderer projection -> target-local 2D coordinates
+renderer-local 3D coordinates -> target-local 2D coordinates via renderer projection (`project2()`)
 target-local 2D -> clip coordinates via imageProjectionMatrix
 clip/NDC -> viewport pixels via gl.viewport()
 ```
+
+Normal GPU geometry does not use this CPU 2D path. Vertex shaders
+transform renderer-local 3D positions to clip coordinates with the
+camera matrices, then GL maps clip/NDC coordinates to viewport pixels.
 
 Keeping these steps separate is what allows the base canvas to use
 pre-transform CSS layout coordinates while drawing into a DPR- and

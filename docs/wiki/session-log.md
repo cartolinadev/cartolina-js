@@ -1,5 +1,40 @@
 # Session log
 
+## 2026-05-03 — Clarify renderer-local 3D terminology
+
+### Goal
+
+Resolve ambiguous renderer coordinate-space terms in
+`docs/wiki/renderer-coordinate-spaces.md`.
+
+### Work done
+
+Verified the current renderer path in code:
+
+- `src/core/map/camera.js` stores the physical camera position in
+  `map.camera.position`, then sets the renderer camera position to
+  `[0, 0, 0]` for normal rendering.
+- `src/core/map/convert.js`, `src/core/renderer/draw.js`, and
+  `src/core/renderer/renderer.ts` subtract `map.camera.position` or
+  `renderer.cameraPosition` before projection.
+
+Updated `renderer-coordinate-spaces.md` to use
+**renderer-local 3D position** as the preferred term for
+`physicalPosition - physicalCameraPosition`.
+
+The screen-space draw helper note now says new renderer work should use
+`RenderTarget.logicalSize` for target-local 2D coordinates. Calling these
+helpers while an auxiliary target is active indicates a scheduling
+problem.
+
+The viewport-pixel relationship now identifies the final diagram as the
+CPU-projected 2D helper path and separates it from the shader path for
+normal GPU geometry.
+
+### Current state
+
+No runtime code changed. This was a documentation clarification only.
+
 ## 2026-05-03 — Resurrect feature/render-targets
 
 ### Goal
