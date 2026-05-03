@@ -511,6 +511,10 @@ update it to match the new reality. The test: does the documentation
 still accurately describe the code after the change? If yes, preserve
 it. If no, fix it. Never silently discard accurate documentation.
 
+**When modifying a class, review its class-level JSDoc block.** Field
+additions, removals, and behavioural changes frequently make the class
+description stale. Update it before committing.
+
 Do not use `@link` or any other JSDoc tags that produce hyperlinks.
 TypeScript IDEs do not render them. Reference other symbols by name
 in backtick code spans instead: `` `MyClass.myMethod` ``.
