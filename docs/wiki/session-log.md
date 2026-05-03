@@ -130,6 +130,14 @@ target-local 2D coordinates, screen-space draw helpers, and their
 relationship to GL viewport pixels. This removes implicit terminology
 from the render-target size docs.
 
+### Framebuffer readback cleanup
+
+Removed the legacy hitmap readback `fastMode` behavior for
+`mapDMapMode == 2`; mode 2 now follows the normal direct readback path.
+Moved framebuffer readback binding into `GpuDevice.readFramebufferPixels()`
+and removed public raw framebuffer binding from `GpuTexture`, so render
+target switching remains the only public draw-target operation.
+
 ## 2026-04-19 — Trajectory: nadir departure + extent-proximity duration patches
 
 ### Goal

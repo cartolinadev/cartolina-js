@@ -24,6 +24,11 @@ screen camera. A future independent render-to-texture pass should make its
 camera/logical-size policy explicit instead of reusing the auxiliary
 hitmap setup.
 
+Framebuffer readback is intentionally below render-target switching.
+`GpuDevice.readFramebufferPixels()` temporarily binds the framebuffer for
+readback and restores the tracked render-target binding afterward. Raw
+framebuffer binding should not be public rendering API.
+
 The legacy `Map.renderToImage()` path used a temporary power-of-two
 framebuffer as a screenshot/readback workaround. It had no internal demo
 or test callers and was removed from `fix/render-targets`; it should not

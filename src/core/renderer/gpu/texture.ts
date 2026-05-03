@@ -367,36 +367,17 @@ createFramebuffer = (lx: GLsizei, ly: GLsizei) => {
 
 
 readFramebufferPixels(
-    x: number, y: number, lx: number, ly: number, fastMode: boolean = false,
+    x: number, y: number, lx: number, ly: number,
     data?: Uint8Array) : Uint8Array {
 
     if (!this.texture) throw new Error(
         "GpuTexture.readFramebufferPixels: Texture not initialized.");
 
-    this.gpu.bindTexture(this);
-
-    if (!fastMode) {
-        this.gpu.setFramebuffer(this);
-    }
-
-    var gl = this.gl;
-
-    // Read the contents of the framebuffer (data stores the pixel data)
-    if (!data) {
-        data = new Uint8Array(lx * ly * 4);        
-    }
-    gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, data);
-
-    if (!fastMode) {
-        this.gpu.setFramebuffer(null);
-    }
-
-    return data;
+    return this.gpu.readFramebufferPixels(this, x, y, lx, ly, data);
 };
 
 
 } // class GpuTexture
 
 export default GpuTexture;
-
 

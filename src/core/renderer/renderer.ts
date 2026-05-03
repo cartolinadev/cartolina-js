@@ -197,8 +197,7 @@ export class Renderer {
 
     /**
      *  copied from config.mapDMapMode. Governs getDepth behaviour.
-     *  0, 1 - readFramebufferPixels for each getDepth call
-     *  2 - 'fastMode' - same thing, just without switching framebuffer
+     *  0, 1, 2 - readFramebufferPixels for each getDepth call
      *  3 - call copyHitmap once per frame, then sample it per getDepth call (faster)
      */
     hitmapMode: number = 3;
@@ -1811,7 +1810,7 @@ copyHitmap() {
     }
 
     hitmapTexture.readFramebufferPixels(
-        0, 0, this.hitmapSize, this.hitmapSize, false, hitmapData
+        0, 0, this.hitmapSize, this.hitmapSize, hitmapData
     );
 };
 
@@ -1833,7 +1832,7 @@ getDepth(screenX: number, screenY: number, dilate: number = 0) {
         }
 
         var pixel = hitmapTexture.readFramebufferPixels(
-            x, this.hitmapSize - y - 1, 1, 1, (this.hitmapMode == 2));
+            x, this.hitmapSize - y - 1, 1, 1);
 
         //convert rgb values into depth
         depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);

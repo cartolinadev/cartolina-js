@@ -19,8 +19,8 @@ import * as utils from '../../utils/utils';
  *
  *   * it provides a thin wrapper around gl.userProgram and gl.bindTexture
  *
- *   * it can set a framebuffer, though the logic is flawed (no tracking of that
- *     the rendering is now offscreen, no change to viewport, prone to errors)
+ *   * it reads pixels from framebuffer-backed textures without exposing raw
+ *     framebuffer binding as a public rendering operation
  */
 
 
@@ -217,12 +217,7 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
         height: target.viewportSize[1]
     };
 
-    if (target.kind === 'canvas') {
-        this.setFramebuffer(null);
-    } else {
-        this.setFramebuffer(target.texture);
-    }
-
+    this.bindRenderTargetFramebuffer(target);
     this.setViewport();
 }
 
@@ -320,20 +315,62 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     gl.activeTexture(gl.TEXTURE0);
 }
 
-/**
- * WARN: The function does nothing to the this.viewport, which is set by the
- * calling layer. Pretty ugly, things may fall appart as soon as the upper
- * layer issues an innocent call to this.setViewport.
- */
+readFramebufferPixels(
+    texture: GpuTexture,
+    x: number,
+    y: number,
+    lx: number,
+    ly: number,
+    data?: Uint8Array,
+) : Uint8Array {
 
-setFramebuffer(texture: GpuTexture | null) {
-    if (texture) {
-        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, texture.framebuffer);
-    } else {
-        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
-        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    if (!texture.framebuffer) {
+        throw new Error('Cannot read pixels from a texture without '
+            + 'a framebuffer.');
     }
+
+    const gl = this.gl;
+    this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
+
+    if (!data) {
+        data = new Uint8Array(lx * ly * 4);
+    }
+
+    gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    this.bindReadFramebufferForRenderTarget(this.currentRenderTarget);
+
+    return data;
+}
+
+private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
+
+    this.bindFramebuffer(
+        target.kind === 'canvas' ? null : target.texture,
+        this.gl.FRAMEBUFFER,
+    );
+}
+
+private bindReadFramebufferForRenderTarget(target: GpuDevice.RenderTarget) {
+
+    this.bindFramebuffer(
+        target.kind === 'canvas' ? null : target.texture,
+        this.gl.READ_FRAMEBUFFER,
+    );
+}
+
+private bindFramebuffer(texture: GpuTexture | null, target: GLenum) {
+
+    if (texture) {
+
+        if (!texture.framebuffer) {
+            throw new Error('Cannot bind a texture without a framebuffer.');
+        }
+
+        this.gl.bindFramebuffer(target, texture.framebuffer);
+        return;
+    }
+
+    this.gl.bindFramebuffer(target, null);
 };
 
 
