@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-03 — Clarify label visual-scale notes
+
+### Goal
+
+Record how label anchors, glyph offsets, collision boxes, and label
+density relate to `visibleScale()`.
+
+### Work done
+
+Updated `rendering-sizes.md`: anchors are target-local logical
+coordinates, while glyph/icon offsets and collision extents compensate
+for `visibleScale()`. Noted that feature-count reduction currently uses
+logical size without `visibleScale()`, which may be a policy question.
+
+### Current state
+
+Documentation only; no runtime code changed.
+
 ## 2026-05-03 — Encapsulate current GPU render target
 
 ### Goal

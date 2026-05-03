@@ -117,9 +117,10 @@ and hit testing.
 
 ## Visual Scale And Labels
 
-Label placement is mostly expressed in logical canvas coordinates, but
-visible label size should not change just because a presentation or UI
-wrapper scales the canvas.
+Label anchors are projected into target-local logical coordinates, but
+glyph and icon quad offsets are scaled through `screenPixelSize`.
+Collision boxes also compensate for `visibleScale()` when converting
+style offsets into target-local extents.
 
 `RendererDraw.drawGpuJobs()` computes:
 
@@ -139,13 +140,20 @@ This is intentional. Logical map coordinates follow the pre-transform
 canvas layout, while pixel-sized visual features compensate for the
 post-transform visible scale.
 
+Feature-count reduction currently uses `renderer.logicalSize` and a
+fixed CSS `ppi = 96`, without `visibleScale()`. This keeps the maximum
+label count stable under presentation transforms. If `visibleScale()`
+is used to represent the actual visible map area rather than a transient
+CSS reveal/scale effect, the density policy may need to account for it.
+
 ## Practical Rule
 
 - Use `renderer.logicalSize` in rendering code that must work for any
   render target: geometry, label-density calculations, NDC-to-pixel
-  conversions.
+  conversions. It is the active render target's `logicalSize`.
 - Use `RenderTarget.logicalSize` directly when you have an explicit
-  target reference.
+  target reference; this is the same value `renderer.logicalSize`
+  returns while that target is active.
 - Use `viewportSize` for GL viewport and backing-storage dimensions.
 - Use `visibleScale()` when a pixel-sized visual feature must remain
   stable under CSS transforms.
