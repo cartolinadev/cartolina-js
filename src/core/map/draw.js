@@ -163,8 +163,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     var debug = this.debug;
 
     if (this.drawChannel != 1) {
-        gpu.setRenderTarget(gpu.currentRenderTarget);
-
         map.visibleCredits = {
             imagery : {},
             glueImagery : {},

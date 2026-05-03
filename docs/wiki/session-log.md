@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-03 — Move screenshot output outside watched sandbox
+
+### Goal
+
+Stop screenshot regression checks from triggering webpack rebuilds while
+they are capturing the dev server.
+
+### Work done
+
+Changed `test/screenshot.js` to write captures to `tmp/screenshots/`
+instead of `sandbox/tmp/screenshots/`. Added `tmp/` to `.gitignore` and
+updated `AGENTS.md`.
+
+### Current state
+
+Screenshot artifacts stay inside the working copy but outside the
+watched `sandbox/` static directory.
+
 ## 2026-05-03 — Clarify renderer-local 3D terminology
 
 ### Goal

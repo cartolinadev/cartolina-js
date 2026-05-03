@@ -18,3 +18,4 @@ DEADJOE
 .vscode
 test/perf/results
 .tsbuild
+tmp/
