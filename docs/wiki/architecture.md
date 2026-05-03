@@ -27,6 +27,101 @@ Normal maps are bundled with terrain surfaces and discovered automatically
 via tileserver-provided metadata; no client-side configuration is needed.
 
 
+## Divergence from the VTS-geospatial architecture
+
+cartolina-js is a fork of
+[vts-browser-js](https://github.com/melowntech/vts-browser-js), the
+browser client of VTS-geospatial — a system developed by Melown
+Technologies / Leica Geosystems between roughly 2015 and 2023 and now
+discontinued. VTS-geospatial was a large, general-purpose 3D geospatial
+stack: 10+ components, 20+ supporting libraries, 70 software
+repositories.
+
+Understanding what was dropped clarifies what cartolina is and is not.
+
+
+### What VTS-geospatial looked like
+
+The VTS-geospatial backend consisted of three layers:
+
+**Streaming servers**
+- **mapproxy** — on-the-fly conversion of raster/vector GIS formats
+  (GDAL, OGR, MVT) to VTS-geospatial tile streams. Also served
+  `mapConfig.json` for simple setups.
+- **vtsd** (VTS-Daemon) — a thin HTTP server that streamed static
+  pre-built tilesets and translated *storage views* into
+  `mapConfig.json`. Required for 3D models and complex configurations.
+
+**Data management toolchain**
+- **vts** CLI — managed a filesystem tileset storage: adding tilesets,
+  generating *glues* (pre-baked seam tiles) between overlapping
+  surfaces, removing surfaces.
+- **Encoders** — converted external hierarchical mesh formats (VEF,
+  I3S/SLPK, LODTree) into VTS-geospatial tilesets.
+- **Mapproxy tools** — raster preprocessing (overview generation,
+  measurement, tiling metainfo).
+
+**Global registry**
+- A separate system package (`vts-registry`) containing the canonical
+  reference frame and SRS definitions. All VTS-geospatial components
+  depended on it being installed at `/opt/vts/etc/registry`.
+
+The frontend had two implementations: vts-browser-js (WebGL,
+JavaScript) and vts-browser-cpp (C++, multiplatform, Unity plugin).
+
+The key server-side composition mechanism was the **storage view**: a
+human-editable JSON file that selected a subset of tilesets from the
+storage and combined them with bound and free layers, credits, and
+other options. vtsd translated a storage view into a `mapConfig.json`
+served to the browser. The browser then had no configuration
+responsibility of its own: it just fetched and rendered what the
+server described.
+
+
+### What cartolina dropped
+
+| Dropped | Reason |
+|---|---|
+| vtsd + storage views | Replaced by client-side style spec |
+| vts CLI + storage | No glue generation; each surface is independent |
+| Encoders (vef2vts, etc.) | Out of scope; focus is DEM-based terrain |
+| vts-browser-cpp | Out of scope; cartolina is browser-only |
+| vts-registry system package | RF definitions embedded in mapConfig.json |
+| nginx caching layer | Deployable outside the VTS-geospatial backend package |
+
+The glue system deserves a note: in VTS-geospatial, two overlapping
+surfaces in
+storage required pre-computed glue tilesets to render seamlessly.
+cartolina has no glue system — surfaces are independent and the tile
+pipeline does not blend between them at overlap boundaries.
+
+
+### What replaced server-side composition
+
+The central architectural shift is that **map configuration moved from
+the server to the client**. In VTS-geospatial the server assembled
+`mapConfig.json` from a storage view; in cartolina the application
+author writes a `style.json` that the browser reads directly.
+
+The tileserver's role shrinks to: serve per-surface `mapConfig.json`
+endpoints (one per resource, containing that surface's full reference
+frame and tile URL templates) and stream tiles. It has no knowledge of
+how the client combines surfaces.
+
+The client's role expands: the style spec is the composition contract.
+It lists sources (surfaces, TMS, free layers), defines terrain sources,
+specifies the layer stack (diffuse, bump, specular), configures
+illumination, atmosphere, and vertical exaggeration. Everything the
+VTS-geospatial storage view did on the server now happens in the style
+file on the
+client side.
+
+This also means the reference frame is not negotiated between server
+and client: the tileserver embeds the full RF definition in every
+`mapConfig.json`, and the client extracts it from the first surface it
+loads. See `reference-frames.md` for details.
+
+
 ## Two-build structure
 
 The webpack config produces two distinct library builds from two entry points:

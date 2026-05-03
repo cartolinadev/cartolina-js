@@ -18,6 +18,8 @@ then branch into more specific documents as needed.
 
 ### Subsystem and feature notes
 
+- `reference-frames.md` — reference frame concepts, the melown2015 and
+  QSC families, client loading path, and tileserver production
 - `label-styling-engine.md` — reference notes about the shared
   lettering style engine, expression domains, and textured line
   patterns
@@ -41,15 +43,21 @@ Read `README.md` first for the project-level introduction.
 For understanding the legacy codebase and its concepts, these are the
 main on-demand references:
 
-- `vts-browser-js` wiki
-  <https://github.com/melowntech/vts-browser-js/wiki>
-  Documents the upstream fork and is often useful when working with
-  legacy code paths or inherited API concepts.
+- `vts-registry`
+  <https://github.com/melowntech/vts-registry>
+  Authoritative definitions of all built-in reference frames and SRS
+  entries (`registry/registry/referenceframes.json`,
+  `registry/registry/srs.json`). The tileserver loads these at startup;
+  the client receives the relevant subset embedded in `mapConfig.json`.
 - `melowntech/workshop`
   <https://github.com/melowntech/workshop>
-  Very dated, but the Architecture Overview section still explains
-  recurring concepts such as `mapConfig.json`, surfaces, bound layers,
-  and geodata.
+  Very dated, but `reference/concepts.rst` is the best prose explanation
+  of reference frames, position format, surfaces, bound layers, and
+  geodata. Start here for conceptual background.
+- `vts-browser-js` wiki
+  <https://github.com/melowntech/vts-browser-js/wiki>
+  Documents the upstream fork. Useful when working with legacy code
+  paths or inherited API concepts.
 
 For frontend/backend interface work, consult the backend repository:
 

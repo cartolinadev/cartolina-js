@@ -34,6 +34,13 @@ Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it
 from noise.
 
+**Writing style:** plain engineering prose. Every sentence must carry
+information. No filler phrases ("the trade-offs are real", "it is worth
+noting", "importantly", "indeed"), no charged adjectives or adverbs
+("enormously", "powerful", "seamless", "fundamentally", "critically").
+If something matters, state what it does; do not editorialize about how
+much it matters.
+
 Write wiki entries with a maximum line length of 80 characters. Tables
 and code blocks are exempt.
 
