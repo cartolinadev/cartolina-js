@@ -246,7 +246,7 @@ contextRestored(): void {
  * @param cssSize Canvas layout size in CSS pixels.
  * @param pixelSize Canvas backing-store size in physical pixels.
  */
-resizeCanvas(cssSize: NumberPair, pixelSize: NumberPair) {
+resizeCanvas(cssSize: Readonly<NumberPair>, pixelSize: Readonly<NumberPair>) {
 
     let canvas = this.canvas;
 

@@ -330,7 +330,7 @@ constructor(core: Core, div: HTMLElement, config : Config) {
         !! this.config.rendererAntialiasing, 
         this.config.rendererAnisotropic ?? 0);
 
-    this.syncCanvas(sizes.cssSize, sizes.pixelSize);
+    this.gpu.resizeCanvas(sizes.cssSize, sizes.pixelSize);
     const canvasTarget = this.createCanvasRenderTarget(sizes.cssSize, sizes.pixelSize);
     this.gpu.setRenderTarget(canvasTarget);
     this.setProjection(canvasTarget.logicalSize);
@@ -788,7 +788,7 @@ updateSizeIfNeeded(): boolean {
     }
 
     this.applyCanvasState(nextSizes);
-    this.syncCanvas(nextSizes.cssSize, nextSizes.pixelSize);
+    this.gpu.resizeCanvas(nextSizes.cssSize, nextSizes.pixelSize);
 
     if (this.gpu.currentRenderTarget.kind === 'canvas') {
         const canvasTarget = this.createCanvasRenderTarget(nextSizes.cssSize, nextSizes.pixelSize);
@@ -827,11 +827,6 @@ private setProjection(size: Readonly<Size2>) {
     m[12] = -width*0.5*m[0]; m[13] = -height*0.5*m[5]; m[14] = 0; m[15] = 1;
 
     this.imageProjectionMatrix = m;
-}
-
-private syncCanvas(cssSize: Readonly<Size2>, pixelSize: Readonly<Size2>) {
-
-    this.gpu.resizeCanvas([...cssSize], [...pixelSize]);
 }
 
 private createCanvasRenderTarget(
@@ -1715,7 +1710,7 @@ switchToFramebuffer(
     case 'base':
         const baseSizes = this.calculateSizes();
         this.applyCanvasState(baseSizes);
-        this.syncCanvas(baseSizes.cssSize, baseSizes.pixelSize);
+        this.gpu.resizeCanvas(baseSizes.cssSize, baseSizes.pixelSize);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 

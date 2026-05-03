@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-05-03 — Remove renderer syncCanvas proxy
+
+### Goal
+
+Delete a private `Renderer.syncCanvas()` wrapper that only forwarded to
+`GpuDevice.resizeCanvas()`.
+
+### Work done
+
+Inlined the three call sites and changed `GpuDevice.resizeCanvas()` to
+accept readonly size pairs directly. This removed the proxy and the
+tuple clones at each call site.
+
+### Current state
+
+TypeScript and canonical screenshot checks pass.
+
 ## 2026-05-03 — Document visible-scale transform assumption
 
 ### Goal
