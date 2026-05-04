@@ -157,9 +157,31 @@ export class Renderer {
     // textures
     heightmapTexture: Optional<GpuTexture> = null;
     skydomeMesh: Optional<GpuMesh> = null;
+
+    /**
+     * Depth hitmap: off-screen auxiliary texture rendered with
+     * `onlyDepth = true`. Each pixel encodes the depth of the closest
+     * geometry fragment. Read back by `getDepth` / `getScreenRay` to
+     * convert a screen coordinate to a world position.
+     */
     hitmapTexture: Optional<GpuTexture> = null;
+
+    /**
+     * Geodata hitmap (normal hit layers): off-screen auxiliary texture
+     * rendered with `onlyHitLayers = true`. Pixel values encode the
+     * identity of the geographic feature at that screen position.
+     * Read back by `hitTest` and `hitTestGeoLayers` to answer which
+     * vector feature the user is pointing at.
+     */
     geoHitmapTexture: Optional<GpuTexture> = null;
+
+    /**
+     * Geodata hitmap (advanced hit layers): same purpose as
+     * `geoHitmapTexture` but rendered with
+     * `onlyAdvancedHitLayers = true` for the second hit-test pass.
+     */
     geoHitmapTexture2: Optional<GpuTexture> = null;
+
     redTexture: Optional<GpuTexture> = null;
     whiteTexture: Optional<GpuTexture> = null;
     blackTexture: Optional<GpuTexture> = null;
@@ -732,6 +754,10 @@ updateSizeIfNeeded(): boolean {
 
     if (canvasTarget == null) return false;
 
+    // TODO: remove the wasCanvasTarget guard. updateSizeIfNeeded() is only
+    // called at the top of the render loop (map.js), so mid-auxiliary-pass
+    // firing is not possible. wasCanvasTarget is always true here. The guard
+    // is dead code; setProjection should follow unconditionally.
     if (wasCanvasTarget) {
         this.setProjection(canvasTarget.apparentSize);
     }

@@ -135,9 +135,9 @@ space, matching the coordinate space of projected anchors.
 ## Label collision grid
 
 `RendererRMap.clear()` uses `apparentSize` for bounds and block-grid
-dimensions. Projected label anchors and rectangles are in apparent
-coordinates; using `cssLayoutSize` here clips labels in the right and
-bottom CSS-transform bands before they can enter `gmap`.
+dimensions. `project2()` outputs anchor coordinates in `apparentSize`
+pixel space, so the collision grid must use the same space for bounds
+to match.
 
 ## Mouse-event coordinate space
 

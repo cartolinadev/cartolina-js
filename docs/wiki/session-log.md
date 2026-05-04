@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-04 — CoreInterface declaration tightening
+
+### Goal
+
+Expose recent TypeScript-facing `CoreInterface` methods in the
+declaration surface.
+
+### Work done
+
+- Added declarations and JSDoc for vertical exaggeration, illumination,
+  atmosphere, and rendering-option methods on `CoreInterface`.
+- Added JSDoc to nearby event and lifecycle declarations.
+
+### Current state
+
+TypeScript passes. No visual regression testing was needed because this
+is a declaration-only change.
+
 ## 2026-05-04 — Architecture milestone note
 
 ### Goal

@@ -38,6 +38,12 @@ import type { vec3 } from '../core/utils/math';
  * The primary public API object returned by the `map()` factory.
  *
  * Exported as the type alias `Map` from the package index.
+ *
+ * `_map`, `_mapInterface`, and `_renderer` are bypass points — Viewer
+ * reaching past the layer boundary into legacy internals. They exist
+ * because the Map TypeScript public class has not been built yet. Once
+ * it exists, Viewer holds a Map instance and all three disappear.
+ * See backlog: "build the Map TypeScript public class".
  */
 class Viewer {
 
@@ -45,12 +51,6 @@ class Viewer {
     private readonly _browser: Browser;
     private readonly _core: CoreInterface;
     private _killed = false;
-
-    // TODO: _map, _mapInterface, and _renderer are bypass points — Viewer
-    // reaching past the layer boundary into legacy internals. They exist
-    // because the Map TypeScript public class has not been built yet. Once
-    // it exists, Viewer holds a Map instance and all three disappear.
-    // See backlog: "build the Map TypeScript public class".
 
     private get _map(): Map | null { return this._core?.core?.map ?? null; }
 
@@ -529,7 +529,8 @@ class Viewer {
     ): [boolean, number] | null {
 
         if (this._guard()) return null;
-        return this._map?.getScreenDepth(screenX, screenY, dilate) ?? null;
+        return this._map?.getScreenDepth(
+            screenX, screenY, dilate, undefined, 'layout') ?? null;
     }
 
     // -------------------------------------------------------------------------
