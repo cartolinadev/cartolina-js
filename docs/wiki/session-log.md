@@ -40,11 +40,21 @@ runtime diagnostics.
 - Changed `RendererRMap.clear()` back to apparent-space bounds and block
   dimensions. With that diagnostic change, `Brennkogel` enters `gmap`,
   passes `rmapDepth`, is stored, and reaches output.
+- Generalized the Playwright capture runner as
+  `test/diagnostics/label-pipeline.js`. The default viewport is
+  `1200x800`, and the script prints the URL and viewport used for each
+  run.
+- Added `label-regression-diagnostics.md` with the label-pipeline stages,
+  divergence guide, coordinate-space checks, and temporary
+  instrumentation rules.
+- Updated `AGENTS.md` with the regression diagnostics trigger protocol
+  and no-cargo-cult rule for speculative fixes.
 
 ### Current state
 
-The coordinate-space API fix and `rmap` apparent-bounds fix are present
-in the working tree. TypeScript passes.
+The coordinate-space API fix, `rmap` apparent-bounds fix, and reusable
+diagnostic workflow are present on the feature branch. TypeScript
+passes.
 
 ## 2026-05-04 — Refactor rendering sizes
 
@@ -75,9 +85,9 @@ calculation from `Renderer` to `GpuDevice`. See design input in
 - Simplified `draw.js`: `screenPixelSize` formula no longer multiplies
   by `visibleScale`; `noOverlap()` returns raw worker values without
   division.
-- `rmap.js`: `clear()` uses `cssLayoutSize` for the collision-grid
-  bounds to preserve label density behaviour (see
-  rendering-sizes.md for rationale).
+- `rmap.js`: `clear()` originally used `cssLayoutSize` for the
+  collision-grid bounds. A later regression fix restored apparent-space
+  bounds because projected labels are apparent-space coordinates.
 - `map.js`: removed redundant `imageProjectionMatrix` recomputation
   in `getScreenDepth` — was already set by `switchToFramebuffer('base')`
   inside `drawHitmap()`.

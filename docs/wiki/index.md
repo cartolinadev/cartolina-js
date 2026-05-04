@@ -23,6 +23,8 @@ then branch into more specific documents as needed.
 - `label-styling-engine.md` — reference notes about the shared
   lettering style engine, expression domains, and textured line
   patterns
+- `label-regression-diagnostics.md` — workflow for empirical
+  label-pipeline regression tracing
 - `render-targets.md` — render-target ownership, auxiliary framebuffer
   policy, and camera/logical-size rules
 - `rendering-sizes.md` — canvas, framebuffer, logical, physical, and

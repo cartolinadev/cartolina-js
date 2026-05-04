@@ -258,18 +258,62 @@ keyboard or mouse interaction) surface as `pageerror` events, not as
 `console` errors. A test that only monitors the `console` channel will
 silently miss these failures.
 
+### No cargo-cult fixes
+
+Do not make speculative fixes and leave them in the tree. Every change
+must be grounded in diagnostic data or in source analysis that identifies
+the mechanism being changed. If a trial change does not fix the measured
+problem, remove or stash it before continuing. Freshly added,
+speculative, and unproductive code is technical debt; do not let it
+accumulate while debugging.
+
+When a trial is useful, keep it clearly temporary: record what it tests,
+run the relevant check, then either turn it into the minimal confirmed
+fix or discard it. Do not stack new hypotheses on top of failed trial
+code.
+
 ### Regression bug diagnostics and fixing
 
-When diagnosing a regression, first create a diagnostics branch from the
-state where the behavior still worked. This is usually `main`; when the
-regression is reported against production, use the commit recorded in
-the production build. The two comparison branches are then:
+When the user says "this is a regression bug", "use the regression
+rules", or otherwise gives a known-good and bad behavior pair, enter
+this protocol before proposing fixes:
+
+1. State the known-good URL/branch and regression URL/branch.
+2. State the viewport size used for browser diagnostics. If the user
+   reports a visual regression, ask for or infer their viewport before
+   treating screenshots as comparable. Default local diagnostic viewport
+   is `1200x800`; override it to match the reported environment.
+3. State the specific entity or symptom being traced.
+4. Add or enable comparable diagnostics on both sides.
+5. Run both sides and compare the first hard output.
+6. Only then form a hypothesis or make a fix.
+
+When diagnosing a regression, first identify the known-good commit. This
+is usually `main`; when the regression is reported against production,
+use the commit recorded in the production build. Create one reusable
+ground-truth diagnostics branch from that commit, or reuse an existing
+one if it still points at the same known-good commit. Do not create a new
+known-good diagnostics branch for every symptom when the base commit has
+not changed.
+
+The regression side is the current feature branch that produced the
+regression. Add temporary instrumentation there if it can be safely
+stashed or removed before committing the fix. If a separate branch is
+needed to keep diagnostics isolated, create one from the current feature
+branch and name it clearly with the case being traced.
+
+The two comparison worktrees or branches are then:
 
 - the diagnostics branch created from the known-good state, with
   diagnostic instrumentation added;
 
-- the development branch that produced the regression, with equivalent
-  diagnostic instrumentation added.
+- the development branch that produced the regression, or a clearly
+  named diagnostics branch created from it, with equivalent diagnostic
+  instrumentation added.
+
+Keep diagnostic branch names explicit, e.g. `diag/nacis-main-labels` for
+the reusable ground truth and `diag/nacis-fix-brennkogel` only when a
+feature-side branch is needed for a specific trace.
 
 **Trace divergence empirically, step by step.** When the diagnostics
 branch and the regression branch produce different output, find the
@@ -293,6 +337,10 @@ Take a screenshot and look at it. Do not rely on user description alone.
 beats a page of analysis. Add `console.log` to the live code (webpack
 reloads automatically), capture output via a Playwright script, and
 reason from numbers.
+
+For label-pipeline regressions, see the wiki page
+`docs/wiki/label-regression-diagnostics.md`. The reusable Playwright
+capture script is `test/diagnostics/label-pipeline.js`.
 
 **`update session log` command.** When the user types this, write a
 new entry in `docs/wiki/session-log.md` covering: goal, work done,
