@@ -1,5 +1,26 @@
 # Session log
 
+## 2026-05-05 — Contributor documentation refresh
+
+### Goal
+
+Replace inherited `vts-browser-js` contributor text with current
+cartolina-js guidance.
+
+### Work done
+
+- Rewrote `CONTRIBUTING.md` around the current project scope, setup,
+  testing expectations, pull-request contents, and wiki-update policy.
+- Added contributor terms covering inbound project-license grants,
+  provenance, third-party disclosure, and indemnity for breaches of those
+  terms.
+- Replaced the stale Melown-era code of conduct contact and wording with
+  a project-scoped conduct document.
+
+### Current state
+
+Documentation-only change. No code tests were run.
+
 ## 2026-05-04 — CoreInterface declaration tightening
 
 ### Goal

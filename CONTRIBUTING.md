@@ -1,120 +1,126 @@
-# Contributing to VTS-Browser-JS
+# Contributing to cartolina-js
 
-[Melown](http://melown.com) VTS-Browser-JS project openly welcomes
-contributions (bug reports, bug fixes, code enhancements/features, etc.).  This
-document will outline some guidelines on contributing to VTS-Browser-JS. 
-
-VTS-Browser-JS has the following modes of contribution:
-
-- GitHub Pull Requests (accepted and moderated by contributors with git write access)
-- GitHub Commit Access (granted to long-term core developers)
+`cartolina-js` is a feature-driven fork of `vts-browser-js`. Contributions
+are welcome, but the project is not trying to preserve the full legacy API.
+Before starting larger work, read `README.md` and the wiki index at
+`docs/wiki/index.md`.
 
 ## Code of Conduct
 
-Please note that this project is released with a Contributor Code of Conduct
-(see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)). By
-participating in this project you agree to abide by its terms.
+Participation in this project is covered by `CODE_OF_CONDUCT.md`.
 
+## Contributor Terms
 
-## Contributor License Agreement
+By submitting a contribution, you agree that:
 
-Contributors are asked to expressly agree with [Melown Contributor License Agreement (CLA)](https://gist.github.com/melown-bookkeeping/400fcb29dae1042c7b36880986d939f8).
+- the contribution may be used, modified, sublicensed, and redistributed
+  under the project license in `LICENSE`
+- you have the right to submit the contribution under those terms
+- the contribution is your original work, or is derived from work that you
+  have the right to submit under compatible open-source terms
+- you will identify any third-party code, data, generated output, or license
+  terms that apply to the contribution
+- to the extent permitted by law, you will defend and indemnify the project
+  maintainers from third-party claims caused by your breach of these terms
 
-The purpose of the Melown CLA is to ensure that
+These terms are an inbound-equals-outbound contribution policy. Copyright
+ownership is not assigned to the project; contributors keep ownership of
+their own contributions while granting the project the rights needed to
+release them under the project license.
 
-- Melown secures copyright and any patent rights necessary to make your code part of the project
-- your contribution does not infringe on other people's rights
+Maintainers may ask for a signed-off commit, a separate written
+certification, or clarification of source provenance before accepting a
+contribution.
 
-You agree with the CLA by
+## Contribution Scope
 
- 1. downloading a [CLA copy](https://melown.github.io/documents/melown-individual-cla-v1.pdf) and printing it,
- 2. entering your name, your legal adress and current date,
- 3. signing the document,
- 4. scanning the signed document and emailing it to *community at melown.com*.
+Good contributions include:
 
-This is only required once for your contributions to [all Melown repositories](https://github.com/Melown).
+- bug reports with a reproducible URL, style, or demo case
+- fixes for current demos and test URLs
+- focused rendering, terrain, style, or API improvements
+- TypeScript migration work tied to a feature or cleanup already in flight
+- documentation that records current behavior or non-obvious findings
 
-## Development
+Out of scope by default:
 
-### GitHub Commit Guidelines
+- restoring old `vts-browser-js` compatibility surfaces
+- new JavaScript source modules
+- speculative abstractions for future features
+- broad rewrites that are not tied to a tested behavior change
 
-- enhancements and bug fixes should be identified with a GitHub issue
-- commits should be granular enough for other developers to understand the
-  nature / implications of the change(s). You might be asked to merge commits,
-  so that other developers are able to understand commit content.
-- non-trivial Git commits shall be associated with a GitHub issue.  As
-  documentation can always be improved, tickets need not be opened for improving
-  the docs
-- Git commits shall include a description of changes
-- Git commits shall include the GitHub issue number (i.e. ``#1234``) in the Git
-  commit log message
+## Development Setup
 
-**Once test environment is set:**
+Use the Node version from `.nvmrc`:
 
-- all enhancements or bug fixes must successfully pass all tests
-  before they are committed
-
-
-### Coding Guidelines
-
-**NOTE:** There are no specific coding guidelines yet. ESLinter will be set
-soon.
-
-### Submitting a Pull Request
-
-This section will guide you through steps of working on VTS-Browser-JS.  This
-section assumes you have forked VTS-Browser-JS into your own GitHub repository.
-Note that `master` is the main development branch in VTS-Browser-JS; 
-```
-  # clone the repository locally
-  git clone https://github.com/melown/vts-browser-js.git
-  cd vts-browser-js
-  
-  # add the main VTS-Browser-JS development branch to keep up to date with
-  # upstream changes
-  git remote add upstream https://github.com/melown/vts-browser-js.git
-  git pull upstream master
-
-  # create a local branch off master
-  # The name of the branch should include the issue number if it exists
-  git branch issue-72
-  git checkout issue-72
-
-   
-  # make code/doc changes
-  git commit -am 'fix xyz (#72)'
-  git push origin issue-72
-
+```bash
+source ~/.nvm/nvm.sh && nvm use
+npm install
+npm start
 ```
 
-Your changes are now visible on your VTS-Browser-JS repository on GitHub.  You
-are now ready to create a pull request.  A member of the Melown core team will
-review the pull request and provide feedback / suggestions if required.  If
-changes are required, make them against the same branch and push as per above
-(all changes to the branch in the pull request apply).
+The dev server serves demos from `http://localhost:8080/demos/` and the
+test index from `http://localhost:8080/test/`.
 
-The pull request will then be merged by the Melown team.  You can then delete
-your local branch (on GitHub), and then update
-your own repository to ensure your Melown repository is up to date with Melown
-master:
+## Coding Guidelines
 
+Follow the repository instructions in `AGENTS.md` and the current code near
+the change. In short:
+
+- new source files are TypeScript, not JavaScript
+- new shaders use GLSL ES 3.00 for WebGL2
+- keep changes small and feature-driven
+- prefer deleting unused legacy code over wrapping it
+- use existing renderer, map, and style APIs before adding new helpers
+- preserve or update JSDoc when moving or changing documented code
+
+Run TypeScript checks for TypeScript-facing changes:
+
+```bash
+npm run typecheck
 ```
-  git checkout master
-  git pull upstream master
+
+For rendering changes, compare the canonical test URLs:
+
+```bash
+node test/screenshot.js simple-terrain
+node test/screenshot.js complex-terrain
+node test/screenshot.js full-terrain
 ```
 
-## Documentation
+Run the entries sequentially. Performance tests are only needed when the
+change may affect frame rate or load time.
 
-**NOTE:** More detailed description of code structure is missing right now. We
-are aware of this issue and will try to improve the documentation in the future. 
+## Pull Requests
 
-* Check the [Library user documentation](https://github.com/Melown/vts-browser-js/wiki)
+Use a branch with a short descriptive name. Include in the pull request:
 
-## Bugs
+- the problem or feature being addressed
+- the main implementation decisions
+- the tests or visual checks run
+- screenshots when the change affects rendering
+- any wiki pages updated
 
-The VTS-Browser-JS [issue tracker](https://github.com/melown/vts-browser-js/issues) is the
-place to report bugs or request enhancements. To submit a bug be sure to specify
-the VTS-Browser-JS version you are using, the appropriate component, a description of how
-to reproduce the bug. Please note, that we are going to reproduce the bug on the
-development server (see `README.md` for how to start dev server).
+Documentation-only changes do not need rendering tests. Code changes that
+alter public behavior should update demos, tests, or docs in the same pull
+request.
 
+## Wiki Updates
+
+The wiki in `docs/wiki/` is part of the development process. Update it when
+a change affects architecture notes, non-obvious behavior, migration rules,
+or contributor workflow. Significant work should add a brief entry to
+`docs/wiki/session-log.md`.
+
+## Reporting Bugs
+
+Report bugs on the project issue tracker. Include:
+
+- the cartolina-js version or commit
+- the browser and operating system
+- the URL, style file, or demo needed to reproduce the issue
+- the viewport size for visual bugs
+- console or network errors, if present
+- screenshots for visual regressions
+
+For rendering regressions, identify the known-good version when possible.
