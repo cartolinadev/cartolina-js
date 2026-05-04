@@ -259,6 +259,14 @@ style-driven layer stacks and `TileRenderRig`, while gradually shrinking this
 legacy draw subsystem as old map-config-only paths and multi-stage draw logic
 are retired.
 
+First major milestone:
+
+- Style specs are the only authored composition model.
+- `TileRenderRig` is the only terrain tile render path.
+- New GLSL 300 shaders own terrain, depth, atmosphere, layer stack, and VE.
+- Legacy `mapConfig`/view support becomes an adapter, then disappears.
+- `Viewer` remains the flat public API. Legacy sub-objects stay private.
+
 
 ## Public API transformation
 

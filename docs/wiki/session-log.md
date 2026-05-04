@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-04 — Architecture milestone note
+
+### Goal
+
+Record the first major modernization milestone for tile rendering and
+map composition.
+
+### Work done
+
+- Added a concise architecture note: style specs become the only authored
+  composition model, `TileRenderRig` becomes the only terrain tile render
+  path, and legacy `mapConfig`/view support becomes an adapter before it
+  is removed.
+
+### Current state
+
+Documentation-only change. No tests were run.
+
 ## 2026-05-04 — Depth-test demo regression and depth pipeline investigation
 
 ### Goal
