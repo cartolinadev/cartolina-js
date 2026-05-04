@@ -838,6 +838,20 @@ getIlluminationState(): boolean {
     return !! this.illumination && this.illumination.useLighting;
 };
 
+
+private coordinateSpaceSize(
+    coordinateSpace: Renderer.CoordinateSpace,
+): Readonly<Size2> {
+
+    if (coordinateSpace === 'apparent') {
+        return this.gpu.currentRenderTarget.apparentSize;
+    }
+
+    return this.gpu.currentRenderTarget.cssLayoutSize
+        ?? this.gpu.currentRenderTarget.apparentSize;
+}
+
+
 setIllumination(definition: Renderer.IlluminationDef) {
 
     if (!definition.light || typeof definition.light !== 'object') {
@@ -1565,16 +1579,18 @@ project(point) {
 };*/
 
 
-getScreenRay(screenX: number, screenY: number) {
+getScreenRay(
+    screenX: number,
+    screenY: number,
+    coordinateSpace: Renderer.CoordinateSpace = 'layout',
+) {
     if (this.camera == null) {
         return [0,0,1.0];
     }
 
     this.camera.dirty = true; //???? why is projection matrix distored so I have to refresh
 
-    //convert screen coords — mouse events are in CSS layout space
-    const inputSize = this.gpu.currentRenderTarget.cssLayoutSize
-        ?? this.gpu.currentRenderTarget.apparentSize;
+    const inputSize = this.coordinateSpaceSize(coordinateSpace);
     var x = (2.0 * screenX) / inputSize[0] - 1.0;
     var y = 1.0 - (2.0 * screenY) / inputSize[1];
     
@@ -1606,12 +1622,16 @@ getScreenRay(screenX: number, screenY: number) {
 };
 
 
-hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
+hitTestGeoLayers(
+    screenX: number,
+    screenY: number,
+    secondTexture: boolean,
+    coordinateSpace: Renderer.CoordinateSpace = 'layout',
+) {
 
     var surfaceHit = false, pixel: Uint8Array = new Uint8Array(4);
 
-    const inputSizeGeo = this.gpu.currentRenderTarget.cssLayoutSize
-        ?? this.gpu.currentRenderTarget.apparentSize;
+    const inputSizeGeo = this.coordinateSpaceSize(coordinateSpace);
 
     if (screenX >= 0 && screenX < inputSizeGeo[0] &&
         screenY >= 0 && screenY < inputSizeGeo[1]) {
@@ -1709,10 +1729,14 @@ switchToFramebuffer(
 };
 
 
-hitTest(screenX: number, screenY: number) {
+hitTest(
+    screenX: number,
+    screenY: number,
+    coordinateSpace: Renderer.CoordinateSpace = 'layout',
+) {
 
     //get screen ray
-    var screenRay = this.getScreenRay(screenX, screenY);
+    var screenRay = this.getScreenRay(screenX, screenY, coordinateSpace);
     var cameraPos = this.camera.getPosition();
 
     //probably not needed
@@ -1720,8 +1744,7 @@ hitTest(screenX: number, screenY: number) {
       //  return [0, 0, 0, null, screenRay, Number.MAX_VALUE, cameraPos];
     //}
 
-    const inputSizeHit = this.gpu.currentRenderTarget.cssLayoutSize
-        ?? this.gpu.currentRenderTarget.apparentSize;
+    const inputSizeHit = this.coordinateSpaceSize(coordinateSpace);
 
     //convert screen coords to texture coords
     var x = 0, y = 0;
@@ -1766,10 +1789,14 @@ copyHitmap() {
 };
 
 
-getDepth(screenX: number, screenY: number, dilate: number = 0) {
+getDepth(
+    screenX: number,
+    screenY: number,
+    dilate: number = 0,
+    coordinateSpace: Renderer.CoordinateSpace = 'layout',
+) {
 
-    const inputSizeDepth = this.gpu.currentRenderTarget.cssLayoutSize
-        ?? this.gpu.currentRenderTarget.apparentSize;
+    const inputSizeDepth = this.coordinateSpaceSize(coordinateSpace);
     var x = Math.floor(screenX * (this.hitmapSize / inputSizeDepth[0]));
     var y = Math.floor(screenY * (this.hitmapSize / inputSizeDepth[1]));
 
@@ -2104,6 +2131,9 @@ const UboFrameSize = 320;
 
 // export types
 export namespace Renderer {
+
+/** Coordinate space used by hit, depth, and ray screen-coordinate APIs. */
+export type CoordinateSpace = 'layout' | 'apparent';
 
 export enum RenderFlags {
 

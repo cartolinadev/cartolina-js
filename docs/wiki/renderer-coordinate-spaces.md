@@ -44,25 +44,25 @@ a 3D point by an MVP matrix, divides by `w`, then maps NDC to
 target-local 2D coordinates:
 
 ```text
-x = (ndcX + 1) * 0.5 * logicalWidth
-y = (1 - ndcY) * 0.5 * logicalHeight
+x = (ndcX + 1) * 0.5 * apparentWidth
+y = (1 - ndcY) * 0.5 * apparentHeight
 ```
 
 The result is not a physical framebuffer pixel unless the render target's
-logical size equals its viewport size. On the base canvas target, the
-result is normally in canvas layout CSS units.
+apparent size equals its viewport size. On the base canvas target, the
+result is in apparent CSS units after CSS transforms.
 
 ## Target-Local 2D Space
 
 Target-local 2D space is the post-projection 2D space of the active render
-target. Its width and height are `RenderTarget.logicalSize`.
+target. Its width and height are `RenderTarget.apparentSize`.
 
 Examples:
 
-- Base canvas pass: target-local 2D coordinates are canvas layout CSS
+- Base canvas pass: target-local 2D coordinates are apparent CSS
   coordinates.
-- Auxiliary hitmap pass: target-local 2D coordinates are hitmap texture
-  coordinates.
+- Auxiliary hitmap pass: target-local 2D coordinates are inherited
+  apparent CSS coordinates for the current screen view.
 
 This is the space used for projected label anchors, debug overlays, 2D
 images, and screen-space lines before GL maps them to the viewport.
@@ -88,9 +88,20 @@ from a logical width and height.
 
 Many of these paths still read `renderer.curSize` internally because they
 come from legacy code. New renderer work should use the active
-`RenderTarget.logicalSize` for target-local 2D coordinates. These helpers
+`RenderTarget.apparentSize` for target-local 2D coordinates. These helpers
 belong in the base canvas pass; calling them while an auxiliary target is
 active indicates a scheduling problem.
+
+## Hit Input Coordinate Spaces
+
+Mouse events provide coordinates in pre-transform CSS layout space.
+Projected renderer values such as label anchors from `project2()` are in
+apparent space. `Renderer.CoordinateSpace` marks which of those spaces a
+caller is passing to hit/depth/ray APIs.
+
+The default coordinate space is `layout`, so public mouse-facing paths
+keep using `cssLayoutSize ?? apparentSize`. Internal label-depth tests
+pass `apparent` because they use projected anchors.
 
 ## Relationship To Viewport Pixels
 
@@ -110,5 +121,5 @@ transform renderer-local 3D positions to clip coordinates with the
 camera matrices, then GL maps clip/NDC coordinates to viewport pixels.
 
 Keeping these steps separate is what allows the base canvas to use
-pre-transform CSS layout coordinates while drawing into a DPR- and
-CSS-transform-adjusted backing canvas.
+apparent coordinates for rendering while mouse-facing hit tests continue
+to accept pre-transform CSS layout coordinates.

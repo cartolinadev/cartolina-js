@@ -104,6 +104,7 @@ export default class Map {
         screenY: number,
         dilate?: number,
         useFallback?: boolean,
+        coordinateSpace?: Renderer.CoordinateSpace,
     ): [boolean, number];
     isAtmospheric(): boolean;
 }

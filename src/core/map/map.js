@@ -1101,12 +1101,14 @@ Map.prototype.getScreenRay = function(screenX, screenY) {
  */
 
 Map.prototype.getScreenDepth = function(
-    screenX, screenY, dilate = 0, useFallback = false) {
+    screenX, screenY, dilate = 0, useFallback = false,
+    coordinateSpace = 'layout') {
 
     if (useFallback) {
 
         var cameraPos = this.camera.position;
-        var ray = this.renderer.getScreenRay(screenX, screenY), a, d;
+        var ray = this.renderer.getScreenRay(
+            screenX, screenY, coordinateSpace), a, d;
 
         if (this.getNavigationSrs().isProjected()) { //plane fallback
             var planePos = [0,0,Math.min(-1000,this.referenceFrame.getGlobalHeightRange()[0])];
@@ -1155,7 +1157,8 @@ Map.prototype.getScreenDepth = function(
             this.renderer.camera.update();
         }
 
-        var res = this.renderer.getDepth(screenX, screenY, dilate);
+        var res = this.renderer.getDepth(
+            screenX, screenY, dilate, coordinateSpace);
     }
 
     return res;

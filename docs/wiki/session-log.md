@@ -28,13 +28,17 @@ runtime diagnostics.
   historical label positions but shifted rendered labels off their
   apparent-screen positions, so it is not a valid fix for the current
   render-target model.
+- Added `Renderer.CoordinateSpace` and threaded it through
+  `getScreenRay`, `hitTest`, `hitTestGeoLayers`, `getDepth`, and
+  `Map.getScreenDepth`. Public mouse-facing calls default to `layout`;
+  label-depth testing passes `apparent`.
 
 ### Current state
 
-The minimal `getDepth()` coordinate fix is present in the working tree.
-TypeScript passes. The slide still has a broader label regression: labels
-such as `Brennkogel` are missing, and the failure appears as a wide band
-of removed labels on the right and bottom. The next investigation should
+The coordinate-space API fix is present in the working tree. TypeScript
+passes. The slide still has a broader label regression: labels such as
+`Brennkogel` are missing, and the failure appears as a wide band of
+removed labels on the right and bottom. The next investigation should
 continue from the pipeline diagnostics and trace that boundary-condition
 loss separately from the `Figerhorn` depth-sampling failure.
 

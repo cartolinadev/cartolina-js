@@ -75,6 +75,10 @@ On a feature branch, commit freely — at milestones during implementation
 or after completing a step — without asking first. On the main branch,
 always ask before committing.
 
+Commit hooks may add version bumps to `package.json` or
+`src/core/version.js`. Leave those hook-generated version changes in the
+commit even when asked to commit only a specific logical change.
+
 ## Orientation
 
 The goal is to become a modern web-based cartography library with a

@@ -34,8 +34,8 @@ independent targets.
 
 - Pre-transform CSS layout size in CSS pixels (`offsetWidth` /
   `offsetHeight`). Mouse event coordinates are reported in this space.
-- Use for screen-coordinate hit-testing (`getScreenRay`, `hitTest`,
-  `getDepth`, `hitTestGeoLayers`).
+- Default input space for screen-coordinate hit-testing (`getScreenRay`,
+  `hitTest`, `getDepth`, `hitTestGeoLayers`).
 
 `RenderTarget.cssScale` *(optional)*
 
@@ -132,16 +132,22 @@ decision deferred to a future task.
 
 ## Mouse-event coordinate space
 
-`getScreenRay`, `hitTest`, `hitTestGeoLayers`, and `getDepth` receive
-coordinates in the pre-transform CSS layout space (mouse events report
-`offsetX`/`offsetY` in layout coordinates). These functions use
-`cssLayoutSize` for conversions. `apparentSize` is not the right size
-here.
+`getScreenRay`, `hitTest`, `hitTestGeoLayers`, and `getDepth` accept a
+`Renderer.CoordinateSpace` argument. The default is `layout`, because
+mouse events report `offsetX`/`offsetY` in pre-transform CSS layout
+coordinates. In this mode the methods use `cssLayoutSize ??
+apparentSize`.
+
+Projected renderer values such as label anchors from `project2()` are in
+apparent coordinates. Callers that pass those values to hitmap/depth APIs
+must pass `apparent`, otherwise CSS-transformed canvases sample the wrong
+hitmap pixel.
 
 ## Practical rule
 
 - Rendering geometry, label placement, collision, NDC conversions:
   use `renderer.apparentSize` (or `gpu.currentRenderTarget.apparentSize`).
 - GL viewport and backing-storage dimensions: use `viewportSize`.
-- Mouse-event hit-testing: use `cssLayoutSize ?? apparentSize`.
+- Mouse-event hit-testing: use default `layout` coordinate space.
+- Projected label-depth tests: pass `apparent` coordinate space.
 - Do not use `curSize` or `logicalSize` in new code.
