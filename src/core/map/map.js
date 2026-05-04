@@ -1097,9 +1097,23 @@ Map.prototype.getScreenRay = function(screenX, screenY) {
 
 
 /**
- * dilate - the number of pixels to dilate the depth map by when sampling
+ * Samples terrain depth at a 2D position in the current screen view.
+ *
+ * Coordinates are interpreted according to `coordinateSpace`. Use the
+ * default `layout` for mouse-event positions. Use `apparent` for
+ * projected renderer positions such as label anchors returned by
+ * `Renderer.project2()`.
+ *
+ * @param {number} screenX Horizontal coordinate in the selected space.
+ * @param {number} screenY Vertical coordinate in the selected space.
+ * @param {number} dilate Depth-map dilation radius in hitmap pixels.
+ * @param {boolean} useFallback Use mathematical ray intersection instead
+ *   of the depth hitmap.
+ * @param {'layout'|'apparent'} coordinateSpace Coordinate space of
+ *   `screenX` and `screenY`.
+ * @returns {[boolean, number]} Whether a surface was hit, and its depth
+ *   along the screen ray.
  */
-
 Map.prototype.getScreenDepth = function(
     screenX, screenY, dilate = 0, useFallback = false,
     coordinateSpace = 'layout') {

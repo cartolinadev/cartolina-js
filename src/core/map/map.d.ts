@@ -99,6 +99,22 @@ export default class Map {
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;
     getPhysicalSrs(): MapSrs;
+    /**
+     * Samples terrain depth at a 2D position in the current screen view.
+     *
+     * Coordinates are interpreted according to `coordinateSpace`. Use the
+     * default `layout` for mouse-event positions. Use `apparent` for
+     * projected renderer positions such as label anchors returned by
+     * `Renderer.project2()`.
+     *
+     * @param screenX Horizontal coordinate in the selected space.
+     * @param screenY Vertical coordinate in the selected space.
+     * @param dilate Depth-map dilation radius in hitmap pixels.
+     * @param useFallback Use mathematical ray intersection instead of the
+     * depth hitmap.
+     * @param coordinateSpace Coordinate space of `screenX` and `screenY`.
+     * @returns Whether a surface was hit, and its depth along the screen ray.
+     */
     getScreenDepth(
         screenX: number,
         screenY: number,
