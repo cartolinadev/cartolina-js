@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-04 — Move canvas size-change detection to GpuDevice
+
+### Goal
+
+Keep canvas size calculation and comparison in `GpuDevice`.
+
+### Work done
+
+- Added `GpuDevice.updateCanvasRenderTargetIfNeeded()`, which rebuilds
+  the canvas target fields from DOM state, compares them with the
+  current target, and installs a new canvas target only when a size
+  field changed.
+- Simplified `Renderer.updateSizeIfNeeded()` so it only handles the
+  killed flag and the projection update that follows a canvas-target
+  resize.
+- Updated render-target and rendering-size wiki notes.
+
+### Current state
+
+TypeScript passes. Browser verification was not run for this ownership
+cleanup.
+
 ## 2026-05-04 — Merge canvas resize into render-target setup
 
 ### Goal

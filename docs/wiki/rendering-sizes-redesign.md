@@ -68,9 +68,11 @@ does not need it.
 ## Size calculation ownership
 
 `setCanvasRenderTarget()` derives the canvas sizes, applies them to the
-canvas element, and installs the canvas render target. `Renderer`
-still calls `setProjection()` explicitly afterward because projection
-state belongs to the screen view, not to auxiliary framebuffer targets.
+canvas element, and installs the canvas render target.
+`updateCanvasRenderTargetIfNeeded()` uses the same calculation to test
+whether the active target still matches the DOM. `Renderer` still calls
+`setProjection()` explicitly afterward because projection state belongs
+to the screen view, not to auxiliary framebuffer targets.
 
 ## GpuDevice API shape
 

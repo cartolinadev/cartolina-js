@@ -733,28 +733,12 @@ updateSizeIfNeeded(): boolean {
         return false;
     }
 
-    const cur = this.gpu.currentRenderTarget;
-    const el = this.div as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const W = el.offsetWidth || el.clientWidth;
-    const H = el.offsetHeight || el.clientHeight;
+    const wasCanvasTarget = this.gpu.currentRenderTarget.kind === 'canvas';
+    const canvasTarget = this.gpu.updateCanvasRenderTargetIfNeeded();
 
-    const changed =
-        cur.apparentSize[0] !== rect.width ||
-        cur.apparentSize[1] !== rect.height ||
-        cur.viewportSize[0] !== rect.width * dpr ||
-        cur.viewportSize[1] !== rect.height * dpr ||
-        (cur.cssScale?.[0] ?? 1) !== rect.width / W ||
-        (cur.cssScale?.[1] ?? 1) !== rect.height / H;
+    if (canvasTarget == null) return false;
 
-    if (!changed) {
-        return false;
-    }
-
-    const canvasTarget = this.gpu.setCanvasRenderTarget();
-
-    if (cur.kind === 'canvas') {
+    if (wasCanvasTarget) {
         this.setProjection(canvasTarget.apparentSize);
     }
 

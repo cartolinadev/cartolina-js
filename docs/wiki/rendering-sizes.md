@@ -57,6 +57,17 @@ independent targets.
 - Must be followed by `Renderer.setProjection()`.
 - Call this when the canvas size may have changed.
 
+`GpuDevice.updateCanvasRenderTargetIfNeeded()`
+
+- Recomputes the canvas target fields from the DOM and compares them
+  with `gpu.currentRenderTarget`.
+- Installs and returns a new canvas target when any canvas size field
+  changed. Returns `null` when the current target already matches the
+  canvas DOM state.
+- `Renderer.updateSizeIfNeeded()` uses this method so size calculation
+  remains owned by `GpuDevice`, while projection remains owned by
+  `Renderer`.
+
 `GpuDevice.setAuxiliaryRenderTarget(texture, viewportSize)`
 
 - Installs a framebuffer target with the given storage size. Inherits

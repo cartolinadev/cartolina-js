@@ -289,6 +289,54 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
 }
 
 
+private buildCanvasRenderTarget(): GpuDevice.RenderTarget {
+
+    const el = this.div;
+    const W = el.offsetWidth || el.clientWidth;
+    const H = el.offsetHeight || el.clientHeight;
+    const rect = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const viewportSize: NumberPair = [rect.width * dpr, rect.height * dpr];
+    const cssLayoutSize: NumberPair = [W, H];
+
+    return {
+        kind: 'canvas',
+        viewportSize,
+        apparentSize: [rect.width, rect.height],
+        cssLayoutSize,
+        cssScale: [rect.width / W, rect.height / H],
+        dpr,
+    };
+}
+
+
+/**
+ * Rebuild and install the canvas render target when its DOM sizes changed.
+ *
+ * @returns The newly installed canvas render target, or `null` if unchanged.
+ */
+updateCanvasRenderTargetIfNeeded(): GpuDevice.RenderTarget | null {
+
+    const target = this.buildCanvasRenderTarget();
+    const cur = this.renderTarget_;
+
+    const changed =
+        cur.apparentSize[0] !== target.apparentSize[0] ||
+        cur.apparentSize[1] !== target.apparentSize[1] ||
+        cur.viewportSize[0] !== target.viewportSize[0] ||
+        cur.viewportSize[1] !== target.viewportSize[1] ||
+        cur.cssLayoutSize?.[0] !== target.cssLayoutSize![0] ||
+        cur.cssLayoutSize?.[1] !== target.cssLayoutSize![1] ||
+        cur.cssScale?.[0] !== target.cssScale![0] ||
+        cur.cssScale?.[1] !== target.cssScale![1] ||
+        cur.dpr !== target.dpr;
+
+    if (!changed) return null;
+
+    return this.setCanvasRenderTarget();
+}
+
+
 /**
  * Build and install the canvas render target from the current DOM state.
  *
@@ -301,22 +349,9 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
  */
 setCanvasRenderTarget(): GpuDevice.RenderTarget {
 
-    const el = this.div;
-    const W = el.offsetWidth || el.clientWidth;
-    const H = el.offsetHeight || el.clientHeight;
-    const rect = el.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const viewportSize: NumberPair = [rect.width * dpr, rect.height * dpr];
-    const cssLayoutSize: NumberPair = [W, H];
-
-    const target: GpuDevice.RenderTarget = {
-        kind: 'canvas',
-        viewportSize,
-        apparentSize: [rect.width, rect.height],
-        cssLayoutSize,
-        cssScale: [rect.width / W, rect.height / H],
-        dpr,
-    };
+    const target = this.buildCanvasRenderTarget();
+    const viewportSize = target.viewportSize;
+    const cssLayoutSize = target.cssLayoutSize!;
 
     this.canvas.width = viewportSize[0];
     this.canvas.height = viewportSize[1];

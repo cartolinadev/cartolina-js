@@ -9,7 +9,7 @@ of targets:
 
 ## Setting render targets
 
-Three methods on `GpuDevice` install render targets:
+Four methods on `GpuDevice` install or update render targets:
 
 **`setCanvasRenderTarget()`** — reads the canvas DOM element, computes
 all five size fields (viewport, apparent, CSS layout, CSS scale, DPR),
@@ -17,6 +17,13 @@ resizes the canvas DOM element, installs the canvas target, and returns
 it. The caller must then call `Renderer.setProjection()`. This is the
 only method that performs DOM reads or changes the canvas backing-store
 size.
+
+**`updateCanvasRenderTargetIfNeeded()`** — performs the same DOM size
+calculation, compares the result with the active target, and installs a
+new canvas target only when a canvas size field changed. Returns `null`
+when no size update was needed. `Renderer.updateSizeIfNeeded()` uses
+this method and updates projection only when the previous target was the
+canvas.
 
 **`setAuxiliaryRenderTarget(texture, viewportSize)`** — installs a
 framebuffer target for a pass that shares the current screen view.
