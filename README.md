@@ -175,10 +175,11 @@ the `./dist/<version>-branch.<short-hash>` directory.
 
 ## Documentation
 
-Start with the [wiki index](docs/wiki/index.md) for architecture notes,
-subsystem details, and contributor-oriented project knowledge. For usage
-examples, refer to [this page](#usage) and to the
+For usage examples, refer to [this page](#usage) and to the
 [examples on cartolina website](https://cartolina.dev/examples).
+
+For architecture notes, subsystem details, and contributor-oriented project
+knowledge, start with the [wiki index](docs/wiki/index.md).
 
 There is currently no API reference manual. Use the code's JSDoc
 annotations for API details.

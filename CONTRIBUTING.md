@@ -2,19 +2,20 @@
 
 `cartolina-js` is a feature-driven fork of `vts-browser-js`. Contributions
 are welcome, but the project is not trying to preserve the full legacy API.
-Before starting larger work, read `README.md` and the wiki index at
-`docs/wiki/index.md`.
+Before starting larger work, read [README.md](README.md) and the wiki index
+at [docs/wiki/index.md](docs/wiki/index.md).
 
 ## Code of Conduct
 
-Participation in this project is covered by `CODE_OF_CONDUCT.md`.
+Participation in this project is covered by
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Contributor Terms
 
 By submitting a contribution, you agree that:
 
 - the contribution may be used, modified, sublicensed, and redistributed
-  under the project license in `LICENSE`
+  under the project license in [LICENSE](LICENSE)
 - you have the right to submit the contribution under those terms
 - the contribution is your original work, or is derived from work that you
   have the right to submit under compatible open-source terms
@@ -64,8 +65,8 @@ test index from `http://localhost:8080/test/`.
 
 ## Coding Guidelines
 
-Follow the repository instructions in `AGENTS.md` and the current code near
-the change. In short:
+Follow the repository instructions in [AGENTS.md](AGENTS.md) and the current
+code near the change. In short:
 
 - new source files are TypeScript, not JavaScript
 - new shaders use GLSL ES 3.00 for WebGL2
@@ -107,10 +108,10 @@ request.
 
 ## Wiki Updates
 
-The wiki in `docs/wiki/` is part of the development process. Update it when
-a change affects architecture notes, non-obvious behavior, migration rules,
-or contributor workflow. Significant work should add a brief entry to
-`docs/wiki/session-log.md`.
+The wiki in [docs/wiki/](docs/wiki/) is part of the development process.
+Update it when a change affects architecture notes, non-obvious behavior,
+migration rules, or contributor workflow. Significant work should add a brief
+entry to [docs/wiki/session-log.md](docs/wiki/session-log.md).
 
 ## Reporting Bugs
 
