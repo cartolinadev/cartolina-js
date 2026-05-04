@@ -230,31 +230,6 @@ contextRestored(): void {
 
 
 /**
- * Resize the managed canvas element.
- *
- * The upper renderer layer owns size calculation. `GpuDevice` only applies
- * the CSS and backing-store sizes to the canvas.
- *
- * @param cssSize Canvas layout size in CSS pixels.
- * @param pixelSize Canvas backing-store size in physical pixels.
- */
-resizeCanvas(cssSize: Readonly<NumberPair>, pixelSize: Readonly<NumberPair>) {
-
-    let canvas = this.canvas;
-
-    if (canvas != null) {
-        canvas.width = pixelSize[0];
-        canvas.height = pixelSize[1];
-        canvas.style.width = cssSize[0] + 'px';
-        canvas.style.height = cssSize[1] + 'px';
-
-        __DEV__ && utils.logOnce(`canvas size: [${pixelSize[0]}, ${pixelSize[1]}], `
-                + `canvas css size: [${cssSize[0]} ${cssSize[1]}]`);
-    }
-};
-
-
-/**
  * Clamp and store the requested anisotropic filtering level.
  *
  * @param aniso Requested anisotropic filtering level, or -1 for maximum.
@@ -318,8 +293,9 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
  * Build and install the canvas render target from the current DOM state.
  *
  * Reads layout and bounding-box sizes from `this.div`, computes all five
- * render-target size fields, and calls `setRenderTarget()`. The returned
- * target should be passed to `Renderer.setProjection()` immediately after.
+ * render-target size fields, applies those sizes to the canvas element, and
+ * calls `setRenderTarget()`. The returned target should be passed to
+ * `Renderer.setProjection()` immediately after.
  *
  * @returns The newly installed canvas render target.
  */
@@ -330,15 +306,27 @@ setCanvasRenderTarget(): GpuDevice.RenderTarget {
     const H = el.offsetHeight || el.clientHeight;
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    const viewportSize: NumberPair = [rect.width * dpr, rect.height * dpr];
+    const cssLayoutSize: NumberPair = [W, H];
 
     const target: GpuDevice.RenderTarget = {
         kind: 'canvas',
-        viewportSize: [rect.width * dpr, rect.height * dpr],
+        viewportSize,
         apparentSize: [rect.width, rect.height],
-        cssLayoutSize: [W, H],
+        cssLayoutSize,
         cssScale: [rect.width / W, rect.height / H],
         dpr,
     };
+
+    this.canvas.width = viewportSize[0];
+    this.canvas.height = viewportSize[1];
+    this.canvas.style.width = cssLayoutSize[0] + 'px';
+    this.canvas.style.height = cssLayoutSize[1] + 'px';
+
+    __DEV__ && utils.logOnce(
+        `canvas size: [${viewportSize[0]}, ${viewportSize[1]}], `
+        + `canvas css size: [${cssLayoutSize[0]} ${cssLayoutSize[1]}]`
+    );
 
     this.setRenderTarget(target);
     return target;

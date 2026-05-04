@@ -13,9 +13,10 @@ Three methods on `GpuDevice` install render targets:
 
 **`setCanvasRenderTarget()`** — reads the canvas DOM element, computes
 all five size fields (viewport, apparent, CSS layout, CSS scale, DPR),
-installs the canvas target, and returns it. The caller must then call
-`resizeCanvas()` and `Renderer.setProjection()`. This is the only
-method that performs DOM reads.
+resizes the canvas DOM element, installs the canvas target, and returns
+it. The caller must then call `Renderer.setProjection()`. This is the
+only method that performs DOM reads or changes the canvas backing-store
+size.
 
 **`setAuxiliaryRenderTarget(texture, viewportSize)`** — installs a
 framebuffer target for a pass that shares the current screen view.

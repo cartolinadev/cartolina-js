@@ -52,9 +52,9 @@ independent targets.
 `GpuDevice.setCanvasRenderTarget()`
 
 - Reads the DOM element owned by `GpuDevice`, computes all five size
-  fields, installs the canvas render target, and returns it.
-- Must be followed by `GpuDevice.resizeCanvas()` and
-  `Renderer.setProjection()`.
+  fields, resizes the managed canvas element, installs the canvas
+  render target, and returns it.
+- Must be followed by `Renderer.setProjection()`.
 - Call this when the canvas size may have changed.
 
 `GpuDevice.setAuxiliaryRenderTarget(texture, viewportSize)`

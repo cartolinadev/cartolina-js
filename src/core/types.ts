@@ -1,5 +1,38 @@
 import type MapSrs from './map/srs';
 
+/**
+ * Shared configuration object owned by the legacy core and passed to the
+ * map and renderer layers.
+ *
+ * The full runtime object has many legacy keys. This type records the
+ * fields used by current TypeScript modules and should grow only when
+ * typed code touches another key.
+ */
+export interface CoreConfig {
+    [key: string]: boolean | number | string | number[] | undefined;
+    rendererAllowScreenshots?: boolean;
+    rendererAntialiasing?: boolean;
+    rendererAnisotropic?: number;
+    rendererCssDpi?: number;
+    mapShadingLambertian?: boolean;
+    mapShadingSlope?: boolean;
+    mapShadingAspect?: boolean;
+    mapFlagLighting?: boolean;
+    mapFlagNormalMaps?: boolean;
+    mapFlagDiffuseMaps?: boolean;
+    mapFlagSpecularMaps?: boolean;
+    mapFlagBumpMaps?: boolean;
+    mapFlagAtmosphere?: boolean;
+    mapFlagShadows?: boolean;
+    mapFlagLabels?: boolean;
+    mapDMapSize?: number;
+    mapDMapMode?: number;
+    mapDMapCopyIntervalMs?: number;
+    mapDMapDilatePx?: number;
+    mapSplitMargin?: number;
+    mapLabelFreeMargins?: [number, number, number, number];
+}
+
 /** Height mode for coordinate conversions and hit-testing. */
 export type HeightMode = 'fix' | 'float';
 

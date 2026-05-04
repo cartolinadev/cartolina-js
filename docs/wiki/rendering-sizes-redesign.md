@@ -1,8 +1,7 @@
 # Rendering Sizes Redesign — Input Notes (design complete, implemented 2026-05-04)
 
-This document records the design intent behind the planned refactor of
-how rendering sizes are stored, owned, and propagated. It is the
-starting point for the implementation task.
+This document records the design intent behind the refactor of how
+rendering sizes are stored, owned, and propagated.
 
 ## Core claim
 
@@ -18,13 +17,11 @@ the size that all CPU-side rendering code working in logical pixel units
 
 ## Ownership
 
-Size calculation currently lives in `Renderer.calculateSizes()`. It
-should move to `GpuDevice`, which owns the canvas and therefore owns the
-authority to derive both sizes from it.
+Size calculation lives in `GpuDevice`, which owns the canvas and
+therefore owns the authority to derive both sizes from it.
 
-`GpuDevice` should be capable of generating the two canonical sizes from
-the canvas element and exposing them so that render targets can be
-constructed with accurate values.
+`GpuDevice` generates the two canonical sizes from the canvas element
+and exposes them through the canvas render target.
 
 ## Behavior per target class
 
@@ -70,12 +67,10 @@ does not need it.
 
 ## Size calculation ownership
 
-`calculateSizes` currently lives on `Renderer`. It should move to
-`GpuDevice`, which owns the canvas element. Code analysis confirms that
-both call sites (`updateSizeIfNeeded` and `switchToFramebuffer('base')`)
-call `calculateSizes()` immediately before `resizeCanvas()` and
-`setRenderTarget()`, so collapsing them into a single
-`GpuDevice.setCanvasRenderTarget()` is the right consolidation.
+`setCanvasRenderTarget()` derives the canvas sizes, applies them to the
+canvas element, and installs the canvas render target. `Renderer`
+still calls `setProjection()` explicitly afterward because projection
+state belongs to the screen view, not to auxiliary framebuffer targets.
 
 ## GpuDevice API shape
 
@@ -86,9 +81,8 @@ current fragmented call sites:
 - `setCanvasRenderTarget()` — takes no arguments beyond the canvas
   element already owned by `GpuDevice`. Derives all sizes internally
   (viewport size, apparent logical size, CSS layout size, CSS scale,
-  DPR), builds and installs the canvas render target. Consolidates the
-  two currently duplicated call sequences in `updateSizeIfNeeded` and
-  `switchToFramebuffer('base')`.
+  DPR), resizes the canvas element, builds and installs the canvas
+  render target.
 - `setAuxiliaryRenderTarget(texture, viewportSize)` — installs a
   framebuffer target, updating only the viewport size. All other size
   fields are inherited unchanged from the canvas render target.

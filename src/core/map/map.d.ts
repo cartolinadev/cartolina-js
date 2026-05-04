@@ -2,6 +2,7 @@ import type Atmosphere from './atmosphere';
 import type MapBody from './body';
 import type MapBoundLayer from './bound-layer';
 import type MapCredit from './credit';
+import type MapCamera from './camera';
 import type MapPosition from './position';
 import type MapRefFrame from './refframe';
 import type MapSrs from './srs';
@@ -9,7 +10,7 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type Renderer from '../renderer/renderer';
-import type { NodeInformation } from '../types';
+import type { CoreConfig, NodeInformation } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -45,11 +46,10 @@ export default class Map {
 
     renderer: Renderer;
     url: MapUrl;
-    config: {
-        mapDMapDilatePx?: number;
-    };
+    config: CoreConfig;
 
     position: MapPosition;
+    camera: MapCamera;
     atmosphere: Atmosphere | null;
     referenceFrame: MapReferenceFrame;
     services: MapServices;

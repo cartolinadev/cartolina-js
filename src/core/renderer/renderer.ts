@@ -16,9 +16,8 @@ import * as IlluminationMath from '../map/illumination';
 
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
-import MapSrs from '../map/srs';
-import MapBody from '../map/position';
-import MapCamera from '../map/camera';
+import type Map from '../map/map';
+import type { CoreConfig } from '../types';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
@@ -60,7 +59,7 @@ import backgroundTileFrag from './shaders/background.frag.glsl';
 
 export class Renderer {
 
-    config: Config;
+    config: CoreConfig;
     core: Core;
     div: HTMLElement;
 
@@ -276,7 +275,7 @@ export class Renderer {
     killed = false;
 
 
-constructor(core: Core, div: HTMLElement, config : Config) {
+constructor(core: Core, div: HTMLElement, config : CoreConfig) {
 
     this.config = config; // || {};
     this.core = core;
@@ -322,7 +321,6 @@ constructor(core: Core, div: HTMLElement, config : Config) {
         this.config.rendererAnisotropic ?? 0);
 
     const canvasTarget = this.gpu.setCanvasRenderTarget();
-    this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
     this.setProjection(canvasTarget.apparentSize);
 
     // initialize resources
@@ -755,7 +753,6 @@ updateSizeIfNeeded(): boolean {
     }
 
     const canvasTarget = this.gpu.setCanvasRenderTarget();
-    this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
 
     if (cur.kind === 'canvas') {
         this.setProjection(canvasTarget.apparentSize);
@@ -1672,7 +1669,6 @@ switchToFramebuffer(
     switch(type) {
     case 'base': {
         const canvasTarget = this.gpu.setCanvasRenderTarget();
-        this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -2014,30 +2010,6 @@ kill() {
 
 type Optional<T> = T | null;
 
-type Config = {
-    [key: string]: boolean | number | string | number[] | undefined;
-    rendererAllowScreenshots?: boolean;
-    rendererAntialiasing?: boolean;
-    rendererAnisotropic?: number;
-    mapShadingLambertian?: boolean;
-    mapShadingSlope?: boolean;
-    mapShadingAspect?: boolean;
-    mapFlagLighting?: boolean;
-    mapFlagNormalMaps?: boolean;
-    mapFlagDiffuseMaps?: boolean;
-    mapFlagSpecularMaps?: boolean;
-    mapFlagBumpMaps?: boolean;
-    mapFlagAtmosphere?: boolean;
-    mapFlagShadows?: boolean;
-    mapFlagLabels?: boolean;
-    mapDMapSize?: number;
-    mapDMapMode?: number;
-    mapDMapCopyIntervalMs?: number;
-    mapSplitMargin?: number;
-    mapLabelFreeMargins?: [number, number, number, number];
-    rendererCssDpi?: number;
-}
-
 type Size2 = [ number, number ];
 
 type VeScaleRamp = {
@@ -2103,19 +2075,6 @@ type Core = {
     setRendererConfigParam(key: string, value: unknown): void;
     getRendererConfigParam(key: string): unknown;
 
-}
-
-type Map = {
-
-    body: MapBody;
-    atmosphere?: Atmosphere;
-    position: MapPosition;
-    camera: MapCamera;
-
-    getPhysicalSrs(): MapSrs;
-    markDirty(): void;
-
-    config: Config;
 }
 
 /** Fixed texture indices - the actual index is computed as

@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-04 — Merge canvas resize into render-target setup
+
+### Goal
+
+Remove the separate canvas resize step from renderer call sites.
+
+### Work done
+
+- Removed public `GpuDevice.resizeCanvas()`.
+- Changed `GpuDevice.setCanvasRenderTarget()` to derive canvas sizes,
+  apply the DOM canvas CSS and backing-store sizes, install the canvas
+  render target, and return it.
+- Updated renderer call sites to call `setCanvasRenderTarget()` once
+  before `setProjection()`.
+- Updated render-target and rendering-size wiki notes to describe the
+  new one-step canvas target contract.
+
+### Current state
+
+TypeScript passes. Browser screenshot verification was not run for this
+small API consolidation.
+
 ## 2026-05-04 — NACIS label regression diagnostics
 
 ### Goal
