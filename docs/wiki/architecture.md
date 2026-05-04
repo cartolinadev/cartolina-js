@@ -333,12 +333,12 @@ promoted onto `Viewer` reaches directly into the legacy internals (`_map`,
 That is the wrong layering and will not clean up on its own — it will grow
 as promotion continues.
 
-The `Map` class should be built as a thin TypeScript wrapper around
-`CoreInterface`. It keeps the terrain engine, renderer, and legacy wrappers
-as private implementation detail and exposes a flat typed public surface.
-Every subsequent method promotion goes through `Map`, never into the legacy
-layer directly. `Viewer` holds a `Map` instance and delegates rendering
-methods to it.
+The `Map` class should be built as a thin TypeScript wrapper around core,
+replacing current `CoreInterface`. It keeps the terrain engine, renderer, 
+and legacy wrappers as private implementation detail and exposes a flat 
+typed public surface. Every subsequent method promotion goes through `Map`, 
+never into the legacy layer directly. `Viewer` holds a `Map` instance and 
+delegates rendering methods to it.
 
 | Current name | Current role | Direction |
 |---|---|---|
