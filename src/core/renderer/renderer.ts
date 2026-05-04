@@ -138,12 +138,6 @@ export class Renderer {
     progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;
 
-    /// css transform layout size adjustment, per axis
-    private visibleScale_!: Size2;
-
-    /** Visible viewport height in CSS pixels, used for scale denominator
-     *  calculation. */
-    private mainViewportCssH!: number;
 
     // vertical exaggeration
     useSuperElevation = false;
@@ -322,18 +316,14 @@ constructor(core: Core, div: HTMLElement, config : Config) {
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
     // device
-    const sizes = this.calculateSizes();
-    this.applyCanvasState(sizes);
-
     this.gpu = new GpuDevice(this, div,
-        !! this.config.rendererAllowScreenshots, 
-        !! this.config.rendererAntialiasing, 
+        !! this.config.rendererAllowScreenshots,
+        !! this.config.rendererAntialiasing,
         this.config.rendererAnisotropic ?? 0);
 
-    this.gpu.resizeCanvas(sizes.cssSize, sizes.pixelSize);
-    const canvasTarget = this.createCanvasRenderTarget(sizes.cssSize, sizes.pixelSize);
-    this.gpu.setRenderTarget(canvasTarget);
-    this.setProjection(canvasTarget.logicalSize);
+    const canvasTarget = this.gpu.setCanvasRenderTarget();
+    this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
+    this.setProjection(canvasTarget.apparentSize);
 
     // initialize resources
     this.init = new RenderInit(this);
@@ -346,51 +336,27 @@ constructor(core: Core, div: HTMLElement, config : Config) {
 };
 
 
-/** Logical size of the active render target. Equals the canvas CSS size
- *  during the canvas pass; equals the target's own logical size during
- *  an independent offscreen pass. Use in rendering code that must work
- *  correctly for any render target. */
+/** Apparent logical size of the active render target: the visible extent
+ *  in CSS units after CSS transforms (`cssLayoutSize * cssScale`). Use in
+ *  rendering code that must work correctly for any render target:
+ *  geometry, label-density calculations, NDC-to-pixel conversions. */
+get apparentSize(): Readonly<Size2> {
+
+    return this.gpu.currentRenderTarget.apparentSize;
+}
+
+/** @deprecated Use `apparentSize` instead. */
 get logicalSize(): Readonly<Size2> {
 
-    return this.gpu.currentRenderTarget.logicalSize;
+    return this.apparentSize;
 }
 
-/** @deprecated Use `logicalSize` instead. */
+/** @deprecated Use `apparentSize` instead. */
 get curSize(): Readonly<Size2> {
 
-    return this.logicalSize;
+    return this.apparentSize;
 }
 
-private calculateSizes(): Renderer.CanvasState {
-
-    const el = this.div as HTMLElement;
-
-    // css size, based on layout
-    let W = el.offsetWidth || el.clientWidth;
-    let H = el.offsetHeight || el.clientHeight;
-
-    // pixel size, based on dpr and css transforms
-    const rect = el.getBoundingClientRect();
-    let dpr = window.devicePixelRatio || 1;
-
-    /*
-     * This treats CSS transforms as axis-aligned scale factors. That matches
-     * reveal-style `scale()` wrappers, which are the current reason for
-     * visible-scale compensation. Rotation, skew, and composed transforms
-     * would need a full DOM transform matrix instead of bounding-box ratios.
-     */
-    return {
-        cssSize: [W, H],
-        pixelSize: [rect.width * dpr, rect.height * dpr],
-        visibleScale: [rect.width / W, rect.height / H]
-    };
-}
-
-private applyCanvasState(sizes: Renderer.CanvasState) {
-
-    this.visibleScale_ = [...sizes.visibleScale];
-    this.mainViewportCssH = sizes.cssSize[1] * sizes.visibleScale[1];
-}
 
 /**
  * Lazy tile program initialization, including binding buffers to block names
@@ -763,37 +729,36 @@ updateIllumination(position: MapPosition) {
     }
 }
 
-visibleScale(): Readonly<Size2> {
-    // TODO: make this configurable, return [1, 1] as default
-    return this.visibleScale_;
-}
-
 updateSizeIfNeeded(): boolean {
 
     if (this.killed) {
         return false;
     }
 
-    const nextSizes = this.calculateSizes();
+    const cur = this.gpu.currentRenderTarget;
+    const el = this.div as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const W = el.offsetWidth || el.clientWidth;
+    const H = el.offsetHeight || el.clientHeight;
+
     const changed =
-        this.logicalSize[0] !== nextSizes.cssSize[0] ||
-        this.logicalSize[1] !== nextSizes.cssSize[1] ||
-        this.gpu.currentRenderTarget.viewportSize[0] !== nextSizes.pixelSize[0] ||
-        this.gpu.currentRenderTarget.viewportSize[1] !== nextSizes.pixelSize[1] ||
-        this.visibleScale_[0] !== nextSizes.visibleScale[0] ||
-        this.visibleScale_[1] !== nextSizes.visibleScale[1];
+        cur.apparentSize[0] !== rect.width ||
+        cur.apparentSize[1] !== rect.height ||
+        cur.viewportSize[0] !== rect.width * dpr ||
+        cur.viewportSize[1] !== rect.height * dpr ||
+        (cur.cssScale?.[0] ?? 1) !== rect.width / W ||
+        (cur.cssScale?.[1] ?? 1) !== rect.height / H;
 
     if (!changed) {
         return false;
     }
 
-    this.applyCanvasState(nextSizes);
-    this.gpu.resizeCanvas(nextSizes.cssSize, nextSizes.pixelSize);
+    const canvasTarget = this.gpu.setCanvasRenderTarget();
+    this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
 
-    if (this.gpu.currentRenderTarget.kind === 'canvas') {
-        const canvasTarget = this.createCanvasRenderTarget(nextSizes.cssSize, nextSizes.pixelSize);
-        this.gpu.setRenderTarget(canvasTarget);
-        this.setProjection(canvasTarget.logicalSize);
+    if (cur.kind === 'canvas') {
+        this.setProjection(canvasTarget.apparentSize);
     }
 
     return true;
@@ -829,33 +794,6 @@ private setProjection(size: Readonly<Size2>) {
     this.imageProjectionMatrix = m;
 }
 
-private createCanvasRenderTarget(
-    cssSize: Readonly<Size2>,
-    pixelSize: Readonly<Size2>,
-): GpuDevice.RenderTarget {
-
-    return {
-        kind: 'canvas',
-        viewportSize: [...pixelSize],
-        logicalSize: [...cssSize]
-    };
-}
-
-private createFramebufferRenderTarget(
-    texture: GpuTexture,
-    viewportSize: Readonly<Size2>,
-    logicalSize: Readonly<Size2> = viewportSize
-): GpuDevice.RenderTarget {
-
-    return {
-        kind: 'framebuffer',
-        texture,
-        viewportSize: [...viewportSize],
-        logicalSize: [...logicalSize]
-    };
-}
-
-
 project2(
     point: math.vec3, mvp: math.mat4,
     cameraPos: math.vec3 | null | undefined,
@@ -874,8 +812,8 @@ project2(
         var sp = [0,0,0];
 
         //x and y are in screen pixels
-        sp[0] = ((p[0]/p[3])+1.0)*0.5*this.logicalSize[0];
-        sp[1] = (-(p[1]/p[3])+1.0)*0.5*this.logicalSize[1];
+        sp[0] = ((p[0]/p[3])+1.0)*0.5*this.apparentSize[0];
+        sp[1] = (-(p[1]/p[3])+1.0)*0.5*this.apparentSize[1];
 
         //depth in meters
         sp[2] = p[2]/p[3];
@@ -1314,7 +1252,7 @@ getConfigParam(key: string) {
 private currentScaleDenominator(extent: number): number {
 
     const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    return extent / (this.mainViewportCssH / cssDpi * 0.0254);
+    return extent / (this.gpu.currentRenderTarget.apparentSize[1] / cssDpi * 0.0254);
 }
 
 /** Build a VeScaleRamp from two pivot pairs, precomputing the exponent. */
@@ -1634,9 +1572,11 @@ getScreenRay(screenX: number, screenY: number) {
 
     this.camera.dirty = true; //???? why is projection matrix distored so I have to refresh
 
-    //convert screen coords
-    var x = (2.0 * screenX) / this.logicalSize[0] - 1.0;
-    var y = 1.0 - (2.0 * screenY) / this.logicalSize[1];
+    //convert screen coords — mouse events are in CSS layout space
+    const inputSize = this.gpu.currentRenderTarget.cssLayoutSize
+        ?? this.gpu.currentRenderTarget.apparentSize;
+    var x = (2.0 * screenX) / inputSize[0] - 1.0;
+    var y = 1.0 - (2.0 * screenY) / inputSize[1];
     
     var rayNormalizeDeviceSpace = [x, y, 1.0];
 
@@ -1670,15 +1610,18 @@ hitTestGeoLayers(screenX: number, screenY: number, secondTexture: boolean) {
 
     var surfaceHit = false, pixel: Uint8Array = new Uint8Array(4);
 
-    if (screenX >= 0 && screenX < this.logicalSize[0] &&
-        screenY >= 0 && screenY < this.logicalSize[1]) {
+    const inputSizeGeo = this.gpu.currentRenderTarget.cssLayoutSize
+        ?? this.gpu.currentRenderTarget.apparentSize;
+
+    if (screenX >= 0 && screenX < inputSizeGeo[0] &&
+        screenY >= 0 && screenY < inputSizeGeo[1]) {
 
         //convert screen coords to texture coords
         var x = 0, y = 0;
 
         //get screen coords
-        x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
-        y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
+        x = Math.floor(screenX * (this.hitmapSize / inputSizeGeo[0]));
+        y = Math.floor(screenY * (this.hitmapSize / inputSizeGeo[1]));
 
         //get pixel value from framebuffer
 
@@ -1707,59 +1650,52 @@ switchToFramebuffer(
     var gl = this.gpu.gl, size;
     
     switch(type) {
-    case 'base':
-        const baseSizes = this.calculateSizes();
-        this.applyCanvasState(baseSizes);
-        this.gpu.resizeCanvas(baseSizes.cssSize, baseSizes.pixelSize);
+    case 'base': {
+        const canvasTarget = this.gpu.setCanvasRenderTarget();
+        this.gpu.resizeCanvas(canvasTarget.cssLayoutSize!, canvasTarget.viewportSize);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-        const canvasTarget = this.createCanvasRenderTarget(baseSizes.cssSize, baseSizes.pixelSize);
-        this.gpu.setRenderTarget(canvasTarget);
-        this.setProjection(canvasTarget.logicalSize);
+        this.setProjection(canvasTarget.apparentSize);
         this.camera.update();
         this.onlyDepth = false;
         this.onlyHitLayers = false;
         this.onlyAdvancedHitLayers = false;
         this.advancedPassNeeded = false;
         break;
+    }
 
-    case 'depth':
+    case 'depth': {
         gl.clearColor(1.0,1.0, 1.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
 
         size = this.hitmapSize;
 
-        const depthTarget = this.createFramebufferRenderTarget(
-            this.hitmapTexture!, [size, size]
-        );
-        this.gpu.setRenderTarget(depthTarget);
+        // Auxiliary pass: inherits projection from the canvas target.
+        this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!, [size, size]);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        // The depth and geodata hitmaps are auxiliary buffers for the
-        // current screen view. Their square texture size is storage
-        // resolution, not camera aspect. The base pass owns
-        // `setProjection()` so these buffers keep the canvas camera.
         this.camera.update();
         this.onlyDepth = true;
         this.onlyHitLayers = false;
         this.onlyAdvancedHitLayers = false;
         this.advancedPassNeeded = false;
         break;
+    }
 
     case 'geo':
-    case 'geo2':
+    case 'geo2': {
         this.hoverFeatureCounter = 0;
         size = this.hitmapSize;
 
         gl.clearColor(1.0, 1.0, 1.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
 
-        const geoTarget = this.createFramebufferRenderTarget(
+        // Auxiliary pass: inherits projection from the canvas target.
+        this.gpu.setAuxiliaryRenderTarget(
             (type == 'geo' ? this.geoHitmapTexture : this.geoHitmapTexture2)!,
             [size, size]
         );
-        this.gpu.setRenderTarget(geoTarget);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         this.onlyHitLayers = true;
@@ -1767,6 +1703,7 @@ switchToFramebuffer(
         this.onlyAdvancedHitLayers = (type == 'geo2');
         this.camera.update();
         break;
+    }
 
     }
 };
@@ -1783,12 +1720,15 @@ hitTest(screenX: number, screenY: number) {
       //  return [0, 0, 0, null, screenRay, Number.MAX_VALUE, cameraPos];
     //}
 
+    const inputSizeHit = this.gpu.currentRenderTarget.cssLayoutSize
+        ?? this.gpu.currentRenderTarget.apparentSize;
+
     //convert screen coords to texture coords
     var x = 0, y = 0;
 
     //get screen coords
-    x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
-    y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
+    x = Math.floor(screenX * (this.hitmapSize / inputSizeHit[0]));
+    y = Math.floor(screenY * (this.hitmapSize / inputSizeHit[1]));
 
     //get pixel value from framebuffer
     const hitmapTexture = this.hitmapTexture;
@@ -1828,8 +1768,10 @@ copyHitmap() {
 
 getDepth(screenX: number, screenY: number, dilate: number = 0) {
 
-    var x = Math.floor(screenX * (this.hitmapSize / this.logicalSize[0]));
-    var y = Math.floor(screenY * (this.hitmapSize / this.logicalSize[1]));
+    const inputSizeDepth = this.gpu.currentRenderTarget.cssLayoutSize
+        ?? this.gpu.currentRenderTarget.apparentSize;
+    var x = Math.floor(screenX * (this.hitmapSize / inputSizeDepth[0]));
+    var y = Math.floor(screenY * (this.hitmapSize / inputSizeDepth[1]));
 
     var depth: number;
 
@@ -1907,8 +1849,8 @@ saveScreenshot(output: string, filename: string, filetype: string) {
     var gl = this.gpu.gl;
 
     //get current screen size
-    var width = this.logicalSize[0];
-    var height = this.logicalSize[1];
+    var width = this.apparentSize[0];
+    var height = this.apparentSize[1];
 
     //read rgba data from frame buffer
     //works only when webgl context is initialized with preserveDrawingBuffer: true
@@ -2220,11 +2162,7 @@ export type Debug = {
     [key: string]: boolean | number | undefined;
 }
 
-export type CanvasState = {
-    cssSize: Size2;
-    pixelSize: Size2;
-    visibleScale: Size2;
-}
+
 
 /**
  * Input/output type for `setIllumination` / `getIllumination`.

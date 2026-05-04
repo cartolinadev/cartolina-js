@@ -33,8 +33,16 @@ var RendererRMap = function(renderer, blockSize, maxBlockRectangles) {
 RendererRMap.prototype.clear = function() {
     var renderer = this.renderer;
 
-    this.sx2 = renderer.curSize[0];
-    this.sy2 = renderer.curSize[1];
+    /*
+     * Use CSS layout size (pre-transform) rather than apparentSize to
+     * preserve current label density under CSS transforms. Using
+     * apparentSize would be more correct but changes observable behaviour.
+     */
+    var css = renderer.gpu.currentRenderTarget.cssLayoutSize
+        || renderer.gpu.currentRenderTarget.apparentSize;
+
+    this.sx2 = css[0];
+    this.sy2 = css[1];
 
     //reduce by credits
     this.sy2 = Math.max(1, this.sy2 - 55);
@@ -43,20 +51,20 @@ RendererRMap.prototype.clear = function() {
 
     //compass size
     this.cx2 = 135;
-    this.cy1 = renderer.curSize[1] - 145;
+    this.cy1 = css[1] - 145;
 
     //search bar size
     this.bx2 = 245;
     this.by2 = 45;
 
-    this.lx = Math.floor(renderer.curSize[0] * this.blockSizeFactor) + 1;
-    this.ly = Math.floor(renderer.curSize[1] * this.blockSizeFactor) + 1;
+    this.lx = Math.floor(css[0] * this.blockSizeFactor) + 1;
+    this.ly = Math.floor(css[1] * this.blockSizeFactor) + 1;
 
     if (renderer.marginFlags & 4096) {
         this.sx1 = Math.min(34, this.sx2);
-        this.sx2 = Math.max(1, renderer.curSize[0] - 34);
+        this.sx2 = Math.max(1, css[0] - 34);
         this.sy1 = Math.min(50, this.sy2);
-        this.sy2 = Math.max(1, renderer.curSize[1] - 68);
+        this.sy2 = Math.max(1, css[1] - 68);
     }
 
     var totalNeeded = this.ly * this.lx;
@@ -171,7 +179,7 @@ RendererRMap.prototype._isInsideLabelInnerWindow = function(x1, y1, x2, y2) {
 
     var m = this.renderer.labelFreeMargins || [0,0,0,0]; // [top,right,bottom,left]
     if (!(m[0] || m[1] || m[2] || m[3])) { return true; }
-    var w = this.renderer.curSize[0], h = this.renderer.curSize[1];
+    var w = this.renderer.apparentSize[0], h = this.renderer.apparentSize[1];
     var xMin = m[3], yMin = m[0], xMax = w - m[1], yMax = h - m[2];
 
     // normalize
@@ -403,7 +411,7 @@ RendererRMap.prototype.addLineLabel = function(subjob, position) {
     var margin = job.noOverlap ? job.noOverlap[0] : 1;
 
     var targetSize = job.labelSize * 0.5; 
-    var sizeFactor = renderer.camera.scaleFactor2(subjob[5][3])*0.5*renderer.curSize[1]*(renderer.curSize[0]/renderer.curSize[1]);
+    var sizeFactor = renderer.camera.scaleFactor2(subjob[5][3])*0.5*renderer.apparentSize[1]*(renderer.apparentSize[0]/renderer.apparentSize[1]);
     var pointsIndex = subjob[9];
     var labelPoints = job.labelPoints;
     var labelIndex = job.labelIndex;

@@ -138,8 +138,8 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         text2 += stats.debugStr + '<br/>';        
     }
 
-    var text3 =  'PixelRatio: ' + (window.devicePixelRatio || 1).toFixed(3) +'<br/>'+
-                 'BFRate: ' + Math.round(1000 / (stats.frameTime+0.00001)) +'<br/><br/>';
+    var text3 = 'BFRate: ' +
+        Math.round(1000 / (stats.frameTime+0.00001)) +'<br/><br/>';
 
     var map = this.core.getMap();
 
@@ -184,6 +184,26 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         }
     }
 
+    if (renderer) {
+        var renderTarget = renderer.gpu.currentRenderTarget;
+        var apparentSize = renderTarget.apparentSize;
+        var viewportSize = renderTarget.viewportSize;
+        var cssScale = renderTarget.cssScale;
+        var formatSize = function(size) {
+            return Math.round(size[0]) + 'x' + Math.round(size[1]);
+        };
+        var formatScale = function(size) {
+            return size[0].toFixed(2) + 'x' + size[1].toFixed(2);
+        };
+
+        text3 += '<br/>Rendering sizes:<br/>' +
+                 ' - apparent: ' + formatSize(apparentSize) + '<br/>' +
+                 ' - viewport: ' + formatSize(viewportSize) + '<br/>' +
+                 ' - css scale: ' + (cssScale ? formatScale(cssScale) : 'n/a') + '<br/>' +
+                 ' - DPR: ' + (renderTarget.dpr ?? window.devicePixelRatio ?? 1).toFixed(2) +
+                 '<br/>';
+    }
+
 
     var text = '<table style="width:305px"><tr><td>' + text2 + '</td><td>' + text3 + '</td></tr></table>';
 
@@ -209,4 +229,3 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
 
 
 export default InspectorStats;
-

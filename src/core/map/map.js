@@ -1148,20 +1148,10 @@ Map.prototype.getScreenDepth = function(
 
         if (this.hitMapDirty) {
             var tmp1 = this.draw.ndcToScreenPixel;
-
             this.draw.drawHitmap();
-
             this.draw.ndcToScreenPixel = tmp1;
-
-            var width = this.renderer.curSize[0], height = this.renderer.curSize[1];
-
-            var m = new Float32Array(16);
-            m[0] = 2.0/width; m[1] = 0; m[2] = 0; m[3] = 0;
-            m[4] = 0; m[5] = -2.0/height; m[6] = 0; m[7] = 0;
-            m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
-            m[12] = -width*0.5*m[0]; m[13] = -height*0.5*m[5]; m[14] = 0; m[15] = 1;
-
-            this.renderer.imageProjectionMatrix = m;
+            // drawHitmap() ends with switchToFramebuffer('base') which calls
+            // setProjection() — imageProjectionMatrix is already restored.
             this.renderer.camera.update();
         }
 

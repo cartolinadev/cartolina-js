@@ -1,5 +1,64 @@
 # Session log
 
+## 2026-05-04 — Refactor rendering sizes
+
+### Goal
+
+Redesign how rendering sizes are owned, stored, and propagated so that
+the two canonical sizes — viewport size and apparent logical size — live
+on the render target, with no special-casing per target class. Move size
+calculation from `Renderer` to `GpuDevice`. See design input in
+[rendering-sizes-redesign.md](rendering-sizes-redesign.md).
+
+### Work done
+
+- Renamed `RenderTarget.logicalSize` → `apparentSize`. Value meaning
+  shifts from pre-transform `cssSize` to apparent logical size
+  (`cssSize * cssScale`). `logicalSize` and `curSize` kept as deprecated
+  aliases.
+- Added three optional fields to `RenderTargetBase`: `cssLayoutSize`,
+  `cssScale`, `dpr`.
+- Added `GpuDevice.setCanvasRenderTarget()` — computes all five size
+  fields from DOM; replaces `Renderer.calculateSizes()`.
+- Added `GpuDevice.setAuxiliaryRenderTarget(texture, viewportSize)` —
+  installs a framebuffer target that inherits size state from the canvas.
+- Removed from `Renderer`: `calculateSizes()`, `applyCanvasState()`,
+  `visibleScale_`, `mainViewportCssH`, `visibleScale()`,
+  `createCanvasRenderTarget()`, `createFramebufferRenderTarget()`,
+  `Renderer.CanvasState` type.
+- Simplified `draw.js`: `screenPixelSize` formula no longer multiplies
+  by `visibleScale`; `noOverlap()` returns raw worker values without
+  division.
+- `rmap.js`: `clear()` uses `cssLayoutSize` for the collision-grid
+  bounds to preserve label density behaviour (see
+  rendering-sizes.md for rationale).
+- `map.js`: removed redundant `imageProjectionMatrix` recomputation
+  in `getScreenDepth` — was already set by `switchToFramebuffer('base')`
+  inside `drawHitmap()`.
+- Updated `rendering-sizes.md` and `render-targets.md` to reflect the
+  new API.
+
+### Current state
+
+TypeScript compiles with no new errors. Browser verification pending.
+
+## 2026-05-03 — Add rendering sizes to stats panel
+
+### Goal
+
+Show render-target size information in the inspector statistics panel.
+
+### Work done
+
+Removed the top-level `PixelRatio` row from the second stats column.
+Added a `Rendering sizes` subgroup under `Tiles`, after the LOD rows,
+showing logical size, viewport size, visible scale, and DPR.
+
+### Current state
+
+TypeScript passes. Browser verification was not run because local
+Chromium launch outside the sandbox was declined.
+
 ## 2026-05-03 — Remove cached GPU viewport field
 
 ### Goal

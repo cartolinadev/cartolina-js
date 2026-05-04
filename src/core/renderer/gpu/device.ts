@@ -190,7 +190,7 @@ private init() {
     this.renderTarget_ = {
         kind: 'canvas',
         viewportSize: [canvas.width, canvas.height],
-        logicalSize: [canvas.width, canvas.height]
+        apparentSize: [canvas.width, canvas.height],
     };
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -311,6 +311,71 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
 
     this.bindRenderTargetFramebuffer(target);
     this.applyViewport();
+}
+
+
+/**
+ * Build and install the canvas render target from the current DOM state.
+ *
+ * Reads layout and bounding-box sizes from `this.div`, computes all five
+ * render-target size fields, and calls `setRenderTarget()`. The returned
+ * target should be passed to `Renderer.setProjection()` immediately after.
+ *
+ * @returns The newly installed canvas render target.
+ */
+setCanvasRenderTarget(): GpuDevice.RenderTarget {
+
+    const el = this.div;
+    const W = el.offsetWidth || el.clientWidth;
+    const H = el.offsetHeight || el.clientHeight;
+    const rect = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    const target: GpuDevice.RenderTarget = {
+        kind: 'canvas',
+        viewportSize: [rect.width * dpr, rect.height * dpr],
+        apparentSize: [rect.width, rect.height],
+        cssLayoutSize: [W, H],
+        cssScale: [rect.width / W, rect.height / H],
+        dpr,
+    };
+
+    this.setRenderTarget(target);
+    return target;
+}
+
+
+/**
+ * Build and install a framebuffer render target for an auxiliary pass.
+ *
+ * Sets the viewport to `viewportSize` and inherits `apparentSize` and the
+ * optional CSS size fields from the current canvas render target. Does not
+ * call `setProjection()` — auxiliary passes reuse the canvas projection.
+ *
+ * @param texture Framebuffer-backed texture to draw into.
+ * @param viewportSize Texture storage size in physical pixels.
+ * @returns The newly installed auxiliary render target.
+ */
+setAuxiliaryRenderTarget(
+    texture: GpuTexture,
+    viewportSize: Readonly<NumberPair>,
+): GpuDevice.RenderTarget {
+
+    const base = this.renderTarget_;
+
+    const target: GpuDevice.RenderTarget = {
+        kind: 'framebuffer',
+        texture,
+        viewportSize: [...viewportSize],
+        apparentSize: [...base.apparentSize],
+    };
+
+    if (base.cssLayoutSize) target.cssLayoutSize = [...base.cssLayoutSize];
+    if (base.cssScale)      target.cssScale      = [...base.cssScale];
+    if (base.dpr !== undefined) target.dpr       = base.dpr;
+
+    this.setRenderTarget(target);
+    return target;
 }
 
 
@@ -628,24 +693,45 @@ export type State = {
 export type RenderTargetBase = {
 
     /**
-     * GL viewport/backing-store size, in physical pixels. This is passed to
+     * GL viewport/backing-store size in physical pixels, passed to
      * `gl.viewport()`.
      *
-     * For the base canvas target this is the canvas backing size
-     * (`canvas.width`, `canvas.height`). For framebuffer targets this is the
-     * texture/framebuffer storage size.
+     * For the canvas target this is the physical backing size
+     * (`canvas.width`, `canvas.height`). For framebuffer targets this is
+     * the texture/framebuffer storage size.
      */
     viewportSize: NumberPair,
 
     /**
-     * Target-local 2D coordinate size used by renderer projection and
-     * screen-space draw helpers.
+     * Apparent logical size: the visible extent of the target in CSS units
+     * after any CSS transforms. Equal to `cssLayoutSize * cssScale`.
      *
-     * For the base canvas target this is the pre-transform canvas layout size
-     * in CSS pixels. For current auxiliary hitmap targets this is the hitmap
-     * texture size.
+     * This is the size used for projection matrices, camera aspect, and
+     * screen-space draw helpers. For the canvas target it equals
+     * `getBoundingClientRect()` dimensions. For auxiliary targets it is
+     * inherited from the canvas target.
      */
-    logicalSize: NumberPair
+    apparentSize: NumberPair,
+
+    /**
+     * Pre-transform CSS layout size in CSS pixels (`offsetWidth` /
+     * `offsetHeight`). Mouse event coordinates are reported in this space.
+     * Not present on independent render targets.
+     */
+    cssLayoutSize?: NumberPair,
+
+    /**
+     * Axis-aligned CSS transform scale: `apparentSize / cssLayoutSize`.
+     * A reveal-style `scale(0.5)` gives `[0.5, 0.5]`.
+     * Not present on independent render targets.
+     */
+    cssScale?: NumberPair,
+
+    /**
+     * Device pixel ratio at the time the canvas target was built.
+     * Not present on independent render targets.
+     */
+    dpr?: number,
 }
 
 /**

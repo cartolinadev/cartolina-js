@@ -28,11 +28,7 @@ var RendererDraw = function(renderer) {
 
 RendererDraw.prototype.noOverlap = function(job) {
 
-    let renderer = this.renderer;
-
-    return job.noOverlap?.map(
-        (v, i) => i == 0 || i == 2 ? v / renderer.visibleScale()[0]
-        : i == 1 || i == 3 ? v / renderer.visibleScale()[1] : v);
+    return job.noOverlap;
 }
 
 RendererDraw.prototype.drawSkydome = function(texture, shader) {
@@ -668,8 +664,8 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
 
     var screenPixelSize = [
-        1.0 / (renderer.curSize[0] * renderer.visibleScale()[0]),
-        1.0 / (renderer.curSize[1] * renderer.visibleScale()[1])
+        1.0 / renderer.apparentSize[0],
+        1.0 / renderer.apparentSize[1]
     ]
 
     var rmap = this.rmap;

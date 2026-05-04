@@ -1,165 +1,147 @@
 # Rendering Sizes
 
-The renderer deliberately keeps several size concepts separate. This is
-most visible when the map canvas is CSS-transformed, as in reveal-style
-presentations, and when the renderer switches from the base canvas to
-auxiliary framebuffer targets.
+The renderer keeps several size concepts separate. This is most visible
+when the map canvas is CSS-transformed, as in reveal-style presentations,
+and when the renderer switches from the base canvas to auxiliary
+framebuffer targets.
 
-## Canvas Sizes
+## Render target sizes
 
-These three values are computed together by `Renderer.calculateSizes()`
-and returned as `Renderer.CanvasState`. They are passed explicitly to
-the functions that need them and are not stored as fields.
+Every `GpuDevice.RenderTarget` has five size fields. The first two are
+present on every target; the remaining three are optional and absent on
+independent targets.
 
-`cssSize`
+`RenderTarget.apparentSize`
 
-- Defined from `offsetWidth`/`clientWidth` and
-  `offsetHeight`/`clientHeight`.
-- The stable layout size of the onscreen map in CSS pixels.
-- Measured before CSS transforms.
-
-`pixelSize`
-
-- Defined from `getBoundingClientRect() * devicePixelRatio`.
-- The physical backing-canvas size used for WebGL drawing.
-- Includes CSS transforms and DPR.
-- Written to `canvas.width` and `canvas.height` by
-  `GpuDevice.resizeCanvas()`.
-
-`visibleScale`
-
-- Defined as `getBoundingClientRect() / layoutSize`.
-- The axis-aligned CSS transform scale between layout size and visible
-  bounding-box size.
-- A reveal-style slide that scales a `1280 x 800` map to half size has
-  `cssSize = [1280, 800]`, `visibleScale = [0.5, 0.5]`, and, at DPR 1,
-  `pixelSize = [640, 400]`.
-- This assumes scale-like transforms. Rotation, skew, and composed
-  transforms are not modeled; supporting them would require using the
-  composed DOM transform matrix rather than bounding-box ratios.
-
-`Renderer.visibleScale()` returns the most recently computed value.
-This split lets the map keep stable logical coordinates while matching
-the actual number of visible device pixels.
-
-See `renderer-coordinate-spaces.md` for definitions of renderer
-projection, target-local 2D coordinates, and screen-space draw helpers.
-
-## Render Target Sizes
-
-Every `GpuDevice.RenderTarget` has two sizes:
+- The apparent visible extent of the target in CSS units after any CSS
+  transforms. Equal to `cssLayoutSize * cssScale`.
+- This is the size used for projection matrices, camera aspect, and
+  screen-space draw helpers. It drives `setProjection()`.
+- For the canvas target: the `getBoundingClientRect()` dimensions.
+- For auxiliary targets: inherited from the canvas target.
+- Use this for all rendering code that works in logical coordinates:
+  geometry, label-density, NDC-to-pixel conversions.
 
 `RenderTarget.viewportSize`
 
-- The GL viewport size passed to `gl.viewport()`.
-- For the canvas target, this is the physical pixel size.
-- For auxiliary framebuffer targets, this is the backing texture size
-  such as `[hitmapSize, hitmapSize]`.
+- The GL viewport/backing-store size in physical pixels, passed to
+  `gl.viewport()`.
+- For the canvas target: physical backing size
+  (`canvas.width`, `canvas.height`). For framebuffer targets: the
+  texture/framebuffer storage size.
 
-`RenderTarget.logicalSize`
+`RenderTarget.cssLayoutSize` *(optional)*
 
-- The width and height of the target-local 2D coordinate system used by
-  renderer projection and screen-space draw helpers.
-- It is the size used when converting projected NDC coordinates into
-  target-local positions: `x = (ndcX + 1) * 0.5 * logicalWidth`,
-  `y = (1 - ndcY) * 0.5 * logicalHeight`.
-- It is also the size used by `setProjection()` to build
-  `imageProjectionMatrix`.
-- For the canvas target, this is the CSS layout size.
-- For current auxiliary hitmap targets, this defaults to the framebuffer
-  texture size.
+- Pre-transform CSS layout size in CSS pixels (`offsetWidth` /
+  `offsetHeight`). Mouse event coordinates are reported in this space.
+- Use for screen-coordinate hit-testing (`getScreenRay`, `hitTest`,
+  `getDepth`, `hitTestGeoLayers`).
 
-`Renderer.logicalSize`
+`RenderTarget.cssScale` *(optional)*
 
-- A getter for `gpu.currentRenderTarget.logicalSize`.
+- Axis-aligned CSS transform scale: `apparentSize / cssLayoutSize`.
+- A reveal-style `scale(0.5)` gives `[0.5, 0.5]`.
+- Exposed in the inspector stats panel.
+
+`RenderTarget.dpr` *(optional)*
+
+- Device pixel ratio at the time the canvas target was built.
+
+## GpuDevice target methods
+
+`GpuDevice.setCanvasRenderTarget()`
+
+- Reads the DOM element owned by `GpuDevice`, computes all five size
+  fields, installs the canvas render target, and returns it.
+- Must be followed by `GpuDevice.resizeCanvas()` and
+  `Renderer.setProjection()`.
+- Call this when the canvas size may have changed.
+
+`GpuDevice.setAuxiliaryRenderTarget(texture, viewportSize)`
+
+- Installs a framebuffer target with the given storage size. Inherits
+  `apparentSize` and the optional CSS fields from the current render
+  target. Does not modify projection.
+
+## Renderer getters
+
+`renderer.apparentSize`
+
+- Returns `gpu.currentRenderTarget.apparentSize`.
 - The right choice for rendering code that must work for any render
-  target: returns CSS layout size during the canvas pass and the
-  target's own logical size during independent offscreen passes.
-- Use this in rendering geometry and label-density code.
+  target. Returns apparent CSS size during the canvas pass and the
+  inherited value during auxiliary passes.
 
-`Renderer.curSize`
+`renderer.logicalSize` *(deprecated alias for `apparentSize`)*
+`renderer.curSize` *(deprecated alias for `apparentSize`)*
 
-- Deprecated alias for `logicalSize`. Kept for backward compatibility.
-- Do not use in new code.
+- Both forward to `apparentSize`. Do not use in new code.
 
-## Base Canvas Pass
+## Canvas pass
 
-The base canvas render target represents the user-visible map view:
+The canvas render target sizes during a normal frame:
 
 ```text
-canvas target viewportSize = pixelSize   (physical pixels)
-canvas target logicalSize  = cssSize     (CSS layout pixels)
-renderer.logicalSize       = cssSize
+canvas target viewportSize  = rect.width * dpr, rect.height * dpr
+canvas target apparentSize  = rect.width, rect.height
+canvas target cssLayoutSize = offsetWidth, offsetHeight
+canvas target cssScale      = rect.width / offsetWidth, rect.height / offsetHeight
 ```
 
-When the canvas size changes, the renderer recalculates sizes,
-resizes the backing canvas, and creates a new canvas render target.
-The base pass then calls `setProjection(cssSize)`, which updates:
+`setProjection(apparentSize)` updates camera aspect and
+`imageProjectionMatrix`. Those values describe the screen view and
+follow the apparent logical size.
 
-- camera aspect
-- `imageProjectionMatrix`
-
-Those values describe the screen view, so they belong to the CSS
-layout size.
-
-## Auxiliary Framebuffer Passes
+## Auxiliary framebuffer passes
 
 Depth and geodata hitmaps are auxiliary buffers for the same screen
 view. They use square textures for storage, sampling, and readback:
 
 ```text
-hitmap target viewportSize = [hitmapSize, hitmapSize]
-hitmap target logicalSize  = [hitmapSize, hitmapSize]
+hitmap target viewportSize  = [hitmapSize, hitmapSize]
+hitmap target apparentSize  = canvas apparentSize  (inherited)
+hitmap target cssLayoutSize = canvas cssLayoutSize (inherited)
 ```
 
-These passes bind their framebuffer and viewport with
-`GpuDevice.setRenderTarget()`, but they do not call
-`setProjection()`. The camera aspect must remain the screen aspect.
-If a square hitmap target changed the camera aspect to `1`, depth and
-geodata checks would no longer match screen-coordinate label placement
-and hit testing.
+Auxiliary passes bind their framebuffer and viewport via
+`setAuxiliaryRenderTarget()` and do not call `setProjection()`.
+The camera aspect must remain the screen aspect.
 
-## Visual Scale And Labels
-
-Label anchors are projected into target-local logical coordinates, but
-glyph and icon quad offsets are scaled through `screenPixelSize`.
-Collision boxes also compensate for `visibleScale()` when converting
-style offsets into target-local extents.
+## Screen-space helpers
 
 `RendererDraw.drawGpuJobs()` computes:
 
 ```js
 screenPixelSize = [
-    1.0 / (renderer.logicalSize[0] * renderer.visibleScale()[0]),
-    1.0 / (renderer.logicalSize[1] * renderer.visibleScale()[1])
+    1.0 / renderer.apparentSize[0],
+    1.0 / renderer.apparentSize[1]
 ]
 ```
 
-For a reveal-style `scale(0.5)`, `visibleScale` is `0.5`. The renderer
-therefore draws label quads twice as large into the smaller backing
-canvas; the CSS transform then shrinks the canvas by half. The visible
-font size stays stable.
+Label and icon quads are scaled by `screenPixelSize`. Worker-generated
+bounding-box offsets (`job.noOverlap`) are already in apparent-logical
+space, matching the coordinate space of projected anchors.
 
-This is intentional. Logical map coordinates follow the pre-transform
-canvas layout, while pixel-sized visual features compensate for the
-post-transform visible scale.
+## Label density (rmap grid)
 
-Feature-count reduction currently uses `renderer.logicalSize` and a
-fixed CSS `ppi = 96`, without `visibleScale()`. This keeps the maximum
-label count stable under presentation transforms. If `visibleScale()`
-is used to represent the actual visible map area rather than a transient
-CSS reveal/scale effect, the density policy may need to account for it.
+`RendererRMap.clear()` intentionally uses `cssLayoutSize` rather than
+`apparentSize` for the collision-grid bounds. This preserves current
+label density under CSS transforms; using `apparentSize` would reduce
+the visible label count under presentation scales, which is a policy
+decision deferred to a future task.
 
-## Practical Rule
+## Mouse-event coordinate space
 
-- Use `renderer.logicalSize` in rendering code that must work for any
-  render target: geometry, label-density calculations, NDC-to-pixel
-  conversions. It is the active render target's `logicalSize`.
-- Use `RenderTarget.logicalSize` directly when you have an explicit
-  target reference; this is the same value `renderer.logicalSize`
-  returns while that target is active.
-- Use `viewportSize` for GL viewport and backing-storage dimensions.
-- Use `visibleScale()` when a pixel-sized visual feature must remain
-  stable under CSS transforms.
-- Do not use `curSize` in new code — it is a deprecated alias for
-  `logicalSize`.
+`getScreenRay`, `hitTest`, `hitTestGeoLayers`, and `getDepth` receive
+coordinates in the pre-transform CSS layout space (mouse events report
+`offsetX`/`offsetY` in layout coordinates). These functions use
+`cssLayoutSize` for conversions. `apparentSize` is not the right size
+here.
+
+## Practical rule
+
+- Rendering geometry, label placement, collision, NDC conversions:
+  use `renderer.apparentSize` (or `gpu.currentRenderTarget.apparentSize`).
+- GL viewport and backing-storage dimensions: use `viewportSize`.
+- Mouse-event hit-testing: use `cssLayoutSize ?? apparentSize`.
+- Do not use `curSize` or `logicalSize` in new code.

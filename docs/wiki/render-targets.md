@@ -1,44 +1,59 @@
 # Render Targets
 
-`GpuDevice.RenderTarget` separates the framebuffer binding and GL viewport
-from the canvas element. The renderer currently uses two kinds of targets:
+`GpuDevice.RenderTarget` separates the framebuffer binding and GL
+viewport from the canvas element. The renderer currently uses two kinds
+of targets:
 
-- the base canvas target, which represents the onscreen map view
-- auxiliary framebuffer targets, which store data for that same map view
+- the canvas target, which represents the onscreen map view
+- auxiliary framebuffer targets, which store data for that same view
 
-The base canvas pass is the only pass that calls `setProjection()`.
-That method updates screen-space state: camera aspect and
-`imageProjectionMatrix`. Those values describe the current map view and
-therefore follow the canvas layout, not every framebuffer texture.
+## Setting render targets
 
-The depth and geodata hitmaps are auxiliary buffers. They are rendered into
-square textures because a fixed square backing store is convenient for
-sampling and CPU readback, but they still describe the rectangular screen
-view. Changing the camera aspect to the square texture aspect would make
-the hitmap projection diverge from screen-coordinate label placement,
-hit-testing, and depth checks.
+Three methods on `GpuDevice` install render targets:
 
-Auxiliary passes should therefore bind their framebuffer and viewport with
-`GpuDevice.setRenderTarget()`, clear the target, and render using the
-screen camera. A future independent render-to-texture pass should make its
-camera/logical-size policy explicit instead of reusing the auxiliary
-hitmap setup.
+**`setCanvasRenderTarget()`** — reads the canvas DOM element, computes
+all five size fields (viewport, apparent, CSS layout, CSS scale, DPR),
+installs the canvas target, and returns it. The caller must then call
+`resizeCanvas()` and `Renderer.setProjection()`. This is the only
+method that performs DOM reads.
 
-Framebuffer readback is intentionally below render-target switching.
-`GpuDevice.readFramebufferPixels()` temporarily binds the framebuffer for
-readback and restores the tracked render-target binding afterward. Raw
-framebuffer binding should not be public rendering API.
+**`setAuxiliaryRenderTarget(texture, viewportSize)`** — installs a
+framebuffer target for a pass that shares the current screen view.
+Updates only the viewport. All other size fields (apparentSize,
+cssLayoutSize, cssScale, dpr) are inherited from the current render
+target. Does not call `setProjection()`.
 
-The legacy `Map.renderToImage()` path used a temporary power-of-two
-framebuffer as a screenshot/readback workaround. It had no internal demo
-or test callers and was removed from `fix/render-targets`; it should not
-be used as the model for future multipass rendering.
+**`setRenderTarget(target)`** — low-level primitive used by the two
+methods above. Binds the framebuffer and applies the GL viewport.
+Caller is responsible for all size and projection state.
 
-See `rendering-sizes.md` for the precise relationship between canvas
-CSS size, physical pixel size, render-target viewport size, render-target
-logical size, and CSS transform compensation. `renderer.logicalSize`
-is the right choice for rendering code that must work for any render
-target. It proxies `GpuDevice.currentRenderTarget.logicalSize`.
-`currentRenderTarget` is a read-only getter; target changes must go
-through `GpuDevice.setRenderTarget()`. `curSize` is a deprecated alias
-for `renderer.logicalSize`.
+## Projection policy
+
+`setProjection()` is a `Renderer` method. It is called explicitly after
+`setCanvasRenderTarget()` and never for auxiliary targets. This keeps
+the camera aspect locked to the screen view even when the framebuffer
+has a different size or aspect.
+
+The depth and geodata hitmaps are square textures for storage and
+readback convenience, but they still describe the rectangular screen
+view. Changing the camera aspect to match a square hitmap would make
+the hitmap projection diverge from screen-coordinate label placement
+and hit-testing.
+
+## Framebuffer readback
+
+`GpuDevice.readFramebufferPixels()` temporarily binds the texture
+framebuffer for readback and restores the tracked render-target binding
+afterward. Raw framebuffer binding is not public rendering API.
+
+## Independent targets (future)
+
+A future `setIndependentTarget()` method will allow callers to install
+a fully specified target where projection and sizes are defined by the
+offscreen pass itself, not inherited from the canvas view. This covers
+shadow maps, environment maps, SSAA passes, and similar. See the
+backlog entry "FEATURE: explicit offscreen render-pass API".
+
+See `rendering-sizes.md` for the complete size vocabulary and the
+distinction between `apparentSize`, `viewportSize`, and
+`cssLayoutSize`.
