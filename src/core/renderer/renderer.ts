@@ -344,12 +344,6 @@ get apparentSize(): Readonly<Size2> {
 }
 
 /** @deprecated Use `apparentSize` instead. */
-get logicalSize(): Readonly<Size2> {
-
-    return this.apparentSize;
-}
-
-/** @deprecated Use `apparentSize` instead. */
 get curSize(): Readonly<Size2> {
 
     return this.apparentSize;
@@ -1522,43 +1516,6 @@ transformPointBySE2(
 
     return pos;
 };
-
-/*
-// there is a type error in this function in calling this.cameraPosition(). Commenting out, as it's likely never called.
-project(point) {
-    //get mode-view-projection matrix
-    var mvp = this.camera.getMvpMatrix();
-
-    //get camera position relative to position
-    var cameraPos2 = this.camera.getPosition();
-
-    //get global camera position
-    var cameraPos = this.cameraPosition();
-
-    //get point coords relative to camera
-    var p = [point[0] - cameraPos[0] + cameraPos2[0], point[1] - cameraPos[1] + cameraPos2[1], point[2] - cameraPos[2] + cameraPos2[2], 1 ];
-
-    //project point coords to screen
-    var p2 = [0, 0, 0, 1];
-    p2 = mat4.multiplyVec4(mvp, p);
-
-    if (p2[3] != 0) {
-
-        var sp = [0,0,0];
-
-        //x and y are in screen pixels
-        sp[0] = ((p2[0]/p2[3])+1.0)*0.5*this.logicalSize[0];
-        sp[1] = (-(p2[1]/p2[3])+1.0)*0.5*this.logicalSize[1];
-
-        //depth in meters
-        sp[2] = p2[2]/p2[3];
-
-        return sp;
-    } else {
-        return [0, 0, 0];
-    }
-};*/
-
 
 getScreenRay(
     screenX: number,

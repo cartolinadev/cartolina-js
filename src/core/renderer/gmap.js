@@ -14,8 +14,8 @@ function processGMap(gpu, gl, renderer, screenPixelSize, draw, position) {
     var tileCount = renderer.config.mapFeaturesReduceParams[1]; //31; //labelGridCells
     var featuresPerSquareInch = renderer.config.mapFeaturesReduceParams[0]; //0.6614; //labelsPerSquareInch
     var ppi = 96 * (window.devicePixelRatio || 1);
-    var screenLX = renderer.logicalSize[0];
-    var screenLY = renderer.logicalSize[1];
+    var screenLX = renderer.apparentSize[0];
+    var screenLY = renderer.apparentSize[1];
     var featureCount = Math.ceil((screenLX/ppi)*(screenLY/ppi)*featuresPerSquareInch); 
     var i, li, top = renderer.config.mapFeaturesSortByTop;
 
@@ -319,8 +319,8 @@ function processGMap4(gpu, gl, renderer, screenPixelSize, draw, position) {
     var maxRadius = renderer.config.mapFeaturesReduceParams[0] * ppi; //mapFeatureRadius
     var maxHitcount = renderer.config.mapFeaturesReduceParams[1]; //0.6614; //mapFeatureMaxOverlays
 
-    var screenLX = renderer.logicalSize[0];
-    var screenLY = renderer.logicalSize[1];
+    var screenLX = renderer.apparentSize[0];
+    var screenLY = renderer.apparentSize[1];
     var i, li, top = renderer.config.mapFeaturesSortByTop, tmp;
     var feature, feature2, pp, pp2, o, job;
     var drawAllLabels = renderer.drawAllLabels;
@@ -491,8 +491,8 @@ function processGMap5(gpu, gl, renderer, screenPixelSize, draw, position) {
 
     var ppi = 96 * (window.devicePixelRatio || 1);
 
-    var screenLX = renderer.logicalSize[0];
-    var screenLY = renderer.logicalSize[1];
+    var screenLX = renderer.apparentSize[0];
+    var screenLY = renderer.apparentSize[1];
     var i, li, top = renderer.config.mapFeaturesSortByTop, tmp;
     var feature, feature2, pp, pp2, o, job;
     var drawAllLabels = renderer.drawAllLabels;
@@ -606,7 +606,7 @@ function radixSortFeatures(renderer, input, inputSize, tmp, depthOnly) {
 
     var depthTest = true;
 
-    var sx = renderer.logicalSize[0], sy = renderer.logicalSize[1];
+    var sx = renderer.apparentSize[0], sy = renderer.apparentSize[1];
     var cx = sx * 0.5, cy = sy * 0.5;
     var invcx = 1.0 / (cx+0.0001), invcy = 1.0 / (cy+0.0001), dx, dy, yy;
     var invsy = 1.0 / (sy+0.0001);
@@ -695,16 +695,14 @@ function processGMap6(gpu, gl, renderer, screenPixelSize, draw, position) {
         return;
     }
 
-    //console.log(renderer.logicalSize[0], renderer.logicalSize[1], window.devicePixelRatio);
-
     var featuresPerSquareInch = renderer.config.mapFeaturesReduceParams[1]; //0.6614; //labelsPerSquareInch
 
     // curSize is in css pixels, hence devicePixelRatio is irrelevant to the calculation
     //var ppi = 96 * (window.devicePixelRatio || 1);
     var ppi = 96;
 
-    var screenLX = renderer.logicalSize[0];
-    var screenLY = renderer.logicalSize[1];
+    var screenLX = renderer.apparentSize[0];
+    var screenLY = renderer.apparentSize[1];
 
     var maxFeatures = Math.ceil((screenLX/ppi)*(screenLY/ppi)*featuresPerSquareInch);
 
@@ -1025,8 +1023,8 @@ function processGMap7(gpu, gl, renderer, screenPixelSize, draw, position) {
     var tileCount = renderer.config.mapFeaturesReduceParams[5];
     var featuresPerSquareInch = renderer.config.mapFeaturesReduceParams[1];
     var ppi = 96 * (window.devicePixelRatio || 1);
-    var screenLX = renderer.logicalSize[0];
-    var screenLY = renderer.logicalSize[1];
+    var screenLX = renderer.apparentSize[0];
+    var screenLY = renderer.apparentSize[1];
     var maxFeatures = Math.ceil((screenLX/ppi)*(screenLY/ppi)*featuresPerSquareInch); 
     var featuresPerTile = maxFeatures / (tileCount * tileCount); 
     var featuresPerTileInt = Math.floor(featuresPerTile); 

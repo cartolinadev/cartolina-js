@@ -83,10 +83,9 @@ independent targets.
   target. Returns apparent CSS size during the canvas pass and the
   inherited value during auxiliary passes.
 
-`renderer.logicalSize` *(deprecated alias for `apparentSize`)*
 `renderer.curSize` *(deprecated alias for `apparentSize`)*
 
-- Both forward to `apparentSize`. Do not use in new code.
+- Forwards to `apparentSize`. Do not use in new code.
 
 ## Canvas pass
 
@@ -160,4 +159,4 @@ hitmap pixel.
 - GL viewport and backing-storage dimensions: use `viewportSize`.
 - Mouse-event hit-testing: use default `layout` coordinate space.
 - Projected label-depth tests: pass `apparent` coordinate space.
-- Do not use `curSize` or `logicalSize` in new code.
+- Do not use `curSize` in new code.

@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-05-04 — Remove renderer logicalSize alias
+
+### Goal
+
+Remove the deprecated `Renderer.logicalSize` alias.
+
+### Work done
+
+- Replaced live `renderer.logicalSize` references in `gmap.js` with
+  `renderer.apparentSize`.
+- Removed a commented-out dead `Renderer.project()` block that still
+  referenced the old size getter.
+- Removed the `Renderer.logicalSize` getter. `curSize` remains as a
+  deprecated alias for now.
+- Updated the rendering-size wiki page.
+
+### Current state
+
+TypeScript passes.
+
 ## 2026-05-04 — Move canvas size-change detection to GpuDevice
 
 ### Goal
