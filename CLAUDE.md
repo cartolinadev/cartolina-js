@@ -16,11 +16,6 @@ Before declaring a task complete, verify that all test URLs still render
 correctly (see [Test applications](AGENTS.md#test-applications) in
 AGENTS.md). Report any visual regressions and console errors found.
 
-**Note: the screenshot test environment is broken for Claude Code.**
-`node test/screenshot.js` does not work in Claude Code's environment.
-Do not attempt to run it. Tests must be verified manually by the user.
-
-
 ## Shell commands
 
 The following categories of commands may be run without requesting

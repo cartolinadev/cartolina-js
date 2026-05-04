@@ -237,10 +237,7 @@ Do not write screenshot output under `sandbox/`; the dev server watches
 that directory and may rebuild or reload while the screenshot script is
 capturing.
 
-Run `test/screenshot.js` entries sequentially. Do not launch multiple
-canonical screenshot captures in parallel; concurrent runs currently
-cause intermittent remote tile/resource fetch failures that obscure the
-rendering signal.
+Run `test/screenshot.js` entries sequentially.
 
 Custom Playwright-based diagnostic or test scripts may be created and
 run against the dev server without asking for permission. Always listen

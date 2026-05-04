@@ -19,3 +19,4 @@ DEADJOE
 test/perf/results
 .tsbuild
 tmp/
+.playwright-mcp/
