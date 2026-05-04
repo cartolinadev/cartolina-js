@@ -1,5 +1,46 @@
 # Task backlog
 
+## REFACTOR: build the `Map` TypeScript public class
+
+**Opened:** 2026-05-04
+**Status:** deferred
+
+### Motivation
+
+`Viewer` currently promotes rendering methods by reaching directly into
+legacy internals — `_map` (terrain engine), `_mapInterface`, and `_renderer`
+— all via `this._core?.core?.*`. This is the wrong layering. Every new
+promoted method deepens the problem.
+
+The fix is to build the `Map` TypeScript class first, then route all
+delegations through it. `Map` wraps `CoreInterface`, keeps the legacy
+objects private, and exposes a flat typed surface. `Viewer` holds a `Map`
+instance and delegates to it. Direct internal access is removed from
+`Viewer` entirely.
+
+### Shape
+
+```ts
+class Map {
+    constructor(core: CoreInterface) { ... }
+
+    // lifecycle, events, config — delegated from CoreInterface
+    // hit testing, coordinate conversion — absorbed from MapInterface
+    // illumination, atmosphere, VE — absorbed from Renderer / RendererInterface
+}
+```
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `src/browser/viewer.ts` | `_map`, `_mapInterface`, `_renderer` — all to be replaced by `Map` delegation |
+| `src/core/interface.js` | `CoreInterface` — the constructor input |
+| `src/core/map/interface.js` | `MapInterface` — first set of methods to absorb |
+| `src/core/renderer/renderer.ts` | `Renderer` — second set of methods to absorb |
+
+---
+
 ## BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
 
 **Opened:** 2026-04-24

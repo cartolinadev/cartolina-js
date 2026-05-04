@@ -138,7 +138,7 @@ export function browser(
 ): Viewer | null {
 
     var vi = new Viewer(element, config);
-    return (vi as any)._coreInterface ? vi : null;
+    return (vi as any)._core ? vi : null;
 }
 
 /**

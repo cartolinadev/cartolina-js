@@ -46,18 +46,18 @@ class Viewer {
     private readonly _core: CoreInterface;
     private _killed = false;
 
-    /** The internal terrain engine (`Core.map`). Non-null after `ready`. */
+    // TODO: _map, _mapInterface, and _renderer are bypass points — Viewer
+    // reaching past the layer boundary into legacy internals. They exist
+    // because the Map TypeScript public class has not been built yet. Once
+    // it exists, Viewer holds a Map instance and all three disappear.
+    // See backlog: "build the Map TypeScript public class".
+
     private get _map(): Map | null { return this._core?.core?.map ?? null; }
 
-    /** The internal WebGL renderer (`Core.renderer`). */
     private get _renderer(): Renderer | null {
         return this._core?.core?.renderer ?? null;
     }
 
-    /**
-     * The internal `MapInterface` — used for methods whose delegation
-     * logic lives there and has not yet been promoted. Not public.
-     */
     private get _mapInterface(): MapInterface | null {
         return this._core?.core?.mapInterface ?? null;
     }
@@ -512,6 +512,24 @@ class Viewer {
         if (this._guard()) return null;
         return this._mapInterface?.convertCoordsFromPhysToCameraSpace(pos)
             ?? null;
+    }
+
+    /**
+     * Samples the cached depth buffer at a canvas pixel.
+     *
+     * @param screenX canvas X coordinate in CSS pixels
+     * @param screenY canvas Y coordinate in CSS pixels
+     * @param dilate optional dilation radius in pixels
+     * @returns `[hit, depthMeters]`, or `null` when the map is not ready
+     */
+    getScreenDepth(
+        screenX: number,
+        screenY: number,
+        dilate?: number,
+    ): [boolean, number] | null {
+
+        if (this._guard()) return null;
+        return this._map?.getScreenDepth(screenX, screenY, dilate) ?? null;
     }
 
     // -------------------------------------------------------------------------

@@ -293,25 +293,21 @@ The long-term refactoring pattern in cartolina-js is therefore:
 4. Gradually absorb the internal engine into private fields and methods
    of the new class, then delete the old wrapper.
 
-### Browser pair: already in transition
+### Two future public surfaces
 
-`BrowserInterface` has already undergone the public side of this
-transformation. Its replacement is `Viewer`, exported publicly as the
-type alias `Map`.
+The end state is two public TypeScript classes, one per build:
 
-`Viewer` is the single public entry point for new application code. It
-follows the MapLibre GL JS shape: one class, flat methods, no required
-sub-object access.
+**`Map`** — the core build public API. Absorbs everything in the current
+core layer: `CoreInterface`, `Core`, the internal terrain engine (currently
+also called `Map`), `Renderer`, `MapInterface`, and `RendererInterface`.
+All of those are implementation detail behind a single flat typed class.
 
-`Browser` is not the new public API. It is the remaining internal UI
-engine from the old pair, and it is meant to be gradually absorbed into
-`Viewer` as private implementation detail.
-
-This means:
-
-- no new public functionality goes into `Browser`
-- new capabilities are promoted directly onto `Viewer`
-- `.map` / `.renderer` style public sub-objects do not come back
+**`Viewer`** — the full build public API. Absorbs `BrowserInterface` and
+`Browser` (UI engine, controls, navigation, autopilot, presenter).
+Rendering and map methods from `Map` are promoted flat onto `Viewer` as
+well, following the MapLibre GL JS convention of a single entry point with
+no required sub-object access. Each promoted method must delegate through
+the `Map` public surface, not bypass it into internals.
 
 ```ts
 import { map } from 'cartolina-js';
@@ -326,54 +322,61 @@ viewer.on('map-loaded', () => {
 });
 ```
 
-### Core pair: same transformation, later stage
+### Current state and direction
 
-`CoreInterface` and `Core` are meant to undergo the same conversion that
-the browser layer is already undergoing.
+`Viewer` is done on the browser side. `Browser` is being absorbed into it.
 
-`CoreInterface` is the current public API for the core build. `Core` is
-the current functional crux behind it. The intended end state is not
-"remove `CoreInterface` and expose `Core` directly". The intended end
-state is a clean TypeScript public class for the core build, with the
-current `Core` responsibilities absorbed behind a typed public surface as
-private implementation detail.
+The core-side `Map` class does not exist yet. The right approach is to
+build it before promotion continues, not after. Without it, every method
+promoted onto `Viewer` reaches directly into the legacy internals (`_map`,
+`_mapInterface`, `_renderer`), each accessed via `this._core?.core?.*`.
+That is the wrong layering and will not clean up on its own — it will grow
+as promotion continues.
 
-That work is deferred until there are active consumers driving the core
-build API, but conceptually it is the same migration pattern as
-`BrowserInterface` → `Viewer` with `Browser` being phased out behind it.
-
-### Naming and structural direction
-
-The current names carry legacy baggage, but the architectural direction
-is now consistent:
+The `Map` class should be built as a thin TypeScript wrapper around
+`CoreInterface`. It keeps the terrain engine, renderer, and legacy wrappers
+as private implementation detail and exposes a flat typed public surface.
+Every subsequent method promotion goes through `Map`, never into the legacy
+layer directly. `Viewer` holds a `Map` instance and delegates rendering
+methods to it.
 
 | Current name | Current role | Direction |
 |---|---|---|
-| `Viewer` | New public browser API | Absorb `Browser` and remain the browser-build public class |
+| `Viewer` | Full-build public API | Absorb `Browser`; delegate rendering to `Map` |
 | `Browser` | Legacy UI engine | Become private implementation inside `Viewer`, then disappear |
-| `CoreInterface` | Legacy public wrapper for core build | Be replaced by a TypeScript public class for the core build |
-| `Core` | Legacy map-engine coordinator | Be absorbed/hidden behind that future core public class |
-| `MapInterface` | Legacy wrapper around `Map` | Delete incrementally as methods move to `Viewer` |
-| `RendererInterface` | Legacy wrapper around `Renderer` | Delete incrementally as methods move to `Viewer` |
-| `Map` (internal) | Terrain engine | Rename eventually to avoid collision with public `Map` alias |
+| `Map` (new) | Core-build public API | Wrap `CoreInterface`; absorb all legacy core objects behind it |
+| `CoreInterface` | Legacy public wrapper for core build | Absorbed into `Map` |
+| `Core` | Legacy map-engine coordinator | Absorbed into `Map` |
+| `MapInterface` | Legacy wrapper around terrain engine | Absorbed into `Map` |
+| `RendererInterface` | Legacy wrapper around `Renderer` | Absorbed into `Map` |
+| `Map` (internal) | Terrain engine | Absorbed into `Map`; rename resolves naming collision |
+| `Renderer` | WebGL2 pipeline | Absorbed as private implementation of `Map` |
 
 The priority order is:
 
-- finish removing `MapInterface` / `RendererInterface` first
+- build the `Map` TypeScript class wrapping `CoreInterface`
+- route all existing `Viewer` delegations through it; remove direct
+  internal access from `Viewer`
 - continue dissolving `Browser` into `Viewer`
-- tackle the core-build class conversion when consumers require it
-- do larger `Core` / internal `Map` renames only as feature work forces
-  the touch
+- absorb legacy core objects into `Map` incrementally as feature work
+  touches them
 
 None of these happen speculatively. Each step is taken only when active
 feature work already touches that layer.
 
-### Why `Viewer` / `Map`?
+### Naming
 
-The class is named `Viewer` internally because the name `Map` would
-collide with the internal terrain engine (`Core.map`). The public type
-alias `Map` is re-exported from the package index so consumers still see
-the familiar API name in their IDE.
+Both builds expose a `Map` object. The full build re-exports `Viewer` under
+that name (`export type { default as Map } from './viewer'`); the core build
+will export its own `Map` class. The two `Map` objects have overlapping
+capabilities — the full-build one has promoted rendering methods on top of
+its UI layer — and that overlap is intentional. Consumers of either build
+get a familiar `Map` entry point; the distinction between builds is a
+deployment concern, not an API-shape concern.
+
+The internal terrain engine object (also informally `Map` in `map.js`) is
+a codebase-only conflict that disappears when it is absorbed into the new
+class.
 
 
 ## Style-based API is canonical; mapConfig and views are deprecated
