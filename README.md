@@ -175,11 +175,16 @@ the `./dist/<version>-branch.<short-hash>` directory.
 
 ## Documentation
 
-There is currently no stand-alone documentation for the `cartolina-js` API. Refer
-to [this page](#usage), to the [examples on cartolina website](https://cartolina.dev/examples) 
-and to the code's JSDoc annotations. 
+Start with the [wiki index](docs/wiki/index.md) for architecture notes,
+subsystem details, and contributor-oriented project knowledge. For usage
+examples, refer to [this page](#usage) and to the
+[examples on cartolina website](https://cartolina.dev/examples).
 
-As a last resort, use the legacy [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki).
+There is currently no API reference manual. Use the code's JSDoc
+annotations for API details.
+
+As a last resort, use the legacy
+[vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki).
 
 
 ## Tests

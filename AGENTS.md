@@ -29,6 +29,8 @@ relevant information.
 - Transcripts of conversation or iterative back-and-forth.
 - Things that are obvious from reading the code or git history.
 - Temporary notes or in-progress state.
+- Trivial edits that do not change architecture, behavior, workflow, or
+  non-obvious project knowledge.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it
@@ -64,12 +66,20 @@ summarize the relevant conclusion without recording its path.
 
 ## Commits
 
-Before every commit, review the affected wiki pages for completeness
-and correctness — stale field names, removed APIs, or outdated
-descriptions must be corrected before the commit lands. Then update
-[docs/wiki/session-log.md](docs/wiki/session-log.md) so it reflects
-the current state of things. Commit the wiki and session log together
-with the other changes, or in a follow-up commit immediately after.
+Do not commit trivial changes automatically. Leave typo fixes, link
+updates, formatting changes, and straightforward documentation polish
+uncommitted unless the user asks for a commit.
+
+Before every commit, review affected wiki pages for completeness and
+correctness when the change touches documented behavior. Stale field
+names, removed APIs, or outdated descriptions must be corrected before
+the commit lands.
+
+For commits that represent a significant body of work or a non-trivial
+finding, update [docs/wiki/session-log.md](docs/wiki/session-log.md) so
+it reflects the current state of things. Do not add session-log entries
+for trivial changes merely because they are being committed at the
+user's request.
 
 On a feature branch, commit freely — at milestones during implementation
 or after completing a step — without asking first. On the main branch,
