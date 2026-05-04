@@ -321,61 +321,53 @@ For a point sitting on the terrain surface the comparison always fails:
 so the method returns `false` (occluded) even when the point is plainly
 visible.
 
-### Root cause (partial — investigation stopped before confirming)
+### Root cause (confirmed by instrumentation, 2026-05-04)
 
-Two different things are being compared:
+`screenDepth` and `pointDepth` measure different things when vertical
+exaggeration (super-elevation) is active.
 
-* **`screenDepth`** — decoded from the hitmap texture.  The GPU shader
-  (`heightmapDepthVertexShader` / `heightmapDepthFragmentShader` in
-  `src/core/renderer/gpu/shaders.js`) writes
-  `camDist = length(camSpacePos.xyz)` where
-  `camSpacePos = uMV * vec4(worldPos, 1.0)`.
-  This is the Euclidean distance from the **actual OpenGL eye** (the
-  camera origin used by the renderer) to each terrain fragment.
+* **`screenDepth`** — decoded from the hitmap texture. The GPU shader
+  writes the Euclidean distance from the camera to each rendered terrain
+  fragment. Because VE is applied on the GPU, this distance is to the
+  **visually rendered (VE-exaggerated) surface**.
 
-* **`pointDepth`** — computed in `Viewer.checkVisibility()` as
+* **`pointDepth`** — computed as
   `Math.hypot(...convertCoordsFromPhysToCameraSpace(physPos))`.
-  That conversion (`MapInterface.convertCoordsFromPhysToCameraSpace`,
-  `src/core/map/interface.js:232`) simply subtracts
-  `map.camera.position` from the world-space point.
+  `convertCoordsFromPhysToCameraSpace` subtracts `map.camera.position`
+  from the physical (ECEF) world-space point. `getHitCoords` adds the
+  same quantity when reconstructing position from the hitmap, so the
+  two operations cancel and the coordinate arithmetic is correct.
+  However, `getHitCoords` applies `getUnsuperElevatedHeight` before
+  returning nav coords, stripping the VE height offset. When those
+  SE-adjusted nav coords are converted back to phys and then to
+  camera-space, the result is the distance to the **true geographic
+  surface**, not the rendered one.
 
-The mismatch: `map.camera.position` is **not** the GL eye.  In
-`MapCamera.update()` (`src/core/map/camera.js`) the GL camera is set
-with `this.camera.setPosition([0,0,0])` — the renderer always sits at
-the world origin — while `this.position` is set to the full absolute
-world-space position of the eye (a point on or above the ECEF
-ellipsoid, on the order of 6 400 000 m from the geocentre).  The
-distance subtracted by `convertCoordsFromPhysToCameraSpace` is
-therefore measured from the wrong origin, producing a value that is
-off by the camera-to-surface orbit distance (hundreds to thousands of
-metres depending on zoom).
+Verified by disabling VE at runtime: with VE off and `dilate=0`,
+`pointDepth` and `screenDepth` are identical. With VE on the gap is
+proportional to VE scale; at the test position (~33 km view distance)
+it was ~503 m.
 
-An existing comment in `MapConvert.getPositionCameraSpaceCoords()`
-(`src/core/map/convert.js:280`) already flags this:
-`// mmm, this does not look like camera space coords to me`.
-
-There may also be a secondary issue with how `uMV` encodes tile-local
-coordinates relative to the GL origin, but the primary cause is the
-wrong reference point.
+The camera-origin mismatch described in the earlier analysis was
+incorrect: `map.camera.position` is the correct reference, and
+`convertCoordsFromPhysToCameraSpace` produces the right result. The
+`// mmm` comment in `convert.js:280` refers to a different code path.
 
 ### Suggested fix direction
 
-Before computing `pointDepth`, transform the physical point into the
-same coordinate frame the renderer uses.  Concretely:
+`checkVisibility` must compare in the same domain. Two options:
 
-1. Apply the MVP matrix (`map.camera.getMvpMatrix()`) to the physical
-   point as the renderer does — i.e. use
-   `MapConvert.getPositionCanvasCoords` with `physical = true`, which
-   already calls `renderer.project2` via the MVP path.
-2. Recover the pre-projection depth from that pipeline (the
-   `-z` component before the perspective divide), or alternatively
-   use the `w` component of the clip-space position.
-3. Compare that against `screenDepth` (which is already a Euclidean
-   camera-space distance, not NDC depth).
+1. **Compare in the rendered domain.** Get the screen pixel the point
+   projects to, sample `getScreenDepth` there, then compare against the
+   distance from the camera to the VE-adjusted position of the point.
+   Requires applying VE to the point's position before computing
+   `pointDepth`.
 
-Alternatively: reuse the existing `getHitCoords` / `hitTest` ray
-machinery to reconstruct the depth at the screen pixel and compare it
-against the projected point depth in a consistent unit.
+2. **Compare in the geographic domain.** Use `getHitCoords` at the
+   projected screen pixel to get the true surface position, convert to
+   phys, compute camera-space distance, and compare against the same for
+   the input point. Both values are then geographic distances with VE
+   stripped out.
 
 ### Relevant files
 

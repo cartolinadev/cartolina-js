@@ -15,13 +15,21 @@
       padding:8px 10px; border-radius:6px; user-select:none; white-space:nowrap;
     }
     #overlay b { font-weight:600; }
+    #ve-btn {
+      position:fixed; top:10px; right:10px; z-index:9999;
+      background:rgba(0,0,0,.55); color:#fff; font:14px/1.25 system-ui,sans-serif;
+      padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.3);
+      cursor:pointer;
+    }
+    #ve-btn.off { opacity:.5; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="overlay">
-    Elevation: <b>— m</b> · Depth(vec): <b>— m</b> · Depth(api): <b>—</b>
+    Elevation: <b>— m</b> · Ground dist: <b>— m</b> · Rendered depth: <b>—</b>
   </div>
+  <button id="ve-btn">VE: on</button>
   <script src="./demo.js"></script>
 </body>
 </html>

@@ -1,5 +1,44 @@
 # Session log
 
+## 2026-05-04 — Depth-test demo regression and depth pipeline investigation
+
+### Goal
+
+Fix the depth-test demo (broken since af696bc6) and understand why
+depth(vec) and depth(api) diverge by 600–3000 m.
+
+### Work done
+
+- Fixed `browser()` factory: checked `_coreInterface` (non-existent on
+  `Viewer`) instead of `_core`, so it always returned `null`.
+- Updated demo to use the flat `Viewer` API; promoted `getScreenDepth`
+  onto `Viewer`.
+- Investigated the depth discrepancy with runtime instrumentation:
+  - Confirmed `convertCoordsFromPhysToCameraSpace` is arithmetically
+    correct (uses the same `map.camera.position` that `getHitCoords`
+    adds back, so the round-trip cancels).
+  - Confirmed the phys→nav→phys round-trip through `convertCoords` is
+    lossless (< 2 nm error).
+  - Identified the actual cause: `getHitCoords` applies
+    `getUnsuperElevatedHeight` before returning nav coords. The demo
+    then converts those SE-adjusted coords back to phys, yielding the
+    distance to the **geographic surface**. `getScreenDepth` reads the
+    hitmap which stores distance to the **rendered (VE-exaggerated)
+    surface**. The two are measuring different things when VE is active.
+  - Verified by disabling VE at runtime: with VE off and `dilate=0`,
+    both values are identical.
+  - The `dilate` parameter in `getScreenDepth` samples a neighbourhood
+    and finds closer terrain — appropriate for label occlusion checks,
+    not for point depth testing. Removed from the demo.
+- Renamed demo labels to reflect actual semantics: "Ground dist" (true
+  geographic distance) and "Rendered depth" (VE surface depth).
+- Added VE toggle button to the demo.
+- Updated backlog entry for `checkVisibility` with confirmed root cause
+  and corrected fix direction.
+- Updated architecture doc to clarify the two future public API surfaces
+  (`Map` and `Viewer`), the delegation strategy, and the `Map` class
+  backlog item.
+
 ## 2026-05-04 — Remove renderer logicalSize alias
 
 ### Goal
