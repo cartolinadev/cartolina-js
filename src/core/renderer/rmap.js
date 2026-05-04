@@ -33,16 +33,10 @@ var RendererRMap = function(renderer, blockSize, maxBlockRectangles) {
 RendererRMap.prototype.clear = function() {
     var renderer = this.renderer;
 
-    /*
-     * Use CSS layout size (pre-transform) rather than apparentSize to
-     * preserve current label density under CSS transforms. Using
-     * apparentSize would be more correct but changes observable behaviour.
-     */
-    var css = renderer.gpu.currentRenderTarget.cssLayoutSize
-        || renderer.gpu.currentRenderTarget.apparentSize;
+    var size = renderer.gpu.currentRenderTarget.apparentSize;
 
-    this.sx2 = css[0];
-    this.sy2 = css[1];
+    this.sx2 = size[0];
+    this.sy2 = size[1];
 
     //reduce by credits
     this.sy2 = Math.max(1, this.sy2 - 55);
@@ -51,20 +45,20 @@ RendererRMap.prototype.clear = function() {
 
     //compass size
     this.cx2 = 135;
-    this.cy1 = css[1] - 145;
+    this.cy1 = size[1] - 145;
 
     //search bar size
     this.bx2 = 245;
     this.by2 = 45;
 
-    this.lx = Math.floor(css[0] * this.blockSizeFactor) + 1;
-    this.ly = Math.floor(css[1] * this.blockSizeFactor) + 1;
+    this.lx = Math.floor(size[0] * this.blockSizeFactor) + 1;
+    this.ly = Math.floor(size[1] * this.blockSizeFactor) + 1;
 
     if (renderer.marginFlags & 4096) {
         this.sx1 = Math.min(34, this.sx2);
-        this.sx2 = Math.max(1, css[0] - 34);
+        this.sx2 = Math.max(1, size[0] - 34);
         this.sy1 = Math.min(50, this.sy2);
-        this.sy2 = Math.max(1, css[1] - 68);
+        this.sy2 = Math.max(1, size[1] - 68);
     }
 
     var totalNeeded = this.ly * this.lx;

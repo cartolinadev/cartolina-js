@@ -32,23 +32,19 @@ runtime diagnostics.
   `getScreenRay`, `hitTest`, `hitTestGeoLayers`, `getDepth`, and
   `Map.getScreenDepth`. Public mouse-facing calls default to `layout`;
   label-depth testing passes `apparent`.
+- Traced the right/bottom label band with `Brennkogel` as the target.
+  The first divergence was in `processNoOverlap`: on the regression
+  branch the label exited with `label-free-margin` because its apparent
+  anchor `[2107.6, 1109.5]` was checked against `rmap` layout bounds
+  `[1, 1, 1824, 971]`.
+- Changed `RendererRMap.clear()` back to apparent-space bounds and block
+  dimensions. With that diagnostic change, `Brennkogel` enters `gmap`,
+  passes `rmapDepth`, is stored, and reaches output.
 
 ### Current state
 
-The coordinate-space API fix is present in the working tree. TypeScript
-passes. The slide still has a broader label regression: labels such as
-`Brennkogel` are missing, and the failure appears as a wide band of
-removed labels on the right and bottom. The next investigation should
-continue from the pipeline diagnostics and trace that boundary-condition
-loss separately from the `Figerhorn` depth-sampling failure.
-
-### Open questions
-
-- Which stage first removes the right/bottom band of labels after the
-  `getDepth()` coordinate fix?
-- Is the band caused by `rmap` bounds, label-budget sizing, hitmap
-  sampling, or another consumer mixing `cssLayoutSize` and
-  `apparentSize`?
+The coordinate-space API fix and `rmap` apparent-bounds fix are present
+in the working tree. TypeScript passes.
 
 ## 2026-05-04 — Refactor rendering sizes
 

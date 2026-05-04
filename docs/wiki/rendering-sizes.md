@@ -122,13 +122,12 @@ Label and icon quads are scaled by `screenPixelSize`. Worker-generated
 bounding-box offsets (`job.noOverlap`) are already in apparent-logical
 space, matching the coordinate space of projected anchors.
 
-## Label density (rmap grid)
+## Label collision grid
 
-`RendererRMap.clear()` intentionally uses `cssLayoutSize` rather than
-`apparentSize` for the collision-grid bounds. This preserves current
-label density under CSS transforms; using `apparentSize` would reduce
-the visible label count under presentation scales, which is a policy
-decision deferred to a future task.
+`RendererRMap.clear()` uses `apparentSize` for bounds and block-grid
+dimensions. Projected label anchors and rectangles are in apparent
+coordinates; using `cssLayoutSize` here clips labels in the right and
+bottom CSS-transform bands before they can enter `gmap`.
 
 ## Mouse-event coordinate space
 
