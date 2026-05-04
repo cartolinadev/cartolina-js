@@ -1,5 +1,51 @@
 # Session log
 
+## 2026-05-04 — NACIS label regression diagnostics
+
+### Goal
+
+Diagnose the NACIS presentation label regression on slide 30 by comparing
+the production-good build with the development branch using equivalent
+runtime diagnostics.
+
+### Work done
+
+- Added temporary pipeline diagnostics on both branches to list labels at
+  each stage from job submission through `gmap`, `rmap`, hysteresis, and
+  final output.
+- Confirmed that `Figerhorn` reaches `gmap` on both branches. On the
+  regression branch it was rejected in `RendererRMap.addRectangle()` by
+  the depth test before reaching output.
+- Confirmed the depth rejection came from a coordinate-space mismatch:
+  `project2()` produced apparent-size screen coordinates, while
+  `Renderer.getDepth()` converted those coordinates using
+  `cssLayoutSize`. The sampled hitmap pixel moved from `[95, 299]` to
+  `[134, 420]`, producing a nearer depth sample and rejecting the label.
+- Tested a minimal fix where `getDepth()` samples by `apparentSize`.
+  With that change, `Figerhorn` passes `rmapDepth`, is stored, and
+  reaches output.
+- Tested CSS-layout projection as a diagnostic only. It reproduced the
+  historical label positions but shifted rendered labels off their
+  apparent-screen positions, so it is not a valid fix for the current
+  render-target model.
+
+### Current state
+
+The minimal `getDepth()` coordinate fix is present in the working tree.
+TypeScript passes. The slide still has a broader label regression: labels
+such as `Brennkogel` are missing, and the failure appears as a wide band
+of removed labels on the right and bottom. The next investigation should
+continue from the pipeline diagnostics and trace that boundary-condition
+loss separately from the `Figerhorn` depth-sampling failure.
+
+### Open questions
+
+- Which stage first removes the right/bottom band of labels after the
+  `getDepth()` coordinate fix?
+- Is the band caused by `rmap` bounds, label-budget sizing, hitmap
+  sampling, or another consumer mixing `cssLayoutSize` and
+  `apparentSize`?
+
 ## 2026-05-04 — Refactor rendering sizes
 
 ### Goal
