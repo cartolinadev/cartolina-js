@@ -9,34 +9,37 @@ then branch into more specific documents as needed.
 
 ### Overview
 
-- `architecture.md` — broad system structure, object ownership, and
-  cross-cutting runtime notes
-- `backlog.md` — deferred bugs, follow-up work, and documentation
-  restructuring tasks
-- `session-log.md` — chronological record of significant work sessions
-  and non-obvious findings
+- [architecture.md](architecture.md) — broad system structure, object
+  ownership, and cross-cutting runtime notes
+- [backlog.md](backlog.md) — deferred bugs, follow-up work, and
+  documentation restructuring tasks
+- [session-log.md](session-log.md) — chronological record of significant
+  work sessions and non-obvious findings
 
 ### Subsystem and feature notes
 
-- `reference-frames.md` — reference frame concepts, the melown2015 and
-  QSC families, client loading path, and tileserver production
-- `label-styling-engine.md` — reference notes about the shared
-  lettering style engine, expression domains, and textured line
-  patterns
-- `label-regression-diagnostics.md` — workflow for empirical
-  label-pipeline regression tracing
-- `render-targets.md` — render-target ownership, auxiliary framebuffer
-  policy, and camera/logical-size rules
-- `rendering-sizes.md` — canvas, framebuffer, logical, physical, and
-  visual-scale size relationships in the renderer
-- `renderer-coordinate-spaces.md` — renderer projection, target-local 2D
-  coordinates, and legacy screen-space draw helper terminology
-- `trajectory-behavior.md` — flight duration and phase structure in
-  `MapTrajectory`: base rules, nadir-departure patch, and
-  extent-proximity short-flight patch
-- `waypoint-spec.md` — design and behavior notes for the waypoint demo
-- `relief-lab-spec.md` — design and behavior notes for the relief-lab
-  demo
+- [reference-frames.md](reference-frames.md) — reference frame concepts,
+  the melown2015 and QSC families, client loading path, and tileserver
+  production
+- [label-styling-engine.md](label-styling-engine.md) — reference notes
+  about the shared lettering style engine, expression domains, and
+  textured line patterns
+- [label-regression-diagnostics.md](label-regression-diagnostics.md) —
+  workflow for empirical label-pipeline regression tracing
+- [render-targets.md](render-targets.md) — render-target ownership,
+  auxiliary framebuffer policy, and camera/logical-size rules
+- [rendering-sizes.md](rendering-sizes.md) — canvas, framebuffer,
+  logical, physical, and visual-scale size relationships in the renderer
+- [renderer-coordinate-spaces.md](renderer-coordinate-spaces.md) —
+  renderer projection, target-local 2D coordinates, and legacy
+  screen-space draw helper terminology
+- [trajectory-behavior.md](trajectory-behavior.md) — flight duration and
+  phase structure in `MapTrajectory`: base rules, nadir-departure patch,
+  and extent-proximity short-flight patch
+- [waypoint-spec.md](waypoint-spec.md) — design and behavior notes for
+  the waypoint demo
+- [relief-lab-spec.md](relief-lab-spec.md) — design and behavior notes
+  for the relief-lab demo
 
 ## Other documentation sources
 
@@ -79,6 +82,7 @@ more hierarchical reference manual.
 For now:
 
 - start here for navigation
-- use `architecture.md` for system-level understanding
+- use [architecture.md](architecture.md) for system-level understanding
 - use narrow pages for feature- or subsystem-specific findings
-- use `session-log.md` when you need historical implementation context
+- use [session-log.md](session-log.md) when you need historical
+  implementation context

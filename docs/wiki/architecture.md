@@ -533,14 +533,24 @@ Known gap: `Browser.kill()` does not unsubscribe its `tick` listener
 from `Core.on`, so the callback keeps firing and hitting the flag until
 `Core` is GC'd.
 
+**Future direction** — new classes and major refactors should prefer the
+modern equivalents:
+
+- *Async cancellation* (tile fetches, GPU uploads): accept an
+  `AbortSignal` parameter and pass it to `fetch()` and async chains
+  instead of polling `this.killed`.
+- *Engine teardown*: implement `[Symbol.dispose]()` (TypeScript 5.2+)
+  as the canonical teardown hook; `kill()` / `destroy()` can delegate
+  to it. Call sites can then use `using obj = new Foo(...)` for
+  automatic scope-bound cleanup.
+
 
 ## Renderer internals
 
-The `Renderer` class owns the WebGL2 context and the render loop. It
-maintains a `curSize` field (CSS layout size) that is temporarily
-overwritten during hitmap/depth-map passes to the framebuffer dimensions.
-Code that needs the stable viewport size must use `mainViewportCssH`
-(updated only in `applySizes`) rather than reading `curSize` directly.
+The `Renderer` class owns the WebGL2 context and the render loop. Size
+information is owned by the active `GpuDevice` render target and read via
+`gpu.currentRenderTarget.apparentSize`. `renderer.apparentSize` is a
+convenience accessor for the same value.
 
 Illumination supports two light frames:
 
@@ -587,7 +597,7 @@ VE is the product of two independent factors:
 
 Scale denominator formula:
 ```
-sd = extent / (mainViewportCssH / cssDpi * 0.0254)
+sd = extent / (gpu.currentRenderTarget.apparentSize[1] / cssDpi * 0.0254)
 ```
 
 Scale ramp formula:
