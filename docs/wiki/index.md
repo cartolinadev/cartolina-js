@@ -40,6 +40,8 @@ then branch into more specific documents as needed.
   the waypoint demo
 - [relief-lab-spec.md](relief-lab-spec.md) — design and behavior notes
   for the relief-lab demo
+- [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
+  and the legacy `virtualSurfaces` mapConfig concept
 
 ## Other documentation sources
 
