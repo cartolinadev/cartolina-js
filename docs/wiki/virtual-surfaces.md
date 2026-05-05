@@ -79,17 +79,34 @@ server-precomputed composite that covers a specific set of surfaces.
 After it is parsed, the object is represented by an instance of the
 `MapVirtualSurface` class (`virtual-surface.js`).
 
-A typical entry:
+The `virtualSurfaces` key sits at the top level of `mapConfig.json`
+alongside `surfaces`, `glue`, `boundLayers`, `view`, and others. Its
+value is an array; each element describes one precomputed composite.
+The mapy.com `mapConfig.json` contains two:
 
 ```json
-{
-  "id": ["terrain-czech", "viewfinder", "viewfinder1"],
-  "lodRange": [4, 21],
-  "tileRange": [[0, 0], [13, 13]],
-  "metaUrl": ".../{lod}-{x}-{y}.meta",
-  "mapping": ".../tileset.map"
-}
+"virtualSurfaces": [
+  {
+    "id": ["viewfinder", "viewfinder1", "terrain-czech"],
+    "lodRange": [4, 21],
+    "tileRange": [[0, 0], [13, 13]],
+    "metaUrl": "../../latestStage/vs/viewfinder_viewfinder1_terrain-czech/{lod}-{x}-{y}.meta",
+    "mapping": "../../latestStage/vs/viewfinder_viewfinder1_terrain-czech/tileset.map"
+  },
+  {
+    "id": ["viewfinder", "viewfinder1", "terrain-czech",
+            "ev1", "ev2@3", "cities", "landmarks"],
+    "lodRange": [4, 24],
+    "tileRange": [[0, 0], [13, 13]],
+    "metaUrl": "../../latestStage/vs/viewfinder_viewfinder1_terrain-czech_ev1_ev2@3_cities_landmarks/{lod}-{x}-{y}.meta",
+    "mapping": "../../latestStage/vs/viewfinder_viewfinder1_terrain-czech_ev1_ev2@3_cities_landmarks/tileset.map"
+  }
+]
 ```
+
+The two entries cover two different view configurations: one for the
+three base surfaces, one for all seven. Each is activated only when the
+view's active surface set exactly matches its `id` array.
 
 | Field | Meaning |
 |---|---|
