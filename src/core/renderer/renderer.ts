@@ -2032,9 +2032,9 @@ createMesh(options: any): GpuMesh | null {
  *
  * @param options `{ blend?, stencil?, zoffset?, zwrite?, ztest?,
  *   zequal?, culling? }` — all fields default to sane render values
- * @returns opaque GPU state object
+ * @returns `GpuDevice.State` object, or null if options are invalid
  */
-createState(options: any): any {
+createState(options: any): GpuDevice.State | null {
 
     if (options == null || typeof options !== 'object') return null;
 
@@ -2057,7 +2057,7 @@ createState(options: any): any {
  *
  * @param state opaque state object returned by `createState`
  */
-setState(state: any): void {
+setState(state: GpuDevice.State): void {
 
     if (state != null) this.gpu.setState(state);
 }
