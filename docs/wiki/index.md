@@ -42,6 +42,11 @@ then branch into more specific documents as needed.
   for the relief-lab demo
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept
+- [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
+  VTS storage layout, the aggregated tileset driver, how virtual surfaces
+  are built and served, and the two-generation history of the alien flag
+- [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
+  `surfaceSequence` and why it is currently vestigial
 
 ## Other documentation sources
 

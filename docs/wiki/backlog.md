@@ -1,5 +1,30 @@
 # Task backlog
 
+## REFACTOR: replace glues and virtual surfaces with client-side
+surface composition
+
+**Opened:** 2026-05-13
+**Status:** deferred
+
+### Goal
+
+Replace the legacy glue / virtual-surface stack with a client-side
+compositor. The tileserver continues to serve each surface independently;
+seam stitching becomes a renderer-side operation.
+
+A key architectural distinction from the old model: the old system
+always resolved a single "winning surface" per tile. A client-side
+compositor cannot make that assumption — a tile at a seam boundary may
+genuinely need geometry from more than one surface, so the rendering
+pipeline must be prepared to handle multiple geometry sources per
+metanode.
+
+Background on the legacy stack:
+[glue-alien-flag.md](glue-alien-flag.md),
+[vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md).
+
+---
+
 ## REFACTOR: build the `Map` TypeScript public class
 
 **Opened:** 2026-05-04
