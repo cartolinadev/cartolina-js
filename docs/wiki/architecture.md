@@ -356,7 +356,7 @@ legacy layer directly.
 | `Map` | Core-build public API (`src/core/map.ts`) | **Done** — replaces `CoreInterface` |
 | `CoreInterface` | Legacy public wrapper for core build | **Deleted** |
 | `Core` | Legacy map-engine coordinator | **To be dissolved into `Map`** |
-| `MapInterface` | Legacy wrapper around terrain engine | **To be dissolved into `Map`** |
+| `MapInterface` | Legacy wrapper around terrain engine | Partially dissolved — 6 methods promoted; `interface.d.ts` deleted; `interface.js` internal only |
 | `RendererInterface` | Legacy wrapper around `Renderer` | **To be dissolved into `Map`** |
 | `LegacyMap` | Terrain engine (`src/core/map/map.js`) | **To be dissolved into `Map`** |
 | `Renderer` | WebGL2 pipeline | **To be dissolved into `Map`** as private implementation |

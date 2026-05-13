@@ -1730,7 +1730,36 @@ full-terrain. No visual regressions, no console errors.
 
 - Remove `Map.core` escape hatch once `Viewer` callers are promoted to
   proper `Map` public methods.
-- Absorb `Core`, `LegacyMap`, `Renderer`, `MapInterface` into `Map`
-  incrementally as feature work touches them.
+- Absorb `Core`, `LegacyMap`, `Renderer` into `Map` incrementally as
+  feature work touches them.
 - Event bus migration to `EventTarget` (separate backlog item).
+
+---
+
+## 2026-05-13 — index.ts, MapInterface promotion, map.ts cleanup
+
+`src/core/index.js` migrated to TypeScript (`index.ts`). The ES5 alias
+pattern ("get rid of compiler mess") replaced with clean imports and a
+properly typed `core()` factory function. `index.js` deleted.
+
+Six coordinate-conversion and hit-testing methods promoted from
+`MapInterface` onto `Map` (`src/core/map.ts`):
+`convertCoordsFromPublicToNav`, `convertCoordsFromNavToCanvas`,
+`convertCoordsFromNavToPublic`, `convertCoordsFromNavToPhys`,
+`convertCoordsFromPhysToCameraSpace`, `getHitCoords`.
+Each delegates to `this.core_.mapInterface` internally; the JS wrapper
+becomes a private implementation detail with no TypeScript exposure.
+
+`src/core/map/interface.d.ts` deleted — no TypeScript module references
+`MapInterface` by type. `interface.js` retained (Core still constructs
+it internally).
+
+`src/browser/viewer.ts` updated: `MapInterface` import and `_mapInterface`
+getter removed; six call sites now delegate directly to `this.map_`.
+Class JSDoc updated to reflect current bypass-point state.
+
+`src/core/map.ts` method order cleaned up: lifecycle → rendering controls
+→ coordinate conversion → event subscriptions → deprecated → shim → stub.
+
+All three screenshot tests pass; `tsc --noEmit` clean.
 | `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |

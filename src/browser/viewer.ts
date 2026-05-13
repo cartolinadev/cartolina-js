@@ -22,7 +22,6 @@ import type { MapRuntimeOptionValue } from './index';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
-import MapInterface from '../core/map/interface'
 import * as utils from '../core/utils/utils';
 
 import type {
@@ -39,11 +38,10 @@ import type { vec3 } from '../core/utils/math';
  *
  * Exported as the type alias `Map` from the package index.
  *
- * `_map`, `_mapInterface`, and `_renderer` are bypass points — Viewer
- * reaching past the layer boundary into legacy internals. They exist
- * because the Map TypeScript public class has not been built yet. Once
- * it exists, Viewer holds a Map instance and all three disappear.
- * See backlog: "build the Map TypeScript public class".
+ * `legacyMap_` and `_renderer` are temporary bypass points — Viewer
+ * reaching past the Map public surface into legacy internals via the
+ * `Map.core` migration shim. They disappear as their methods are
+ * promoted onto `Map`.
  */
 class Viewer {
 
@@ -60,9 +58,6 @@ class Viewer {
         return this.map_?.core?.renderer ?? null;
     }
 
-    private get _mapInterface(): MapInterface | null {
-        return this.map_?.core?.mapInterface ?? null;
-    }
 
     /** Returns true when the viewer has been destroyed. */
     private _guard(): boolean { return this._killed; }
@@ -331,8 +326,7 @@ class Viewer {
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.convertCoordsFromPublicToNav(
-            pos, mode, lod) ?? null;
+        return this.map_.convertCoordsFromPublicToNav(pos, mode, lod);
     }
 
     /**
@@ -352,8 +346,7 @@ class Viewer {
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.convertCoordsFromNavToCanvas(
-            pos, mode, lod) ?? null;
+        return this.map_.convertCoordsFromNavToCanvas(pos, mode, lod);
     }
 
     /**
@@ -462,8 +455,7 @@ class Viewer {
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.getHitCoords(
-            screenX, screenY, mode, lod) ?? null;
+        return this.map_.getHitCoords(screenX, screenY, mode, lod);
     }
 
     /**
@@ -480,8 +472,7 @@ class Viewer {
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.convertCoordsFromNavToPublic(
-            pos, mode, lod) ?? null;
+        return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
     }
 
     /**
@@ -500,8 +491,7 @@ class Viewer {
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.convertCoordsFromNavToPhys(
-            pos, mode, lod, includeSE) ?? null;
+        return this.map_.convertCoordsFromNavToPhys(pos, mode, lod, includeSE);
     }
 
     /**
@@ -512,8 +502,7 @@ class Viewer {
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
         if (this._guard()) return null;
-        return this._mapInterface?.convertCoordsFromPhysToCameraSpace(pos)
-            ?? null;
+        return this.map_.convertCoordsFromPhysToCameraSpace(pos);
     }
 
     /**

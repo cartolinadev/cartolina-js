@@ -4,7 +4,7 @@
  * `Map` is the single entry point for the core build of cartolina-js.
  * It owns the map engine coordinator (`Core`) and exposes a flat, typed
  * method surface for all map operations: lifecycle, events, rendering
- * controls, and atmosphere.
+ * controls, coordinate conversion, and hit-testing.
  *
  * Construct via the `core()` factory exported from the core entry point,
  * not directly.
@@ -17,11 +17,11 @@
 import { Core } from './core';
 import type LegacyMap from './map/map';
 import type Renderer from './renderer/renderer';
-import type MapInterface from './map/interface';
 import Atmosphere from './map/atmosphere';
-import { warnOnce } from './utils/utils';
+import * as utils from './utils/utils';
 
-import type { CoreConfig, CoreEventMap } from './types';
+import type { CoreConfig, CoreEventMap, HeightMode, Lod } from './types';
+import type { vec3 } from './utils/math';
 
 
 /**
@@ -54,39 +54,6 @@ class Map {
     }
 
     /**
-     * Subscribe to a named map event.
-     *
-     * @param eventName event to subscribe to
-     * @param callback invoked each time the event fires
-     * @returns unsubscribe function, or null after destruction
-     */
-    on<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-    ): (() => void) | null {
-
-        if (!this.core_) return null;
-        return this.core_.on(eventName, callback) ?? null;
-    }
-
-    /**
-     * Subscribe to a named map event for a single invocation.
-     *
-     * @param eventName event to subscribe to
-     * @param callback invoked once when the event fires
-     * @param wait number of matching events to skip before invocation
-     */
-    once<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-        wait?: number,
-    ): void {
-
-        if (!this.core_) return;
-        this.core_.once(eventName, callback, wait);
-    }
-
-    /**
      * Destroy the engine and release all owned resources.
      *
      * Prefer the `using` statement with `[Symbol.dispose]()` in new code.
@@ -96,17 +63,6 @@ class Map {
         if (!this.core_) return;
         this.core_.destroy();
         this.core_ = null!;
-    }
-
-    /**
-     * Destroy the engine and release all owned resources.
-     *
-     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
-     */
-    destroy(): void {
-
-        warnOnce('[Map] destroy() is deprecated. Use Symbol.dispose instead.');
-        this[Symbol.dispose]();
     }
 
     /**
@@ -226,6 +182,160 @@ class Map {
     }
 
     /**
+     * Converts public (lon/lat/height) coordinates to navigation
+     * (Cartesian) coordinates.
+     *
+     * @param pos `[lon, lat, height]` in public space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (!this.core_) return null;
+        return this.core_.mapInterface?.convertCoordsFromPublicToNav(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
+     * Projects navigation (Cartesian) coordinates onto the canvas.
+     *
+     * Returns `[x, y, depth]` in CSS pixels. A point is visible when
+     * `depth <= 1` (in front of the camera).
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (!this.core_) return null;
+        return this.core_.mapInterface?.convertCoordsFromNavToCanvas(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
+     * Converts navigation coordinates to public (lon/lat/height) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (!this.core_) return null;
+        return this.core_.mapInterface?.convertCoordsFromNavToPublic(
+            pos, mode, lod) ?? null;
+    }
+
+    /**
+     * Converts navigation coordinates to physical (ECEF) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     * @param includeSE whether to apply super-elevation
+     */
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+        includeSE?: boolean,
+    ): vec3 | null {
+
+        if (!this.core_) return null;
+        return this.core_.mapInterface?.convertCoordsFromNavToPhys(
+            pos, mode, lod, includeSE) ?? null;
+    }
+
+    /**
+     * Converts physical (ECEF) coordinates to camera space.
+     *
+     * @param pos `[x, y, z]` in physical space
+     */
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
+
+        if (!this.core_) return null;
+        return (this.core_.mapInterface?.convertCoordsFromPhysToCameraSpace(
+            pos) ?? null) as vec3 | null;
+    }
+
+    /**
+     * Returns the geographic coordinates at the given canvas pixel.
+     *
+     * @param screenX canvas X coordinate in CSS pixels
+     * @param screenY canvas Y coordinate in CSS pixels
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    getHitCoords(
+        screenX: number,
+        screenY: number,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null {
+
+        if (!this.core_) return null;
+        return this.core_.mapInterface?.getHitCoords(
+            screenX, screenY, mode, lod) ?? null;
+    }
+
+    /**
+     * Subscribe to a named map event.
+     *
+     * @param eventName event to subscribe to
+     * @param callback invoked each time the event fires
+     * @returns unsubscribe function, or null after destruction
+     */
+    on<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+    ): (() => void) | null {
+
+        if (!this.core_) return null;
+        return this.core_.on(eventName, callback) ?? null;
+    }
+
+    /**
+     * Subscribe to a named map event for a single invocation.
+     *
+     * @param eventName event to subscribe to
+     * @param callback invoked once when the event fires
+     * @param wait number of matching events to skip before invocation
+     */
+    once<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+        wait?: number,
+    ): void {
+
+        if (!this.core_) return;
+        this.core_.once(eventName, callback, wait);
+    }
+
+    /**
+     * Destroy the engine and release all owned resources.
+     *
+     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
+     */
+    destroy(): void {
+
+        __DEV__ && utils.warnOnce('[Map] destroy() is deprecated. Use Symbol.dispose instead.');
+        this[Symbol.dispose]();
+    }
+
+    /**
      * Migration shim exposing legacy engine internals.
      *
      * @internal
@@ -236,10 +346,9 @@ class Map {
     get core(): {
         map: LegacyMap | null;
         renderer: Renderer | null;
-        mapInterface: InstanceType<typeof MapInterface> | null;
     } | null {
 
-        warnOnce(
+        __DEV__ && utils.warnOnce(
             '[Map] .core is a migration shim and will be removed. ' +
             'Access internals through Map public methods instead.',
         );
