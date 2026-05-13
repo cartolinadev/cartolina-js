@@ -14,7 +14,6 @@ import * as utils from './utils/utils';
 import * as math from './utils/math';
 import { platform } from './utils/platform';
 import MapClass from './map';
-import { warnOnce } from './utils/utils';
 
 import type { CoreConfig } from './types';
 
@@ -43,16 +42,18 @@ export function map(
 
 
 /**
- * @deprecated Use `map()` instead.
+ * Alias for `map()`. Entry point name used by the vts-browser-js
+ * core API; kept so consumers of the core build can use either name.
+ *
+ * @param element canvas element or its DOM id
+ * @param config engine configuration
+ * @returns `Map` instance, or null if WebGL is not supported
  */
 export function core(
     element: HTMLElement | string,
     config?: Partial<CoreConfig>,
 ): MapClass | null {
 
-    __DEV__ && warnOnce(
-        '[core] core() is deprecated. Use map() instead.',
-    );
     return map(element, config);
 }
 
