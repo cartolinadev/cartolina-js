@@ -21,6 +21,9 @@ then branch into more specific documents as needed.
 - [reference-frames.md](reference-frames.md) — reference frame concepts,
   the melown2015 and QSC families, client loading path, and tileserver
   production
+- [surface-metatile.md](surface-metatile.md) — surface metatile binary
+  format (v1–v5), metanode fields, version history, and how the client
+  uses metatiles for LOD selection, culling, and resource loading
 - [label-styling-engine.md](label-styling-engine.md) — reference notes
   about the shared lettering style engine, expression domains, and
   textured line patterns
