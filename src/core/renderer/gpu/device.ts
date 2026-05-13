@@ -544,21 +544,22 @@ private bindFramebuffer(texture: GpuTexture | null, target: GLenum) {
 };
 
 /**
- * Fill unspecified fixed-function state flags with renderer defaults.
+ * Build a complete fixed-function state from a partial descriptor,
+ * filling any unspecified fields with renderer defaults.
  *
- * @param state Legacy state object to normalize in place.
- * @returns The normalized state object.
+ * @param options partial state descriptor
+ * @returns complete `GpuDevice.State`
  */
-createState(state: GpuDevice.State): GpuDevice.State {
+createState(options: Partial<GpuDevice.State>): GpuDevice.State {
 
-    if (state.blend == null) { state.blend = false; }
-    if (state.stencil == null) { state.stencil = false; }
-    if (state.zwrite == null) { state.zwrite = true; }
-    if (state.ztest == null) { state.ztest = true; }
-    if (state.zequal == null) { state.zequal = false; }
-    if (state.culling == null) { state.culling = true; }
-
-    return state;
+    return {
+        blend:   options.blend   ?? false,
+        stencil: options.stencil ?? false,
+        zwrite:  options.zwrite  ?? true,
+        ztest:   options.ztest   ?? true,
+        zequal:  options.zequal  ?? false,
+        culling: options.culling ?? true,
+    };
 };
 
 
