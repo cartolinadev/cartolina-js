@@ -1,5 +1,5 @@
 
-import Map from '../map/map';
+import type LegacyMap from '../map/map';
 
 import MapRefFrame from '../map/refframe';
 import MapSrs from '../map/srs';
@@ -420,7 +420,7 @@ export class MapStyle {
      * @param styleSpec the style specification
      */
 
-    static async loadStyle(map: Map, styleSpec: MapStyle.StyleSpecification) {
+    static async loadStyle(map: LegacyMap, styleSpec: MapStyle.StyleSpecification) {
 
         // validation
         const res = validateStyle(styleSpec);
@@ -606,7 +606,7 @@ export class MapStyle {
     }
 
 
-    map: Map;
+    map: LegacyMap;
     styleSpec: MapStyle.StyleSpecification;
 
 
@@ -715,7 +715,7 @@ export class MapStyle {
     /**
      * The bare bones constructor (to be invoked from the static factory func)
      */
-    constructor(map: Map, style: MapStyle.StyleSpecification) {
+    constructor(map: LegacyMap, style: MapStyle.StyleSpecification) {
 
         this.map = map; this.styleSpec = style;
     }

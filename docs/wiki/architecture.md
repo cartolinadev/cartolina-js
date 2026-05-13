@@ -168,9 +168,9 @@ Viewer                           ← public API (src/browser/viewer.ts)
         ├── autopilot: Autopilot ← camera animation
         ├── presenter: Presenter ← tour / flythrough
         ├── controlMode          ← input handling
-        └── core: CoreInterface  ← map engine boundary (src/core/interface.js)
-              └── core: Core     ← map engine coordinator (src/core/core.js)
-                    ├── map: Map       ← terrain engine (src/core/map/map.js)
+        └── core: Map            ← map engine boundary (src/core/map.ts)
+              └── core_: Core   ← map engine coordinator (src/core/core.js)
+                    ├── map: LegacyMap ← terrain engine (src/core/map/map.js)
                     │     ├── camera
                     │     ├── tree     ← tile LOD tree
                     │     ├── loader
@@ -183,26 +183,31 @@ Viewer                           ← public API (src/browser/viewer.ts)
 ```
 
 `Viewer` also holds `_core` as a direct shortcut reference to `_browser.core`
-(`CoreInterface`) to avoid the extra indirection on every method call.
+(`Map`) to avoid the extra indirection on every method call.
 
 ### What each layer owns
 
 **`Viewer`** — the public entry point. Provides a flat, typed method surface
 for all map operations. Owns `_browser` (the UI engine) and holds `_core` as
-a shortcut reference to `_browser.core` (`CoreInterface`). Reaches directly
-into `Core.map` / `Core.renderer` for rendering operations, bypassing the
-`MapInterface` / `RendererInterface` wrappers.
+a shortcut reference to `_browser.core` (`Map`). Reaches the terrain engine
+and renderer through the `_core.core` migration shim while the `Map` public
+surface is being built out.
 
 **`Browser`** — the **UI engine**. Creates and owns all user-facing interface
 elements: DOM controls (`UI`), input handling (`ControlMode`), camera
 animation (`Autopilot`), and tour playback (`Presenter`). Think of it as the
-interactive shell around the map engine. It instantiates `CoreInterface` for
-the canvas element managed by the UI. The name "browser" is a legacy term
-from the original vts-browser-js; it does not refer to the web browser.
+interactive shell around the map engine. It instantiates `Map` for the canvas
+element managed by the UI. The name "browser" is a legacy term from the
+original vts-browser-js; it does not refer to the web browser.
+`Browser` has no public future: it is to be dissolved into `Viewer`.
+Each piece of `Browser` behaviour migrates to `Viewer` as feature work
+touches it, until `Browser` disappears entirely.
 
-**`CoreInterface`** — the boundary between the UI engine and the map engine.
-Owns the event bus (`on` / `once` / `callListener`), the `ready` Promise,
-and configuration routing to `Core`.
+**`Map`** (public class, `src/core/map.ts`) — the boundary between the UI
+engine and the map engine. Owns the event bus (`on` / `once`), the `ready`
+Promise, and lifecycle (`[Symbol.dispose]()`). Replaces the legacy
+`CoreInterface` ES5 wrapper. The `core` getter is a temporary migration
+shim; it will be removed as internal engine objects are absorbed into `Map`.
 
 **`Core`** — the **map engine coordinator**. This is a thick object; it owns:
 - The master config object (70+ keyed parameters).
@@ -216,15 +221,16 @@ and configuration routing to `Core`.
 The name `Core` is a legacy holdover; conceptually it is the map engine
 coordinator — the bootstrap and message-routing layer that sits above `Map`
 and `Renderer`. It has no public-facing name in the current API.
+`Core` is to be dissolved into `Map`.
 
-**`Map`** (terrain engine) — the terrain data and scene management layer.
-Owns the tile LOD tree, the loader, geodata processors, camera state,
-coordinate conversion, measurement, and render slots. The atmospheric model
-(`Atmosphere`) and surface-rendering logic live here. `Core.map` is `null`
-until the style or mapConfig is loaded. The name `Map` is a legacy holdover
-that unfortunately clashes with the public `Map` type alias — an artefact of
-the pre-TypeScript era that will be resolved when the internal object is
-eventually renamed.
+**`LegacyMap`** (terrain engine, `src/core/map/map.js`) — the terrain data
+and scene management layer. Owns the tile LOD tree, the loader, geodata
+processors, camera state, coordinate conversion, measurement, and render
+slots. The atmospheric model (`Atmosphere`) and surface-rendering logic
+live here. `Core.map` is `null` until the style or mapConfig is loaded.
+TypeScript modules import this class under the alias `LegacyMap` to avoid
+clashing with the new `Map` public class. `LegacyMap` is to be dissolved
+into `Map`.
 
 **`Renderer`** — owns the WebGL2 context (`GpuDevice`), the render pipeline,
 shading, illumination, vertical exaggeration, and all GPU resource management.
@@ -334,37 +340,31 @@ viewer.on('map-loaded', () => {
 
 `Viewer` is done on the browser side. `Browser` is being absorbed into it.
 
-The core-side `Map` class does not exist yet. The right approach is to
-build it before promotion continues, not after. Without it, every method
-promoted onto `Viewer` reaches directly into the legacy internals (`_map`,
-`_mapInterface`, `_renderer`), each accessed via `this._core?.core?.*`.
-That is the wrong layering and will not clean up on its own — it will grow
-as promotion continues.
+The core-side `Map` class exists as `src/core/map.ts` and replaces the
+legacy `CoreInterface` ES5 wrapper. `Viewer` holds `_core: Map` and
+`Browser` constructs `Map` directly. The `Map.core` shim gives `Viewer`
+temporary access to the terrain engine and renderer while those objects
+are absorbed into `Map`'s public surface.
 
-The `Map` class should be built as a thin TypeScript wrapper around core,
-replacing current `CoreInterface`. It keeps the terrain engine, renderer, 
-and legacy wrappers as private implementation detail and exposes a flat 
-typed public surface. Every subsequent method promotion goes through `Map`, 
-never into the legacy layer directly. `Viewer` holds a `Map` instance and 
-delegates rendering methods to it.
+Every subsequent method promotion goes through `Map`, never into the
+legacy layer directly.
 
-| Current name | Current role | Direction |
+| Name | Role | Status |
 |---|---|---|
-| `Viewer` | Full-build public API | Absorb `Browser`; delegate rendering to `Map` |
-| `Browser` | Legacy UI engine | Become private implementation inside `Viewer`, then disappear |
-| `Map` (new) | Core-build public API | Wrap `CoreInterface`; absorb all legacy core objects behind it |
-| `CoreInterface` | Legacy public wrapper for core build | Absorbed into `Map` |
-| `Core` | Legacy map-engine coordinator | Absorbed into `Map` |
-| `MapInterface` | Legacy wrapper around terrain engine | Absorbed into `Map` |
-| `RendererInterface` | Legacy wrapper around `Renderer` | Absorbed into `Map` |
-| `Map` (internal) | Terrain engine | Absorbed into `Map`; rename resolves naming collision |
-| `Renderer` | WebGL2 pipeline | Absorbed as private implementation of `Map` |
+| `Viewer` | Full-build public API | Done; **`Browser` is to be dissolved into it** |
+| `Browser` | Legacy UI engine | **To be dissolved into `Viewer`** — no public future |
+| `Map` | Core-build public API (`src/core/map.ts`) | **Done** — replaces `CoreInterface` |
+| `CoreInterface` | Legacy public wrapper for core build | **Deleted** |
+| `Core` | Legacy map-engine coordinator | **To be dissolved into `Map`** |
+| `MapInterface` | Legacy wrapper around terrain engine | **To be dissolved into `Map`** |
+| `RendererInterface` | Legacy wrapper around `Renderer` | **To be dissolved into `Map`** |
+| `LegacyMap` | Terrain engine (`src/core/map/map.js`) | **To be dissolved into `Map`** |
+| `Renderer` | WebGL2 pipeline | **To be dissolved into `Map`** as private implementation |
 
-The priority order is:
+The priority order for remaining work is:
 
-- build the `Map` TypeScript class wrapping `CoreInterface`
-- route all existing `Viewer` delegations through it; remove direct
-  internal access from `Viewer`
+- route all existing `Viewer` delegations through `Map`; remove the
+  `Map.core` escape hatch
 - continue dissolving `Browser` into `Viewer`
 - absorb legacy core objects into `Map` incrementally as feature work
   touches them
@@ -494,7 +494,12 @@ Viewer methods that reach into `_map` all guard with optional chaining
 A plain listener array on `Core` (`src/core/core.js`), not `EventTarget`
 or `EventEmitter`. `Core.on` returns an unsubscribe function; `Core.once`
 auto-removes after first invocation. Both are surfaced on `Viewer` via
-`CoreInterface`.
+the `Map` public class.
+
+This is a legacy pattern. Standardising to `EventTarget` /
+`addEventListener` is a known gap tracked in the backlog. The migration
+touches every call site in `Viewer`, `Browser`, and consumer code, so it
+is deferred until a dedicated refactor.
 
 `once` accepts an optional `wait` parameter that skips the first *N*
 firings — used internally to defer a callback past a stale update cycle

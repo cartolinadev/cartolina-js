@@ -1,6 +1,6 @@
 
 import {checkSupport} from '../core/core';
-import {CoreInterface} from '../core/interface';
+import Map from '../core/map';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
 import Autopilot_ from './autopilot/autopilot';
@@ -39,7 +39,7 @@ var Browser = function(element, config) {
         return;
     }
 
-    this.core = new CoreInterface(this.ui.getMapControl().getMapElement().getElement(), config);
+    this.core = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
 
     if (this.core == null) {
         this.ui.setControlVisible('fallback', true);
@@ -75,6 +75,7 @@ Browser.prototype.kill = function() {
 };
 
 
+/** @returns {import('../core/map').default} */
 Browser.prototype.getCore = function() {
     return this.core;
 };

@@ -15,13 +15,13 @@
  */
 
 import Browser from './browser';
-import { CoreInterface } from '../core/interface';
+import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { MapRuntimeOptionValue } from './index';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
-import Map from '../core/map/map';
+import type LegacyMap from '../core/map/map';
 import MapInterface from '../core/map/interface'
 import * as utils from '../core/utils/utils';
 
@@ -49,17 +49,19 @@ class Viewer {
 
     //private readonly _browser: InstanceType<typeof Browser>;
     private readonly _browser: Browser;
-    private readonly _core: CoreInterface;
+    private readonly map_: Map;
     private _killed = false;
 
-    private get _map(): Map | null { return this._core?.core?.map ?? null; }
+    private get legacyMap_(): LegacyMap | null {
+        return this.map_?.core?.map ?? null;
+    }
 
     private get _renderer(): Renderer | null {
-        return this._core?.core?.renderer ?? null;
+        return this.map_?.core?.renderer ?? null;
     }
 
     private get _mapInterface(): MapInterface | null {
-        return this._core?.core?.mapInterface ?? null;
+        return this.map_?.core?.mapInterface ?? null;
     }
 
     /** Returns true when the viewer has been destroyed. */
@@ -76,7 +78,7 @@ class Viewer {
     constructor(element: HTMLElement | string, config: Viewer.Config) {
 
         this._browser = new Browser(element, config);
-        this._core = this._browser.getCore() as CoreInterface;
+        this.map_ = this._browser.getCore() as Map;
     }
 
     // -------------------------------------------------------------------------
@@ -88,14 +90,14 @@ class Viewer {
      */
     get ready(): Promise<void> {
 
-        return this._core.ready;
+        return this.map_.ready;
     }
 
     /** Destroys the viewer and releases all GPU and DOM resources. */
     destroy(): void {
 
         if (this._guard()) return;
-        this._core.destroy();
+        this.map_[Symbol.dispose]();
         this._browser.kill();
         this._killed = true;
     }
@@ -118,7 +120,7 @@ class Viewer {
     ): (() => void) | null {
 
         if (this._guard()) return null;
-        return this._core.on(eventName, callback);
+        return this.map_.on(eventName, callback);
     }
 
     /**
@@ -136,7 +138,7 @@ class Viewer {
     ): void {
 
         if (this._guard()) return;
-        this._core.once(eventName, callback, wait);
+        this.map_.once(eventName, callback, wait);
     }
 
     // -------------------------------------------------------------------------
@@ -152,7 +154,7 @@ class Viewer {
     setPosition(position: MapPosition | number[]): this {
 
         if (this._guard()) return this;
-        this._map?.setPosition(position);
+        this.legacyMap_?.setPosition(position);
         return this;
     }
 
@@ -160,7 +162,7 @@ class Viewer {
     getPosition(): MapPosition | null {
 
         if (this._guard()) return null;
-        return this._map?.getPosition() ?? null;
+        return this.legacyMap_?.getPosition() ?? null;
     }
 
     // -------------------------------------------------------------------------
@@ -171,7 +173,7 @@ class Viewer {
     redraw(): this {
 
         if (this._guard()) return this;
-        this._map?.markDirty();
+        this.legacyMap_?.markDirty();
         return this;
     }
 
@@ -180,7 +182,7 @@ class Viewer {
      *
      * @param spec atmosphere specification; partial updates are merged
      *
-     * BUG: if the loaded style has no `atmosphere` section, `this._map.atmosphere`
+     * BUG: if the loaded style has no `atmosphere` section, `this.legacyMap_.atmosphere`
      * is null and the optional-chain silently discards the call. `getAtmosphere()`
      * then continues to return null, giving no indication that the set failed.
      * Styles without an atmosphere section must have one injected before map
@@ -189,14 +191,14 @@ class Viewer {
     setAtmosphere(spec: Atmosphere.Specification): void {
 
         if (this._guard()) return;
-        this._map?.atmosphere?.setRuntimeParameters(spec);
+        this.legacyMap_?.atmosphere?.setRuntimeParameters(spec);
     }
 
     /** Returns the current runtime atmosphere rendering parameters. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
         if (this._guard()) return null;
-        return this._map?.atmosphere?.getRuntimeParameters() ?? null;
+        return this.legacyMap_?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
     /**
@@ -377,7 +379,7 @@ class Viewer {
 
         if (this._guard()) return null;
 
-        const map = this._map;
+        const map = this.legacyMap_;
         const renderer = this._renderer;
 
         if (!map || !renderer) {
@@ -529,7 +531,7 @@ class Viewer {
     ): [boolean, number] | null {
 
         if (this._guard()) return null;
-        return this._map?.getScreenDepth(
+        return this.legacyMap_?.getScreenDepth(
             screenX, screenY, dilate, undefined, 'layout') ?? null;
     }
 
@@ -566,7 +568,7 @@ class Viewer {
     destroyMap(): this {
 
         if (this._guard()) return this;
-        this._core.destroyMap();
+        this.map_.unloadMap();
         return this;
     }
 

@@ -1674,4 +1674,63 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 |---|---|
 | `getSeProgressionFactor` | `getVeScaleFactor` |
 | `setSuperElevationProgression` | `setVeScaleRampFromProgression` (deprecated) |
+
+---
+
+## 2026-05-13 — TypeScript `Map` public class (CoreInterface replacement)
+
+### Goal
+
+Replace the legacy `CoreInterface` ES5 wrapper with a proper TypeScript
+`Map` class as the public boundary for the core build. This is the first
+step of the north-star refactor described in `architecture.md`: build the
+`Map` TypeScript class before continuing method promotions, so that every
+subsequent promotion goes through a typed public surface rather than
+reaching into legacy internals.
+
+The `Map.draw()` stub added here is the future home of the surface-tree
+traversal replacement (the `feature/draw-surfaces` work).
+
+### Work done
+
+**`src/core/map.ts` created** — new TypeScript `Map` class replacing the
+`CoreInterface` ES5 wrapper. Owns `Core` as a private field (`core_`).
+Public surface: `[Symbol.dispose]()`, `destroy()` (deprecated),
+`ready`, `on()`, `once()`, `loadMap()`, `unloadMap()`, VE / illumination /
+atmosphere / rendering-options methods. The `core` getter is a typed
+migration shim that fires `warnOnce` on every access.
+
+**`Symbol.dispose` support** — `src/types/globals.d.ts` augmented with
+`SymbolConstructor.dispose` so ts-loader picks it up without a lib target
+change.
+
+**`CoreInterface` deleted** — `src/core/interface.js` and
+`src/core/interface.d.ts` removed.
+
+**`LegacyMap` alias applied** — `viewer.ts`, `renderer.ts`, and `style.ts`
+now import the old terrain engine as `LegacyMap` per the new AGENTS.md rule.
+`src/core/index.js` updated to import `Map` from `./map`.
+
+**`browser.js` updated** — constructs `Map` directly.
+
+**`viewer.ts` updated** — `_core: Map`; `destroy()` calls
+`_core[Symbol.dispose]()`; `destroyMap()` calls `_core.unloadMap()`.
+
+**`src/core/map.ts`** also carries a private `draw()` stub — the future
+home of the surface-tree traversal replacement.
+
+**Wiki and backlog updated** — `architecture.md` object model, "current
+state" table, event bus section; `backlog.md` Map class item marked
+in-progress, new event bus migration item added.
+
+**All three screenshot tests pass** — simple-terrain, complex-terrain,
+full-terrain. No visual regressions, no console errors.
+
+### Remaining
+
+- Remove `Map.core` escape hatch once `Viewer` callers are promoted to
+  proper `Map` public methods.
+- Absorb `Core`, `LegacyMap`, `Renderer`, `MapInterface` into `Map`
+  incrementally as feature work touches them.
+- Event bus migration to `EventTarget` (separate backlog item).
 | `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |

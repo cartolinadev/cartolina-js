@@ -438,6 +438,21 @@ runtime shape, define the input type as a variation of that derived type
 (for example `Partial<T>` on selected fields) rather than duplicating
 the full structure.
 
+**Resolving the `Map` name collision.**
+The old ES5 terrain engine (`src/core/map/map.js`) has the same
+default-export name as the new TypeScript `Map` public class
+(`src/core/map.ts`). In any TypeScript module that imports the old
+class, use the alias `LegacyMap`:
+
+```ts
+import type LegacyMap from './map/map'; // old terrain engine
+import Map from '../map';               // new public API class
+```
+
+Apply the alias in all TypeScript modules — not only where both names
+appear in the same file. Consistency across the TS codebase is the
+goal. JavaScript modules that import the old class are unchanged.
+
 
 ## Language and module rules
 

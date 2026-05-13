@@ -16,7 +16,7 @@ import * as IlluminationMath from '../map/illumination';
 
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
-import type Map from '../map/map';
+import type LegacyMap from '../map/map';
 import type { CoreConfig } from '../types';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
@@ -2036,7 +2036,7 @@ type Illumination = {
 
 type Core = {
 
-    map: Map;
+    map: LegacyMap;
     contextLost: boolean;
 
     callListener(name: string, event: any, log?: boolean): void;

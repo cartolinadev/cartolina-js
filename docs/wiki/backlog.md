@@ -25,44 +25,55 @@ Background on the legacy stack:
 
 ---
 
-## REFACTOR: build the `Map` TypeScript public class
+## REFACTOR: continue absorbing legacy objects into `Map`
 
 **Opened:** 2026-05-04
+**Status:** in progress — `Map` shell done; absorption continues
+
+### Done
+
+`Map` (`src/core/map.ts`) exists and replaces `CoreInterface`. `Viewer`
+holds `_core: Map`; `Browser` constructs `Map` directly. `CoreInterface`
+and its `.d.ts` are deleted.
+
+### Remaining
+
+`Viewer` still accesses the terrain engine and renderer via the `Map.core`
+escape hatch (`this._core.core.map`, `this._core.core.renderer`, etc.).
+Each method promotion must route through a proper `Map` public method
+instead, allowing the `core` shim to be deleted.
+
+| Object | Status |
+|---|---|
+| `CoreInterface` | **Deleted** — replaced by `Map` |
+| `Core` | Private in `Map.core_`; pending absorption |
+| `MapInterface` | Pending — first methods to promote onto `Map` |
+| `RendererInterface` | Pending — second set |
+| `LegacyMap` (terrain engine) | Pending — long-term absorption |
+| `Renderer` | Pending — private implementation of `Map` |
+
+### Next steps
+
+- Promote `MapInterface` hit-testing and coordinate-conversion methods
+  onto `Map`; update `Viewer` callers; shrink `_mapInterface` usage.
+- Once all `Viewer` callers go through `Map`, delete the `core` getter.
+
+---
+
+## REFACTOR: migrate event bus to `EventTarget`
+
+**Opened:** 2026-05-13
 **Status:** deferred
 
 ### Motivation
 
-`Viewer` currently promotes rendering methods by reaching directly into
-legacy internals — `_map` (terrain engine), `_mapInterface`, and `_renderer`
-— all via `this._core?.core?.*`. This is the wrong layering. Every new
-promoted method deepens the problem.
+`Map.on()` / `Map.once()` delegate to a plain listener array on `Core`.
+This is a legacy pattern from the original vts-browser-js. The standard
+browser alternative is `EventTarget` / `addEventListener`.
 
-The fix is to build the `Map` TypeScript class first, then route all
-delegations through it. `Map` wraps `CoreInterface`, keeps the legacy
-objects private, and exposes a flat typed surface. `Viewer` holds a `Map`
-instance and delegates to it. Direct internal access is removed from
-`Viewer` entirely.
-
-### Shape
-
-```ts
-class Map {
-    constructor(core: CoreInterface) { ... }
-
-    // lifecycle, events, config — delegated from CoreInterface
-    // hit testing, coordinate conversion — absorbed from MapInterface
-    // illumination, atmosphere, VE — absorbed from Renderer / RendererInterface
-}
-```
-
-### Relevant files
-
-| File | Note |
-|---|---|
-| `src/browser/viewer.ts` | `_map`, `_mapInterface`, `_renderer` — all to be replaced by `Map` delegation |
-| `src/core/interface.js` | `CoreInterface` — the constructor input |
-| `src/core/map/interface.js` | `MapInterface` — first set of methods to absorb |
-| `src/core/renderer/renderer.ts` | `Renderer` — second set of methods to absorb |
+Migrating requires changing every call site in `Viewer`, `Browser`, and
+consumer code. It is a separate refactor, not done alongside the `Map`
+shell work.
 
 ---
 
