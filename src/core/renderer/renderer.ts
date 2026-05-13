@@ -2095,8 +2095,8 @@ drawMesh(options: any): void {
         switch (shader) {
 
         case 'hit':
-            shaderVariables['uMV']   = shaderVariables['uMV']   || ['mat4', mv];
-            shaderVariables['uProj'] = shaderVariables['uProj'] || ['mat4', proj];
+            shaderVariables['uMV']   ||= ['mat4', mv];
+            shaderVariables['uProj'] ||= ['mat4', proj];
             shader = (this as any).progDepthTile[0];
             uv2Attr = null;
             break;
@@ -2106,9 +2106,9 @@ drawMesh(options: any): void {
             // falls through
         case 'textured':
         case 'textured-and-shaded':
-            shaderVariables['uMV']         = shaderVariables['uMV']         || ['mat4', mv];
-            shaderVariables['uProj']       = shaderVariables['uProj']       || ['mat4', proj];
-            shaderVariables['uFogDensity'] = shaderVariables['uFogDensity'] || ['float', fogDensity];
+            shaderVariables['uMV']         ||= ['mat4', mv];
+            shaderVariables['uProj']       ||= ['mat4', proj];
+            shaderVariables['uFogDensity'] ||= ['float', fogDensity];
             uv2Attr = (shader === 'textured') ? null : 'aNormal';
             shader  = (shader === 'textured')
                 ? (this.progTile as any)[0]
@@ -2137,9 +2137,13 @@ drawMesh(options: any): void {
         case 'float':      shader.setFloat(key, item[1]); break;
         case 'mat3':       shader.setMat3(key, item[1]); break;
         case 'mat4':
-            (depthOffset && key === 'uProj')
-                ? shader.setMat4(key, item[1], this.getZoffsetFactor(depthOffset))
-                : shader.setMat4(key, item[1]);
+            if (depthOffset && key === 'uProj') {
+                shader.setMat4(
+                    key, item[1],
+                    this.getZoffsetFactor(depthOffset));
+            } else {
+                shader.setMat4(key, item[1]);
+            }
             break;
         case 'vec2':    shader.setVec2(key, item[1]); break;
         case 'vec3':    shader.setVec3(key, item[1]); break;
