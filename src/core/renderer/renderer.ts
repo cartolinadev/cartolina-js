@@ -1953,7 +1953,7 @@ getFont(url: string) {
 /**
  * Create a GPU texture from raw pixel data or an Image element.
  *
- * Used by the inspector scripting layer to display overlays.
+ * Used by the debug inspector to display overlays.
  *
  * @param options `{ source, filter?, repeat?, width?, height? }` —
  *   `source` is a `Uint8Array` (requires `width` and `height`) or `Image`.
@@ -2029,7 +2029,7 @@ createMesh(options: any): GpuMesh | null {
 /**
  * Draw a mesh with explicit shader variables.
  *
- * Used by the inspector scripting layer to render the frustum mesh
+ * Used by the debug inspector to render the frustum mesh
  * camera visualisation overlay.
  *
  * @param options `{ mesh, shader?, texture?, shaderVariables,
@@ -2123,7 +2123,7 @@ drawMesh(options: any): void {
 /**
  * Draw a textured rectangle at given canvas coordinates.
  *
- * Used by the inspector scripting layer to draw circle markers
+ * Used by the debug inspector to draw circle markers
  * at control-point positions.
  *
  * @param options `{ texture, rect, color?, depth?, depthOffset?,
@@ -2154,7 +2154,7 @@ drawImage(options: any): void {
 /**
  * Draw a world-space or screen-space polyline.
  *
- * Used by the inspector scripting layer to draw camera frustum lines
+ * Used by the debug inspector to draw camera frustum lines
  * and control-point grid lines in the replay view.
  *
  * @param options `{ points, color?, size?, screenSpace?,
