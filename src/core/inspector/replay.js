@@ -511,11 +511,9 @@ InspectorReplay.prototype.generateCameraLines = function(camera) {
         0,0,1, 0,0,1, 0,0,1,
         0,0,1, 0,0,1, 0,0,1 ];
 
-    this.frustumState = renderer.createState({
-        'blend' : true,
-        'zwrite' : false,
-        'ztest' : true,
-        'culling' : false
+    this.frustumState = renderer.gpu.createState({
+        blend: true, zwrite: false,
+        ztest: true, culling: false,
     });
     
     this.frustumMesh = renderer.createMesh({ 'vertices': vertices, 'uvs': uvs, 'normals': normals });

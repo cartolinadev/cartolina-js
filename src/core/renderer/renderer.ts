@@ -2024,30 +2024,6 @@ createMesh(options: any): GpuMesh | null {
     return new GpuMesh(this.gpu, data, this.core);
 }
 
-/**
- * Create a GPU render state object from a plain options bag.
- *
- * Called from `replay.js` to create the frustum mesh render state
- * used in the inspector replay camera visualisation.
- *
- * @param options `{ blend?, stencil?, zoffset?, zwrite?, ztest?,
- *   zequal?, culling? }` — all fields default to sane render values
- * @returns `GpuDevice.State` object, or null if options are invalid
- */
-createState(options: any): GpuDevice.State | null {
-
-    if (options == null || typeof options !== 'object') return null;
-
-    return this.gpu.createState({
-        blend:   options['blend']   ?? false,
-        stencil: options['stencil'] ?? false,
-        zoffset: options['zoffset'] ?? 0,
-        zwrite:  options['zwrite']  ?? true,
-        ztest:   options['ztest']   ?? true,
-        zequal:  options['zequal']  ?? true,
-        culling: options['culling'] ?? true,
-    } as any);
-}
 
 /**
  * Apply a GPU render state object created by `createState`.
