@@ -1,3 +1,20 @@
+/*
+ * InspectorReplay — lets a developer freeze the map and inspect how the
+ * tile selection algorithm built a particular frame.
+ *
+ * Normally the map redraws continuously, re-running tile selection every
+ * frame. This module lets you snapshot one frame — which tiles were drawn,
+ * which nodes were traced, in what order assets loaded — and then replay
+ * that snapshot with the live rendering paused. The camera can be frozen
+ * too, so the view does not shift while you inspect.
+ *
+ * Replay mode is controlled through flags on map.draw.replay. The store
+ * flags (storeTiles, storeNodes, storeLoaded, …) capture data for one
+ * frame; the draw flags (drawTiles, drawNodes, drawLoaded, …) switch the
+ * renderer to replay the snapshot instead of running live tile selection.
+ * loadedIndex lets you scrub through the asset-load sequence one tile at
+ * a time.
+ */
 
 import GpuTexture_ from '../renderer/gpu/texture';
 import * as math from '../utils/math';
