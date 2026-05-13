@@ -617,6 +617,29 @@ Do not use `@link` or any other JSDoc tags that produce hyperlinks.
 TypeScript IDEs do not render them. Reference other symbols by name
 in backtick code spans instead: `` `MyClass.myMethod` ``.
 
+### No jargon
+
+**Jargon is banned.** Jargon is any word or phrase that sounds
+technical but does not have a precise, agreed definition in this
+codebase. Examples of banned patterns:
+
+- Vague collective nouns that name nothing specific: "layer",
+  "subsystem", "framework", "infrastructure", "platform",
+  "scripting layer", "pipeline" (unless referring to a specific
+  named object).
+- Words that describe magnitude without content: "robust",
+  "powerful", "flexible", "seamless", "scalable", "elegant".
+- Passive constructions that hide the subject: "is used to",
+  "can be leveraged", "is responsible for".
+
+Instead, name the actual object and state what it does.
+Wrong: "Used by the inspector scripting layer."
+Right: "Called from `inspector.js` to draw the frustum overlay."
+
+Every sentence in documentation must be checkable against the code.
+If a sentence cannot be verified by reading the source, rewrite it
+until it can.
+
 
 ## WebGL2 shaders
 
