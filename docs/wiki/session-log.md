@@ -1762,4 +1762,26 @@ Class JSDoc updated to reflect current bypass-point state.
 → coordinate conversion → event subscriptions → deprecated → shim → stub.
 
 All three screenshot tests pass; `tsc --noEmit` clean.
+
+---
+
+## 2026-05-13 — Eliminate RendererInterface
+
+`RendererInterface` (`src/core/renderer/interface.js`) deleted. It was
+the last `*Interface` ES5 wrapper in the codebase.
+
+Six inspector/replay GPU methods promoted onto `Renderer` as public
+TypeScript methods: `createTexture`, `createMesh`, `createState`,
+`setState`, `drawMesh`, `drawImage`, `drawLineString`. All carry JSDoc
+naming the specific caller. Dead code (16 unused methods) discarded.
+
+`getCanvasCoords` call sites in `draw-tiles.js` and `group.js` replaced
+with direct `renderer.project2()` calls — already an exact equivalent.
+
+`core.js` import and `getRendererInterface()` method removed.
+`map.ts` updated to call `this.core_.renderer` directly.
+
+Architecture doc updated: `*Interface` pattern section rewritten as
+archaeology; `RendererInterface` row removed from dissolution table;
+`Renderer` row updated to note it is no longer wrapped.
 | `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |

@@ -1074,7 +1074,7 @@ GpuGroup.prototype.drawNode = function(node, noSkip, splitMask, splitSpace) {
                pos[1]-cameraPos[1],
                pos[2]-cameraPos[2]];*/
 
-        pos = this.renderer.core.getRendererInterface().getCanvasCoords(
+        pos = this.renderer.project2(
             pos,
             /*[pos[0] - cameraPos[0],
              pos[1] - cameraPos[1],

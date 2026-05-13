@@ -98,7 +98,7 @@ class Map {
     ): void | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().setVerticalExaggeration(spec);
+        return this.core_.renderer.setVerticalExaggeration(spec);
     }
 
     /**
@@ -109,7 +109,7 @@ class Map {
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().getVerticalExaggeration();
+        return this.core_.renderer.getVerticalExaggeration();
     }
 
     /**
@@ -121,7 +121,7 @@ class Map {
     setIllumination(spec: Renderer.IlluminationDef): void | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().setIllumination(spec);
+        return this.core_.renderer.setIllumination(spec);
     }
 
     /**
@@ -132,7 +132,7 @@ class Map {
     getIllumination(): Renderer.IlluminationDef | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().getIllumination();
+        return this.core_.renderer.getIllumination();
     }
 
     /**
@@ -167,7 +167,7 @@ class Map {
     setRenderingOptions(options: Renderer.RenderingOptions): void | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().setRenderingOptions(options);
+        return this.core_.renderer.setRenderingOptions(options);
     }
 
     /**
@@ -178,7 +178,7 @@ class Map {
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
         if (!this.core_) return null;
-        return this.core_.getRendererInterface().getRenderingOptions();
+        return this.core_.renderer.getRenderingOptions();
     }
 
     /**

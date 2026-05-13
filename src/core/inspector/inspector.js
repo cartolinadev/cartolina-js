@@ -57,7 +57,7 @@ Inspector.prototype.enableInspector = function() {
                     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QAAAAAAAD5Q7t/AAAACW9GRnMAAAAgAAAA4ACD+EAUAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA/UlEQVRYw+2VPwqDMBTG3dz1Am56EnH2XLroETxGuwc3Z7cOdhY8QJpfSUBspUvStJAPPggvD973/uQligICAgL+DKViqygUV02hbaXLwJlio7gpyhNu2idzEXwwgfI8H+u6vnZdN/V9P3EuimLcCRlsiyArGcfxjWDLsmzyAGzc4aNFNDZ7/iw7AeQH4LNrh5WZYLgkJTaZCyHuVVVdkiSZ0zSdOWMzlaBFWkRrQ4A4Zk/A4wBie1MFYUMAz0wybCYAmR8FUAlzj6+2r18TgM2VAO8tOB1Cyk7mrofQ+zP0voheVjHtIBjDxjrmvCu7k1Xs/TP6ie84ICDAGR5uCYdPo0MWiAAAAABJRU5ErkJggg==',
                     //"http://maps.google.com/mapfiles/kml/shapes/placemarkcircle.png",
                     (function(){
-                        this.circleTexture = this.core.getRendererInterface().createTexture({ 'source': this.circleImage });
+                        this.circleTexture = this.core.renderer.createTexture({ 'source': this.circleImage });
                     }).bind(this)
                 );
         }
@@ -127,7 +127,7 @@ Inspector.prototype.onMapUpdate = function() {
         map.convertCoordsFromPhysToCanvas(this.measurePoints[0]);
     }*/
 
-    var renderer = this.core.getRendererInterface(), i, li, j, lj, lines, slines, p;
+    var renderer = this.core.renderer, i, li, j, lj, lines, slines, p;
 
     if (this.replay.drawGlobe) {
         p = map.convertCoordsFromPhysToCameraSpace([0,0,0]);

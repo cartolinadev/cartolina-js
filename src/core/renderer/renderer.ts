@@ -13,6 +13,7 @@ import RenderDraw from './draw';
 import RendererRMap from './rmap';
 
 import * as IlluminationMath from '../map/illumination';
+import * as vts from '../constants';
 
 import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
@@ -1943,6 +1944,274 @@ getFont(url: string) {
 
     return font;
 };
+
+// -------------------------------------------------------------------------
+// Inspector scripting API — promoted from the legacy RendererInterface
+// wrapper. These methods are used by the inspector and replay subsystem.
+// -------------------------------------------------------------------------
+
+/**
+ * Create a GPU texture from raw pixel data or an Image element.
+ *
+ * Used by the inspector scripting layer to display overlays.
+ *
+ * @param options `{ source, filter?, repeat?, width?, height? }` —
+ *   `source` is a `Uint8Array` (requires `width` and `height`) or `Image`.
+ * @returns new `GpuTexture`, or null if options are invalid
+ */
+createTexture(options: any): GpuTexture | null {
+
+    if (options == null || typeof options !== 'object') return null;
+
+    const source = options['source'];
+    if (source == null) return null;
+
+    const filter = options['filter'] || 'linear';
+    const repeat = options['repeat'] || false;
+
+    if (source instanceof Uint8Array) {
+
+        const width = options['width'];
+        const height = options['height'];
+
+        if (width && height) {
+
+            const texture = new GpuTexture(this.gpu, null as any, this.core);
+            texture.createFromData(
+                width, height, source, vts.TEXTURETYPE_COLOR, filter, repeat
+            );
+            return texture;
+        }
+    }
+
+    if (source instanceof Image) {
+
+        const texture = new GpuTexture(this.gpu, null as any, this.core);
+        texture.createFromImage(source, vts.TEXTURETYPE_COLOR, filter, repeat);
+        return texture;
+    }
+
+    return null;
+}
+
+/**
+ * Create a GPU mesh from vertex, UV, and normal data.
+ *
+ * Called from `replay.js` to reconstruct frustum mesh geometry
+ * for the camera visualisation in the inspector replay view.
+ *
+ * @param options `{ vertices, uvs, normals, vertexSize, uvSize,
+ *   normalSize?, vertexAttr?, uvAttr?, normalAttr?, bbox? }`
+ * @returns new `GpuMesh`, or null if options are invalid
+ */
+createMesh(options: any): GpuMesh | null {
+
+    if (options == null || typeof options !== 'object') return null;
+
+    const data = {
+        vertices:   new Float32Array(options['vertices']),
+        uvs:        new Float32Array(options['uvs']),
+        uvs2:       new Float32Array(options['normals']),
+        vertexSize: options['vertexSize'],
+        uvSize:     options['uvSize'],
+        uv2Size:    options['normalSize'] || 3,
+        vertexAttr: options['vertexAttr'],
+        uvAttr:     options['uvAttr'],
+        uv2Attr:    options['normalAttr'],
+        bbox:       options['bbox'],
+    };
+
+    return new GpuMesh(this.gpu, data, this.core);
+}
+
+/**
+ * Create a GPU render state object from a plain options bag.
+ *
+ * Called from `replay.js` to create the frustum mesh render state
+ * used in the inspector replay camera visualisation.
+ *
+ * @param options `{ blend?, stencil?, zoffset?, zwrite?, ztest?,
+ *   zequal?, culling? }` — all fields default to sane render values
+ * @returns opaque GPU state object
+ */
+createState(options: any): any {
+
+    if (options == null || typeof options !== 'object') return null;
+
+    return this.gpu.createState({
+        blend:   options['blend']   ?? false,
+        stencil: options['stencil'] ?? false,
+        zoffset: options['zoffset'] ?? 0,
+        zwrite:  options['zwrite']  ?? true,
+        ztest:   options['ztest']   ?? true,
+        zequal:  options['zequal']  ?? true,
+        culling: options['culling'] ?? true,
+    } as any);
+}
+
+/**
+ * Apply a GPU render state object created by `createState`.
+ *
+ * Used by the inspector scripting layer to configure GPU state
+ * before drawing overlays.
+ *
+ * @param state opaque state object returned by `createState`
+ */
+setState(state: any): void {
+
+    if (state != null) this.gpu.setState(state);
+}
+
+/**
+ * Draw a mesh with explicit shader variables.
+ *
+ * Used by the inspector scripting layer to render the frustum mesh
+ * camera visualisation overlay.
+ *
+ * @param options `{ mesh, shader?, texture?, shaderVariables,
+ *   vertex?, uv?, normal?, depthOffset? }`
+ */
+drawMesh(options: any): void {
+
+    if (options == null || typeof options !== 'object') return;
+    if (!options['mesh'] || !options['shaderVariables']) return;
+
+    const vertexAttr  = options['vertex'] || 'aPosition';
+    const uvAttr      = options['uv']     || 'aTexCoord';
+    let uv2Attr       = options['normal'] || 'aNormal';
+    const depthOffset = options['depthOffset'] ?? null;
+
+    const shaderVariables = options['shaderVariables'];
+    let shader = options['shader'] || 'textured';
+
+    const mesh    = options['mesh'];
+    const texture = options['texture'];
+    const mv      = this.camera.getModelviewMatrix();
+    const proj    = this.camera.getProjectionMatrix();
+    const fogDensity = this.fogDensity;
+
+    if (typeof shader === 'string') {
+
+        switch (shader) {
+
+        case 'hit':
+            shaderVariables['uMV']   = shaderVariables['uMV']   || ['mat4', mv];
+            shaderVariables['uProj'] = shaderVariables['uProj'] || ['mat4', proj];
+            shader = (this as any).progDepthTile[0];
+            uv2Attr = null;
+            break;
+
+        case 'shaded':
+            uv2Attr = null;
+            // falls through
+        case 'textured':
+        case 'textured-and-shaded':
+            shaderVariables['uMV']         = shaderVariables['uMV']         || ['mat4', mv];
+            shaderVariables['uProj']       = shaderVariables['uProj']       || ['mat4', proj];
+            shaderVariables['uFogDensity'] = shaderVariables['uFogDensity'] || ['float', fogDensity];
+            uv2Attr = (shader === 'textured') ? null : 'aNormal';
+            shader  = (shader === 'textured')
+                ? (this.progTile as any)[0]
+                : (shader === 'shaded'
+                    ? (this as any).progShadedTile
+                    : (this as any).progTShadedTile);
+            break;
+        }
+    }
+
+    if (!shader || !(shader as any).isReady()) return;
+
+    const attributes: string[] = [vertexAttr];
+    if (uvAttr)  attributes.push(uvAttr);
+    if (uv2Attr) attributes.push(uv2Attr);
+
+    this.gpu.useProgram(shader as any, attributes, false);
+
+    for (const key in shaderVariables) {
+
+        const item = shaderVariables[key];
+        if (item.length !== 2) continue;
+
+        switch (item[0]) {
+        case 'floatArray': shader.setFloatArray(key, item[1]); break;
+        case 'float':      shader.setFloat(key, item[1]); break;
+        case 'mat3':       shader.setMat3(key, item[1]); break;
+        case 'mat4':
+            (depthOffset && key === 'uProj')
+                ? shader.setMat4(key, item[1], this.getZoffsetFactor(depthOffset))
+                : shader.setMat4(key, item[1]);
+            break;
+        case 'vec2':    shader.setVec2(key, item[1]); break;
+        case 'vec3':    shader.setVec3(key, item[1]); break;
+        case 'vec4':    shader.setVec4(key, item[1]); break;
+        case 'sampler': shader.setSampler(key, item[1]); break;
+        }
+    }
+
+    if (texture) this.gpu.bindTexture(texture);
+    mesh.draw(shader, vertexAttr, uvAttr, uv2Attr, null);
+}
+
+/**
+ * Draw a textured rectangle at given canvas coordinates.
+ *
+ * Used by the inspector scripting layer to draw circle markers
+ * at control-point positions.
+ *
+ * @param options `{ texture, rect, color?, depth?, depthOffset?,
+ *   depthTest?, blend?, writeDepth?, useState? }`
+ */
+drawImage(options: any): void {
+
+    if (options == null || typeof options !== 'object') return;
+    if (options['texture'] == null || options['rect'] == null) return;
+
+    const rect       = options['rect'];
+    const raw        = options['color'] || [255, 255, 255, 255];
+    const color      = [raw[0] / 255, raw[1] / 255, raw[2] / 255, raw[3] / 255];
+    const depth      = options['depth']       ?? 0;
+    const depthOffset = options['depthOffset'] ?? null;
+    const depthTest  = options['depthTest']   ?? false;
+    const blend      = options['blend']       ?? false;
+    const writeDepth = options['writeDepth']  ?? false;
+    const useState   = options['useState']    ?? false;
+
+    this.draw.drawImage(
+        rect[0], rect[1], rect[2], rect[3],
+        options['texture'], color,
+        depth, depthOffset, depthTest, blend, writeDepth, useState
+    );
+}
+
+/**
+ * Draw a world-space or screen-space polyline.
+ *
+ * Used by the inspector scripting layer to draw camera frustum lines
+ * and control-point grid lines in the replay view.
+ *
+ * @param options `{ points, color?, size?, screenSpace?,
+ *   depthOffset?, depthTest?, blend?, writeDepth?, useState? }`
+ */
+drawLineString(options: any): void {
+
+    if (options == null || typeof options !== 'object') return;
+    if (options['points'] == null) return;
+
+    const raw        = options['color'] || [255, 255, 255, 255];
+    const color      = [raw[0] / 255, raw[1] / 255, raw[2] / 255, raw[3] / 255];
+    const depthOffset = options['depthOffset'] ?? null;
+    const size       = options['size']       || 2;
+    const screenSpace = options['screenSpace'] ?? true;
+    const depthTest  = options['depthTest']  ?? false;
+    const blend      = options['blend']      ?? false;
+    const writeDepth = options['writeDepth'] ?? false;
+    const useState   = options['useState']   ?? false;
+
+    this.draw.drawLineString(
+        options['points'], screenSpace, size, color,
+        depthOffset, depthTest, blend, writeDepth, useState
+    );
+}
 
 kill() {
     if (this.killed){

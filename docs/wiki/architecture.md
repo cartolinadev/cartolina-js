@@ -276,45 +276,36 @@ First major milestone:
 
 ## Public API transformation
 
-### The recurring migration pattern
+### Why `Viewer` / `Browser` and `Map` / `Core` still exist as pairs
 
-The legacy codebase uses a repeated ES5 pattern:
+The original vts-browser-js codebase used a repeated ES5 pattern: a
+thick internal object holding all state, paired with a thin `*Interface`
+wrapper that exposed only the intended public surface. This was
+necessary because ES5 had no classes, no `private` keyword, and no
+TypeScript.
 
-- a functional crux object that owns the real state and behavior
-- a thin `*Interface` wrapper that exposes the intended public methods
+That pattern is now fully retired. The `*Interface` wrappers
+(`CoreInterface`, `MapInterface`, `RendererInterface`) have all been
+deleted; their public methods were promoted directly onto the TypeScript
+`Map` class.
 
-That pattern existed because ES5 had no classes, no `private` members,
-and no TypeScript. In a TypeScript class, the public API and the private
-implementation live on the same object, so the extra wrapper becomes
-unnecessary.
-
-```js
-// ES5 pattern: internal object holds everything
-var Map = function(core, data) { this.camera = ...; this.tree = ...; };
-Map.prototype.internalHelper = function() { ... };
-
-// Wrapper exposes only the intended public surface
-var MapInterface = function(map) { this.map = map; };
-MapInterface.prototype.setPosition = function(p) { this.map.setPosition(p); };
-// internalHelper is not forwarded, so it is effectively private
-```
-
-The long-term refactoring pattern in cartolina-js is therefore:
-
-1. Identify the legacy pair: `*Interface` wrapper plus internal engine.
-2. Introduce a clean TypeScript class as the new public API.
-3. Promote public methods onto that class as flat typed methods.
-4. Gradually absorb the internal engine into private fields and methods
-   of the new class, then delete the old wrapper.
+The two remaining pairs (`Viewer` / `Browser` and `Map` / `Core`) are
+structural leftovers of the same origin, but they are not
+`*Interface`-style wrappers. `Browser` is the UI engine — a substantial
+object with its own lifecycle and sub-components — and `Core` is the
+map-engine coordinator that bootstraps `LegacyMap` and `Renderer`. Both
+are scheduled for dissolution into `Viewer` and `Map` respectively, but
+they are being absorbed incrementally as feature work touches them.
 
 ### Two future public surfaces
 
 The end state is two public TypeScript classes, one per build:
 
 **`Map`** — the core build public API. Absorbs everything in the current
-core layer: `CoreInterface`, `Core`, the internal terrain engine (currently
-also called `Map`), `Renderer`, `MapInterface`, and `RendererInterface`.
+core layer: `Core`, `LegacyMap` (the terrain engine), and `Renderer`.
 All of those are implementation detail behind a single flat typed class.
+The legacy wrappers (`CoreInterface`, `MapInterface`, `RendererInterface`)
+have already been deleted.
 
 **`Viewer`** — the full build public API. Absorbs `BrowserInterface` and
 `Browser` (UI engine, controls, navigation, autopilot, presenter).
@@ -356,10 +347,8 @@ legacy layer directly.
 | `Map` | Core-build public API (`src/core/map.ts`) | **Done** — replaces `CoreInterface` |
 | `CoreInterface` | Legacy public wrapper for core build | **Deleted** |
 | `Core` | Legacy map-engine coordinator | **To be dissolved into `Map`** |
-| `MapInterface` | Legacy wrapper around terrain engine | Partially dissolved — 6 methods promoted; `interface.d.ts` deleted; `interface.js` internal only |
-| `RendererInterface` | Legacy wrapper around `Renderer` | **To be dissolved into `Map`** |
 | `LegacyMap` | Terrain engine (`src/core/map/map.js`) | **To be dissolved into `Map`** |
-| `Renderer` | WebGL2 pipeline | **To be dissolved into `Map`** as private implementation |
+| `Renderer` | WebGL2 pipeline | No wrapper; public TypeScript class. **To be absorbed into `Map`** as private implementation |
 
 The priority order for remaining work is:
 

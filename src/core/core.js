@@ -2,7 +2,7 @@ import Proj4 from 'proj4';
 import Map from './map/map';
 import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
-import RendererInterface from './renderer/interface';
+
 import MapPosition from './map/position';
 import MapInterface from './map/interface';
 import * as utils from './utils/utils';
@@ -150,7 +150,6 @@ var Core = function(element, config) {
     this.map = null;
     this.mapInterface = null;
     this.renderer = new Renderer(this, this.element, this.config);
-    this.rendererInterface = new RendererInterface(this.renderer);
     this.proj4 = Proj4;
     this.contextLost = false;
 
@@ -402,10 +401,6 @@ Core.prototype.getRenderer = function() {
     return this.renderer;
 };
 
-
-Core.prototype.getRendererInterface = function() {
-    return this.rendererInterface;
-};
 
 
 Core.prototype.getProj4 = function() {

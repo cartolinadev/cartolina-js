@@ -341,7 +341,7 @@ InspectorReplay.prototype.onTextChange = function(type) {
 
 
 InspectorReplay.prototype.generateCameraLines = function(camera) {
-    var renderer = this.core.getRendererInterface();
+    var renderer = this.core.renderer;
     var p1 = camera.position;
     var p2 = camera.center;
 
