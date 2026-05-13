@@ -13,7 +13,7 @@ import { vec2, vec3, vec4, mat3, mat4 } from './utils/matrix';
 import * as utils from './utils/utils';
 import * as math from './utils/math';
 import { platform } from './utils/platform';
-import MapClass from './map';
+import Map from './map';
 
 import type { CoreConfig } from './types';
 
@@ -30,14 +30,14 @@ export type { default as Map } from './map';
 export function map(
     element: HTMLElement | string,
     config?: Partial<CoreConfig>,
-): MapClass | null {
+): Map | null {
 
     const el = typeof element === 'string'
         ? document.getElementById(element)
         : element;
 
     if (!el || !checkSupport()) return null;
-    return new MapClass(el, config ?? {});
+    return new Map(el, config ?? {});
 }
 
 
@@ -52,7 +52,7 @@ export function map(
 export function core(
     element: HTMLElement | string,
     config?: Partial<CoreConfig>,
-): MapClass | null {
+): Map | null {
 
     return map(element, config);
 }
