@@ -129,11 +129,12 @@ The webpack config produces two distinct library builds from two entry points:
 | Build | Entry point | Output | Purpose |
 |---|---|---|---|
 | **Full build** | `src/browser/index.ts` | `cartolina.js` / `.esm.js` | Production library; includes UI controls, navigation, autopilot, presenter |
-| **Core build** | `src/core/index.js` | `vts-core.js` | Headless rendering only; consumer wires their own UI and navigation |
+| **Core build** | `src/core/index.ts` | `vts-core.js` | Headless rendering only; consumer wires their own UI and navigation |
 
-The full build exports the `map()` and `browser()` factory functions, both
-returning a `Viewer` instance. The core build exports a `core()` factory
-returning a `CoreInterface` instance.
+The full build exports `map()` and `browser()`, both returning a `Viewer`
+instance. The core build exports `map()` returning a `Map` instance.
+`core()` is a deprecated alias for `map()` kept for backward compatibility
+with the original vts-browser-js core API.
 
 Worker bundles (`map-loader-worker.js`, `geodata-processor-worker.js`) are
 produced separately and are not application entry points.
