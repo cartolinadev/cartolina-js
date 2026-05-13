@@ -229,7 +229,7 @@ Inspector.prototype.onMapUpdate = function() {
         //normal transformation matrix
         mat4.toInverseMat3(mv, norm);
     
-        renderer.setState(this.replay.frustumState);
+        renderer.gpu.setState(this.replay.frustumState);
     
         //draw cube
         renderer.drawMesh({

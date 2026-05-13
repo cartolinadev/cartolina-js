@@ -2025,18 +2025,6 @@ createMesh(options: any): GpuMesh | null {
 }
 
 
-/**
- * Apply a GPU render state object created by `createState`.
- *
- * Used by the inspector scripting layer to configure GPU state
- * before drawing overlays.
- *
- * @param state opaque state object returned by `createState`
- */
-setState(state: GpuDevice.State): void {
-
-    if (state != null) this.gpu.setState(state);
-}
 
 /**
  * Draw a mesh with explicit shader variables.
