@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-14 — AGENTS.md: document RFC sign-off and convergence
+
+Sign-off protocol added to the review process: reviewer appends a
+sign-off section and sets status to Accepted; rejected notes that
+remain unresolved are re-raised in the next round; author and
+reviewer are expected to converge.
+
+---
+
 ## 2026-05-14 — RFC: config store, address round 2 reviewer notes
 
 Shim in §4.4 corrected to include Core forwarding for non-Browser

@@ -86,6 +86,46 @@ They are listed in the **RFCs** section of `index.md`.
   all implementation steps are done and the document no longer
   describes future work. Do not delete closed RFCs.
 
+**Review process:**
+
+Author and reviewer are peers. Neither role carries authority over the
+other. A reviewer note is not an instruction; an author response is not
+a concession. What prevails is facts, sound reasoning, and the rules
+established in this document and the broader project documentation.
+
+A reviewer appends a numbered review section (`## Review round N`) to
+the RFC with their notes. The author then:
+
+1. Commits the RFC as-is before making any changes, to preserve the
+   reviewed state.
+2. Addresses each note in the document — fixing, partially fixing, or
+   rejecting with explanation.
+3. Below each reviewer note, appends an italicised author comment
+   using one of: *Implemented.*, *Partially implemented.*, or
+   *Rejected.*, followed by a brief explanation.
+4. Does not alter the reviewer's original note text.
+5. Waits for the reviewer to either sign off or open the next round.
+
+A rejected note that the reviewer considers unresolved is re-raised
+in the next round. Rounds continue until all notes are either
+accepted by the reviewer or dropped. Author and reviewer are
+expected to converge.
+
+To sign off, the reviewer appends a final section
+(`## Review round N — sign-off`) stating that the design is
+accepted, with any remaining editorial notes that are not blockers.
+The reviewer then changes the status line to `Accepted`. The author
+does not respond to a sign-off section; it closes the review.
+
+The status line tracks the current state:
+
+| Status | Meaning |
+|---|---|
+| `Draft` | Author is writing; no review requested yet |
+| `In review` | Review round is open; author is responding |
+| `Accepted` | Reviewer has signed off; ready to implement |
+| `Implemented` | All implementation steps done |
+
 **Agent responsibilities:**
 
 - Before starting work that touches an area covered by an open RFC,
