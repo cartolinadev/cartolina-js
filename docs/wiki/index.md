@@ -23,6 +23,12 @@ then branch into more specific documents as needed.
   navigation, geodata overlays, and historical note on the
   removed `vts-core.js` build
 
+### RFCs
+
+- [rfc-config-store.md](rfc-config-store.md) — reactive ConfigStore
+  to replace stringly-typed config routing; prerequisite for
+  core.js suppression
+
 ### Subsystem and feature notes
 
 - [reference-frames.md](reference-frames.md) — reference frame concepts,

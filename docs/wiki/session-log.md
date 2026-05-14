@@ -2012,6 +2012,40 @@ All three screenshot tests pass; `tsc --noEmit` clean.
 
 ---
 
+## 2026-05-14 — RFC: ConfigStore
+
+Architectural discussion of the path to suppressing `core.js`. The
+config routing system was identified as the main structural blocker:
+three independent `this.config` stores (Browser, Core, LegacyMap),
+a stringly-typed `setConfigParam(key, value)` chain, and a
+string-prefix routing convention (`map*`, `renderer*`, `debug*`)
+spread across four files.
+
+Surveyed how MapLibre GL JS, CesiumJS, Babylon.js, and Pixi.js v8
+handle configuration. None use a general reactive store. Babylon.js
+is the closest: per-property observables on `Scene` that fire when
+a setter is called. Pixi.js plugin self-selection (each plugin reads
+its own slice from a shared options bag) is also relevant.
+
+Evaluated `nanostores` and `@preact/signals-core` as off-the-shelf
+implementations. Both lack the flush-at-frame-boundary contract
+required by a renderer; recommendation is to write the store (~50
+lines) rather than take a dependency.
+
+Proposed design: a single `ConfigStore<ViewerConfig>` with `set()`,
+`get()`, `watch(keys, fn)`, and `flush()`. The store holds no
+domain knowledge. Subsystems receive the store reference at
+construction and call `watch()` for the keys they own. The existing
+`setConfigParam()` chain becomes a two-line compatibility shim
+(`this.configStore.set({ [key]: value })`), removing all routing
+logic in one step while allowing legacy JS call sites to continue
+working indefinitely.
+
+RFC written at `docs/wiki/rfc-config-store.md`. RFC lifecycle rules
+and agent responsibilities added to `AGENTS.md`.
+
+---
+
 ## 2026-05-13 — Eliminate RendererInterface
 
 `RendererInterface` (`src/core/renderer/interface.js`) deleted. It was

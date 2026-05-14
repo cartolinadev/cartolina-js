@@ -63,6 +63,44 @@ summarize the relevant conclusion without recording its path.
 - [session-log.md](docs/wiki/session-log.md) — chronological record
   of significant work sessions.
 
+### RFCs
+
+An RFC is a design document for a feature or change that is too
+broad or consequential to capture in a backlog entry. RFCs record
+the motivation, alternatives considered, proposed design, and
+migration plan. They are functional documentation: they remain
+authoritative until the feature is fully implemented, then become
+historical record.
+
+RFC files live in `docs/wiki/` and are named `rfc-<slug>.md`.
+They are listed in the **RFCs** section of `index.md`.
+
+**Lifecycle:**
+
+- A backlog entry may be promoted to an RFC when the scope grows
+  beyond what a single paragraph can describe accurately.
+- An RFC may be demoted to a backlog entry when scoping reveals
+  the change is smaller than it appeared, or the design collapses
+  into a straightforward implementation decision.
+- An RFC is closed (marked **Implemented** in the Status line) when
+  all implementation steps are done and the document no longer
+  describes future work. Do not delete closed RFCs.
+
+**Agent responsibilities:**
+
+- Before starting work that touches an area covered by an open RFC,
+  read the RFC. It may override or constrain the approach that would
+  otherwise seem natural from the code alone.
+- When implementation work resolves an open question in an RFC,
+  update the RFC to record the decision. Do not leave answered
+  questions marked as open.
+- When an implementation step from an RFC is completed, remove it
+  from the RFC's implementation steps list (or mark it done) so the
+  RFC accurately reflects remaining work.
+- Do not create an RFC for routine feature work, bug fixes, or
+  incremental refactoring. Use a backlog entry or session-log entry
+  instead.
+
 
 ## Commits
 
