@@ -81,7 +81,7 @@ export type MapOptions = {
  * @return the browser interface
  */
 
-export function map(options: MapOptions): Viewer | null {
+export function map(options: MapOptions): Viewer {
 
     // all browser controls are disabled by default on the style api
     let dflts = {
@@ -143,7 +143,7 @@ export type BrowserConfig = MapRuntimeOptions & {
 export function browser(
     element: HTMLElement | string,
     config: BrowserConfig
-): Viewer | null {
+): Viewer {
 
     var vi = new Viewer(element, config);
     return vi;

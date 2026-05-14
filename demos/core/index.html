@@ -46,11 +46,6 @@ const viewer = cartolina.map({
     interactive: false,
 });
 
-if (!viewer) {
-    document.body.textContent = 'Map initialisation failed.';
-    throw new Error('Map initialisation failed');
-}
-
 // ---- Events -----------------------------------------------------------------
 
 viewer.on('map-loaded', () => {

@@ -19,12 +19,17 @@ Nothing inside `src/` imported it.
 
 **`src/browser/index.ts`**: added `interactive?: boolean` to `MapOptions`
 at the top level, matching the MapLibre GL JS convention. The `map()`
-factory passes it through to `Browser` config.
+factory passes it through to `Browser` config. `map()` and `browser()`
+now return `Viewer`, not `Viewer | null`; construction failures throw
+instead of producing half-initialized objects.
 
 **`src/browser/browser.js`**:
 - `initConfig`: added `interactive: true` as a config default.
 - `setConfigParam`: added `case 'interactive'` so the flag routes to
   `this.config` instead of forwarding to `Core`.
+- constructor: unsupported WebGL2 now throws before UI construction.
+  Applications that need custom fallback UI should call `checkSupport()`
+  before `map()` or `browser()`.
 - `getMap()` / `getRenderer()` / `callListener()`: these three methods
   had stale access paths (`this.core.map`, `this.core.renderer`,
   `this.core.callListener`) that broke when `Browser.core` changed from
@@ -72,15 +77,25 @@ free layer (closed triangle route over central Europe) drawn via
 **`demos/core/style.json`**: style using viewfinder-dem3 with
 illumination and vertical exaggeration defaults.
 
+**`demos/depth-test/demo.js`**: removed the obsolete `if (!browser)`
+factory guard. The browser factory now throws instead of returning
+`null`.
+
 **`docs/wiki/architecture.md`**: two-build section replaced with
 single-build description. Two-surface section replaced with
 single-surface description. `MapInterface` correctly identified as
 still alive (not deleted). Object model diagram updated to show
-`Core.mapInterface`. Status table corrected.
+`Core.mapInterface`. Status table corrected. Added construction error
+policy: factories return usable objects or throw; legacy nullable
+construction patterns are migration debt.
 
 **`docs/wiki/core-build.md`**: rewritten as a non-interactive usage
 guide. Includes historical note on why `vts-core.js` was removed (9%
 size difference, `interactive: false` covers the same use case).
+
+**`docs/wiki/backlog.md`**: added a refactor item for removing legacy
+nullable construction paths from classes that cannot be valid without
+their engine objects.
 
 **`CLAUDE.md`**: added pre-test protocol requiring a dev server restart
 after `webpack.config.js` changes, and warning that compilation errors

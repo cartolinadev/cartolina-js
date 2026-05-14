@@ -34,8 +34,6 @@
     controlFallback: false
   });
 
-  if (!browser) { console.error('WebGL not supported'); return; }
-
   var overlay = document.getElementById('overlay');
   var veBtn = document.getElementById('ve-btn');
   var veSpec = null; // saved VE spec for restore
@@ -55,8 +53,6 @@
   });
 
   function updateOverlay(e) {
-    if (!browser) return;
-
     var xy = e.getMouseCoords();
     var nav = browser.getHitCoords(xy[0], xy[1], 'fix');
 

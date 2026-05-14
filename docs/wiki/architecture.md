@@ -137,6 +137,22 @@ backward compatibility with the vts-browser-js browser API.
 Worker bundles (`map-loader-worker.js`, `geodata-processor-worker.js`)
 are produced separately and are not application entry points.
 
+### Construction errors
+
+Factory functions such as `map()` and `browser()` return usable objects
+or throw. They do not return `null` for unsupported WebGL, failed engine
+creation, or invalid construction state.
+
+Use `checkSupport()` before construction when an application wants to
+show its own WebGL fallback. If construction starts and the engine cannot
+be created, the constructor raises an exception. This keeps `Viewer`,
+`Browser`, and `Map` out of half-initialized states.
+
+Legacy optional chains and `null` returns that only exist to tolerate
+missing core objects are migration debt. Remove them when touching the
+owning method. Keep `null` only for real query results, such as a hit test
+with no terrain under the cursor or a map property that is not loaded yet.
+
 ### Former core build
 
 Until 2026-05, a separate `vts-core.js` was built from

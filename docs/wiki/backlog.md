@@ -60,6 +60,32 @@ instead, allowing the `core` shim to be deleted.
 
 ---
 
+## REFACTOR: remove legacy nullable construction paths
+
+**Opened:** 2026-05-14
+**Status:** in progress
+
+### Goal
+
+Construction of `Viewer`, `Browser`, `Map`, `Core`, and `Renderer`
+should either complete or throw. An instance with no engine object is not
+a valid object.
+
+### Done
+
+`Browser` now throws when WebGL2 support is absent. `map()` and
+`browser()` return `Viewer`, not `Viewer | null`. Non-legacy demos no
+longer check the factory result for falsiness.
+
+### Remaining
+
+Remove optional chains and `null` returns that only guard against missing
+core objects after construction. Keep `null` for domain results that can
+be absent during normal operation, such as hit tests and unloaded map
+state.
+
+---
+
 ## REFACTOR: migrate event bus to `EventTarget`
 
 **Opened:** 2026-05-13

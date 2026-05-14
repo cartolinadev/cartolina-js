@@ -56,10 +56,10 @@ var Roi = function(config, browser, options) {
 
     // modules
     this.core = this.browser.getCore();
-    this.renderer = this.core.getRenderer();
+    this.renderer = this.browser.getRenderer();
     Object.defineProperty(this, 'map', {
         get : function() {
-            return this.core.getMap();
+            return this.browser.getMap();
         },
         set : function(val) {}
     });
@@ -157,9 +157,9 @@ Roi.prototype.delve = function(enterPosition) {
 
     this.state = Roi.State.FadingIn;
 
-    this.enterPosition = this.core.getMap().getPosition();
+    this.enterPosition = this.browser.getMap().getPosition();
 
-    this.core.getMap().setPosition(this.refPosition);
+    this.browser.getMap().setPosition(this.refPosition);
     this.controlMode.setCurrentControlMode(this.defaultControlMode
                                             , this.defaultControlModeConfig);
 
@@ -183,7 +183,7 @@ Roi.prototype.leave = function() {
 
     this.state = Roi.State.FadingOut;
 
-    this.core.getMap().setPosition(this.enterPosition);
+    this.browser.getMap().setPosition(this.enterPosition);
     this.controlMode.setDefaultControlMode();
 
     this.state = Roi.State.Ready;

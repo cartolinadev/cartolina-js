@@ -24,6 +24,10 @@ var Browser = function(element, config) {
     
     this.element = (typeof element === 'string') ? document.getElementById(element) : element; 
 
+    if (!checkSupport()) {
+        throw new Error('cartolina-js requires WebGL2.');
+    }
+
     // Ensure the container establishes a positioning context for .vts-browser (absolute)
     if (this.element && window.getComputedStyle(this.element).position === 'static') {
         // Do not clobber an explicit author choice
@@ -34,17 +38,7 @@ var Browser = function(element, config) {
 
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
-    if (!checkSupport()) {
-        this.ui.setControlVisible('fallback', true);
-        return;
-    }
-
     this.core = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
-
-    if (this.core == null) {
-        this.ui.setControlVisible('fallback', true);
-        return;
-    }
     
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
