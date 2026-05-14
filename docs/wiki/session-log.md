@@ -1896,3 +1896,40 @@ Architecture doc updated: `*Interface` pattern section rewritten as
 archaeology; `RendererInterface` row removed from dissolution table;
 `Renderer` row updated to note it is no longer wrapped.
 | `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |
+
+---
+
+## 2026-05-14 — Style-based runtime free-layer gap
+
+### Goal
+
+Diagnose why the non-interactive demo's runtime geodata route is not
+visible after the browser/core refactor work.
+
+### Work done
+
+`demos/core/style.json` was missing `version: 2`; Typia reported
+`$input.version: expected 2, got undefined`. The style now validates.
+
+`demos/core/index.html` registers `addRouteLayer()` on `map-loaded`.
+Playwright instrumentation confirmed the listener fires and
+`viewer.createGeodata()` returns a builder.
+
+The route still does not render because style-based maps build
+`map.freeLayerSequence` from `style.layers` in `MapStyle.refreshSequences`.
+The legacy `MapInterface.addFreeLayer()` call only registers the object in
+`map.freeLayers`. The old mapConfig demos also add an entry to
+`view.freeLayers` and call `setView(view)`, but style-based maps bypass that
+view activation path.
+
+### Current state
+
+`docs/wiki/backlog.md` records the runtime free-layer gap as deferred work.
+No style-era runtime overlay API exists yet.
+
+### Open questions
+
+Design the new API for runtime style-based overlays. It should register the
+geodata/free-layer source and the style layer or stylesheet used to render it,
+then refresh the style-driven sequences. Do not hide legacy `view.freeLayers`
+mutation inside `Viewer.addFreeLayer()`.

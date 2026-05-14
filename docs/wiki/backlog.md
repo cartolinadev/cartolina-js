@@ -77,6 +77,56 @@ shell work.
 
 ---
 
+## BUG: runtime free layers do not render on style-based maps
+
+**Opened:** 2026-05-14
+**Status:** deferred
+
+### Symptom
+
+`demos/core/index.html` calls `viewer.createGeodata()` and
+`viewer.addFreeLayer('route', geo.makeFreeLayer(style))` from its
+`map-loaded` listener. The function fires and the geodata builder is
+created, but the route is not visible.
+
+### Root Cause
+
+Style-based maps do not use the legacy `view.freeLayers` activation path.
+`MapStyle.refreshSequences()` builds `map.freeLayerSequence` from
+`style.layers`. A runtime call to `MapInterface.addFreeLayer()` only adds the
+free layer object to `map.freeLayers`; it does not add a style layer entry, so
+the renderer never sees it in `map.freeLayerSequence`.
+
+Legacy demos add a free layer in two steps:
+
+```js
+map.addFreeLayer('geodatatest', freeLayer);
+const view = map.getView();
+view.freeLayers.geodatatest = {};
+map.setView(view);
+```
+
+That is not the right model for style-based maps, where the style is the
+composition contract.
+
+### Suggested Fix
+
+Design a style-era runtime overlay API. It should register the geodata source
+and the style layer or stylesheet needed to render it, then refresh the
+style-driven sequences. Do not revive legacy `view.freeLayers` as a hidden
+side effect of `Viewer.addFreeLayer()`.
+
+### Relevant Files
+
+| File | Note |
+|---|---|
+| `demos/core/index.html` | Demonstrates the missing runtime overlay path |
+| `src/browser/viewer.ts` | `createGeodata` / `addFreeLayer` public methods |
+| `src/core/map/style.ts` | Builds `freeLayerSequence` from `style.layers` |
+| `src/core/map/interface.js` | Legacy `addFreeLayer` registers only the object |
+
+---
+
 ## BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
 
 **Opened:** 2026-04-24
