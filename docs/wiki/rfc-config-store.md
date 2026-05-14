@@ -111,7 +111,7 @@ and applies it to a single typed config surface.
 
 ## 4. Proposed design
 
-### 3.1 ConfigStore
+### 4.1 ConfigStore
 
 A small, self-contained class:
 
@@ -136,14 +136,22 @@ class ConfigStore<T extends object> {
 does not fire callbacks immediately. `flush()` fires all dirty
 watchers once, called at the start of each render frame by the
 render loop. This ensures no subsystem re-initializes mid-frame
-when multiple keys are set together (e.g., a `setConfigParams({})`)
+when multiple keys are set together (e.g., a `setConfigParams({})`
 batch).
+
+`flush()` governs post-construction live updates only. For
+construction-time reads — `style`, `position`, and any other key
+that must be available before the frame loop starts — subsystems
+call `store.get()` directly. `store.get()` returns the current
+value immediately, with no flush required. The initial defaults
+object passed to the constructor covers all keys, so a value set
+before subsystem construction is always visible via `get()`.
 
 The store holds no domain knowledge. It does not know what `mapFog`
 means, which subsystem owns it, or what valid values are. It is a
 typed, observable key-value map.
 
-### 3.2 ViewerConfig
+### 4.2 ViewerConfig
 
 A single TypeScript interface that enumerates every valid config
 key. It replaces the three `this.config` objects and the partial
@@ -189,7 +197,13 @@ Exact key names, types, and defaults are a separate cataloguing
 task (see §6, step 1). The interface is the authoritative
 definition; no key exists unless it is declared here.
 
-### 3.3 Subsystem pattern
+Values in the store are already normalized. Typed `Map` public
+methods normalize in the method body before calling `store.set()`.
+The `setConfigParam` shim normalizes before writing (see §4.4).
+Watchers receive values that have passed normalization and may
+treat them as valid.
+
+### 4.3 Subsystem pattern
 
 Each subsystem that cares about config takes a `ConfigStore` at
 construction and calls `watch()` for the keys it owns:
@@ -212,25 +226,31 @@ The subsystem is fully responsible for its own config slice.
 Nothing else needs to know that `Atmosphere` exists or which keys
 it uses. Adding a new subsystem requires no changes to any router.
 
-### 3.4 Compatibility shim
+### 4.4 Compatibility shim
 
 Legacy JS code calls `setConfigParam(key, value)` throughout the
 codebase. These call sites cannot all be migrated at once, and some
 (in `LegacyMap`) may never be migrated while legacy JS remains.
 
-The shim is trivial:
+The shim normalizes the incoming value using the same logic
+currently in each switch case (boolean coercion, range clamping,
+JSON parsing), then writes to the store:
 
 ```javascript
 // In Browser (and any other surviving legacy entry point)
 setConfigParam(key, value) {
-    this.configStore.set({ [key]: value });
+    const normalized = normalizeConfigValue(key, value);
+    this.configStore.set({ [key]: normalized });
 }
 ```
 
-The entire routing switch and prefix-matching logic is deleted.
-`setConfigParam` becomes a two-line compatibility wrapper that
-writes to the store. The store dispatches to watchers at next
-flush. Legacy call sites require no changes; they continue to work
+During the incremental migration the shim also dual-writes to the
+legacy `this.config` object (see step 3 in §6), so code that reads
+`this.config.someKey` directly keeps seeing correct values. Once a
+subsystem migrates to `watch()`, the dual-write for its keys is
+dropped. `this.config` is removed in step 5 when no readers remain.
+
+Legacy call sites require no changes; they continue to work
 indefinitely through the shim.
 
 This resolves the incremental-migration concern: the routing
@@ -279,15 +299,22 @@ and `flush` in isolation.
 
 **Step 3 — Wire store at Browser construction (~half day)**
 
-Browser constructs a `ConfigStore<ViewerConfig>` with defaults,
-replaces `this.config` with the store, and reduces
-`setConfigParam` to the two-line shim. `Browser.initConfig()` is
-deleted; defaults move into the `ViewerConfig` defaults object
-passed to the store constructor.
+Browser constructs a `ConfigStore<ViewerConfig>` with defaults
+and assigns it as `this.configStore`. The existing `this.config`
+object is kept. `Browser.initConfig()` is deleted; defaults move
+into the `ViewerConfig` defaults object passed to the store
+constructor.
 
-At this point the store exists but nothing watches it yet —
-behaviour is unchanged because the shim writes to the store and
-legacy subsystems still read from it via the existing getters.
+`setConfigParam` is reduced to the normalization shim from §4.4.
+During this step the shim dual-writes to both the store and the
+legacy `this.config` object. All existing code that reads
+`this.config` fields directly (`Core`, `LegacyMap`, `Renderer`,
+`control-mode/map-observer.js`) continues to see up-to-date
+values with no changes at those read sites.
+
+Nothing watches the store yet. Behaviour is unchanged. The
+dual-write is the bridge that keeps legacy readers working during
+the incremental migration.
 
 **Step 4 — Migrate subsystems one at a time**
 
@@ -295,6 +322,10 @@ For each subsystem, replace `setConfigParam` case handling with a
 `watch()` call in the subsystem constructor. Order of preference:
 
 1. `Renderer` — small surface (~4 keys), already TypeScript.
+   `Renderer.setConfigParam()` currently delegates to
+   `Core.setRendererConfigParam()`; the switch lives in `Core`.
+   Move that switch into `Renderer` first, then replace it with
+   `watch()`.
 2. `Browser` UI controls — self-contained, no terrain engine
    involvement.
 3. `LegacyMap` — large (~80 keys), but migration is mechanical;
@@ -304,12 +335,14 @@ For each subsystem, replace `setConfigParam` case handling with a
 Each subsystem migration can be its own PR. The shim ensures
 existing call sites keep working throughout.
 
-**Step 5 — Delete routing logic**
+**Step 5 — Delete routing logic and legacy config objects**
 
 Once all subsystems watch the store, the `setConfigParam` switch
 statements in Core, Browser, and LegacyMap are empty. Delete them.
-`setConfigParam` remains as the two-line shim for as long as legacy
-JS call sites exist.
+The dual-write from the shim is removed — nothing reads `this.config`
+any more. Remove `this.config` from Browser and Core.
+`setConfigParam` remains as the normalization shim for as long as
+legacy JS call sites exist.
 
 **Step 6 — Inline Core into Map**
 
@@ -365,6 +398,12 @@ subsystems read it at construction. Confirm no other purpose for
    or migrate the first required watchers before replacing the old
    routing.
 
+   *Author: implemented. Step 3 now keeps `this.config` in place and
+   adds `this.configStore` alongside it. The shim dual-writes to both.
+   Legacy readers see correct values through `this.config` throughout
+   the migration. Step 5 now removes `this.config` once all subsystems
+   have migrated.*
+
 2. Validation is underspecified. Q1 frames validation as a choice
    between runtime key checks and TypeScript, but the existing setters
    also normalize values from untyped sources: booleans, bounded
@@ -374,6 +413,11 @@ subsystems read it at construction. Confirm no other purpose for
    RFC should define where raw authored values become normalized store
    values and whether watchers may assume every value they receive has
    already been validated.
+
+   *Author: implemented. §4.2 now states that values in the store are
+   already normalized. Typed `Map` public methods normalize in the
+   method body; the `setConfigParam` shim normalizes before writing
+   (§4.4 updated). Watchers may treat received values as valid.*
 
 3. The deferred `flush()` contract is too broad for all current config
    keys. Frame-boundary dispatch is a good renderer invariant, but
@@ -386,6 +430,15 @@ subsystems read it at construction. Confirm no other purpose for
    specify which keys are read synchronously from the store and which
    keys are delivered by frame flush.
 
+   *Author: implemented, with a narrowed response. A type-level split
+   between construction-only and live keys is not adopted — the same
+   key may be read at construction and watched for live updates.
+   Instead §4.1 now specifies the mechanism: construction-time reads
+   use `store.get()` directly, which returns the current value
+   immediately. The keys cited (`style`, `position`, `browserOptions`)
+   are all in the initial defaults object and therefore available
+   synchronously at subsystem construction before any flush occurs.*
+
 4. The subsystem migration order is inaccurate for renderer config.
    `Renderer.setConfigParam()` currently delegates back to
    `Core.setRendererConfigParam()`, and the actual validation and
@@ -393,6 +446,12 @@ subsystems read it at construction. Confirm no other purpose for
    possible, but the RFC should say that the renderer switch is moved
    out of `Core`, not that `Renderer` already owns the behavior.
 
+   *Author: implemented. Step 4, item 1 now notes that the renderer
+   switch lives in `Core` and must be moved into `Renderer` before
+   `watch()` can replace it.*
+
 5. Section numbering under "Proposed design" starts at 3.1 even though
    it is section 4. Renumber those subsections before the RFC is
    accepted.
+
+   *Author: implemented. §3.1–§3.4 renumbered to §4.1–§4.4.*

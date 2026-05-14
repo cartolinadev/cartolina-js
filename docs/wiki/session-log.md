@@ -9,10 +9,12 @@ updated to exclude `settings.local.json`, which contains personal data
 
 ---
 
-## 2026-05-14 — RFC: config store, round 1 review notes
+## 2026-05-14 — RFC: config store, address round 1 reviewer notes
 
-Round 1 review notes added to rfc-config-store.md. Status changed
-from Draft to In review.
+All five round 1 reviewer notes addressed in-place. Design sections
+updated: dual-write bridge in step 3, normalization boundary in §4.2
+and §4.4, flush scope clarified in §4.1, renderer switch location
+corrected in step 4, section numbering fixed throughout §4.
 
 ---
 
