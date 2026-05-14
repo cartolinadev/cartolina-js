@@ -1,8 +1,9 @@
 # Session log
 
-## 2026-05-14 — RFC: config store, round 2 review notes
+## 2026-05-14 — RFC: config store, address round 2 reviewer notes
 
-Round 2 review note added to rfc-config-store.md.
+Shim in §4.4 corrected to include Core forwarding for non-Browser
+keys alongside the store write and dual-write. Step 3 updated.
 
 ---
 

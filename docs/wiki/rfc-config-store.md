@@ -234,21 +234,27 @@ codebase. These call sites cannot all be migrated at once, and some
 
 The shim normalizes the incoming value using the same logic
 currently in each switch case (boolean coercion, range clamping,
-JSON parsing), then writes to the store:
+JSON parsing), then writes to the store. During the incremental
+migration it also keeps the old routing working:
 
 ```javascript
-// In Browser (and any other surviving legacy entry point)
+// In Browser — full bridge shim for steps 3–4
 setConfigParam(key, value) {
     const normalized = normalizeConfigValue(key, value);
     this.configStore.set({ [key]: normalized });
+    // dual-write: keep Browser readers seeing correct values
+    this.config[key] = normalized;
+    // forward non-Browser keys through the old Core route
+    // until the corresponding subsystem migrates to watch()
+    if (!isBrowserKey(key)) {
+        this.core.setConfigParam(key, normalized);
+    }
 }
 ```
 
-During the incremental migration the shim also dual-writes to the
-legacy `this.config` object (see step 3 in §6), so code that reads
-`this.config.someKey` directly keeps seeing correct values. Once a
-subsystem migrates to `watch()`, the dual-write for its keys is
-dropped. `this.config` is removed in step 5 when no readers remain.
+As each subsystem migrates to `watch()` in step 4, the forwarding
+call for its key group is removed from the shim. `this.config` and
+the forwarding call are both gone by step 5.
 
 Legacy call sites require no changes; they continue to work
 indefinitely through the shim.
@@ -305,16 +311,14 @@ object is kept. `Browser.initConfig()` is deleted; defaults move
 into the `ViewerConfig` defaults object passed to the store
 constructor.
 
-`setConfigParam` is reduced to the normalization shim from §4.4.
-During this step the shim dual-writes to both the store and the
-legacy `this.config` object. All existing code that reads
-`this.config` fields directly (`Core`, `LegacyMap`, `Renderer`,
-`control-mode/map-observer.js`) continues to see up-to-date
-values with no changes at those read sites.
+`setConfigParam` is replaced by the full bridge shim from §4.4.
+The shim writes to the store, dual-writes to `this.config` for
+Browser-local readers (`control-mode/map-observer.js`), and
+forwards all non-Browser keys to `Core.setConfigParam` through
+the existing route. `Core`, `LegacyMap`, and `Renderer` config
+objects are updated exactly as before.
 
-Nothing watches the store yet. Behaviour is unchanged. The
-dual-write is the bridge that keeps legacy readers working during
-the incremental migration.
+Nothing watches the store yet. Behaviour is unchanged.
 
 **Step 4 — Migrate subsystems one at a time**
 
@@ -470,3 +474,9 @@ subsystems read it at construction. Confirm no other purpose for
    forwarding those keys through the old route, or Step 3 must include
    the first watchers needed to replace that route. Otherwise Step 3 is
    not behavior-preserving.
+
+   *Author: implemented. §4.4 shim now shows all three bridge
+   operations: store write, `this.config` dual-write, and forwarding
+   of non-Browser keys to `Core.setConfigParam`. Step 3 updated to
+   match. The forwarding call is removed per key-group in step 4 as
+   each subsystem migrates.*
