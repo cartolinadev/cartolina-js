@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-14 — RFC: event bus, sign-off and editorial cleanup
+
+Reviewer signed off on architecture and implementation direction. Two
+editorial fixes: step 2 wording aligned with section 6.2 on `unknown`
+payloads; `ViewerEventMap` open question closed (step 2 already commits
+to the rename). Status updated to "Accepted — ready to implement."
+
+---
+
 ## 2026-05-14 — RFC: event bus, round 2 reviewer responses
 
 Three notes addressed. Exception behavior contradiction in 4C resolved:

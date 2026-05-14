@@ -1,6 +1,6 @@
 # RFC: event bus — extraction and redesign
 
-**Status:** Draft
+**Status:** Accepted — ready to implement
 **Context:** event bus section in [architecture.md](architecture.md);
 `core.js` suppression track in [backlog.md](backlog.md)
 
@@ -471,7 +471,8 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
 1. Write `EventBus<M>` in `src/core/event-bus.ts`. Unit-test
    snapshot-at-dispatch, `once` auto-removal, and unsubscribe.
 2. Rename `CoreEventMap` to `ViewerEventMap` in `src/core/types.ts`.
-   Add all missing events. Replace all `unknown` payload entries.
+   Add all missing events. Type known payload fields; leave `unknown`
+   where the source is still untyped ES5.
 3. Add `bus_: EventBus<ViewerEventMap>` to `Map`. Implement `Map.on()`,
    `Map.once()`, `Map.emit()` delegating to `bus_`. Change return types
    of `Map.once()` and `Viewer.once()` to `() => void`.
@@ -494,10 +495,6 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
 ---
 
 ## 8. Open questions
-
-**`ViewerEventMap` rename.** `CoreEventMap` is a misnomer once the bus
-moves to `Map`. `ViewerEventMap` is proposed; confirm before the
-implementation step that renames the type and all its imports.
 
 **Exception isolation in `emit`.** One listener throwing currently aborts
 remaining listeners in `callListener`. The new `EventBus.emit` has the
@@ -630,3 +627,23 @@ addressed, but three points remain.
   source is untyped ES5.*
 
 With those changes, the design is ready to implement.
+
+---
+
+## 11. Review round 3 — sign-off
+
+Architecture and implementation direction signed off. Two editorial
+cleanup comments, not design blockers.
+
+- Step 2 still says "Replace all `unknown` payload entries" but section
+  6.2 correctly keeps `unknown` for legacy ES5 payloads.
+
+  *Author: fixed. Step 2 now says "type known payload fields; leave
+  `unknown` where the source is still untyped ES5."*
+
+- `ViewerEventMap` is listed as an open question but step 2 already
+  commits to the rename. Either close the question or make step 2
+  conditional.
+
+  *Author: open question closed. Step 2 commits to the rename; no
+  further confirmation needed.*
