@@ -1,5 +1,37 @@
 # Session log
 
+## 2026-05-14 — Post-commit review: remove destroy(), document legacy shims
+
+### Goal
+
+Act on architectural review findings from the previous commit.
+
+### What changed
+
+**`src/browser/viewer.ts`**: removed `destroy()`. It had no external API
+history to protect; the only internal caller (waypoint demo) was already
+updated to `[Symbol.dispose]()` in the prior commit. The `[Symbol.dispose]()`
+JSDoc now mentions the `using` declaration as the block-scoped form.
+The `ui`, `autopilot`, and `presenter` getters are marked `@deprecated`
+and their section comment explains they are temporary shims pending
+promotion to flat typed `Viewer` methods.
+
+**`docs/wiki/backlog.md`**: new item tracks promotion of `ui`,
+`autopilot`, and `presenter` to flat `Viewer` methods, with a priority
+order (autopilot first — one call site in the waypoint demo).
+
+**`.husky/pre-commit`**: wired the session log check that existed in
+`.git/hooks/pre-commit` (dead, bypassed by husky) into the active husky
+hook. The check blocks commits where `docs/wiki/session-log.md` is not
+staged. Set `SKIP_SESSION_LOG=1` to bypass for commits where no log
+entry is warranted.
+
+### Finding
+
+The session log check was written into `.git/hooks/pre-commit` but the
+repo uses `hooksPath = .husky`, so it never ran. The husky hook only
+performed the version bump.
+
 ## 2026-05-14 — Viewer disposal and Browser config construction
 
 ### Goal

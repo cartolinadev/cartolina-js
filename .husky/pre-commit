@@ -7,6 +7,15 @@ if git diff --cached --quiet; then
   exit 1
 fi
 
+# Require session log to be staged (set SKIP_SESSION_LOG=1 to bypass)
+if [ -z "$SKIP_SESSION_LOG" ]; then
+  if ! git diff --cached --name-only | grep -q '^docs/wiki/session-log\.md$'; then
+    echo "pre-commit: docs/wiki/session-log.md is not staged."
+    echo "Update the session log before committing, or set SKIP_SESSION_LOG=1."
+    exit 1
+  fi
+fi
+
 # Now do the version bump
 node scripts/bump-version-pre-commit.js
 git add package.json src/core/version.js
