@@ -131,6 +131,44 @@ Additionally, `viewer.ts` initially delegated `createGeodata` through
 `legacyMap_` (the `LegacyMap` terrain engine object). `createGeodata` is
 on `MapInterface`, not `LegacyMap`. Fixed to use `legacyMapInterface_`.
 
+### Follow-up: code review cleanup (2026-05-14)
+
+Two follow-up commits addressed issues found during code review of the
+session above.
+
+**`src/core/renderer/gpu/device.ts`**: `GpuDevice.checkSupport()` is now
+a static method on `GpuDevice`, where the capability actually lives. The
+`canvas == null` and `canvas.getContext == null` guards in `init()` were
+dead code — both checks are unreachable on any supported browser —
+and were removed.
+
+**`src/browser/browser.js`**: `GpuDevice.checkSupport()` is called before
+`new UI()`, so a failed probe throws before any DOM nodes are inserted
+into the caller's container. `setConfigParams(config, true)` is moved
+back to before `new Map()` so `this.config` is fully populated before
+construction. The debug-forwarding branch is guarded with `this.core`
+so the call is safe at any point in the constructor. `getProj4` removed.
+
+**`src/core/core.js`**: `checkSupport` function and its export removed.
+The `Proj4` import, `this.proj4` property, and `getProj4` method removed.
+
+**`src/browser/index.ts`**: `checkSupport` removed from the public
+namespace. It was a pre-flight helper that predates throw-on-failure
+construction; callers who need capability detection can try/catch.
+
+**`src/core/map/map.js`**, **`refframe.js`**: dead `this.proj4`
+assignments removed. `getProj4()` was a pass-through that returned the
+imported `proj4` module; callers now import it directly.
+
+**`src/core/map/srs.js`**, **`src/core/map/geodata-builder.js`**,
+**`src/browser/ui/control/search.js`**: `import proj4 from 'proj4'`
+added; `this.proj4(...)` and `this.map.proj4(...)` call sites replaced
+with the direct import.
+
+**`src/core/map.ts`**: stale `core()` factory reference removed from the
+class doc (the vts-core.js build that exported that factory is gone).
+`assertAlive_()` got a missing doc comment.
+
 ### Current state
 
 TypeScript passes. All three screenshot tests pass against a freshly

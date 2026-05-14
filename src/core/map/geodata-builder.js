@@ -1,5 +1,6 @@
 
 //import Delaunator_ from './geodata-utils';
+import proj4 from 'proj4';
 import MapGeodataGeometry_ from './geodata-geometry';
 import MapGeodataImportGeoJSON_ from './geodata-import/geojson';
 import MapGeodataImportVTSGeodata_ from './geodata-import/vts-geodata';
@@ -426,9 +427,9 @@ MapGeodataBuilder.prototype.addPolygon2 = function(shape, holes, middle, heightM
     //convert shape and holes to flat space
     if (srs.indexOf('+proj=longlat') != -1) {
         projected = false;
-        //proj = this.map.proj4(srs, '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
-        //proj = this.map.proj4(srs, '+proj=merc +lat_ts=' + center[1] + ' +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
-        proj = this.map.proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
+        //proj = proj4(srs, '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
+        //proj = proj4(srs, '+proj=merc +lat_ts=' + center[1] + ' +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
+        proj = proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
     }
 
     var c = document.getElementById("dbg-canvas");
@@ -595,7 +596,7 @@ MapGeodataBuilder.prototype.addPolygon4 = function(shape, holes, middle, heightM
     //convert shape and holes to flat space
     if (srs.indexOf('+proj=longlat') != -1) {
         projected = false;
-        proj = this.map.proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
+        proj = proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
     }
 
     var totalPoints = shape.length*3;
@@ -874,8 +875,8 @@ MapGeodataBuilder.prototype.addPolygon3 = function(shape, holes, middle, heightM
     //convert shape and holes to flat space
     if (srs.indexOf('+proj=longlat') != -1) {
         projected = false;
-        proj = this.map.proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
-        //proj = this.map.proj4(srs, '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
+        proj = proj4(srs, '+proj=geocent +datum=WGS84 +units=m +no_defs');
+        //proj = proj4(srs, '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs');
     }
 
     var totalPoints = shape.length*3;

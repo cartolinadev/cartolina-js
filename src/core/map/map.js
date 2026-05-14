@@ -28,7 +28,6 @@ var Map = function(core, path, config, configStorage) {
     this.config = config || {};
     this.setConfigParams(config);
     this.core = core;
-    this.proj4 = this.core.getProj4();
     this.coreConfig = core.coreConfig;
     this.killed = false;
     this.config = config || {};

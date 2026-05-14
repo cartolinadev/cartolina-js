@@ -7,7 +7,6 @@ var MapDivisionNode = MapDivisionNode_;
 
 var MapRefFrame = function(map, json) {
     this.map = map;
-    this.proj4 = map.proj4;
     this.valid = false;
     this.id = json['id'] || null;
     this.description = json['description'] || '';

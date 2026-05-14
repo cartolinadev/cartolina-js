@@ -1,4 +1,5 @@
 
+import proj4 from 'proj4';
 import Dom_ from '../../utility/dom';
 import * as utils from '../../../core/utils/utils';
 import {filterSearch as filterSearch_, nofilterSearch as nofilterSearch_} from './search-filter';
@@ -190,7 +191,6 @@ UIControlSearch.prototype.onSelectItem = function(index) {
     var physicalSrsId = refFrame['physicalSrs'];
     var physicalSrs = map.getSrsInfo(physicalSrsId);
 
-    var proj4 = this.browser.getProj4();
     var srs = this.browser.config.controlSearchSrs || this.coordsSrs;
     srs = this.solveSRS(srs);
 
@@ -329,8 +329,7 @@ UIControlSearch.prototype.onListLoaded = function(counter, data) {
         var navigationSrsId = refFrame['navigationSrs'];
         var navigationSrs = map.getSrsInfo(navigationSrsId);
 
-        var proj4 = this.browser.getProj4();
-        var srs = this.browser.config.controlSearchSrs || this.coordsSrs;
+            var srs = this.browser.config.controlSearchSrs || this.coordsSrs;
         srs = this.solveSRS(srs);
 
         var coords = proj4(navigationSrs['srsDef'], srs, pos.getCoords());

@@ -29,6 +29,8 @@ var Browser = function(element, config) {
         this.element.style.position = 'relative';
     }
 
+    this.setConfigParams(config, true);
+
     if (!GpuDevice.checkSupport()) {
         throw new Error('cartolina-js requires WebGL2.');
     }
@@ -38,7 +40,6 @@ var Browser = function(element, config) {
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
     this.core = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
-    this.setConfigParams(config, true);
     
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
@@ -84,10 +85,6 @@ Browser.prototype.getRenderer = function() {
     return this.core.core.renderer;
 };
 
-
-Browser.prototype.getProj4 = function() {
-    return this.core.core.getProj4();
-};
 
 
 Browser.prototype.getUI = function() {
@@ -465,7 +462,7 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
             this.getRenderer().setConfigParam(key, value);
         }
 
-        if (key.indexOf('debug') == 0) {
+        if (key.indexOf('debug') == 0 && this.core) {
             this.core.core.setConfigParam(key, value);
         }
 

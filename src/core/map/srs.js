@@ -1,4 +1,5 @@
 
+import proj4 from 'proj4';
 import MapTexture_ from './texture';
 import * as math from '../utils/math';
 import GeographicLib_ from 'geographiclib';
@@ -11,7 +12,6 @@ var GeographicLib = GeographicLib_;
 var MapSrs = function(map, id, json) {
     this.map = map;
     this.id = id;
-    this.proj4 = map.proj4;
     this.comment = json['comment'] || null;
     this.srsDef = json['srsDef'] || null;
     this.srsModifiers = json['srsModifiers'] || [];
@@ -25,13 +25,13 @@ var MapSrs = function(map, id, json) {
     // mindboggling, but this is the semantic equivalent of the commented-out line below
     // (from former melowntech-proj4)
     this.srsProj4 = this.srsDef;
-    //this.srsProj4 = this.proj4(this.srsDef, null, null, true);
+    //this.srsProj4 = proj4(this.srsDef, null, null, true);
     this.latlonProj4 = null; 
     this.proj4Cache = {};
 
 
     // melowntech-proj4 provided a non-standard info method, we raplace it here
-    const _proj = this.proj4(this.srsDef);
+    const _proj = proj4(this.srsDef);
 
     this.srsInfo = {
           "a": _proj.oProj.a,
@@ -70,7 +70,7 @@ var MapSrs = function(map, id, json) {
             // mindboggling, but this seems to be the semantic equivalent of the commented-out line below
             // (from former melowntech-proj4)
             this.geoidGrid.srsProj4 = this.geoidGrid.srsDefEllps;
-            //this.geoidGrid.srsProj4 = this.proj4(this.geoidGrid.srsDefEllps, null, null, true);
+            //this.geoidGrid.srsProj4 = proj4(this.geoidGrid.srsDefEllps, null, null, true);
         }
     }
 
@@ -152,7 +152,7 @@ MapSrs.prototype.getFinalHeight = function(coords) {
 MapSrs.prototype.getGeoidGridDelta = function(coords) {
     if (this.geoidGridMap != null && this.isGeoidGridReady()) {
         //get cooords in geoidGrid space
-        var mapCoords = this.proj4(this.srsProj4, this.geoidGrid.srsProj4, [coords[0], coords[1]]);
+        var mapCoords = proj4(this.srsProj4, this.geoidGrid.srsProj4, [coords[0], coords[1]]);
 
         //get image coords
         var px = mapCoords[0] - this.geoidGrid.extents.ll[0];
@@ -205,10 +205,10 @@ MapSrs.prototype.getVerticalAdjustmentFactor = function(coords) {
                           ' +x0=0 +y0=0';
 
         if (!this.latlonProj4) {
-            this.latlonProj4 = this.proj4(latlonProj, null, null, true); 
+            this.latlonProj4 = proj4(latlonProj, null, null, true); 
         }
 
-        var coords2 = this.proj4(this.srsProj4, this.latlonProj4, [coords[0], coords[1]]);
+        var coords2 = proj4(this.srsProj4, this.latlonProj4, [coords[0], coords[1]]);
 
         //move coors 1000m
         var geod = new GeographicLib.Geodesic.Geodesic(info['a'],
@@ -219,7 +219,7 @@ MapSrs.prototype.getVerticalAdjustmentFactor = function(coords) {
         coords2 = [r.lon2, r.lat2];
 
         //convet coords from latlon back to projected
-        coords2 = this.proj4(this.latlonProj4, this.srsProj4, coords2);
+        coords2 = proj4(this.latlonProj4, this.srsProj4, coords2);
 
         //get distance between coords
         var dx = coords2[0] - coords[0];
@@ -267,12 +267,12 @@ MapSrs.prototype.convertCoordsTo = function(coords, srs, skipVerticalAdjust) {
 
 
     var srsDef2 = (stringSrs) ? srs : srs.srsDef;
-    //var coords2 = this.proj4(this.srsProj4, srsDef, coords);
+    //var coords2 = proj4(this.srsProj4, srsDef, coords);
 
     var proj = this.proj4Cache[srsDef2];
     
     if (!proj) {
-        proj = this.proj4(this.srsProj4, srsDef);
+        proj = proj4(this.srsProj4, srsDef);
         this.proj4Cache[srsDef2] = proj;
     }
 
@@ -306,7 +306,7 @@ MapSrs.prototype.convertCoordsToFast = function(coords, srs, skipVerticalAdjust,
     var proj = this.proj4Cache[srsDef2];
     
     if (!proj) {
-        proj = this.proj4(this.srsProj4, srsDef);
+        proj = proj4(this.srsProj4, srsDef);
         this.proj4Cache[srsDef2] = proj;
     }
 
@@ -346,12 +346,12 @@ MapSrs.prototype.convertCoordsFrom = function(coords, srs) {
     var srsDef = (typeof srs === 'string') ? srs : srs.srsProj4;
     var srsDef2 = (typeof srs === 'string') ? srs : srs.srsDef;
 
-    //var coords2 = this.proj4(srsDef, this.srsProj4, coords);
+    //var coords2 = proj4(srsDef, this.srsProj4, coords);
 
     var proj = this.proj4Cache[srsDef2];
     
     if (!proj) {
-        proj = this.proj4(this.srsProj4, srsDef);
+        proj = proj4(this.srsProj4, srsDef);
         this.proj4Cache[srsDef2] = proj;
     }
 

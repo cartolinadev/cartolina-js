@@ -81,6 +81,11 @@ longer check the factory result for falsiness.
 `Map` keeps its `Core` reference non-null; after disposal, public
 methods throw instead of returning `null`.
 
+`GpuDevice.checkSupport()` is the canonical pre-flight probe; it is
+called by `Browser` before DOM insertion. The legacy `checkSupport`
+function in `core.js` and its re-export from the public namespace are
+removed.
+
 ### Remaining
 
 Remove optional chains and `null` returns that only guard against missing

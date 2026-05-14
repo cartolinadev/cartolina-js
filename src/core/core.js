@@ -1,4 +1,3 @@
-import Proj4 from 'proj4';
 import Map from './map/map';
 import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
@@ -150,7 +149,6 @@ var Core = function(element, config) {
     this.map = null;
     this.mapInterface = null;
     this.renderer = new Renderer(this, this.element, this.config);
-    this.proj4 = Proj4;
     this.contextLost = false;
 
     //platform detection
@@ -187,6 +185,7 @@ var Core = function(element, config) {
 
     this.requestAnimFrame.call(window, this.onUpdate.bind(this));
 };
+
 Core.prototype.loadMapFromStyle = async function(style) {
 
     let style_ = style;
@@ -403,9 +402,6 @@ Core.prototype.getRenderer = function() {
 
 
 
-Core.prototype.getProj4 = function() {
-    return this.proj4;
-};
 
 
 Core.prototype.getOption = function(/*key, value*/) {
@@ -650,43 +646,4 @@ function getCoreVersion(full) {
 }
 
 
-/*
-bool checkSupport()
-
-    Returns true if the environment is capable of running the WebGL browser, false otherwise.
-*/
-
-function checkSupport() {
-    platform.init();
-
-    //is webgl supported
-    var canvas = document.createElement('canvas');
-
-    if (canvas == null) {
-        return false;
-    }
-
-    canvas.width = 1024;
-    canvas.height = 768;
-
-    if (canvas.getContext == null) {
-        return false;
-    }
-
-    var gl = null;
-
-    try {
-        gl = canvas.getContext('webgl2');
-    } catch(e) {
-        return false;
-    }
-
-    if (!gl) {
-        return false;
-    }
-
-    return true;
-}
-
-
-export {Core,getCoreVersion,checkSupport};
+export {Core,getCoreVersion};

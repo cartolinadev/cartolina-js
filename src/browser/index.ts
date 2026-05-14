@@ -9,7 +9,7 @@ import Viewer from './viewer';
 export type { default as Map } from './viewer';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
-import {getCoreVersion, checkSupport} from '../core/core';
+import {getCoreVersion} from '../core/core';
 
 import proj4 from 'proj4';
 import earcut from 'earcut';
@@ -205,5 +205,5 @@ export function configFromUrl(
         MapRuntimeOptions & Partial<BrowserConfig>;
 }
 
-export {vec2, vec3, vec4, mat3, mat4, math, utils, getCoreVersion, checkSupport,
+export {vec2, vec3, vec4, mat3, mat4, math, utils, getCoreVersion,
     proj4, earcut, platform, dom};
