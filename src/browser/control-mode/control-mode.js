@@ -18,17 +18,19 @@ var ControlMode = function(browser) {
     this.shiftKey = false;
     this.ctrlKey = false;
 
-    this.mapElement.on('drag', this.onDrag.bind(this));
-    //this.mapElement.on('dragstart', this.onDragStart.bind(this));
-    //this.mapElement.on('dragend', this.onDragEnd.bind(this));
-    this.mapElement.on('mousedown', this.onDown.bind(this));
-    this.mapElement.on('mouseup', this.onUp.bind(this));
-    this.mapElement.on('mousewheel', this.onWheel.bind(this));
-    this.mapElement.on('keyup', this.onKeyUp.bind(this), window);
-    this.mapElement.on('keydown', this.onKeyDown.bind(this), window);
-    this.mapElement.on('keypress', this.onKeyPress.bind(this), window);
-    this.mapElement.on('dblclick', this.onDoubleClick.bind(this), window);
-    this.browser.on('tick', this.onTick.bind(this));
+    if (browser.config.interactive !== false) {
+        this.mapElement.on('drag', this.onDrag.bind(this));
+        //this.mapElement.on('dragstart', this.onDragStart.bind(this));
+        //this.mapElement.on('dragend', this.onDragEnd.bind(this));
+        this.mapElement.on('mousedown', this.onDown.bind(this));
+        this.mapElement.on('mouseup', this.onUp.bind(this));
+        this.mapElement.on('mousewheel', this.onWheel.bind(this));
+        this.mapElement.on('keyup', this.onKeyUp.bind(this), window);
+        this.mapElement.on('keydown', this.onKeyDown.bind(this), window);
+        this.mapElement.on('keypress', this.onKeyPress.bind(this), window);
+        this.mapElement.on('dblclick', this.onDoubleClick.bind(this), window);
+        this.browser.on('tick', this.onTick.bind(this));
+    }
 
     this.controlModes = {};
     this.currentCotnrolModeId = 'map-observer';

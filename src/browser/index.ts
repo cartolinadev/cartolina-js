@@ -63,7 +63,15 @@ export type MapOptions = {
      * Any of the valid options controling the various rendering
      * components (browser, core, renderer, etc.)
      */
-    options?: MapRuntimeOptions
+    options?: MapRuntimeOptions,
+
+    /**
+     * When `false`, cartolina registers no mouse, keyboard, or touch
+     * event listeners on the map element. The application is responsible
+     * for all camera control. Mirrors the MapLibre GL JS convention.
+     * Defaults to `true`.
+     */
+    interactive?: boolean,
 }
 
 /**
@@ -91,11 +99,11 @@ export function map(options: MapOptions): Viewer | null {
         style: options.style,
         ...dflts,
         ...options.options,
-        position: options.position
+        position: options.position,
+        interactive: options.interactive ?? true,
     });
 
-    // return
-    return (vi as any)._core ? vi : null;
+    return vi;
 }
 
 /**
@@ -138,7 +146,7 @@ export function browser(
 ): Viewer | null {
 
     var vi = new Viewer(element, config);
-    return (vi as any)._core ? vi : null;
+    return vi;
 }
 
 /**

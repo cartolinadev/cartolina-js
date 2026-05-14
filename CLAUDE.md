@@ -16,6 +16,25 @@ Before declaring a task complete, verify that all test URLs still render
 correctly (see [Test applications](AGENTS.md#test-applications) in
 AGENTS.md). Report any visual regressions and console errors found.
 
+**Critical:** the dev server (`npm start`) serves its last successful
+webpack compilation. If any compilation error appears in the screenshot
+test output — even apparently unrelated ones — the server is serving
+stale code. Stop. Do not report those tests as valid.
+
+The correct pre-test sequence when source files have changed:
+
+1. Run `npx tsc --noEmit` and fix all type errors first.
+2. Restart the dev server so it picks up any `webpack.config.js`
+   changes and compiles fresh: stop the running server, then
+   `npm start` again (or ask the user to do so).
+3. Confirm the first screenshot test output contains no webpack
+   compilation errors before declaring results valid.
+
+Note: `npx tsc` only checks TypeScript files. JavaScript files
+(`browser.js`, `interface.js`, etc.) are not checked by tsc. Bugs in
+those files will not be caught by type checking alone — they require
+the screenshot tests to exercise the affected code paths.
+
 ## Shell commands
 
 The following categories of commands may be run without requesting

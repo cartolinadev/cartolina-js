@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>cartolina-js: non-interactive demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet"/>
+<style>
+  body { margin: 0; padding: 0; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  #coords {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font: 13px/1.4 monospace;
+    border-radius: 4px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="coords">click map for coordinates</div>
+<script>
+// Non-interactive demo: cartolina renders the map; this script wires
+// all camera control and vector overlay by hand.
+//
+// interactive:false suppresses cartolina's built-in ControlMode event
+// listeners. Pan, orbit, zoom, hit-testing, and geodata are then the
+// application's responsibility.
+
+if (!cartolina.checkSupport()) {
+    document.body.textContent = 'WebGL2 not supported.';
+    throw new Error('WebGL2 not supported');
+}
+
+const viewer = cartolina.map({
+    container: 'map',
+    style: './style.json',
+    position: [
+        'obj', 15, 50, 'fix', 0, 0, -70, 0, 4000000, 45,
+    ],
+    interactive: false,
+});
+
+if (!viewer) {
+    document.body.textContent = 'Map initialisation failed.';
+    throw new Error('Map initialisation failed');
+}
+
+// ---- Events -----------------------------------------------------------------
+
+viewer.on('map-loaded', () => {
+    addRouteLayer();
+});
+
+// ---- Geodata: draw a triangle route over central Europe -----------------
+// Uses viewer.createGeodata() / addFreeLayer() — promoted to Viewer in
+// 2026-05. The geodata builder type is unknown pending full type promotion.
+
+function addRouteLayer() {
+    const geo = viewer.createGeodata();
+
+    // Closed triangle: Prague → Vienna → Bratislava → Prague
+    const route = [
+        [14.42,  50.09, 0],
+        [16.37,  48.21, 0],
+        [17.11,  48.15, 0],
+        [14.42,  50.09, 0],
+    ];
+
+    geo.addLineString(route, 'float', null, 'line');
+
+    const style = {
+        layers: {
+            lines: {
+                'line-color':   [255, 100, 20],
+                'line-width':   4,
+                'zbuffer-offset': [-0.5, 0],
+            },
+        },
+    };
+
+    viewer.addFreeLayer('route', geo.makeFreeLayer(style));
+}
+
+// ---- Navigation -------------------------------------------------------------
+// Left drag  = pan   (azimuth-corrected, latitude-scaled)
+// Right drag = orbit (yaw + pitch)
+// Scroll     = zoom  (view extent)
+
+const el = document.getElementById('map');
+const coordsEl = document.getElementById('coords');
+
+let drag = null;
+
+el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    drag = { x: e.clientX, y: e.clientY, button: e.button };
+});
+
+el.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('mouseup', () => { drag = null; });
+
+window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const pos = viewer.getPosition();
+    if (!pos) return;
+
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+
+    if (drag.button === 0) {
+        // Pan: screen delta → geographic delta.
+        const h = el.clientHeight || 1;
+        const factor = pos.getViewExtent() / h * 2;
+        const yaw = cartolina.math.radians(pos.getOrientation()[0]);
+        const sinA = Math.sin(yaw);
+        const cosA = Math.cos(yaw);
+        const lat  = pos.pos[2];
+
+        // Longitude degrees per metre shrinks toward the poles.
+        const lonScale = Math.cos(cartolina.math.radians(lat)) || 0.001;
+        const mPerDeg  = 111320;
+
+        pos.pos[1] -=
+            (dx * cosA - dy * sinA) * factor / lonScale / mPerDeg;
+        pos.pos[2] +=
+            (dx * sinA + dy * cosA) * factor / mPerDeg;
+
+        viewer.setPosition(pos);
+
+    } else if (drag.button === 2) {
+        // Orbit: change yaw and pitch.
+        const o = pos.getOrientation();
+        o[0] += dx * 0.3;
+        o[1] -= dy * 0.3;
+        o[1] = Math.max(-90, Math.min(0, o[1]));
+        pos.setOrientation(o);
+        viewer.setPosition(pos);
+    }
+});
+
+el.addEventListener('wheel', e => {
+    e.preventDefault();
+    const pos = viewer.getPosition();
+    if (!pos) return;
+    const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    pos.pos[8] = Math.max(500, Math.min(2e7, pos.pos[8] * factor));
+    viewer.setPosition(pos);
+}, { passive: false });
+
+// ---- Hit-testing ------------------------------------------------------------
+// Read geographic coordinates at the clicked canvas pixel.
+
+el.addEventListener('click', e => {
+    const hit = viewer.getHitCoords(e.clientX, e.clientY, 'fix');
+    if (!hit) return;
+    const [lon, lat, h] = hit;
+    coordsEl.textContent =
+        `${lat.toFixed(5)}°N  ${lon.toFixed(5)}°E  ` +
+        `${Math.round(h)} m`;
+});
+</script>
+</body>
+</html>

@@ -28,8 +28,7 @@ var plugins = [
     }),
     new CopyPlugin({
       patterns: [
-        { from: './LICENSE', to: 'cartolina.js' + (isProd ? '.min' : '') + '.LICENSE' },
-        { from: './LICENSE', to: 'vts-core.js' + (isProd ? '.min' : '') + '.LICENSE' }
+        { from: './LICENSE', to: 'cartolina.js' + (isProd ? '.min' : '') + '.LICENSE' }
       ],
     }),    
     new webpack.DefinePlugin({ 
@@ -41,7 +40,6 @@ var plugins = [
 // Base webpack config used by both outputs (global + ESM)
 const baseConfig = {
   entry: {
-    'vts-core': __dirname + '/src/core/index',
     'cartolina': __dirname + '/src/browser/index'
   },
   resolve: {

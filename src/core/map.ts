@@ -343,10 +343,7 @@ class Map {
      *   This getter will be removed when the terrain engine is absorbed
      *   into Map.
      */
-    get core(): {
-        map: LegacyMap | null;
-        renderer: Renderer | null;
-    } | null {
+    get core(): InstanceType<typeof Core> | null {
 
         __DEV__ && utils.warnOnce(
             '[Map] .core is a migration shim and will be removed. ' +

@@ -1,5 +1,116 @@
 # Session log
 
+## 2026-05-14 — Kill vts-core.js; add interactive:false; non-interactive demo
+
+### Goal
+
+Remove the separate `vts-core.js` build. Replace it with an `interactive:
+false` option on the browser build's `MapOptions` that suppresses all
+built-in event handling. Add a non-interactive demo that shows custom
+navigation, hit-testing, and geodata overlays.
+
+### What changed
+
+**Build system** (`webpack.config.js`): removed the `vts-core` entry
+point and its LICENSE copy rule. Only `cartolina` is now built.
+
+**`src/core/index.ts`**: deleted. This was the core build entry point.
+Nothing inside `src/` imported it.
+
+**`src/browser/index.ts`**: added `interactive?: boolean` to `MapOptions`
+at the top level, matching the MapLibre GL JS convention. The `map()`
+factory passes it through to `Browser` config.
+
+**`src/browser/browser.js`**:
+- `initConfig`: added `interactive: true` as a config default.
+- `setConfigParam`: added `case 'interactive'` so the flag routes to
+  `this.config` instead of forwarding to `Core`.
+- `getMap()` / `getRenderer()` / `callListener()`: these three methods
+  had stale access paths (`this.core.map`, `this.core.renderer`,
+  `this.core.callListener`) that broke when `Browser.core` changed from
+  the old `CoreInterface` object to the new `Map` boundary class. Fixed
+  to `this.core?.core?.mapInterface`, `this.core?.core?.renderer`, and
+  `this.core.core.callListener`. These were bugs introduced during
+  the session and fixed by review.
+
+**`src/browser/control-mode/control-mode.js`**: all ten event registrations
+in the `ControlMode` constructor wrapped in `if (browser.config.interactive
+!== false)`. No other changes to sub-modes.
+
+**`src/browser/viewer.ts`**:
+- Added `legacyMapInterface_` private getter — accesses `MapInterface`
+  via `this.map_?.core?.mapInterface`. This is the correct path for
+  geodata methods, which live on `MapInterface`, not `LegacyMap`.
+- Added `createGeodata()`, `addFreeLayer()`, `removeFreeLayer()` —
+  delegate through `legacyMapInterface_`. Return type of `createGeodata`
+  is `unknown` pending a TypeScript declaration for the geodata builder.
+- Renamed `includeSE` → `applyVerticalExaggeration` on
+  `convertCoordsFromNavToPhys` parameter (doc-only correction).
+- Note: `getHitCoords` was already promoted to `Viewer` before this
+  session.
+
+**`src/core/map.ts`**: `.core` getter return type widened from
+`{ map: LegacyMap | null; renderer: Renderer | null }` to
+`InstanceType<typeof Core> | null`. This exposes `mapInterface` and
+`callListener` through the shim without an unsafe cast.
+
+**`src/core/map/map.d.ts`**: added `createGeodata()` and
+`removeFreeLayer()` to the `LegacyMap` type declaration.
+
+**`src/core/renderer/renderer.ts`**: added three methods that replace
+removed `RendererInterface` methods now needed directly on `Renderer`:
+`getMarginFlags()`, `setMarginFlags()`, `getCanvasSize()`.
+
+**`demos/legacy/core/`**: deleted (both `index.html` and `demo.js`).
+
+**`demos/core/index.html`**: new non-interactive demo. Loads
+`cartolina.js` with `interactive: false`. Demonstrates pan/orbit/zoom
+wired by hand, click-to-coordinates via `getHitCoords`, and a geodata
+free layer (closed triangle route over central Europe) drawn via
+`createGeodata` / `addFreeLayer`.
+
+**`demos/core/style.json`**: style using viewfinder-dem3 with
+illumination and vertical exaggeration defaults.
+
+**`docs/wiki/architecture.md`**: two-build section replaced with
+single-build description. Two-surface section replaced with
+single-surface description. `MapInterface` correctly identified as
+still alive (not deleted). Object model diagram updated to show
+`Core.mapInterface`. Status table corrected.
+
+**`docs/wiki/core-build.md`**: rewritten as a non-interactive usage
+guide. Includes historical note on why `vts-core.js` was removed (9%
+size difference, `interactive: false` covers the same use case).
+
+**`CLAUDE.md`**: added pre-test protocol requiring a dev server restart
+after `webpack.config.js` changes, and warning that compilation errors
+in test output mean the server is serving stale code.
+
+### Known issues introduced and fixed during the session
+
+Three bugs in `browser.js` were not caught by screenshot tests because
+the dev server was serving a stale (pre-change) build at the time tests
+ran. The stale build resulted from the dev server failing to recompile
+(due to the deleted `src/core/index.ts` still being referenced in its
+cached webpack config) and falling back to the last successful output.
+The test output showed webpack compilation errors that were dismissed
+as noise; they were in fact signals that test results were invalid.
+
+The bugs:
+1. `Browser.getMap()` returned the wrong object — `this.core.map` was
+   the old CoreInterface path; correct is `this.core?.core?.mapInterface`.
+2. `Browser.getRenderer()` same issue — fixed to `this.core?.core?.renderer`.
+3. `Browser.callListener()` — fixed to `this.core.core.callListener`.
+
+Additionally, `viewer.ts` initially delegated `createGeodata` through
+`legacyMap_` (the `LegacyMap` terrain engine object). `createGeodata` is
+on `MapInterface`, not `LegacyMap`. Fixed to use `legacyMapInterface_`.
+
+### Current state
+
+TypeScript passes. All three screenshot tests pass against a freshly
+restarted dev server. The `vts-core.js` output is no longer produced.
+
 ## 2026-05-05 — Contributor documentation refresh
 
 ### Goal

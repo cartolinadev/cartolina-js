@@ -95,6 +95,14 @@ export default class Map {
     addSurface(id: string, surface: MapSurface): void;
     addBoundLayer(id: string, layer: MapBoundLayer): void;
     addFreeLayer(id: string, layer: MapSurface): void;
+    removeFreeLayer(id: string): void;
+
+    /**
+     * Creates a geodata builder for constructing vector overlays.
+     * The return type is `unknown` pending a TypeScript declaration for
+     * the geodata builder surface.
+     */
+    createGeodata(): unknown;
 
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;

@@ -22,6 +22,7 @@ import type { MapRuntimeOptionValue } from './index';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
+import type LegacyMapInterface from '../core/map/interface';
 import * as utils from '../core/utils/utils';
 
 import type {
@@ -52,6 +53,10 @@ class Viewer {
 
     private get legacyMap_(): LegacyMap | null {
         return this.map_?.core?.map ?? null;
+    }
+
+    private get legacyMapInterface_(): LegacyMapInterface | null {
+        return this.map_?.core?.mapInterface ?? null;
     }
 
     private get _renderer(): Renderer | null {
@@ -481,17 +486,18 @@ class Viewer {
      * @param pos `[x, y, z]` in navigation space
      * @param mode height mode
      * @param lod optional level-of-detail hint
-     * @param includeSE whether to apply super-elevation
+     * @param applyVerticalExaggeration whether to apply vertical exaggeration
      */
     convertCoordsFromNavToPhys(
         pos: vec3,
         mode: HeightMode,
         lod?: Lod,
-        includeSE?: boolean,
+        applyVerticalExaggeration?: boolean,
     ): vec3 | null {
 
         if (this._guard()) return null;
-        return this.map_.convertCoordsFromNavToPhys(pos, mode, lod, includeSE);
+        return this.map_.convertCoordsFromNavToPhys(
+            pos, mode, lod, applyVerticalExaggeration);
     }
 
     /**
@@ -522,6 +528,49 @@ class Viewer {
         if (this._guard()) return null;
         return this.legacyMap_?.getScreenDepth(
             screenX, screenY, dilate, undefined, 'layout') ?? null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Geodata overlays
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a geodata builder for constructing vector overlays
+     * (lines, polygons, points) to be added to the map as free layers.
+     *
+     * Return type is `unknown` pending promotion of the full geodata
+     * type surface. Use the returned builder's `addLineString`,
+     * `importGeoJson`, and `makeFreeLayer` methods directly.
+     */
+    createGeodata(): unknown {
+
+        if (this._guard()) return null;
+        return this.legacyMapInterface_?.createGeodata() ?? null;
+    }
+
+    /**
+     * Adds a free layer (vector overlay) to the map under the given id.
+     *
+     * @param id layer identifier; used to remove the layer later
+     * @param layer result of `geodataBuilder.makeFreeLayer(style)`
+     */
+    addFreeLayer(id: string, layer: unknown): this {
+
+        if (this._guard()) return this;
+        this.legacyMapInterface_?.addFreeLayer(id, layer);
+        return this;
+    }
+
+    /**
+     * Removes the free layer registered under the given id.
+     *
+     * @param id layer identifier passed to `addFreeLayer`
+     */
+    removeFreeLayer(id: string): this {
+
+        if (this._guard()) return this;
+        this.legacyMapInterface_?.removeFreeLayer(id);
+        return this;
     }
 
     // -------------------------------------------------------------------------

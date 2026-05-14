@@ -71,6 +71,46 @@ export class Renderer {
     // label-free margins on  the map: [top, right, bottom, left]
     labelFreeMargins: [number, number, number, number] = [0, 0, 0, 0];
 
+    /**
+     * Return the active renderer margin flags.
+     *
+     * These flags reserve screen edges for browser UI controls during label
+     * placement. The method replaces the removed `RendererInterface` wrapper.
+     *
+     * @returns margin flag bit mask used by `rmap.js`
+     */
+    getMarginFlags(): number {
+
+        return this.marginFlags;
+    }
+
+    /**
+     * Set the active renderer margin flags.
+     *
+     * Browser UI controls call this when their visibility changes so label
+     * placement can avoid occupied screen edges.
+     *
+     * @param flags margin flag bit mask used by `rmap.js`
+     */
+    setMarginFlags(flags: number): void {
+
+        this.marginFlags = flags;
+    }
+
+    /**
+     * Return the visible canvas size in CSS pixels.
+     *
+     * This replaces the removed `RendererInterface.getCanvasSize`, which
+     * returned a copy of the renderer's logical canvas size.
+     *
+     * @returns `[width, height]` of the active render target
+     */
+    getCanvasSize(): Size2 {
+
+        const size = this.apparentSize;
+        return [size[0], size[1]];
+    }
+
     // flags
     onlyDepth = false;
     onlyLayers = false;

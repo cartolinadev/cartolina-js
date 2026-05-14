@@ -82,12 +82,12 @@ Browser.prototype.getCore = function() {
 
 
 Browser.prototype.getMap = function() {
-    return this.core ? this.core.map : null;
+    return this.core?.core?.mapInterface ?? null;
 };
 
 
 Browser.prototype.getRenderer = function() {
-    return this.core ? this.core.renderer : null;
+    return this.core?.core?.renderer ?? null;
 };
 
 
@@ -117,7 +117,7 @@ Browser.prototype.on = function(name, listener) {
 
 
 Browser.prototype.callListener = function(name, event) {
-    this.core.callListener(name, event);
+    this.core.core.callListener(name, event);
 };
 
 
@@ -313,6 +313,7 @@ Browser.prototype.onTick = function() {
 
 Browser.prototype.initConfig = function() {
     this.config = {
+        interactive : true,
         panAllowed : true,
         rotationAllowed : true,
         zoomAllowed : true,
@@ -398,6 +399,7 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
         }
         break;
 
+    case 'interactive':            this.config.interactive = utils.validateBool(value, true);          break;
     case 'panAllowed':             this.config.panAllowed = utils.validateBool(value, true);           break;
     case 'rotationAllowed':        this.config.rotationAllowed = utils.validateBool(value, true);      break;
     case 'zoomAllowed':            this.config.zoomAllowed = utils.validateBool(value, true);          break;

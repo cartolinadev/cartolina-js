@@ -16,6 +16,13 @@ then branch into more specific documents as needed.
 - [session-log.md](session-log.md) — chronological record of significant
   work sessions and non-obvious findings
 
+### Integration guides
+
+- [core-build.md](core-build.md) — non-interactive usage with
+  `interactive: false`: factory call, position format, events,
+  navigation, geodata overlays, and historical note on the
+  removed `vts-core.js` build
+
 ### Subsystem and feature notes
 
 - [reference-frames.md](reference-frames.md) — reference frame concepts,

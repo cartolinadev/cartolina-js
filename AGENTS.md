@@ -81,8 +81,11 @@ it reflects the current state of things. Do not add session-log entries
 for trivial changes merely because they are being committed at the
 user's request.
 
-On a feature branch, commit freely — at milestones during implementation
-or after completing a step — without asking first. On the main branch,
+Commit only when the user asks, or automatically before starting a new
+unrelated body of work when uncommitted, unrelated changes already exist.
+Do not create a commit after every small change — this produces an
+unwieldy chain of micro-commits and reversals. On a feature branch,
+commit at logical milestones, not after every step. On the main branch,
 always ask before committing.
 
 Commit hooks may add version bumps to `package.json` or
@@ -629,8 +632,8 @@ codebase. Examples of banned patterns:
   named object).
 - Words that describe magnitude without content: "robust",
   "powerful", "flexible", "seamless", "scalable", "elegant".
-- Passive constructions that hide the subject: "is used to",
-  "can be leveraged", "is responsible for".
+- Speculation and vague passive constructions: "might be",
+  "typically is", "is responsible for".
 
 Instead, name the actual object and state what it does.
 Wrong: "Used by the inspector scripting layer."

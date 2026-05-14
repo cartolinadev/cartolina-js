@@ -122,22 +122,29 @@ and client: the tileserver embeds the full RF definition in every
 loads. See `reference-frames.md` for details.
 
 
-## Two-build structure
+## Build structure
 
-The webpack config produces two distinct library builds from two entry points:
+The webpack config produces one library build:
 
-| Build | Entry point | Output | Purpose |
-|---|---|---|---|
-| **Full build** | `src/browser/index.ts` | `cartolina.js` / `.esm.js` | Production library; includes UI controls, navigation, autopilot, presenter |
-| **Core build** | `src/core/index.ts` | `vts-core.js` | Headless rendering only; consumer wires their own UI and navigation |
+| Entry point | Output | Purpose |
+|---|---|---|
+| `src/browser/index.ts` | `cartolina.js` / `.esm.js` | Production library |
 
-The full build exports `map()` and `browser()`, both returning a `Viewer`
-instance. The core build exports `map()` returning a `Map` instance.
-`core()` is a deprecated alias for `map()` kept for backward compatibility
-with the original vts-browser-js core API.
+The build exports `map()`, returning a `Viewer` instance (re-exported
+as the type alias `Map`). `browser()` is a deprecated alias kept for
+backward compatibility with the vts-browser-js browser API.
 
-Worker bundles (`map-loader-worker.js`, `geodata-processor-worker.js`) are
-produced separately and are not application entry points.
+Worker bundles (`map-loader-worker.js`, `geodata-processor-worker.js`)
+are produced separately and are not application entry points.
+
+### Former core build
+
+Until 2026-05, a separate `vts-core.js` was built from
+`src/core/index.ts`. It exposed a headless `Map` class with no UI or
+input handling. It was removed because the size difference (9%) did
+not justify maintaining a separate entry point, and the same use case
+is now covered by `interactive: false` on the browser build. See
+`core-build.md` for the full rationale and migration notes.
 
 ### Browser CSS is a runtime dependency, not decoration
 
@@ -179,6 +186,8 @@ Viewer                           ← public API (src/browser/viewer.ts)
                     │     ├── convert
                     │     ├── atmosphere: Atmosphere
                     │     └── renderSlots
+                    ├── mapInterface: MapInterface ← legacy terrain API wrapper
+                    │     (src/core/map/interface.js; still alive)
                     └── renderer: Renderer  ← WebGL2 pipeline (src/core/renderer/renderer.ts)
                           └── gpu: GpuDevice
 ```
@@ -285,10 +294,12 @@ wrapper that exposed only the intended public surface. This was
 necessary because ES5 had no classes, no `private` keyword, and no
 TypeScript.
 
-That pattern is now fully retired. The `*Interface` wrappers
-(`CoreInterface`, `MapInterface`, `RendererInterface`) have all been
-deleted; their public methods were promoted directly onto the TypeScript
-`Map` class.
+That pattern is partially retired. `CoreInterface` and
+`RendererInterface` have been deleted; their public methods were
+promoted directly onto the TypeScript `Map` class. `MapInterface`
+(`src/core/map/interface.js`) still exists and is accessed via
+`Core.mapInterface`. It will be absorbed into `Map` incrementally
+as feature work touches its methods.
 
 The two remaining pairs (`Viewer` / `Browser` and `Map` / `Core`) are
 structural leftovers of the same origin, but they are not
@@ -298,22 +309,11 @@ map-engine coordinator that bootstraps `LegacyMap` and `Renderer`. Both
 are scheduled for dissolution into `Viewer` and `Map` respectively, but
 they are being absorbed incrementally as feature work touches them.
 
-### Two future public surfaces
+### One public surface
 
-The end state is two public TypeScript classes, one per build:
-
-**`Map`** — the core build public API. Absorbs everything in the current
-core layer: `Core`, `LegacyMap` (the terrain engine), and `Renderer`.
-All of those are implementation detail behind a single flat typed class.
-The legacy wrappers (`CoreInterface`, `MapInterface`, `RendererInterface`)
-have already been deleted.
-
-**`Viewer`** — the full build public API. Absorbs `BrowserInterface` and
-`Browser` (UI engine, controls, navigation, autopilot, presenter).
-Rendering and map methods from `Map` are promoted flat onto `Viewer` as
-well, following the MapLibre GL JS convention of a single entry point with
-no required sub-object access. Each promoted method must delegate through
-the `Map` public surface, not bypass it into internals.
+There is one public entry point: `Viewer`, exported as the type alias
+`Map` from `src/browser/index.ts`. It follows the MapLibre GL JS
+convention — a single flat class, no required sub-object access.
 
 ```ts
 import { map } from 'cartolina-js';
@@ -328,28 +328,26 @@ viewer.on('map-loaded', () => {
 });
 ```
 
+`Map` (`src/core/map.ts`) remains as an **internal** boundary class
+between `Browser` and the engine — it is not a public API. Its methods
+are promoted to `Viewer` as feature work touches them. The `Map.core`
+getter is a temporary migration shim that exposes engine internals while
+that promotion work is in progress; it will be removed once `LegacyMap`
+is fully absorbed.
+
 ### Current state and direction
-
-`Viewer` is done on the browser side. `Browser` is being absorbed into it.
-
-The core-side `Map` class exists as `src/core/map.ts` and replaces the
-legacy `CoreInterface` ES5 wrapper. `Viewer` holds `_core: Map` and
-`Browser` constructs `Map` directly. The `Map.core` shim gives `Viewer`
-temporary access to the terrain engine and renderer while those objects
-are absorbed into `Map`'s public surface.
-
-Every subsequent method promotion goes through `Map`, never into the
-legacy layer directly.
 
 | Name | Role | Status |
 |---|---|---|
-| `Viewer` | Full-build public API | Done; **`Browser` is to be dissolved into it** |
-| `Browser` | Legacy UI engine | **To be dissolved into `Viewer`** — no public future |
-| `Map` | Core-build public API (`src/core/map.ts`) | **Done** — replaces `CoreInterface` |
-| `CoreInterface` | Legacy public wrapper for core build | **Deleted** |
-| `Core` | Legacy map-engine coordinator | **To be dissolved into `Map`** |
-| `LegacyMap` | Terrain engine (`src/core/map/map.js`) | **To be dissolved into `Map`** |
-| `Renderer` | WebGL2 pipeline | No wrapper; public TypeScript class. **To be absorbed into `Map`** as private implementation |
+| `Viewer` | Public API | Done; **`Browser` dissolves into it** |
+| `Browser` | Legacy UI engine | **To be dissolved into `Viewer`** |
+| `Map` | Internal engine boundary | Not a public API; replaces `CoreInterface` |
+| `CoreInterface` | Legacy public wrapper | **Deleted** |
+| `MapInterface` | Legacy terrain wrapper | **Still alive**; dissolves into `Map` |
+| `RendererInterface` | Legacy renderer wrapper | **Deleted** |
+| `Core` | Map-engine coordinator | **To be dissolved into `Map`** |
+| `LegacyMap` | Terrain engine (`map/map.js`) | **To be dissolved into `Map`** |
+| `Renderer` | WebGL2 pipeline | **To be absorbed into `Map`** |
 
 The priority order for remaining work is:
 
@@ -361,20 +359,6 @@ The priority order for remaining work is:
 
 None of these happen speculatively. Each step is taken only when active
 feature work already touches that layer.
-
-### Naming
-
-Both builds expose a `Map` object. The full build re-exports `Viewer` under
-that name (`export type { default as Map } from './viewer'`); the core build
-will export its own `Map` class. The two `Map` objects have overlapping
-capabilities — the full-build one has promoted rendering methods on top of
-its UI layer — and that overlap is intentional. Consumers of either build
-get a familiar `Map` entry point; the distinction between builds is a
-deployment concern, not an API-shape concern.
-
-The internal terrain engine object (also informally `Map` in `map.js`) is
-a codebase-only conflict that disappears when it is absorbed into the new
-class.
 
 
 ## Style-based API is canonical; mapConfig and views are deprecated
