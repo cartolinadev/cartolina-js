@@ -1,5 +1,11 @@
 # Session log
 
+## 2026-05-14 — RFC: config store, round 2 review notes
+
+Round 2 review note added to rfc-config-store.md.
+
+---
+
 ## 2026-05-14 — Add .claude/settings.json; gitignore settings.local.json
 
 `.claude/settings.json` added to version control with team-wide Claude

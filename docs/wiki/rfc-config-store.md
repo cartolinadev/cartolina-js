@@ -455,3 +455,18 @@ subsystems read it at construction. Confirm no other purpose for
    accepted.
 
    *Author: implemented. §3.1–§3.4 renumbered to §4.1–§4.4.*
+
+## Review round 2
+
+1. Step 3 still drops live routing for non-Browser keys if
+   `setConfigParam` becomes only the normalization shim described in
+   §4.4. Dual-writing to `Browser.this.config` keeps Browser readers
+   working, but it does not update the separate `Core.config`,
+   `LegacyMap.config`, or renderer config objects. Current
+   `Browser.setConfigParam(key, value, true)` forwards `map*`,
+   `renderer*`, `debug*`, and `authorization` keys to the existing core
+   route so live `Viewer.setParam()` calls take effect. Until the
+   corresponding watchers exist, the compatibility shim must keep
+   forwarding those keys through the old route, or Step 3 must include
+   the first watchers needed to replace that route. Otherwise Step 3 is
+   not behavior-preserving.
