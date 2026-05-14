@@ -64,8 +64,13 @@ class Viewer {
     }
 
 
-    /** Returns true when the viewer has been destroyed. */
-    private _guard(): boolean { return this._killed; }
+    /** Throws if the viewer has been destroyed. */
+    private assertAlive_(): void {
+
+        if (this._killed) {
+            throw new Error('Viewer has been destroyed.');
+        }
+    }
 
     /**
      * Do not construct directly — use the `map()` or `browser()` factory
@@ -90,16 +95,33 @@ class Viewer {
      */
     get ready(): Promise<void> {
 
+        this.assertAlive_();
         return this.map_.ready;
     }
 
-    /** Destroys the viewer and releases all GPU and DOM resources. */
-    destroy(): void {
+    /**
+     * Destroys the viewer and releases all GPU and DOM resources.
+     *
+     * Prefer the `using` statement with `[Symbol.dispose]()` in new code.
+     */
+    [Symbol.dispose](): void {
 
-        if (this._guard()) return;
+        if (this._killed) return;
         this.map_[Symbol.dispose]();
         this._browser.kill();
         this._killed = true;
+    }
+
+    /**
+     * Destroys the viewer and releases all GPU and DOM resources.
+     *
+     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
+     */
+    destroy(): void {
+
+        __DEV__ && utils.warnOnce(
+            '[Viewer] destroy() is deprecated. Use Symbol.dispose instead.');
+        this[Symbol.dispose]();
     }
 
     // -------------------------------------------------------------------------
@@ -117,9 +139,9 @@ class Viewer {
     on<K extends keyof CoreEventMap>(
         eventName: K,
         callback: (event: CoreEventMap[K]) => void,
-    ): (() => void) | null {
+    ): (() => void) {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.on(eventName, callback);
     }
 
@@ -137,7 +159,7 @@ class Viewer {
         wait?: number,
     ): void {
 
-        if (this._guard()) return;
+        this.assertAlive_();
         this.map_.once(eventName, callback, wait);
     }
 
@@ -153,7 +175,7 @@ class Viewer {
      */
     setPosition(position: MapPosition | number[]): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this.legacyMap_?.setPosition(position);
         return this;
     }
@@ -161,7 +183,7 @@ class Viewer {
     /** Returns the current camera position as a `MapPosition` instance. */
     getPosition(): MapPosition | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.legacyMap_?.getPosition() ?? null;
     }
 
@@ -172,7 +194,7 @@ class Viewer {
     /** Marks the scene dirty, triggering a re-render on the next frame. */
     redraw(): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this.legacyMap_?.markDirty();
         return this;
     }
@@ -190,14 +212,14 @@ class Viewer {
      */
     setAtmosphere(spec: Atmosphere.Specification): void {
 
-        if (this._guard()) return;
+        this.assertAlive_();
         this.legacyMap_?.atmosphere?.setRuntimeParameters(spec);
     }
 
     /** Returns the current runtime atmosphere rendering parameters. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.legacyMap_?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
@@ -208,14 +230,14 @@ class Viewer {
      */
     setIllumination(spec: Renderer.IlluminationDef): void {
 
-        if (this._guard()) return;
+        this.assertAlive_();
         this._renderer.setIllumination(spec);
     }
 
     /** Returns the current illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this._renderer.getIllumination();
     }
 
@@ -226,14 +248,14 @@ class Viewer {
      */
     setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec): void {
 
-        if (this._guard()) return;
+        this.assertAlive_();
         this._renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration specification. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this._renderer.getVerticalExaggeration();
     }
 
@@ -244,14 +266,14 @@ class Viewer {
      */
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
-        if (this._guard()) return;
+        this.assertAlive_();
         this._renderer.setRenderingOptions(options);
     }
 
     /** Returns the current rendering options. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this._renderer.getRenderingOptions();
     }
 
@@ -266,7 +288,7 @@ class Viewer {
      */
     getScaleDenominator(extent: number): number {
 
-        if (this._guard()) return 0;
+        this.assertAlive_();
         return this._renderer.getScaleDenominator(extent);
     }
 
@@ -277,7 +299,7 @@ class Viewer {
      */
     getVeScaleFactor(position: MapPosition): number {
 
-        if (this._guard()) return 1;
+        this.assertAlive_();
         return this._renderer.getVeScaleFactor(position);
     }
 
@@ -296,7 +318,7 @@ class Viewer {
      */
     setParam(key: string, value: MapRuntimeOptionValue): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this._browser.setConfigParam(key, value, true);
         return this;
     }
@@ -308,7 +330,7 @@ class Viewer {
      */
     getParam(key: string): MapRuntimeOptionValue {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this._browser.getConfigParam(key);
     }
 
@@ -330,7 +352,7 @@ class Viewer {
         lod?: Lod,
     ): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.convertCoordsFromPublicToNav(pos, mode, lod);
     }
 
@@ -350,7 +372,7 @@ class Viewer {
         lod?: Lod,
     ): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.convertCoordsFromNavToCanvas(pos, mode, lod);
     }
 
@@ -375,7 +397,7 @@ class Viewer {
         mode: HeightMode,
     ): boolean | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
 
         const map = this.legacyMap_;
         const renderer = this._renderer;
@@ -459,7 +481,7 @@ class Viewer {
         lod?: Lod,
     ): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.getHitCoords(screenX, screenY, mode, lod);
     }
 
@@ -476,7 +498,7 @@ class Viewer {
         lod?: Lod,
     ): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
     }
 
@@ -495,7 +517,7 @@ class Viewer {
         applyVerticalExaggeration?: boolean,
     ): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.convertCoordsFromNavToPhys(
             pos, mode, lod, applyVerticalExaggeration);
     }
@@ -507,7 +529,7 @@ class Viewer {
      */
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.map_.convertCoordsFromPhysToCameraSpace(pos);
     }
 
@@ -525,7 +547,7 @@ class Viewer {
         dilate?: number,
     ): [boolean, number] | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.legacyMap_?.getScreenDepth(
             screenX, screenY, dilate, undefined, 'layout') ?? null;
     }
@@ -544,7 +566,7 @@ class Viewer {
      */
     createGeodata(): unknown {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this.legacyMapInterface_?.createGeodata() ?? null;
     }
 
@@ -556,7 +578,7 @@ class Viewer {
      */
     addFreeLayer(id: string, layer: unknown): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this.legacyMapInterface_?.addFreeLayer(id, layer);
         return this;
     }
@@ -568,7 +590,7 @@ class Viewer {
      */
     removeFreeLayer(id: string): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this.legacyMapInterface_?.removeFreeLayer(id);
         return this;
     }
@@ -578,23 +600,23 @@ class Viewer {
     // -------------------------------------------------------------------------
 
     /** The browser UI layer (controls, DOM helpers). */
-    get ui(): Browser['ui'] | undefined {
+    get ui(): Browser['ui'] {
 
-        if (this._killed) return undefined;
+        this.assertAlive_();
         return this._browser.ui;
     }
 
     /** The autopilot (camera animation) controller. */
-    get autopilot(): Browser['autopilot'] | undefined {
+    get autopilot(): Browser['autopilot'] {
 
-        if (this._killed) return undefined;
+        this.assertAlive_();
         return this._browser.autopilot;
     }
 
     /** The presenter (tour / flythrough) controller. */
-    get presenter(): Browser['presenter'] | undefined {
+    get presenter(): Browser['presenter'] {
 
-        if (this._killed) return undefined;
+        this.assertAlive_();
         return this._browser.presenter;
     }
 
@@ -605,7 +627,7 @@ class Viewer {
     /** Unloads the current map. */
     destroyMap(): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this.map_.unloadMap();
         return this;
     }
@@ -622,7 +644,7 @@ class Viewer {
      */
     setControlMode(mode: Browser['controlMode']): this {
 
-        if (this._guard()) return this;
+        this.assertAlive_();
         this._browser.setControlMode(mode);
         return this;
     }
@@ -634,7 +656,7 @@ class Viewer {
      */
     getControlMode(): Browser['controlMode'] | null {
 
-        if (this._guard()) return null;
+        this.assertAlive_();
         return this._browser.getControlMode();
     }
 

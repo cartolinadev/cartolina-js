@@ -304,10 +304,15 @@ class Map {
     on<K extends keyof CoreEventMap>(
         eventName: K,
         callback: (event: CoreEventMap[K]) => void,
-    ): (() => void) | null {
+    ): (() => void) {
 
         this.assertAlive_();
-        return this.core_.on(eventName, callback) ?? null;
+        const unsubscribe = this.core_.on(eventName, callback);
+        if (unsubscribe == null) {
+            throw new Error('Map event subscription failed.');
+        }
+
+        return unsubscribe;
     }
 
     /**

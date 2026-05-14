@@ -179,7 +179,7 @@ export class WaypointMap {
             this._markerOverlay = null;
         }
         if (this._viewer) {
-            this._viewer.destroy();
+            this._viewer[Symbol.dispose]();
             this._viewer = null;
         }
     }

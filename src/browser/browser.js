@@ -372,7 +372,9 @@ Browser.prototype.updateUI = function(key) {
 
 
 Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
-    var map = this.getMap();
+    var core = this.core;
+    var map = core ? this.getMap() : null;
+    var renderer = core ? this.getRenderer() : null;
 
     switch (key) {
     case 'pos':                
@@ -458,12 +460,12 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
             map.setConfigParam(key, value);
         }
 
-        if (key.indexOf('renderer') == 0 && this.getRenderer()) {
-            this.getRenderer().setConfigParam(key, value);
+        if (key.indexOf('renderer') == 0 && renderer) {
+            renderer.setConfigParam(key, value);
         }
 
-        if (key.indexOf('debug') == 0 && this.core) {
-            this.core.core.setConfigParam(key, value);
+        if (key.indexOf('debug') == 0 && core) {
+            core.core.setConfigParam(key, value);
         }
 
     }

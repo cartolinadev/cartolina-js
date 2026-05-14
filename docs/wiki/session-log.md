@@ -1,5 +1,43 @@
 # Session log
 
+## 2026-05-14 — Viewer disposal and Browser config construction
+
+### Goal
+
+Finish the `Viewer` lifecycle cleanup and fix the constructor-time config
+path uncovered while testing it.
+
+### What changed
+
+**`src/browser/viewer.ts`**: added `[Symbol.dispose]()` as the canonical
+teardown hook. `destroy()` remains as a deprecated alias. Public methods
+now call `assertAlive_()` and throw after disposal instead of returning
+fallback values such as `null`, `0`, `1`, `this`, or `undefined`.
+
+**`src/core/map.ts`**: `on()` now returns an unsubscribe function or
+throws if the legacy event registration path fails. `Viewer.on()` no
+longer needs a nullable return for disposed-state handling.
+
+**`demos/waypoint/waypoint.js`**: teardown now calls
+`viewer[Symbol.dispose]()` instead of `viewer.destroy()`.
+
+**`src/browser/browser.js`**: `setConfigParam()` now separates
+constructor-time config storage from runtime engine forwarding. The
+method records browser-owned values before any engine object exists.
+Forwarding to map, renderer, or debug config happens only after
+`Browser.core` has been assigned. This does not drop constructor config:
+the same config object is passed into `new Map(...)`, and `Core` applies
+map and renderer options during its own construction and map load.
+
+### Finding
+
+The disposal diagnostic first tried to construct a second viewer on an
+already loaded demo page. That exposed a real constructor bug:
+`Browser.setConfigParam()` called `getMap()` before `this.core` existed,
+so any config key could throw before reaching the switch that stores it.
+The fix avoids reading engine objects until a branch needs runtime
+forwarding and the engine exists.
+
 ## 2026-05-14 — Kill vts-core.js; add interactive:false; non-interactive demo
 
 ### Goal

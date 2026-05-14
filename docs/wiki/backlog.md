@@ -86,12 +86,39 @@ called by `Browser` before DOM insertion. The legacy `checkSupport`
 function in `core.js` and its re-export from the public namespace are
 removed.
 
+`Browser.setConfigParam()` no longer reads `Browser.core` before `Core`
+construction. Constructor-time config stores browser-owned values first;
+engine forwarding happens only after the `Map` boundary object exists.
+
 ### Remaining
 
-Remove optional chains and `null` returns that only guard against missing
-core objects after construction. Keep `null` for domain results that can
-be absent during normal operation, such as hit tests and unloaded map
-state.
+The first audit found no remaining path where a public constructor can
+return an object without its construction-owned engine object. Remaining
+nullable returns mostly describe runtime states:
+
+- `Core.map` and `Core.mapInterface` are `null` before async style or
+  mapConfig load finishes, and after `destroyMap()` / `unloadMap()`.
+- `Map` and `Viewer` coordinate conversion and hit/depth methods return
+  `null` when the loaded map cannot answer the query.
+- Atmosphere access returns `null` when the loaded style has no
+  atmosphere object.
+- `Viewer.assertAlive_()` handles calls after viewer disposal. This is
+  lifecycle behavior, not construction failure.
+
+Keep this item open until one more focused audit confirms that nullable
+checks in `Viewer`, `Map`, `Browser`, `Core`, `Renderer`, and
+`GpuDevice` fall into the runtime-state categories above. Remove a check
+only if it exists solely to tolerate a failed constructor after an object
+has already been returned.
+
+### Next audit targets
+
+- `src/browser/viewer.ts`: keep disposal errors separate from
+  unloaded-map and absent-query results.
+- `src/core/map.ts`: document which `core_.mapInterface?.` calls mean
+  unloaded-map state.
+- `src/core/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
+  that allow renderer settings before a map has loaded.
 
 ---
 
