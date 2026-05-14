@@ -1,5 +1,11 @@
 # Session log
 
+## 2026-05-14 — RFC: config store, sign-off; status Accepted
+
+Reviewer signed off. Status updated to Accepted — ready to implement.
+
+---
+
 ## 2026-05-14 — AGENTS.md: document RFC sign-off and convergence
 
 Sign-off protocol added to the review process: reviewer appends a

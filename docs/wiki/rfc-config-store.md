@@ -1,6 +1,6 @@
 # RFC: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** In review  
+**Status:** Accepted  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -480,3 +480,10 @@ subsystems read it at construction. Confirm no other purpose for
    of non-Browser keys to `Core.setConfigParam`. Step 3 updated to
    match. The forwarding call is removed per key-group in step 4 as
    each subsystem migrates.*
+
+## Review round 3
+
+Signed off. The bridge shim now preserves current Browser, Core,
+LegacyMap, and Renderer config behavior during the migration, and the
+earlier validation, flush timing, renderer ownership, and numbering
+comments have been addressed.
