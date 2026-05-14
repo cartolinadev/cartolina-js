@@ -102,7 +102,8 @@ class Viewer {
     /**
      * Destroys the viewer and releases all GPU and DOM resources.
      *
-     * Prefer the `using` statement with `[Symbol.dispose]()` in new code.
+     * Call this when discarding the viewer. For block-scoped teardown,
+     * use the `using` declaration: `using viewer = cartolina.map(...)`.
      */
     [Symbol.dispose](): void {
 
@@ -110,18 +111,6 @@ class Viewer {
         this.map_[Symbol.dispose]();
         this._browser.kill();
         this._killed = true;
-    }
-
-    /**
-     * Destroys the viewer and releases all GPU and DOM resources.
-     *
-     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
-     */
-    destroy(): void {
-
-        __DEV__ && utils.warnOnce(
-            '[Viewer] destroy() is deprecated. Use Symbol.dispose instead.');
-        this[Symbol.dispose]();
     }
 
     // -------------------------------------------------------------------------
@@ -596,24 +585,45 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Browser sub-objects
+    // Legacy shims — pending promotion to flat Viewer methods
+    //
+    // These three getters expose Browser sub-objects directly. They exist
+    // because no flat Viewer method covers the needed call sites yet.
+    // Each one should be replaced by a specific typed method on Viewer
+    // (e.g. `flyTo()` instead of `viewer.autopilot.flyTo()`), and the
+    // getter removed once all call sites are updated.
     // -------------------------------------------------------------------------
 
-    /** The browser UI layer (controls, DOM helpers). */
+    /**
+     * The browser UI layer (controls, DOM helpers).
+     *
+     * @deprecated Direct sub-object access. Use a flat `Viewer` method
+     *   once the relevant capability is promoted.
+     */
     get ui(): Browser['ui'] {
 
         this.assertAlive_();
         return this._browser.ui;
     }
 
-    /** The autopilot (camera animation) controller. */
+    /**
+     * The autopilot (camera animation) controller.
+     *
+     * @deprecated Direct sub-object access. Use a flat `Viewer` method
+     *   once the relevant capability is promoted.
+     */
     get autopilot(): Browser['autopilot'] {
 
         this.assertAlive_();
         return this._browser.autopilot;
     }
 
-    /** The presenter (tour / flythrough) controller. */
+    /**
+     * The presenter (tour / flythrough) controller.
+     *
+     * @deprecated Direct sub-object access. Use a flat `Viewer` method
+     *   once the relevant capability is promoted.
+     */
     get presenter(): Browser['presenter'] {
 
         this.assertAlive_();

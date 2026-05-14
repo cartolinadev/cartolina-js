@@ -113,12 +113,36 @@ has already been returned.
 
 ### Next audit targets
 
-- `src/browser/viewer.ts`: keep disposal errors separate from
-  unloaded-map and absent-query results.
 - `src/core/map.ts`: document which `core_.mapInterface?.` calls mean
   unloaded-map state.
 - `src/core/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
   that allow renderer settings before a map has loaded.
+
+---
+
+## REFACTOR: promote ui/autopilot/presenter to flat Viewer methods
+
+**Opened:** 2026-05-14
+**Status:** deferred
+
+### Motivation
+
+`Viewer.ui`, `Viewer.autopilot`, and `Viewer.presenter` hand the caller
+entire `Browser` sub-objects whose method surfaces are untyped legacy JS.
+A caller using `viewer.autopilot.flyTo(...)` works directly in the legacy
+object graph, bypassing the typed `Viewer` surface. This is inconsistent
+with the goal of a flat, typed public API and the AGENTS.md rule against
+restoring browser-level sub-object access on `Viewer`.
+
+### Plan
+
+For each getter, identify every call site (demos and any consumer code).
+Promote the needed operations as typed, flat methods on `Viewer`
+(e.g. `flyTo()`, `stopFlight()`, `setAutorotate()` for autopilot).
+Remove the getter once all call sites use the flat method.
+
+Priority order: `autopilot` (one call site in waypoint demo), then `ui`
+and `presenter` (no current typed call sites outside legacy demos).
 
 ---
 
