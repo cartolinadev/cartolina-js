@@ -28,6 +28,9 @@ then branch into more specific documents as needed.
 - [rfc-config-store.md](rfc-config-store.md) — reactive ConfigStore
   to replace stringly-typed config routing; prerequisite for
   core.js suppression
+- [rfc-event-bus.md](rfc-event-bus.md) — extract the event bus from
+  `core.js` to a typed `EventBus<EventMap>` class as part of the
+  `core.js` suppression track; `EventTarget` evaluated and rejected
 
 ### Subsystem and feature notes
 

@@ -146,20 +146,22 @@ and `presenter` (no current typed call sites outside legacy demos).
 
 ---
 
-## REFACTOR: migrate event bus to `EventTarget`
+## REFACTOR: replace the event bus with a typed `EventBus` class
 
 **Opened:** 2026-05-13
-**Status:** deferred
+**Status:** elevated to RFC — see [rfc-event-bus.md](rfc-event-bus.md)
 
 ### Motivation
 
 `Map.on()` / `Map.once()` delegate to a plain listener array on `Core`.
-This is a legacy pattern from the original vts-browser-js. The standard
-browser alternative is `EventTarget` / `addEventListener`.
+The array has several bugs (broken `once()` return, `Browser.kill()`
+leak, `wait` workaround) and untyped payloads.
 
-Migrating requires changing every call site in `Viewer`, `Browser`, and
-consumer code. It is a separate refactor, not done alongside the `Map`
-shell work.
+Migrating to `EventTarget` was evaluated and rejected: `addEventListener`
+does not match the MapLibre reference API, `CustomEvent` allocation on
+every high-frequency emit adds GC pressure, and the adapter wrapper
+layer gives no net benefit. The RFC proposes a typed `EventBus<EventMap>`
+class that keeps the `on()`/`once()` surface and fixes the known bugs.
 
 ---
 

@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-14 — RFC: event bus extraction
+
+### Goal
+
+Write an RFC for the event bus migration, elevated from the backlog.
+
+### What changed
+
+`docs/wiki/rfc-event-bus.md` created. Covers motivation (bus must move
+as part of `core.js` suppression), full event inventory, the `wait`
+mechanism, three alternatives (native `EventTarget`, `EventTarget`-backed
+wrapper, typed `EventBus<EventMap>` class) with a performance comparison
+table, and the recommended design. Key decision: bus owned by `Map`; the
+`EventBus` instance is passed directly to `LegacyMap` and `GpuDevice` at
+construction so no new forwarding methods are added to `Core`. `EventTarget`
+evaluated and rejected — API shape mismatch, per-emit `CustomEvent`
+allocation, and divergence from the MapLibre reference API. Reviewer notes
+appended; author responses in progress.
+
+`docs/wiki/backlog.md` updated: backlog entry points at the RFC.
+`docs/wiki/index.md` updated: RFC listed in the RFCs section.
+
 ## 2026-05-14 — Post-commit review: remove destroy(), document legacy shims
 
 ### Goal
