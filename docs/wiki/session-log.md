@@ -27,10 +27,9 @@ instead of producing half-initialized objects.
 - `initConfig`: added `interactive: true` as a config default.
 - `setConfigParam`: added `case 'interactive'` so the flag routes to
   `this.config` instead of forwarding to `Core`.
-- constructor: no longer preflights WebGL support. The WebGL2 failure is
-  thrown by `GpuDevice`, where context creation happens. Applications
-  that need custom fallback UI should call `checkSupport()` before
-  `map()` or `browser()`.
+- constructor: WebGL2 preflight moved to `GpuDevice.checkSupport()`,
+  called before any DOM nodes are inserted. A failed probe throws before
+  `UI` is constructed, leaving the caller's container clean.
 - `getMap()` / `getRenderer()` / `callListener()`: these three methods
   had stale access paths (`this.core.map`, `this.core.renderer`,
   `this.core.callListener`) that broke when `Browser.core` changed from
@@ -60,8 +59,13 @@ in the `ControlMode` constructor wrapped in `if (browser.config.interactive
 `Core` reference non-null; after disposal, public methods throw instead
 of returning `null`.
 
-**`src/core/renderer/gpu/device.ts`**: canvas and WebGL2 context creation
-failures now throw from `GpuDevice`, where the failure is detected.
+**`src/core/renderer/gpu/device.ts`**: added `GpuDevice.checkSupport()`,
+a static probe that tests canvas and WebGL2 availability without inserting
+DOM nodes. Dead guards for `canvas == null` and `canvas.getContext == null`
+removed — both were unreachable on any supported browser.
+
+**`src/browser/browser.js`**: `GpuDevice.checkSupport()` called before
+`new UI()`, so a failed probe throws before any DOM nodes are inserted.
 
 **`src/core/map/map.d.ts`**: added `createGeodata()` and
 `removeFreeLayer()` to the `LegacyMap` type declaration.

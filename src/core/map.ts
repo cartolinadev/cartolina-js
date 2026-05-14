@@ -6,9 +6,6 @@
  * method surface for all map operations: lifecycle, events, rendering
  * controls, coordinate conversion, and hit-testing.
  *
- * Construct via the `core()` factory exported from the core entry point,
- * not directly.
- *
  * The `core` getter is a temporary migration shim that exposes the legacy
  * engine internals to code that has not yet been promoted to this surface.
  * It will be removed once the terrain engine is fully absorbed into `Map`.
@@ -46,6 +43,7 @@ class Map {
         this.core_ = new Core(element, config);
     }
 
+    /** Throws if the map has been disposed. */
     private assertAlive_(): void {
 
         if (this.disposed_) {

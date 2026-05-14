@@ -142,21 +142,24 @@ constructor(
 };
 
 
+/**
+ * Returns true when the browser can create a WebGL2 context.
+ * Call this before constructing a map to detect unsupported
+ * environments without inserting any DOM nodes.
+ */
+static checkSupport(): boolean {
+
+    const canvas = document.createElement('canvas');
+    return !!canvas.getContext('webgl2');
+}
+
+
 private init() {
 
     var canvas = document.createElement('canvas');
-
-    if (canvas == null) {
-        throw new Error('cartolina-js requires canvas support.');
-    }
-
     this.canvas = canvas;
     canvas.style.display = 'block';
     this.div.appendChild(canvas);
-
-    if (canvas.getContext == null) {
-        throw new Error('cartolina-js requires WebGL2.');
-    }
 
     canvas.addEventListener("webglcontextlost", this.contextLost.bind(this), false);
     canvas.addEventListener("webglcontextrestored", this.contextRestored.bind(this), false);

@@ -143,9 +143,8 @@ Factory functions such as `map()` and `browser()` return usable objects
 or throw. They do not return `null` for unsupported WebGL, failed engine
 creation, or invalid construction state.
 
-Use `checkSupport()` before construction when an application wants to
-show its own WebGL fallback. If construction starts and the engine cannot
-be created, the constructor raises an exception. This keeps `Viewer`,
+If construction fails (unsupported WebGL, invalid state), the constructor
+raises an exception before inserting any DOM nodes. This keeps `Viewer`,
 `Browser`, and `Map` out of half-initialized states.
 
 Legacy optional chains and `null` returns that only exist to tolerate

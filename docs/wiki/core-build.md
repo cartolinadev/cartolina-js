@@ -50,8 +50,7 @@ position array (see below). `interactive: false` suppresses all event
 registration in `ControlMode`.
 
 The return value is a `Viewer` instance (exported as `Map`). If WebGL2
-is not available, construction throws. Call `cartolina.checkSupport()`
-first when the application needs custom fallback UI.
+is not available, construction throws.
 
 
 ## Position format

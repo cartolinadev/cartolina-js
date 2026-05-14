@@ -1,5 +1,6 @@
 
 import Map from '../core/map';
+import {GpuDevice} from '../core/renderer/gpu/device';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
 import Autopilot_ from './autopilot/autopilot';
@@ -26,6 +27,10 @@ var Browser = function(element, config) {
     if (this.element && window.getComputedStyle(this.element).position === 'static') {
         // Do not clobber an explicit author choice
         this.element.style.position = 'relative';
+    }
+
+    if (!GpuDevice.checkSupport()) {
+        throw new Error('cartolina-js requires WebGL2.');
     }
 
     this.ui = new UI(this, this.element);
