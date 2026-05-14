@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_network_requests",
+      "WebFetch(domain:maplibre.org)",
+      "WebFetch(domain:cesium.com)",
+      "WebFetch(domain:pixijs.download)",
+      "WebFetch(domain:doc.babylonjs.com)",
+      "WebFetch(domain:pixijs.com)"
+    ]
+  }
+}

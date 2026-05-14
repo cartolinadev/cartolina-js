@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-14 — Add .claude/settings.json; gitignore settings.local.json
+
+`.claude/settings.json` added to version control with team-wide Claude
+Code permissions (allowed MCP tools and fetch domains). `.gitignore`
+updated to exclude `settings.local.json`, which contains personal data
+(absolute paths, per-machine allow rules).
+
+---
+
 ## 2026-05-14 — RFC: event bus, sign-off and editorial cleanup
 
 Reviewer signed off on architecture and implementation direction. Two

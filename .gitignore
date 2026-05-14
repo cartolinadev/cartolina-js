@@ -20,3 +20,4 @@ test/perf/results
 .tsbuild
 tmp/
 .playwright-mcp/
+.claude/settings.local.json
