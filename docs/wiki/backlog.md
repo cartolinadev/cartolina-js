@@ -77,6 +77,10 @@ a valid object.
 `browser()` return `Viewer`, not `Viewer | null`. Non-legacy demos no
 longer check the factory result for falsiness.
 
+`GpuDevice` now throws when canvas or WebGL2 context creation fails.
+`Map` keeps its `Core` reference non-null; after disposal, public
+methods throw instead of returning `null`.
+
 ### Remaining
 
 Remove optional chains and `null` returns that only guard against missing

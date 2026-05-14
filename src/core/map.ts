@@ -35,6 +35,7 @@ import type { vec3 } from './utils/math';
 class Map {
 
     private core_: InstanceType<typeof Core>;
+    private disposed_ = false;
 
     /**
      * @param element canvas element to render into
@@ -45,11 +46,19 @@ class Map {
         this.core_ = new Core(element, config);
     }
 
+    private assertAlive_(): void {
+
+        if (this.disposed_) {
+            throw new Error('Map has been destroyed.');
+        }
+    }
+
     /**
      * Resolves once the map is fully loaded and ready to render.
      */
     get ready(): Promise<void> {
 
+        this.assertAlive_();
         return this.core_.ready;
     }
 
@@ -60,9 +69,9 @@ class Map {
      */
     [Symbol.dispose](): void {
 
-        if (!this.core_) return;
+        if (this.disposed_) return;
         this.core_.destroy();
-        this.core_ = null!;
+        this.disposed_ = true;
     }
 
     /**
@@ -72,7 +81,7 @@ class Map {
      */
     loadMap(path: string): void {
 
-        if (!this.core_) return;
+        this.assertAlive_();
         this.core_.loadMap(path);
     }
 
@@ -83,7 +92,7 @@ class Map {
      */
     unloadMap(): void {
 
-        if (!this.core_) return;
+        this.assertAlive_();
         this.core_.destroyMap();
     }
 
@@ -91,24 +100,23 @@ class Map {
      * Set the vertical exaggeration ramps used by the renderer.
      *
      * @param spec vertical exaggeration ramp specification
-     * @returns null after destruction
      */
     setVerticalExaggeration(
         spec: Renderer.VerticalExaggerationSpec,
-    ): void | null {
+    ): void {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.setVerticalExaggeration(spec);
     }
 
     /**
      * Return the current vertical exaggeration ramps.
      *
-     * @returns vertical exaggeration specification, or null after destruction
+     * @returns vertical exaggeration specification
      */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.getVerticalExaggeration();
     }
 
@@ -116,22 +124,21 @@ class Map {
      * Set the renderer illumination definition.
      *
      * @param spec illumination definition
-     * @returns null after destruction
      */
-    setIllumination(spec: Renderer.IlluminationDef): void | null {
+    setIllumination(spec: Renderer.IlluminationDef): void {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.setIllumination(spec);
     }
 
     /**
      * Return the current renderer illumination definition.
      *
-     * @returns illumination definition, or null when unset or destroyed
+     * @returns illumination definition, or null when unset
      */
     getIllumination(): Renderer.IlluminationDef | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.getIllumination();
     }
 
@@ -139,11 +146,10 @@ class Map {
      * Set live atmosphere parameters on the loaded map.
      *
      * @param spec atmosphere runtime parameters
-     * @returns null after destruction
      */
-    setAtmosphere(spec: Atmosphere.RuntimeParameters): void | null {
+    setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         this.core_.map?.atmosphere?.setRuntimeParameters(spec);
     }
 
@@ -154,7 +160,7 @@ class Map {
      */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
@@ -162,22 +168,21 @@ class Map {
      * Set renderer feature flags such as labels, atmosphere, and shading.
      *
      * @param options rendering feature flags
-     * @returns null after destruction
      */
-    setRenderingOptions(options: Renderer.RenderingOptions): void | null {
+    setRenderingOptions(options: Renderer.RenderingOptions): void {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.setRenderingOptions(options);
     }
 
     /**
      * Return the current renderer feature flags.
      *
-     * @returns rendering feature flags, or null after destruction
+     * @returns rendering feature flags
      */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.renderer.getRenderingOptions();
     }
 
@@ -195,7 +200,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.mapInterface?.convertCoordsFromPublicToNav(
             pos, mode, lod) ?? null;
     }
@@ -216,7 +221,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.mapInterface?.convertCoordsFromNavToCanvas(
             pos, mode, lod) ?? null;
     }
@@ -234,7 +239,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.mapInterface?.convertCoordsFromNavToPublic(
             pos, mode, lod) ?? null;
     }
@@ -254,7 +259,7 @@ class Map {
         includeSE?: boolean,
     ): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.mapInterface?.convertCoordsFromNavToPhys(
             pos, mode, lod, includeSE) ?? null;
     }
@@ -266,7 +271,7 @@ class Map {
      */
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return (this.core_.mapInterface?.convertCoordsFromPhysToCameraSpace(
             pos) ?? null) as vec3 | null;
     }
@@ -286,7 +291,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.mapInterface?.getHitCoords(
             screenX, screenY, mode, lod) ?? null;
     }
@@ -296,14 +301,14 @@ class Map {
      *
      * @param eventName event to subscribe to
      * @param callback invoked each time the event fires
-     * @returns unsubscribe function, or null after destruction
+     * @returns unsubscribe function
      */
     on<K extends keyof CoreEventMap>(
         eventName: K,
         callback: (event: CoreEventMap[K]) => void,
     ): (() => void) | null {
 
-        if (!this.core_) return null;
+        this.assertAlive_();
         return this.core_.on(eventName, callback) ?? null;
     }
 
@@ -320,7 +325,7 @@ class Map {
         wait?: number,
     ): void {
 
-        if (!this.core_) return;
+        this.assertAlive_();
         this.core_.once(eventName, callback, wait);
     }
 
@@ -343,13 +348,14 @@ class Map {
      *   This getter will be removed when the terrain engine is absorbed
      *   into Map.
      */
-    get core(): InstanceType<typeof Core> | null {
+    get core(): InstanceType<typeof Core> {
 
         __DEV__ && utils.warnOnce(
             '[Map] .core is a migration shim and will be removed. ' +
             'Access internals through Map public methods instead.',
         );
-        return this.core_ ?? null;
+        this.assertAlive_();
+        return this.core_;
     }
 
     /**

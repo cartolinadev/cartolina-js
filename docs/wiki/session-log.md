@@ -27,16 +27,15 @@ instead of producing half-initialized objects.
 - `initConfig`: added `interactive: true` as a config default.
 - `setConfigParam`: added `case 'interactive'` so the flag routes to
   `this.config` instead of forwarding to `Core`.
-- constructor: unsupported WebGL2 now throws before UI construction.
-  Applications that need custom fallback UI should call `checkSupport()`
-  before `map()` or `browser()`.
+- constructor: no longer preflights WebGL support. The WebGL2 failure is
+  thrown by `GpuDevice`, where context creation happens. Applications
+  that need custom fallback UI should call `checkSupport()` before
+  `map()` or `browser()`.
 - `getMap()` / `getRenderer()` / `callListener()`: these three methods
   had stale access paths (`this.core.map`, `this.core.renderer`,
   `this.core.callListener`) that broke when `Browser.core` changed from
   the old `CoreInterface` object to the new `Map` boundary class. Fixed
-  to `this.core?.core?.mapInterface`, `this.core?.core?.renderer`, and
-  `this.core.core.callListener`. These were bugs introduced during
-  the session and fixed by review.
+  to use the `Map.core` migration shim.
 
 **`src/browser/control-mode/control-mode.js`**: all ten event registrations
 in the `ControlMode` constructor wrapped in `if (browser.config.interactive
@@ -44,7 +43,7 @@ in the `ControlMode` constructor wrapped in `if (browser.config.interactive
 
 **`src/browser/viewer.ts`**:
 - Added `legacyMapInterface_` private getter — accesses `MapInterface`
-  via `this.map_?.core?.mapInterface`. This is the correct path for
+  via `this.map_.core.mapInterface`. This is the correct path for
   geodata methods, which live on `MapInterface`, not `LegacyMap`.
 - Added `createGeodata()`, `addFreeLayer()`, `removeFreeLayer()` —
   delegate through `legacyMapInterface_`. Return type of `createGeodata`
@@ -56,8 +55,13 @@ in the `ControlMode` constructor wrapped in `if (browser.config.interactive
 
 **`src/core/map.ts`**: `.core` getter return type widened from
 `{ map: LegacyMap | null; renderer: Renderer | null }` to
-`InstanceType<typeof Core> | null`. This exposes `mapInterface` and
-`callListener` through the shim without an unsafe cast.
+`InstanceType<typeof Core>`. This exposes `mapInterface` and
+`callListener` through the shim without an unsafe cast. `Map` keeps its
+`Core` reference non-null; after disposal, public methods throw instead
+of returning `null`.
+
+**`src/core/renderer/gpu/device.ts`**: canvas and WebGL2 context creation
+failures now throw from `GpuDevice`, where the failure is detected.
 
 **`src/core/map/map.d.ts`**: added `createGeodata()` and
 `removeFreeLayer()` to the `LegacyMap` type declaration.
@@ -113,9 +117,11 @@ as noise; they were in fact signals that test results were invalid.
 
 The bugs:
 1. `Browser.getMap()` returned the wrong object — `this.core.map` was
-   the old CoreInterface path; correct is `this.core?.core?.mapInterface`.
-2. `Browser.getRenderer()` same issue — fixed to `this.core?.core?.renderer`.
-3. `Browser.callListener()` — fixed to `this.core.core.callListener`.
+   the old CoreInterface path; correct is `this.core.core.mapInterface`.
+2. `Browser.getRenderer()` same issue — fixed to
+   `this.core.core.renderer`.
+3. `Browser.callListener()` — fixed to
+   `this.core.core.callListener`.
 
 Additionally, `viewer.ts` initially delegated `createGeodata` through
 `legacyMap_` (the `LegacyMap` terrain engine object). `createGeodata` is
@@ -125,6 +131,9 @@ on `MapInterface`, not `LegacyMap`. Fixed to use `legacyMapInterface_`.
 
 TypeScript passes. All three screenshot tests pass against a freshly
 restarted dev server. The `vts-core.js` output is no longer produced.
+The current follow-up also passes `simple-terrain`, `complex-terrain`,
+and `full-terrain` screenshot checks after moving WebGL2 construction
+failure handling into `GpuDevice`.
 
 ## 2026-05-05 — Contributor documentation refresh
 

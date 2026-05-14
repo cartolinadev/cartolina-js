@@ -41,8 +41,8 @@ import type { vec3 } from '../core/utils/math';
  *
  * `legacyMap_` and `_renderer` are temporary bypass points — Viewer
  * reaching past the Map public surface into legacy internals via the
- * `Map.core` migration shim. They disappear as their methods are
- * promoted onto `Map`.
+ * `Map.core` migration shim. They disappear as their methods are promoted
+ * onto `Map`.
  */
 class Viewer {
 
@@ -52,15 +52,15 @@ class Viewer {
     private _killed = false;
 
     private get legacyMap_(): LegacyMap | null {
-        return this.map_?.core?.map ?? null;
+        return this.map_.core.map;
     }
 
     private get legacyMapInterface_(): LegacyMapInterface | null {
-        return this.map_?.core?.mapInterface ?? null;
+        return this.map_.core.mapInterface;
     }
 
-    private get _renderer(): Renderer | null {
-        return this.map_?.core?.renderer ?? null;
+    private get _renderer(): Renderer {
+        return this.map_.core.renderer;
     }
 
 
@@ -209,14 +209,14 @@ class Viewer {
     setIllumination(spec: Renderer.IlluminationDef): void {
 
         if (this._guard()) return;
-        this._renderer?.setIllumination(spec);
+        this._renderer.setIllumination(spec);
     }
 
     /** Returns the current illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
         if (this._guard()) return null;
-        return this._renderer?.getIllumination() ?? null;
+        return this._renderer.getIllumination();
     }
 
     /**
@@ -227,14 +227,14 @@ class Viewer {
     setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec): void {
 
         if (this._guard()) return;
-        this._renderer?.setVerticalExaggeration(spec);
+        this._renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration specification. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
         if (this._guard()) return null;
-        return this._renderer?.getVerticalExaggeration() ?? null;
+        return this._renderer.getVerticalExaggeration();
     }
 
     /**
@@ -245,14 +245,14 @@ class Viewer {
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
         if (this._guard()) return;
-        this._renderer?.setRenderingOptions(options);
+        this._renderer.setRenderingOptions(options);
     }
 
     /** Returns the current rendering options. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
         if (this._guard()) return null;
-        return this._renderer?.getRenderingOptions() ?? null;
+        return this._renderer.getRenderingOptions();
     }
 
     // -------------------------------------------------------------------------
@@ -267,7 +267,7 @@ class Viewer {
     getScaleDenominator(extent: number): number {
 
         if (this._guard()) return 0;
-        return this._renderer?.getScaleDenominator(extent) ?? 0;
+        return this._renderer.getScaleDenominator(extent);
     }
 
     /**
@@ -278,7 +278,7 @@ class Viewer {
     getVeScaleFactor(position: MapPosition): number {
 
         if (this._guard()) return 1;
-        return this._renderer?.getVeScaleFactor(position) ?? 1;
+        return this._renderer.getVeScaleFactor(position);
     }
 
     // -------------------------------------------------------------------------
@@ -380,7 +380,7 @@ class Viewer {
         const map = this.legacyMap_;
         const renderer = this._renderer;
 
-        if (!map || !renderer) {
+        if (!map) {
             return null;
         }
 

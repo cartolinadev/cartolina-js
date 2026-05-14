@@ -1,5 +1,4 @@
 
-import {checkSupport} from '../core/core';
 import Map from '../core/map';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
@@ -19,14 +18,9 @@ var Browser = function(element, config) {
     this.killed = false;
     this.configStorage = {};
     this.initConfig();
-    this.setConfigParams(config, true);
     this.originalConfig = JSON.parse(JSON.stringify(config));
     
     this.element = (typeof element === 'string') ? document.getElementById(element) : element; 
-
-    if (!checkSupport()) {
-        throw new Error('cartolina-js requires WebGL2.');
-    }
 
     // Ensure the container establishes a positioning context for .vts-browser (absolute)
     if (this.element && window.getComputedStyle(this.element).position === 'static') {
@@ -39,6 +33,7 @@ var Browser = function(element, config) {
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
     this.core = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
+    this.setConfigParams(config, true);
     
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
@@ -76,17 +71,17 @@ Browser.prototype.getCore = function() {
 
 
 Browser.prototype.getMap = function() {
-    return this.core?.core?.mapInterface ?? null;
+    return this.core.core.mapInterface;
 };
 
 
 Browser.prototype.getRenderer = function() {
-    return this.core?.core?.renderer ?? null;
+    return this.core.core.renderer;
 };
 
 
 Browser.prototype.getProj4 = function() {
-    return this.core ? this.core.proj4 : null;
+    return this.core.core.getProj4();
 };
 
 
@@ -465,8 +460,8 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
             this.getRenderer().setConfigParam(key, value);
         }
 
-        if (key.indexOf('debug') == 0 && this.core) {
-            this.core.setConfigParam(key, value);
+        if (key.indexOf('debug') == 0) {
+            this.core.core.setConfigParam(key, value);
         }
 
     }

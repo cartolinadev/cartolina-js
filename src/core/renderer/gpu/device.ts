@@ -147,8 +147,7 @@ private init() {
     var canvas = document.createElement('canvas');
 
     if (canvas == null) {
-        //canvas not supported
-        return;
+        throw new Error('cartolina-js requires canvas support.');
     }
 
     this.canvas = canvas;
@@ -156,8 +155,7 @@ private init() {
     this.div.appendChild(canvas);
 
     if (canvas.getContext == null) {
-        //canvas not supported
-        return;
+        throw new Error('cartolina-js requires WebGL2.');
     }
 
     canvas.addEventListener("webglcontextlost", this.contextLost.bind(this), false);
@@ -166,7 +164,7 @@ private init() {
     const context = canvas.getContext('webgl2', 
         {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
 
-    if (!context) throw new Error('Error obtaining webgl2 context, webgl not supported?');
+    if (!context) throw new Error('cartolina-js requires WebGL2.');
 
     let gl = this.gl = context;
 

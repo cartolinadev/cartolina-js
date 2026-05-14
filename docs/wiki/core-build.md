@@ -49,9 +49,9 @@ specification object or URL. `position` is the 10-component camera
 position array (see below). `interactive: false` suppresses all event
 registration in `ControlMode`.
 
-The return value is a `Viewer` instance (exported as `Map`), or `null`
-when WebGL2 is not available. Always call `cartolina.checkSupport()`
-first.
+The return value is a `Viewer` instance (exported as `Map`). If WebGL2
+is not available, construction throws. Call `cartolina.checkSupport()`
+first when the application needs custom fallback UI.
 
 
 ## Position format
