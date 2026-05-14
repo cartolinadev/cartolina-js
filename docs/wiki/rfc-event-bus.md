@@ -21,41 +21,51 @@ implementation:
   `Core.on()`. Every call site expecting a cancellation token gets
   `undefined`. `getSurfaceAreaGeometry` (`interface.js:273`) relies on
   this return value and silently cannot cancel its retry listener.
-- `Browser.kill()` registers 9 listeners at construction but stores no
+- `Browser.kill()` registers listeners at construction but stores no
   unsubscribe closures and removes none. After `kill()`, those listeners
   remain in the array and dispatch into dead callbacks until `Core` is
   garbage-collected.
 - All event payloads are typed `unknown` in `CoreEventMap`. Every
   consumer must cast or ignore types.
-- Three position-gesture events (`map-position-panned/rotated/zoomed`)
+- Six browser-layer events (`autorotate-changed`, `fly-start`,
+  `fly-final-phase`, `fly-progress`, `fly-end`, `loading-screen-hidden`)
+  and three position-gesture events (`map-position-panned/rotated/zoomed`)
   are emitted via `Browser.callListener` → `Core.callListener` directly,
   bypassing `CoreEventMap` and the typed public API.
-- `callListener` scans the entire flat array for every emit. With 9
-  listeners across 13 event types, each high-frequency `tick` emit
-  visits all 9 records regardless of how many are `tick` listeners.
+- `callListener` scans the entire flat array for every emit. With many
+  listeners across many event types, each high-frequency `tick` emit
+  visits every record regardless of how many are `tick` listeners.
 - The `wait` mechanism — an integer countdown that skips the first N
-  firings — is an undocumented workaround specific to one call site and
-  should not travel to any new design.
+  firings — is an undocumented workaround with two known call sites that
+  each require separate analysis before removal.
 
 ### Where the bus should live after Core is gone
 
 `Core`'s ownership of the bus is incidental; `Core` owns it only because
-the bus was originally implemented there. `Core` is a coordinator object
-being dissolved; its responsibilities are migrating to `Map`. The bus is
-not a coordinator concern — it is a shared communication channel used by
-`LegacyMap`, `GpuDevice`, `Browser`, and the public `Viewer` API.
+the bus was originally implemented there. The bus is not a coordinator
+concern — it is a shared communication channel used by `LegacyMap`,
+`GpuDevice`, `Browser`, and the public `Viewer` API.
 
 The right owner after the migration is `Map`. `Map` already exposes
-`on()` / `once()` and holds the `Core` reference through which the bus
-is reached today. Moving the bus directly onto `Map` removes the
-`core_.on(...)` indirection and means the bus object and its API live in
-the same TypeScript class that callers already interact with.
+`on()` / `once()` and `Map` constructs `Core`, which means `Map` can
+pass the bus to `Core` at construction without any new forwarding method
+on `Core`. Moving the bus directly onto `Map` also removes the
+`core_.on(...)` indirection that the current `Map` methods carry.
 
 ---
 
 ## 2. Event inventory
 
-### Public events (`CoreEventMap`)
+All events are public — accessible via `Viewer.on()`. The current split
+between `CoreEventMap` events and events emitted only via
+`Browser.callListener` is an implementation accident, not a policy
+decision. All events belong in the typed map.
+
+The type is currently named `CoreEventMap`. Once the bus moves to `Map`,
+the name is a misnomer; renaming to `ViewerEventMap` is tracked in the
+open questions.
+
+### Currently in `CoreEventMap`
 
 | Event | Source | Frequency |
 |---|---|---|
@@ -73,17 +83,21 @@ the same TypeScript class that callers already interact with.
 | `geo-feature-hover` | `LegacyMap` — cursor over feature | medium |
 | `geo-feature-click` | `LegacyMap` — feature clicked | low |
 
-### Browser-internal (not in `CoreEventMap`)
+### Emitted via `Browser.callListener`, not yet in `CoreEventMap`
 
-These are emitted via `Browser.callListener` → `Core.callListener`
-directly, bypassing the typed public surface. They should be promoted
-into `CoreEventMap` so `Viewer.on()` can access them.
+All of these are promoted into the typed map by this RFC.
 
-| Event | Source |
-|---|---|
-| `map-position-panned` | `map-observer.js` |
-| `map-position-rotated` | `map-observer.js` |
-| `map-position-zoomed` | `map-observer.js` |
+| Event | Source | Known consumer |
+|---|---|---|
+| `map-position-panned` | `map-observer.js` | `Browser.onMapPositionPanned` |
+| `map-position-rotated` | `map-observer.js` | `Browser.onMapPositionRotated` |
+| `map-position-zoomed` | `map-observer.js` | `Browser.onMapPositionZoomed` |
+| `autorotate-changed` | `autopilot.js` | none found in codebase |
+| `fly-start` | `autopilot.js` | none found in codebase |
+| `fly-final-phase` | `autopilot.js` | none found in codebase |
+| `fly-progress` | `autopilot.js` | none found in codebase |
+| `fly-end` | `autopilot.js` | `demos/waypoint/waypoint.js` via `viewer.on` |
+| `loading-screen-hidden` | `loading.js` | none found in codebase |
 
 ### Dead
 
@@ -99,23 +113,31 @@ record. For each firing of the named event while `wait > 0`, the counter
 decrements and the listener is skipped. It fires on the next event after
 the counter reaches zero.
 
-The only actual use is `getSurfaceAreaGeometry` (`interface.js:273`),
-which registers `once('map-update', retry, 1)` when tile meshes are not
-yet loaded. The `wait=1` skips one `map-update` firing. The reason: this
-call often originates from inside a `map-update` handler. The current
-`callListener` iterates the live `listeners` array, so a record appended
-mid-iteration would be visited in the same pass — delivering the retry
-on the update that just reported the data was missing.
+There are two call sites.
 
-Any implementation that snapshots the active listener set at the start
-of each emit (dispatching to a copy) makes this problem impossible: a
-listener registered during event X cannot receive event X. The `wait`
-workaround then has no purpose, and the call site simplifies to:
+**`getSurfaceAreaGeometry` (`interface.js:273`)** registers
+`once('map-update', retry, 1)` when tile meshes are not yet loaded.
+The `wait=1` skips one `map-update`. The reason: this call often
+originates from inside a `map-update` handler. The current
+`callListener` iterates the live `listeners` array, so a record
+appended mid-iteration would be visited in the same pass — delivering
+the retry on the update that just reported the data was missing.
 
-```js
-return this.map.core.once('map-update',
-    this.getSurfaceAreaGeometry.bind(this, ...));
-```
+Any bus that snapshots the active listener set at the start of each emit
+makes this impossible: a listener registered during event X cannot
+receive event X. `wait=1` is then unnecessary, and the call site
+simplifies to `once('map-update', retry)`.
+
+**`measure.js` (`src/browser/ui/control/measure.js:612, 620`)** uses
+`once('tick', traceVolumeLine, 1)` to spread a volume calculation across
+frames. `traceVolumeLine` is a step function that reschedules itself each
+time it runs: it processes one slice and then registers itself again with
+`once('tick', traceVolumeLine, 1)`. With `wait=1`, it runs every other
+tick. With snapshot dispatch and no `wait`, it would run every tick —
+double the rate. Whether `wait=1` here is a deliberate rate limiter or a
+side effect of the mid-dispatch workaround is not clear from the code.
+This call site cannot safely have `wait` removed without verifying the
+intended computation rate. This is tracked in the open questions.
 
 ---
 
@@ -180,9 +202,11 @@ hand-rolled `Evented` class with `on(type, listener)` /
 use `addEventListener` / `removeEventListener` moves away from the
 reference ergonomics.
 
-**Verdict: rejected.** The API shape mismatch at the call sites and the
-per-emit allocation overhead outweigh the DevTools and standardisation
-benefits for a high-frequency internal event bus.
+**Verdict: rejected.** The existing `on()` / unsubscribe-closure surface
+is established at every call site; `addEventListener` is a breaking
+change to that contract. The `CustomEvent` allocation at 60 Hz and the
+`.detail` indirection are additional costs with no compensating gain for
+an internal event bus.
 
 ---
 
@@ -209,62 +233,59 @@ emit(name, payload) {
 **Gains**
 
 - Preserves the `on()` / unsubscribe return API.
-- The browser's native dispatch machinery handles the rest.
-- DevTools listener visibility (though via the internal target, not
-  the `Viewer` object itself — limited practical value).
+- The browser's native dispatch machinery handles listener storage.
 
 **Costs**
 
-- One wrapper closure allocation per `on()` call (to bridge `.detail`
-  back to the callback argument).
+- One wrapper closure allocation per `on()` call (to bridge `.detail`).
 - One `CustomEvent` allocation per `emit()` call — same problem as 4A.
-- `e.detail` indirection inside every listener body (the wrapper hides
-  this from external callers, but it still happens in the hot path).
-- No net reduction in maintained code: the wrapper layer *is* the event
-  bus. The `EventTarget` underneath provides dispatch, but a plain `Map`
-  or `Set` provides equivalent dispatch with less overhead.
+- No net reduction in maintained code: the wrapper layer *is* the bus.
 
-**Verdict: rejected.** This option inherits the allocation cost of 4A
-without the API-surface benefit. It is the worst of both approaches.
+**Verdict: rejected.** Inherits the allocation cost of 4A without the
+API-surface benefit. It is the worst of both approaches.
 
 ---
 
 ### 4C. Standalone typed `EventBus<EventMap>` class
 
-A small TypeScript class owned by `Map` (not `Core`). Callers use the
-same `on()` / `once()` surface; `Map` holds the bus as a field and
-delegates to it. `LegacyMap` and `GpuDevice` call `map.emit(name, payload)`
-or a thin forwarding method.
+A small TypeScript class owned by `Map`. Callers use the same
+`on()` / `once()` surface. `LegacyMap` and `GpuDevice` receive the bus
+instance directly at construction and call `this.bus.emit(...)`.
 
 ```ts
 // src/core/event-bus.ts
 
 type Listener<T> = (event: T) => void;
-
 interface Record_<T> { listener: Listener<T>; once: boolean; }
 
-class EventBus<M extends Record<string, unknown>> {
+class EventBus<M extends object> {
 
-    private sets_: { [K in keyof M]?: Set<Record_<M[K]>> }
+    private sets_: { [K in keyof M]?: Set<Record_<M[K & keyof M]>> }
         = Object.create(null);
 
-    on<K extends keyof M>(name: K, fn: Listener<M[K]>): () => void {
+    on<K extends keyof M & string>(
+        name: K,
+        fn: Listener<M[K]>,
+    ): () => void {
 
-        const set = this.sets_[name] ??= new Set();
+        const set = (this.sets_[name] ??= new Set());
         const rec: Record_<M[K]> = { listener: fn, once: false };
         set.add(rec);
         return () => set.delete(rec);
     }
 
-    once<K extends keyof M>(name: K, fn: Listener<M[K]>): () => void {
+    once<K extends keyof M & string>(
+        name: K,
+        fn: Listener<M[K]>,
+    ): () => void {
 
-        const set = this.sets_[name] ??= new Set();
+        const set = (this.sets_[name] ??= new Set());
         const rec: Record_<M[K]> = { listener: fn, once: true };
         set.add(rec);
         return () => set.delete(rec);
     }
 
-    emit<K extends keyof M>(name: K, event: M[K]): void {
+    emit<K extends keyof M & string>(name: K, event: M[K]): void {
 
         const set = this.sets_[name];
         if (!set || set.size === 0) return;
@@ -280,17 +301,20 @@ class EventBus<M extends Record<string, unknown>> {
 Properties:
 
 - `on()` and `once()` both return an unsubscribe function.
-- `emit` exits with zero allocation when no listeners are registered.
+- `emit` returns immediately with zero allocation when no listeners are
+  registered for the named event.
 - Dispatch is O(listeners for this event type), not O(all listeners).
-- Snapshot-at-dispatch (`[...set]`): registrations during emit do not
-  receive the current event, eliminating the `wait` workaround.
-- The snapshot allocates one temporary array per emit call that has
-  listeners. For `tick` at 60 Hz with one listener this is one small
-  array per frame. If this shows up in profiling, a two-pass approach
-  (mark `once` records, delete after the loop) eliminates the array
-  without changing the snapshot guarantee.
+- Snapshot-at-dispatch: the `[...set]` spread copies the active listener
+  set before iteration. Listeners registered during the current emit do
+  not receive it; listeners removed during the current emit are still
+  called if they were in the snapshot.
+- `once` records are deleted from the set before the listener is called,
+  so a throwing listener does not prevent its own removal.
+- One listener throwing does not stop others: exceptions propagate out
+  of `emit` and abort the remaining listeners. If isolation is needed,
+  wrap each call in try/catch. This is left to the implementation step.
 
-**Verdict: recommended.** See section 5 for the full design.
+**Verdict: recommended.**
 
 ---
 
@@ -299,84 +323,73 @@ Properties:
 | Metric | Current | 4A (`EventTarget`) | 4C (`EventBus`) |
 |---|---|---|---|
 | `emit` with 0 listeners | O(n) scan, 0 allocs | 1 `CustomEvent` alloc | 0 allocs |
-| `emit` with k listeners | O(n) scan | 1 `CustomEvent` alloc, native dispatch | 1 array alloc (`[...set]`) |
+| `emit` with k listeners | O(n) scan | 1 `CustomEvent` alloc | 1 array alloc |
 | Dispatch per event type | O(total listeners) | O(listeners for type) | O(listeners for type) |
-| `on()` alloc | 1 closure | 1 closure | 1 closure + 1 record object |
-| Code to maintain | 40 lines JS | 0 (native) | ~40 lines TS |
+| `on()` cost | 1 closure | 1 closure + 1 wrapper | 1 closure + 1 record |
+| Maintained dispatch code | 40 lines JS | 0 | ~40 lines TS |
 
-For the zero-listener case the current implementation scans all 9
-`Browser` listeners every `tick` and `map-update` emit. With 4C, zero
-listeners means an immediate return. For 60 Hz `tick` that is ~60 × 9 =
-540 wasted iterations per second eliminated.
+The zero-listener case matters most: `tick` and `map-update` are emitted
+at high frequency and often have no listeners registered. The current
+implementation scans all registered listeners (across all event types)
+on every emit. `EventBus` exits immediately. `EventTarget` allocates a
+`CustomEvent` regardless.
 
-For the typical case (1 `tick` listener in `Browser`), 4C allocates one
-3-element array per frame (`[...set]` on a Set with one entry). This is
-comparable to the closure allocation that `callListener` would make if it
-were written differently; V8 optimises same-shape short-lived arrays
-well. 4A allocates two objects (`CustomEvent` + `detail`) per frame with
-no listener in the critical path at all. The `CustomEvent` objects are
-larger and carry browser-internal state (`timeStamp`, event flags, DOM
-propagation machinery).
-
-`on()` allocation: all three approaches allocate one closure for the
-unsubscribe function. 4C additionally allocates the `Record_` object
-containing the listener reference and the `once` flag — one extra small
-object per subscription, paid once at registration time, not per emit.
-
-The practical difference between 4A and 4C at the emit site is the
-`CustomEvent` allocation. At 60 Hz this is ~5 MB/min of short-lived
-objects for `tick` and `map-update` combined, assuming a 200-byte
-`CustomEvent`. This is unlikely to be a bottleneck on desktop but is
-relevant on memory-constrained mobile devices where GC pauses are more
-disruptive.
+For the one-listener case, `EventBus` allocates one small spread array
+per emit. V8 optimises same-shape short-lived arrays; this should not be
+measurable at 60 Hz. `EventTarget` allocates a `CustomEvent` and a
+`detail` wrapper object — roughly 200 bytes each, ~36 000 objects per
+10-minute session for `tick` alone. On memory-constrained mobile devices
+this adds GC pressure that the other approaches avoid.
 
 ---
 
 ## 6. Proposed design
 
-### 6.1 Module
+### 6.1 Module and ownership
 
-`EventBus<CoreEventMap>` is implemented in `src/core/event-bus.ts` and
-instantiated by `Map` (`src/core/map.ts`):
+`EventBus<ViewerEventMap>` is implemented in `src/core/event-bus.ts`
+and instantiated by `Map` (`src/core/map.ts`):
 
 ```ts
 class Map {
-    private bus_: EventBus<CoreEventMap> = new EventBus();
+    private bus_: EventBus<ViewerEventMap> = new EventBus();
 
-    on<K extends keyof CoreEventMap>(
+    on<K extends keyof ViewerEventMap & string>(
         name: K,
-        fn: (e: CoreEventMap[K]) => void,
+        fn: (e: ViewerEventMap[K]) => void,
     ): () => void {
         this.assertAlive_();
         return this.bus_.on(name, fn);
     }
 
-    once<K extends keyof CoreEventMap>(
+    once<K extends keyof ViewerEventMap & string>(
         name: K,
-        fn: (e: CoreEventMap[K]) => void,
+        fn: (e: ViewerEventMap[K]) => void,
     ): () => void {
         this.assertAlive_();
         return this.bus_.once(name, fn);
     }
 
     /** @internal */
-    emit<K extends keyof CoreEventMap>(
+    emit<K extends keyof ViewerEventMap & string>(
         name: K,
-        event: CoreEventMap[K],
+        event: ViewerEventMap[K],
     ): void {
         this.bus_.emit(name, event);
     }
 }
 ```
 
-`LegacyMap` and `GpuDevice` currently call `this.core.callListener(...)`.
-Rather than adding a forwarding method to `Core` (which contradicts the
-goal of reducing its surface), the `EventBus` instance is passed directly
-to each at construction time. `LegacyMap` receives it from `Core` when
-`Core` constructs it; `GpuDevice` receives it from `Renderer`, which has
-access to `Core` and therefore to the bus. Both store it as a local
-field (`this.bus`) and call `this.bus.emit(...)`. The `EventBus` type
-has no naming collision with `LegacyMap` or the TypeScript `Map`.
+`Map` constructs `Core` and passes the `EventBus` instance at
+construction time. `Core` stores it as `this.bus` and calls
+`this.bus.emit(...)` for the events it still owns (`tick`, `map-loaded`,
+`map-unloaded`, `map-mapconfig-loaded`). As those responsibilities are
+absorbed into `Map`, the `Core.bus` field disappears with them.
+
+`LegacyMap` and `GpuDevice` also receive the bus at construction time
+from `Core` and `Renderer` respectively, replacing their
+`this.core.callListener(...)` call sites with `this.bus.emit(...)`. No
+new methods are added to `Core`.
 
 `Viewer.on()` and `Viewer.once()` delegate to `this.map_.on()` /
 `this.map_.once()` as today. `Viewer.once()` return type changes from
@@ -384,10 +397,13 @@ has no naming collision with `LegacyMap` or the TypeScript `Map`.
 
 ### 6.2 Typed payloads
 
-`CoreEventMap` in `src/core/types.ts` replaces all `unknown` entries:
+`CoreEventMap` in `src/core/types.ts` is renamed `ViewerEventMap` and
+all `unknown` entries are replaced with concrete types. The autopilot and
+loading events, previously untyped and invisible to the public API, are
+added:
 
 ```ts
-export interface CoreEventMap {
+export interface ViewerEventMap {
     'map-mapconfig-loaded': Record<string, unknown>;
     'map-loaded': { browserOptions: Record<string, unknown> };
     'map-unloaded': Record<string, never>;
@@ -410,6 +426,12 @@ export interface CoreEventMap {
     'geo-feature-leave': GeoFeatureEvent;
     'geo-feature-hover': GeoFeatureEvent;
     'geo-feature-click': GeoFeatureEvent;
+    'autorotate-changed': { autorotate: number };
+    'fly-start': { startPosition: unknown; endPosition: unknown };
+    'fly-final-phase': { position: unknown };
+    'fly-progress': { position: unknown; progress: number };
+    'fly-end': { position: unknown };
+    'loading-screen-hidden': Record<string, never>;
 }
 
 export interface GeoFeatureEvent {
@@ -419,48 +441,69 @@ export interface GeoFeatureEvent {
 }
 ```
 
+Autopilot payload fields are typed `unknown` where they originate from
+untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
+
 ### 6.3 Fixes bundled with the extraction
 
-- `Browser.kill()` stores the 9 unsubscribe closures returned at
-  construction and calls them on teardown.
-- `map-position-panned`, `map-position-rotated`, `map-position-zoomed`
-  are emitted via `map.emit(...)` instead of the
-  `Browser.callListener` → `Core.callListener` reach-through.
+- `Browser.kill()` stores all unsubscribe closures returned at
+  construction and calls each on teardown. The count is not fixed;
+  the array is drained in full regardless of how many were registered.
+- All browser-layer events are emitted via `map.emit(...)` instead of
+  the `Browser.callListener` → `Core.callListener` reach-through.
 - The dead `positionchanged` subscription in `explore-bar.js` is removed.
-- The `wait` parameter is removed from `Core.once`, `Map.once`, and
-  `Viewer.once`. The `getSurfaceAreaGeometry` call site is updated to
-  use `once` without `wait`.
+- `wait` is removed from `Core.once`, `Map.once`, and `Viewer.once`.
+  `getSurfaceAreaGeometry` is updated to use `once` without `wait`
+  (snapshot dispatch makes the `wait=1` workaround unnecessary).
+  The `measure.js` call site is addressed separately once the intended
+  computation rate is confirmed (see open questions).
 
 ---
 
 ## 7. Implementation steps
 
-1. Write `EventBus<EventMap>` in `src/core/event-bus.ts`. Unit-test
+1. Write `EventBus<M>` in `src/core/event-bus.ts`. Unit-test
    snapshot-at-dispatch, `once` auto-removal, and unsubscribe.
-2. Add `bus_: EventBus<CoreEventMap>` to `Map`. Implement `Map.on()`,
-   `Map.once()`, `Map.emit()` delegating to `bus_`. Change
-   `Map.once()` return type to `() => void`.
-3. Update `Viewer.once()` return type to `() => void`.
-4. Replace `Core.on` / `Core.once` / `Core.callListener` /
-   `Core.removeListener` with forwarding calls to `Map.on` /
-   `Map.once` / `Map.emit`. Remove the `listeners` array and
-   `listenerCounter` from `Core`.
-5. Pass the `EventBus` instance to `LegacyMap` and `GpuDevice` at
-   construction time. Replace `this.core.callListener(...)` call sites
-   with `this.bus.emit(...)`.
-6. Remove the `wait` parameter. Fix `getSurfaceAreaGeometry`.
-7. Type all payloads in `CoreEventMap`.
-8. Add `map-position-panned/rotated/zoomed` to `CoreEventMap`; reroute
-   their emission through `map.emit(...)`.
-9. Fix `Browser.kill()` to store and invoke unsubscribers.
-10. Remove the `positionchanged` subscription in `explore-bar.js`.
-11. Run screenshot regression tests.
+2. Rename `CoreEventMap` to `ViewerEventMap` in `src/core/types.ts`.
+   Add all missing events. Replace all `unknown` payload entries.
+3. Add `bus_: EventBus<ViewerEventMap>` to `Map`. Implement `Map.on()`,
+   `Map.once()`, `Map.emit()` delegating to `bus_`. Change return types
+   of `Map.once()` and `Viewer.once()` to `() => void`.
+4. Pass the bus to `Core` at construction. Replace `Core.on` /
+   `Core.once` / `Core.callListener` / `Core.removeListener` with
+   direct `this.bus.emit(...)` calls at the emission sites. Remove the
+   `listeners` array and `listenerCounter` from `Core`.
+5. Pass the bus to `LegacyMap` and `GpuDevice` at construction.
+   Replace `this.core.callListener(...)` call sites with
+   `this.bus.emit(...)`.
+6. Remove `wait` from `Core.once`, `Map.once`, `Viewer.once`.
+   Fix `getSurfaceAreaGeometry`. Defer `measure.js` until the rate
+   question is resolved.
+7. Reroute all `Browser.callListener(...)` emission sites through
+   `map.emit(...)`.
+8. Fix `Browser.kill()` to store and drain all unsubscribe closures.
+9. Remove the `positionchanged` subscription in `explore-bar.js`.
+10. Run screenshot regression tests.
 
 ---
 
 ## 8. Open questions
 
-None as of the draft date.
+**`measure.js` computation rate.** `traceVolumeLine` uses
+`once('tick', traceVolumeLine, 1)` to reschedule itself. With `wait=1`
+and the current live-array dispatch, it runs every other tick. With
+snapshot dispatch and no `wait`, it runs every tick. If the every-tick
+rate is correct, remove `wait`. If every-other-tick is intentional,
+replace `wait=1` with an explicit skip flag in `traceVolumeLine` itself.
+
+**`ViewerEventMap` rename.** `CoreEventMap` is a misnomer once the bus
+moves to `Map`. `ViewerEventMap` is proposed; confirm before the
+implementation step that renames the type and all its imports.
+
+**Exception isolation in `emit`.** One listener throwing currently aborts
+remaining listeners in `callListener`. The new `EventBus.emit` has the
+same behaviour. Wrapping each call in try/catch gives isolation but hides
+errors. Decide whether to isolate before implementing step 1.
 
 ---
 
@@ -468,30 +511,101 @@ None as of the draft date.
 
 - The direction is sound: a typed `EventBus<EventMap>` owned by `Map`
   fits the `core.js` suppression track.
+
+  *Author: accepted.*
+
 - Clarify the temporary migration path while `Core` still emits `tick`,
   `map-loaded`, `map-unloaded`, and `map-mapconfig-loaded`. `Map`
   should own the bus; `Core` can receive it only as temporary wiring
   until those responsibilities move into `Map`.
+
+  *Author: implemented. Section 6.1 now states that `Map` constructs
+  `Core` and passes the bus at construction. `Core` stores it as
+  `this.bus` and uses it directly; no forwarding method is added to
+  `Core`.*
+
 - The event inventory is incomplete. `Browser.callListener()` also emits
   `autorotate-changed`, `fly-start`, `fly-final-phase`, `fly-progress`,
   `fly-end`, and `loading-screen-hidden`. `fly-end` is used by
   `demos/waypoint/waypoint.js`.
+
+  *Author: implemented. All six events added to the inventory table and
+  to `ViewerEventMap` in section 6.2. Payload fields typed where the
+  source is clear; `unknown` used where the origin is untyped ES5.*
+
 - The `wait` section is incomplete. `getSurfaceAreaGeometry` is not the
   only use; `src/browser/ui/control/measure.js` also calls
   `core.once('tick', ..., 1)`.
+
+  *Author: implemented. Section 3 now covers both call sites. The
+  `measure.js` case is treated separately because removing `wait` there
+  changes the computation rate, not just the dispatch semantics. It is
+  tracked as an open question.*
+
 - Define event policy explicitly: public core events, public
   browser/viewer events, internal-only events, and deleted events. The
   RFC currently promotes only three browser events without saying why
   the other browser events are excluded.
+
+  *Author: partially accepted. A public/private event split is not
+  adopted — all events are public and accessible via `Viewer.on()`. The
+  inventory now includes all events and the promotion rationale is
+  stated: the split was an implementation accident, not a policy.
+  `positionchanged` is the only event marked for deletion.*
+
 - Specify dispatch semantics: listener added during emit, listener
   removed during emit, `once` removal timing, and exception behavior.
+
+  *Author: implemented. Section 4C now states all four behaviors
+  explicitly. Exception isolation is left as an open question.*
+
 - The sample type bound `EventBus<M extends Record<string, unknown>>`
   may reject named interfaces without a string index signature. Prefer
   `M extends object` plus `keyof M & string`.
+
+  *Author: implemented. The class declaration and all method signatures
+  in sections 4C and 6.1 use `M extends object` and
+  `K extends keyof M & string`.*
+
 - `Browser.kill()` should store and drain all unsubscribe closures, not
   rely on a fixed listener count.
+
+  *Author: implemented. Section 6.3 and implementation step 8 now say
+  the array is drained in full rather than assuming a fixed count.*
+
 - Keep `EventTarget` rejected. The existing reasoning is adequate; the
   stronger reason is the API mismatch with the existing `on()` /
   unsubscribe-closure surface.
+
+  *Author: accepted. The verdict in 4A leads with the API contract
+  break.*
+
 - Replace `Open questions: none` with the unresolved migration and
   event-surface questions above before moving the RFC out of draft.
+
+  *Author: implemented. Section 8 now lists three open questions:
+  `measure.js` computation rate, `ViewerEventMap` rename confirmation,
+  and exception isolation policy.*
+
+---
+
+## 10. Review round 2
+
+Not signed off yet. The major architecture concerns from round 1 are
+addressed, but three points remain.
+
+- Section 4C contradicts itself on exception behavior. It says one
+  listener throwing does not stop others, then says exceptions propagate
+  out of `emit` and abort the remaining listeners. Choose one behavior.
+  Current `callListener` behavior is abort-on-throw.
+- Step 6 says to remove `wait` while deferring `measure.js`. That is not
+  safe as written. If `measure.js` is deferred, `wait` cannot be removed
+  globally unless a temporary compatibility path preserves its current
+  every-other-tick behavior.
+- Section 6.2 says all `unknown` payload entries are replaced with
+  concrete types, but the proposed map still contains `unknown` for
+  legacy payloads. That is acceptable, but the text should say known
+  payloads are tightened and `unknown` remains only where the source is
+  still untyped ES5.
+
+With those changes, the design is ready to implement.

@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-14 — RFC: event bus, round 1 reviewer responses
+
+Round 1 reviewer notes addressed. Complete event inventory added (six
+autopilot/loading events previously missing). `wait` mechanism coverage
+extended to both call sites. Event policy settled: all events are public.
+Dispatch semantics specified. TypeScript type bound corrected. Open
+questions section added covering `measure.js` rate, `ViewerEventMap`
+rename, and exception isolation. Round 1 author responses appended to
+section 9.
+
+---
+
 ## 2026-05-14 — RFC: event bus extraction
 
 ### Goal
