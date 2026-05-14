@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-14 — RFC: event bus, round 2 reviewer responses
+
+Three notes addressed. Exception behavior contradiction in 4C resolved:
+abort-on-throw, matching current behavior. `wait` removal in step 6 is
+now global after re-tracing `measure.js`: `traceVolumeLine` runs once per
+tick with `wait=1` (not every other tick as previously stated) — `wait=1`
+is the mid-dispatch workaround at that site too. Open question for
+`measure.js` closed. Section 6.2 text corrected to say `unknown` remains
+where the source is still untyped ES5.
+
+---
+
 ## 2026-05-14 — RFC: event bus, round 1 reviewer responses
 
 Round 1 reviewer notes addressed. Complete event inventory added (six

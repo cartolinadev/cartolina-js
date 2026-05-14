@@ -131,13 +131,17 @@ simplifies to `once('map-update', retry)`.
 **`measure.js` (`src/browser/ui/control/measure.js:612, 620`)** uses
 `once('tick', traceVolumeLine, 1)` to spread a volume calculation across
 frames. `traceVolumeLine` is a step function that reschedules itself each
-time it runs: it processes one slice and then registers itself again with
-`once('tick', traceVolumeLine, 1)`. With `wait=1`, it runs every other
-tick. With snapshot dispatch and no `wait`, it would run every tick —
-double the rate. Whether `wait=1` here is a deliberate rate limiter or a
-side effect of the mid-dispatch workaround is not clear from the code.
-This call site cannot safely have `wait` removed without verifying the
-intended computation rate. This is tracked in the open questions.
+time it runs. Tracing the execution with the current live-array dispatch:
+`traceVolumeLine` fires on tick N and registers `once('tick',
+traceVolumeLine, 1)`. `callListener` continues iterating, finds the new
+record mid-pass, decrements `wait` from 1 to 0, and skips it without
+firing. On tick N+1 the record fires. The computation runs once per tick.
+
+With snapshot dispatch and no `wait`: the reschedule registration is not
+in the snapshot, so tick N ends without a second call. Tick N+1 fires.
+Same once-per-tick rate. `wait=1` at both call sites is the
+mid-dispatch workaround — not a rate limiter — and can be removed
+alongside `getSurfaceAreaGeometry`.
 
 ---
 
@@ -310,9 +314,10 @@ Properties:
   called if they were in the snapshot.
 - `once` records are deleted from the set before the listener is called,
   so a throwing listener does not prevent its own removal.
-- One listener throwing does not stop others: exceptions propagate out
-  of `emit` and abort the remaining listeners. If isolation is needed,
-  wrap each call in try/catch. This is left to the implementation step.
+- One listener throwing aborts the remaining listeners in the same emit
+  call — the exception propagates out of `emit`. This matches the
+  current `callListener` behavior. Exception isolation (try/catch per
+  listener) is left as an open question.
 
 **Verdict: recommended.**
 
@@ -397,10 +402,11 @@ new methods are added to `Core`.
 
 ### 6.2 Typed payloads
 
-`CoreEventMap` in `src/core/types.ts` is renamed `ViewerEventMap` and
-all `unknown` entries are replaced with concrete types. The autopilot and
-loading events, previously untyped and invisible to the public API, are
-added:
+`CoreEventMap` in `src/core/types.ts` is renamed `ViewerEventMap`. Known
+payload fields are given concrete types; `unknown` remains only where the
+source is still untyped ES5 and cannot be verified without migrating that
+file. The autopilot and loading events, previously invisible to the public
+API, are added:
 
 ```ts
 export interface ViewerEventMap {
@@ -453,10 +459,10 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
   the `Browser.callListener` → `Core.callListener` reach-through.
 - The dead `positionchanged` subscription in `explore-bar.js` is removed.
 - `wait` is removed from `Core.once`, `Map.once`, and `Viewer.once`.
-  `getSurfaceAreaGeometry` is updated to use `once` without `wait`
-  (snapshot dispatch makes the `wait=1` workaround unnecessary).
-  The `measure.js` call site is addressed separately once the intended
-  computation rate is confirmed (see open questions).
+  Both `getSurfaceAreaGeometry` and the `measure.js` `traceVolumeLine`
+  reschedule are updated to use `once` without `wait`. Both use `wait=1`
+  only as a mid-dispatch workaround; snapshot dispatch makes it
+  unnecessary at both sites without changing computation rate.
 
 ---
 
@@ -477,8 +483,8 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
    Replace `this.core.callListener(...)` call sites with
    `this.bus.emit(...)`.
 6. Remove `wait` from `Core.once`, `Map.once`, `Viewer.once`.
-   Fix `getSurfaceAreaGeometry`. Defer `measure.js` until the rate
-   question is resolved.
+   Update `getSurfaceAreaGeometry` and `measure.js` `traceVolumeLine`
+   to use `once` without `wait`.
 7. Reroute all `Browser.callListener(...)` emission sites through
    `map.emit(...)`.
 8. Fix `Browser.kill()` to store and drain all unsubscribe closures.
@@ -488,13 +494,6 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
 ---
 
 ## 8. Open questions
-
-**`measure.js` computation rate.** `traceVolumeLine` uses
-`once('tick', traceVolumeLine, 1)` to reschedule itself. With `wait=1`
-and the current live-array dispatch, it runs every other tick. With
-snapshot dispatch and no `wait`, it runs every tick. If the every-tick
-rate is correct, remove `wait`. If every-other-tick is intentional,
-replace `wait=1` with an explicit skip flag in `traceVolumeLine` itself.
 
 **`ViewerEventMap` rename.** `CoreEventMap` is a misnomer once the bus
 moves to `Map`. `ViewerEventMap` is proposed; confirm before the
@@ -598,14 +597,36 @@ addressed, but three points remain.
   listener throwing does not stop others, then says exceptions propagate
   out of `emit` and abort the remaining listeners. Choose one behavior.
   Current `callListener` behavior is abort-on-throw.
+
+  *Author: implemented. The contradiction is removed. Section 4C now
+  states clearly that one listener throwing aborts the remaining
+  listeners in the same emit call, matching current behavior. Exception
+  isolation remains an open question.*
+
 - Step 6 says to remove `wait` while deferring `measure.js`. That is not
   safe as written. If `measure.js` is deferred, `wait` cannot be removed
   globally unless a temporary compatibility path preserves its current
   every-other-tick behavior.
+
+  *Author: implemented, with a correction to the underlying analysis.
+  The `measure.js` `traceVolumeLine` runs once per tick — not every
+  other tick. Tracing the live-array execution: `traceVolumeLine` fires
+  on tick N, registers `once('tick', traceVolumeLine, 1)`, `callListener`
+  finds the new record mid-pass, decrements `wait` to 0, and skips it
+  without removing it; it fires on tick N+1. `wait=1` is the
+  mid-dispatch workaround, not a rate limiter. With snapshot dispatch it
+  is unnecessary at both call sites. `wait` is now removed globally in
+  step 6 with no deferral. Section 3 updated with the corrected trace.
+  The `measure.js` open question is closed.*
+
 - Section 6.2 says all `unknown` payload entries are replaced with
   concrete types, but the proposed map still contains `unknown` for
   legacy payloads. That is acceptable, but the text should say known
   payloads are tightened and `unknown` remains only where the source is
   still untyped ES5.
+
+  *Author: implemented. Section 6.2 introductory text now says known
+  fields are given concrete types and `unknown` remains only where the
+  source is untyped ES5.*
 
 With those changes, the design is ready to implement.
