@@ -9,6 +9,13 @@ updated to exclude `settings.local.json`, which contains personal data
 
 ---
 
+## 2026-05-14 — RFC: config store, round 1 review notes
+
+Round 1 review notes added to rfc-config-store.md. Status changed
+from Draft to In review.
+
+---
+
 ## 2026-05-14 — RFC: event bus, sign-off and editorial cleanup
 
 Reviewer signed off on architecture and implementation direction. Two

@@ -1,6 +1,6 @@
 # RFC: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** Draft  
+**Status:** In review  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -350,3 +350,49 @@ is loaded, which are replayed on load. With the store, this is
 unnecessary — the store always holds the current value and
 subsystems read it at construction. Confirm no other purpose for
 `configStorage` before deleting it.
+
+## Review round 1
+
+1. Step 3 does not preserve current behavior as written. The RFC says
+   `Browser` replaces `this.config` with the store, reduces
+   `setConfigParam` to a store write, and has no watchers yet. Current
+   browser code and `control-mode/map-observer.js` read `this.config`
+   fields directly, while `Core`, `LegacyMap`, and `Renderer` only
+   update their own `config` objects through their current switch
+   handlers. A store-only shim would stop those legacy readers from
+   seeing writes. The rollout needs an explicit bridge: either keep the
+   existing config objects updated until each owner watches the store,
+   or migrate the first required watchers before replacing the old
+   routing.
+
+2. Validation is underspecified. Q1 frames validation as a choice
+   between runtime key checks and TypeScript, but the existing setters
+   also normalize values from untyped sources: booleans, bounded
+   numbers, fixed-length arrays, `MapPosition`, `geojsonStyle` JSON,
+   and authorization values. `ViewerConfig` types do not protect calls
+   from JavaScript, URL params, style JSON, or `browserOptions`. The
+   RFC should define where raw authored values become normalized store
+   values and whether watchers may assume every value they receive has
+   already been validated.
+
+3. The deferred `flush()` contract is too broad for all current config
+   keys. Frame-boundary dispatch is a good renderer invariant, but
+   loading and construction keys need synchronous availability:
+   `style`/`map` start async loading in the `Core` constructor,
+   `position`/`view` are replayed when `LegacyMap` appears, loader
+   flags are applied in `Map.setLoaderParams`, and mapConfig
+   `browserOptions` are merged with caller options after load. The RFC
+   should separate construction-only state from live reactive state, or
+   specify which keys are read synchronously from the store and which
+   keys are delivered by frame flush.
+
+4. The subsystem migration order is inaccurate for renderer config.
+   `Renderer.setConfigParam()` currently delegates back to
+   `Core.setRendererConfigParam()`, and the actual validation and
+   storage switch lives in `Core`. Migrating `Renderer` first is still
+   possible, but the RFC should say that the renderer switch is moved
+   out of `Core`, not that `Renderer` already owns the behavior.
+
+5. Section numbering under "Proposed design" starts at 3.1 even though
+   it is section 4. Renumber those subsections before the RFC is
+   accepted.
