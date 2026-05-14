@@ -206,6 +206,12 @@ source ~/.nvm/nvm.sh && nvm use >/dev/null && node ...
 Code is liability. Less code means fewer bugs and easier maintenance. We
 like to delete code.
 
+Complexity that exists for its own sake is a bug. Elegance is not a
+cosmetic goal; a simpler design usually has fewer failure modes. When
+two approaches solve the problem equally well, choose the one with
+fewer moving parts, fewer special cases, and less code. A design that
+eliminates a concept is better than one that models it more precisely.
+
 - **Write as little code as possible.** Before writing new code, search
   for existing functionality to reuse. When duplication is unavoidable,
   abstract, but only once the duplication is real and the right

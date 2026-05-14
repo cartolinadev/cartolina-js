@@ -159,7 +159,7 @@ Until 2026-05, a separate `vts-core.js` was built from
 input handling. It was removed because the size difference (9%) did
 not justify maintaining a separate entry point, and the same use case
 is now covered by `interactive: false` on the browser build. See
-`core-build.md` for the full rationale and migration notes.
+`non-interactive.md` for the full rationale and migration notes.
 
 ### Browser CSS is a runtime dependency, not decoration
 

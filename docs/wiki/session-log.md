@@ -167,7 +167,7 @@ still alive (not deleted). Object model diagram updated to show
 policy: factories return usable objects or throw; legacy nullable
 construction patterns are migration debt.
 
-**`docs/wiki/core-build.md`**: rewritten as a non-interactive usage
+**`docs/wiki/non-interactive.md`**: rewritten as a non-interactive usage
 guide. Includes historical note on why `vts-core.js` was removed (9%
 size difference, `interactive: false` covers the same use case).
 
@@ -2103,3 +2103,15 @@ Design the new API for runtime style-based overlays. It should register the
 geodata/free-layer source and the style layer or stylesheet used to render it,
 then refresh the style-driven sequences. Do not hide legacy `view.freeLayers`
 mutation inside `Viewer.addFreeLayer()`.
+
+## 2026-05-14 — Wiki rename: core-build → non-interactive
+
+`docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.
+The filename `core-build` referred to the removed `vts-core.js` build
+target; the file's content had already been rewritten to document
+`interactive: false` usage. Three cross-references updated:
+`docs/wiki/index.md`, `docs/wiki/architecture.md`, and an earlier entry
+in this log.
+
+`AGENTS.md`: added a paragraph on simplicity as a design criterion
+(fewer moving parts preferred over more precise modelling).

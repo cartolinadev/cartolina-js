@@ -18,7 +18,7 @@ then branch into more specific documents as needed.
 
 ### Integration guides
 
-- [core-build.md](core-build.md) — non-interactive usage with
+- [non-interactive.md](non-interactive.md) — non-interactive usage with
   `interactive: false`: factory call, position format, events,
   navigation, geodata overlays, and historical note on the
   removed `vts-core.js` build
