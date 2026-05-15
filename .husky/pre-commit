@@ -16,6 +16,75 @@ if [ -z "$SKIP_SESSION_LOG" ]; then
   fi
 fi
 
+# Scan staged diff for PII and secrets
+STAGED_DIFF=$(git diff --cached)
+
+fail_sensitive() {
+  echo "pre-commit: sensitive content detected — $1"
+  echo "Commit blocked. Fix the issue or set SKIP_SENSITIVE=1 to bypass."
+  exit 1
+}
+
+if [ -z "$SKIP_SENSITIVE" ]; then
+  # Email addresses
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qE '[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'; then
+    fail_sensitive "email address in staged changes"
+  fi
+
+  # Absolute home directory paths
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qE '/home/[a-zA-Z0-9_]+/'; then
+    fail_sensitive "absolute /home/ path in staged changes"
+  fi
+
+  # Common secret token prefixes
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qE \
+        'sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]+|glpat-[A-Za-z0-9\-]+'\
+'|xoxb-[0-9A-Za-z\-]+|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC )?PRIVATE'; then
+    fail_sensitive "secret token or private key in staged changes"
+  fi
+
+  # Quoted key/password assignments: password = "actualvalue" (>=8 chars)
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -iqE \
+        '(api_?key|password|passwd|auth_?key|secret)\s*[=:]\s*['"'"'"][^'"'"'"]{8,}['"'"'"]'; then
+    fail_sensitive "key/password assignment in staged changes"
+  fi
+
+  # .env-style unquoted assignments: PASSWORD=actualvalue (>=8 chars)
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qE \
+        '^\+[A-Z_]*(API_KEY|PASSWORD|SECRET|AUTH_KEY|PASSWD)[A-Z_]*=[A-Za-z0-9+/=_\-]{8,}'; then
+    fail_sensitive ".env key/password assignment in staged changes"
+  fi
+
+  # IPv4 addresses (public or private).
+  # Strip quoted dotted-decimal strings first to avoid flagging version
+  # numbers like "1.0.0.4" that appear in JSON or npm output.
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -vE '"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"' \
+      | grep -qE \
+        '\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'; then
+    fail_sensitive "IPv4 address in staged changes"
+  fi
+
+  # Recovery / backup codes: formatted as xxxx xxxx or xxxx-xxxx
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qE '\b[0-9]{4}[ -][0-9]{4}\b'; then
+    fail_sensitive "recovery code pattern (xxxx xxxx) in staged changes"
+  fi
+
+  # Recovery codes: 3 or more consecutive added lines each holding an
+  # 8-digit number (the block-of-ten format from backup code sheets)
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -oE '\b[0-9]{8}\b' \
+      | awk 'BEGIN{n=0} /^[0-9]{8}$/{n++; if(n>=3) exit 0} END{exit (n<3)}'; then
+    fail_sensitive "block of 8-digit codes in staged changes"
+  fi
+fi
+
 # Now do the version bump
 node scripts/bump-version-pre-commit.js
 git add package.json src/core/version.js
