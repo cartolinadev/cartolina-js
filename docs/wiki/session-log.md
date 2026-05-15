@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-05-15 — demos: remove obsolete patterns
+
+Audited all non-legacy demos for patterns that no longer fit the
+current API surface.
+
+- `simple-terrain`: fixed typo `stylet.json` → `style.json`; removed
+  commented-out dead options.
+- `core`: removed `cartolina.checkSupport()` call, which is not
+  exported from the public API and would throw at runtime.
+- `depth-test`: rewrote `demo.js` to use `cartolina.map()` with a
+  local `style.json` (satellite imagery + specular, no labels) instead
+  of the legacy `cartolina.browser()` + mapConfig URL; replaced
+  internal `UIElement` event wiring with DOM `addEventListener` and
+  standard `e.clientX`/`e.clientY`; fixed title branding.
+- `map/styles/satellite.json`: replaced hardcoded production URLs with
+  `__backend__` placeholders to match all other map-demo styles;
+  normalised font URLs from protocol-relative to `https://`.
+- `demos/index.html`: reordered entries; expanded Map description with
+  style names, backend values, and `pos=`; link includes explicit
+  defaults.
+
+---
+
 ## 2026-05-14 — RFC: config store, sign-off; status Accepted
 
 Reviewer signed off. Status updated to Accepted — ready to implement.

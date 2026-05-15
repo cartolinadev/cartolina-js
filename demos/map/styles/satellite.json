@@ -3,24 +3,24 @@
     "sources": {
         "topoearth-viewfinder-dem3": {
             "type": "cartolina-surface",
-            "url": "https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/viewfinder-dem3/"
+            "url": "__backend__/melown2015/surface/topoearth/viewfinder-dem3/"
         },
         "eoxit-s2c": {
             "type": "cartolina-tms",
-            "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/eoxit-sentinel2-cloudless-2018/"
+            "url": "__backend__/melown2015/tms/topoearth/eoxit-sentinel2-cloudless-2018/"
         },
         "ne1lc-specularmap": {
             "type": "cartolina-tms",
-            "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/ne1-lc-500m-specularmap/"
+            "url": "__backend__/melown2015/tms/topoearth/ne1-lc-500m-specularmap/"
         },
         "esa-worldcover-specularmap": {
             "type": "cartolina-tms",
-            "url": "https://cdn.tspl.re/mapproxy/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/"
+            "url": "__backend__/melown2015/tms/topoearth/esa-worldcover-2021-specularmap/"
         },
         "osm-openfreemap": {
             "type": "cartolina-freelayer",
-            "url": "https://cdn.tspl.re/mapproxy/melown2015/geodata/topoearth/osm-openfreemap/"
-        }        
+            "url": "__backend__/melown2015/geodata/topoearth/osm-openfreemap/"
+        }
     },
     "terrain": {
         "sources": ["topoearth-viewfinder-dem3"]
@@ -37,13 +37,13 @@
         "@osmid": {"if":[["has","$id_"],"id_",""]},
         "@name": {"if":[["has","$name"],{"if":[["any",["!has","$name:en"],["==",{"has-latin":"$name"},true]],"{$name}","{$name}\n{$name:en}"]},""]},
         "@serif-font": ["noto-serif","noto-mix","noto-cjk"],
-        "@italic-font": ["noto-italic","noto-mix","noto-cjk"]    
+        "@italic-font": ["noto-italic","noto-mix","noto-cjk"]
     },
     "fonts": {
-        "noto-italic": "//cdn.tspl.re/fonts/noto-italic/1.0.0/noto-i.fnt",
-        "noto-mix": "//cdn.tspl.re/fonts/noto-extended/1.0.0/noto.fnt",
-        "noto-cjk": "//cdn.tspl.re/fonts/noto-cjk/1.0.0/noto.fnt",
-        "noto-serif": "//cdn.tspl.re/fonts/noto-serif/1.0.0/noto-serif.fnt"    
+        "noto-italic": "https://cdn.tspl.re/fonts/noto-italic/1.0.0/noto-i.fnt",
+        "noto-mix": "https://cdn.tspl.re/fonts/noto-extended/1.0.0/noto.fnt",
+        "noto-cjk": "https://cdn.tspl.re/fonts/noto-cjk/1.0.0/noto.fnt",
+        "noto-serif": "https://cdn.tspl.re/fonts/noto-serif/1.0.0/noto-serif.fnt"
     },
     "layers": [
         { "source": "eoxit-s2c", "whitewash": 0.2 },

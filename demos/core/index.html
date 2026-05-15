@@ -25,18 +25,13 @@
 <div id="map"></div>
 <div id="coords">click map for coordinates</div>
 <script>
-// Non-interactive demo: cartolina renders the map; this script wires
-// all camera control and vector overlay by hand.
-//
-// interactive:false suppresses cartolina's built-in ControlMode event
-// listeners. Pan, orbit, zoom, hit-testing, and geodata are then the
-// application's responsibility.
-
-if (!cartolina.checkSupport()) {
-    document.body.textContent = 'WebGL2 not supported.';
-    throw new Error('WebGL2 not supported');
-}
-
+/* Non-interactive demo: cartolina renders the map; this script wires
+ * all camera control and vector overlay by hand.
+ *
+ * interactive:false suppresses cartolina's built-in ControlMode event
+ * listeners. Pan, orbit, zoom, hit-testing, and geodata are then the
+ * application's responsibility.
+ */
 const viewer = cartolina.map({
     container: 'map',
     style: './style.json',
