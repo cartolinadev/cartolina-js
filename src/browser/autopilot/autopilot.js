@@ -45,7 +45,7 @@ Autopilot.prototype.getAutopan = function() {
 };
 
 Autopilot.prototype.flyToDAH = function(distance, azimuth, height, options) {
-    var map = this.browser.core.map;
+    var map = this.browser.getMap();
     if (!map) {
         return;
     }
@@ -58,14 +58,14 @@ Autopilot.prototype.flyToDAH = function(distance, azimuth, height, options) {
 
 
 Autopilot.prototype.flyTo = function(position, options) {
-    var map = this.browser.core.map;
+    var map = this.browser.getMap();
     if (!map) {
         return;
     }
-    
+
     options = options || {};
     var trajectory = map.generateTrajectory(map.getPosition(), position, options);
-    this.setTrajectory(trajectory, options['samplePeriod'] || 10, options); 
+    this.setTrajectory(trajectory, options['samplePeriod'] || 10, options);
 };
 
 
@@ -177,7 +177,7 @@ Autopilot.prototype.tick = function() {
 
 
 Autopilot.prototype.generateTrajectory = function(p1, p2, options) {
-    var map = this.browser.core.map;
+    var map = this.browser.getMap();
     if (!map) {
         return;
     }
@@ -188,7 +188,7 @@ Autopilot.prototype.generateTrajectory = function(p1, p2, options) {
 
 
 Autopilot.prototype.generatePIHTrajectory = function(position, azimuth, distance, options) {
-    var map = this.browser.core.map;
+    var map = this.browser.getMap();
     if (!map) {
         return;
     }

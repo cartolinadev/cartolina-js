@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-15 — autopilot: fix flyTo silent failure
+
+`autopilot.flyTo` (and `flyToDAH`, `generateTrajectory`,
+`generatePIHTrajectory`) accessed `this.browser.core.map` to get the
+legacy map object. After `Browser.core` was changed to hold the
+TypeScript `Map` class rather than the `Core` instance, `.map` was
+undefined on it, causing `flyTo` to silently return without computing
+a trajectory. Fixed by switching all four methods to
+`this.browser.getMap()`, which returns `MapInterface` and was already
+used correctly by `tick()`.
+
+---
+
 ## 2026-05-15 — demos: remove obsolete patterns
 
 Audited all non-legacy demos for patterns that no longer fit the

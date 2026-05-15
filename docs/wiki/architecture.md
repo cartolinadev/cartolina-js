@@ -648,3 +648,26 @@ parameters belong in the style, application/UI parameters belong
 exclusively in the factory config and are not style-addressable. This
 has not been done yet because the config dict is a flat untyped bag with
 no such distinction.
+
+
+## Regression test: expected network errors from upstream tile sources
+
+Some tileserver resource drivers (`tms-normalmap`, `tms-raster`) fetch
+tiles from remote GDAL sources — typically WMS or WMTS servers. When
+the upstream server returns a 500, the tileserver must propagate the
+failure; neither GDAL nor the CDN cache can absorb it on the first
+request. cartolina-js handles this gracefully: for bump-map layers the
+tile is rendered without that layer; for diffuse layers the renderer
+falls back to a coarser tile.
+
+Consequence for regression testing: a screenshot test run that follows
+a long idle period may report network fetch errors for affected tile
+URLs. These are upstream availability failures, not cartolina-js
+regressions. The visual output is degraded but structurally correct:
+terrain geometry and the primary colour layer are unaffected. On a
+second run, CDN and GDAL caches are usually warm and the errors
+disappear.
+
+If a test run reports network fetch errors, repeat the test before
+concluding it is a cartolina-js regression. Only treat fetch errors
+as a regression if they persist across repeated runs.
