@@ -1,5 +1,12 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — clarify backtrack vs "after descent"
+
+Replaced "after descent" with "on backtrack" throughout §2.1 — the
+two phrases are synonymous but "backtrack" is the precise term.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — fix mixed-LOD surface leaf rule
 
 §2.1 corrected: natural-leaf rendering is now unconditional (step 4,

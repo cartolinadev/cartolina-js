@@ -118,12 +118,13 @@ At each node:
 3. For each surface, descend into children if the surface needs finer
    detail (SSE does not pass and children exist). Collect the masks
    returned by child calls and OR them together into a combined mask.
-4. For each surface at its **natural leaf** at this node — SSE passes
-   or it has no children at this LOD — render it using the combined
-   child mask as input (see §2.2). OR the rendered coverage into the
-   mask. This is unconditional: a surface at its natural leaf always
-   renders here, regardless of fallback cadence, because there is no
-   finer data for it anywhere in the tree.
+4. On backtrack: for each surface at its **natural leaf** at this node
+   — SSE passes or it has no children at this LOD — render it using
+   the combined child mask as input (see §2.2). OR the rendered
+   coverage into the mask. This is unconditional: a surface at its
+   natural leaf always renders on backtrack here, regardless of
+   fallback cadence, because there is no finer data for it anywhere
+   in the tree.
 5. If this node is a **fallback LOD** (see §2.4), also render surfaces
    that are not at their natural leaf here (they have children but
    provide early coverage as a fallback). Use the combined mask as
@@ -133,12 +134,12 @@ At each node:
 This is the complete algorithm. There is no mode switch.
 
 The distinction between steps 4 and 5 matters for mixed-LOD surface
-stacks. A coarse back surface whose LOD range ends at this node renders
-in step 4 regardless of fallback cadence; it sees the child mask that
-the front surface's descendants already wrote, so it fills only the
-gaps the front surface left. A front surface that could go deeper but
-renders early as fallback coverage is handled in step 5, gated by the
-fallback cadence.
+stacks. A coarse back surface whose LOD range ends at this node renders on
+backtrack in step 4 regardless of fallback cadence; it sees the child
+mask that the front surface's descendants already wrote, so it fills
+only the gaps the front surface left. A front surface that could go
+deeper but renders early as fallback coverage is handled in step 5 on
+backtrack, gated by the fallback cadence.
 
 ### 2.2 Leaf rendering
 
@@ -958,7 +959,7 @@ relying on them in the metatile.
    *Implemented. §2.1 now separates natural-leaf rendering (step 4,
    unconditional) from fallback-cadence rendering (step 5, gated).
    A surface at its natural leaf — SSE passes or no children at this
-   LOD — always renders after descent, using the child mask as input.
+   LOD — always renders on backtrack, using the child mask as input.
    This covers the case where a coarse back surface's LOD range ends
    at a node that the finer front surface's children have already
    populated: the back surface renders in the gaps the front surface
