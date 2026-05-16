@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review
+**Status:** In review — author responded to round 1
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -114,20 +114,21 @@ At each node:
 
 1. If the metanode is not ready, return a null mask (nothing rendered).
 2. If the node is frustum-culled, return a null mask.
-3. If the SSE test passes (`texelSize <= texelSizeFit`) or the node has
-   no children, this node is a **leaf**: render it and return its mask
-   (see §2.2).
-4. Otherwise attempt to descend into each of the up to four children
-   by calling the function recursively. Collect the returned masks.
-5. OR the up to four child masks together into a single combined mask.
-   Because child tiles occupy non-overlapping quadrants of the parent's
-   geographic UV space, their masks occupy non-overlapping sub-rectangles
-   of the parent mask texture. The OR is a no-op write: each child writes
-   only into its quadrant.
-6. If this node is a **fallback LOD** (see §2.4), render it using the
-   combined child mask as input, then OR the rendered coverage into the
-   mask. Return the combined mask.
-7. Otherwise return the combined child mask without rendering.
+3. For each surface in the sequence, check independently whether it is
+   at its natural leaf position at this node: SSE passes or it has no
+   children at this LOD. Surfaces at their natural leaf render here in
+   priority order, accumulating the mask, before any descent (see §2.2).
+   This ensures a higher-priority surface always claims its pixels at its
+   own LOD, regardless of whether a lower-priority surface has finer data.
+4. Attempt to descend into each of the up to four children for surfaces
+   that still need finer detail (SSE does not pass and children exist).
+   Each child is visited recursively. Collect the returned masks.
+5. OR the up to four child masks together into a single combined mask
+   and merge it with any mask already written in step 3.
+6. If this node is a **fallback LOD** (see §2.4), render the surfaces
+   that did not render in step 3 using the combined mask from step 5 as
+   input. OR the rendered coverage into the mask.
+7. Return the combined mask.
 
 This is the complete algorithm. There is no mode switch.
 
@@ -151,11 +152,17 @@ can render only into pixels not yet claimed. Depth testing still
 operates normally within each surface's geometry; the mask handles
 cross-surface ordering at the same node.
 
-If a surface is watertight at this tile position (its geometry
-covers the full tile cell), it claims all remaining UV area. All
-subsequent surfaces in the sequence can be skipped — no rendering,
-no data requests. See §4 for how watertight status is detected and
-how each mask approach uses it differently.
+If a surface is watertight at this tile position (its geometry covers
+the full tile cell), it claims the entire UV area. All subsequent
+surfaces in the sequence can skip rendering and mesh/texture loading
+at this node. Metatile fetches for lower surfaces are not skipped:
+the traversal still needs per-surface metatile data to determine child
+structure and SSE at descendant nodes, where a lower surface may
+contribute coverage that the watertight surface's children do not reach.
+Skipping entire subtrees for lower surfaces below a watertight ancestor
+is a valid further optimisation but requires propagating the watertight
+state downward through the recursion and is deferred. See §4.0 for
+how each mask approach uses watertight status.
 
 ### 2.3 Backtrack and mask propagation
 
@@ -482,41 +489,28 @@ of splitting.
 - Complexity: footprint program, blit program, mask texture pool,
   erosion pass — more infrastructure than screen-space.
 
-### 4.3 Assessment and prototype order
+### 4.3 Decision: geographic mask
 
-**Which approach is technically stronger**
+**Accepted design: geographic (UV-space) mask.**
 
-Geographic. Its compositing correctness is unconditional: no camera
-angle, no LOD difference, no fallback configuration can produce the
-incorrect-blocking artifact that screen-space is structurally prone to.
-The watertight optimization removes the footprint pass for the majority
-of tiles (all interior tiles in a well-formed surface), which brings
-the per-frame cost close to the screen-space approach for typical
-terrain datasets. The crack problem is real, but so is the screen-space
-oblique-angle artifact; both require empirical validation. The
-geographic approach is the more principled replacement for what server
-glues computed offline.
+Its compositing correctness is unconditional: no camera angle, no LOD
+difference, and no fallback configuration can produce incorrect
+blocking. The watertight optimization eliminates the footprint pass for
+the majority of tiles (all interior tiles in a well-formed surface),
+bringing per-frame cost close to what a screen-space approach would
+cost. The crack risk, mitigated by mask erosion, is the accepted
+tradeoff.
 
-The screen-space approach avoids cracks, which are a known visible
-artifact — the exact reason splitting is disabled in cartolina today.
-But "bounded by fallback cadence" is not the same as "absent." Whether
-the oblique-angle artifact is visible in practice is unknown; accepting
-the risk is not a neutral choice.
+**Screen-space mask: deferred alternative.**
 
-**Which to prototype first**
-
-Screen-space, for implementation simplicity. It requires no footprint
-program, no blit program, no mask texture pool at multiple LOD levels,
-and no UV transform on backtrack. This is a real difference in
-implementation surface area, and validating the simpler approach first
-is sound engineering practice — if the oblique-angle artifact turns out
-to be imperceptible in real multi-surface data, the simpler
-implementation suffices.
-
-The two approaches share the traversal structure completely. They differ
-only in the mask texture layout, the backtrack propagation step, and the
-footprint/blit programs. Switching from screen-space to geographic is a
-localised change once the traversal is validated.
+The screen-space approach avoids cracks and is simpler to implement —
+no footprint program, no blit, no UV-space pool. Its structural flaw
+is camera-dependent blocking at large LOD differences (a fine tile can
+project to screen pixels it has no geographic business blocking). That
+artifact is bounded by the fallback cadence but is not absent. The
+approach is documented in §4.1 and remains a fallback option if the
+geographic implementation encounters unexpected obstacles, but it is
+not the implementation target of this RFC.
 
 ### 4.5 Backend changes — cartolina-tileserver and vts-vtsd
 
@@ -578,39 +572,49 @@ correctness requirement.
 
 ## 5. WebGL2 infrastructure
 
-### 5.1 Offscreen rendering: what is needed
+### 5.1 Offscreen rendering and per-surface mask sequence
 
-The geographic mask requires rendering into an offscreen R8 texture
-(the footprint pass) and blitting child masks into parent mask textures
-(the backtrack OR pass). Both operations need a framebuffer object
-targeting a texture that is not the screen framebuffer.
+The geographic mask requires two R8 mask textures per recursion depth
+level: an **accumulated mask** that carries forward coverage from
+previously rendered surfaces, and a **scratch mask** that captures the
+footprint of the current surface before it is merged into the
+accumulated mask. Both are `TEXTURE_2D` with internal format `R8`,
+attached to dedicated FBOs, allocated from a pool at startup.
 
-`GpuDevice` already supports this via `setAuxiliaryRenderTarget()`,
-which binds a framebuffer-attached texture as the render target. The
-footprint pass and the mask blit both qualify as auxiliary operations:
-they describe geometry in the current map view (or a sub-region of it)
-and do not require an independent camera. No new `GpuDevice` API is
-needed.
+The same texture cannot be bound simultaneously as an FBO attachment
+and a sampler. The per-surface sequence makes ownership explicit:
 
-The mask textures are `TEXTURE_2D` with internal format `R8`, created
-once at startup into the pool. Each is attached to a dedicated FBO.
+For each surface S at a node, in priority order:
 
-At the start of each mask pass:
+1. **Screen draw.** Bind `accumulated_mask` as a sampler (not an FBO).
+   Bind the canvas (or depth hitmap) as the render target.
+   Draw S in screen space. The fragment shader reads `accumulated_mask`
+   at each fragment's UV coordinate and discards covered fragments.
 
-```js
-gpu.setAuxiliaryRenderTarget(maskTexture, maskSize);
-gl.clearColor(0, 0, 0, 0);
-gl.clear(gl.COLOR_BUFFER_BIT);
-```
+2. **Footprint draw.** Unbind `accumulated_mask` as sampler.
+   Bind `scratch_mask` FBO. Clear it.
+   Draw S mesh with UV coordinates as `gl_Position` (footprint program).
+   This writes the geographic coverage of S into `scratch_mask`.
 
-After the pass:
+3. **OR pass.** Unbind `scratch_mask` FBO.
+   Bind `accumulated_mask` FBO.
+   Draw a full-screen quad sampling `scratch_mask`.
+   The fragment shader writes `max(current, scratch)` — a logical OR
+   for R8 values 0.0 and 1.0.
+   Unbind `accumulated_mask` FBO.
 
-```js
-gpu.setCanvasRenderTarget(); // or restore previous target
-```
+After all surfaces are processed, `accumulated_mask` holds the combined
+coverage for this node. It is propagated to the parent via the blit
+pass (§5.3).
 
-The `R8` format is guaranteed by WebGL2 (`RGBA8` would also work if
-single-channel is not convenient; R8 is preferred for bandwidth).
+The per-surface draw call count is therefore 3 (screen + footprint +
+OR), not the 1 assumed in earlier estimates. A watertight surface skips
+the footprint and OR passes (its mask is trivially full; the OR is
+replaced with a single fill call). The revised performance estimate is
+in §6.1.
+
+`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding and viewport
+for all offscreen passes. No new `GpuDevice` API is needed.
 
 ### 5.2 Framebuffer ordering guarantee
 
@@ -829,14 +833,26 @@ can be deleted once the old traversal methods are gone.
 path; after the legacy path is deleted, glue entry production can be
 removed there as well.
 
-Virtual surfaces are also ignored in this implementation. If a server
-provides a virtual surface metatile, the traversal treats the surface
-as a plain surface entry and ignores the `sourceReference` field. A
-future version may use virtual surfaces as an optional server-side
-acceleration for metatile retrieval — they can reduce the number of
-HTTP requests for large datasets where multiple surfaces share common
-ancestry. That is a later optimisation, not a first-version
-requirement.
+Virtual surfaces are not plain renderable surfaces: their metatile
+carries `sourceReference` fields that redirect tile fetches to
+constituent surfaces. Treating a virtual surface metatile as a plain
+surface would skip that redirect, removing the resource lookup that
+makes the map render. The new traversal must not be activated for
+maps that use `mapConfig.virtualSurfaces`.
+
+The gate is `vsurfaceCount` in `generateSurfaceSequence`
+(`surface-sequence.ts`): when `vsurfaceCount > 0`, the virtual-surface
+path is active and the surface list has been replaced by a single
+virtual entry. The new traversal is enabled only when `vsurfaceCount
+=== 0`. Maps with virtual surfaces continue to use the legacy traversal
+until they are either migrated to plain constituent surfaces or
+virtual-surface support is added to the new path as a later
+optimisation.
+
+Test URLs in `test/urls.json` that exercise virtual-surface
+configurations must remain on the legacy path during the transition.
+Any URL migrated to plain surfaces must be verified to produce
+equivalent screenshots before the legacy path is removed.
 
 ### Code expected to shrink substantially
 
@@ -921,6 +937,13 @@ relying on them in the metatile.
    surface ordering and avoid making data availability in one surface
    suppress coverage from another.
 
+   *Implemented. §2.1 now evaluates each surface independently at each
+   node. A surface at its natural leaf position (SSE passes or no
+   children at this LOD) renders in priority order before any descent,
+   so a higher-priority surface always claims its pixels at its own LOD
+   regardless of whether a lower-priority surface has finer data
+   available.*
+
 2. The mask data flow is underspecified and appears to require
    ping-pong or separate accumulation textures.
 
@@ -939,6 +962,13 @@ relying on them in the metatile.
    number of mask textures, draw calls, and render-target switches from
    the simplified `N footprint + N screen + N - 1 blit` estimate.
 
+   *Implemented. §5.1 now gives the explicit per-surface 3-step sequence:
+   (1) screen draw sampling accumulated mask, (2) footprint draw into
+   scratch mask, (3) OR scratch into accumulated mask. Two R8 textures
+   per recursion level (accumulated + scratch). The revised draw-call
+   count per surface is 3, reduced to 1 fill for watertight surfaces.
+   §6.1 updated accordingly.*
+
 3. The RFC has not chosen the first implementation path.
 
    Section 4.3 recommends prototyping screen-space first, while sections
@@ -953,6 +983,11 @@ relying on them in the metatile.
    and rollout sections to match, or choose geographic as the RFC's
    accepted design and move screen-space to rejected or deferred
    alternative status.
+
+   *Implemented. §4.3 now declares geographic mask as the accepted
+   design and documents screen-space as a deferred alternative. All
+   infrastructure sections (§5, §6) already described geographic; they
+   are consistent with the decision.*
 
 4. Compatibility with existing virtual-surface configurations needs a
    rollout rule.
@@ -972,6 +1007,12 @@ relying on them in the metatile.
    surfaces before traversal, or documenting that specific test URLs are
    intentionally migrated with equivalent plain-surface styles.
 
+   *Implemented. §7 now specifies the gate: the new traversal is enabled
+   only when `vsurfaceCount === 0`. Maps with `mapConfig.virtualSurfaces`
+   continue to use the legacy path. Test URLs exercising virtual-surface
+   configurations remain on the legacy path and must be verified before
+   the legacy path is removed.*
+
 5. The watertight optimization needs a source for "no data requests"
    skipping.
 
@@ -987,3 +1028,12 @@ relying on them in the metatile.
    The RFC should define when that early termination is legal and which
    metadata has already been loaded at that point. This matters for the
    data-request reduction claimed in sections 4.2 and 6.3.
+
+   *Implemented. §2.2 now states that "no data requests" means mesh and
+   texture loading, not metatile fetching. Metatile data is still
+   fetched for lower-priority surfaces at each node (it is lightweight
+   and needed for child-structure and SSE decisions at descendant nodes).
+   Only mesh and texture resources are skipped when a higher-priority
+   watertight surface renders at the same node. Subtree skipping (which
+   would also skip metatile fetches for lower surfaces in entire
+   subtrees) is a deferred optimisation.*

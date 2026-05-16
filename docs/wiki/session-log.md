@@ -1,5 +1,12 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — author response, inline notes
+
+Added *Implemented.* responses inline under each of the five review
+notes.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — author response to review round 1
 
 Addressed five reviewer notes:
