@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review — author responded to round 4
+**Status:** Accepted
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -1079,23 +1079,37 @@ switching to screen-space for that dataset.
 
 **Per-surface mask pool (deferred).** The current design uses one
 `node_mask[depth]` that combines coverage from all surfaces. This
-produces a priority inversion at seam-tile boundaries: a back
-surface's fine child coverage can block a front surface's coarser
-fallback render, violating the stated priority rule. The precondition
-requires a back surface to have finer LOD tiles than the front surface
-at the same position — unusual in well-configured stacks, but possible
-at dataset edges. The visual outcome (back surface's finer data
-showing instead of the front surface's coarse fallback) is acceptable
-for elevation surfaces.
+produces a priority inversion in two related cases.
 
-The correct fix replaces `node_mask[depth]` with per-surface
-`surface_mask[i][depth]` textures plus a per-node `claimed_mask[depth]`
-that accumulates front-to-back. Each surface samples its own
-`surface_mask[i]` (finer descendants) and `claimed_mask` (higher-
-priority coverage) independently. Pool grows to 16 × (N + 1) + 1
-textures; blit calls per inner node multiply by N. Implement after
-the single-surface path is validated and multi-surface testing
-confirms the artifact is visible in practice.
+The first is a steady-state geometry case: at a dataset boundary seam
+tile, a back surface may have finer LOD children than the front surface
+(because the front surface's data ends at that boundary). The back
+surface's fine child coverage enters the combined mask and can block
+the front surface's coarser fallback render. This requires an unusual
+data ordering — back surface finer than front at the same position —
+and the visual outcome is acceptable for elevation surfaces.
+
+The second case is resource readiness during progressive loading. A
+front surface can have finer children in the metatile tree but fail to
+render them because metatile, mesh, texture, or `TileRenderRig`
+readiness has not arrived. A lower-priority back child can be ready
+first, write the combined mask, and temporarily block the front
+parent's fallback. This can occur inside the front surface's interior,
+not only at dataset edges. It is transient — once the front surface's
+finer tiles load, they render normally — but it means lower-priority
+data may briefly appear where higher-priority data is still pending.
+
+Both cases share the same root cause and the same fix. Replace
+`node_mask[depth]` with per-surface `surface_mask[i][depth]` textures
+plus a per-node `claimed_mask[depth]` that accumulates front-to-back.
+Each surface samples its own `surface_mask[i]` (finer descendants) and
+`claimed_mask` (higher-priority coverage) independently. Pool grows to
+16 × (N + 1) + 1 textures; blit calls per inner node multiply by N.
+
+Implement after the single-surface path is validated. Validation should
+include a progressive-loading multi-surface case and a seam case before
+the legacy draw path is removed, to establish whether these effects are
+visible in practice.
 
 ## Review round 1
 
@@ -1622,3 +1636,46 @@ confirms the artifact is visible in practice.
    multi-surface data confirms the artifact is visible. The fix is
    documented here and in §9 so it can be implemented in a targeted
    pass once empirical evidence establishes that it is needed.*
+
+## Review round 5 — sign-off
+
+The design is accepted.
+
+The remaining readiness-driven priority inversion is an accepted
+transient loading tradeoff, not a blocker.
+
+The round 4 response correctly identifies the steady-state geometry
+needed for the priority inversion: a lower-priority back surface must
+provide finer coverage than the higher-priority front surface at the
+same tile position. That is unusual for the target data ordering and,
+where it occurs at dataset edges, the visual result is defensible for
+elevation surfaces.
+
+There is one broader case: resource readiness. A front surface can have
+finer children in the metatile tree but fail to render them because
+metatile, mesh, texture, or `TileRenderRig` readiness has not arrived
+yet. A lower-priority back child can be ready first, write the combined
+child mask, and temporarily block the front parent fallback. This can
+happen during progressive loading inside the front surface's interior.
+
+I accept the author's conclusion that this is not worth fixing in the
+first design. Resource readiness is transient, and the alternative is
+the per-surface mask pool described above: more textures, more blits,
+another mask concept, an extra shader sample, and more traversal
+bookkeeping on every node. That cost would be paid in the common case
+to eliminate a temporary loading imperfection.
+
+The combined geographic mask keeps the traversal smaller and keeps the
+first implementation focused. A per-surface mask pool would give
+stricter priority semantics, but it would add texture state, additional
+blits, another mask concept, and extra shader work across the traversal.
+That cost is not justified before the simpler design is validated
+against real multi-surface data.
+
+During progressive loading, lower-priority ready data may temporarily
+appear where higher-priority data is still pending. At dataset seams, a
+lower-priority finer tile may also beat a higher-priority coarse
+fallback in a narrow fringe. These are acceptable if they are transient
+or visually unobtrusive for elevation surfaces. The validation work
+should include a progressive-loading multi-surface case and a seam case
+before the legacy draw path is removed.

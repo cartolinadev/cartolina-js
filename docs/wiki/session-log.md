@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — accepted; §9 updated for round 5
+
+RFC accepted. Extended the per-surface mask pool §9 entry with the
+resource-readiness case identified in round 5: a back surface child
+that loads before a front surface child can temporarily block the
+front surface's fallback during progressive loading, even inside the
+front surface's interior. Both cases (dataset-edge geometry and
+readiness race) share the same root cause and the same deferred fix.
+Validation checklist updated: progressive-loading multi-surface case
+and seam case required before the legacy draw path is removed.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — author response to review round 4
 
 Acknowledged the priority-inversion limitation as a known edge case
