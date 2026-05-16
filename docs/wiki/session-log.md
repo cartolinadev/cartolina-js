@@ -1,5 +1,41 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — erosion implementation documented
+
+Added erosion mechanism detail to §4.2, §5.1, and §9. Erosion is a
+morphological min-filter (radius k texels) applied in the OR/blit
+shader on the source texture before writing into the destination mask.
+The same program and uniform handle both the OR-into-node-mask step
+(eroding a surface's footprint before back surfaces sample it) and the
+child-to-parent blit (eroding the child mask before the parent renders
+into the border zone). The geometric growth property is documented:
+each blit step erodes by k texels in the parent's UV space, which
+represents increasingly larger geographic area at coarser LODs.
+
+---
+
+## 2026-05-16 — RFC: draw traversal — author response to review round 2
+
+Reverted mask decision to geographic (accepted) / screen-space
+(deferred). Round 2 identified two structural problems in screen-space
+that do not have clean solutions: frame-global mask correctness under
+arbitrary traversal order (comment 2), and depth buffer lifecycle for
+offscreen rendering (comment 3). Geographic masks avoid both by
+construction. Added inline responses for all six round 2 comments.
+Updated §4.1, §4.2, §4.3, §5.1–§5.6, §6.1, §6.2, §8, §9, and the
+round 1 inline response for comment 3. §2 required no changes — it
+already described the geographic algorithm.
+
+---
+
+## 2026-05-16 — RFC: draw traversal — §2.1 wording: forward reference to §2.2
+
+Removed "This is the complete algorithm" — §2.2 is an important part
+of it. Replaced with a forward reference to §2.2 for the surface
+rendering detail.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — clarify backtrack vs "after descent"
 
 Replaced "after descent" with "on backtrack" throughout §2.1 — the

@@ -1,7 +1,7 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review — author responded to round 1; mask decision
-revised to screen-space
+**Status:** In review — author responded to round 2; mask decision
+revised to geographic
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -131,7 +131,8 @@ At each node:
    input and OR the rendered coverage into the mask.
 6. Return the combined mask.
 
-This is the complete algorithm. There is no mode switch.
+There is no mode switch. The surface rendering called in steps 4 and 5
+is described in §2.2.
 
 The distinction between steps 4 and 5 matters for mixed-LOD surface
 stacks. A coarse back surface whose LOD range ends at this node renders on
@@ -155,14 +156,23 @@ ready:
 
 After all surfaces are processed, return the accumulated mask.
 
-**Surface ordering convention:** the sequence is ordered front-to-back.
-Index 0 is the front surface — it renders first and its pixels take
-precedence over all surfaces behind it. A surface at a higher index is
-a back surface — it renders only into pixels not yet claimed by surfaces
-in front of it. "Earlier in the sequence" and "front" are synonymous;
-"later in the sequence" and "back" are synonymous. Depth testing still
-operates within each individual surface's own geometry; the mask handles
-ordering between surfaces at the same node.
+**Surface ordering convention:** in the existing `surfaceSequence`
+array, the primary (front) surface is at the **last** index and back
+surfaces are at lower indices. This follows the same convention as glue
+IDs: the back surface appears first, the front surface last. The sort
+in `surface-sequence.ts` is alphabetical ascending; the primary surface
+has the highest sort key, landing at the end of the array, and receives
+`viewSurfaceIndex = 0` — the value that wins comparisons in the current
+rendering path (`surface-tile.js:549`).
+
+The new traversal iterates the sequence **from last to first** to give
+the primary (front) surface first rendering priority. This is a
+deliberate choice: iterating in the natural array direction would give
+priority to the back surface, which is wrong. The rest of this document
+uses "front surface" to mean the primary surface at the last index of
+`surfaceSequence`, and "back surface" for surfaces at lower indices.
+Depth testing still operates within each individual surface's own
+geometry; the mask handles ordering between surfaces at the same node.
 
 If a surface is watertight at this tile position (its geometry covers
 the full tile cell), it claims the entire UV area. All subsequent
@@ -271,8 +281,20 @@ produced by surfaces above it. The complexity stays constant.
 
 ## 4. Mask technology: open design question
 
-The algorithm requires a mask that encodes which geographic regions have
-been covered by finer tiles. Two implementations are candidates.
+The algorithm requires a mask that encodes which regions have been
+covered by finer tiles. Two implementations are candidates:
+
+- **Geographic mask (§4.2, accepted design):** a UV-space texture
+  rasterized from the mesh geometry. Camera-independent; prone to
+  cracks at tile boundaries, mitigated by mask erosion.
+- **Screen-space mask (§4.1, deferred alternative):** a single
+  screen-resolution texture, written as a side effect of rendering.
+  Crack-free by construction; camera-dependent.
+
+Before describing either, §4.0 covers watertight tiles — a property
+that both approaches can exploit to skip rendering and data requests
+for back surfaces, and that the geographic approach additionally uses
+to eliminate its footprint pass for the majority of tiles.
 
 ### 4.0 Watertight tiles
 
@@ -347,7 +369,7 @@ for the geographic approach:
 - **Geographic:** a watertight tile covers the full UV area with no
   gaps. Its geographic mask is trivially known without rasterization.
 
-### 4.1 Screen-space mask
+### 4.1 Screen-space mask (deferred alternative)
 
 The mask is a texture at screen resolution. Each rendered fragment
 writes to the mask at its screen position (`gl_FragCoord`). A later
@@ -436,7 +458,7 @@ surfaces at this node are skipped — 0 additional draw calls.
 - Non-watertight boundary handling: back surfaces render freely where
   the front surface left gaps, with depth testing resolving overlap.
 
-### 4.2 Geographic (UV-space) mask
+### 4.2 Geographic (UV-space) mask (accepted design)
 
 The mask is a small texture in the tile's external UV coordinate space.
 External UV coordinates (`aTexCoords2`) are per-vertex attributes that
@@ -490,18 +512,40 @@ gaps become cracks — pixels where neither the child tile nor the
 parent tile rendered a fragment. This is the same artifact that caused
 splitting to be disabled in cartolina today.
 
-**Mitigation — eroded mask:** shrink the footprint mask by a small UV
-margin before writing it to the parent mask texture. The margin forces
-the parent to render into a thin border zone around each child tile.
-In that zone, depth testing resolves the overlap. The depth-test
-failure mode (a later surface in the stack incorrectly occluding an
-earlier one at an oblique angle) can occur in the border zone, but the
-zone is narrow and the failure is imperceptible for surfaces with
-similar geometry.
+**Mitigation — eroded mask:** shrink the covered region before writing
+it into the destination mask — either the parent's mask (child-to-
+parent blit) or the node mask read by the next surface (OR-into-node-
+mask). The margin forces the receiving tile or surface to render into
+a thin border zone around the covered region; depth testing resolves
+the overlap there. The depth-test failure mode (a later surface
+incorrectly occluding an earlier one at an oblique angle) can occur
+in the border zone, but the zone is narrow and the failure is
+imperceptible for surfaces with similar geometry.
 
-The erosion margin cannot be derived analytically; it depends on mesh
-density and camera angle. A reasonable starting value is 1–2 texels of
-the mask texture (1/256–1/128 UV units). It is an empirical parameter.
+**Implementation:** the OR/blit shader applies a morphological
+min-filter of radius k texels on the source texture before writing
+into the destination. For each destination texel the shader samples a
+(2k+1)² neighborhood of the source and outputs the minimum — an image
+erosion that shrinks the covered region by k texels on each side. This
+operates in the destination texture's coordinate space. The same
+program handles both the OR-into-node-mask step (eroding a surface's
+footprint before back surfaces sample it) and the child-to-parent blit
+(eroding the child mask before the parent samples it). A single
+`uErosionRadius` uniform controls the radius in both contexts.
+
+**Geometric growth in the LOD hierarchy:** each child-to-parent blit
+erodes by k texels in the destination (parent) UV space. The parent's
+UV space covers 4× the geographic area of the child, so each parent
+texel represents twice the geographic width of a child texel. Over
+multiple blit levels the erosion margin grows proportionally to the
+LOD difference — naturally providing more border zone where the
+geometry mismatch between a fallback ancestor and its descendants is
+larger.
+
+The erosion radius k is an empirical parameter. A reasonable starting
+value is 1–2 texels of the mask texture (1/256–1/128 UV units). It
+should be tuned against real multi-surface data with differing mesh
+density at the surface boundary.
 
 **Remaining limitation:** if a tile's UV-space footprint is fully
 rasterized but the mesh does not cover every UV position in screen
@@ -518,40 +562,41 @@ of splitting.
   passes and most lower-surface data requests.
 - Risk: cracks at tile boundaries, mitigated by mask erosion with
   depth-test fallback in the border zone.
-- Complexity: footprint program, blit program, mask texture pool,
-  erosion pass — more infrastructure than screen-space.
+- Complexity: footprint program, OR/blit program with erosion
+  min-filter, mask texture pool — more infrastructure than
+  screen-space.
 
-### 4.3 Decision: screen-space mask
+### 4.3 Decision: geographic mask
 
-**Accepted design: screen-space mask.**
+**Accepted design: geographic (UV-space) mask.**
 
-The mask records exactly which screen pixels were rendered. Cracks are
-impossible by construction: a parent tile can never claim a pixel a
-child already wrote. The global, frame-persistent texture requires no
-UV transform, no per-depth pool, and no child-to-parent blit — the
-simplest possible backtrack propagation.
+The mask is in tile UV space, bounded to each tile's geographic extent.
+It is camera-independent: the same mask is valid for any camera
+position, and cross-branch screen-space overlaps between geographically
+separate tiles are handled by the depth buffer, not the mask. The
+watertight fast path is trivially implementable: clear the mask FBO to
+1.0 and skip the footprint draw entirely. For most interior tiles this
+eliminates the footprint pass. §2 describes the traversal in terms of
+this design; no rewrite of the traversal algorithm is required.
 
-The oblique-angle blocking artifact is the known risk. It is bounded
-by the fallback cadence: with a cadence of 3–5, the maximum LOD
-difference between any rendered fine tile and any fallback ancestor is
-small, and the conditions that make the artifact visible (large LOD
-gap plus highly oblique camera) are unlikely to coincide in practice.
-The artifact has not been observed in current test data.
+The crack problem is the accepted risk. The eroded-mask mitigation
+(§4.2) is empirical — the correct margin varies with mesh density and
+camera angle — but it is a bounded, tunable parameter. The prior
+artifact with `drawSurfaceWithSpliting` was caused by the one-level
+binary `splitMask`, which has no erosion and no depth-test fallback
+in the border zone. The geographic mask with erosion plus depth
+testing in the border zone is a materially different mechanism.
 
-Cracks, by contrast, are a concrete known problem. The eroded-mask
-mitigation for geographic masks is empirical — the correct erosion
-margin varies with camera angle and mesh density and cannot be derived
-analytically. The artifact was observed with the split-mask approach
-(`drawSurfaceWithSpliting`) and is the concrete reason `mapSplitMeshes`
-defaults to `false`.
+**Screen-space mask: deferred alternative.**
 
-**Geographic mask: deferred alternative.**
-
-The geographic approach is documented in §4.2. It is the correct
-fallback if the oblique-angle artifact proves visible in real
-multi-surface data: camera-independent correctness is unconditional,
-and the watertight optimization substantially reduces the additional
-cost. It is not the implementation target of this RFC.
+The screen-space approach is documented in §4.1. It is the correct
+fallback if the erosion margin proves insufficient for specific
+datasets. Two design questions identified in review — the correctness
+of a frame-global binary mask under arbitrary traversal order
+(comment 2, round 2), and the depth buffer lifecycle when each tile
+draw blits to the canvas (comment 3, round 2) — do not have
+clean closed-form solutions for the general case and are deferred
+with the screen-space design.
 
 ### 4.5 Backend changes — cartolina-tileserver and vts-vtsd
 
@@ -613,47 +658,65 @@ correctness requirement.
 
 ## 5. WebGL2 infrastructure
 
-### 5.1 Per-surface mask sequence (screen-space)
+### 5.1 Per-surface mask sequence (geographic)
 
-The screen-space mask uses two R8 textures at screen resolution:
+The geographic mask uses one R8 texture per active recursion depth
+level. The pool holds 16 textures at 256×256 each (1 MB total). Each
+texture is the accumulated coverage mask for one node in the current
+descent path.
 
-- `accumulated_mask`: the global frame mask, cleared at frame start,
-  accumulates claimed pixels across the entire traversal.
-- `scratch_mask`: a per-surface working texture, cleared before each
-  surface draw.
-
-Both are `TEXTURE_2D` with internal format `R8`. `accumulated_mask` is
-attached to a dedicated FBO for the OR pass. `scratch_mask` is the
-second color attachment of the tile render FBO (MRT).
+The per-node mask starts as the ORed result of child blits (§2.3). At
+frame start, the root node's mask is cleared to 0. There is one
+additional R8 `scratch` texture at the same resolution, reused across
+all footprint draws.
 
 The same texture cannot be simultaneously attached as an FBO attachment
 and bound as a sampler. The per-surface sequence makes ownership
-explicit:
+explicit.
 
 For each surface S at a node, in front-to-back order:
 
-1. **Screen draw.** Bind `accumulated_mask` as a sampler.
-   Target: the tile render FBO (two attachments: color + `scratch_mask`).
-   Draw S in screen space. The fragment shader reads `accumulated_mask`
-   at `gl_FragCoord.xy` and discards if > 0.5. Color writes to
-   attachment 0; coverage writes 1.0 to `scratch_mask` (attachment 1)
-   at every non-discarded fragment.
-   After the draw, blit the color attachment to the canvas.
+1. **Footprint pass.** Clear `scratch` to 0. Bind `scratch` FBO.
+   Draw S with UV coordinates as clip position
+   (`aTexCoords2 * 2.0 - 1.0`). The fragment shader writes 1.0 to
+   `scratch` at every rasterized UV position. This records which
+   geographic area S covers at this tile.
 
-2. **OR pass.** Unbind `accumulated_mask` sampler.
-   Bind `accumulated_mask` FBO.
-   Draw a full-screen quad sampling `scratch_mask`.
-   The fragment shader writes `max(current, scratch)`.
-   Unbind `accumulated_mask` FBO.
+   Skip this step for a watertight surface: clear `node_mask[depth]`
+   to 1.0 directly (a single FBO clear), then skip all remaining
+   surfaces at this node.
 
-A watertight surface replaces steps 1–2 with a single fill of
-`accumulated_mask` for its screen footprint (or marks all back surfaces
-at this node as skipped before any draw call). The revised performance
-estimate is in §6.1.
+2. **OR into node mask.** Unbind `scratch` FBO.
+   Bind `node_mask[depth]` FBO. Enable blending with
+   `gl.blendEquation(gl.MAX)` and `gl.blendFunc(gl.ONE, gl.ONE)`.
+   Draw a full-screen quad. The shader applies a morphological
+   min-filter of radius k texels on `scratch` (§4.2 erosion): for
+   each texel it samples a (2k+1)² neighborhood of `scratch` and
+   outputs the minimum. Blending then writes
+   `max(existing, eroded_scratch)` per texel without reading
+   the current attachment.
+   Unbind `node_mask[depth]` FBO. Disable blending.
 
-`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding and viewport.
-No new `GpuDevice` API is needed beyond allocating `scratch_mask` as a
-second attachment on the tile render FBO.
+3. **Screen draw.** Bind `node_mask[depth]` as a sampler.
+   Draw S in screen space. The fragment shader samples
+   `node_mask[depth]` at the fragment's UV coordinate (`aTexCoords2`)
+   and discards if the value exceeds 0.5.
+   Unbind `node_mask[depth]` sampler.
+
+Total per surface: 1 footprint draw + 1 OR pass + 1 screen draw =
+3 draw calls. A watertight surface: 1 FBO clear + 1 screen draw, and
+all remaining surfaces at this node are skipped.
+
+**Child-to-parent blit (backtrack, §2.3).** The same OR/blit program
+with the same `uErosionRadius` blits `node_mask[depth]` into the
+parent's `node_mask[depth-1]` at the child's quadrant position.
+Erosion compounds naturally up the hierarchy: each blit erodes by k
+texels in the parent's UV space, which represents increasingly larger
+geographic area at coarser LODs. See §4.2 for the growth property.
+
+`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding. The pool
+is allocated once at init; no new `GpuDevice` API is required beyond
+a `clearFBO(texture, value)` helper.
 
 ### 5.2 Framebuffer ordering guarantee
 
@@ -661,27 +724,43 @@ Within a single WebGL2 context, a draw call that writes to texture T
 via an FBO is complete before a subsequent draw call that samples T
 as a uniform sampler, provided that T is not simultaneously attached
 as both FBO attachment and sampler. This is a WebGL2 correctness
-guarantee, not a race condition. The constraint is: unbind the mask FBO
-before sampling it as a uniform. Concretely:
+guarantee, not a race condition. The per-surface sequence in §5.1
+respects this rule at two points.
 
-1. OR pass: bind `accumulated_mask` FBO → write → unbind.
-2. Screen draw: bind `accumulated_mask` as sampler → draw mesh.
+For the footprint-to-OR step:
 
-The unbind between them is a one-line call, not a synchronization
-primitive.
+1. Footprint pass: bind `scratch` FBO → write → unbind.
+2. OR pass: bind `scratch` as sampler → draw full-screen quad.
+
+For the OR-to-screen-draw step:
+
+1. OR pass: bind `node_mask[depth]` FBO → write → unbind.
+2. Screen draw: bind `node_mask[depth]` as sampler → draw mesh.
+
+Each unbind is a one-line call, not a synchronization primitive.
 
 ### 5.3 Render target lifecycle during traversal
 
-The traversal interleaves the tile render FBO (screen draw + scratch
-write), the `accumulated_mask` FBO (OR pass), and the canvas (blit).
-Because `accumulated_mask` is global and frame-persistent, no
-render-target state needs to be saved or restored across recursion
-levels. The canvas blit after each screen draw is the only additional
-operation compared to the current rendering path.
+The traversal interleaves three render targets: the screen render
+target (the existing color + depth FBO used by the current renderer),
+the `node_mask[depth]` FBO (footprint OR and screen draw mask), and
+the `scratch` FBO (footprint pass output).
+
+The screen render target is unchanged from the current renderer:
+color, depth, and stencil live on the same target as before. No
+offscreen blit to the canvas is introduced. Depth testing across
+separately drawn tiles works exactly as it does today.
+
+The mask FBOs are entirely separate from the screen render target.
+Switching between them requires only binding and unbinding
+`GpuDevice` auxiliary targets — no state save or restore is needed
+across recursion levels.
 
 The recursive structure is safe: a child's draw calls complete before
-the parent renders. By the time the parent samples `accumulated_mask`,
-all child surfaces have already ORed their coverage into it.
+the parent renders. By the time the parent renders, all child coverage
+has been blitted into `node_mask[parent_depth]` via the
+child-to-parent blit (§2.3), and the current node's mask correctly
+reflects child coverage.
 
 ### 5.5 `TileRenderRig` changes
 
@@ -696,12 +775,23 @@ draw(program: GpuProgram, cameraPos: vec3,
 ```
 
 The existing `draw()` method gains an optional `maskTexture` parameter.
-When present, the tile shader samples `maskTexture` at `gl_FragCoord`
-and discards the fragment if the value exceeds 0.5. When absent, no
-mask discard occurs (existing behavior).
+When present, the tile shader samples `maskTexture` at the fragment's
+UV coordinate (`aTexCoords2`) and discards if the value exceeds 0.5.
+When absent, no mask discard occurs (existing behavior).
 
 The current `uClip` / `splitMask` mechanism is replaced by this mask
 texture input. The `splitMask` field on `MapSurfaceTile` is removed.
+
+**Footprint method:**
+
+```ts
+footprint(maskFBO: GpuFramebuffer): void
+```
+
+A new method renders the tile mesh into a UV-space R8 FBO. The vertex
+shader uses `aTexCoords2 * 2.0 - 1.0` as the clip-space position;
+the fragment shader outputs 1.0. Called once per non-watertight
+surface in the footprint pass (step 1 of §5.1).
 
 **Depth program:**
 
@@ -717,49 +807,54 @@ The legacy tile shader in `shaders.js` uses `vClipCoord` (interpolated
 quadrant. This mechanism is one level deep and binary per quadrant.
 
 The new tile shader in the rig's program (`TileRenderRig`) replaces
-this with a screen-space mask read:
+this with a UV-space mask read:
 
 ```glsl
-uniform sampler2D uMask;        // R8 screen-space mask
-uniform vec2      uMaskTexelSize; // 1.0 / mask resolution
+uniform sampler2D uMask;      // R8 geographic mask
+uniform bool      uMaskEnabled;
 
 // in fragment shader:
 if (uMaskEnabled) {
-    vec2 maskUV = gl_FragCoord.xy * uMaskTexelSize;
-    float covered = texture(uMask, maskUV).r;
+    float covered = texture(uMask, vTexCoords2).r;
     if (covered > 0.5) discard;
 }
 ```
 
-The shader also outputs coverage to a second color attachment
-(`scratch_mask`) via MRT:
+`vTexCoords2` is the interpolated `aTexCoords2` passed from the vertex
+shader. No `gl_FragCoord` or resolution uniform is needed.
+
+The footprint program is a separate shader pair used only in the
+footprint pass:
 
 ```glsl
-layout(location = 0) out vec4 fragColor;
-layout(location = 1) out float fragCoverage;
+// vertex
+in vec2 aTexCoords2;
+void main() {
+    gl_Position = vec4(aTexCoords2 * 2.0 - 1.0, 0.0, 1.0);
+}
 
-// in fragment shader (after mask discard):
-fragColor    = /* computed color */;
-fragCoverage = 1.0;
+// fragment
+out float fragCoverage;
+void main() { fragCoverage = 1.0; }
 ```
 
-The OR pass is a minimal full-screen quad program:
+The OR/blit program is a full-screen quad. It uses
+`gl.blendEquation(gl.MAX)` with `gl.blendFunc(gl.ONE, gl.ONE)`:
+the blend operation writes `max(existing, scratch)` per texel
+without the shader reading the current FBO value, which WebGL2
+does not permit. The shader simply outputs the sampled scratch value:
 
 ```glsl
 // fragment
 uniform sampler2D uScratch;
+in vec2 vUV;
 out float fragCoverage;
 void main() {
-    fragCoverage = max(
-        texture(uScratch, uv).r,
-        /* current accumulated value read from FBO */ 0.0);
+    fragCoverage = texture(uScratch, vUV).r;
 }
 ```
 
-In practice the OR is done with `gl.blendEquation(gl.MAX)` and
-`gl.blendFunc(gl.ONE, gl.ONE)` with blending enabled, avoiding a
-manual max operation and allowing a single quad draw to OR any scratch
-value ≥ existing without explicit reads.
+Blending handles the max; the shader output is just the input value.
 
 ---
 
@@ -767,28 +862,38 @@ value ≥ existing without explicit reads.
 
 ### 6.1 Draw call count
 
-For a typical scene with N visible tiles at the fit LOD, single surface:
+For a typical scene with N visible tiles at the fit LOD, single
+surface. Let W be the fraction of tiles that are watertight (close
+to 1 for interior tiles of a well-formed surface).
 
 - **Current fitonly:** N draw calls.
-- **New traversal, fitonly mode (cadence = ∞):** N screen draws +
-  N OR passes = 2N draw calls.
-- **New traversal, fallback cadence 3:** approximately N + N/8 tiles
-  render. Each contributes 2 draw calls: ≈ 2.25N total.
+- **New traversal, fitonly mode (cadence = ∞), watertight tiles:**
+  W×N FBO clears + W×N screen draws. FBO clears are not draw calls;
+  effective draw call count ≈ W×N.
+- **New traversal, fitonly mode, non-watertight boundary tiles:**
+  (1-W)×N footprint draws + (1-W)×N OR passes +
+  (1-W)×N screen draws = 3(1-W)×N draw calls.
+- **Combined:** approximately N + 2(1-W)×N draw calls. For mostly
+  watertight data (W ≈ 0.9) this is ≈ 1.2N. Screen-space pays
+  2N regardless of watertight status.
+- **Fallback cadence 3:** approximately N/8 additional inner-node
+  tiles render, with the same watertight split applied.
+- **Child-to-parent blits:** 1 quad draw per child rendered. For a
+  subtree of depth D with K leaves, at most 4K blit calls. Each is
+  a small quad draw with a fixed scale-translate; no vertex
+  computation beyond UV mapping.
 
-For multi-surface scenes, add 2 draw calls per additional surface per
-node (or 0 for watertight surfaces where back surfaces are skipped).
-Interior tiles of a well-formed surface are predominantly watertight,
-so the overhead is concentrated at surface boundaries.
-
-The OR pass is cheap: a single full-screen quad with blending enabled,
-no UBO, no texture sampling beyond the scratch texture.
+For multi-surface scenes: back surfaces blocked by a watertight front
+surface cost 0 draw calls. Back surfaces at boundary tiles pay the
+same 3-call sequence as above.
 
 ### 6.2 Mask texture bandwidth
 
-Two R8 textures at screen resolution (e.g. 1920×1080 = ~2 MB each).
-Reading and writing 2 MB per frame is not a bottleneck on current
-hardware. The global mask is written once per rendered fragment and
-read once per rendered fragment of subsequent tiles and surfaces.
+One R8 `scratch` texture plus 16 R8 `node_mask` textures, all at
+256×256: 17 × 64 KB = ~1 MB total. This is substantially less than
+screen-resolution alternatives. Each node mask is written once per
+footprint OR pass and read once per screen draw at that depth level.
+Blit draws are 64 KB quad draws at most.
 
 ### 6.3 Data requests
 
@@ -898,23 +1003,33 @@ The old `drawSurface*` methods remain untouched during validation.
 Validation sequence:
 
 1. Implement the depth program for `TileRenderRig` (backlog §1).
-2. Implement the footprint pass and mask blit program.
-3. Implement the recursive traversal as a new method on
-   `MapSurfaceTree`, replacing only the `drawSurfaceFitOnly` mode
-   first. Validate against screenshot regression tests.
-4. Extend to fallback cadence. Validate progressive loading.
-5. Compare against old topdown mode for equivalent loaded data.
-6. Delete the old methods.
+2. Allocate the mask texture pool: 16 R8 256×256 `node_mask`
+   textures, 1 R8 256×256 `scratch` texture, and the FBO set.
+3. Implement the footprint program and OR/blit program (§5.6).
+4. Add `footprint()` and mask-aware `draw()` to `TileRenderRig`
+   (§5.5). Mask sampled at `aTexCoords2`, not `gl_FragCoord`.
+5. Implement the recursive traversal as a new method on
+   `MapSurfaceTree`, replacing only the `drawSurfaceFitOnly`
+   mode first. Validate against screenshot regression tests.
+6. Extend to fallback cadence. Validate progressive loading.
+7. Compare against old topdown mode for equivalent loaded data.
+8. Validate multi-surface compositing at a surface boundary with
+   erosion enabled. Tune the erosion margin against visible
+   cracks on real multi-surface data.
+9. Delete the old methods.
 
 ---
 
 ## 9. Open questions
 
-**Erosion margin:** the UV erosion value that prevents cracks while
+**Erosion margin:** the radius k (in mask texels) used by the OR/blit
+shader's min-filter is an empirical constant. It prevents cracks while
 minimising the border zone where depth testing may produce incorrect
-results for stacked surfaces is an empirical constant. It should be
-tuned against real data — particularly multi-surface datasets where
-surfaces have differing mesh density near their boundary.
+results for stacked surfaces. The same k applies to both the OR-into-
+node-mask step and the child-to-parent blit; the geometric growth
+property (§4.2) means a small k provides increasing geographic margin
+at larger LOD differences. Tune against real multi-surface data,
+particularly at surface boundaries where mesh density differs.
 
 **Mask texture resolution:** 256×256 is a reasonable starting value.
 It may need to be larger for fine-grained surfaces or smaller for
@@ -934,6 +1049,13 @@ the DEM-based `metatileFromDemImpl`. The `tiling.cpp` path sets the
 flag correctly, but confirm that other entry paths (`surface-spheroid`
 etc.) also produce correct watertight flags in the tile index before
 relying on them in the metatile.
+
+**Screen-space fallback threshold:** if the erosion margin proves
+insufficient for a specific dataset or camera configuration, the
+screen-space approach (§4.1) is the documented fallback. Before
+that decision is made, define the empirical test: what crack
+frequency or severity in specific multi-surface data warrants
+switching to screen-space for that dataset.
 
 ## Review round 1
 
@@ -1005,14 +1127,14 @@ relying on them in the metatile.
    accepted design and move screen-space to rejected or deferred
    alternative status.
 
-   *Implemented. §4.3 now declares screen-space mask as the accepted
-   design and documents geographic as a deferred alternative. §4.1
-   completed with full infrastructure description. §5.1 describes the
-   screen-space per-surface sequence. §5.5, §5.6, §6.1, §6.2 updated
-   for screen-space. The decision was reconsidered after initial review:
-   cracks have no robust solution and have already caused visible
-   artifacts in cartolina; the oblique-angle artifact of screen-space
-   is bounded by cadence and has not been observed in practice.*
+   *Implemented. §4.3 declares the accepted design and documents the
+   other as a deferred alternative. §4.2 is geographic (accepted);
+   §4.1 is screen-space (deferred). The initial round 1 response
+   chose screen-space; that decision was reversed after round 2
+   identified two structural design gaps in the screen-space
+   approach (frame-global mask correctness and depth buffer
+   lifecycle) that do not apply to geographic. §5.1 through §5.6,
+   §6.1, §6.2, §8, and §9 are updated for the geographic design.*
 
 4. Compatibility with existing virtual-surface configurations needs a
    rollout rule.
@@ -1062,3 +1184,209 @@ relying on them in the metatile.
    at the same node. Subtree skipping (which
    would also skip metatile fetches for lower surfaces in entire
    subtrees) is a deferred optimisation.*
+
+## Review round 2
+
+1. The main algorithm still describes a geographic, returned-mask model
+   after the RFC changed the accepted design to screen-space.
+
+   Sections 2.1 through 2.3 still say child calls return masks, child
+   masks are ORed into a combined parent mask, the parent passes that
+   combined mask into rendering, and the mask is in the tile's
+   geographic UV space with child-to-parent quadrant blits. Sections 4.3
+   and 5.1 now say the accepted design is a single global
+   screen-space `accumulated_mask`, with no per-depth pool and no
+   child-to-parent blit.
+
+   These are different algorithms. The RFC should rewrite §2 around the
+   accepted screen-space data flow or explicitly split §2 into abstract
+   traversal plus mask-space-specific implementations. As written, an
+   implementer cannot tell whether recursion returns a mask texture, a
+   logical coverage state, or nothing because the frame-global mask has
+   already been updated.
+
+   *Resolved. Geographic is the accepted design (§4.3); §2 correctly
+   describes the geographic returned-mask algorithm and requires no
+   rewrite. The inconsistency was introduced by the screen-space
+   pivot after round 1 and is eliminated by reverting that
+   decision.*
+
+2. The global screen-space mask can block unrelated later fragments, not
+   only coarse fallback ancestors.
+
+   Section 4.1 describes the correctness risk as a fine tile blocking a
+   coarse ancestor under an oblique camera. The accepted implementation
+   goes further: `accumulated_mask` persists for the whole frame and is
+   sampled by every later tile and surface by `gl_FragCoord` alone. That
+   means any earlier fragment at a screen pixel can discard any later
+   fragment at the same pixel, even when the later fragment belongs to a
+   different tile, a different branch of the tree, or a different depth
+   order that normal depth testing would have resolved.
+
+   The RFC needs a rule that bounds the mask's scope, or a proof that
+   traversal order plus depth state makes a frame-global binary mask
+   safe. If the intended behavior is to use the mask only for ancestor
+   fallback and same-node surface composition, the texture cannot be a
+   single unqualified frame-global coverage buffer without additional
+   keys such as depth, subtree ownership, or a reset/scope rule.
+
+   *Resolved by design choice. The geographic mask (§4.2) is bounded
+   by each tile's UV coordinate space. Cross-branch screen-space
+   overlaps between geographically separate tiles are handled by
+   the existing depth buffer, not the mask. The frame-global
+   correctness risk is a screen-space-specific problem; it does
+   not apply to the accepted geographic design.*
+
+3. The offscreen color/depth lifecycle is underspecified.
+
+   Section 5.1 says each screen draw targets an offscreen FBO with color
+   and `scratch_mask`, then blits the color attachment to the canvas.
+   It does not define where the depth buffer lives, whether it is shared
+   across all tile draws, when the offscreen color attachment is cleared,
+   or whether the canvas depth buffer participates at all after color is
+   blitted. The current map renderer relies on depth testing across
+   separately drawn tiles. A color-only blit after each tile draw does
+   not preserve that relationship unless the offscreen FBO owns the real
+   frame depth buffer and the canvas is only a presentation target.
+
+   The RFC should define the render target for the whole terrain pass:
+   color attachment, depth attachment, scratch attachment, clear points,
+   and final presentation. If the canvas remains the primary depth
+   target, choose the two-pass `DEPTH_EQUAL` variant and specify how it
+   captures coverage without changing the color/depth result.
+
+   *Resolved by design choice. The geographic mask FBOs (footprint
+   and node mask pool) are entirely separate from the screen render
+   target. The screen draw uses the normal render path with its
+   existing color and depth buffer unchanged. No offscreen blit
+   to the canvas is introduced. Depth testing across tiles works
+   exactly as it does today. See §5.3.*
+
+4. The screen-space OR pass text describes an impossible read from the
+   current accumulated FBO value before switching to blending.
+
+   Section 5.1 says the OR shader writes `max(current, scratch)`, and
+   §5.6 shows pseudo-code with a "current accumulated value read from
+   FBO". A fragment shader cannot read the current value of the same
+   attachment it is writing unless that texture is also sampled, which
+   would violate the read/write rule stated in §5.2. The later sentence
+   says the actual implementation uses `gl.blendEquation(gl.MAX)`.
+
+   Drop the manual-read description and make blending the normative
+   design. Also specify the scratch clear before each surface draw; stale
+   scratch coverage would be ORed into `accumulated_mask`.
+
+   *Fixed. §5.6 specifies `gl.blendEquation(gl.MAX)` as the normative
+   OR mechanism. The pseudo-code describing a manual read from the
+   current FBO attachment is removed. §5.1 specifies that `scratch`
+   is cleared to 0 before each footprint pass.*
+
+5. The watertight fast path is not implementable as written for
+   screen-space.
+
+   Sections 4.1 and 5.1 say a watertight surface can fill
+   `accumulated_mask` for its screen footprint, or skip back surfaces
+   before any draw call. To know the screen footprint in the accepted
+   screen-space design, the renderer still has to rasterize the mesh or
+   an equivalent conservative screen shape. Skipping before any draw call
+   would also skip the front surface's color unless another draw path
+   renders it first.
+
+   The RFC should state that a watertight front surface still performs
+   the normal screen draw for color and coverage, then suppresses later
+   surfaces at the same node. If a separate footprint fill is intended,
+   define the draw that produces that footprint and include it in the
+   performance estimate.
+
+   *Resolved. For the geographic mask, the watertight fast path is:
+   clear `node_mask[depth]` to 1.0 (a single FBO clear, not a draw
+   call), then skip all remaining surfaces at this node. The color
+   screen draw still executes normally. No mesh rasterization is
+   needed to establish the mask. §4.2 and §5.1 are updated
+   accordingly.*
+
+6. The rollout and open-question sections still describe the deferred
+   geographic design as if it were part of the accepted implementation.
+
+   Section 8 says to implement the footprint pass and mask blit program,
+   and §6.3 still mentions footprint and blit passes. Section 9 lists
+   erosion margin, 256x256 mask resolution, and UV footprint
+   rasterization as open questions. Those belong to the deferred
+   geographic alternative, not to the accepted screen-space design.
+
+   Move those items under §4.2 as deferred alternative notes, and replace
+   the accepted-design rollout with the screen-space work: depth-capable
+   tile render FBO or `DEPTH_EQUAL` coverage pass, `accumulated_mask`,
+   `scratch_mask`, MRT or second pass, OR blending, and validation cases
+   for oblique overlap.
+
+   *Resolved. With geographic as the accepted design, §9 open
+   questions (erosion margin, mask resolution, UV footprint
+   rasterization) are correct for the accepted path and remain
+   there. A screen-space fallback threshold question is added to
+   §9 to document the condition under which §4.1 would be adopted.
+   §8 rollout is updated with geographic work items: mask pool
+   allocation, footprint and OR/blit programs, mask-aware rig
+   methods, and an erosion tuning step.*
+
+## Review round 3
+
+1. The per-surface mask sequence renders each surface after adding its
+   own footprint to the mask.
+
+   Section 5.1 orders the steps as footprint pass, OR into
+   `node_mask[depth]`, then screen draw sampling `node_mask[depth]`.
+   That means the surface samples a mask that already contains its own
+   coverage and discards its own fragments. The watertight branch has
+   the same problem: clearing `node_mask[depth]` to 1.0 before the screen
+   draw would discard the watertight surface's color.
+
+   The sequence needs to be: draw the surface while sampling only the
+   prior coverage mask, then add the surface's footprint to the node
+   mask for later surfaces and parent backtracking. For a watertight
+   surface, draw it against the prior mask first, then mark the node mask
+   fully covered and skip later surfaces. If the intended implementation
+   uses a separate read mask and write mask, name both textures and state
+   when each is swapped or copied.
+
+2. The mask texture lifecycle for sibling nodes is underspecified.
+
+   Section 5.1 says there is one `node_mask` texture per recursion depth,
+   and that only the root node is cleared at frame start. With depth-first
+   recursion, sibling tiles at the same LOD reuse the same depth texture.
+   If `node_mask[depth]` is not cleared before each node starts, coverage
+   from one sibling can be blitted into another sibling's parent quadrant
+   or sampled by an unrelated node.
+
+   The RFC should define the lifecycle precisely: clear the current
+   depth texture at node entry, accumulate that node's children and
+   surfaces into it, blit it into the parent before returning, then treat
+   it as scratch for the next sibling at the same depth. If child masks
+   must remain available after return, one texture per depth is not
+   enough and the pool design needs to change.
+
+3. The erosion shader is specified in prose but absent from the normative
+   shader description.
+
+   Sections 4.2 and 5.1 say the OR/blit shader applies a morphological
+   min-filter with radius `k`. Section 5.6 then defines the OR/blit
+   shader as a single `texture(uScratch, vUV).r` sample, with blending
+   doing only `max(existing, scratch)`. That shader does not erode the
+   mask, so the accepted crack mitigation is not implemented by the
+   normative shader text.
+
+   Update §5.6 so the OR/blit shader includes the min-filter, or split
+   it into two programs if erosion is only used for selected blits. The
+   document should also state whether `k = 0` is allowed for debugging
+   and whether the same shader samples outside the child quadrant as 0
+   when eroding a child mask into a parent quadrant.
+
+4. The rollout still leaves the virtual-surface gate without an
+   implementation handle.
+
+   Section 7 names `vsurfaceCount` inside `generateSurfaceSequence` as
+   the gate, but that value is currently local to the function. The RFC
+   should say where the result is stored for the draw traversal to read,
+   for example a `tree.usesVirtualSurfaces` boolean or equivalent. This
+   is small, but without it the rollout rule is not actionable from
+   `MapSurfaceTree`.
