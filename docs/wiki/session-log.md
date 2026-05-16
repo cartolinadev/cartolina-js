@@ -1,5 +1,13 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — glue generation user report
+
+Added user report to §1: generating a glue between two planet-wide
+Viewfinder Panoramas DEMs (3 arc-second + 1 arc-second) took multiple
+days on a stock desktop machine using vts-tools.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — problem statement with verified glue analysis
 
 Expanded §1 with a grounded account of why eliminating glues matters.

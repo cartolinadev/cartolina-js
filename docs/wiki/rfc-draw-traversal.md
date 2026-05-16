@@ -53,6 +53,9 @@ atlases. This runs for every tile at every LOD across the seam boundary.
 For datasets with global or continent-scale seams the tile count is
 large and generation must be repeated whenever source data changes.
 The generated glue tilesets add storage proportional to seam area.
+Per user report: generating a glue between two planet-wide Viewfinder
+Panoramas DEMs (3 arc-second merged with 1 arc-second) took multiple
+days on a stock desktop machine using vts-tools.
 
 Glues introduce client-side complexity that exists solely to serve the
 abstraction: `createVirtualMetanode`, `sourceReference` handling,
