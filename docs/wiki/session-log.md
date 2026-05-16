@@ -1,5 +1,13 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — surface ordering terminology
+
+Defined front/back surface convention in §2.2: index 0 = front surface,
+renders first, takes precedence. Replaced all uses of "higher priority"
+/ "lower priority" / "topmost" with front/back throughout the RFC.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — author response, inline notes
 
 Added *Implemented.* responses inline under each of the five review

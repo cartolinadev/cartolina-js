@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.323-feature_draw_surfaces.9093b1f9",
+  "version": "2.49.324-feature_draw_surfaces.67a62c7b",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {

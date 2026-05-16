@@ -118,8 +118,8 @@ At each node:
    at its natural leaf position at this node: SSE passes or it has no
    children at this LOD. Surfaces at their natural leaf render here in
    priority order, accumulating the mask, before any descent (see §2.2).
-   This ensures a higher-priority surface always claims its pixels at its
-   own LOD, regardless of whether a lower-priority surface has finer data.
+   This ensures a front surface always claims its pixels at its own LOD,
+   regardless of whether a back surface has finer data available.
 4. Attempt to descend into each of the up to four children for surfaces
    that still need finer detail (SSE does not pass and children exist).
    Each child is visited recursively. Collect the returned masks.
@@ -146,11 +146,14 @@ ready:
 
 After all surfaces are processed, return the accumulated mask.
 
-The surface ordering contract: a surface earlier in the sequence
-(higher stacking priority) claims its fragments first. A later surface
-can render only into pixels not yet claimed. Depth testing still
-operates normally within each surface's geometry; the mask handles
-cross-surface ordering at the same node.
+**Surface ordering convention:** the sequence is ordered front-to-back.
+Index 0 is the front surface — it renders first and its pixels take
+precedence over all surfaces behind it. A surface at a higher index is
+a back surface — it renders only into pixels not yet claimed by surfaces
+in front of it. "Earlier in the sequence" and "front" are synonymous;
+"later in the sequence" and "back" are synonymous. Depth testing still
+operates within each individual surface's own geometry; the mask handles
+ordering between surfaces at the same node.
 
 If a surface is watertight at this tile position (its geometry covers
 the full tile cell), it claims the entire UV area. All subsequent
@@ -252,7 +255,7 @@ Splitting the two problems — UV clip for LOD hierarchy, mask texture
 for multi-surface — would produce two interacting systems rather than
 one. The unified mask approach in this RFC handles both dimensions with
 the same mechanism: a coarser fallback tile reads the mask produced by
-its finer children exactly as a lower-priority surface reads the mask
+its finer children exactly as a back surface reads the mask
 produced by surfaces above it. The complexity stays constant.
 
 ---
@@ -380,7 +383,7 @@ surfaces at the same node render freely where the non-watertight tile
 left gaps. This avoids both the crack problem and the
 surface-stacking depth-test artifact in boundary regions, at the cost
 of allowing the two effects to occur where a partial tile meets a
-lower-priority surface — both of which are edge conditions that are
+a back surface — both of which are edge conditions that are
 unlikely to be visible.
 
 **Infrastructure:** the mask texture is a screen-resolution RGBA8 or
@@ -444,7 +447,7 @@ the screen-space approach from watertight status.
   needed: the mask is trivially set to fully covered (fill the mask
   texture with 1). This eliminates the most expensive step for the
   majority of tiles.
-- When the topmost (highest-priority) watertight surface renders at
+- When the frontmost watertight surface renders at
   a given tile position, all subsequent surfaces in the stack are
   completely masked out. They can be skipped for both rendering and
   data retrieval. Since most interior tiles are watertight, this
@@ -927,7 +930,7 @@ relying on them in the metatile.
    children below LOD 8 and surface B continues to LOD 12. At LOD 8, B
    can force descent. If LOD 8 is not a fallback LOD, A is not rendered.
    If LOD 8 is a fallback LOD and A renders after B's children have
-   written the mask, the lower-priority or later-rendered subtree can
+   written the mask, the back surface or later-rendered subtree can
    block A even when A should have claimed the region first.
 
    The RFC should define mixed-LOD surface semantics before
@@ -940,8 +943,8 @@ relying on them in the metatile.
    *Implemented. §2.1 now evaluates each surface independently at each
    node. A surface at its natural leaf position (SSE passes or no
    children at this LOD) renders in priority order before any descent,
-   so a higher-priority surface always claims its pixels at its own LOD
-   regardless of whether a lower-priority surface has finer data
+   so a front surface always claims its pixels at its own LOD
+   regardless of whether a back surface has finer data
    available.*
 
 2. The mask data flow is underspecified and appears to require
@@ -1016,14 +1019,14 @@ relying on them in the metatile.
 5. The watertight optimization needs a source for "no data requests"
    skipping.
 
-   Sections 2.2 and 4.2 say that after a topmost watertight surface
-   claims a tile, later surfaces can be skipped for rendering and data
+   Sections 2.2 and 4.2 say that after a front watertight surface
+   claims a tile, back surfaces can be skipped for rendering and data
    retrieval. Before metatile v6, the client treats all nodes as
    non-watertight. After metatile v6, it still has to fetch enough
-   metatile data for lower-priority surfaces to know whether they have
-   children and whether their SSE would force descent, unless the
-   traversal rule says the topmost watertight surface terminates the
-   whole surface stack at that node.
+   metatile data for back surfaces to know whether they have children
+   and whether their SSE would force descent, unless the traversal rule
+   says the front watertight surface terminates the whole surface stack
+   at that node.
 
    The RFC should define when that early termination is legal and which
    metadata has already been loaded at that point. This matters for the
@@ -1031,9 +1034,9 @@ relying on them in the metatile.
 
    *Implemented. §2.2 now states that "no data requests" means mesh and
    texture loading, not metatile fetching. Metatile data is still
-   fetched for lower-priority surfaces at each node (it is lightweight
-   and needed for child-structure and SSE decisions at descendant nodes).
-   Only mesh and texture resources are skipped when a higher-priority
-   watertight surface renders at the same node. Subtree skipping (which
+   fetched for back surfaces at each node (lightweight and needed for
+   child-structure and SSE decisions at descendant nodes). Only mesh and
+   texture resources are skipped when a front watertight surface renders
+   at the same node. Subtree skipping (which
    would also skip metatile fetches for lower surfaces in entire
    subtrees) is a deferred optimisation.*
