@@ -115,23 +115,30 @@ At each node:
 
 1. If the metanode is not ready, return a null mask (nothing rendered).
 2. If the node is frustum-culled, return a null mask.
-3. For each surface in the sequence, check independently whether it is
-   at its natural leaf position at this node: SSE passes or it has no
-   children at this LOD. Surfaces at their natural leaf render here in
-   priority order, accumulating the mask, before any descent (see §2.2).
-   This ensures a front surface always claims its pixels at its own LOD,
-   regardless of whether a back surface has finer data available.
-4. Attempt to descend into each of the up to four children for surfaces
-   that still need finer detail (SSE does not pass and children exist).
-   Each child is visited recursively. Collect the returned masks.
-5. OR the up to four child masks together into a single combined mask
-   and merge it with any mask already written in step 3.
-6. If this node is a **fallback LOD** (see §2.4), render the surfaces
-   that did not render in step 3 using the combined mask from step 5 as
-   input. OR the rendered coverage into the mask.
-7. Return the combined mask.
+3. For each surface, descend into children if the surface needs finer
+   detail (SSE does not pass and children exist). Collect the masks
+   returned by child calls and OR them together into a combined mask.
+4. For each surface at its **natural leaf** at this node — SSE passes
+   or it has no children at this LOD — render it using the combined
+   child mask as input (see §2.2). OR the rendered coverage into the
+   mask. This is unconditional: a surface at its natural leaf always
+   renders here, regardless of fallback cadence, because there is no
+   finer data for it anywhere in the tree.
+5. If this node is a **fallback LOD** (see §2.4), also render surfaces
+   that are not at their natural leaf here (they have children but
+   provide early coverage as a fallback). Use the combined mask as
+   input and OR the rendered coverage into the mask.
+6. Return the combined mask.
 
 This is the complete algorithm. There is no mode switch.
+
+The distinction between steps 4 and 5 matters for mixed-LOD surface
+stacks. A coarse back surface whose LOD range ends at this node renders
+in step 4 regardless of fallback cadence; it sees the child mask that
+the front surface's descendants already wrote, so it fills only the
+gaps the front surface left. A front surface that could go deeper but
+renders early as fallback coverage is handled in step 5, gated by the
+fallback cadence.
 
 ### 2.2 Leaf rendering
 
@@ -948,12 +955,14 @@ relying on them in the metatile.
    surface ordering and avoid making data availability in one surface
    suppress coverage from another.
 
-   *Implemented. §2.1 now evaluates each surface independently at each
-   node. A surface at its natural leaf position (SSE passes or no
-   children at this LOD) renders in priority order before any descent,
-   so a front surface always claims its pixels at its own LOD
-   regardless of whether a back surface has finer data
-   available.*
+   *Implemented. §2.1 now separates natural-leaf rendering (step 4,
+   unconditional) from fallback-cadence rendering (step 5, gated).
+   A surface at its natural leaf — SSE passes or no children at this
+   LOD — always renders after descent, using the child mask as input.
+   This covers the case where a coarse back surface's LOD range ends
+   at a node that the finer front surface's children have already
+   populated: the back surface renders in the gaps the front surface
+   left, without needing that node to be a fallback LOD.*
 
 2. The mask data flow is underspecified and appears to require
    ping-pong or separate accumulation textures.

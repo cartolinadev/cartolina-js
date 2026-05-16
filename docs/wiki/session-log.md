@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — fix mixed-LOD surface leaf rule
+
+§2.1 corrected: natural-leaf rendering is now unconditional (step 4,
+after descent), not gated on fallback cadence. A surface renders at
+its natural leaf regardless of cadence — there is no finer data for it
+anywhere. Fallback cadence (step 5) gates only inner-node early-coverage
+rendering. This fixes the case where a coarse back surface's LOD range
+ends at a node the finer front surface's children have already populated.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — mask decision revised to screen-space
 
 Reverted §4.3 to screen-space as accepted design; geographic documented
