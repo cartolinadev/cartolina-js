@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — vts-browser-cpp prior art
+
+Examined vts-browser-cpp traversal as potential inspiration. Findings:
+`travModeBalanced` + `renderNodeCoarser` uses analytical UV clip
+rectangles to render a ready ancestor in place of an unready descendant.
+The clip is computed by composing `updateRangeToHalf` per LOD level —
+equivalent to the cartolina-js `uClip`/`splitMask` mechanism but
+generalised to arbitrary depth. Concluded that UV clip does not
+eliminate cracks (same geometric problem as geographic mask; managed in
+vts-browser-cpp by dense meshes and glues). Multi-surface seam stitching
+in vts-browser-cpp relies on server-side glues, which we are removing.
+Combining UV clip (LOD) with mask texture (multi-surface) would produce
+two interacting systems; the unified mask handles both dimensions.
+Recorded as §3 Prior art in the RFC.
+
+---
+
 ## 2026-05-16 — RFC: unified recursive draw traversal
 
 Drafted `rfc-draw-traversal.md`. Key design decisions recorded:

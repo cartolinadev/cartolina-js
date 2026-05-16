@@ -127,7 +127,7 @@ cross-surface ordering at the same node.
 If a surface is watertight at this tile position (its geometry
 covers the full tile cell), it claims all remaining UV area. All
 subsequent surfaces in the sequence can be skipped — no rendering,
-no data requests. See §3 for how watertight status is detected and
+no data requests. See §4 for how watertight status is detected and
 how each mask approach uses it differently.
 
 ### 2.3 Backtrack and mask propagation
@@ -167,12 +167,68 @@ The cadence is a single integer configuration parameter.
 
 ---
 
-## 3. Mask technology: open design question
+## 3. Prior art — vts-browser-cpp
+
+vts-browser-cpp (by Tomáš Malý) is a C++ client for the same VTS tile
+format. Its traversal was examined as potential inspiration for the
+design here. The findings are recorded for context.
+
+**LOD hierarchy — UV clip.** vts-browser-cpp uses `travModeBalanced`
+as its primary mode. When a child node is not ready, it calls
+`renderNodeCoarser`, which walks up the tree to find the nearest ready
+ancestor and renders it via `renderNodeDraws(ancestor, orig)`. Inside
+`renderNodeDraws`, a UV clip rectangle `uvClip` is computed
+analytically by composing `updateRangeToHalf` once per LOD level
+difference — halving the UV range and shifting it based on each
+ancestor step's quadrant position (`t->id.x % 2`,
+`1 - t->id.y % 2`). This gives the exact UV sub-rectangle of the
+ancestor corresponding to the unready descendant. The ancestor is then
+rendered clipped to that rectangle.
+
+This is the existing cartolina-js `uClip`/`splitMask` mechanism
+generalised to arbitrary LOD depth. cartolina-js only goes one level;
+vts-browser-cpp walks however many levels are needed.
+
+**Why this does not eliminate cracks.** The UV clip restricts which
+fragments the shader produces, but rasterization still happens in
+screen space. The triangle edges of the ancestor mesh do not
+perfectly abut the triangle edges of the child mesh in screen space at
+oblique angles. The crack problem is the same as for a geographic mask
+— the boundary is defined geographically but gaps appear in screen
+space. vts-browser-cpp manages cracks in practice through dense mesh
+geometry and, critically, server-side glues that pre-stitch geometry at
+actual surface seam positions. Without glues, cracks at surface
+boundaries remain.
+
+**Multi-surface — glues and bound layer masks.** vts-browser-cpp does
+not render multiple surfaces simultaneously at the same tile position.
+It selects one winning surface per node (topmost non-empty in the
+surface stack). Seam stitching between surfaces relies on server-side
+glue tilesets, which carry pre-stitched geometry at seam positions. For
+texture compositing, it downloads precomputed raster mask textures from
+the server's bound layer mask URLs.
+
+**What this means for the RFC design.** The vts-browser-cpp approach
+works under different constraints: glues are load-bearing. The UV clip
+handles the LOD hierarchy given that surface seams are already resolved
+by the server. Removing glues means the client must own the compositing
+fully, for both LOD hierarchy and multi-surface seam stitching.
+
+Splitting the two problems — UV clip for LOD hierarchy, mask texture
+for multi-surface — would produce two interacting systems rather than
+one. The unified mask approach in this RFC handles both dimensions with
+the same mechanism: a coarser fallback tile reads the mask produced by
+its finer children exactly as a lower-priority surface reads the mask
+produced by surfaces above it. The complexity stays constant.
+
+---
+
+## 4. Mask technology: open design question
 
 The algorithm requires a mask that encodes which geographic regions have
 been covered by finer tiles. Two implementations are candidates.
 
-### 3.0 Watertight tiles
+### 4.0 Watertight tiles
 
 A tile is watertight if its mesh has no gaps along any of the four
 tile boundary edges. This is a topological property of the mesh
@@ -234,7 +290,7 @@ if (ti & TiFlag::watertight) {
 }
 ```
 
-See §3.5 for the full backend change discussion including vts-vtsd.
+See §4.5 for the full backend change discussion including vts-vtsd.
 
 Watertight status affects both mask approaches, though more strongly
 for the geographic approach:
@@ -245,7 +301,7 @@ for the geographic approach:
 - **Geographic:** a watertight tile covers the full UV area with no
   gaps. Its geographic mask is trivially known without rasterization.
 
-### 3.1 Screen-space mask
+### 4.1 Screen-space mask
 
 The mask is a texture at screen resolution. Each rendered fragment
 writes to the mask at its screen position (`gl_FragCoord`). A later
@@ -314,7 +370,7 @@ its fragments' screen positions.
 - Non-watertight boundary handling: partially degrades to depth
   testing, which is acceptable for edge tiles.
 
-### 3.2 Geographic (UV-space) mask
+### 4.2 Geographic (UV-space) mask
 
 The mask is a small texture in the tile's external UV coordinate space.
 External UV coordinates (`aTexCoords2`) are per-vertex attributes that
@@ -399,7 +455,7 @@ of splitting.
 - Complexity: footprint program, blit program, mask texture pool,
   erosion pass — more infrastructure than screen-space.
 
-### 3.3 Assessment and prototype order
+### 4.3 Assessment and prototype order
 
 **Which approach is technically stronger**
 
@@ -435,7 +491,7 @@ only in the mask texture layout, the backtrack propagation step, and the
 footprint/blit programs. Switching from screen-space to geographic is a
 localised change once the traversal is validated.
 
-### 3.5 Backend changes — cartolina-tileserver and vts-vtsd
+### 4.5 Backend changes — cartolina-tileserver and vts-vtsd
 
 **cartolina-tileserver** is the primary target. All changes are in
 `externals/vts-libs`, which is a vendored copy shared with vts-vtsd:
@@ -493,9 +549,9 @@ correctness requirement.
 
 ---
 
-## 4. WebGL2 infrastructure
+## 5. WebGL2 infrastructure
 
-### 4.1 Offscreen rendering: what is needed
+### 5.1 Offscreen rendering: what is needed
 
 The geographic mask requires rendering into an offscreen R8 texture
 (the footprint pass) and blitting child masks into parent mask textures
@@ -529,7 +585,7 @@ gpu.setCanvasRenderTarget(); // or restore previous target
 The `R8` format is guaranteed by WebGL2 (`RGBA8` would also work if
 single-channel is not convenient; R8 is preferred for bandwidth).
 
-### 4.2 Framebuffer ordering guarantee
+### 5.2 Framebuffer ordering guarantee
 
 Within a single WebGL2 context, a draw call that writes to texture T
 via an FBO is complete before a subsequent draw call that samples T
@@ -546,7 +602,7 @@ the mask texture, unbind its FBO. Concretely:
 Step 1 must complete before step 2. The unbind between them is a
 one-line call, not a synchronization primitive.
 
-### 4.3 Mask blit pass
+### 5.3 Mask blit pass
 
 Writing a child mask into the parent mask texture is a full-screen quad
 draw where:
@@ -561,7 +617,7 @@ draw where:
 No depth testing, no blending required. This is a trivial blit program
 that can be shared across all mask blit passes.
 
-### 4.4 Render target lifecycle during traversal
+### 5.4 Render target lifecycle during traversal
 
 The traversal alternates between offscreen (mask) and onscreen
 (color+depth) render targets. The call stack carries the current target
@@ -579,7 +635,7 @@ This is safe because the recursive calls for children complete before
 the parent renders. By the time the parent's footprint pass runs, no
 child mask FBO is active.
 
-### 4.5 `TileRenderRig` changes
+### 5.5 `TileRenderRig` changes
 
 `TileRenderRig` currently does not support offscreen or mask-aware
 rendering. The following changes are required:
@@ -617,7 +673,7 @@ hitmap), as specified in the backlog. This is prerequisite for the
 traversal refactor because the new traversal replaces both color and
 depth draw paths. See backlog §1 for the depth program plan.
 
-### 4.6 Tile shader changes
+### 5.6 Tile shader changes
 
 The legacy tile shader in `shaders.js` uses `vClipCoord` (interpolated
 `aTexCoords2`) and `uClip[4]` or `uClip[8]` to discard fragments by
@@ -658,9 +714,9 @@ parent mask textures.
 
 ---
 
-## 5. Performance analysis
+## 6. Performance analysis
 
-### 5.1 Draw call count
+### 6.1 Draw call count
 
 For a typical scene with N visible tiles at the fit LOD:
 
@@ -678,13 +734,13 @@ The footprint and blit passes are cheap: no texture sampling, no UBO
 updates, simple shaders. Their GPU time is negligible relative to the
 screen-space passes.
 
-### 5.2 Mask texture bandwidth
+### 6.2 Mask texture bandwidth
 
 Each mask texture is 256×256 × 1 byte = 64 KB. Reading and writing
 64 KB per active LOD level per frame is not a bottleneck on current
 GPU hardware.
 
-### 5.3 Data requests
+### 6.3 Data requests
 
 The fallback cadence directly controls how many inner node meshes are
 requested. With cadence 5, only 1/31 of all traversed nodes are
@@ -699,7 +755,7 @@ data requests than the current `drawSurfaceFitOnly`. Frame time may be
 slightly higher due to footprint and blit passes, but this is expected
 to be imperceptible.
 
-### 5.4 Tile visibility
+### 6.4 Tile visibility
 
 The recursive structure naturally prunes invisible subtrees: if a node
 is frustum-culled, the entire subtree is skipped without processing its
@@ -708,7 +764,7 @@ metatiles. The current iterative variants do the same via
 
 ---
 
-## 6. What disappears
+## 7. What disappears
 
 After this traversal is validated and the old methods are removed:
 
@@ -770,7 +826,7 @@ requirement.
 
 ---
 
-## 7. Compatibility and rollout
+## 8. Compatibility and rollout
 
 The old traversal and new traversal can coexist behind the
 `TileRenderRig` gate already used in the color-pass draw path.
@@ -790,7 +846,7 @@ Validation sequence:
 
 ---
 
-## 8. Open questions
+## 9. Open questions
 
 **Erosion margin:** the UV erosion value that prevents cracks while
 minimising the border zone where depth testing may produce incorrect
