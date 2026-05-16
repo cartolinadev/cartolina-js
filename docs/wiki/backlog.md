@@ -1,5 +1,62 @@
 # Task backlog
 
+## REFACTOR: replace legacy map draw path with `TileRenderRig`
+
+**Opened:** 2026-05-16
+**Status:** next architectural step
+
+### Goal
+
+Make `TileRenderRig` the tile renderer for both color and depth passes,
+then replace the old map and surface-tree draw entry points with smaller
+functions that target the style-based rendering model.
+
+The draw refactor should happen before the EventBus and ConfigStore
+implementation work. EventBus and ConfigStore remove legacy ownership
+from `Core`, but the draw refactor changes the rendering structure that
+the cleaned-up ownership model should serve. Avoid preserving old tile
+rendering branches through a config migration if the same branches are
+scheduled for deletion.
+
+### Plan
+
+1. Add a depth program for `TileRenderRig`.
+
+   `TileRenderRig` must be usable on draw channel 1. Once it can render
+   depth correctly, the old depth/tile path loses its main remaining
+   purpose. Verify with screenshot regression tests and targeted depth or
+   hit-test diagnostics before changing traversal code.
+
+2. Write a simplified map draw function.
+
+   Replace `MapDraw.drawMap` with a smaller draw entry point that targets
+   the current style-based renderer. Do not carry over inspector-only
+   paths unless a current non-inspector render path still needs them.
+
+3. Write a new surface-tree draw function.
+
+   Replace `MapSurfaceTree.draw` and its draw variants with one traversal
+   path that calls the new map draw code and `TileRenderRig`. Keep the old
+   path only long enough to compare output while validating the new one.
+
+4. Delete obsolete rendering code.
+
+   After color, depth, and surface-tree traversal work through
+   `TileRenderRig`, remove the old tile rendering path, old draw variants,
+   obsolete shaders, and inspector-only branches that no longer have a
+   caller.
+
+### Follow-up order
+
+After this refactor reaches the deletion pass, continue with:
+
+1. [rfc-event-bus.md](rfc-event-bus.md)
+2. [rfc-config-store.md](rfc-config-store.md)
+3. Removing the `Map.core` escape hatch from `Viewer`
+4. Designing a style-era runtime overlay API
+
+---
+
 ## REFACTOR: replace glues and virtual surfaces with client-side
 surface composition
 

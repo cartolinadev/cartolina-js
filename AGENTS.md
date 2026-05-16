@@ -515,6 +515,10 @@ diff, or git history available in the workspace, do that first. Do not
 speculate with phrases like "probably", "if", or similar hedging about
 code-local facts that are directly verifiable.
 
+If a fact is inspectable, inspect it. Do not say "most likely" or use
+similar evasive phrasing for repository, configuration, or environment
+facts that can be read directly.
+
 **Derive normalized data shapes from canonical defaults when possible.**
 When a module defines a default plain-data object whose fields already
 describe the complete normalized runtime shape, prefer deriving the type

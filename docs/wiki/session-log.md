@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-05-16 — RFC: unified recursive draw traversal
+
+Drafted `rfc-draw-traversal.md`. Key design decisions recorded:
+
+- Replaces four iterative traversal variants (`topdown`, `downtop`,
+  `fit`, `fitonly`) with one recursive depth-first function; mode
+  selection collapses to a single `mapFallbackLodCadence` integer.
+- Glues and virtual surfaces ignored entirely in v1; `createVirtualMetanode`
+  and alien-flag machinery deleted. Multi-surface coordination uses
+  direct per-surface metatile lookups, not a merge mechanism.
+- Client-side mask compositing enforces two rules: coarser tiles never
+  obscure finer tiles; within a node, higher-priority surfaces claim
+  pixels before lower-priority ones.
+- Two mask approaches analysed: screen-space (crack-free, camera-dependent
+  blocking risk at large LOD gaps) and geographic UV-space (provably
+  correct, crack risk mitigated by mask erosion). Screen-space
+  recommended for first prototype; geographic is the stronger design.
+- Watertight tile optimization: for the geographic approach, watertight
+  tiles need no footprint pass and block all lower surfaces in the stack.
+  For screen-space, non-watertight tiles do not contribute their mask
+  to block subsequent surfaces, falling back to depth testing.
+- Metatile v6 design: watertight flag added as header bitplane 1
+  (following alien bitplane 0 precedent); `ti2metaFlags()` in the
+  tileserver generator gains the mapping. vts-vtsd patched identically
+  to read v6. Client treats version < 6 as non-watertight throughout.
+- Recursion depth verified empirically: V8 limit ~6 500 frames for a
+  traversal-weight function; 30 frames use 0.46 % of the default stack
+  (safety margin ~220×); per-frame call overhead ~0.005 µs.
+
+---
+
 ## 2026-05-15 — autopilot: fix flyTo silent failure
 
 `autopilot.flyTo` (and `flyToDAH`, `generateTrajectory`,
