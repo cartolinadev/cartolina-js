@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review — author responded to round 3
+**Status:** In review — author responded to round 4
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -1077,6 +1077,26 @@ that decision is made, define the empirical test: what crack
 frequency or severity in specific multi-surface data warrants
 switching to screen-space for that dataset.
 
+**Per-surface mask pool (deferred).** The current design uses one
+`node_mask[depth]` that combines coverage from all surfaces. This
+produces a priority inversion at seam-tile boundaries: a back
+surface's fine child coverage can block a front surface's coarser
+fallback render, violating the stated priority rule. The precondition
+requires a back surface to have finer LOD tiles than the front surface
+at the same position — unusual in well-configured stacks, but possible
+at dataset edges. The visual outcome (back surface's finer data
+showing instead of the front surface's coarse fallback) is acceptable
+for elevation surfaces.
+
+The correct fix replaces `node_mask[depth]` with per-surface
+`surface_mask[i][depth]` textures plus a per-node `claimed_mask[depth]`
+that accumulates front-to-back. Each surface samples its own
+`surface_mask[i]` (finer descendants) and `claimed_mask` (higher-
+priority coverage) independently. Pool grows to 16 × (N + 1) + 1
+textures; blit calls per inner node multiply by N. Implement after
+the single-surface path is validated and multi-surface testing
+confirms the artifact is visible in practice.
+
 ## Review round 1
 
 1. The traversal needs a rule for surfaces whose LOD availability
@@ -1436,3 +1456,169 @@ switching to screen-space for that dataset.
    the result as `hasVirtualSurfaces: boolean` on the `SurfaceSequence`
    object it returns. The new traversal reads
    `surfaceSequence.hasVirtualSurfaces` at its entry point.*
+
+## Review round 4
+
+1. The combined child mask can make lower-priority child coverage block
+   higher-priority parent fallback coverage.
+
+   Section 2.1 descends into children first, ORs all returned child masks
+   into one combined mask, then renders natural leaves and fallback LODs
+   against that combined mask. A child mask represents coverage from all
+   surfaces rendered in that child subtree, including back surfaces that
+   filled gaps left by front surfaces. When a front surface later renders
+   at the parent as fallback coverage, it samples the combined mask and
+   discards pixels already claimed by those back child surfaces.
+
+   That violates the surface priority rule in §2.2. A front surface's
+   fallback tile is still front-surface coverage. It should be blocked by
+   finer front coverage, and by higher-priority surfaces if any exist,
+   but not by lower-priority back surfaces that happened to render in a
+   child before the parent fallback ran. The watertight parent case has
+   the same failure: the parent front surface draws against a mask that
+   can already include back-surface child coverage, so it cannot repaint
+   those pixels before marking the node mask fully covered.
+
+   The root cause is that "coverage already claimed" is not one
+   category once LOD fallback and surface priority interact. At least
+   four meanings are being collapsed into the same binary mask:
+   coverage from higher-priority surfaces, coverage from the same
+   surface at finer LOD, coverage from lower-priority surfaces, and
+   coverage used only to keep fallback ancestors from overdrawing their
+   descendants. Those categories do not have the same blocking rules.
+
+   A useful way to name the split is:
+
+   - `surface_mask`: temporary coverage produced by one surface's
+     traversal. It answers "what did this surface cover in this tile
+     subtree, including finer children and fallback ancestors?"
+   - `claimed_mask`: persistent front-to-back coverage already claimed
+     by higher-priority surfaces. It answers "what must this surface
+     not draw over?"
+
+   A surface should draw against `claimed_mask` plus its own finer
+   `surface_mask`, then add its new coverage to `surface_mask`. After
+   that surface's priority level is complete, its `surface_mask` becomes
+   part of `claimed_mask` for lower-priority surfaces. The current RFC
+   has one `node_mask` doing both jobs at once, so lower-priority
+   coverage can enter the mask before a higher-priority fallback has
+   finished claiming its own region.
+
+   One possible direction is to render surface trees independently,
+   front to back. That gives a simple time-order invariant: a back
+   surface can only see masks created by surfaces in front of it. The
+   cost is that the inter-surface "claimed" state is not a single
+   texture. In a geographic-mask design, claimed coverage is per tile
+   node, because each mask is defined in that node's UV space. A
+   high-level per-surface traversal would therefore need a per-frame
+   mask tree keyed by tile id, or an equivalent mechanism to carry
+   claimed coverage between independent surface passes at matching,
+   finer, and coarser nodes. In this design, `surface_mask` is local to
+   the current surface traversal, while `claimed_mask[lod,x,y]` must
+   persist for all visible nodes until lower-priority surfaces have
+   consumed it. That is substantial bookkeeping.
+
+   A more local alternative is to keep the single tile-position
+   traversal but make the masks priority-aware. The key invariant would
+   be: a surface may sample only coverage from higher-priority surfaces
+   plus its own finer descendants; it must not sample coverage from
+   lower-priority surfaces. This could be expressed as per-surface
+   coverage masks, prefix masks (`coverageBeforeSurface[i]`), or child
+   recursion returning separate coverage classes rather than one
+   combined mask. In this design, the per-depth mask stack would carry
+   `surface_mask[i]` values and construct `claimed_mask` or prefix masks
+   inside the node traversal. Because surface stacks are small, this may
+   be cheaper than maintaining a persistent claimed-mask tree outside
+   the traversal.
+
+   The RFC should choose between these approaches, or define another
+   mechanism with the same invariant. The accepted design must state
+   which coverage blocks each surface at natural-leaf and fallback
+   render time, how that coverage is propagated from children to
+   parents, when `surface_mask` is merged into `claimed_mask`, and why
+   lower-priority coverage cannot block a higher-priority fallback tile.
+
+   *Acknowledged as a known limitation. The reviewer's analysis of
+   the priority inversion is technically correct. This response
+   explains the precondition required for the bug to manifest, why
+   that precondition is unlikely in the target use case, what the
+   correct fix would cost, and why the fix is deferred.*
+
+   *Precondition for the bug.* The priority inversion fires only when
+   a back surface (B) renders at a finer LOD than the front surface
+   (A) at the same geographic tile position. Concretely: at some node
+   (lod, x, y), B has a child tile at lod+1 that A does not, so B's
+   child renders at the finer LOD and writes into the combined child
+   mask. When A then renders as a fallback at lod, it samples that
+   mask and finds B's child coverage blocking it.
+
+   *Why this is unlikely in practice.* The reason a surface is placed
+   front (higher priority) is that it has higher-quality data for the
+   region it covers. Higher quality almost always means finer LOD
+   tiles: a 1 arc-second DEM renders to LOD 14–15, a 3 arc-second
+   DEM to LOD 12–13. In any geographic position where A (front) has
+   data, A will have finer LOD tiles than B. B's LOD saturates
+   coarser than A's everywhere inside A's coverage area. The
+   precondition — B having a finer child than A at the same position
+   — cannot be met in that interior region.
+
+   *The one case where it can happen.* At the edge of A's dataset,
+   the seam tile. A tile cell that straddles A's coverage boundary
+   may have some children inside A's dataset (where A has LOD n+1
+   tiles) and some outside (where A has no LOD n+1 tile). B has LOD
+   n+1 tiles everywhere. For the outside children, B renders at fine
+   LOD. If lod n is a fallback LOD and A has a lod-n tile that covers
+   the full cell (including the outside children), A's fallback draw
+   is blocked by B's fine child coverage on the outside side.
+
+   *Why the visual outcome is acceptable even there.* In the outside
+   children — where A has no fine data — A's lod-n fallback tile
+   carries only coarse data. B's lod-n+1 tiles there are drawn from
+   B's own dataset at a finer sampling frequency. Showing B's finer
+   data instead of A's coarser fallback in that thin strip is not a
+   visual regression: B's data is more detailed, continuous across
+   the boundary, and the artifact is confined to the seam tile's
+   outside fringe. For elevation surfaces both representations look
+   reasonable; the seam is not made worse. The priority violation is
+   semantic — A should win — but the visual consequence in this
+   specific geometry is defensible.
+
+   *What the correct fix would require.* The reviewer's local
+   alternative (per-surface masks inside the single traversal) is
+   the tractable path. It replaces `node_mask[depth]` with two
+   structures: `surface_mask[i][depth]` (this surface's own coverage,
+   propagated via blits to the parent) and `claimed_mask[depth]`
+   (running OR of all surfaces rendered so far at this node, used
+   only to block lower-priority renders and discarded on return).
+   Each surface's screen draw samples both its own `surface_mask` and
+   the `claimed_mask`, discarding if either exceeds 0.5. After the
+   OR pass, eroded scratch is written into both `surface_mask[i]` and
+   `claimed_mask`. On backtrack, each `surface_mask[i]` is blitted to
+   the parent separately; `claimed_mask` is not blitted (the parent
+   reconstructs it from its own surface renders). This produces the
+   correct invariant: a surface is blocked only by its own finer
+   coverage and by coverage from surfaces with strictly higher
+   priority; lower-priority coverage is invisible to it.
+
+   The cost is real: the texture pool grows from 16 textures to
+   16 × (N + 1) + 1 (for N surfaces and one scratch): roughly 3 MB
+   for N = 2, 4 MB for N = 3. Blit calls per inner node multiply by
+   N. The screen draw shader gains a second texture sample and a
+   two-condition discard. The per-node lifecycle gains a second clear
+   (for `claimed_mask`). The conceptual model presented to a future
+   reader — already non-trivial — acquires a new distinction that
+   requires careful explanation.
+
+   *Why the fix is deferred.* The priority inversion occurs in one
+   geometry: seam tiles at a dataset boundary, on the outside-of-A
+   side. That is a small fraction of total rendered tiles even in a
+   multi-surface configuration. The "wrong" outcome in those tiles —
+   B's fine data showing instead of A's coarse fallback — is
+   visually acceptable for elevation surfaces, which are the primary
+   target. The fix adds complexity proportional to the surface count
+   to every node in the traversal, including the single-surface path
+   and all interior tiles where the bug cannot occur. That cost is
+   not justified before the single-surface path is validated and real
+   multi-surface data confirms the artifact is visible. The fix is
+   documented here and in §9 so it can be implemented in a targeted
+   pass once empirical evidence establishes that it is needed.*

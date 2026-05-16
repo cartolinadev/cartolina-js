@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — author response to review round 4
+
+Acknowledged the priority-inversion limitation as a known edge case
+rather than fixing it now. The bug fires only when a back surface has
+finer LOD tiles than the front surface at the same position — unusual
+in well-configured stacks, occurs only at dataset boundary seam tiles,
+and the visual outcome is acceptable for elevation surfaces. Full
+analysis in the round 4 inline response. Added per-surface mask pool
+to §9 as a deferred open question with a description of the correct
+fix and the condition under which it should be implemented.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — author response to review round 3
 
 Fixed step ordering bug in §5.1: screen draw now precedes footprint
