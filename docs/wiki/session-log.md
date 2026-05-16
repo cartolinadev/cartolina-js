@@ -1,5 +1,20 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — problem statement with verified glue analysis
+
+Expanded §1 with a grounded account of why eliminating glues matters.
+Verified against source: glue generation pipeline is ~5 000 lines of
+computational geometry (scan conversion, non-convex triangle clipping,
+mesh refinement, UV atlas repacking) running per tile across the full
+seam region at every LOD. Storage overhead is proportional to seam
+area. Client-side complexity (createVirtualMetanode, alien flags,
+sourceReference) exists solely for the abstraction and the alien flag
+mechanism has never functioned. Glues are VTS-specific with no
+equivalent in other formats. Wall-clock time not quantified (no
+benchmarks in repository) but per-tile cost confirmed non-trivial.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — vts-browser-cpp prior art
 
 Examined vts-browser-cpp traversal as potential inspiration. Findings:

@@ -32,20 +32,44 @@ binary mask that does not propagate up the hierarchy. `mapSplitMeshes`
 defaults to `false` in `core.js:54`; it is a configurable option, not
 a hardcoded restriction.
 
-Multi-surface rendering relies on server-side glues and virtual
-surfaces. A glue is a pre-baked tileset covering the seam between two
-surfaces; it carries stitched geometry for seam tiles and a
-`sourceReference` for non-seam tiles that redirects to a component
-surface. The alien-flag mechanism in `createVirtualMetanode` was
-designed to select the correct copy of each glue entry but is
-permanently dead: the server never writes the alien bit into metatile
-output (`glue-alien-flag.md`).
+Multi-surface rendering relies on server-side glues. A glue is a
+pre-baked tileset covering the seam between two surfaces; it carries
+stitched geometry for seam tiles and a `sourceReference` for non-seam
+tiles that redirects to a component surface. The alien-flag mechanism in
+`createVirtualMetanode` was designed to select the correct copy of each
+glue entry but is permanently dead: the server never writes the alien
+bit into metatile output (`glue-alien-flag.md`).
 
-The goals of this RFC:
+**Why eliminating glues matters.**
+
+Glue generation is computationally expensive. The pipeline
+(`vts-libs/vts/tileset/glue.cpp`, `merge.cpp`, `meshop/`) is roughly
+5 000 lines of computational geometry. For each tile in the seam region
+at every LOD it: rasterizes each surface's mesh coverage using scan
+conversion; clips mesh triangles against coverage contours using
+non-convex polygon clipping; refines coarser meshes to match finer LOD
+resolution when surfaces differ in detail; and repacks UV texture
+atlases. This runs for every tile at every LOD across the seam boundary.
+For datasets with global or continent-scale seams the tile count is
+large and generation must be repeated whenever source data changes.
+The generated glue tilesets add storage proportional to seam area.
+
+Glues introduce client-side complexity that exists solely to serve the
+abstraction: `createVirtualMetanode`, `sourceReference` handling,
+proper/alien glue sequence entries, the alien flag mechanism. The alien
+flag was designed to make this work correctly and has never functioned —
+the server never writes it. The complexity is present without delivering
+its intended benefit.
+
+Glues are a concept specific to the VTS tileset format. No equivalent
+exists in WMTS, 3D Tiles, or other tile formats. For users and
+integrators unfamiliar with VTS internals they are opaque.
+
+**Goals of this RFC:**
 
 - Replace the four traversal methods with one recursive function.
-- Replace server-side seam stitching with client-side compositing via
-  mask textures, removing the need for glues as a correctness mechanism.
+- Replace server-side seam stitching with client-side mask compositing,
+  eliminating the need to generate or serve glue tilesets.
 - Allow progressive loading via configurable fallback LODs, eliminating
   the data-intensity of the topdown mode without requiring separate code.
 
