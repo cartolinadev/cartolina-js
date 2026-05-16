@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — mask decision revised to screen-space
+
+Reverted §4.3 to screen-space as accepted design; geographic documented
+as deferred alternative. Reasoning: cracks have no robust analytical
+solution and have already caused visible artifacts (hence mapSplitMeshes
+defaulting to false); screen-space oblique-angle artifact is bounded by
+cadence and unobserved in practice. Completed §4.1 with full
+infrastructure description (global accumulated_mask, scratch_mask MRT,
+OR pass with gl.blendEquation MAX). Updated §5.1, §5.5, §5.6, §6.1,
+§6.2 for screen-space. Updated review note 3 inline response.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — surface ordering terminology
 
 Defined front/back surface convention in §2.2: index 0 = front surface,

@@ -1,6 +1,7 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review — author responded to round 1
+**Status:** In review — author responded to round 1; mask decision
+revised to screen-space
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -386,26 +387,46 @@ of allowing the two effects to occur where a partial tile meets a
 a back surface — both of which are edge conditions that are
 unlikely to be visible.
 
-**Infrastructure:** the mask texture is a screen-resolution RGBA8 or
-R8 framebuffer texture, one per draw frame (not pooled by recursion
-depth). The fragment shader writes to it via a second color attachment
-(MRT — multiple render targets, available in WebGL2), or via a
-separate pass that blits `gl_FragCoord` positions after the main draw.
-The single-pass MRT approach is simpler if the tile shader can write to
-a second output; the two-pass approach separates concerns more cleanly.
+**Infrastructure:** a single R8 texture at screen resolution,
+`accumulated_mask`, persists for the entire frame and is cleared at
+frame start. It is global — not pooled by recursion depth. There are
+no per-level textures and no blit from child to parent: because the
+mask is in screen space, fine tiles write directly into the same texture
+that coarse fallback tiles will later sample. Backtrack propagation is
+free.
 
-Backtrack propagation: the child's mask is already in screen space, so
-no UV transform is needed. The parent simply reads the same texture at
-its fragments' screen positions.
+Per surface S at a node, in priority order:
+
+1. **Screen draw.** Bind `accumulated_mask` as a sampler. Draw S in
+   screen space. The fragment shader reads `accumulated_mask` at
+   `gl_FragCoord.xy` and discards the fragment if the value exceeds
+   0.5. Simultaneously, write coverage to a `scratch_mask` R8 texture
+   via a second color attachment (WebGL2 MRT). Because the canvas
+   default framebuffer does not support additional attachments, the
+   screen draw targets an offscreen FBO with two color attachments
+   (color + scratch), and the color attachment is then blitted to the
+   canvas. Alternatively: render to the canvas in a first pass, then
+   re-render S with a depth test set to `EQUAL` in a second pass
+   targeting only `scratch_mask` — this avoids the FBO/blit overhead
+   at the cost of a second mesh draw.
+
+2. **OR pass.** Bind `accumulated_mask` FBO. Draw a full-screen quad
+   sampling `scratch_mask`. Write `max(current, scratch)` per fragment.
+   Unbind.
+
+Total per surface: 2 draw calls (or 3 with the depth-equal variant),
+one render-target switch (or two). A watertight surface fills
+`accumulated_mask` for its entire screen footprint; all subsequent
+surfaces at this node are skipped — 0 additional draw calls.
 
 **Summary of tradeoffs:**
 
-- Advantage: no cracks, simpler mask propagation (no UV transform,
-  no pool of textures at different LOD levels).
+- Advantage: no cracks; global mask, no UV transform, no per-depth
+  pool, no child-to-parent blit.
 - Risk: incorrect blocking at large LOD differences under oblique
-  camera angles. Severity is bounded by the fallback cadence.
-- Non-watertight boundary handling: partially degrades to depth
-  testing, which is acceptable for edge tiles.
+  angles. Bounded by fallback cadence; not observed in current data.
+- Non-watertight boundary handling: back surfaces render freely where
+  the front surface left gaps, with depth testing resolving overlap.
 
 ### 4.2 Geographic (UV-space) mask
 
@@ -492,28 +513,37 @@ of splitting.
 - Complexity: footprint program, blit program, mask texture pool,
   erosion pass — more infrastructure than screen-space.
 
-### 4.3 Decision: geographic mask
+### 4.3 Decision: screen-space mask
 
-**Accepted design: geographic (UV-space) mask.**
+**Accepted design: screen-space mask.**
 
-Its compositing correctness is unconditional: no camera angle, no LOD
-difference, and no fallback configuration can produce incorrect
-blocking. The watertight optimization eliminates the footprint pass for
-the majority of tiles (all interior tiles in a well-formed surface),
-bringing per-frame cost close to what a screen-space approach would
-cost. The crack risk, mitigated by mask erosion, is the accepted
-tradeoff.
+The mask records exactly which screen pixels were rendered. Cracks are
+impossible by construction: a parent tile can never claim a pixel a
+child already wrote. The global, frame-persistent texture requires no
+UV transform, no per-depth pool, and no child-to-parent blit — the
+simplest possible backtrack propagation.
 
-**Screen-space mask: deferred alternative.**
+The oblique-angle blocking artifact is the known risk. It is bounded
+by the fallback cadence: with a cadence of 3–5, the maximum LOD
+difference between any rendered fine tile and any fallback ancestor is
+small, and the conditions that make the artifact visible (large LOD
+gap plus highly oblique camera) are unlikely to coincide in practice.
+The artifact has not been observed in current test data.
 
-The screen-space approach avoids cracks and is simpler to implement —
-no footprint program, no blit, no UV-space pool. Its structural flaw
-is camera-dependent blocking at large LOD differences (a fine tile can
-project to screen pixels it has no geographic business blocking). That
-artifact is bounded by the fallback cadence but is not absent. The
-approach is documented in §4.1 and remains a fallback option if the
-geographic implementation encounters unexpected obstacles, but it is
-not the implementation target of this RFC.
+Cracks, by contrast, are a concrete known problem. The eroded-mask
+mitigation for geographic masks is empirical — the correct erosion
+margin varies with camera angle and mesh density and cannot be derived
+analytically. The artifact was observed with the split-mask approach
+(`drawSurfaceWithSpliting`) and is the concrete reason `mapSplitMeshes`
+defaults to `false`.
+
+**Geographic mask: deferred alternative.**
+
+The geographic approach is documented in §4.2. It is the correct
+fallback if the oblique-angle artifact proves visible in real
+multi-surface data: camera-independent correctness is unconditional,
+and the watertight optimization substantially reduces the additional
+cost. It is not the implementation target of this RFC.
 
 ### 4.5 Backend changes — cartolina-tileserver and vts-vtsd
 
@@ -575,49 +605,47 @@ correctness requirement.
 
 ## 5. WebGL2 infrastructure
 
-### 5.1 Offscreen rendering and per-surface mask sequence
+### 5.1 Per-surface mask sequence (screen-space)
 
-The geographic mask requires two R8 mask textures per recursion depth
-level: an **accumulated mask** that carries forward coverage from
-previously rendered surfaces, and a **scratch mask** that captures the
-footprint of the current surface before it is merged into the
-accumulated mask. Both are `TEXTURE_2D` with internal format `R8`,
-attached to dedicated FBOs, allocated from a pool at startup.
+The screen-space mask uses two R8 textures at screen resolution:
 
-The same texture cannot be bound simultaneously as an FBO attachment
-and a sampler. The per-surface sequence makes ownership explicit:
+- `accumulated_mask`: the global frame mask, cleared at frame start,
+  accumulates claimed pixels across the entire traversal.
+- `scratch_mask`: a per-surface working texture, cleared before each
+  surface draw.
 
-For each surface S at a node, in priority order:
+Both are `TEXTURE_2D` with internal format `R8`. `accumulated_mask` is
+attached to a dedicated FBO for the OR pass. `scratch_mask` is the
+second color attachment of the tile render FBO (MRT).
 
-1. **Screen draw.** Bind `accumulated_mask` as a sampler (not an FBO).
-   Bind the canvas (or depth hitmap) as the render target.
+The same texture cannot be simultaneously attached as an FBO attachment
+and bound as a sampler. The per-surface sequence makes ownership
+explicit:
+
+For each surface S at a node, in front-to-back order:
+
+1. **Screen draw.** Bind `accumulated_mask` as a sampler.
+   Target: the tile render FBO (two attachments: color + `scratch_mask`).
    Draw S in screen space. The fragment shader reads `accumulated_mask`
-   at each fragment's UV coordinate and discards covered fragments.
+   at `gl_FragCoord.xy` and discards if > 0.5. Color writes to
+   attachment 0; coverage writes 1.0 to `scratch_mask` (attachment 1)
+   at every non-discarded fragment.
+   After the draw, blit the color attachment to the canvas.
 
-2. **Footprint draw.** Unbind `accumulated_mask` as sampler.
-   Bind `scratch_mask` FBO. Clear it.
-   Draw S mesh with UV coordinates as `gl_Position` (footprint program).
-   This writes the geographic coverage of S into `scratch_mask`.
-
-3. **OR pass.** Unbind `scratch_mask` FBO.
+2. **OR pass.** Unbind `accumulated_mask` sampler.
    Bind `accumulated_mask` FBO.
    Draw a full-screen quad sampling `scratch_mask`.
-   The fragment shader writes `max(current, scratch)` — a logical OR
-   for R8 values 0.0 and 1.0.
+   The fragment shader writes `max(current, scratch)`.
    Unbind `accumulated_mask` FBO.
 
-After all surfaces are processed, `accumulated_mask` holds the combined
-coverage for this node. It is propagated to the parent via the blit
-pass (§5.3).
+A watertight surface replaces steps 1–2 with a single fill of
+`accumulated_mask` for its screen footprint (or marks all back surfaces
+at this node as skipped before any draw call). The revised performance
+estimate is in §6.1.
 
-The per-surface draw call count is therefore 3 (screen + footprint +
-OR), not the 1 assumed in earlier estimates. A watertight surface skips
-the footprint and OR passes (its mask is trivially full; the OR is
-replaced with a single fill call). The revised performance estimate is
-in §6.1.
-
-`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding and viewport
-for all offscreen passes. No new `GpuDevice` API is needed.
+`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding and viewport.
+No new `GpuDevice` API is needed beyond allocating `scratch_mask` as a
+second attachment on the tile render FBO.
 
 ### 5.2 Framebuffer ordering guarantee
 
@@ -625,65 +653,32 @@ Within a single WebGL2 context, a draw call that writes to texture T
 via an FBO is complete before a subsequent draw call that samples T
 as a uniform sampler, provided that T is not simultaneously attached
 as both FBO attachment and sampler. This is a WebGL2 correctness
-guarantee, not a race condition. The constraint is: before sampling
-the mask texture, unbind its FBO. Concretely:
+guarantee, not a race condition. The constraint is: unbind the mask FBO
+before sampling it as a uniform. Concretely:
 
-1. Footprint pass: bind FBO → draw mesh in UV space → unbind FBO
-   (restore render target).
-2. Screen-space pass: bind mask texture as sampler → draw mesh in
-   screen space.
+1. OR pass: bind `accumulated_mask` FBO → write → unbind.
+2. Screen draw: bind `accumulated_mask` as sampler → draw mesh.
 
-Step 1 must complete before step 2. The unbind between them is a
-one-line call, not a synchronization primitive.
+The unbind between them is a one-line call, not a synchronization
+primitive.
 
-### 5.3 Mask blit pass
+### 5.3 Render target lifecycle during traversal
 
-Writing a child mask into the parent mask texture is a full-screen quad
-draw where:
+The traversal interleaves the tile render FBO (screen draw + scratch
+write), the `accumulated_mask` FBO (OR pass), and the canvas (blit).
+Because `accumulated_mask` is global and frame-persistent, no
+render-target state needs to be saved or restored across recursion
+levels. The canvas blit after each screen draw is the only additional
+operation compared to the current rendering path.
 
-- The render target is the parent mask FBO.
-- The viewport is set to the child's sub-rectangle within the parent
-  mask texture (e.g., `[0,0]–[128,128]` for a 256×256 mask and the
-  upper-left child quadrant).
-- The source is the child mask texture bound as a sampler.
-- The fragment shader writes `texture(childMask, uv).r`.
-
-No depth testing, no blending required. This is a trivial blit program
-that can be shared across all mask blit passes.
-
-### 5.4 Render target lifecycle during traversal
-
-The traversal alternates between offscreen (mask) and onscreen
-(color+depth) render targets. The call stack carries the current target
-implicitly. At each node, the sequence is:
-
-1. Set offscreen render target (mask texture for this depth level).
-2. Run footprint pass (UV-space draw).
-3. Set onscreen render target (canvas or depth hitmap, depending on
-   draw channel).
-4. Run screen-space draw with mask sampler.
-5. Restore render target before returning (either parent's mask or
-   canvas).
-
-This is safe because the recursive calls for children complete before
-the parent renders. By the time the parent's footprint pass runs, no
-child mask FBO is active.
+The recursive structure is safe: a child's draw calls complete before
+the parent renders. By the time the parent samples `accumulated_mask`,
+all child surfaces have already ORed their coverage into it.
 
 ### 5.5 `TileRenderRig` changes
 
-`TileRenderRig` currently does not support offscreen or mask-aware
-rendering. The following changes are required:
-
-**Footprint pass method:**
-
-```ts
-drawFootprint(program: GpuProgram): void
-```
-
-Draws the tile mesh with UV coordinates as vertex position. Does not
-set any texture uniforms. Requires a program with a vertex shader that
-uses `aTexCoords2` as `gl_Position`. The mesh must carry external UV
-attributes (`rt.externalUVs` must be true).
+`TileRenderRig` currently does not support mask-aware rendering. The
+following changes are required:
 
 **Mask-aware draw method:**
 
@@ -693,9 +688,9 @@ draw(program: GpuProgram, cameraPos: vec3,
 ```
 
 The existing `draw()` method gains an optional `maskTexture` parameter.
-When present, the tile shader samples the mask at `aTexCoords2` and
-discards the fragment if the mask value exceeds a threshold (e.g., 0.5
-for R8). When absent, no mask discard occurs (existing behavior).
+When present, the tile shader samples `maskTexture` at `gl_FragCoord`
+and discards the fragment if the value exceeds 0.5. When absent, no
+mask discard occurs (existing behavior).
 
 The current `uClip` / `splitMask` mechanism is replaced by this mask
 texture input. The `splitMask` field on `MapSurfaceTile` is removed.
@@ -714,37 +709,49 @@ The legacy tile shader in `shaders.js` uses `vClipCoord` (interpolated
 quadrant. This mechanism is one level deep and binary per quadrant.
 
 The new tile shader in the rig's program (`TileRenderRig`) replaces
-this with:
+this with a screen-space mask read:
 
 ```glsl
-uniform sampler2D uMask;   // R8 geographic mask texture
+uniform sampler2D uMask;        // R8 screen-space mask
+uniform vec2      uMaskTexelSize; // 1.0 / mask resolution
 
 // in fragment shader:
 if (uMaskEnabled) {
-    float covered = texture(uMask, vExternalUV).r;
+    vec2 maskUV = gl_FragCoord.xy * uMaskTexelSize;
+    float covered = texture(uMask, maskUV).r;
     if (covered > 0.5) discard;
 }
 ```
 
-Where `vExternalUV` is the interpolated `aTexCoords2` value, already
-available in the existing rig shader as `aTexCoords2`.
-
-The footprint program is a new, minimal program:
+The shader also outputs coverage to a second color attachment
+(`scratch_mask`) via MRT:
 
 ```glsl
-// vertex
-in vec2 aTexCoords2;
-void main() {
-    gl_Position = vec4(aTexCoords2 * 2.0 - 1.0, 0.0, 1.0);
-}
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out float fragCoverage;
 
-// fragment
-out float fragCoverage;
-void main() { fragCoverage = 1.0; }
+// in fragment shader (after mask discard):
+fragColor    = /* computed color */;
+fragCoverage = 1.0;
 ```
 
-The blit program is a new, minimal program for writing child masks into
-parent mask textures.
+The OR pass is a minimal full-screen quad program:
+
+```glsl
+// fragment
+uniform sampler2D uScratch;
+out float fragCoverage;
+void main() {
+    fragCoverage = max(
+        texture(uScratch, uv).r,
+        /* current accumulated value read from FBO */ 0.0);
+}
+```
+
+In practice the OR is done with `gl.blendEquation(gl.MAX)` and
+`gl.blendFunc(gl.ONE, gl.ONE)` with blending enabled, avoiding a
+manual max operation and allowing a single quad draw to OR any scratch
+value ≥ existing without explicit reads.
 
 ---
 
@@ -752,27 +759,28 @@ parent mask textures.
 
 ### 6.1 Draw call count
 
-For a typical scene with N visible tiles at the fit LOD:
+For a typical scene with N visible tiles at the fit LOD, single surface:
 
-- **Current fitonly:** N draw calls (one per tile, per surface, batched
-  into draw commands).
-- **New traversal, fitonly mode (cadence = ∞):** N footprint draws +
-  N screen draws + (N − 1) mask blit draws ≈ 3N draw calls.
+- **Current fitonly:** N draw calls.
+- **New traversal, fitonly mode (cadence = ∞):** N screen draws +
+  N OR passes = 2N draw calls.
 - **New traversal, fallback cadence 3:** approximately N + N/8 tiles
-  render (fit tiles plus every-third-LOD fallback tiles). Footprint and
-  blit passes add a similar factor: roughly 6N/4 total. This is still
-  comparable to the current topdown mode for the same rendered tile
-  count, with far fewer data requests.
+  render. Each contributes 2 draw calls: ≈ 2.25N total.
 
-The footprint and blit passes are cheap: no texture sampling, no UBO
-updates, simple shaders. Their GPU time is negligible relative to the
-screen-space passes.
+For multi-surface scenes, add 2 draw calls per additional surface per
+node (or 0 for watertight surfaces where back surfaces are skipped).
+Interior tiles of a well-formed surface are predominantly watertight,
+so the overhead is concentrated at surface boundaries.
+
+The OR pass is cheap: a single full-screen quad with blending enabled,
+no UBO, no texture sampling beyond the scratch texture.
 
 ### 6.2 Mask texture bandwidth
 
-Each mask texture is 256×256 × 1 byte = 64 KB. Reading and writing
-64 KB per active LOD level per frame is not a bottleneck on current
-GPU hardware.
+Two R8 textures at screen resolution (e.g. 1920×1080 = ~2 MB each).
+Reading and writing 2 MB per frame is not a bottleneck on current
+hardware. The global mask is written once per rendered fragment and
+read once per rendered fragment of subsequent tiles and surfaces.
 
 ### 6.3 Data requests
 
@@ -987,10 +995,14 @@ relying on them in the metatile.
    accepted design and move screen-space to rejected or deferred
    alternative status.
 
-   *Implemented. §4.3 now declares geographic mask as the accepted
-   design and documents screen-space as a deferred alternative. All
-   infrastructure sections (§5, §6) already described geographic; they
-   are consistent with the decision.*
+   *Implemented. §4.3 now declares screen-space mask as the accepted
+   design and documents geographic as a deferred alternative. §4.1
+   completed with full infrastructure description. §5.1 describes the
+   screen-space per-surface sequence. §5.5, §5.6, §6.1, §6.2 updated
+   for screen-space. The decision was reconsidered after initial review:
+   cracks have no robust solution and have already caused visible
+   artifacts in cartolina; the oblique-angle artifact of screen-space
+   is bounded by cadence and has not been observed in practice.*
 
 4. Compatibility with existing virtual-surface configurations needs a
    rollout rule.
