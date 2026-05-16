@@ -112,7 +112,9 @@ are not consulted.
 
 At each node:
 
-1. If the metanode is not ready, return a null mask (nothing rendered).
+1. Exclude any surface whose metatile is not ready from this node's
+   rendering and from the descent decision. If no surface remains,
+   return a null mask.
 2. If the node is frustum-culled, return a null mask.
 3. For each surface, descend into children if the surface needs finer
    detail (SSE does not pass and children exist). Collect the masks

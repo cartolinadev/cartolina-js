@@ -49,6 +49,18 @@ permission:
 Never use shell commands to modify files — use the Edit or Write tools.
 
 
+## Commits
+
+Commit when there is a clear, meaningful reason: the workflow
+prescribes it (e.g. RFC protocol requires committing before acting on
+a review), a logical unit of work is complete, or the user asks.
+
+Do not commit after every small change. Multiple edits that belong
+to the same logical unit — a review response, a section rewrite, an
+AGENTS.md update — are one commit, not several. If a mistake is
+discovered in an unpushed commit, amend it; do not create a
+correction commit.
+
 ## Code style reminders
 
 - Follow the documentation rules in [AGENTS.md](AGENTS.md).
