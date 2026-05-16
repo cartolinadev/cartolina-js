@@ -1,7 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review — author responded to round 2; mask decision
-revised to geographic
+**Status:** In review — author responded to round 3
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -661,14 +660,17 @@ correctness requirement.
 ### 5.1 Per-surface mask sequence (geographic)
 
 The geographic mask uses one R8 texture per active recursion depth
-level. The pool holds 16 textures at 256×256 each (1 MB total). Each
-texture is the accumulated coverage mask for one node in the current
-descent path.
+level. The pool holds 16 textures at 256×256 each (1 MB total).
 
-The per-node mask starts as the ORed result of child blits (§2.3). At
-frame start, the root node's mask is cleared to 0. There is one
-additional R8 `scratch` texture at the same resolution, reused across
-all footprint draws.
+**Node mask lifecycle.** `node_mask[depth]` is cleared to 0 at node
+entry, before any surface or child is processed. The node accumulates
+surface footprints via the OR step and child blits as recursion
+returns. On backtrack, the completed `node_mask[depth]` is blitted
+into the parent's `node_mask[depth-1]` at the child's quadrant. After
+the blit, `node_mask[depth]` is dead and will be cleared again when
+the next sibling at the same depth enters. There is one additional R8
+`scratch` texture at the same resolution, reused across all footprint
+draws.
 
 The same texture cannot be simultaneously attached as an FBO attachment
 and bound as a sampler. The per-surface sequence makes ownership
@@ -676,35 +678,32 @@ explicit.
 
 For each surface S at a node, in front-to-back order:
 
-1. **Footprint pass.** Clear `scratch` to 0. Bind `scratch` FBO.
+1. **Screen draw.** Bind `node_mask[depth]` as a sampler. Draw S in
+   screen space. The fragment shader samples `node_mask[depth]` at
+   the fragment's UV coordinate (`aTexCoords2`) and discards if the
+   value exceeds 0.5. Unbind `node_mask[depth]` sampler.
+
+   For a watertight surface: perform this draw against the current
+   (prior-coverage) mask, then clear `node_mask[depth]` to 1.0 and
+   skip all remaining surfaces at this node.
+
+2. **Footprint pass.** Clear `scratch` to 0. Bind `scratch` FBO.
    Draw S with UV coordinates as clip position
    (`aTexCoords2 * 2.0 - 1.0`). The fragment shader writes 1.0 to
-   `scratch` at every rasterized UV position. This records which
-   geographic area S covers at this tile.
+   `scratch` at every rasterized UV position.
+   Unbind `scratch` FBO.
 
-   Skip this step for a watertight surface: clear `node_mask[depth]`
-   to 1.0 directly (a single FBO clear), then skip all remaining
-   surfaces at this node.
-
-2. **OR into node mask.** Unbind `scratch` FBO.
-   Bind `node_mask[depth]` FBO. Enable blending with
-   `gl.blendEquation(gl.MAX)` and `gl.blendFunc(gl.ONE, gl.ONE)`.
+3. **OR into node mask.** Bind `node_mask[depth]` FBO. Enable blending
+   with `gl.blendEquation(gl.MAX)` and `gl.blendFunc(gl.ONE, gl.ONE)`.
    Draw a full-screen quad. The shader applies a morphological
    min-filter of radius k texels on `scratch` (§4.2 erosion): for
    each texel it samples a (2k+1)² neighborhood of `scratch` and
-   outputs the minimum. Blending then writes
-   `max(existing, eroded_scratch)` per texel without reading
-   the current attachment.
+   outputs the minimum. Blending writes
+   `max(existing, eroded_scratch)` per texel.
    Unbind `node_mask[depth]` FBO. Disable blending.
 
-3. **Screen draw.** Bind `node_mask[depth]` as a sampler.
-   Draw S in screen space. The fragment shader samples
-   `node_mask[depth]` at the fragment's UV coordinate (`aTexCoords2`)
-   and discards if the value exceeds 0.5.
-   Unbind `node_mask[depth]` sampler.
-
-Total per surface: 1 footprint draw + 1 OR pass + 1 screen draw =
-3 draw calls. A watertight surface: 1 FBO clear + 1 screen draw, and
+Total per surface: 1 screen draw + 1 footprint draw + 1 OR pass =
+3 draw calls. A watertight surface: 1 screen draw + 1 FBO clear, and
 all remaining surfaces at this node are skipped.
 
 **Child-to-parent blit (backtrack, §2.3).** The same OR/blit program
@@ -727,15 +726,17 @@ as both FBO attachment and sampler. This is a WebGL2 correctness
 guarantee, not a race condition. The per-surface sequence in §5.1
 respects this rule at two points.
 
+For the OR-to-next-screen-draw step (previous surface's OR must be
+complete before the next surface's screen draw reads the mask):
+
+1. OR pass: bind `node_mask[depth]` FBO → write → unbind.
+2. Screen draw (next surface): bind `node_mask[depth]` as sampler →
+   draw mesh.
+
 For the footprint-to-OR step:
 
 1. Footprint pass: bind `scratch` FBO → write → unbind.
 2. OR pass: bind `scratch` as sampler → draw full-screen quad.
-
-For the OR-to-screen-draw step:
-
-1. OR pass: bind `node_mask[depth]` FBO → write → unbind.
-2. Screen draw: bind `node_mask[depth]` as sampler → draw mesh.
 
 Each unbind is a one-line call, not a synchronization primitive.
 
@@ -840,21 +841,38 @@ void main() { fragCoverage = 1.0; }
 
 The OR/blit program is a full-screen quad. It uses
 `gl.blendEquation(gl.MAX)` with `gl.blendFunc(gl.ONE, gl.ONE)`:
-the blend operation writes `max(existing, scratch)` per texel
-without the shader reading the current FBO value, which WebGL2
-does not permit. The shader simply outputs the sampled scratch value:
+blending writes `max(existing, eroded_scratch)` per texel without
+the shader reading the current FBO value, which WebGL2 does not
+permit. The shader applies the morphological min-filter (§4.2
+erosion) before output:
 
 ```glsl
 // fragment
 uniform sampler2D uScratch;
-in vec2 vUV;
+uniform int       uErosionRadius; // k texels; 0 = no erosion
+uniform vec2      uTexelSize;     // 1.0 / textureSize(uScratch, 0)
+in  vec2 vUV;
 out float fragCoverage;
 void main() {
-    fragCoverage = texture(uScratch, vUV).r;
+    float v = 1.0;
+    for (int dy = -uErosionRadius; dy <= uErosionRadius; dy++) {
+        for (int dx = -uErosionRadius; dx <= uErosionRadius; dx++) {
+            vec2 uv = vUV + vec2(float(dx), float(dy)) * uTexelSize;
+            float s = (uv.x >= 0.0 && uv.x <= 1.0 &&
+                       uv.y >= 0.0 && uv.y <= 1.0)
+                      ? texture(uScratch, uv).r : 0.0;
+            v = min(v, s);
+        }
+    }
+    fragCoverage = v;
 }
 ```
 
-Blending handles the max; the shader output is just the input value.
+Setting `uErosionRadius = 0` disables erosion; the loop executes
+once and the output equals `texture(uScratch, vUV).r`. Samples
+outside `[0, 1]` are treated as uncovered (0.0): at the boundary
+of any tile or child quadrant the erosion shrinks the covered
+region inward rather than clamping at the edge.
 
 ---
 
@@ -967,11 +985,13 @@ maps that use `mapConfig.virtualSurfaces`.
 The gate is `vsurfaceCount` in `generateSurfaceSequence`
 (`surface-sequence.ts`): when `vsurfaceCount > 0`, the virtual-surface
 path is active and the surface list has been replaced by a single
-virtual entry. The new traversal is enabled only when `vsurfaceCount
-=== 0`. Maps with virtual surfaces continue to use the legacy traversal
-until they are either migrated to plain constituent surfaces or
-virtual-surface support is added to the new path as a later
-optimisation.
+virtual entry. `generateSurfaceSequence` stores this result as a
+boolean `hasVirtualSurfaces` on the `SurfaceSequence` object it
+returns. The new traversal reads `surfaceSequence.hasVirtualSurfaces`
+at its entry point and falls back to the legacy path when true. Maps
+with virtual surfaces continue to use the legacy traversal until they
+are either migrated to plain constituent surfaces or virtual-surface
+support is added to the new path as a later optimisation.
 
 Test URLs in `test/urls.json` that exercise virtual-surface
 configurations must remain on the legacy path during the transition.
@@ -1349,6 +1369,13 @@ switching to screen-space for that dataset.
    uses a separate read mask and write mask, name both textures and state
    when each is swapped or copied.
 
+   *Fixed. §5.1 step order corrected to: (1) screen draw sampling the
+   prior mask, (2) footprint pass into scratch, (3) OR eroded scratch
+   into node mask. The watertight branch now performs the screen draw
+   first against the prior mask, then clears `node_mask[depth]` to
+   1.0 and skips remaining surfaces. §5.2 updated to reflect the
+   corrected ordering.*
+
 2. The mask texture lifecycle for sibling nodes is underspecified.
 
    Section 5.1 says there is one `node_mask` texture per recursion depth,
@@ -1364,6 +1391,13 @@ switching to screen-space for that dataset.
    it as scratch for the next sibling at the same depth. If child masks
    must remain available after return, one texture per depth is not
    enough and the pool design needs to change.
+
+   *Fixed. §5.1 now opens with a Node mask lifecycle paragraph: clear
+   `node_mask[depth]` to 0 at node entry; accumulate surfaces and
+   child blits during processing; blit into the parent on backtrack;
+   the texture is then dead and will be cleared again by the next
+   sibling at the same depth. One texture per depth is sufficient
+   because the blit completes before the sibling clears.*
 
 3. The erosion shader is specified in prose but absent from the normative
    shader description.
@@ -1381,6 +1415,13 @@ switching to screen-space for that dataset.
    and whether the same shader samples outside the child quadrant as 0
    when eroding a child mask into a parent quadrant.
 
+   *Fixed. §5.6 OR/blit shader updated with the full (2k+1)²
+   min-filter loop. `uErosionRadius = 0` is explicitly allowed and
+   reduces to a single texture sample (no erosion). UV samples
+   outside `[0, 1]` return 0.0 (uncovered) via an explicit bounds
+   check, ensuring correct inward erosion at tile and quadrant
+   boundaries.*
+
 4. The rollout still leaves the virtual-surface gate without an
    implementation handle.
 
@@ -1390,3 +1431,8 @@ switching to screen-space for that dataset.
    for example a `tree.usesVirtualSurfaces` boolean or equivalent. This
    is small, but without it the rollout rule is not actionable from
    `MapSurfaceTree`.
+
+   *Fixed. §7 now specifies that `generateSurfaceSequence` stores
+   the result as `hasVirtualSurfaces: boolean` on the `SurfaceSequence`
+   object it returns. The new traversal reads
+   `surfaceSequence.hasVirtualSurfaces` at its entry point.*

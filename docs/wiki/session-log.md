@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — author response to review round 3
+
+Fixed step ordering bug in §5.1: screen draw now precedes footprint
+pass and OR, so each surface samples only prior coverage and not its
+own footprint. Watertight branch corrected similarly. Added node mask
+lifecycle rule: clear at node entry, accumulate, blit on backtrack.
+Updated §5.6 OR/blit shader with the full min-filter erosion loop,
+boundary handling (out-of-range UV = 0), and k = 0 documented.
+Specified `SurfaceSequence.hasVirtualSurfaces` as the actionable
+gate for the virtual-surface fallback in §7. Updated §5.2 ordering
+guarantee to match corrected step sequence.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — erosion implementation documented
 
 Added erosion mechanism detail to §4.2, §5.1, and §9. Erosion is a
