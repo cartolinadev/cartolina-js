@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** Draft — design open question on mask space unresolved
+**Status:** In review
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -899,3 +899,91 @@ the DEM-based `metatileFromDemImpl`. The `tiling.cpp` path sets the
 flag correctly, but confirm that other entry paths (`surface-spheroid`
 etc.) also produce correct watertight flags in the tile index before
 relying on them in the metatile.
+
+## Review round 1
+
+1. The traversal needs a rule for surfaces whose LOD availability
+   differs at the same tile position.
+
+   Section 2.1 defines one combined descent decision: descend if any
+   surface is too coarse and any surface has children. That can hide a
+   surface that is a leaf at the current node. Example: surface A has no
+   children below LOD 8 and surface B continues to LOD 12. At LOD 8, B
+   can force descent. If LOD 8 is not a fallback LOD, A is not rendered.
+   If LOD 8 is a fallback LOD and A renders after B's children have
+   written the mask, the lower-priority or later-rendered subtree can
+   block A even when A should have claimed the region first.
+
+   The RFC should define mixed-LOD surface semantics before
+   implementation starts. The design must state whether a per-surface
+   leaf is rendered at its own leaf level, carried into descendants as a
+   clipped ancestor, or handled by another rule. The answer must preserve
+   surface ordering and avoid making data availability in one surface
+   suppress coverage from another.
+
+2. The mask data flow is underspecified and appears to require
+   ping-pong or separate accumulation textures.
+
+   Section 2.2 says `rig.draw()` reads the current accumulated mask and
+   writes newly rendered fragments into the mask output. Section 5.2
+   correctly states that the same texture cannot be attached to an FBO
+   while it is sampled. For the geographic approach, the screen draw also
+   cannot directly write the UV-space footprint. The RFC needs an
+   explicit per-surface sequence such as: sample accumulated mask during
+   screen draw, unbind it, draw the UV footprint into a scratch mask,
+   OR scratch into the accumulated mask, then continue to the next
+   surface. If the intended sequence is different, describe the concrete
+   textures, render targets, and read/write ownership at each step.
+
+   This affects correctness and performance accounting. It changes the
+   number of mask textures, draw calls, and render-target switches from
+   the simplified `N footprint + N screen + N - 1 blit` estimate.
+
+3. The RFC has not chosen the first implementation path.
+
+   Section 4.3 recommends prototyping screen-space first, while sections
+   5.1, 5.3, 5.4, 5.6, 6.1, and the rollout sequence describe the
+   geographic implementation: footprint pass, child-mask blit, per-depth
+   mask pool, and UV-space shader sampling. The status line says mask
+   space is unresolved.
+
+   An implementer cannot follow the document as written without making
+   a new design decision. Either choose screen-space for the first
+   implementation and rewrite the infrastructure, shader, performance,
+   and rollout sections to match, or choose geographic as the RFC's
+   accepted design and move screen-space to rejected or deferred
+   alternative status.
+
+4. Compatibility with existing virtual-surface configurations needs a
+   rollout rule.
+
+   Section 7 says virtual surfaces are ignored and `sourceReference` is
+   ignored. Current virtual surfaces are not plain renderable surfaces;
+   their metatile tells the client which constituent surface or glue to
+   fetch. Treating such a metatile as a plain surface can remove the
+   resource lookup that makes the current map render. The project rule
+   says entries in `test/urls.json` must continue to render after code
+   changes.
+
+   The RFC should state how configurations with `mapConfig.virtualSurfaces`
+   are handled during the transition. Acceptable answers include keeping
+   the legacy traversal for those maps until client-side composition is
+   implemented, expanding the virtual surface into its plain constituent
+   surfaces before traversal, or documenting that specific test URLs are
+   intentionally migrated with equivalent plain-surface styles.
+
+5. The watertight optimization needs a source for "no data requests"
+   skipping.
+
+   Sections 2.2 and 4.2 say that after a topmost watertight surface
+   claims a tile, later surfaces can be skipped for rendering and data
+   retrieval. Before metatile v6, the client treats all nodes as
+   non-watertight. After metatile v6, it still has to fetch enough
+   metatile data for lower-priority surfaces to know whether they have
+   children and whether their SSE would force descent, unless the
+   traversal rule says the topmost watertight surface terminates the
+   whole surface stack at that node.
+
+   The RFC should define when that early termination is legal and which
+   metadata has already been loaded at that point. This matters for the
+   data-request reduction claimed in sections 4.2 and 6.3.

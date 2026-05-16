@@ -1,5 +1,26 @@
 # Session log
 
+## 2026-05-16 — RFC: draw traversal — author response to review round 1
+
+Addressed five reviewer notes:
+
+1. Mixed-LOD surfaces: added per-surface leaf rule — each surface is
+   evaluated independently at each node; surfaces at their natural leaf
+   (SSE passes or no children) render in priority order before descent
+   for surfaces with finer data.
+2. Mask data flow: made the per-surface ping-pong sequence explicit —
+   two textures (accumulated + scratch), three draw calls per surface
+   (screen draw sampling accumulated, footprint into scratch, OR scratch
+   into accumulated). Moved to new §5.1.
+3. Implementation path: chose geographic mask as the accepted design.
+   Screen-space documented as deferred alternative in §4.3.
+4. Virtual surface rollout: gate new traversal on vsurfaceCount == 0;
+   maps with mapConfig.virtualSurfaces use legacy path until migrated.
+5. Watertight data-skipping: clarified that "no data requests" means
+   mesh/texture resources, not metatiles. Subtree skipping deferred.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — glue generation user report
 
 Added user report to §1: generating a glue between two planet-wide
