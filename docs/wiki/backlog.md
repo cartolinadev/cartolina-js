@@ -539,6 +539,111 @@ There is already tilt-aware runtime behavior in geodata reduction, so
 the renderer does have camera-angle information available. The missing
 piece is a render-time color / opacity path for geodata lines.
 
+## PERF: pre-built metatile index eliminating serve-time DEM warps
+
+**Opened:** 2026-05-16
+**Status:** early design — expand into RFC when implementation starts
+
+### Goal
+
+Eliminate the GDAL DEM warp from the metatile request path by
+pre-computing all metatile data at resource setup time and serving
+it from a flat lookup.
+
+### Background
+
+See [tileserver-metatile-production.md](tileserver-metatile-production.md)
+for a full description of the current pipeline.
+
+The short version: each metatile request triggers a GDAL warp of
+the VRTWO (the virtual dataset with min/max-filtered overviews).
+This costs 100–500 ms per request on a warm server. The VRTWO and
+the tile index together already contain all the information a
+metatile carries — tile existence, watertight flags, and height
+ranges. The per-request warp re-derives that information instead
+of reading it from a pre-built store.
+
+The serve-time warp is separate from the client-side ping-pong
+problem (sequential metatile round-trips before geometry loading
+starts). Eliminating the warp reduces per-request latency; a
+manifest endpoint (a possible later stage) would reduce round-trip
+count. Both improvements are independent.
+
+### Proposal
+
+Extend the tile index format to carry per-node height range data,
+and extend `mapproxy-tiling` to populate it during the same walk
+it already does. The VRTWO min/max pyramids are already the input
+to the tiling step; sampling height range min/max per node adds
+one read from an already-open dataset. No separate pass is needed.
+
+At serve time, the metatile handler reads the extended tile index
+and serialises the result directly. No GDAL warp occurs.
+
+**CDN compatibility is preserved.** Metatile URLs remain keyed on
+tile ID and are stable. The only change is that the origin server
+answers cold misses in milliseconds instead of hundreds of
+milliseconds.
+
+### Extended tile index format
+
+The extended index must carry, per tile node:
+
+| Field | Source at generation time |
+|---|---|
+| Existence, child flags, watertight | Already in tile index (QTree) |
+| Height range min/max | VRTWO min/max pyramids, read during tiling |
+| Texel size | Analytical: LOD + reference frame resolution |
+| SDS horizontal extents | Analytical: tile ID + division node |
+
+The existing QTree binary format has no per-node payload beyond
+flags. The new format must support per-node numeric fields. This
+is a format version bump; backward compatibility requires the
+server to detect which format is present and fall back to the
+current on-the-fly warp path when only the old index exists.
+
+### Relation to mapproxy-tiling redesign
+
+`mapproxy-tiling` already takes days on large datasets due to
+per-tile GDAL warps against the VRTWO. Extending it to also record
+height ranges adds negligible cost to each node visit, since the
+VRTWO is already open and the min/max values come from the same
+sample grid the tool computes for coverage analysis.
+
+A deeper redesign of `mapproxy-tiling` — addressing its overall
+per-tile warp cost and serial bottlenecks — is a separate work
+item, but it shares the same data dependency and the same output
+format. A redesigned tool would produce the extended index
+naturally.
+
+### Staged rollout
+
+1. **Pre-built metatile index** (this item). No client changes.
+   Serve-time warp eliminated. CDN behaviour unchanged.
+
+2. **Manifest endpoint** (deferred). A position-parameterised
+   endpoint returning the full visible metatile tree in one
+   response. This busts CDN (each position is a unique key) and
+   is only viable if metatile generation is already fast — i.e.,
+   after stage 1 is complete. Requires client changes to issue
+   the manifest request at startup and fall back to per-tile
+   fetches for incremental camera movement.
+
+### Open questions
+
+- **Extended index format.** Exact binary layout, versioning
+  strategy, and whether the numeric payload section is
+  mmap-friendly. The format should carry a version field so the
+  server can detect old-format indexes and fall back to the
+  current warp path during a rolling upgrade.
+- **mapproxy-tiling redesign scope.** Extending the existing tool
+  to write height ranges is low-risk. Whether a broader redesign
+  of the tiling tool (addressing its overall per-tile warp cost)
+  is done first, in parallel, or after is an open sequencing
+  decision.
+
+---
+
 ## BUG: `Viewer.checkVisibility()` depth comparison is broken
 
 **Opened:** 2026-04-14

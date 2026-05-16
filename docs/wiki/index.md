@@ -44,6 +44,9 @@ then branch into more specific documents as needed.
 - [surface-metatile.md](surface-metatile.md) — surface metatile binary
   format (v1–v5), metanode fields, version history, and how the client
   uses metatiles for LOD selection, culling, and resource loading
+- [tileserver-metatile-production.md](tileserver-metatile-production.md) —
+  how the tileserver generates metatiles on demand (VRTWO, tile index,
+  serve-time GDAL warp), where the cost lies, and the structural problem
 - [label-styling-engine.md](label-styling-engine.md) — reference notes
   about the shared lettering style engine, expression domains, and
   textured line patterns

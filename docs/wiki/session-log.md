@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-05-16 — wiki: tileserver metatile production analysis
+
+Analyzed the cartolina-tileserver metatile generation pipeline
+(calipers → VRTWO → tile index → serve-time GDAL warp). Key
+finding: the VRTWO and tile index together already contain all
+metatile data; the per-request warp re-derives it redundantly.
+Proposal: extend the tile index format with height range data,
+populated during the existing tiling walk. Eliminates the warp
+from the request path without breaking CDN compatibility.
+Documented in tileserver-metatile-production.md and backlog.md.
+
+Also noted that a position-parameterised manifest endpoint (to
+eliminate client-side ping-pong) would bust CDN and is only viable
+after the warp elimination is in place — deferred as stage 2.
+
+---
+
 ## 2026-05-16 — AGENTS.md: correct protocol for editing accepted RFCs
 
 Any edit to an accepted RFC body invalidates the sign-off. The correct
