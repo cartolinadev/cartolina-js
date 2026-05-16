@@ -140,6 +140,12 @@ The status line tracks the current state:
 - Do not create an RFC for routine feature work, bug fixes, or
   incremental refactoring. Use a backlog entry or session-log entry
   instead.
+- Do not leave an RFC in `Accepted` status after editing its body.
+  An accepted RFC is a signed-off design record; any change to it
+  invalidates the sign-off. When a change is needed, edit the body,
+  change the status back to `In review`, and add a new
+  `## Review round N` section describing what changed and why.
+  The RFC stays in `In review` until the reviewer signs off again.
 
 
 ## Commits

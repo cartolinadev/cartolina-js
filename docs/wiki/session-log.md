@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-16 — AGENTS.md: correct protocol for editing accepted RFCs
+
+Any edit to an accepted RFC body invalidates the sign-off. The correct
+protocol: edit the body, revert status to In review, add a new review
+round section describing the change. Do not leave the status as
+Accepted after editing.
+
+---
+
 ## 2026-05-16 — RFC: draw traversal — accepted; §9 updated for round 5
 
 RFC accepted. Extended the per-surface mask pool §9 entry with the
