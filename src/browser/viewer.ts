@@ -348,7 +348,7 @@ class Viewer {
     /**
      * Projects navigation (Cartesian) coordinates onto the canvas.
      *
-     * Returns `[x, y, depth]` in CSS pixels. A point is visible when
+     * Returns `[x, y, depth]` in apparent pixels. A point is visible when
      * `depth <= 1` (in front of the camera).
      *
      * @param pos `[x, y, z]` in navigation space
@@ -410,7 +410,7 @@ class Viewer {
         }
 
         const [screenX, screenY] = canvasCoords;
-        const viewport = renderer.curSize;
+        const viewport = renderer.apparentSize;
 
         if (
             !Number.isFinite(screenX) || !Number.isFinite(screenY)
@@ -440,7 +440,8 @@ class Viewer {
             cameraSpaceCoords[2],
         );
         const dilate = map.config.mapDMapDilatePx ?? 0;
-        const screenDepth = map.getScreenDepth(screenX, screenY, dilate);
+        const screenDepth = map.getScreenDepth(
+            screenX, screenY, dilate, undefined, 'apparent');
 
         __DEV__ && utils.logOnce(
             '[checkVisibility] raw depth debug logging is enabled in '

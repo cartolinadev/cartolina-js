@@ -860,30 +860,6 @@ MapSurfaceTile.prototype.getPixelSize3 = function(node, screenPixelSize) {
     return [camera.camera.scaleFactor2(d) * screenPixelSize, d];
 };
 
-/*
-
-MapSurfaceTile.prototype.getPixelSize22 = function(bbox, screenPixelSize, cameraPos, worldPos, returnDistance) {
-    var min = bbox.min;
-    var max = bbox.max;
-    var p1 = bbox.center();
-    bbox.updateMaxSize();
-    var d = bbox.maxSize * 0.5; 
-    
-    var dd = [cameraPos[0]-p1[0],
-               cameraPos[1]-p1[1],
-               cameraPos[2]-p1[2]]; 
-
-    var d2 = vec3.length(dd) - (bbox.maxSize * 0.5);
-
-    var factor = this.camera.scaleFactor2(d2);
-
-    if (returnDistance) {
-        return [(factor[0] * screenPixelSize), factor[1]];
-    }
-
-    return (factor * screenPixelSize);
-};
-*/
 
 MapSurfaceTile.prototype.updateTexelSize = function() {
     var pixelSize, factor, v, p;

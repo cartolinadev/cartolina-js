@@ -27,8 +27,7 @@ var MapDraw = function(map) {
     this.camera = map.camera;
     this.tree = map.tree;
 
-    //this.ndcToScreenPixel = this.renderer.curSize[0] * 0.5;
-    this.ndcToScreenPixel = this.renderer.gpu.canvas.width * 0.5;
+    this.ndcToScreenPixel = 1.0;
 
     this.debug = {
         heightmapOnly : false,
@@ -261,8 +260,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     map.loader.setChannel(0); //0 = hires channel
     this.zFactor = 0;
 
-    //this.ndcToScreenPixel = renderer.curSize[0] * 0.5;
-    this.ndcToScreenPixel = this.renderer.gpu.canvas.width * 0.5;
+    this.ndcToScreenPixel =
+        this.renderer.gpu.currentRenderTarget.viewportSize[0] * 0.5;
 
     this.updateFogDensity();
     this.updateGridFactors();

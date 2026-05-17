@@ -1,5 +1,40 @@
 # Session log
 
+## 2026-05-17 — LOD selection: fixes and documentation
+
+**`checkVisibility` coordinate space fix**: `convertCoordsFromNavToCanvas`
+outputs coordinates in `apparentSize` space (NDC scaled by
+`getBoundingClientRect()` dimensions). `getScreenDepth` was being called
+without a coordinate space argument, defaulting to `'layout'`
+(`offsetWidth`/`offsetHeight`). Fixed to pass `'apparent'` explicitly.
+`renderer.curSize` (deprecated alias for `apparentSize`) replaced with
+`renderer.apparentSize` in the same function.
+
+**`ndcToScreenPixel` fix**: `draw.js` was setting `ndcToScreenPixel`
+from `canvas.width` (always the main canvas physical size) instead of
+the current render target's `viewportSize`. During the hitmap pass the
+render target is a square auxiliary texture; using `canvas.width` caused
+the tree to descend far deeper than the hitmap resolution requires.
+Fixed to use `currentRenderTarget.viewportSize[0]`.
+
+**Dead save/restore removed**: `getScreenDepth` saved and restored
+`draw.ndcToScreenPixel` around the `drawHitmap` call. Nothing reads the
+value between the restore and the next `drawMap` call, which overwrites
+it unconditionally. The save/restore was removed.
+
+**`MapSurfaceTree.ndcToScreenPixel` removed**: the field was set from
+`draw.ndcToScreenPixel` at the start of each traversal but never read
+anywhere. Both the initialiser and the assignment were removed.
+
+**Documentation**: new page `docs/wiki/lod-selection.md` documents the
+full screen-space error algorithm: `ndcToScreenPixel`, `texelSizeFit`,
+metanode field families, all branches of `updateTexelSize`, both
+distance functions (`getPixelSize` vs `getPixelSize3`), the
+`texelSizeFit > 1.1` fast-path, degrade-horizon, tree traversal, and
+free-layer vs surface-layer differences. `rendering-sizes.md` updated
+with a note on CSS-transform / apparent-size behaviour and label
+stability.
+
 ## 2026-05-16 — wiki: tileserver metatile production analysis
 
 Analyzed the cartolina-tileserver metatile generation pipeline

@@ -30,7 +30,6 @@ var MapSurfaceTree = function(map, freeLayer, freeLayerSurface) {
     this.config = this.map.config;
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];
-    this.ndcToScreenPixel = 1.0;
     this.counter = 0;
 };
 
@@ -133,7 +132,6 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
 
     var map = this.map;
     var draw = map.draw;
-    this.ndcToScreenPixel = draw.ndcToScreenPixel;
     
     var srs = map.getPhysicalSrs();
 

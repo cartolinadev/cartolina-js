@@ -102,6 +102,14 @@ canvas target cssScale      = rect.width / offsetWidth, rect.height / offsetHeig
 `imageProjectionMatrix`. Those values describe the screen view and
 follow the apparent logical size.
 
+Because the backing store is sized to `apparentSize`, all rendering —
+including label sizes — is anchored to the post-transform extent of the
+element. A CSS transform that scales the map div enlarges the backing
+store rather than magnifying a fixed image, so labels remain the same
+physical size on screen regardless of the transform. This is the
+intended behaviour; it was validated with reveal.js, where map divs are
+routinely scaled to fit slide layouts of varying sizes.
+
 ## Auxiliary framebuffer passes
 
 Depth and geodata hitmaps are auxiliary buffers for the same screen

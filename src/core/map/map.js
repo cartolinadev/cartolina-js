@@ -1144,11 +1144,7 @@ Map.prototype.getScreenDepth = function(
     } else {
 
         if (this.hitMapDirty) {
-            var tmp1 = this.draw.ndcToScreenPixel;
             this.draw.drawHitmap();
-            this.draw.ndcToScreenPixel = tmp1;
-            // drawHitmap() ends with switchToFramebuffer('base') which calls
-            // setProjection() — imageProjectionMatrix is already restored.
             this.renderer.camera.update();
         }
 
