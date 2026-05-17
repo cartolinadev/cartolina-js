@@ -315,7 +315,7 @@ private buildCanvasRenderTarget(): GpuDevice.RenderTarget {
         apparentSize: [rect.width, rect.height],
         cssLayoutSize,
         cssScale: [rect.width / W, rect.height / H],
-        dpr,
+        devicePixelRatio: dpr,
     };
 }
 
@@ -340,7 +340,7 @@ canvasRenderTargetNeedsUpdate(): boolean {
         cur.cssLayoutSize?.[1] !== target.cssLayoutSize![1] ||
         cur.cssScale?.[0] !== target.cssScale![0] ||
         cur.cssScale?.[1] !== target.cssScale![1] ||
-        cur.dpr !== target.dpr
+        cur.devicePixelRatio !== target.devicePixelRatio
     );
 }
 
@@ -414,7 +414,8 @@ setAuxiliaryRenderTarget(
 
     if (base.cssLayoutSize) target.cssLayoutSize = [...base.cssLayoutSize];
     if (base.cssScale)      target.cssScale      = [...base.cssScale];
-    if (base.dpr !== undefined) target.dpr       = base.dpr;
+    if (base.devicePixelRatio !== undefined)
+        target.devicePixelRatio = base.devicePixelRatio;
 
     this.setRenderTarget(target);
     return target;
@@ -774,7 +775,7 @@ export type RenderTargetBase = {
      * Device pixel ratio at the time the canvas target was built.
      * Not present on independent render targets.
      */
-    dpr?: number,
+    devicePixelRatio?: number,
 }
 
 /**

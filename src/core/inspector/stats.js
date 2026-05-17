@@ -200,7 +200,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
                  ' - apparent: ' + formatSize(apparentSize) + '<br/>' +
                  ' - viewport: ' + formatSize(viewportSize) + '<br/>' +
                  ' - css scale: ' + (cssScale ? formatScale(cssScale) : 'n/a') + '<br/>' +
-                 ' - DPR: ' + (renderTarget.dpr ?? window.devicePixelRatio ?? 1).toFixed(2) +
+                 ' - DPR: ' + (renderTarget.devicePixelRatio ?? window.devicePixelRatio ?? 1).toFixed(2) +
                  '<br/>';
     }
 

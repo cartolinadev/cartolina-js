@@ -1069,8 +1069,8 @@ MapDraw.prototype.setupDetailDegradation = function(degradeMore) {
         factor += degradeMore;
     }
 
-    //var dpiRatio = 1;
-    var dpiRatio = window.devicePixelRatio || 1
+    var dpiRatio =
+        this.renderer.gpu.currentRenderTarget.devicePixelRatio ?? 1;
 
     this.texelSizeFit = this.config.mapTexelSizeFit * Math.pow(2,factor) * dpiRatio;
 

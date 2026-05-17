@@ -24,9 +24,6 @@ full viewport width spans from -1 to +1. `ndcToScreenPixel` converts
 one NDC unit to physical pixels in the current render target:
 `viewportSize[0] / 2`.
 
-Using `currentRenderTarget.viewportSize` means the value is correct
-for both the main canvas pass and auxiliary passes such as the hitmap,
-where the render target is a square texture smaller than the canvas.
 
 ### `texelSizeFit`
 
@@ -39,8 +36,11 @@ this.texelSizeFit = this.config.mapTexelSizeFit
 
 The target pixel size per texel. When a tile's computed `texelSize`
 is at or below `texelSizeFit`, the tile is detailed enough to render.
-`factor` encodes any active detail-degradation step; `dpiRatio`
-scales for device pixel ratio.
+`mapTexelSizeFit` defaults to `1.1`. `factor` encodes any active
+detail-degradation step; `dpiRatio` is
+`currentRenderTarget.devicePixelRatio ?? 1`, scaling the threshold
+so that high-DPI displays request finer tiles to match their physical
+pixel density. Render targets without a known DPR default to `1`.
 
 ### Metanode fields used for LOD
 

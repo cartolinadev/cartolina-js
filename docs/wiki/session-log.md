@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-17 — Rename RenderTarget.dpr → devicePixelRatio; fix dpiRatio source
+
+`RenderTarget.dpr` renamed to `devicePixelRatio` in `device.ts` for
+clarity. Updated in `stats.js` (inspector display) and `draw.js`
+(`texelSizeFit` computation). `texelSizeFit` now reads
+`currentRenderTarget.devicePixelRatio ?? 1` instead of
+`window.devicePixelRatio`, so off-screen render targets without a
+known DPR default to 1 rather than inheriting the browser display DPR.
+
 ## 2026-05-17 — LOD selection: fixes and documentation
 
 **`checkVisibility` coordinate space fix**: `convertCoordsFromNavToCanvas`
