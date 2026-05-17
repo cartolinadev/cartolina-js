@@ -306,7 +306,10 @@ private buildCanvasRenderTarget(): GpuDevice.RenderTarget {
     const H = el.offsetHeight || el.clientHeight;
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const viewportSize: NumberPair = [rect.width * dpr, rect.height * dpr];
+    const viewportSize: NumberPair = [
+        Math.round(rect.width * dpr),
+        Math.round(rect.height * dpr),
+    ];
     const cssLayoutSize: NumberPair = [W, H];
 
     return {

@@ -1,5 +1,12 @@
 # Session log
 
+## 2026-05-17 — Reveal.js CSS-transform blur note
+
+Reveal.js scaled an `1824x972` slide to about `2538.96x1353` and
+centred it at a fractional x offset. Cartolina sized the canvas from
+`getBoundingClientRect()`, so the blur was likely compositor sampling at
+a near half-pixel canvas origin. Updated `docs/wiki/rendering-sizes.md`.
+
 ## 2026-05-17 — Rename RenderTarget.dpr → devicePixelRatio; fix dpiRatio source
 
 `RenderTarget.dpr` renamed to `devicePixelRatio` in `device.ts` for

@@ -92,7 +92,7 @@ independent targets.
 The canvas render target sizes during a normal frame:
 
 ```text
-canvas target viewportSize  = rect.width * dpr, rect.height * dpr
+canvas target viewportSize  = round(rect.width * dpr), round(rect.height * dpr)
 canvas target apparentSize  = rect.width, rect.height
 canvas target cssLayoutSize = offsetWidth, offsetHeight
 canvas target cssScale      = rect.width / offsetWidth, rect.height / offsetHeight
@@ -109,6 +109,21 @@ store rather than magnifying a fixed image, so labels remain the same
 physical size on screen regardless of the transform. This is the
 intended behaviour; it was validated with reveal.js, where map divs are
 routinely scaled to fit slide layouts of varying sizes.
+
+## CSS transform compositing and sub-pixel blur
+
+When an ancestor has a CSS transform, `getBoundingClientRect()` returns
+post-transform dimensions, so cartolina sizes the canvas correctly.
+
+The browser still composites the canvas as part of the transformed DOM
+tree. If the final canvas origin lands on a fractional screen pixel, the
+compositor samples between destination pixels. A half-pixel offset is
+the worst case and can blur the whole canvas on that axis.
+
+The renderer can avoid magnifying an undersized backing store, but it
+cannot force the browser to composite a transformed ancestor on integer
+screen pixels. Pixel-sharp presentation embeds need integer final canvas
+origin and apparent size.
 
 ## Auxiliary framebuffer passes
 
