@@ -476,16 +476,17 @@ Each division node becomes a `MapDivisionNode` instance keyed by
 whether all three SRS projections are initialised:
 
 ```js
-Map.prototype.isSrsReady = function() {
-    return this.referenceFrame.model.physicalSrs.isReady()
-        && this.referenceFrame.model.publicSrs.isReady()
-        && this.referenceFrame.model.navigationSrs.isReady();
+Map.prototype.isReferenceFrameReady = function() {
+    return this.referenceFrame.model.physicalSrs.isReady() &&
+           this.referenceFrame.model.publicSrs.isReady() &&
+           this.referenceFrame.model.navigationSrs.isReady();
 };
 ```
 
-`MapSrs` objects load their Proj4 projection asynchronously. The
-`'map-loaded'` event and the `ready` Promise are not resolved until
-`srsReady` first returns `true`.
+`MapSrs` objects load their Proj4 projection asynchronously. Each frame,
+`Core.onUpdate` calls `map.isReferenceFrameReady()` and, once it returns
+`true`, sets `map.srsReady = true`. The `'map-loaded'` event and the
+`ready` Promise are not resolved until `srsReady` first becomes `true`.
 
 
 ### Coordinate conversion

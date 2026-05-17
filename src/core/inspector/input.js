@@ -490,7 +490,7 @@ export default class InspectorInput {
                 case 74: case 106:  // Shift+J — draw earth
                     debug.drawEarth = !debug.drawEarth; hit = true; break;
 
-                case 88: case 120:  // Shift+X — fog
+                case 88: case 120:  // Shift+X — fog (dead — see updateFogDensity in draw.js)
                     debug.drawFog = !debug.drawFog; hit = true; break;
 
                 case 89: case 121:  // Shift+Y — split LODs

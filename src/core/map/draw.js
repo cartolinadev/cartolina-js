@@ -63,7 +63,7 @@ var MapDraw = function(map) {
         drawGridCells : false,
         drawTileCounter : 0,
         drawPolyWires : false,
-        drawFog : this.config.mapFog,
+        drawFog : this.config.mapFog, // dead — see updateFogDensity
         drawGPixelSize : false,
         debugTextSize : 2.0,
         ignoreTexelSize : false,
@@ -190,7 +190,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
     renderer.debugStr = 'AsyncImageDecode: ' + this.config.mapAsyncImageDecode;
     renderer.dirty = true;
-    renderer.drawFog = this.debug.drawFog;
+    renderer.drawFog = this.debug.drawFog; // dead — see updateFogDensity
     renderer.shaderIllumination = this.debug.shaderIllumination;
     renderer.debug = this.debug; 
     renderer.mapHack = map;
@@ -1000,6 +1000,11 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
 };
 
 
+// dead — TileRenderRig replaced the old tile pipeline; fog is never
+// drawn in the new path. Remove together with all drawFog/fogDensity
+// references in draw.js, map.js, mesh.js, surface-tile.js,
+// renderer.ts, init.js, url-config.ts, inspector/input.js, and the
+// MATERIAL_INTERNAL_NOFOG / MATERIAL_EXTERNAL_NOFOG constants.
 MapDraw.prototype.updateFogDensity = function() {
     // the fog equation is: exp(-density*distance), this gives the fraction
     // of the original color that is still visible at some distance

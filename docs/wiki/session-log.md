@@ -2475,6 +2475,41 @@ geodata/free-layer source and the style layer or stylesheet used to render it,
 then refresh the style-driven sequences. Do not hide legacy `view.freeLayers`
 mutation inside `Viewer.addFreeLayer()`.
 
+## 2026-05-17 — Renderer: canvas render target naming and logic cleanup
+
+Identified and fixed two related problems in the canvas render target
+management path.
+
+**Naming**: `updateSizeIfNeeded` and `updateCanvasRenderTargetIfNeeded`
+both sounded like passive checks but carried hard GL side effects
+(binding a framebuffer, setting the GL viewport, resizing the canvas
+element). Renamed and split:
+
+- `GpuDevice.updateCanvasRenderTargetIfNeeded` → split into
+  `canvasRenderTargetNeedsUpdate()` (pure boolean read) and
+  `updateCanvasRenderTarget()` (resize + bind).
+- `GpuDevice.setCanvasRenderTarget()` added as a cheap bind-only path
+  (no DOM read, no canvas element resize) for switching back from
+  auxiliary passes.
+- `Renderer.updateSizeIfNeeded` → `ensureCanvasRenderTarget()`.
+
+**Logic**: `canvasRenderTargetNeedsUpdate()` previously compared the
+current render target (whatever was bound) against the DOM-measured
+canvas size. Introduced `canvasTarget_` field on `GpuDevice` to track
+the last configured canvas target independently of `renderTarget_`.
+The check now compares `canvasTarget_` to the DOM, which is correct
+regardless of which target is currently bound.
+
+`ensureCanvasRenderTarget()` now always binds the canvas at the top of
+the render loop; resize and projection update only happen when the DOM
+size actually changed. The dead `wasCanvasTarget` guard and its TODO
+comment were removed.
+
+**Dead code**: marked `drawFog` / `debug.drawFog` references dead in
+`draw.js`, `map.js`, `renderer.ts`, `inspector/input.js`, and
+`init.js` (progFogTile), pointing to the existing `updateFogDensity`
+dead-code comment in `draw.js`.
+
 ## 2026-05-14 — Wiki rename: core-build → non-interactive
 
 `docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.

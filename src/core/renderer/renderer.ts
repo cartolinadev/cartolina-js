@@ -263,7 +263,7 @@ export class Renderer {
 
     fonts: {[key:string] : any} = {};
 
-    fogDensity = 0;
+    fogDensity = 0; // dead — see updateFogDensity in draw.js
 
     // feature caches, hitmaps, etc. for geodata rendering
     gmap = new Array(2048);
@@ -383,7 +383,7 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
         !! this.config.rendererAntialiasing,
         this.config.rendererAnisotropic ?? 0);
 
-    const canvasTarget = this.gpu.setCanvasRenderTarget();
+    const canvasTarget = this.gpu.updateCanvasRenderTarget();
     this.setProjection(canvasTarget.apparentSize);
 
     // initialize resources
@@ -784,25 +784,27 @@ updateIllumination(position: MapPosition) {
     }
 }
 
-updateSizeIfNeeded(): boolean {
+/** Ensure the canvas render target is current and correctly sized.
+ *
+ *  Always binds the canvas as the active GL render target. When the
+ *  canvas DOM size has changed since the last frame, also resizes the
+ *  canvas element and recomputes projection matrices. Call at the top
+ *  of the render loop only — mid-pass calls would discard any auxiliary
+ *  framebuffer that was current.
+ *
+ *  @returns `true` when a resize occurred; `false` when nothing changed
+ *    or the renderer has been disposed. */
+ensureCanvasRenderTarget(): boolean {
 
-    if (this.killed) {
+    if (this.killed) return false;
+
+    if (!this.gpu.canvasRenderTargetNeedsUpdate()) {
+        this.gpu.setCanvasRenderTarget();
         return false;
     }
 
-    const wasCanvasTarget = this.gpu.currentRenderTarget.kind === 'canvas';
-    const canvasTarget = this.gpu.updateCanvasRenderTargetIfNeeded();
-
-    if (canvasTarget == null) return false;
-
-    // TODO: remove the wasCanvasTarget guard. updateSizeIfNeeded() is only
-    // called at the top of the render loop (map.js), so mid-auxiliary-pass
-    // firing is not possible. wasCanvasTarget is always true here. The guard
-    // is dead code; setProjection should follow unconditionally.
-    if (wasCanvasTarget) {
-        this.setProjection(canvasTarget.apparentSize);
-    }
-
+    const canvasTarget = this.gpu.updateCanvasRenderTarget();
+    this.setProjection(canvasTarget.apparentSize);
     return true;
 }
 
@@ -2380,7 +2382,7 @@ export type Debug = {
     flagShadingAspect?: boolean;
     // fields from MapDraw.debug read by the renderer
     shaderIllumination?: boolean; // TODO: remove when legacy draw path is retired
-    drawFog?: boolean;
+    drawFog?: boolean; // dead — see updateFogDensity in draw.js
     drawWireframe?: number;
     heightmapOnly?: boolean;
     drawBBoxes?: boolean;

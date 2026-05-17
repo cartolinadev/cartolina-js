@@ -54,6 +54,14 @@ export class GpuDevice {
     private renderTarget_!: GpuDevice.RenderTarget;
 
     /**
+     * Last configured canvas render target. Updated only by
+     * `updateCanvasRenderTarget()`. Used by `canvasRenderTargetNeedsUpdate()`
+     * and `setCanvasRenderTarget()` independently of which target is
+     * currently bound.
+     */
+    private canvasTarget_!: GpuDevice.RenderTarget;
+
+    /**
      * Cached WebGL fixed-function state managed by `setState()`.
      */
     currentState!: GpuDevice.State;
@@ -193,6 +201,7 @@ private init() {
         viewportSize: [canvas.width, canvas.height],
         apparentSize: [canvas.width, canvas.height],
     };
+    this.canvasTarget_ = this.renderTarget_;
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
     // initial state
@@ -312,16 +321,17 @@ private buildCanvasRenderTarget(): GpuDevice.RenderTarget {
 
 
 /**
- * Rebuild and install the canvas render target when its DOM sizes changed.
- *
- * @returns The newly installed canvas render target, or `null` if unchanged.
+ * Return `true` when the DOM-measured canvas sizes differ from the
+ * last value set by `updateCanvasRenderTarget()`. Pure read — no GL
+ * state is changed. Call `updateCanvasRenderTarget()` to apply the
+ * new sizes.
  */
-updateCanvasRenderTargetIfNeeded(): GpuDevice.RenderTarget | null {
+canvasRenderTargetNeedsUpdate(): boolean {
 
     const target = this.buildCanvasRenderTarget();
-    const cur = this.renderTarget_;
+    const cur = this.canvasTarget_;
 
-    const changed =
+    return (
         cur.apparentSize[0] !== target.apparentSize[0] ||
         cur.apparentSize[1] !== target.apparentSize[1] ||
         cur.viewportSize[0] !== target.viewportSize[0] ||
@@ -330,25 +340,19 @@ updateCanvasRenderTargetIfNeeded(): GpuDevice.RenderTarget | null {
         cur.cssLayoutSize?.[1] !== target.cssLayoutSize![1] ||
         cur.cssScale?.[0] !== target.cssScale![0] ||
         cur.cssScale?.[1] !== target.cssScale![1] ||
-        cur.dpr !== target.dpr;
-
-    if (!changed) return null;
-
-    return this.setCanvasRenderTarget();
+        cur.dpr !== target.dpr
+    );
 }
 
 
 /**
- * Build and install the canvas render target from the current DOM state.
+ * Resize the canvas element to the current DOM dimensions, store the
+ * result as the cached canvas render target, and bind it as the active
+ * render target. Call `Renderer.setProjection()` immediately after.
  *
- * Reads layout and bounding-box sizes from `this.div`, computes all five
- * render-target size fields, applies those sizes to the canvas element, and
- * calls `setRenderTarget()`. The returned target should be passed to
- * `Renderer.setProjection()` immediately after.
- *
- * @returns The newly installed canvas render target.
+ * @returns The newly configured canvas render target.
  */
-setCanvasRenderTarget(): GpuDevice.RenderTarget {
+updateCanvasRenderTarget(): GpuDevice.RenderTarget {
 
     const target = this.buildCanvasRenderTarget();
     const viewportSize = target.viewportSize;
@@ -364,8 +368,22 @@ setCanvasRenderTarget(): GpuDevice.RenderTarget {
         + `canvas css size: [${cssLayoutSize[0]} ${cssLayoutSize[1]}]`
     );
 
+    this.canvasTarget_ = target;
     this.setRenderTarget(target);
     return target;
+}
+
+
+/**
+ * Bind the cached canvas render target as the active render target.
+ * Does not read the DOM or resize the canvas element. Use when
+ * switching back to the canvas from an auxiliary pass.
+ *
+ * @returns The installed canvas render target.
+ */
+setCanvasRenderTarget(): GpuDevice.RenderTarget {
+    this.setRenderTarget(this.canvasTarget_);
+    return this.canvasTarget_;
 }
 
 

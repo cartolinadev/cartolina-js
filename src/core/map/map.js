@@ -897,7 +897,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMobileModeAutodect':         this.config.mapMobileModeAutodect = utils.validateBool(value, false); break;
     case 'mapMobileDetailDegradation':    this.config.mapMobileDetailDegradation = utils.validateNumber(value, 0, Number.MAXINTEGER, 2); break;
     case 'mapNavSamplesPerViewExtent':    this.config.mapNavSamplesPerViewExtent = utils.validateNumber(value, 0.00000000001, Number.MAXINTEGER, 4); break;
-    case 'mapFog':                        this.config.mapFog = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawFog = this.config.mapFog; this.dirty = true; } break;
+    case 'mapFog': /* dead — see updateFogDensity in draw.js */  this.config.mapFog = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawFog = this.config.mapFog; this.dirty = true; } break;
     case 'mapFlatshade':                  this.config.mapFlatshade = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawWireframe = this.config.mapFlatshade ? 3 : 0; this.dirty = true; } break;
     case 'mapIgnoreNavtiles':             this.config.mapIgnoreNavtiles = utils.validateBool(value, false); break;
     case 'mapAllowHires':                 this.config.mapAllowHires = utils.validateBool(value, true); break;
@@ -1403,11 +1403,7 @@ Map.prototype.applyCredits = function(tile) {
         } else {
             this.visibleCredits.mapdata[key] = value;
         }
-    }
-    
-    /*if (this.drawBBoxes) {
-        console.log(JSON.stringify(tile.id) + " " + JSON.stringify(this.visibleCredits));
-    }*/
+    }    
 };
 
 
@@ -1416,6 +1412,11 @@ Map.prototype.drawMap = function() {
 };
 
 
+/* Loader workers post completed tile data back to the main thread via
+ * onmessage. Those handlers push onLoaded callbacks here instead of
+ * running them directly, so that tile-tree mutations and GPU uploads
+ * always happen at a known point inside the render loop rather than
+ * in a raw message handler that could fire between any two statements. */
 Map.prototype.processProcessingTasks = function() {
     while (this.processingTasks.length > 0) {
         if (this.stats.renderBuild > this.config.mapMaxProcessingTime) {
@@ -1448,27 +1449,26 @@ Map.prototype.addProcessingTask2 = function(task) {
 
 
 Map.prototype.update = function() {
+
+    // disposal check
     if (this.killed) {
         return;
     }
 
+    // the obsolete token expiration check
     if (this.core.tokenExpiration) {
         if (Date.now() > (this.core.tokenExpiration - (1000*60))) {
             this.core.tokenExpirationCallback();
         }
     }
 
+    // still waiting for geoid grids? Dispatch any pending requests and bail out.
     if (!this.srsReady) {
         this.loader.update();
         return;
     }
 
-    if (this.div && this.div.style.visibility == 'hidden'){
-        //loop heartbeat
-        //window.requestAnimFrame(this.update.bind(this));
-        return;
-    }
-
+    // position change events
     if (!this.position.isSame(this.lastPosition)) {
         this.core.callListener('map-position-changed', {'position':this.position.toArray(), 'last-position':this.lastPosition.toArray()});
     }
@@ -1479,24 +1479,26 @@ Map.prototype.update = function() {
 
     this.lastPosition = this.position.clone();
     this.camera.lastTerrainHeight = this.camera.terrainHeight;
-    this.drawFog = this.config.mapFog;
-
-    var renderer = this.renderer, p;
-    var camPos = renderer.cameraPosition;
-
-    if (renderer.updateSizeIfNeeded()) {
+    this.drawFog = this.config.mapFog; // dead — see updateFogDensity in draw.js
+ 
+    // canvas change => map redraw
+    if (this.renderer.ensureCanvasRenderTarget()) {
         this.dirty = true;
     }
 
+    // dirty map => redraw
     var dirty = (this.dirty || this.dirtyCountdown > 0), result;
+
+    // fps clock starts
     this.stats.begin(dirty);
 
+    // promote pending requests to downloads
     this.loader.update();
 
-    //this.updateGeodataProcessors();
-
+    // process callbacks from workers
     this.processProcessingTasks();
 
+    // prepare and/or draw if dirty
     if (dirty) {
         if (this.dirty) {
             this.dirtyCountdown = this.config.mapRefreshCycles;
@@ -1510,21 +1512,19 @@ Map.prototype.update = function() {
         
         this.renderSlots.processRenderSlots();
 
+        // promote new requests to downloads
         this.loader.update();
         
         this.core.callListener('map-update', {});
 
-        //this.renderer.gpu.setState(this.drawTileState);
-        //this.renderer.gpu.gl.disable(this.renderer.gpu.gl.BLEND);
-        //this.renderer.drawImage(300, 0, 256, 256, this.renderer.hitmapTexture, null, null, null, null, false);
-        //this.renderer.drawImage(558, 0, 256, 256, this.renderer.hitmapTexture, null, null, null, null, false);
-
-        //console.log("" + this.stats.gpuRenderUsed);
     }
 
-    //hover and click events
+    // deferred geodata hover and click events processing
     if (this.clickEvent != null || this.hoverEvent != null) {
-        //this.updateGeoHitmap = this.dirty;
+
+        let p;
+        let renderer = this.renderer;
+        let camPos = renderer.cameraPosition;
 
         if (this.hoverEvent != null) {
             result = this.hitTestGeoLayers(this.hoverEvent[0], this.hoverEvent[1], 'hover');
@@ -1577,8 +1577,10 @@ Map.prototype.update = function() {
 
     }
 
-
+    // fps clock stops
     this.stats.end(dirty);
+
+    // done
 };
 
 
