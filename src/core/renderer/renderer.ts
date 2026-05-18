@@ -134,6 +134,7 @@ export class Renderer {
     geometries = {} // no clue, see MapInterface.getGeodataGeometry
 
     stencilLineState: Optional<GpuDevice.State> = null;
+    backgroundState: Optional<GpuDevice.State> = null;
 
     mapHack: any = null; // assigned in map/draw.js
 
@@ -736,8 +737,9 @@ drawBackground() {
 
     if (atmosphere && atmosphere.isReady()) {
 
-            let [_, clip2ecef, eyePos] = this.calcEcefCamParams();
-            atmosphere.drawBackground(eyePos, clip2ecef);
+        this.gpu.setState(this.backgroundState!);
+        let [_, clip2ecef, eyePos] = this.calcEcefCamParams();
+        atmosphere.drawBackground(eyePos, clip2ecef);
     }
 }
 
@@ -1692,14 +1694,15 @@ switchToFramebuffer(
     }
 
     case 'depth': {
-        gl.clearColor(1.0,1.0, 1.0, 1.0);
-        gl.enable(gl.DEPTH_TEST);
-
-        size = this.hitmapSize;
 
         // Auxiliary pass: inherits projection from the canvas target.
-        this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!, [size, size]);
+        this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!, 
+            [this.hitmapSize, this.hitmapSize]);
+
+        gl.clearColor(1.0, 1.0, 1.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.enable(gl.DEPTH_TEST);
 
         this.camera.update();
         this.onlyDepth = true;
@@ -1711,18 +1714,18 @@ switchToFramebuffer(
 
     case 'geo':
     case 'geo2': {
-        this.hoverFeatureCounter = 0;
-        size = this.hitmapSize;
-
-        gl.clearColor(1.0, 1.0, 1.0, 1.0);
-        gl.enable(gl.DEPTH_TEST);
 
         // Auxiliary pass: inherits projection from the canvas target.
         this.gpu.setAuxiliaryRenderTarget(
             (type == 'geo' ? this.geoHitmapTexture : this.geoHitmapTexture2)!,
-            [size, size]
+            [this.hitmapSize, this.hitmapSize]
         );
+        gl.clearColor(1.0, 1.0, 1.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.enable(gl.DEPTH_TEST);
+
+        this.hoverFeatureCounter = 0;
 
         this.onlyHitLayers = true;
         this.advancedPassNeeded = false;

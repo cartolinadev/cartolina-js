@@ -75,11 +75,20 @@ RendererInit.prototype.initShaders = function() {
     renderer.progPlane2D = new GpuProgram(gpu, '#define depth\n#define poles\n' + shaders.planeVertexShader, '#define depth\n#define poles\n' + shaders.planeFragmentShader); //poles
     renderer.progPlane3D = new GpuProgram(gpu, '#define depth\n' + shaders.planeVertexShader, '#define depth\n' + shaders.planeFragmentShader); // grid
 
-    renderer.progSkydome = new GpuProgram(gpu, shaders.skydomeVertexShader, shaders.skydomeFragmentShader);
-    renderer.progStardome = new GpuProgram(gpu, shaders.skydomeVertexShader, shaders.stardomeFragmentShader);
-    
-    renderer.progAtmo2 = new GpuProgram(gpu, shaders.atmoVertexShader, shaders.atmoFragmentShader);
-    renderer.progAtmo = new GpuProgram(gpu, shaders.atmoVertexShader3, shaders.atmoFragmentShader3);
+    // removal candidate: never used in draw calls
+    renderer.progSkydome = new GpuProgram(
+        gpu, shaders.skydomeVertexShader, shaders.skydomeFragmentShader);
+
+    // live: inspector replay globe
+    renderer.progStardome = new GpuProgram(
+        gpu, shaders.skydomeVertexShader, shaders.stardomeFragmentShader);
+
+    // removal candidates: superseded by renderer.drawBackground()
+    renderer.progAtmo2 = new GpuProgram(
+        gpu, shaders.atmoVertexShader, shaders.atmoFragmentShader);
+
+    renderer.progAtmo = new GpuProgram(
+        gpu, shaders.atmoVertexShader3, shaders.atmoFragmentShader3);
 
     renderer.progPCloud = new GpuProgram(gpu, shaders.pointsVertexShader, shaders.pointsFragmentShader);
 
@@ -390,6 +399,7 @@ RendererInit.prototype.initLines = function() {
     renderer.plines = new GpuPixelLine3(gpu, this.core, true, 64, true, 8);
     renderer.plineJoints = new GpuPixelLine3(gpu, this.core, false, 64, true, 8);
 
+    renderer.backgroundState = gpu.createState({ztest:false, zwrite:false});
     renderer.stencilLineState = gpu.createState({blend:true, stencil:true, culling: false});
     renderer.lineLabelState = gpu.createState({blend:true, culling: false, zequal: true, zwrite:false});
     renderer.labelState = gpu.createState({blend:true, culling: false, zequal: true});

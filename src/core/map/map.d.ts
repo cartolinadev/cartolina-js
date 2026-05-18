@@ -69,6 +69,13 @@ export default class Map {
     freeLayerSequence: FreeLayer[];
     freeLayersHaveGeodata: boolean;
 
+    /** Credit name → weight accumulated this frame; reset each draw pass. */
+    visibleCredits: {
+        imagery: Record<string, number>;
+        glueImagery: Record<string, number>;
+        mapdata: Record<string, number>;
+    };
+
     style: MapStyle | null;
 
     tree: {

@@ -57,6 +57,20 @@ After this refactor reaches the deletion pass, continue with:
 
 ---
 
+## REFACTOR: replace `gpu.setState` with per-method GL state push/pop
+
+**Opened:** 2026-05-18
+**Status:** deferred
+
+Each draw method would save the GL flags it needs on entry, apply them
+with direct `gl.*` calls, and restore on exit. No shared state objects,
+no caller/callee coordination, no implicit assumptions about prior
+state. The current `setState`/`currentState` delta tracking is an
+optimisation for the coordination problem that disappears once each
+method owns its state window.
+
+---
+
 ## REFACTOR: replace glues and virtual surfaces with client-side
 surface composition
 

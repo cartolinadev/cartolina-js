@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-18 — Mark dead stardome/atmo draw path; fix background GL state
+
+Removed the stardome draw call (commented out, never used a real texture)
+and the surrounding `gpu.setState(drawStardomeState)` noise. Marked
+`drawStardomeState`, `drawAuraState`, `drawAtmoState/2`, `progSkydome`,
+`progAtmo/2`, and the old skydome/atmo shaders as removal candidates —
+all superseded by `renderer.drawBackground()`.
+
+Fixed a GL state regression from the removal: `drawBackground()` now
+installs `backgroundState` (`ztest:false, zwrite:false`) itself rather
+than relying on the caller. Added `backgroundState` to `renderer.ts` and
+`init.js` alongside the other renderer state objects.
+
+Also: declared `visibleCredits` on `map.d.ts`; reordered
+`gl.clearColor/clear/enable` in `switchToFramebuffer` depth and geo passes
+to make intent clearer; added a setState push/pop refactor entry to the
+backlog.
+
 ## 2026-05-17 — Reveal.js CSS-transform blur note
 
 Reveal.js scaled an `1824x972` slide to about `2538.96x1353` and

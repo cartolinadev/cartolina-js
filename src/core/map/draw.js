@@ -111,11 +111,13 @@ var MapDraw = function(map) {
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
+    // removal candidates: superseded by renderer.drawBackground()
     this.drawStardomeState = gpu.createState({zwrite:false, ztest:false});
-    this.drawBlendedTileState = gpu.createState({zequal:true, blend:true});
     this.drawAuraState = gpu.createState({zwrite:false, blend:true});
     this.drawAtmoState = gpu.createState({zwrite:false, ztest:false, blend:true});
     this.drawAtmoState2 = gpu.createState({zwrite:false, ztest:true, blend:false});
+
+    this.drawBlendedTileState = gpu.createState({zequal:true, blend:true});
 
     this.degradeHorizonFactor = 0;
     this.degradeHorizonTiltFactor = 0;
@@ -278,18 +280,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
-    gpu.setState(this.drawStardomeState);
-
-    /*
-    if (this.drawChannel != 1) {
-        if (debug.drawWireframe == 2) {
-            renderer.draw.drawSkydome(renderer.whiteTexture, renderer.progStardome);
-        } else {
-            renderer.draw.drawSkydome(renderer.blackTexture, renderer.progStardome);
-        }
-    }*/
-
-
     if (map.isAtmospheric()) this.renderer.drawBackground();
 
     gpu.setState(this.drawTileState);
@@ -297,7 +287,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     if (this.debug.drawEarth) { // debug.drawEarth? :-)
 
         //console.log('debug.drawEarth');
-
 
         if (replay.storeNodes || replay.storeFreeNodes) {
             replay.nodeBuffer = [];

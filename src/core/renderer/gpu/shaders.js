@@ -622,6 +622,8 @@ GpuShaders.text2FragmentShader = 'precision mediump float;\n'+
         'gl_FragColor = vec4(uColor.rgb, alpha);\n'+
     '}';
 
+/* Removal candidates: skydomeFragmentShader used only by unused progSkydome.
+ * skydomeVertexShader also used by progStardome (inspector replay — live). */
 GpuShaders.skydomeVertexShader =
     'attribute vec3 aPosition;\n'+
     'attribute vec2 aTexCoord;\n'+
@@ -651,6 +653,9 @@ GpuShaders.stardomeFragmentShader = 'precision mediump float;\n'+
     '}';
 
 
+/* Removal candidates: atmoVertexShader/atmoFragmentShader used by progAtmo2,
+ * atmoVertexShader3/atmoFragmentShader3 used by progAtmo — both superseded
+ * by renderer.drawBackground(). */
 GpuShaders.atmoVertexShader =
     'attribute vec3 aPosition;\n'+
     'attribute vec2 aTexCoord;\n'+
