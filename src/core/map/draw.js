@@ -300,47 +300,30 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
             if (replay.drawTiles && replay.drawnTiles) {
 
-                console.log("here1");
-
                 tiles = replay.drawnTiles;
                 for (i = 0, li = tiles.length; i < li; i++) {
-                    if (!tiles[i][1]) { //skip grids
-                        tile = tiles[i][0];
-                        if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
-                            drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
-                        }
-                    } else {
-                        tile = tiles[i][0];
-                        if (drawTiles.debug.drawBBoxes) {
-                            drawTiles.drawTileInfo(tile, tile.metanode, cameraPos);
-                        }
-
-                        tile.drawGrid(cameraPos); 
+                    tile = Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i];
+                    if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
+                        drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
                     }
                 }
             }
-            
-            if (replay.drawFreeTiles && replay.drawnFreeTiles) {
 
-                console.log("here2");
+            if (replay.drawFreeTiles && replay.drawnFreeTiles) {
 
                 tiles = replay.drawnFreeTiles;
                 for (i = 0, li = tiles.length; i < li; i++) {
-                    if (!tiles[i][1]) { //skip grids
-                        tile = tiles[i][0];
-                        if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
-                            drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
-                        }
+                    tile = Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i];
+                    if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
+                        drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
                     }
                 }
             }
-    
-            if (replay.drawNodes && replay.tracedNodes) {
-                console.log("here3");
 
+            if (replay.drawNodes && replay.tracedNodes) {
                 tiles = replay.tracedNodes;
                 tmp = debug.drawBBoxes;
-                debug.drawBBoxes = true;  
+                debug.drawBBoxes = true;
                 for (i = 0, li = tiles.length; i < li; i++) {
                     tile = tiles[i];
                     if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
@@ -349,10 +332,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 }
                 debug.drawBBoxes = tmp;
             }
-    
-            if (replay.drawFreeNodes && replay.tracedFreeNodes) {
-                console.log("here4");
 
+            if (replay.drawFreeNodes && replay.tracedFreeNodes) {
                 tiles = replay.tracedFreeNodes;
                 tmp = debug.drawBBoxes;
                 debug.drawBBoxes = true;  
@@ -369,8 +350,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             var singleIndex = replay.singleLodedIndex; 
     
             if (replay.drawLoaded && replay.loaded) {
-                console.log("here5");
-
                 var  loaded = replay.loaded;
                 debug.drawBBoxes = true;  
                 for (i = 0, li = loaded.length; i < li; i++) {
@@ -394,9 +373,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     
             if ((replay.drawFreeTiles && replay.drawnFreeTiles) ||
                 (replay.drawLoaded && replay.loaded)) {
-                console.log("here6");
 
-                    
                 if (labelsEnabled
                     && this.freeLayersHaveGeodata
                     && this.drawChannel == 0) {

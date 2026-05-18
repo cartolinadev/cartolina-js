@@ -129,7 +129,7 @@ Inspector.prototype.onMapUpdate = function() {
 
     var renderer = this.core.renderer, i, li, j, lj, lines, slines, p;
 
-    if (this.replay.drawGlobe) {
+    if (this.replay.drawGlobe && this.replay.globeTexture && this.replay.globeTexture.loaded) {
         p = map.convertCoordsFromPhysToCameraSpace([0,0,0]);
         var renderer2 = this.core.getRenderer();
         renderer2.draw.drawTBall(p, 12742000 * 0.5, renderer2.progStardome, this.replay.globeTexture, 12742000 * 0.5, true);

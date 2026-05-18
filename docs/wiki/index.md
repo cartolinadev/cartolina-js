@@ -72,6 +72,10 @@ then branch into more specific documents as needed.
   for the relief-lab demo
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept
+- [archaeology-replay-inspector.md](archaeology-replay-inspector.md) —
+  the VTS-era replay inspector tool: purpose, architecture, five-file
+  touchpoint map, the 2019 bug that silently broke it, and the freeze
+  mode concept that supersedes it
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
   VTS storage layout, the aggregated tileset driver, how virtual surfaces
   are built and served, and the two-generation history of the alien flag

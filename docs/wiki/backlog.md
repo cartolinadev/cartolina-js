@@ -1,5 +1,63 @@
 # Task backlog
 
+## FEATURE: freeze mode for viewport diagnostics
+
+**Opened:** 2026-05-18
+**Status:** deferred — implement as part of the draw pipeline refactor
+
+### Goal
+
+A single freeze toggle that locks the rendering pipeline to the current
+viewport, allowing the developer to navigate away and inspect what the
+map draws at a given position.
+
+### Behaviour
+
+**Frozen:**
+
+- The camera matrices used for tile selection and rendering are locked to
+  the position at freeze time. The tile descent continues running every
+  frame against the frozen matrices — so tiles that finish loading still
+  appear, and the scene stays live.
+- The frustum is drawn as a line overlay in world space, visible when the
+  live camera moves away from the frozen position.
+- Optionally: the loader is paused (no new fetches, no callbacks). This
+  gives a true snapshot of what was resident at freeze time.
+
+**Controls (no inspector panel needed):**
+
+- Toggle freeze on/off with a single key binding.
+- Separate toggle for the frustum overlay (on by default when frozen).
+- A restore button (or key) that returns the live camera to the frozen
+  position.
+
+### Why this replaces the replay inspector
+
+The replay inspector (see
+[archaeology-replay-inspector.md](archaeology-replay-inspector.md))
+required a snapshot step followed by a separate display step, with five
+different S buttons capturing different slices of data. The freeze
+approach is simpler: the tile descent runs normally against a fixed
+viewpoint, so Drawn Tiles and Traced Nodes fall out naturally without any
+tileBuffer capture machinery. Enabling bounding-box debug drawing on top
+of a frozen scene gives you Traced Nodes for free.
+
+### What is not covered
+
+- Load sequence timeline: the bar-graph timeline of individual asset
+  downloads by kind and duration. This is a separate diagnostic concern
+  and can be addressed independently if needed.
+
+### Implementation note
+
+The hook is in `drawMap` at the camera update —
+[draw.js:189](src/core/map/draw.js#L189) — where `camera.update()` is
+called. When frozen, substitute the saved matrices. The frustum draw
+follows the existing camera-frustum code in
+[inspector.js:138](src/core/inspector/inspector.js#L138).
+
+---
+
 ## REFACTOR: replace legacy map draw path with `TileRenderRig`
 
 **Opened:** 2026-05-16
@@ -9,7 +67,9 @@
 
 Make `TileRenderRig` the tile renderer for both color and depth passes,
 then replace the old map and surface-tree draw entry points with smaller
-functions that target the style-based rendering model.
+functions that operate on surface sequences. Surface sequences are
+produced by both style-based maps and legacy map configs; this change
+has nothing to do with the style system specifically.
 
 The draw refactor should happen before the EventBus and ConfigStore
 implementation work. EventBus and ConfigStore remove legacy ownership
@@ -29,15 +89,11 @@ scheduled for deletion.
 
 2. Write a simplified map draw function.
 
-   Replace `MapDraw.drawMap` with a smaller draw entry point that targets
-   the current style-based renderer. Do not carry over inspector-only
+   Replace `MapDraw.drawMap` with a smaller draw entry point that
+   operates on the surface sequence. Do not carry over inspector-only
    paths unless a current non-inspector render path still needs them.
 
-3. Write a new surface-tree draw function.
-
-   Replace `MapSurfaceTree.draw` and its draw variants with one traversal
-   path that calls the new map draw code and `TileRenderRig`. Keep the old
-   path only long enough to compare output while validating the new one.
+3. Implement the new unified traversal per [rfc-draw-traversal.md](rfc-draw-traversal.md).
 
 4. Delete obsolete rendering code.
 

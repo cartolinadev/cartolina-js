@@ -1,5 +1,35 @@
 # Session log
 
+## 2026-05-18 — Replay inspector diagnosis and partial fix
+
+Diagnosed the VTS-era replay inspector (`src/core/inspector/replay.js`
+and its hooks in `draw.js`, `surface-tree.js`, `loader.js`). The tool
+was built in 2016–2017 to debug the tile descent algorithm and last
+touched substantively in June 2017. The `processDrawBuffer` refactor of
+January 2019 silently broke the Drawn Tiles feature: the refactor
+introduced a `noGrid=true` path that stores bare tile objects in
+`tileBuffer`, while the replay read code always indexed `tiles[i][0]`
+expecting `[tile, isGrid]` tuples. Every main-surface tile yielded
+`undefined` and was skipped. The screen went black.
+
+Fixed the read loop with `Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i]`
+(one line, both the Drawn Tiles and Drawn Tiles Free Layers paths).
+Separately fixed a Globe crash: `drawTBall` was called before the
+base64 globe texture finished async loading; added a `.loaded` guard
+in `inspector.js`. Removed leftover `here1`–`here6` debug logs from
+`draw.js`.
+
+Confirmed Traced Nodes always worked (CPU-side metanode data, no GPU
+dependency). Load Sequence recording works but requires starting during
+active tile loading. Drawn Tiles Free Layers captures nothing on scenes
+whose free layers are geodata-type (they go through `drawMonoliticGeodata`,
+not `processDrawBuffer`).
+
+The tool will not be carried into the rewritten draw pipeline (see
+backlog). Full archaeology notes in
+[archaeology-replay-inspector.md](archaeology-replay-inspector.md).
+Freeze mode added to backlog as the intended replacement.
+
 ## 2026-05-18 — Mark dead stardome/atmo draw path; fix background GL state
 
 Removed the stardome draw call (commented out, never used a real texture)
