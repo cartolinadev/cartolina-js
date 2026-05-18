@@ -485,10 +485,13 @@ or `EventEmitter`. `Core.on` returns an unsubscribe function; `Core.once`
 auto-removes after first invocation. Both are surfaced on `Viewer` via
 the `Map` public class.
 
-This is a legacy pattern. Standardising to `EventTarget` /
-`addEventListener` is a known gap tracked in the backlog. The migration
-touches every call site in `Viewer`, `Browser`, and consumer code, so it
-is deferred until a dedicated refactor.
+This is a legacy pattern. The accepted replacement is a typed
+`EventBus<EventMap>` owned by `Map` and passed to engine objects that
+emit events. `EventTarget` / `addEventListener` was evaluated and
+rejected because it does not match the MapLibre-style `on()` / `once()`
+API, allocates `CustomEvent` objects for high-frequency events, and
+would require an adapter without removing the underlying coordination
+work. See `rfc-event-bus.md`.
 
 `once` accepts an optional `wait` parameter that skips the first *N*
 firings — used internally to defer a callback past a stale update cycle

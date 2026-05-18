@@ -1,9 +1,8 @@
 /**
- * Public API boundary for the core build.
+ * Internal engine boundary used by the browser build.
  *
- * `Map` is the single entry point for the core build of cartolina-js.
- * It owns the map engine coordinator (`Core`) and exposes a flat, typed
- * method surface for all map operations: lifecycle, events, rendering
+ * `Map` owns the map engine coordinator (`Core`) and exposes a typed
+ * method surface used by `Viewer`: lifecycle, events, rendering
  * controls, coordinate conversion, and hit-testing.
  *
  * The `core` getter is a temporary migration shim that exposes the legacy
@@ -22,12 +21,12 @@ import type { vec3 } from './utils/math';
 
 
 /**
- * Public API class for the core build.
+ * Internal API class between `Viewer` and the map engine.
  *
  * Replaces the legacy `CoreInterface` ES5 wrapper. Owns the engine
- * coordinator and exposes a typed, flat public surface. Internal
- * engine objects (`Core`, terrain engine, `Renderer`) are private
- * implementation detail accessible only through this surface.
+ * coordinator and exposes typed methods for `Viewer` to call. Internal
+ * engine objects (`Core`, terrain engine, `Renderer`) remain private
+ * implementation details except for the temporary `core` migration shim.
  */
 class Map {
 
