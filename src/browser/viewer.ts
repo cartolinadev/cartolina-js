@@ -529,7 +529,9 @@ class Viewer {
      * @param screenX canvas X coordinate in CSS pixels
      * @param screenY canvas Y coordinate in CSS pixels
      * @param dilate optional dilation radius in pixels
-     * @returns `[hit, depthMeters]`, or `null` when the map is not ready
+     * @returns `[hit, depthMeters]`, or `null` when the map is not ready.
+     * `hit` is false when no surface geometry covers the pixel (e.g. sky);
+     * `depthMeters` is then a large sentinel value and must not be used.
      */
     getScreenDepth(
         screenX: number,

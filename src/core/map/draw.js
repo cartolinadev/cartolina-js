@@ -280,7 +280,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
-    if (map.isAtmospheric()) this.renderer.drawBackground();
+    if (this.drawChannel === 0 && map.isAtmospheric())
+        this.renderer.drawBackground();
 
     gpu.setState(this.drawTileState);
 

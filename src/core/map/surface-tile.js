@@ -338,6 +338,11 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
         if (this.surface.virtual) {
             this.resourceSurface = this.surface.getSurface(this.metanode.sourceReference);
             if (!this.resourceSurface) {
+                console.warn('Virtual surface sourceReference %d not found'
+                    + ' in mapping for surface %s — tile %s will be'
+                    + ' skipped.',
+                    this.metanode.sourceReference,
+                    this.surface.id, this.id);
                 this.resourceSurface = this.surface;
             }
         } else {

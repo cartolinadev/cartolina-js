@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-05-19 — Virtual surface guard; hitmap background fix; docs
+
+Documented the `tile.resourceSurface.virtual` early-return guard in
+`drawMeshTile` and the tile-render-rig path in `drawSurfaceTile`: it
+fires when `getSurface(sourceReference)` fails to resolve a slot in the
+virtual surface mapping, leaving `resourceSurface` pointing at the
+`MapVirtualSurface` itself (which has no mesh URL). Added a
+`console.warn` at the failure point in `isMetanodeReady`. Updated
+`virtual-surfaces.md` with the fallback and guard description.
+
+Fixed a hitmap corruption bug: `drawBackground()` was called
+unconditionally, writing atmospheric colour into the hitmap colour
+attachment on draw channel 1. The clear colour `(1,1,1,1)` is the
+"no hit" sentinel; the atmosphere overwrote sky pixels with values
+that decode as large-but-finite depths rather than the sentinel.
+Added a `drawChannel === 0` guard in `drawMap`. Documented the
+`getScreenDepth` return semantics (`hit === false` means sentinel
+depth, must not be used) on both the public API and the internal
+declaration.
+
+Added a render-loop performance rule to AGENTS.md. Added a backlog
+entry for bump-map baking inside `TileRenderRig`.
+
 ## 2026-05-18 — Replay inspector diagnosis and partial fix
 
 Diagnosed the VTS-era replay inspector (`src/core/inspector/replay.js`

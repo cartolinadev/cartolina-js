@@ -95,13 +95,17 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // TODO: honor draw.drawChannel
 
                     if (!tile.surfaceMesh) {
+                        // resourceSurface unresolved from virtual surface —
+                        // no mesh URL available, skip tile.
                         if (tile.resourceSurface.virtual) return true;
 
                         let path = tile.resourceSurface.getMeshUrl(tile.id);
                         tile.surfaceMesh = tile.resources.getMesh(path, tile);
                     }
 
-                    // submesh info does not exist until mesh is ready
+                    // submesh info need not exist until mesh is ready
+                    // this serialization results from meshes with embedded
+                    // texture information (internal or external)
                     tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu);
 
                     // iterate through submeshes
@@ -232,6 +236,8 @@ MapDrawTiles.prototype.drawMeshTile = function(tile, node, cameraPos, pixelSize,
     var path;
 
     if (!tile.surfaceMesh) {
+        // resourceSurface unresolved from virtual surface —
+        // no mesh URL available, skip tile.
         if (tile.resourceSurface.virtual) {
             return true;
         }

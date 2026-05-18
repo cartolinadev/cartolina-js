@@ -292,6 +292,14 @@ eliminates a concept is better than one that models it more precisely.
   change.** Backward compatiblity needs to be preserved to make these
   URLs work.
 
+- **Anything that makes the render loop faster is a win.** To
+  paraphrase Knuth: premature optimization is a root of all evil,
+  but anything that makes the render loop faster is a win. Don't
+  repeat per-frame work that could be done once, when the stable
+  lifetime of the result is already defined by an existing cache
+  boundary. Nonetheless, follow simple function first, optimize
+  later.
+
 Refactoring is feature-driven, not an end in itself:
 
 - Refactoring small modules as part of a feature implementation is

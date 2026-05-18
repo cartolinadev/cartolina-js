@@ -128,7 +128,9 @@ export default class Map {
      * @param useFallback Use mathematical ray intersection instead of the
      * depth hitmap.
      * @param coordinateSpace Coordinate space of `screenX` and `screenY`.
-     * @returns Whether a surface was hit, and its depth along the screen ray.
+     * @returns `[hit, depth]` — `hit` is false when no surface geometry
+     * covers the pixel (e.g. sky); `depth` is then a large sentinel value
+     * and must not be used.
      */
     getScreenDepth(
         screenX: number,
