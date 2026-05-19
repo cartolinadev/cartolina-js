@@ -1,4 +1,7 @@
 
+#ifndef ATMOSPHERE_INC_GLSL
+#define ATMOSPHERE_INC_GLSL
+
 uniform highp usampler2D uTexAtmDensity;
 
 layout(std140) uniform uboAtm
@@ -203,3 +206,5 @@ vec4 atmColor(float density, vec4 color)
     //return vec4(mix(color.rgb, density), color.a);
     return vec4(mix(color.rgb, a, density), color.a);
 }
+
+#endif

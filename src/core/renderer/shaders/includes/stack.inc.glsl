@@ -1,3 +1,6 @@
+#ifndef STACK_INC_GLSL
+#define STACK_INC_GLSL
+
 // stack.inc.glsl — register-only implementation (drop-in)
 
 #ifndef STACK_SIZE
@@ -198,3 +201,5 @@ bool swapTop(inout Stack stack, vec3 value) {
     _stackSetSlot(stack, stack.topIndex, value);
     return true;
 }
+
+#endif

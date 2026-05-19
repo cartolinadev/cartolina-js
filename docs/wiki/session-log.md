@@ -1,5 +1,20 @@
 # Session log
 
+## 2026-05-19 — Guard shader includes and document design references
+
+Added preprocessor guards to shader includes under
+`src/core/renderer/shaders/includes/`. Split shared render flag constants
+and `decodeRenderFlags` into `render-flags.inc.glsl`, so `frame.inc.glsl`
+and `layers.inc.glsl` both declare the dependency directly. This avoids
+order-dependent use of `decodeRenderFlags` when `layers.inc.glsl` is
+included after `frame.inc.glsl`.
+
+Updated `architecture.md` to record reference-library roles: MapLibre GL JS
+is the strongest reference for public map API shape, TypeScript
+organization, sources, vector data, and vector rasterization choices;
+Three.js and CesiumJS are projects to check for modern web graphics and
+geospatial rendering questions respectively.
+
 ## 2026-05-19 — Virtual surface guard; hitmap background fix; docs
 
 Documented the `tile.resourceSurface.virtual` early-return guard in

@@ -298,6 +298,24 @@ First major milestone:
 - Legacy `mapConfig`/view support becomes an adapter, then disappears.
 - `Viewer` remains the flat public API. Legacy sub-objects stay private.
 
+### Design references
+
+Cartolina should check modern web map and graphics libraries during API
+design, feature work, and refactoring. These projects are references for
+comparison and inspiration, not compatibility targets.
+
+- MapLibre GL JS is the strongest reference. Use it for the public map
+  API: flat construction options, event naming, style-oriented
+  vocabulary, and familiar map methods where the concepts match. Also
+  consult it for TypeScript organization, source handling, vector data,
+  and performance choices in vector-data rasterization.
+- Three.js is worth checking for modern web graphics practice,
+  including shader source organization, shader chunks/includes,
+  renderer-state handling, and WebGL/WebGPU-era conventions that are not
+  map-specific.
+- CesiumJS is worth checking for globe, terrain, reference-frame, and
+  camera math when cartolina faces a matching geospatial problem.
+
 
 ## Public API transformation
 

@@ -1,4 +1,9 @@
 
+#ifndef LAYERS_INC_GLSL
+#define LAYERS_INC_GLSL
+
+#include "./render-flags.inc.glsl";
+
 
 const int target_Color              = 0;
 const int target_Normal             = 1;
@@ -189,3 +194,5 @@ vec4 sample2D(int idx, vec2 uv) {
   return errColor;
 
 }
+
+#endif
