@@ -115,10 +115,80 @@ that is a separate step.
 
 ---
 
+## REFACTOR: delete legacy mesh tile rendering pipeline
+
+**Opened:** 2026-05-20
+**Status:** next — do before steps 2–4 of the draw refactor
+
+### Goal
+
+Remove all code that existed to serve the old `drawMeshTile` call,
+which is already commented out. The bump-baking optimization (see
+above) must be completed first, since `nmblender` is salvaged from
+this path and moved into `TileRenderRig`.
+
+### Scope (~1 700 lines deleted)
+
+**`draw-tiles.js`** (~895 lines, 62% of file):
+
+- `drawMeshTile` (line 247–724)
+- `updateTileHmap` (line 801–852)
+- `updateTileBounds` (line 853–898)
+- `updateTileSurfaceBounds` (line 917–1235)
+- `lastRenderState` replay block in `drawSurfaceTile`
+  (lines 236–241) and the commented-out `drawMeshTile` call
+  (line 213)
+
+**`mesh.js`** (~567 lines, 60% of file):
+
+- `generateTileShader` (line 378–416)
+- `drawSubmesh` (line 417–end)
+
+**`draw.js`** (~190 lines):
+
+- `processDrawCommands` branches for `DRAWCOMMAND_STATE`,
+  `DRAWCOMMAND_APPLY_BUMPS`, and `DRAWCOMMAND_SUBMESH`
+  (lines 749–900; `DRAWCOMMAND_GEODATA` survives)
+- `areDrawCommandsReady` `DRAWCOMMAND_SUBMESH` branch
+  (~35 lines; `DRAWCOMMAND_GEODATA` survives)
+- `nmblender` instantiation and `TextureBlend` import
+
+**`shaders.js`** (~580 lines):
+
+- `tileVertexShader` (line 1186–1396)
+- `tileFragmentShader` (line 1397–1609)
+- `shadedMeshVertexShader` (line 1610–1631)
+- `shadedMeshFragmentShader` (line 1632–1666)
+- `heightmapVertexShader` / `heightmapFragmentShader` /
+  `heightmapDepthVertexShader` / `heightmapDepthFragmentShader`
+  (lines 793–881)
+- `skydomeFragmentShader` (line 638–647, already dead)
+
+**`renderer.ts` / `init.js`** (~35 lines):
+
+- `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
+  `progShadedTile`, `progHeightmap`, `progSkydome` field
+  declarations, construction, and uses.
+
+**`surface-tree.js`** (~8 lines):
+
+- `getDrawCommandsGpuSize` call sites that reference
+  `tile.drawCommands` / `tile.lastRenderState.drawCommands`
+  (those fields are never populated once `drawMeshTile` is gone).
+
+### Why before the draw refactor
+
+The draw refactor (steps 2–4 of the entry below) touches the same
+files and traversal logic. Removing dead code first keeps the diffs
+readable and avoids carrying old branches through a restructuring
+only to delete them on the other side.
+
+---
+
 ## REFACTOR: replace legacy map draw path with `TileRenderRig`
 
 **Opened:** 2026-05-16
-**Status:** next architectural step
+**Status:** step 1 done; steps 2–4 pending
 
 ### Goal
 
@@ -137,12 +207,10 @@ scheduled for deletion.
 
 ### Plan
 
-1. Add a depth program for `TileRenderRig`.
+1. ~~Add a depth program for `TileRenderRig`.~~  **Done** (2026-05-20)
 
-   `TileRenderRig` must be usable on draw channel 1. Once it can render
-   depth correctly, the old depth/tile path loses its main remaining
-   purpose. Verify with screenshot regression tests and targeted depth or
-   hit-test diagnostics before changing traversal code.
+   `TileRenderRig` is wired into the depth pass with dedicated shaders
+   and a typed clear/readback API.
 
 2. Write a simplified map draw function.
 

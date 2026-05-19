@@ -2785,6 +2785,17 @@ comment were removed.
 `init.js` (progFogTile), pointing to the existing `updateFogDensity`
 dead-code comment in `draw.js`.
 
+## 2026-05-20 — Backlog: depth pass done; pipeline cleanup entry added
+
+Marked step 1 of the draw-refactor backlog item complete: `TileRenderRig`
+is now wired into the depth pass with dedicated shaders and a typed
+clear/readback API.
+
+Added backlog entry **Delete legacy mesh tile rendering pipeline** —
+removes ~1 700 lines across `draw-tiles.js` (62%), `mesh.js` (60%),
+`draw.js`, `shaders.js`, `renderer.ts`, `init.js`, and
+`surface-tree.js`. Scheduled before draw-refactor steps 2–4.
+
 ## 2026-05-14 — Wiki rename: core-build → non-interactive
 
 `docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.
