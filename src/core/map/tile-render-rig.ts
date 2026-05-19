@@ -238,13 +238,19 @@ export class TileRenderRig {
      * Process layer stack into an actual draw call, using the tile shader
      * program.
      */
-    draw(program: GpuProgram, cameraPos: math.vec3) {
+    draw(cameraPos: math.vec3) {
 
         if (!this.uboLayers) {
             console.warn(
                 `draw called on an unready rig for ${this.logSign()}.`);
             return;
         }
+
+        const program = this.renderer.programTile();
+
+        /* make sure we got the right program (device caches the current program,
+         * so no extra churn) */
+        this.renderer.gpu.useProgram2(program);
 
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));

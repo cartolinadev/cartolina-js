@@ -81,6 +81,13 @@ export class TextureBlend {
 
     // Restore the initial WebGL state (before this class modified it)
     private restoreInitialState() {
+        /*
+         * WARN:
+         * This restores only part of the state changed by `blend()`.
+         * Blend enable/function, array-buffer binding, and vertex attribute
+         * enables are left as-is, so caller-side state caches can drift from
+         * actual GL state after this helper runs.
+         */
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.originalFramebuffer);
         this.gl.useProgram(this.originalProgram);
         this.gl.activeTexture(this.originalActiveTexture);

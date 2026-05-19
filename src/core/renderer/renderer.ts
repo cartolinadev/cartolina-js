@@ -15,7 +15,6 @@ import RendererRMap from './rmap';
 import * as IlluminationMath from '../map/illumination';
 import * as vts from '../constants';
 
-import Atmosphere from '../map/atmosphere';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
 import type { CoreConfig } from '../types';
@@ -419,10 +418,12 @@ get curSize(): Readonly<Size2> {
  * and fixed samplers.
  */
 
-programTile() {
+programTile() : GpuProgram {
 
+    // existing program, return it
     if (this.programs.tile) return this.programs.tile;
 
+    // none existing yet, initialize with appropriate bindings
     let atmBindings = {}
 
     if (this.core.map.atmosphere) {
@@ -441,6 +442,7 @@ programTile() {
             ...atmBindings
         }, { uTexAtmDensity: this.textureIdxs.atmosphere });
 
+    // done
     return this.programs.tile;
 }
 
@@ -449,7 +451,7 @@ programTile() {
  * and fixed samplers.
  */
 
-programBackground() {
+programBackground() : GpuProgram {
 
     if (this.programs.background) return this.programs.background;
 

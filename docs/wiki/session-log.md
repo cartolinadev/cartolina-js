@@ -2579,6 +2579,27 @@ archaeology; `RendererInterface` row removed from dissolution table;
 
 ## 2026-05-14 — Style-based runtime free-layer gap
 
+## 2026-05-19 — Tile rig owns tile program binding
+
+`TileRenderRig.draw()` no longer accepts a `GpuProgram` from
+`draw-tiles.js`. The rig already owns the tile shader uniforms, layer
+UBO, sampler array, texture binding, and mesh attribute names, so the
+caller no longer selects the program. `draw()` now fetches
+`Renderer.programTile()` and binds it through `GpuDevice.useProgram2()`.
+The device-side program cache makes repeated tile draws pay only the
+object comparison when the tile program is already current.
+
+`Renderer.programTile()` and `Renderer.programBackground()` now declare
+`GpuProgram` return types. Shared frame-space shader helpers for
+vertical exaggeration and ellipsoid zenith moved from `tile.vert.glsl`
+to `frame.inc.glsl`, so future shader programs can reuse the same
+calculations.
+
+`TextureBlend.restoreInitialState()` now carries a warning that it
+restores only part of the raw WebGL state it changes. Blend state,
+array-buffer binding, and vertex attribute enables can still drift from
+renderer-side state caches after the helper runs.
+
 ### Goal
 
 Diagnose why the non-interactive demo's runtime geodata route is not

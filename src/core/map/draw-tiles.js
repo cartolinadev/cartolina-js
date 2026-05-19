@@ -160,11 +160,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         if (rigToDraw) {
                             if (!preventRedener) {
 
-                                // to be moved to top of the rendering loop
-                                this.renderer.gpu.useProgram2(this.renderer.programTile());
-
                                 // draw something
-                                rigToDraw.draw(this.renderer.programTile(), cameraPos);
+                                rigToDraw.draw(cameraPos);
 
                                 // process layer credits (only active layers)
                                 rigToDraw.activeLayerIds().forEach((id) => {
