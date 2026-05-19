@@ -1,5 +1,53 @@
 # Session log
 
+## 2026-05-19 — R32F depth hitmap
+
+Switched the depth hitmap colour attachment from RGBA8 (depth
+packed into four bytes) to R32F (one 32-bit float per pixel), and
+updated every part of the pipeline that reads, writes, or clears that
+texture.
+
+**`src/core/renderer/shaders/tile-depth.frag.glsl`**: output type
+changed from `vec4 fragColor` with RGBA-packed encoding to
+`float fragColor = vDepth`, writing the camera-space depth directly.
+
+**`src/core/constants.ts`**: added `TEXTURETYPE_DEPTH_R32F = 6` to
+distinguish R32F framebuffer textures from RGBA8 ones in type-checked
+paths.
+
+**`src/core/renderer/gpu/texture.ts`**: added `createFromFloatData()`
+(creates an R32F texture from `Float32Array` pixel data) and
+`readFramebufferFloatPixels()` (reads pixels back as `Float32Array`
+using `gl.RED / gl.FLOAT`).
+
+**`src/core/renderer/gpu/device.ts`**: `init()` now requires
+`EXT_color_buffer_float` and throws if absent — WebGL2 can render to
+R32F only when the extension is present. Added focused clear methods
+`clearDepth()`, `clearColor()`, and `clearColorAndDepth()` to replace
+the old boolean-parameter `clear()`, which is deprecated but retained.
+Added `readFramebufferFloatPixels()` to read R32F framebuffers.
+`readFramebufferPixels()` now throws when called on an R32F texture.
+
+**`src/core/renderer/renderer.ts`**: `hitmapData` type changed from
+`Uint8Array` to `Float32Array`. A new private `initHitmapTexture()`
+creates the hitmap via `createFromFloatData()` (filled with `-1`,
+the no-hit sentinel); the old initialization was removed from
+`RendererInit.initHitmap()`. `switchToFramebuffer('depth')` clears the
+colour attachment with `gl.clearBufferfv(gl.COLOR, 0, [-1,0,0,0])`
+instead of `clearColor = 1.0`. `hitTest()`, `copyHitmap()`, and
+`getDepth()` now read one `float` per pixel via
+`readFramebufferFloatPixels()`; the RGB-to-depth decoding formula is
+gone. Positive depth means a surface hit; `-1` (the clear value) or
+`<= 0` means sky.
+
+**`src/core/map/draw.js`**, **`surface-tree.js`**,
+**`src/core/renderer/draw.js`**: remaining `gpu.clear(true, false)` and
+`gpu.clear(true, true, color)` call sites updated to the new focused
+`clearDepth()` / `clearColorAndDepth()` methods.
+
+TypeScript passes. `demos/depth-test/` was exercised in the browser;
+sky pixels reported no hit and terrain pixels reported finite depth.
+
 ## 2026-05-19 — TileRenderRig depth pass; tile-clip include; mesh.ts cleanup
 
 Extended `TileRenderRig` to cover draw channel 1 (the auxiliary depth /

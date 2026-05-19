@@ -1616,7 +1616,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         }
 
         //clear zbuffer
-        map.renderer.gpu.clear(true, false);
+        map.renderer.gpu.clearDepth();
     }
 
     // update renderer buffers

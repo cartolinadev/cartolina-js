@@ -249,12 +249,12 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
    
     if (this.drawChannel != 1) {
         if (debug.drawWireframe == 2) {
-            gpu.clear(true, true, [255,255,255,255]);
+            gpu.clearColorAndDepth([255,255,255,255]);
         } else {
-            gpu.clear(true, true, [0,0,0,255]);
+            gpu.clearColorAndDepth([0,0,0,255]);
         }
     } else { //render depth map
-        gpu.clear(true, true, [255,255,255,255]);
+        gpu.clearDepth();
     }
 
     this.setupDetailDegradation();

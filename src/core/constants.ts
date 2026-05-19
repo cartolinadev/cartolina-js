@@ -27,7 +27,8 @@ export const TEXTURETYPE_HEIGHT = 1;
 export const TEXTURETYPE_CLASS = 2;
 export const TEXTURETYPE_NORMALMAP = 3;
 export const TEXTURETYPE_MASK = 4;
-export const TEXTURETYPE_ATMDENSITY = 5
+export const TEXTURETYPE_ATMDENSITY = 5;
+export const TEXTURETYPE_DEPTH_R32F = 6;
 
 export const JOB_FLAT_LINE = 1;
 export const JOB_FLAT_RLINE = 2;

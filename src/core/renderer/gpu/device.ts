@@ -3,6 +3,7 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import * as utils from '../../utils/utils';
+import * as vts from '../../constants';
 
 
 /**
@@ -178,6 +179,10 @@ private init() {
     if (!context) throw new Error('cartolina-js requires WebGL2.');
 
     let gl = this.gl = context;
+
+    if (!gl.getExtension('EXT_color_buffer_float')) {
+        throw new Error('cartolina-js requires EXT_color_buffer_float.');
+    }
 
     this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
 
@@ -426,21 +431,57 @@ setAuxiliaryRenderTarget(
 
 
 /**
- * Clear the active render target.
+ * Clear only the active render target's depth buffer.
+ */
+clearDepth(): void {
+
+    this.gl.clear(this.gl.DEPTH_BUFFER_BIT);
+}
+
+/**
+ * Clear only the active render target's color buffer.
+ *
+ * @param color Clear color in 0-255 RGBA components.
+ */
+clearColor(color : Color): void {
+
+    this.setClearColor(color);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+}
+
+/**
+ * Clear the active render target's color and depth buffers.
+ *
+ * @param color Clear color in 0-255 RGBA components.
+ */
+clearColorAndDepth(color : Color): void {
+
+    this.setClearColor(color);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+}
+
+/**
+ * @deprecated Use `clearDepth`, `clearColor`, or `clearColorAndDepth`.
  *
  * @param clearDepth Whether to clear the depth buffer.
  * @param clearColor Whether to clear the color buffer.
  * @param color Clear color in 0-255 RGBA components.
  */
-clear(clearDepth: boolean, clearColor: boolean, color : Color): void {
+clear(clearDepth: boolean, clearColor: boolean, color? : Color): void {
 
     if (color != null) {
-        this.gl.clearColor(color[0]/255, color[1]/255, color[2]/255, color[3]/255);
+        this.setClearColor(color);
     }
 
     this.gl.clear((clearColor ? this.gl.COLOR_BUFFER_BIT : 0) |
                   (clearDepth ? this.gl.DEPTH_BUFFER_BIT : 0) );
 };
+
+private setClearColor(color : Color): void {
+
+    this.gl.clearColor(
+        color[0]/255, color[1]/255, color[2]/255, color[3]/255);
+}
 
 /**
  * Binds a program without touching vertex attributes or sampler uniforms.
@@ -512,17 +553,69 @@ readFramebufferPixels(
             + 'a framebuffer.');
     }
 
+    // blacklist until TEXTURETYPE_* becomes a typed enum (see backlog)
+    if (texture.type_ === vts.TEXTURETYPE_DEPTH_R32F) {
+        throw new Error('Use readFramebufferFloatPixels() for R32F '
+            + 'framebuffers.');
+    }
+
     const gl = this.gl;
     this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
 
-    if (!data) {
-        data = new Uint8Array(lx * ly * 4);
+    const byteData = data ?? new Uint8Array(lx * ly * 4);
+
+    try {
+        gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, byteData);
+    } finally {
+        this.bindReadFramebufferForRenderTarget(this.renderTarget_);
     }
 
-    gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, data);
-    this.bindReadFramebufferForRenderTarget(this.renderTarget_);
+    return byteData;
+}
 
-    return data;
+/**
+ * Read pixels from a framebuffer-backed R32F texture.
+ *
+ * @param texture Framebuffer-backed R32F texture to read from.
+ * @param x Left coordinate in framebuffer pixels.
+ * @param y Bottom coordinate in framebuffer pixels.
+ * @param lx Width of the read rectangle in pixels.
+ * @param ly Height of the read rectangle in pixels.
+ * @param data Optional destination buffer. A new buffer is allocated when
+ * omitted.
+ * @returns One float per pixel in RED/FLOAT layout.
+ */
+readFramebufferFloatPixels(
+    texture: GpuTexture,
+    x: number,
+    y: number,
+    lx: number,
+    ly: number,
+    data?: Float32Array,
+) : Float32Array {
+
+    if (!texture.framebuffer) {
+        throw new Error('Cannot read pixels from a texture without '
+            + 'a framebuffer.');
+    }
+
+    if (texture.type_ !== vts.TEXTURETYPE_DEPTH_R32F) {
+        throw new Error('readFramebufferFloatPixels() requires an R32F '
+            + 'framebuffer.');
+    }
+
+    const gl = this.gl;
+    this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
+
+    const floatData = data ?? new Float32Array(lx * ly);
+
+    try {
+        gl.readPixels(x, y, lx, ly, gl.RED, gl.FLOAT, floatData);
+    } finally {
+        this.bindReadFramebufferForRenderTarget(this.renderTarget_);
+    }
+
+    return floatData;
 }
 
 private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {

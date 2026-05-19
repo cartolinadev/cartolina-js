@@ -206,14 +206,6 @@ RendererInit.prototype.initHitmap = function() {
     var size = renderer.hitmapSize;
     var data = new Uint8Array( size * size * 4 );
 
-    if (renderer.hitmapMode > 2) {
-        renderer.hitmapData = data;
-    }
-
-    renderer.hitmapTexture = new GpuTexture(this.gpu);
-    renderer.hitmapTexture.createFromData(size, size, data);
-    renderer.hitmapTexture.createFramebuffer(size, size);
-
     renderer.geoHitmapTexture = new GpuTexture(this.gpu);
     renderer.geoHitmapTexture.createFromData(size, size, data);
     renderer.geoHitmapTexture.createFramebuffer(size, size);

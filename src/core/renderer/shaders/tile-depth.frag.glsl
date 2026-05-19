@@ -12,7 +12,7 @@ in vec2 vTexCoords2;
 #include "./includes/tile-clip.inc.glsl";
 
 // render target
-out vec4 fragColor;
+out float fragColor;
 
 // main
 
@@ -20,8 +20,5 @@ void main() {
 
     applyTileClip(vTexCoords2, uFrame.clipParams.x);
 
-    // original float RGBA encoding, including the old bias term
-    fragColor = fract(
-        vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0) * vDepth)
-        + (-0.5/255.0);
+    fragColor = vDepth;
 }

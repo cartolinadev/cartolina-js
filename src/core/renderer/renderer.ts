@@ -129,7 +129,7 @@ export class Renderer {
     frameTime = 0;
 
     hitmapCounter = 0;
-    hitmapData: Optional<Uint8Array> = null;
+    hitmapData: Optional<Float32Array> = null;
 
     debug: Renderer.Debug = {}
 
@@ -392,6 +392,7 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
 
     // initialize resources
     this.init = new RenderInit(this);
+    this.initHitmapTexture();
 
     this.initTextureIdxs();
     this.programs = {}
@@ -399,6 +400,21 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 };
+
+
+private initHitmapTexture(): void {
+
+    const size = this.hitmapSize;
+    const data = new Float32Array(size * size).fill(-1);
+
+    if (this.hitmapMode > 2) {
+        this.hitmapData = data;
+    }
+
+    this.hitmapTexture = new GpuTexture(this.gpu, null!, null);
+    this.hitmapTexture.createFromFloatData(size, size, data);
+    this.hitmapTexture.createFramebuffer(size, size);
+}
 
 
 /** Apparent logical size of the active render target: the visible extent
@@ -1723,11 +1739,11 @@ switchToFramebuffer(
     case 'depth': {
 
         // Auxiliary pass: inherits projection from the canvas target.
-        this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!, 
+        this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!,
             [this.hitmapSize, this.hitmapSize]);
 
-        gl.clearColor(1.0, 1.0, 1.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clearBufferfv(gl.COLOR, 0, new Float32Array([-1, 0, 0, 0]));
+        gl.clear(gl.DEPTH_BUFFER_BIT);
 
         gl.enable(gl.DEPTH_TEST);
 
@@ -1765,6 +1781,14 @@ switchToFramebuffer(
 };
 
 
+/**
+ * Read one hitmap pixel and return the world-space hit position.
+ *
+ * @param screenX Horizontal screen coordinate.
+ * @param screenY Vertical screen coordinate.
+ * @param coordinateSpace Coordinate space of the input screen point.
+ * @returns `[x, y, z, surfaceHit, screenRay, depth, cameraPos]`.
+ */
 hitTest(
     screenX: number,
     screenY: number,
@@ -1795,13 +1819,11 @@ hitTest(
         return [0, 0, 0, false, screenRay, Number.MAX_VALUE, cameraPos];
     }
 
-    var pixel = hitmapTexture.readFramebufferPixels(
+    var pixel = hitmapTexture.readFramebufferFloatPixels(
         x, this.hitmapSize - y - 1, 1, 1);
 
-    //convert rgb values into depth
-    var depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);// + (pixel[3]*16581375.0);
-
-    var surfaceHit = !(pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 && pixel[3] == 255);
+    var depth = pixel[0];
+    var surfaceHit = depth > 0;
 
     //compute hit postion
     this.lastHitPosition = [cameraPos[0] + screenRay[0]*depth, cameraPos[1] + screenRay[1]*depth, cameraPos[2] + screenRay[2]*depth];
@@ -1811,6 +1833,10 @@ hitTest(
 };
 
 
+/**
+ * Read the full hitmap framebuffer into `hitmapData`.
+ * Called once per frame when `hitmapMode > 2`.
+ */
 copyHitmap() {
 
     const hitmapTexture = this.hitmapTexture;
@@ -1820,12 +1846,23 @@ copyHitmap() {
         return;
     }
 
-    hitmapTexture.readFramebufferPixels(
+    hitmapTexture.readFramebufferFloatPixels(
         0, 0, this.hitmapSize, this.hitmapSize, hitmapData
     );
 };
 
 
+/**
+ * Sample hitmap depth at the given screen position.
+ *
+ * @param screenX Horizontal screen coordinate.
+ * @param screenY Vertical screen coordinate.
+ * @param dilate Neighbourhood radius in hitmap pixels. Used by cached
+ * mode (`hitmapMode > 2`) to find the nearest surface hit within a
+ * small dilation window.
+ * @param coordinateSpace Coordinate space of the input screen point.
+ * @returns `[surfaceHit, depth]`.
+ */
 getDepth(
     screenX: number,
     screenY: number,
@@ -1848,12 +1885,12 @@ getDepth(
             return [false, Number.POSITIVE_INFINITY];
         }
 
-        var pixel = hitmapTexture.readFramebufferPixels(
+        const pixel = hitmapTexture.readFramebufferFloatPixels(
             x, this.hitmapSize - y - 1, 1, 1);
 
-        //convert rgb values into depth
-        depth = (pixel[0] * (1.0/255)) + (pixel[1]) + (pixel[2]*255.0) + (pixel[3]*65025.0);
-        var surfaceHit = !(pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255 && pixel[3] == 255);
+        depth = pixel[0];
+        var surfaceHit = depth > 0;
+        if (!surfaceHit) depth = Number.POSITIVE_INFINITY;
 
      } else {
 
@@ -1865,12 +1902,7 @@ getDepth(
         var rpx = dilate;
         var minDepth = Number.POSITIVE_INFINITY;
         var anyHit = false;
-        /*if (rpx <= 0) {
-            var index = (x + (this.hitmapSize - y - 1) * this.hitmapSize) * 4;
-            var r = pixels[index], g = pixels[index+1], b = pixels[index+2], a = pixels[index+3];
-            minDepth = (r * (1.0/255)) + (g) + (b*255.0) + (a*65025.0);
-            anyHit = !(r == 255 && g == 255 && b == 255 && a == 255);
-        } else */ {
+        {
             var hs = this.hitmapSize;
             var y0 = (this.hitmapSize - y - 1);
             for (var dy = -rpx; dy <= rpx; dy++) {
@@ -1879,21 +1911,15 @@ getDepth(
                 for (var dx = -rpx; dx <= rpx; dx++) {
                     var xx = x + dx;
                     if (xx < 0 || xx >= hs) continue;
-                    var idx = (xx + yy * hs) * 4;
-                    var rr = pixels[idx], gg = pixels[idx+1], bb = pixels[idx+2], aa = pixels[idx+3];
-                    var surface = !(rr == 255 && gg == 255 && bb == 255 && aa == 255);
-                    if (surface) {
+                    var d = pixels[xx + yy * hs];
+                    if (d > 0) {
                         anyHit = true;
-                        var d = (rr * (1.0/255)) + (gg) + (bb*255.0) + (aa*65025.0);
                         if (d < minDepth) minDepth = d;
                     }
                 }
             }
             if (!anyHit) {
-                // fall back to center sample
-                var index2 = (x + y0 * hs) * 4;
-                var r2 = pixels[index2], g2 = pixels[index2+1], b2 = pixels[index2+2], a2 = pixels[index2+3];
-                minDepth = (r2 * (1.0/255)) + (g2) + (b2*255.0) + (a2*65025.0);
+                minDepth = Number.POSITIVE_INFINITY;
             }
         }
         var depth = minDepth;

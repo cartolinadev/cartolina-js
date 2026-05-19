@@ -1078,7 +1078,7 @@ RendererDraw.prototype.clearJobHBuffer = function() {
 RendererDraw.prototype.paintGL = function() {   //remove this??
     var renderer = this.renderer;
 
-    this.gpu.clear(true, false);
+    this.gpu.clearDepth();
 
     if (!renderer.onlyLayers) {
         if (!renderer.onlyDepth && !renderer.onlyHitLayers) {

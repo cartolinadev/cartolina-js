@@ -119,7 +119,8 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
         break;
 
     case 'trilinear':
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
+                         gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         this.mipmapped = true;
         break;
@@ -150,6 +151,72 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
                           gl.UNSIGNED_BYTE, data);
             break;
     }
+
+    if (this.mipmapped) {
+        gl.generateMipmap(gl.TEXTURE_2D);
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    this.width = lx;
+    this.height = ly;
+    this.loaded = true;
+};
+
+
+/**
+ * Create an R32F texture from one float per pixel.
+ *
+ * @param lx Texture width in pixels.
+ * @param ly Texture height in pixels.
+ * @param data One RED/FLOAT value per pixel.
+ * @param filter Texture filtering mode.
+ * @param repeat Whether texture coordinates wrap.
+ */
+createFromFloatData(lx: GLsizei, ly: GLsizei, data: Float32Array,
+    filter: GpuTexture.Filter = 'nearest', repeat?: GLfloat | GLint) {
+
+    var gl = this.gl;
+
+    this.type_ = vts.TEXTURETYPE_DEPTH_R32F;
+
+    this.texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+
+    if (repeat) {
+        repeat = gl.REPEAT;
+        this.repeat = true;
+    } else {
+        repeat = gl.CLAMP_TO_EDGE;
+    }
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, repeat);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeat);
+    this.mipmapped = false;
+
+    switch (filter) {
+
+    case 'linear':
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        break;
+
+    case 'trilinear':
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
+                         gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        this.mipmapped = true;
+        break;
+
+    default:
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        break;
+    }
+
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, lx, ly, 0,
+                  gl.RED, gl.FLOAT, data);
 
     if (this.mipmapped) {
         gl.generateMipmap(gl.TEXTURE_2D);
@@ -388,6 +455,28 @@ readFramebufferPixels(
         "GpuTexture.readFramebufferPixels: Texture not initialized.");
 
     return this.gpu.readFramebufferPixels(this, x, y, lx, ly, data);
+};
+
+
+/**
+ * Read pixels from this texture's R32F framebuffer attachment.
+ *
+ * @param x Left coordinate in framebuffer pixels.
+ * @param y Bottom coordinate in framebuffer pixels.
+ * @param lx Width of the read rectangle in pixels.
+ * @param ly Height of the read rectangle in pixels.
+ * @param data Optional destination buffer. A new buffer is allocated when
+ * omitted.
+ * @returns One float per pixel in RED/FLOAT layout.
+ */
+readFramebufferFloatPixels(
+    x: number, y: number, lx: number, ly: number,
+    data?: Float32Array) : Float32Array {
+
+    if (!this.texture) throw new Error(
+        "GpuTexture.readFramebufferFloatPixels: Texture not initialized.");
+
+    return this.gpu.readFramebufferFloatPixels(this, x, y, lx, ly, data);
 };
 
 
