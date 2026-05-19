@@ -54,6 +54,47 @@ and hit-testing.
 framebuffer for readback and restores the tracked render-target binding
 afterward. Raw framebuffer binding is not public rendering API.
 
+## Depth hitmap format
+
+The depth hitmap uses an RGBA8 colour attachment, not an R32F colour
+attachment and not direct depth-attachment readback.
+
+The fragment shader writes camera distance as four base-255 digits in
+RGBA8. The clear value `[255,255,255,255]` is the no-hit sentinel. The
+decoder treats any other value as a surface hit and reconstructs:
+
+```js
+r / 255 + g + b * 255 + a * 65025
+```
+
+The shader subtracts `0.5 / 255.0` from each packed channel before the
+value reaches the RGBA8 attachment. WebGL converts float colour output
+to normalized bytes by rounding to the nearest byte. The negative half
+byte makes that conversion behave like floor for the packed digits, so
+one channel does not round up and carry into the next digit. The term is
+old VTS-era code: it appears in the initial imported `melown-core`
+history at `df230fef`, with the un-biased encoding left nearby as a
+commented alternative.
+
+Commit `8928b855` implemented an R32F hitmap. It made the shader and
+CPU readback simpler, but it also made renderer startup require
+`EXT_color_buffer_float`. That extension is not part of the WebGL2
+baseline. The performance benefit was limited because RGBA8 and R32F
+both read four bytes per hitmap pixel, and the dominant cost is the
+synchronous `readPixels()` call rather than the small decode expression.
+The R32F path was reverted; the typed clear helpers from that commit
+were kept.
+
+Direct depth-attachment readback was considered and rejected for the CPU
+hitmap path. WebGL2 can render to depth attachments without an
+extension, but portable `readPixels()` support is not available for
+`DEPTH_COMPONENT` in the same way it is for RGBA8 colour attachments. A
+local Chromium WebGL2 probe accepted an RGBA8 colour attachment plus a
+`DEPTH_COMPONENT24` depth texture as framebuffer-complete, but
+`readPixels(..., DEPTH_COMPONENT, UNSIGNED_INT, ...)` returned
+`INVALID_ENUM`. Using a depth attachment would therefore still need a
+colour-readable resolve pass for CPU hit testing.
+
 ## Independent targets (future)
 
 A future `setIndependentTarget()` method will allow callers to install

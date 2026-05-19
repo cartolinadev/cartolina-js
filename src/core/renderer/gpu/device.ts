@@ -3,7 +3,6 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import * as utils from '../../utils/utils';
-import * as vts from '../../constants';
 
 
 /**
@@ -179,10 +178,6 @@ private init() {
     if (!context) throw new Error('cartolina-js requires WebGL2.');
 
     let gl = this.gl = context;
-
-    if (!gl.getExtension('EXT_color_buffer_float')) {
-        throw new Error('cartolina-js requires EXT_color_buffer_float.');
-    }
 
     this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
 
@@ -553,12 +548,6 @@ readFramebufferPixels(
             + 'a framebuffer.');
     }
 
-    // blacklist until TEXTURETYPE_* becomes a typed enum (see backlog)
-    if (texture.type_ === vts.TEXTURETYPE_DEPTH_R32F) {
-        throw new Error('Use readFramebufferFloatPixels() for R32F '
-            + 'framebuffers.');
-    }
-
     const gl = this.gl;
     this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
 
@@ -571,51 +560,6 @@ readFramebufferPixels(
     }
 
     return byteData;
-}
-
-/**
- * Read pixels from a framebuffer-backed R32F texture.
- *
- * @param texture Framebuffer-backed R32F texture to read from.
- * @param x Left coordinate in framebuffer pixels.
- * @param y Bottom coordinate in framebuffer pixels.
- * @param lx Width of the read rectangle in pixels.
- * @param ly Height of the read rectangle in pixels.
- * @param data Optional destination buffer. A new buffer is allocated when
- * omitted.
- * @returns One float per pixel in RED/FLOAT layout.
- */
-readFramebufferFloatPixels(
-    texture: GpuTexture,
-    x: number,
-    y: number,
-    lx: number,
-    ly: number,
-    data?: Float32Array,
-) : Float32Array {
-
-    if (!texture.framebuffer) {
-        throw new Error('Cannot read pixels from a texture without '
-            + 'a framebuffer.');
-    }
-
-    if (texture.type_ !== vts.TEXTURETYPE_DEPTH_R32F) {
-        throw new Error('readFramebufferFloatPixels() requires an R32F '
-            + 'framebuffer.');
-    }
-
-    const gl = this.gl;
-    this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
-
-    const floatData = data ?? new Float32Array(lx * ly);
-
-    try {
-        gl.readPixels(x, y, lx, ly, gl.RED, gl.FLOAT, floatData);
-    } finally {
-        this.bindReadFramebufferForRenderTarget(this.renderTarget_);
-    }
-
-    return floatData;
 }
 
 private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {

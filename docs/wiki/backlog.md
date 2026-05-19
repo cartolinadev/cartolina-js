@@ -312,26 +312,19 @@ has already been returned.
 ### Motivation
 
 `TEXTURETYPE_*` are legacy numeric constants in `src/core/constants.ts`.
-They are now imported into TypeScript GPU modules (`device.ts`,
-`texture.ts`) to tag framebuffer formats, which is workable but relies
-on an untyped numeric namespace. Moving them to a `GpuTexture.Type`
-const enum (or a plain enum on the `GpuTexture` namespace) would give
-call sites exhaustiveness checking and remove the dependency on the
-legacy constants file from typed GPU code.
-
-The guard in `GpuDevice.readFramebufferPixels()` currently uses a
-negative check (`type_ === DEPTH_R32F → throw`) because there is no
-typed group for "RGBA8-compatible" types. A typed enum would allow a
-positive assertion instead.
+They are imported into `texture.ts` to tag texture formats, which is
+workable but relies on an untyped numeric namespace. Moving them to a
+`GpuTexture.Type` const enum (or a plain enum on the `GpuTexture`
+namespace) would give call sites exhaustiveness checking and remove the
+dependency on the legacy constants file from typed GPU code.
 
 ### Scope
 
 - Define `GpuTexture.Type` enum in `src/core/renderer/gpu/texture.ts`.
-- Replace all `vts.TEXTURETYPE_*` references in `device.ts` and
-  `texture.ts` with the new enum members.
+- Replace all `vts.TEXTURETYPE_*` references in `texture.ts` with the
+  new enum members.
 - Update `createFromData` and `createFromImage` call sites that pass
   the raw numeric constants.
-- Flip the negative guard in `readFramebufferPixels` to a positive one.
 
 ---
 

@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-19 — Restore portable RGBA8 depth hitmap
+
+Restored the depth hitmap to the WebGL2-baseline RGBA8 colour
+attachment. The R32F version required `EXT_color_buffer_float`, and the
+benefit did not justify making renderer startup depend on that
+extension.
+
+`tile-depth.frag.glsl` again packs `vDepth` into four RGBA8 channels.
+The half-byte negative bias is now documented: it compensates WebGL's
+float-to-UNORM8 rounding so each channel behaves like a base-255 floor
+digit rather than rounding up and carrying into the next digit.
+
+`renderer.ts` again stores cached hitmap data in `Uint8Array`, decodes
+depths from RGBA8 bytes, and treats `[255,255,255,255]` as the no-hit
+sentinel. The dedicated `initHitmapTexture()` method remains because it
+keeps depth-hitmap setup near the renderer fields that consume it.
+
+`GpuDevice` keeps `clearDepth()`, `clearColor()`, and
+`clearColorAndDepth()`. The R32F texture creation/readback helpers and
+the `TEXTURETYPE_DEPTH_R32F` constant were removed.
+
+`render-targets.md` now records why RGBA8 remains the baseline and
+references commit `8928b855`, which implemented the reverted R32F path.
+`AGENTS.md` now requires diagnostic output under gitignored `tmp/`
+paths and preserved diagnostic scripts under `scripts/`.
+
 ## 2026-05-19 — R32F depth hitmap
 
 Switched the depth hitmap colour attachment from RGBA8 (depth
@@ -61,8 +87,9 @@ Added standalone depth shaders `tile-depth.vert.glsl` and
 `tile-depth.frag.glsl`. The vertex shader applies vertical exaggeration
 via the frame UBO, so the depth hitmap correctly reflects the exaggerated
 surface. The fragment shader preserves the existing RGBA8 float-pack
-encoding — switching to `R32F` is the next step. `programTileDepth()`
-initializes the program lazily in `renderer.ts`.
+encoding. An R32F follow-up was tried later and reverted because it
+required `EXT_color_buffer_float`. `programTileDepth()` initializes the
+program lazily in `renderer.ts`.
 
 Extracted the tile quadrant clip logic from `tile.frag.glsl` into
 `tile-clip.inc.glsl` so both the color and depth fragment shaders share

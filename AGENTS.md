@@ -344,6 +344,13 @@ Screenshots are saved to `tmp/screenshots/<id>-dev.png` and
 before capturing (same quiet-window strategy as the perf runner) and
 prints any console or network errors it finds.
 
+All diagnostic output must go under gitignored paths, usually `tmp/` or
+`tmp/screenshots/`. Do not leave diagnostic screenshots, logs, probes,
+or other generated investigation artifacts as untracked files in the
+repository root or source directories. Temporary diagnostic scripts
+belong under `tmp/`; diagnostic scripts worth preserving belong under
+`scripts/`.
+
 Do not write screenshot output under `sandbox/`; the dev server watches
 that directory and may rebuild or reload while the screenshot script is
 capturing.

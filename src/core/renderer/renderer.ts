@@ -129,7 +129,7 @@ export class Renderer {
     frameTime = 0;
 
     hitmapCounter = 0;
-    hitmapData: Optional<Float32Array> = null;
+    hitmapData: Optional<Uint8Array> = null;
 
     debug: Renderer.Debug = {}
 
@@ -405,14 +405,14 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
 private initHitmapTexture(): void {
 
     const size = this.hitmapSize;
-    const data = new Float32Array(size * size).fill(-1);
+    const data = new Uint8Array(size * size * 4);
 
     if (this.hitmapMode > 2) {
         this.hitmapData = data;
     }
 
     this.hitmapTexture = new GpuTexture(this.gpu, null!, null);
-    this.hitmapTexture.createFromFloatData(size, size, data);
+    this.hitmapTexture.createFromData(size, size, data);
     this.hitmapTexture.createFramebuffer(size, size);
 }
 
@@ -1742,8 +1742,7 @@ switchToFramebuffer(
         this.gpu.setAuxiliaryRenderTarget(this.hitmapTexture!,
             [this.hitmapSize, this.hitmapSize]);
 
-        gl.clearBufferfv(gl.COLOR, 0, new Float32Array([-1, 0, 0, 0]));
-        gl.clear(gl.DEPTH_BUFFER_BIT);
+        this.gpu.clearColorAndDepth([255, 255, 255, 255]);
 
         gl.enable(gl.DEPTH_TEST);
 
@@ -1819,11 +1818,14 @@ hitTest(
         return [0, 0, 0, false, screenRay, Number.MAX_VALUE, cameraPos];
     }
 
-    var pixel = hitmapTexture.readFramebufferFloatPixels(
+    var pixel = hitmapTexture.readFramebufferPixels(
         x, this.hitmapSize - y - 1, 1, 1);
 
-    var depth = pixel[0];
-    var surfaceHit = depth > 0;
+    var surfaceHit = Renderer.isHitmapSurfacePixel(pixel, 0);
+    if (!surfaceHit) return [0, 0, 0, false, screenRay,
+                             Number.MAX_VALUE, cameraPos];
+
+    var depth = Renderer.decodeHitmapDepth(pixel, 0);
 
     //compute hit postion
     this.lastHitPosition = [cameraPos[0] + screenRay[0]*depth, cameraPos[1] + screenRay[1]*depth, cameraPos[2] + screenRay[2]*depth];
@@ -1846,7 +1848,7 @@ copyHitmap() {
         return;
     }
 
-    hitmapTexture.readFramebufferFloatPixels(
+    hitmapTexture.readFramebufferPixels(
         0, 0, this.hitmapSize, this.hitmapSize, hitmapData
     );
 };
@@ -1885,16 +1887,17 @@ getDepth(
             return [false, Number.POSITIVE_INFINITY];
         }
 
-        const pixel = hitmapTexture.readFramebufferFloatPixels(
+        const pixel = hitmapTexture.readFramebufferPixels(
             x, this.hitmapSize - y - 1, 1, 1);
 
-        depth = pixel[0];
-        var surfaceHit = depth > 0;
-        if (!surfaceHit) depth = Number.POSITIVE_INFINITY;
+        var surfaceHit = Renderer.isHitmapSurfacePixel(pixel, 0);
+        depth = surfaceHit
+            ? Renderer.decodeHitmapDepth(pixel, 0)
+            : Number.POSITIVE_INFINITY;
 
      } else {
 
-        // CPU-cached path; allow small dilation, if configured to catch near-occlusions (in pixels)
+        // CPU-cached path; dilation catches near occlusions in hitmap pixels.
         var pixels = this.hitmapData;
         if (!pixels) {
             return [false, Number.POSITIVE_INFINITY];
@@ -1911,9 +1914,10 @@ getDepth(
                 for (var dx = -rpx; dx <= rpx; dx++) {
                     var xx = x + dx;
                     if (xx < 0 || xx >= hs) continue;
-                    var d = pixels[xx + yy * hs];
-                    if (d > 0) {
+                    var idx = (xx + yy * hs) * 4;
+                    if (Renderer.isHitmapSurfacePixel(pixels, idx)) {
                         anyHit = true;
+                        var d = Renderer.decodeHitmapDepth(pixels, idx);
                         if (d < minDepth) minDepth = d;
                     }
                 }
@@ -1928,6 +1932,30 @@ getDepth(
 
     return [surfaceHit, depth];
 };
+
+
+private static isHitmapSurfacePixel(
+    pixels: Uint8Array,
+    offset: number,
+): boolean {
+
+    return !(pixels[offset] == 255 &&
+             pixels[offset + 1] == 255 &&
+             pixels[offset + 2] == 255 &&
+             pixels[offset + 3] == 255);
+}
+
+
+private static decodeHitmapDepth(
+    pixels: Uint8Array,
+    offset: number,
+): number {
+
+    return (pixels[offset] * (1.0/255)) +
+           pixels[offset + 1] +
+           (pixels[offset + 2] * 255.0) +
+           (pixels[offset + 3] * 65025.0);
+}
 
 
 getZoffsetFactor(params: ArrayLike<number>) {
