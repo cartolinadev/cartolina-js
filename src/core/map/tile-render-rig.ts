@@ -235,8 +235,24 @@ export class TileRenderRig {
     }
 
     /**
+     * Check rig for auxiliary depth rendering readiness.
+     * @priority the priority for the mesh
+     * @options options for the mesh readiness check
+     */
+    isDepthReady(priority = TileRenderRig.DefaultPriority.essential,
+        options = TileRenderRig.DefaultIsReadyOptions): boolean {
+
+        // only the mesh is needed for depth rendering
+        return TileRenderRig.isResourceReady(this.mesh, 'essential',
+            { minimum: 'full', desired: 'full' },
+            {  ... TileRenderRig.DefaultPriority, essential: priority },
+            options);
+    }
+
+    /**
      * Process layer stack into an actual draw call, using the tile shader
      * program.
+     * @cameraPos camera position in world coordinates
      */
     draw(cameraPos: math.vec3) {
 
@@ -287,10 +303,34 @@ export class TileRenderRig {
         if (this.rt.internalUVs) attrNames.uvs = 'aTexCoords';
         if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
-
-        this.mesh.gpuSubmeshes[this.submeshIndex].draw2(program, attrNames);
+        const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
+        gpuSubmesh.draw2(program, attrNames);
 
         //console.log(`this.logSign(): draw.`);
+    }
+
+    /**
+     * Draw the tile into an auxiliary depth buffer.
+     * @cameraPos camera position in world coordinates
+     */
+    drawDepth(cameraPos: math.vec3) {
+
+        const program = this.renderer.programTileDepth();
+        this.renderer.gpu.useProgram2(program);
+
+        // uModel
+        program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
+
+        // uClip
+        let splitMask = this.tile.splitMask || [1, 1, 1, 1];
+        program.setFloatArray('uClip', splitMask);
+
+        // draw
+        let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
+        if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
+
+        const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
+        gpuSubmesh.draw2(program, attrNames);
     }
 
     /**
@@ -1485,7 +1525,8 @@ export namespace TileRenderRig {
      */
     export type ReadinessLevels = {
         minimum: ReadinessLevel,
-        desired: ReadinessLevel }
+        desired: ReadinessLevel
+    }
 
     /**
      * basic resources are necessary to render tile, extras are embelishments.

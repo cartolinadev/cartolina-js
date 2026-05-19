@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-05-19 — TileRenderRig depth pass; tile-clip include; mesh.ts cleanup
+
+Extended `TileRenderRig` to cover draw channel 1 (the auxiliary depth /
+hitmap pass). Added `isDepthReady()` (checks mesh readiness only — no
+layers needed for depth) and `drawDepth()` (draws via the new
+`programTileDepth`). The draw-channel gate in `drawSurfaceTile` that
+previously forced channel 1 through the old `drawMeshTile` path is now
+commented out; both channels go through the rig.
+
+Added standalone depth shaders `tile-depth.vert.glsl` and
+`tile-depth.frag.glsl`. The vertex shader applies vertical exaggeration
+via the frame UBO, so the depth hitmap correctly reflects the exaggerated
+surface. The fragment shader preserves the existing RGBA8 float-pack
+encoding — switching to `R32F` is the next step. `programTileDepth()`
+initializes the program lazily in `renderer.ts`.
+
+Extracted the tile quadrant clip logic from `tile.frag.glsl` into
+`tile-clip.inc.glsl` so both the color and depth fragment shaders share
+the same implementation.
+
+Cleaned up `gpu/mesh.ts`: privatized internal fields, keyed the VAO
+cache by `GpuProgram` instead of `WebGLProgram`, fixed VAO cleanup in
+`kill()`, corrected the vertex attribute pointer data type, fixed GPU
+size accounting to use `byteLength`, and documented `AttrNames`.
+
 ## 2026-05-19 — Guard shader includes and document design references
 
 Added preprocessor guards to shader includes under

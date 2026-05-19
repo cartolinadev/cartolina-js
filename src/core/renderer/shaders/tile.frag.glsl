@@ -22,8 +22,10 @@ in float vVerticalExaggeration;
 // atm functions
 #include "./includes/atmosphere.inc.glsl";
 
+// tile quadrant clipping
+#include "./includes/tile-clip.inc.glsl";
+
 // other uniforms
-uniform float uClip[4];
 uniform vec3 uUpVector;
 
 // render target
@@ -193,28 +195,7 @@ void main() {
     // render flags
     int renderFlags = frameRenderFlags();
 
-    // clip
-    vec2 clipCoord = vTexCoords2;
-    float clipMargin = uFrame.clipParams.x;
-
-    float tmin = 0.5 - clipMargin; float tmax = 0.5 + clipMargin;
-
-    if (clipCoord.y > 0.5) {
-
-        if (clipCoord.x > 0.5){
-            if (uClip[3] == 0.0 && !(clipCoord.x < tmax && uClip[2] != 0.0) && !(clipCoord.y < tmax && uClip[1] != 0.0)) discard;
-        } else {
-            if (uClip[2] == 0.0 && !(clipCoord.x > tmin && uClip[3] != 0.0) && !(clipCoord.y < tmax && uClip[0] != 0.0)) discard;
-        }
-
-    } else {
-
-        if (clipCoord.x > 0.5) {
-            if (uClip[1] == 0.0 && !(clipCoord.x < tmax && uClip[0] != 0.0) && !(clipCoord.y > tmin && uClip[3] != 0.0)) discard;
-        } else {
-            if (uClip[0] == 0.0 && !(clipCoord.x > tmin && uClip[1] != 0.0) && !(clipCoord.y > tmin && uClip[2] != 0.0)) discard;
-        }
-    }
+    applyTileClip(vTexCoords2, uFrame.clipParams.x);
 
     // light
     Light light = frameLight();

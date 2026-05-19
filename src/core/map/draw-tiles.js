@@ -89,10 +89,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                 if (!tile.surface.geodata) {
 
-                    if (this.draw.drawChannel === 0) {
+                    //if (this.draw.drawChannel === 0) {
 
                     // -- start tilerendrerig integration (temporary)
-                    // TODO: honor draw.drawChannel
 
                     if (!tile.surfaceMesh) {
                         // resourceSurface unresolved from virtual surface —
@@ -145,26 +144,44 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         let priority_ = { essential: priority, optional: priority }
                         let readyOptions = { doNotLoad: preventLoad, doNotCheckGpu: doNotCheckGpu};
 
-                        let curRigReady = curRig.isReady(
-                            { minimum: 'fallback', desired: 'full'}, priority_,
-                            readyOptions);
+                        let curRigReady = false;
 
-                        let lastRigReady = ! curRigReady ?
-                            lastRig && lastRig.isReady(
-                                { minimum: 'fallback', desired: 'fallback' },
-                                priority_, readyOptions) : false;
+                        if (this.draw.drawChannel === 0)
+                            curRigReady = curRig.isReady(
+                                { minimum: 'fallback', desired: 'full'}, priority_,
+                                readyOptions);
+
+                        if (this.draw.drawChannel === 1)
+                            curRigReady = curRig.isDepthReady(
+                                priority_.essential, readyOptions);
+
+                        let lastRigReady = false;
+
+                        if (!curRigReady) {
+
+                            if (this.draw.drawChannel === 0)
+                                lastRigReady = lastRig && lastRig.isReady(
+                                    { minimum: 'fallback', desired: 'fallback' },
+                                    priority_, readyOptions);
+
+                            if (this.draw.drawChannel === 1 )
+                                lastRigReady = lastRig && lastRig.isDepthReady(
+                                    priority_.essential, readyOptions);
+                        }
 
                         let rigToDraw  =  curRigReady ? curRig : lastRigReady ? lastRig : null;
 
                         // draw
-                        if (rigToDraw) {
-                            if (!preventRedener) {
+                        if (rigToDraw && !preventRedener) {
+
+                            if (this.draw.drawChannel === 0 ) {
 
                                 // draw something
                                 rigToDraw.draw(cameraPos);
 
                                 // process layer credits (only active layers)
                                 rigToDraw.activeLayerIds().forEach((id) => {
+
                                     let layer = tile.boundLayers[id];
 
                                     let credits = layer.credits;
@@ -178,24 +195,22 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                 // extract and flush credits
                                 this.map.applyCredits(tile);
                             }
+                            if (this.draw.drawChannel === 1)
+                                rigToDraw.drawDepth(cameraPos);
 
-                            // this means: tile ready to draw
-                            ret = true;
-                        } else
+                        }
 
-                            // this means: tile not ready to draw
-                            ret = false;
+                        ret = rigToDraw;
 
                     } // end iterate through submeshes
 
-
-                    } // if draw.channel === 0
+                    //} // if draw.channel === 0
 
                     // -- end tilerenderrig integration
 
                     // we will remove this line once we get the new render rig working
-                    if (this.draw.drawChannel !== 0)
-                        ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
+                    //if (this.draw.drawChannel !== 0)
+                    //    ret = this.drawMeshTile(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu);
 
                 } else {
 
@@ -1425,4 +1440,3 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
 
 
 export default MapDrawTiles;
-

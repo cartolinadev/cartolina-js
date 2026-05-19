@@ -1,40 +1,37 @@
 
 import GpuDevice from './device';
 import GpuProgram from './program';
-import * as utils from '../../utils/utils';
-
-type Optional<T> = T | null;
 
 // class GpuMesh
 
 export class GpuMesh {
 
-    gpu!: GpuDevice;
     gl!: WebGL2RenderingContext;
-    bbox!: any;
-    core!: any;
+    private bbox!: any;
 
-    vertexBuffer: WebGLBuffer | null = null;
+    private vertexBuffer: WebGLBuffer | null = null;
     vertexBufferLayout!: Layout;
 
-    uvBuffer: WebGLBuffer | null = null;
-    uvBufferLayout!: Layout;
+    private uvBuffer: WebGLBuffer | null = null;
+    private uvBufferLayout!: Layout;
 
-    uv2Buffer: WebGLBuffer | null = null;
-    uv2BufferLayout!: Layout;
+    private uv2Buffer: WebGLBuffer | null = null;
+    private uv2BufferLayout!: Layout;
 
     indexBuffer: WebGLBuffer | null = null;
     indexBufferLayout!: Layout;
 
-    use16bit!: boolean;  // old API
-    vertexDataType!: VertexDataType; // new API
-    normalize!: boolean;
+    private use16bit!: boolean;
+    private vertexDataType!: VertexDataType;
+    private normalize!: boolean;
 
-    size!: number;
+    private size!: number;
     polygons!: number;
 
-    /** The VAOo cache. We keep a VAO per program, as attrib locations may differ. */
-    vaos = new Map<WebGLProgram, WebGLVertexArrayObject>();
+    /**
+     * VAO cache keyed by program. Attribute locations can differ per program.
+     */
+    private vaos = new Map<GpuProgram, WebGLVertexArrayObject>();
 
     /**
      * Create a GPUMesh object from mesh data. Buffer data to the GPU.
@@ -52,14 +49,12 @@ export class GpuMesh {
      *      Note that regardless of this parameter, uv coordinates, if uint,
      *      are always normalized before being passed to the shader.
      */
-    constructor(gpu: GpuDevice, meshData: GpuMesh.MeshData, core: any,
+    constructor(gpu: GpuDevice, meshData: GpuMesh.MeshData, _core: unknown,
                 use16bit: boolean = false,
                 normalize: boolean = true) {
 
-        this.gpu = gpu;
         this.gl = gpu.gl;
         this.bbox = meshData.bbox; //< bbox copy from Mesh
-        this.core = core;
         this.vertexBuffer = null;
         this.uvBuffer = null;
         this.uv2Buffer = null;
@@ -136,11 +131,10 @@ export class GpuMesh {
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
         }
 
-        var varSize = this.use16bit ? 2 : 4;
-        this.size = this.vertexBufferLayout.numItems * vertexSize * varSize;
-        this.size += (uvs) ? this.uvBufferLayout.numItems * uvSize * varSize : 0;
-        this.size += (uvs2) ? this.uv2BufferLayout.numItems * uv2Size * varSize : 0;
-        this.size += (indices) ? indices.length * 2 : 0;
+        this.size = vertices.byteLength;
+        this.size += uvs ? uvs.byteLength : 0;
+        this.size += uvs2 ? uvs2.byteLength : 0;
+        this.size += indices ? indices.byteLength : 0;
         this.polygons = (indices) ? indices.length / 3 : this.vertexBufferLayout.numItems / 3;
 
     };
@@ -149,17 +143,20 @@ export class GpuMesh {
 /**
  * Provide the draw call for the mesh.
  *
- * Any program uniforms need to be set prior to this call.
+ * `GpuMesh` reuses the same position, UV, secondary-UV, and index buffers for
+ * every program. It creates one VAO per program because shader attribute
+ * locations differ by program. `attrNames` maps `GpuMesh.AttrNames` slots to
+ * the attribute names used by that program.
  *
- * @param program the program to use in draw call
- * @param attrNames names of attributes to bind in the program. These are
- *      honored only on the first call for a given program, changes on subsequent
- *      calls are ignored.
+ * Any program uniforms need to be set before this call.
+ *
+ * @param program Program used by the draw call.
+ * @param attrNames Attribute names for this program's mesh data slots. These
+ * are honored only on the first call for a given program; later calls reuse
+ * the cached VAO.
  */
 
-draw2(program: GpuProgram,
-      attrNames: GpuMesh.AttrNames = {
-          position: 'aPosition', uvs: 'aTexCoord', uvs2: 'aTexCoord2'}) {
+draw2(program: GpuProgram, attrNames: GpuMesh.AttrNames) {
 
     const gl = this.gl;
 
@@ -212,12 +209,14 @@ private createVAO(program: GpuProgram, attrNames: GpuMesh.AttrNames)
 
     if (vertexAttribute == -1)
         __DEV__ && program.log(
-            `Program does not have attribute ${attrNames['uvs']}`);
+            `Program does not have attribute ${attrNames.position}`);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-    gl.enableVertexAttribArray(vertexAttribute)
-    gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize,
-                           gl.UNSIGNED_SHORT, this.normalize, 0, 0);
+    if (vertexAttribute != -1) {
+        gl.enableVertexAttribArray(vertexAttribute)
+        gl.vertexAttribPointer(vertexAttribute, this.vertexBufferLayout.itemSize,
+                               dataType, this.normalize, 0, 0);
+    }
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     if (this.uvBuffer && attrNames['uvs']) {
@@ -277,7 +276,7 @@ private createVAO(program: GpuProgram, attrNames: GpuMesh.AttrNames)
 
 // Draws the mesh, given the two vertex shader attributes locations.
 draw(program: GpuProgram, attrVertex: string, attrUV: string, attrUV2: string,
-     _: Optional<string>, skipDraw: boolean = false) {
+     _: string | null, skipDraw: boolean = false) {
 
     var gl = this.gl;
 
@@ -364,6 +363,9 @@ kill() {
         this.gl.deleteBuffer(this.indexBuffer);
     }
 
+    this.vaos.forEach((vao) => this.gl.deleteVertexArray(vao));
+    this.vaos.clear();
+
     this.vertexBuffer = null;
     this.uvBuffer = null;
     this.uv2Buffer = null;
@@ -389,10 +391,21 @@ export type MeshData = {
     uv2Size?: GLint
 }
 
+/**
+ * Shader attribute names for the mesh data slots.
+ *
+ * The keys name fixed `GpuMesh` buffers. The values name attributes in a
+ * specific shader program.
+ */
 export type AttrNames = {
 
+    /** Attribute that receives `vertexBuffer`. */
     position: string,
+
+    /** Attribute that receives `uvBuffer`, when the mesh has one. */
     uvs?: string,
+
+    /** Attribute that receives `uv2Buffer`, when the mesh has one. */
     uvs2?: string
 }
 

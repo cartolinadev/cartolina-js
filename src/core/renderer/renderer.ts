@@ -25,6 +25,9 @@ import shaderTileFrag from './shaders/tile.frag.glsl';
 import backgroundTileVert from './shaders/background.vert.glsl';
 import backgroundTileFrag from './shaders/background.frag.glsl';
 
+import shaderTileDepthVert from './shaders/tile-depth.vert.glsl';
+import shaderTileDepthFrag from './shaders/tile-depth.frag.glsl';
+
 
 /**
  * As with many classes in vts-browser-js, it is difficult to find any
@@ -161,6 +164,7 @@ export class Renderer {
     programs!: {
         tile?: GpuProgram,
         background?: GpuProgram
+        tileDepth?: GpuProgram
     }
 
     // texture unit indices
@@ -476,6 +480,27 @@ programBackground() : GpuProgram {
 
     return this.programs.background;
 }
+
+/**
+ * Tile depth program, lazy initialization + bindings
+ */
+
+programTileDepth() : GpuProgram {
+
+    if (this.programs.tileDepth) return this.programs.tileDepth;
+
+    __DEV__ && console.log('Initializing programs.tileDepth');
+
+    this.programs.tileDepth = new GpuProgram(
+        this.gpu, shaderTileDepthVert, shaderTileDepthFrag,
+        'shader-tile-depth', {
+            uboFrame: Renderer.UniformBlockName.Frame
+        }, {});
+
+    // done
+    return this.programs.tileDepth;
+}
+
 
 /**
  * Compute fixed active texture units. We use the back offsets for these,
