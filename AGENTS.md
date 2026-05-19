@@ -600,6 +600,10 @@ applies for documentation and READMEs.
 - Symmetrically, when `}` appears at the start of a line followed by more
   content on the same line (e.g. `} else {`), place an empty line
   immediately before the closing brace.
+- Apply this to every new or edited multi-line block, including nested
+  loops, nested `if` statements, callbacks, and helper methods. Check
+  the edited hunk for this before finishing; do not wait for review to
+  catch it.
 - **Exception:** if the entire block body is a single line, omit both
   empty lines.
 

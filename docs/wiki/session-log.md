@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-05-20 — Hitmap depth decode cleanup; depth-hitmap-compare script
+
+**`renderer.ts`**: `isHitmapSurfacePixel` is removed. `decodeHitmapDepth`
+now returns `Number.POSITIVE_INFINITY` for the no-hit sentinel instead
+of a separate boolean. All callers (`hitTest`, `getDepth`, and the
+cached-path dilation loop) test `depth < Infinity` or
+`depth == Infinity` directly.
+
+**`scripts/depth-hitmap-compare.js`**: new Playwright diagnostic script.
+`capture` mode opens the map demo, samples a grid of screen positions
+via `getScreenDepth`, and writes a JSON file of depth readings.
+`compare` mode diffs two such files and reports per-pixel depth error
+statistics (mean, RMSE, max, quantiles, hit-mismatch count).
+
+**`AGENTS.md`**: blank-line rule around multi-line blocks extended to
+nested loops, nested `if` statements, callbacks, and helper methods.
+
 ## 2026-05-19 — Restore portable RGBA8 depth hitmap
 
 Restored the depth hitmap to the WebGL2-baseline RGBA8 colour

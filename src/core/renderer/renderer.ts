@@ -1821,17 +1821,19 @@ hitTest(
     var pixel = hitmapTexture.readFramebufferPixels(
         x, this.hitmapSize - y - 1, 1, 1);
 
-    var surfaceHit = Renderer.isHitmapSurfacePixel(pixel, 0);
-    if (!surfaceHit) return [0, 0, 0, false, screenRay,
-                             Number.MAX_VALUE, cameraPos];
-
     var depth = Renderer.decodeHitmapDepth(pixel, 0);
+    if (depth == Number.POSITIVE_INFINITY) {
+
+        return [0, 0, 0, false, screenRay, Number.MAX_VALUE, cameraPos];
+
+    }
 
     //compute hit postion
     this.lastHitPosition = [cameraPos[0] + screenRay[0]*depth, cameraPos[1] + screenRay[1]*depth, cameraPos[2] + screenRay[2]*depth];
 
 
-    return [this.lastHitPosition[0], this.lastHitPosition[1], this.lastHitPosition[2], surfaceHit, screenRay, depth, cameraPos];
+    return [this.lastHitPosition[0], this.lastHitPosition[1],
+            this.lastHitPosition[2], true, screenRay, depth, cameraPos];
 };
 
 
@@ -1883,17 +1885,14 @@ getDepth(
 
         //get pixel value from framebuffer
         const hitmapTexture = this.hitmapTexture;
-        if (!hitmapTexture) {
-            return [false, Number.POSITIVE_INFINITY];
-        }
+        if (!hitmapTexture) return [false, Number.POSITIVE_INFINITY];
 
         const pixel = hitmapTexture.readFramebufferPixels(
             x, this.hitmapSize - y - 1, 1, 1);
 
-        var surfaceHit = Renderer.isHitmapSurfacePixel(pixel, 0);
-        depth = surfaceHit
-            ? Renderer.decodeHitmapDepth(pixel, 0)
-            : Number.POSITIVE_INFINITY;
+        const sampleDepth = Renderer.decodeHitmapDepth(pixel, 0);
+        var surfaceHit = sampleDepth < Number.POSITIVE_INFINITY;
+        depth = sampleDepth;
 
      } else {
 
@@ -1909,22 +1908,24 @@ getDepth(
             var hs = this.hitmapSize;
             var y0 = (this.hitmapSize - y - 1);
             for (var dy = -rpx; dy <= rpx; dy++) {
+
                 var yy = y0 + dy;
                 if (yy < 0 || yy >= hs) continue;
                 for (var dx = -rpx; dx <= rpx; dx++) {
+
                     var xx = x + dx;
                     if (xx < 0 || xx >= hs) continue;
                     var idx = (xx + yy * hs) * 4;
-                    if (Renderer.isHitmapSurfacePixel(pixels, idx)) {
+                    var d = Renderer.decodeHitmapDepth(pixels, idx);
+                    if (d < Number.POSITIVE_INFINITY) {
+
                         anyHit = true;
-                        var d = Renderer.decodeHitmapDepth(pixels, idx);
                         if (d < minDepth) minDepth = d;
+
                     }
                 }
             }
-            if (!anyHit) {
-                minDepth = Number.POSITIVE_INFINITY;
-            }
+            if (!anyHit) minDepth = Number.POSITIVE_INFINITY;
         }
         var depth = minDepth;
         var surfaceHit = anyHit;
@@ -1934,22 +1935,17 @@ getDepth(
 };
 
 
-private static isHitmapSurfacePixel(
-    pixels: Uint8Array,
-    offset: number,
-): boolean {
-
-    return !(pixels[offset] == 255 &&
-             pixels[offset + 1] == 255 &&
-             pixels[offset + 2] == 255 &&
-             pixels[offset + 3] == 255);
-}
-
-
 private static decodeHitmapDepth(
     pixels: Uint8Array,
     offset: number,
 ): number {
+
+    const noHit = pixels[offset] == 255 &&
+                  pixels[offset + 1] == 255 &&
+                  pixels[offset + 2] == 255 &&
+                  pixels[offset + 3] == 255;
+
+    if (noHit) return Number.POSITIVE_INFINITY;
 
     return (pixels[offset] * (1.0/255)) +
            pixels[offset + 1] +
