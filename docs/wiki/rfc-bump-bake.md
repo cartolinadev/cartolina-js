@@ -35,10 +35,15 @@ Rendering bump layers natively costs per-draw resources. Every active
 bump layer consumes one texture unit, one UBO slot, and one fragment
 shader loop iteration on every draw call, for every frame the tile is
 visible. Collapsing eliminates all three costs for each layer folded
-into the normal map, and frees the bump texture from CPU and GPU memory.
-The saving per collapsed bump layer is larger than in the old pipeline
-because the UBO and shader loop are new overheads that the old pipeline
-never incurred at all.
+into the normal map. The saving per collapsed bump layer is larger than
+in the old pipeline because the UBO and shader loop are new overheads
+that the old pipeline never incurred at all.
+
+Memory reclamation — freeing the bump texture from CPU and GPU cache
+after collapse — is deferred to a follow-up. Because the collapsed
+result is rig-local (§2.2), multiple rigs may reference the same bump
+`MapTexture`; freeing it requires shared ownership rules that are not
+defined in this version.
 
 Collapsing is therefore an optimization, not a requirement. The tile
 renders correctly either way. Whether to collapse is a runtime config
@@ -174,13 +179,17 @@ measured cost.
 ### 2.6 `Shift+F B` diagnostic guard
 
 Guard the collapse path with the config option `mapBakeBumps` (default
-`true`). When `false`, collapsing is skipped entirely and
-`FlagBumpMaps` continues to toggle bump layers via `optimizedOut` at
-draw time as before.
+`true`). When `false`, collapsing is skipped entirely. Bump layers
+remain in the layer stack with their `flagMask` set to `FlagBumpMaps`;
+the shader reads that flag from the UBO on each draw call and skips the
+layer when bump rendering is off.
 
 When `mapBakeBumps` is `true`, the collapse pass checks the current
-render flags before collapsing a layer (implementation step 2b). A bump
-layer is only collapsed when `FlagBumpMaps` is on at that moment.
+render flags before collapsing a layer (implementation step 2b). The
+check uses `this.renderer.getRenderingOptions().useBumpMaps`, which
+reflects both the debug override and the config value (the same
+expression `Renderer.updateBuffer` uses when encoding frame flags). A
+bump layer is only collapsed when `useBumpMaps` is true at that moment.
 Collapsing is deferred for any layer while the flag is off and resumes
 when the flag is re-enabled. The toggle therefore remains fully
 functional for layers not yet collapsed.
@@ -221,9 +230,8 @@ The backlog already notes this; it is not in scope here.
       source `'texture'`, operation `'blend'`, not `optimizedOut`) in
       layer-stack order. If none, skip the collapse pass entirely.
 
-   b. Check that the first un-collapsed bump layer has its `flagMask`
-      bits set in the current render flags. If `FlagBumpMaps` is off,
-      skip the collapse pass this frame.
+   b. Check `this.renderer.getRenderingOptions().useBumpMaps`. If
+      false, skip the collapse pass this frame.
 
    c. Check that the first un-collapsed bump layer is GPU-ready. If
       not, skip. (Collapsing must stay in layer-stack order.)
@@ -395,6 +403,13 @@ reminder to verify it before proceeding with the legacy deletion.
    name the exact API or argument that `optimizeStack()` uses. Without
    that, the implementation step cannot be coded from the design.
 
+   *Implemented. §2.6 and step 2b updated to name the API:
+   `this.renderer.getRenderingOptions().useBumpMaps`. The rig already
+   holds `this.renderer`; no new argument or field is needed.
+   `getRenderingOptions()` applies the debug override before the config
+   value, matching what `Renderer.updateBuffer()` does when encoding
+   frame flags.*
+
 2. Blocker: §1.3 still says collapsing frees the bump texture from CPU
    and GPU memory. Review round 1 removed that behavior because the
    baked result is rig-local and the bump `MapTexture` is shared. This
@@ -405,9 +420,50 @@ reminder to verify it before proceeding with the legacy deletion.
    iterations, and that memory reclamation is deferred until a shared
    baked result or ownership rule exists.
 
+   *Implemented. §1.3 rewritten: the saving is now described as
+   eliminating per-draw texture units, UBO slots, and shader iterations.
+   A separate paragraph states that memory reclamation is deferred and
+   explains why (rig-local result, multiple rigs may hold the same bump
+   `MapTexture`).*
+
 3. Non-blocking: §2.6 says that when `mapBakeBumps` is false,
    `FlagBumpMaps` continues to toggle bump layers via `optimizedOut` at
    draw time. In the current rig path, `optimizedOut` is a CPU-side skip
    used before UBO encoding; render flags are encoded into the UBO and
    evaluated by the shader. Rewrite this sentence so it does not imply
    that Shift+F B mutates `optimizedOut` during drawing.
+
+   *Implemented. §2.6 opening rewritten: bump layers remain in the
+   layer stack with `flagMask = FlagBumpMaps`; the shader reads that
+   flag from the UBO on each draw call and skips the layer when bump
+   rendering is off.*
+
+## Review round 3
+
+1. Blocker: §2.1 says collapse fires only after the normal-map base
+   layer has a ready GPU texture, but the implementation steps do not
+   encode that guard. Step 2.c checks only the first un-collapsed bump
+   layer. `optimizeStack()` runs before `isReady()` performs the normal
+   map readiness check, and `buildLayerStack()` can add bump layers even
+   when no normal-map push layer exists (`rt.normals` can be false; the
+   shader then starts from `flatNormal`). The RFC must state what the
+   collapse pass does when `this.normalMap` is absent or when
+   `this.normalMap.getGpuTexture()` is not ready. The simplest rule is
+   to skip collapse unless a base normal-map layer exists and its GPU
+   texture is ready.
+
+2. Blocker: the design changes `FlagNormalMaps` behavior after a bump
+   layer is collapsed. Before collapse, the shader pre-pushes
+   `flatNormal`; if `FlagNormalMaps` is off and `FlagBumpMaps` is on,
+   the normal-map push layer is skipped but bump layers still blend into
+   the flat normal. After collapse, the bump data is stored in
+   `bakedNormalGpu` and bound through the base normal-map push layer,
+   whose `flagMask` is `FlagNormalMaps`. Turning normal maps off would
+   therefore also hide already-collapsed bump data, even while
+   `FlagBumpMaps` remains on. The RFC should either accept and document
+   that diagnostic behavior change, or define how encoded layers and
+   flag masks preserve the old `FlagNormalMaps` / `FlagBumpMaps`
+   separation after collapse.
+
+3. Non-blocking: line 119 is over the wiki line-length limit. Rewrap
+   the style-change paragraph when responding to this review round.
