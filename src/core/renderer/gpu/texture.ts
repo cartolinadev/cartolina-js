@@ -2,18 +2,7 @@
 import * as utils from '../../utils/utils';
 import {GpuDevice} from './device';
 
-import * as vts from '../../constants';
-
 type Optional<T> = T | null;
-
-// local types
-// export types
-
-export namespace GpuTexture {
-
-    export type Filter = 'linear' | 'trilinear' | 'nearest';
-}
-
 
 export class GpuTexture {
 
@@ -31,7 +20,7 @@ export class GpuTexture {
     width: number = 0;
     height: number = 0;
 
-    type_: number = vts.TEXTURETYPE_COLOR;
+    type_: GpuTexture.Type = GpuTexture.Type.Color;
     mipmapped: boolean = false;
 
     repeat!: boolean;
@@ -75,11 +64,11 @@ getSize() {
 
   switch (this.type_) {
 
-      case vts.TEXTURETYPE_NORMALMAP:
+      case GpuTexture.Type.NormalMap:
           bytesPerTexel = 2;
           break;
 
-      case vts.TEXTURETYPE_MASK:
+      case GpuTexture.Type.Mask:
           bytesPerTexel = 1;
           break;
   }
@@ -89,8 +78,22 @@ getSize() {
 }
 
 
+usesIntegerColorAttachment(): boolean {
+
+    return this.type_ === GpuTexture.Type.DepthUint;
+}
+
+
+readPixelsFormat(): GLenum {
+
+    return this.usesIntegerColorAttachment()
+        ? this.gl.RGBA_INTEGER
+        : this.gl.RGBA;
+}
+
+
 createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
-    type_: number = vts.TEXTURETYPE_COLOR,
+    type_: GpuTexture.Type = GpuTexture.Type.Color,
     filter: GpuTexture.Filter = 'nearest', repeat?: GLfloat | GLint) {
 
     var gl = this.gl;
@@ -135,7 +138,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
     switch (this.type_) {
 
-        case vts.TEXTURETYPE_ATMDENSITY:
+        case GpuTexture.Type.AtmosphereDensity:
 
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -145,7 +148,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
                           gl.UNSIGNED_BYTE, data);
             break;
 
-        case vts.TEXTURETYPE_DEPTH_UINT:
+        case GpuTexture.Type.DepthUint:
 
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -153,7 +156,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
                           gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, data);
             break;
 
-        case vts.TEXTURETYPE_COLOR:
+        case GpuTexture.Type.Color:
         default:
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lx, ly, 0, gl.RGBA,
                           gl.UNSIGNED_BYTE, data);
@@ -176,11 +179,15 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
  * Are these textures allways vertically flipped with respect to the original image?
  * There is no gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true).
  *
- * @param textureType see constants.ts for texture types
+ * @param textureType See `GpuTexture.Type`.
  */
 
-createFromImage(image: HTMLImageElement,
-                type_: number, filter: GpuTexture.Filter, repeat?: boolean) {
+createFromImage(
+    image: HTMLImageElement,
+    type_: GpuTexture.Type,
+    filter: GpuTexture.Filter,
+    repeat?: boolean,
+) {
 
     let gl = this.gl;
     let gpu = this.gpu;
@@ -228,7 +235,7 @@ createFromImage(image: HTMLImageElement,
 
     switch (this.type_) {
 
-        case vts.TEXTURETYPE_NORMALMAP:
+        case GpuTexture.Type.NormalMap:
 
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -238,7 +245,7 @@ createFromImage(image: HTMLImageElement,
 
             break;
 
-        case vts.TEXTURETYPE_MASK:
+        case GpuTexture.Type.Mask:
 
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -309,7 +316,7 @@ createFramebufferFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array) {
 
     console.log("Creating framebuffer from data.");
 
-    this.type_ = vts.TEXTURETYPE_COLOR;
+    this.type_ = GpuTexture.Type.Color;
 
     var framebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
@@ -401,5 +408,54 @@ readFramebufferPixels(
 
 
 } // class GpuTexture
+
+// local types
+// export types
+
+export namespace GpuTexture {
+
+    export type Filter = 'linear' | 'trilinear' | 'nearest';
+
+    /**
+     * Texture storage and upload format.
+     *
+     * Values match the legacy `TEXTURETYPE_*` constants while JavaScript
+     * callers are still being migrated.
+     */
+    export enum Type {
+        /** Standard RGBA8 colour texture. Used for imagery and user images. */
+        Color = 0,
+
+        /**
+         * Legacy height data. `MapSubtexture` decodes it to CPU image data
+         * for metatile and height-value lookups.
+         */
+        Height = 1,
+
+        /**
+         * Classification texture from bound layers. Uploaded as RGBA8 with
+         * nearest filtering by current legacy callers.
+         */
+        Class = 2,
+
+        /** Normal map texture. Uploaded as RG8 from two-channel images. */
+        NormalMap = 3,
+
+        /** Coverage mask texture. Uploaded as single-channel R8. */
+        Mask = 4,
+
+        /**
+         * Atmosphere density lookup texture. CPU-decoded from an image and
+         * uploaded as RGB8UI.
+         */
+        AtmosphereDensity = 5,
+
+        /**
+         * Depth hitmap texture. Stores raw float32 depth bit patterns as four
+         * little-endian bytes in an RGBA8UI framebuffer attachment.
+         */
+        DepthUint = 6,
+    }
+}
 
 export default GpuTexture;

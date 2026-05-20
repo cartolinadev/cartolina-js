@@ -12,16 +12,16 @@ extracts the raw 32-bit pattern; four shift-and-mask operations write it
 as four little-endian bytes (LSB in R). The half-byte bias and the
 base-255 fract encoding are gone.
 
-**`src/core/constants.ts`**: added `TEXTURETYPE_DEPTH_UINT = 6` for the
-new RGBA8UI texture kind.
-
-**`src/core/renderer/gpu/texture.ts`**: added a `TEXTURETYPE_DEPTH_UINT`
-case in `createFromData` that uses `gl.RGBA8UI` / `gl.RGBA_INTEGER`.
+**`src/core/renderer/gpu/texture.ts`**: added
+`GpuTexture.Type.DepthUint` for the new RGBA8UI texture kind. The enum
+values match the legacy `TEXTURETYPE_*` constants while JavaScript
+callers are still being migrated. `createFromData` uses
+`gl.RGBA8UI` / `gl.RGBA_INTEGER` for this texture kind.
 
 **`src/core/renderer/renderer.ts`**: `initHitmapTexture` passes
-`TEXTURETYPE_DEPTH_UINT` to `createFromData`. `decodeHitmapDepth`
-replaced with a `DataView.getFloat32(..., true)` (little-endian) read;
-the four-byte equality sentinel check replaced by `isFinite`.
+`GpuTexture.Type.DepthUint` to `createFromData`. `decodeHitmapDepth`
+replaced with a `DataView.getFloat32(..., true)` read; the four-byte
+equality sentinel check replaced by `isFinite`.
 
 **`src/core/renderer/gpu/device.ts`**: `clearColorAndDepth` dispatches
 on the active render target's texture type — integer targets use

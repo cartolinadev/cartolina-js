@@ -13,8 +13,6 @@ import RenderDraw from './draw';
 import RendererRMap from './rmap';
 
 import * as IlluminationMath from '../map/illumination';
-import * as vts from '../constants';
-
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
 import type { CoreConfig } from '../types';
@@ -414,7 +412,7 @@ private initHitmapTexture(): void {
     this.hitmapTexture = new GpuTexture(this.gpu, null!, null);
 
     this.hitmapTexture.createFromData(size, size, data,
-        vts.TEXTURETYPE_DEPTH_UINT);
+        GpuTexture.Type.DepthUint);
 
     this.hitmapTexture.createFramebuffer(size, size);
 }
@@ -2096,7 +2094,7 @@ createTexture(options: any): GpuTexture | null {
 
             const texture = new GpuTexture(this.gpu, null as any, this.core);
             texture.createFromData(
-                width, height, source, vts.TEXTURETYPE_COLOR, filter, repeat
+                width, height, source, GpuTexture.Type.Color, filter, repeat
             );
             return texture;
         }
@@ -2105,7 +2103,7 @@ createTexture(options: any): GpuTexture | null {
     if (source instanceof Image) {
 
         const texture = new GpuTexture(this.gpu, null as any, this.core);
-        texture.createFromImage(source, vts.TEXTURETYPE_COLOR, filter, repeat);
+        texture.createFromImage(source, GpuTexture.Type.Color, filter, repeat);
         return texture;
     }
 

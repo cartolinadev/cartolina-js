@@ -3,7 +3,6 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import * as utils from '../../utils/utils';
-import * as vts from '../../constants';
 
 
 /**
@@ -456,7 +455,7 @@ clearColorAndDepth(color : Color): void {
 
     const isIntegerTarget =
         this.renderTarget_.kind === 'framebuffer' &&
-        this.renderTarget_.texture.type_ === vts.TEXTURETYPE_DEPTH_UINT;
+        this.renderTarget_.texture.usesIntegerColorAttachment();
 
     if (isIntegerTarget) {
 
@@ -568,14 +567,11 @@ readFramebufferPixels(
 
     const byteData = data ?? new Uint8Array(lx * ly * 4);
 
-    const readFormat =
-        texture.type_ === vts.TEXTURETYPE_DEPTH_UINT
-            ? gl.RGBA_INTEGER
-            : gl.RGBA;
-
     try {
-        gl.readPixels(x, y, lx, ly, readFormat, gl.UNSIGNED_BYTE, byteData);
+        gl.readPixels(x, y, lx, ly, texture.readPixelsFormat(),
+            gl.UNSIGNED_BYTE, byteData);
     } finally {
+        // restore original binding
         this.bindReadFramebufferForRenderTarget(this.renderTarget_);
     }
 

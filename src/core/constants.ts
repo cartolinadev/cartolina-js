@@ -29,10 +29,6 @@ export const TEXTURETYPE_NORMALMAP = 3;
 export const TEXTURETYPE_MASK = 4;
 export const TEXTURETYPE_ATMDENSITY = 5;
 
-/** Depth hitmap: RGBA8UI integer attachment storing raw float32 bit
- *  patterns as four little-endian bytes. */
-export const TEXTURETYPE_DEPTH_UINT = 6;
-
 export const JOB_FLAT_LINE = 1;
 export const JOB_FLAT_RLINE = 2;
 export const JOB_FLAT_TLINE = 3;

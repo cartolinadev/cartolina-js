@@ -11,6 +11,10 @@ about 8 px wide at the viewport centre and about 4 px wide at the edges.
 The dead zone is largely undetectable in many other views, and its
 existence seems independent of hitmap resolution.
 
+The bug persists after the depth hitmap changed from RGBA8 base-255
+packing to RGBA8UI float bit-pattern storage. This rules out the old
+RGBA8 carry-error path as the cause of the horizon dead strip.
+
 ---
 
 ## FEATURE: freeze mode for viewport diagnostics
@@ -388,7 +392,7 @@ has already been returned.
 ## REFACTOR: migrate `TEXTURETYPE_*` constants to a `GpuTexture.Type` enum
 
 **Opened:** 2026-05-19
-**Status:** deferred
+**Status:** partially implemented
 
 ### Motivation
 
@@ -401,11 +405,13 @@ dependency on the legacy constants file from typed GPU code.
 
 ### Scope
 
-- Define `GpuTexture.Type` enum in `src/core/renderer/gpu/texture.ts`.
-- Replace all `vts.TEXTURETYPE_*` references in `texture.ts` with the
-  new enum members.
-- Update `createFromData` and `createFromImage` call sites that pass
-  the raw numeric constants.
+- Done: define `GpuTexture.Type` enum in
+  `src/core/renderer/gpu/texture.ts`.
+- Done: replace all `vts.TEXTURETYPE_*` references in `texture.ts` with
+  the new enum members.
+- Done: update TypeScript call sites that create `GpuTexture` directly.
+- Remaining: update legacy JavaScript map/resource call sites that pass
+  `TEXTURETYPE_*` values through older texture APIs.
 
 ---
 

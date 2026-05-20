@@ -18,6 +18,11 @@ const DefaultStyle =
 const DefaultPosition =
     'obj,-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,45.00';
 
+const IdleMs = 2000;
+const MaxWaitMs = 40000;
+const PostNavHoldMs = 1200;
+const WorkerGuardMs = 5000;
+
 function usage() {
 
     console.log(`
@@ -39,7 +44,7 @@ Options for capture:
   --margin N         Screen margin in CSS pixels. Default: 32.
   --width N          Viewport width. Default: 1280.
   --height N         Viewport height. Default: 800.
-  --wait-ms N        Wait after viewer.ready before sampling. Default: 2500.
+  --wait-ms N        Extra wait after network idle. Default: 1000.
 `);
 }
 
@@ -84,6 +89,109 @@ function finiteDepth(sample) {
     return sample.hit && Number.isFinite(sample.depth);
 }
 
+async function waitForIdle(context, page, url, errors) {
+
+    let inflight = 0;
+    let seenAny = false;
+    let workerSeen = false;
+    let lastActivityTs = 0;
+    let tracking = false;
+    const navStart = Date.now();
+
+    await context.route('**/*', async route => {
+
+        const request = route.request();
+        const resourceType = (request.resourceType() || '').toLowerCase();
+        const fromWorker = !request.frame();
+        const persistent = resourceType === 'websocket' ||
+            resourceType === 'eventsource';
+
+        if (!tracking && request.isNavigationRequest() &&
+            resourceType === 'document') {
+
+            tracking = true;
+            lastActivityTs = Date.now();
+        }
+
+        const count = tracking && !persistent;
+        if (count) {
+
+            inflight++;
+            seenAny = true;
+            if (fromWorker) workerSeen = true;
+            lastActivityTs = Date.now();
+        }
+
+        try {
+
+            const response = await route.fetch();
+            let body = await response.body().catch(() => null);
+
+            if (response.status() >= 400) {
+                errors.push(`${response.status()} ${request.url()}`);
+            }
+
+            if (body != null && request.url().includes('/demos/map/')) {
+
+                body = Buffer.from(body.toString('utf8').replace(
+                    'cartolina.map({',
+                    'window.__depthViewer = cartolina.map({',
+                ));
+            }
+
+            if (body == null) {
+                await route.fulfill({ response });
+            } else {
+                await route.fulfill({ response, body });
+            }
+
+        } catch (_) {
+
+            errors.push(`fetch error: ${request.url()}`);
+            try { await route.abort(); } catch (_) {}
+
+        } finally {
+
+            if (count) {
+
+                inflight = Math.max(0, inflight - 1);
+                lastActivityTs = Date.now();
+            }
+        }
+    });
+
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('load').catch(() => {});
+    await page.waitForTimeout(200);
+
+    await new Promise(resolve => {
+
+        const start = Date.now();
+        const tick = setInterval(() => {
+
+            const now = Date.now();
+            if (now - start > MaxWaitMs) {
+
+                clearInterval(tick);
+                resolve();
+                return;
+            }
+
+            const sinceNav = now - navStart;
+            const workerOk = workerSeen || sinceNav >= WorkerGuardMs;
+            const allowIdle = workerOk && sinceNav >= PostNavHoldMs;
+            const quietFor = now - lastActivityTs;
+
+            if (allowIdle && inflight === 0 && seenAny &&
+                quietFor >= IdleMs) {
+
+                clearInterval(tick);
+                resolve();
+            }
+        }, 100);
+    });
+}
+
 async function capture(args) {
 
     const baseUrl = args['base-url'];
@@ -98,14 +206,15 @@ async function capture(args) {
     const width = Number(args.width || 1280);
     const height = Number(args.height || 800);
     const margin = Number(args.margin || 32);
-    const waitMs = Number(args['wait-ms'] || 2500);
+    const waitMs = Number(args['wait-ms'] || 1000);
 
     const browser = await chromium.launch({
         headless: true,
         args: ['--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=gl'],
     });
 
-    const page = await browser.newPage({ viewport: { width, height } });
+    const context = await browser.newContext({ viewport: { width, height } });
+    const page = await context.newPage();
     const errors = [];
 
     page.on('console', message => {
@@ -113,33 +222,13 @@ async function capture(args) {
         if (message.type() === 'error') errors.push(message.text());
     });
     page.on('pageerror', error => errors.push(error.message));
-    page.on('requestfailed', request => errors.push(request.url()));
-
-    await page.route('**/demos/map/**', async route => {
-
-        const response = await route.fetch();
-        const body = await response.text();
-        const patched = body.replace(
-            'cartolina.map({',
-            'window.__depthViewer = cartolina.map({',
-        );
-
-        await route.fulfill({
-            response,
-            body: patched,
-            headers: {
-                ...response.headers(),
-                'content-type': 'text/html; charset=UTF-8',
-            },
-        });
-    });
 
     const url = new URL('/demos/map/', baseUrl);
     url.searchParams.set('style', style);
     url.searchParams.set('pos', position.join(','));
     url.searchParams.set('mapExposeFpsToWindow', '1');
 
-    await page.goto(url.href, { waitUntil: 'domcontentloaded' });
+    await waitForIdle(context, page, url.href, errors);
     await page.waitForFunction(() => window.__depthViewer);
     await page.evaluate(() => window.__depthViewer.ready);
     await page.waitForTimeout(waitMs);
