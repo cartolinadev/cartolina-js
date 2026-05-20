@@ -111,8 +111,7 @@ Two consequences follow.
 fewer layers, different layers, or none. If the old rig had written its
 collapsed result back into the shared `MapTexture` GPU texture, the new
 rig would start from a normal map with bumps already collapsed in,
-which does not match its
-own layer stack. The rig-local approach (§2.2) avoids this: the shared
+which does not match its own layer stack. The rig-local approach (§2.2) avoids this: the shared
 `MapTexture` is never modified, so the new rig always starts from the
 original clean texture regardless of what the old rig did.
 
@@ -121,11 +120,8 @@ the same frame when `lastRig` is still fallback-ready and `curRig` is
 loading. Both may reach `optimizeStack()` in the same frame and attempt
 to use `nmblender`. `nmblender` is a singleton on `MapDrawTiles` and is
 not reentrant. The two `isReady()` calls are sequential within one frame,
-so the blender is used by one rig at a time. To make this safe without
-relying on call order, the collapse step checks a busy flag on
-`nmblender` before using it. If the blender is already in use (by the
-other rig's `isReady()` earlier in the same frame), the collapse is
-deferred to the next frame.
+so the blender is used by one rig at a time. No guard is needed: the
+calls are sequential and synchronous (see §2.7).
 
 Because the collapsed result is rig-local and the shared `MapTexture` is
 never modified, each rig collapses independently into its own
@@ -177,32 +173,35 @@ measured cost.
 
 ### 2.6 `Shift+F B` diagnostic guard
 
-`FlagBumpMaps` (Shift+F B) toggles bump-map rendering off. When a bump
-layer has been collapsed, the flag has no layer to act on: the bump data
-is already blended into the rig-local normal texture and the bump layer
-is
-marked `optimizedOut`.
-
 Guard the collapse path with the config option `mapBakeBumps` (default
-`true`). When `false`, collapsing is skipped entirely: bump layers
-remain in the layer stack and `FlagBumpMaps` continues to toggle them
-via `optimizedOut` at draw time. When `mapBakeBumps` is `true` and the
-user presses Shift+F B, emit a console warning that the toggle has no
-effect because collapsing is active.
+`true`). When `false`, collapsing is skipped entirely and
+`FlagBumpMaps` continues to toggle bump layers via `optimizedOut` at
+draw time as before.
+
+When `mapBakeBumps` is `true`, the collapse pass checks the current
+render flags before collapsing a layer (implementation step 2b). A bump
+layer is only collapsed when `FlagBumpMaps` is on at that moment.
+Collapsing is deferred for any layer while the flag is off and resumes
+when the flag is re-enabled. The toggle therefore remains fully
+functional for layers not yet collapsed.
+
+Layers that were collapsed while the flag was on cannot be un-collapsed
+by toggling the flag off later. When the user presses Shift+F B and any
+bump layer has already been collapsed, emit a console warning from the
+keyboard handler in `src/core/inspector/input.js`. URL-configured flags
+are applied before any tile loads, before any collapse can occur, so no
+warning is needed in that path. Programmatic post-load changes to
+`mapFlagBumpMaps` are not warned in the first implementation.
 
 ### 2.7 Reusing `nmblender`
 
 `nmblender` is a `TextureBlend` instance on `MapDrawTiles`, constructed
 at 256×256 (`draw.js:154`). The first implementation reuses it as-is.
-The rig borrows it synchronously within one `isReady()` call.
 
-`nmblender` is a singleton. Two rigs at the same tile may both reach
-`optimizeStack()` in the same frame (§2.3). To guard against this, add
-a boolean `busy` flag to `nmblender` (or to `TextureBlend`). The
-collapse step sets it on entry and clears it after `copyResult`; any
-rig that finds it set defers its collapse to the next frame. Because
-one frame's collapse is at most a handful of full-screen quad draws,
-deferring one rig by a frame has no visible effect.
+The rig borrows `nmblender` synchronously within a single `isReady()`
+call. The two `isReady()` calls per frame (for `tileRenderRig[i]` and
+`lastRenderRig[i]`) run sequentially on the JS thread; `init()`,
+`blend()`, and `copyResult()` do not yield. No guard is needed.
 
 A follow-up can move `nmblender` into `TileRenderRig`, migrate it to a
 `GpuDevice.RenderTarget`, and adopt the current GLSL shader conventions.
@@ -215,57 +214,53 @@ The backlog already notes this; it is not in scope here.
 1. Add `private bakedNormalGpu: WebGLTexture | null = null` to
    `TileRenderRig`.
 
-2. Add a `busy: boolean = false` field to `TextureBlend` for the
-   blender-reentrance guard described in §2.7.
-
-3. In `optimizeStack()`, after the mask and watertight checks, add a
+2. In `optimizeStack()`, after the mask and watertight checks, add a
    collapse pass:
 
    a. Scan for the next un-collapsed bump layer (target `'normal'`,
       source `'texture'`, operation `'blend'`, not `optimizedOut`) in
       layer-stack order. If none, skip the collapse pass entirely.
 
-   b. If `nmblender.busy`, skip the collapse pass this frame (§2.7).
+   b. Check that the first un-collapsed bump layer has its `flagMask`
+      bits set in the current render flags. If `FlagBumpMaps` is off,
+      skip the collapse pass this frame.
 
    c. Check that the first un-collapsed bump layer is GPU-ready. If
       not, skip. (Collapsing must stay in layer-stack order.)
 
-   d. Set `nmblender.busy = true`.
+   d. Call `nmblender.init()` to clear the FBO. (`nmblender` is
+      borrowed synchronously; no guard is needed — see §2.7.)
 
-   e. Call `nmblender.init()` to clear the FBO.
-
-   f. Blend the source into the FBO at alpha 1.0: if `bakedNormalGpu`
+   e. Blend the source into the FBO at alpha 1.0: if `bakedNormalGpu`
       is non-null, blend `bakedNormalGpu`; otherwise blend the base
       normal map texture.
 
-   g. For each bump layer starting from the first un-collapsed, while the
-      layer is GPU-ready: blend the bump texture at its configured
-      alpha, then mark the layer `optimizedOut` and free its
-      `MapTexture` CPU and GPU memory
-      (`bumpTexture.killImage()`, `bumpTexture.mainTexture
-      .killGpuTexture()`). Stop at the first non-ready layer.
+   f. For each bump layer starting from the first un-collapsed, while
+      the layer is GPU-ready and its `flagMask` bits are set: blend the
+      bump texture at its configured alpha and mark the layer
+      `optimizedOut`. Stop at the first non-ready or flag-disabled
+      layer.
 
-   h. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at
-      256×256 with `gl.createTexture` and `gl.texImage2D`, and assign
-      it to `bakedNormalGpu`.
+   g. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
+      using `gl.createTexture` and `gl.texImage2D`. Set
+      `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
+      both wrap modes to `CLAMP_TO_EDGE`. Assign to `bakedNormalGpu`.
 
-   i. Call `nmblender.copyResult(bakedNormalGpu)` to copy the FBO into
+   h. Call `nmblender.copyResult(bakedNormalGpu)` to copy the FBO into
       the rig's texture.
 
-   j. Clear `nmblender.busy = false`.
-
-4. In `encodeLayer()`, when binding the texture for the base normal-map
+3. In `encodeLayer()`, when binding the texture for the base normal-map
    push layer: if `bakedNormalGpu` is non-null, bind `bakedNormalGpu`
    instead of `normalMap.mainTexture.getGpuTexture()`.
 
-5. Add `mapBakeBumps: boolean = true` to the config schema and default
-   values. Gate step 3 on this flag. Wire the Shift+F B warning when
-   the flag is on.
+4. Add `mapBakeBumps: boolean = true` to the config schema and default
+   values. Gate step 2 on this flag. Wire the Shift+F B warning when
+   the flag is on (see §2.6 for call site).
 
-6. In `TileRenderRig.dispose()`: if `bakedNormalGpu` is non-null, call
+5. In `TileRenderRig.dispose()`: if `bakedNormalGpu` is non-null, call
    `gl.deleteTexture(bakedNormalGpu)`.
 
-7. Verify with screenshot regression tests (`simple-terrain`,
+6. Verify with screenshot regression tests (`simple-terrain`,
    `complex-terrain`, `full-terrain`).
 
 ---
@@ -302,6 +297,14 @@ reminder to verify it before proceeding with the legacy deletion.
    first implementation, or define a shared baked-normal cache with
    ownership and reuse rules.
 
+   *Implemented. Step 3.g removed. The bump `MapTexture` is not freed
+   after collapse in this implementation. CPU and GPU memory for the bump
+   texture is reclaimed when the tile is evicted from the resource tree
+   via the normal cache eviction path. The primary savings — one texture
+   unit, one UBO slot, one shader loop iteration per draw call — are
+   preserved; the memory saving is deferred to a follow-up that defines
+   shared result ownership.*
+
 2. Blocker: the RFC does not define how collapse interacts with
    `mapFlagBumpMaps` when the flag is already false before the first
    bake. `buildLayerStack` gives bump layers
@@ -317,6 +320,14 @@ reminder to verify it before proceeding with the legacy deletion.
    rule and the code path that provides the current flag state to
    `TileRenderRig`.
 
+   *Implemented. §2.6 updated: the collapse pass checks the current
+   render flags and skips any bump layer whose `flagMask` bits are not
+   set (i.e., `FlagBumpMaps` is off). Collapsing is therefore deferred
+   for a layer as long as bump rendering is disabled. Once the flag is
+   re-enabled, the layer becomes eligible and is collapsed on the next
+   frame. Layers already collapsed before the flag was turned off remain
+   collapsed; the warning in §2.6 is scoped to that case.*
+
 3. Blocker: §2.6 says Shift+F B should emit a warning when baking is
    active, but the implementation steps do not specify the call site.
    The current toggle is in `src/core/inspector/input.js`, while
@@ -327,6 +338,17 @@ reminder to verify it before proceeding with the legacy deletion.
    config synchronization. The RFC should name the chosen call site and
    state whether the warning is keyboard-only or applies to every
    attempt to disable bump rendering while `mapBakeBumps` is true.
+
+   *Implemented. §2.6 updated with a named call site. URL-configured
+   flags are applied before any tile loads and before any collapse can
+   occur, so the flag is already false when the first bump texture
+   arrives; the render-flag check above defers collapse correctly and
+   no warning is needed. The warning applies only to interactive
+   Shift+F B presses: it is emitted in the keyboard handler in
+   `input.js`, which is the only path where the user actively toggles
+   the flag after tiles have loaded. Programmatic post-load changes to
+   `mapFlagBumpMaps` are not warned; they are out of scope for the
+   first implementation.*
 
 4. Non-blocking: the `nmblender.busy` guard in §2.3 and §2.7 does not
    match the synchronous code path described in the RFC. The two
@@ -339,6 +361,12 @@ reminder to verify it before proceeding with the legacy deletion.
    the rest of the session. The simpler first implementation can omit
    the guard and document that `TextureBlend` is borrowed synchronously.
 
+   *Implemented. The `busy` flag removed from §2.3, §2.7, and the
+   implementation steps. §2.7 updated to document that `nmblender` is
+   borrowed synchronously within one `isReady()` call, and that no guard
+   is needed because the two `isReady()` calls per frame are sequential
+   on the JS thread.*
+
 5. Non-blocking: step 3.h says to allocate `bakedNormalGpu` with
    `gl.createTexture` and `gl.texImage2D`, but it does not list sampler
    parameters. `TextureBlend` creates its FBO texture with
@@ -347,3 +375,39 @@ reminder to verify it before proceeding with the legacy deletion.
    writes into it. Otherwise the result depends on WebGL defaults,
    including mipmap-dependent minification state for a texture that has
    no generated mipmaps.
+
+   *Implemented. Step 3.h updated with explicit sampler parameters:
+   `LINEAR` for min and mag filters, `CLAMP_TO_EDGE` for both wrap
+   modes, matching the `TextureBlend` FBO texture.*
+
+## Review round 2
+
+1. Blocker: §2.6 and implementation step 2.b require
+   `optimizeStack()` to check the current render flags, but the RFC does
+   not define how `TileRenderRig` obtains those flags. Today
+   `optimizeStack()` is called from `isReady()` before `draw()`, while
+   `updateBuffer()` receives only the tile program and writes each
+   layer's `flagMask` into the layer UBO. The active frame flags are
+   computed in `Renderer.updateBuffer()` from `renderer.debug` and
+   `map.config`, and `TileRenderRig` does not store or receive the
+   encoded or unencoded result. `Renderer.getRenderingOptions()` exposes
+   `useBumpMaps`, so the design can likely use that, but the RFC should
+   name the exact API or argument that `optimizeStack()` uses. Without
+   that, the implementation step cannot be coded from the design.
+
+2. Blocker: §1.3 still says collapsing frees the bump texture from CPU
+   and GPU memory. Review round 1 removed that behavior because the
+   baked result is rig-local and the bump `MapTexture` is shared. This
+   sentence is now false and leaves two incompatible goals in the RFC:
+   the design says not to free bump textures, while the motivation says
+   the optimization includes freeing them. Update §1.3 to state the
+   first implementation saves texture units, UBO slots, and shader loop
+   iterations, and that memory reclamation is deferred until a shared
+   baked result or ownership rule exists.
+
+3. Non-blocking: §2.6 says that when `mapBakeBumps` is false,
+   `FlagBumpMaps` continues to toggle bump layers via `optimizedOut` at
+   draw time. In the current rig path, `optimizedOut` is a CPU-side skip
+   used before UBO encoding; render flags are encoded into the UBO and
+   evaluated by the shader. Rewrite this sentence so it does not imply
+   that Shift+F B mutates `optimizedOut` during drawing.
