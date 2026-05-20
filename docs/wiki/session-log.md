@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-21 — RFC: bump-layer collapse inside TileRenderRig
+
+Wrote [rfc-bump-bake.md](rfc-bump-bake.md) covering the design for
+collapsing bump-map layers into the normal map inside `TileRenderRig`.
+Key decisions: collapse happens in `optimizeStack()` before UBO
+encoding; the result is rig-local (shared `MapTexture` untouched);
+two rigs alive simultaneously (current + last) each collapse
+independently. Status: In review, round 1 open.
+
 ## 2026-05-20 — Depth hitmap: RGBA8UI with float bit-pattern encoding
 
 Replaced the RGBA8 base-255 digit encoding of the depth hitmap with a

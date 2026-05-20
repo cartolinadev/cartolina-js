@@ -25,6 +25,9 @@ then branch into more specific documents as needed.
 
 ### RFCs
 
+- [rfc-bump-bake.md](rfc-bump-bake.md) — collapse bump layers into the
+  normal map inside `TileRenderRig`, eliminating per-frame texture
+  units, UBO slots, and shader iterations for each collapsed bump layer
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design
