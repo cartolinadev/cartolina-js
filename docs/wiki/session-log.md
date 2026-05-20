@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-05-20 — hitmap horizon dead zone investigation
+
+Investigated a systematic dead zone in `getScreenDepth` along the
+geometric horizon (~8 px at viewport centre, ~4 px at edges). Findings
+documented in [hitmap-horizon-deadzone.md](hitmap-horizon-deadzone.md).
+
+The following were ruled out: hitmap resolution mismatch, coordinate
+mapping error, `ndcToScreenPixel` LOD difference, `applyTileClip`
+discarding fragments, tile selection difference between channels,
+external UV absence, and NDC-to-viewport registration error.
+
+Both channels render identical tile sets; all tiles pass `isDepthReady`;
+`drawDepth` is called for all 236 tiles; yet the GL color buffer remains
+at the clear value at the failing rows. Candidate causes for follow-up:
+back-face culling of horizon triangles, sky/dome depth-buffer writes, and
+depth precision failure near z≈1 with `DEPTH_COMPONENT16`.
+
+Diagnostic tools: `scripts/hitmap-to-tiff.py` (16-bit TIFF export from
+hitmap data), binary and grayscale hitmap overlays via Playwright.
+
 ## 2026-05-20 — depth-test demo: live overlay and crosshair
 
 **`demos/depth-test/`**: overlay now refreshes continuously and the

@@ -1,5 +1,29 @@
 # Task backlog
 
+## BUG: depth hitmap dead zone near geometric horizon
+
+**Opened:** 2026-05-20
+**Status:** open — cause not yet identified
+
+`getScreenDepth` returns no reading for a strip of pixels just below
+the visual horizon (~8 px at viewport centre, ~4 px at edges). The
+same tiles are submitted to both the main and depth passes; all pass
+`isDepthReady`; `drawDepth` is called; yet the GL color buffer at
+those rows remains at the clear value (255,255,255,255).
+
+The dead zone only appears when looking at distant terrain near the
+geometric horizon. Raking views (close horizon) are unaffected.
+
+Full investigation notes, ruling-out table, and possible next steps:
+see [hitmap-horizon-deadzone.md](hitmap-horizon-deadzone.md).
+
+Candidate causes to test next: back-face culling of horizon triangles
+(test: disable `gl.CULL_FACE` in ch1); sky/dome writing to depth
+buffer before tile geometry; depth precision failure at z≈1 with
+`DEPTH_COMPONENT16`.
+
+---
+
 ## FEATURE: freeze mode for viewport diagnostics
 
 **Opened:** 2026-05-18
