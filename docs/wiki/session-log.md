@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-05-20 — Depth hitmap: RGBA8UI with float bit-pattern encoding
+
+Replaced the RGBA8 base-255 digit encoding of the depth hitmap with a
+direct IEEE 754 bit-pattern transfer through an RGBA8UI integer
+framebuffer.
+
+**`tile-depth.frag.glsl`**: output changed from `out vec4` (RGBA8
+normalized) to `out uvec4` (RGBA8UI integer). `floatBitsToUint(vDepth)`
+extracts the raw 32-bit pattern; four shift-and-mask operations write it
+as four little-endian bytes (LSB in R). The half-byte bias and the
+base-255 fract encoding are gone.
+
+**`src/core/constants.ts`**: added `TEXTURETYPE_DEPTH_UINT = 6` for the
+new RGBA8UI texture kind.
+
+**`src/core/renderer/gpu/texture.ts`**: added a `TEXTURETYPE_DEPTH_UINT`
+case in `createFromData` that uses `gl.RGBA8UI` / `gl.RGBA_INTEGER`.
+
+**`src/core/renderer/renderer.ts`**: `initHitmapTexture` passes
+`TEXTURETYPE_DEPTH_UINT` to `createFromData`. `decodeHitmapDepth`
+replaced with a `DataView.getFloat32(..., true)` (little-endian) read;
+the four-byte equality sentinel check replaced by `isFinite`.
+
+**`src/core/renderer/gpu/device.ts`**: `clearColorAndDepth` dispatches
+on the active render target's texture type — integer targets use
+`gl.clearBufferuiv` + `gl.clearBufferfv`; normalized targets use the
+existing path. `readFramebufferPixels` similarly dispatches between
+`gl.RGBA_INTEGER` and `gl.RGBA`.
+
+**`docs/wiki/render-targets.md`**: depth hitmap format section rewritten
+to describe RGBA8UI, the no-hit NaN sentinel, the dispatch approach, and
+the carry-error history of the old RGBA8 encoding.
+
 ## 2026-05-20 — hitmap horizon dead zone investigation
 
 Recorded a backlog item for a `getScreenDepth` dead zone near the

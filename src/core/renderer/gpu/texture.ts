@@ -145,6 +145,14 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
                           gl.UNSIGNED_BYTE, data);
             break;
 
+        case vts.TEXTURETYPE_DEPTH_UINT:
+
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI, lx, ly, 0,
+                          gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, data);
+            break;
+
         case vts.TEXTURETYPE_COLOR:
         default:
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lx, ly, 0, gl.RGBA,

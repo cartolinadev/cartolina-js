@@ -56,40 +56,41 @@ afterward. Raw framebuffer binding is not public rendering API.
 
 ## Depth hitmap format
 
-The depth hitmap uses an RGBA8 colour attachment, not an R32F colour
-attachment and not direct depth-attachment readback.
+The depth hitmap uses an RGBA8UI integer colour attachment. The fragment
+shader writes the raw IEEE 754 bit pattern of the camera distance as
+four little-endian bytes (LSB in R) using `floatBitsToUint`. The GPU
+stores the bytes exactly — RGBA8UI carries no float normalization step.
+The clear value `[255,255,255,255]` maps to the bit pattern
+`0xFFFFFFFF`, which is a quiet NaN in IEEE 754. The decoder reads four
+bytes back with `DataView.getFloat32(..., true)` and treats any
+non-finite value as the no-hit sentinel.
 
-The fragment shader writes camera distance as four base-255 digits in
-RGBA8. The clear value `[255,255,255,255]` is the no-hit sentinel. The
-decoder treats any other value as a surface hit and reconstructs:
+`GpuDevice.clearColorAndDepth()` dispatches on the active render
+target's texture type: integer targets use `gl.clearBufferuiv` for the
+colour buffer and `gl.clearBufferfv` for depth; normalized targets use
+the existing `gl.clearColor` + `gl.clear` path.
+`GpuDevice.readFramebufferPixels()` similarly switches between
+`gl.RGBA_INTEGER` and `gl.RGBA` based on texture type.
 
-```js
-r / 255 + g + b * 255 + a * 65025
-```
-
-The shader subtracts `0.5 / 255.0` from each packed channel before the
-value reaches the RGBA8 attachment. WebGL converts float colour output
-to normalized bytes by rounding to the nearest byte. The negative half
-byte makes that conversion behave like floor for the packed digits, so
-one channel does not round up and carry into the next digit. The term is
-old VTS-era code: it appears in the initial imported `melown-core`
-history at `df230fef`, with the un-biased encoding left nearby as a
-commented alternative.
-
-Commit `8928b855` implemented an R32F hitmap. It made the shader and
-CPU readback simpler, but it also made renderer startup require
-`EXT_color_buffer_float`. That extension is not part of the WebGL2
-baseline. The performance benefit was limited because RGBA8 and R32F
-both read four bytes per hitmap pixel, and the dominant cost is the
-synchronous `readPixels()` call rather than the small decode expression.
-The R32F path was reverted; the typed clear helpers from that commit
-were kept.
+**Format history.** The hitmap was originally RGBA8 normalized. The
+fragment shader packed camera distance as four base-255 digits and
+subtracted a half-byte bias (`0.5 / 255.0`) intended to make WebGL's
+float-to-UNORM8 rounding behave like floor. The encoding had carry
+errors: floating-point rounding in the shader or in the UNORM8
+conversion could increment a digit and carry into the next one,
+producing a decoded value wrong by a multiple of 255. The role of the
+bias in those errors is unclear. Commit `8928b855` switched to R32F,
+which eliminated the carry errors entirely, but required
+`EXT_color_buffer_float` — not part of the WebGL2 baseline. That path
+was reverted. The current RGBA8UI approach achieves the same
+correctness as R32F (exact bit-pattern transfer, no normalization, no
+carry errors) without any extension.
 
 Direct depth-attachment readback was considered and rejected for the CPU
 hitmap path. WebGL2 can render to depth attachments without an
 extension, but portable `readPixels()` support is not available for
-`DEPTH_COMPONENT` in the same way it is for RGBA8 colour attachments. A
-local Chromium WebGL2 probe accepted an RGBA8 colour attachment plus a
+`DEPTH_COMPONENT` in the same way it is for colour attachments. A local
+Chromium WebGL2 probe accepted an RGBA8 colour attachment plus a
 `DEPTH_COMPONENT24` depth texture as framebuffer-complete, but
 `readPixels(..., DEPTH_COMPONENT, UNSIGNED_INT, ...)` returned
 `INVALID_ENUM`. Using a depth attachment would therefore still need a

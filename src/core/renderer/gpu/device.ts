@@ -3,6 +3,7 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import * as utils from '../../utils/utils';
+import * as vts from '../../constants';
 
 
 /**
@@ -451,8 +452,22 @@ clearColor(color : Color): void {
  */
 clearColorAndDepth(color : Color): void {
 
-    this.setClearColor(color);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    const gl = this.gl;
+
+    const isIntegerTarget =
+        this.renderTarget_.kind === 'framebuffer' &&
+        this.renderTarget_.texture.type_ === vts.TEXTURETYPE_DEPTH_UINT;
+
+    if (isIntegerTarget) {
+
+        gl.clearBufferuiv(gl.COLOR, 0, new Uint32Array(color));
+        gl.clearBufferfv(gl.DEPTH, 0, new Float32Array([1.0]));
+
+    } else {
+
+        this.setClearColor(color);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
 }
 
 /**
@@ -553,8 +568,13 @@ readFramebufferPixels(
 
     const byteData = data ?? new Uint8Array(lx * ly * 4);
 
+    const readFormat =
+        texture.type_ === vts.TEXTURETYPE_DEPTH_UINT
+            ? gl.RGBA_INTEGER
+            : gl.RGBA;
+
     try {
-        gl.readPixels(x, y, lx, ly, gl.RGBA, gl.UNSIGNED_BYTE, byteData);
+        gl.readPixels(x, y, lx, ly, readFormat, gl.UNSIGNED_BYTE, byteData);
     } finally {
         this.bindReadFramebufferForRenderTarget(this.renderTarget_);
     }

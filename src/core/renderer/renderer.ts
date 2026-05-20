@@ -412,7 +412,10 @@ private initHitmapTexture(): void {
     }
 
     this.hitmapTexture = new GpuTexture(this.gpu, null!, null);
-    this.hitmapTexture.createFromData(size, size, data);
+
+    this.hitmapTexture.createFromData(size, size, data,
+        vts.TEXTURETYPE_DEPTH_UINT);
+
     this.hitmapTexture.createFramebuffer(size, size);
 }
 
@@ -1940,17 +1943,10 @@ private static decodeHitmapDepth(
     offset: number,
 ): number {
 
-    const noHit = pixels[offset] == 255 &&
-                  pixels[offset + 1] == 255 &&
-                  pixels[offset + 2] == 255 &&
-                  pixels[offset + 3] == 255;
+    const depth = new DataView(
+        pixels.buffer, pixels.byteOffset + offset).getFloat32(0, true);
 
-    if (noHit) return Number.POSITIVE_INFINITY;
-
-    return (pixels[offset] * (1.0/255)) +
-           pixels[offset + 1] +
-           (pixels[offset + 2] * 255.0) +
-           (pixels[offset + 3] * 65025.0);
+    return isFinite(depth) ? depth : Number.POSITIVE_INFINITY;
 }
 
 
