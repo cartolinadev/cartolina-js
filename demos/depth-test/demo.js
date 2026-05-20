@@ -40,6 +40,10 @@
     var veBtn   = document.getElementById('ve-btn');
     var veSpec  = null;
 
+    var cursorX  = null;
+    var cursorY  = null;
+    var mapReady = false;
+
     veBtn.addEventListener('click', function () {
 
         var current = viewer.getVerticalExaggeration();
@@ -56,10 +60,18 @@
         }
     });
 
-    function updateOverlay(e) {
+    function resetOverlay() {
+        overlay.innerHTML =
+            'Elevation: <b>— m</b> · Ground dist: <b>— m</b> · ' +
+            'Rendered depth: <b>—</b>';
+    }
 
-        var x   = e.clientX;
-        var y   = e.clientY;
+    function updateOverlay() {
+
+        if (!mapReady || cursorX === null) return;
+
+        var x   = cursorX;
+        var y   = cursorY;
         var nav = viewer.getHitCoords(x, y, 'fix');
 
         var depthApi    = viewer.getScreenDepth(x, y, 0);
@@ -86,12 +98,32 @@
         }
     }
 
-    el.addEventListener('mousemove', updateOverlay);
+    function trackCursor(e) {
+        cursorX = e.clientX;
+        cursorY = e.clientY;
+        updateOverlay();
+    }
+
+    el.addEventListener('mousemove',  trackCursor);
+
+    // mouseover fires with coordinates when the splash element gets
+    // display:none and el becomes the topmost target under a stationary
+    // pointer — this produces the first reading without requiring mouse
+    // movement.
+    el.addEventListener('mouseover',  trackCursor);
 
     el.addEventListener('mouseleave', function () {
-        overlay.innerHTML =
-            'Elevation: <b>— m</b> · Ground dist: <b>— m</b> · ' +
-            'Rendered depth: <b>—</b>';
+        cursorX = null;
+        cursorY = null;
+        resetOverlay();
     });
+
+    viewer.on('loading-screen-hidden', function () {
+        mapReady = true;
+        updateOverlay();
+    });
+
+    viewer.on('map-position-changed', updateOverlay);
+    viewer.on('map-update', updateOverlay);
 
 }());

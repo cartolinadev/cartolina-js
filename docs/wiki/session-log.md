@@ -1,5 +1,24 @@
 # Session log
 
+## 2026-05-20 — depth-test demo: live overlay refresh
+
+**`demos/depth-test/demo.js`**: the overlay now refreshes continuously
+instead of only on mouse input.
+
+- `cursorX`/`cursorY` track the last known pointer position; `mapReady`
+  gates all updates until the splash screen has hidden.
+- `mousemove` and `mouseover` on the map element update the cursor
+  coordinates. `mouseover` covers the case where the pointer is
+  stationary under the splash screen: when the splash element gets
+  `display:none`, the browser fires `mouseover` on the newly exposed
+  element with the current pointer coordinates, producing the first
+  reading without requiring mouse movement.
+- `map-update` is subscribed so the overlay refreshes on every render
+  pass in which the scene is dirty — covering geometry changes as
+  higher-resolution tiles stream in.
+- `map-position-changed` refreshes the overlay when the camera moves
+  independently of user input.
+
 ## 2026-05-20 — Hitmap depth decode cleanup; depth-hitmap-compare script
 
 **`renderer.ts`**: `isHitmapSurfacePixel` is removed. `decodeHitmapDepth`
