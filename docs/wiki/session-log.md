@@ -7,7 +7,7 @@ collapsing bump-map layers into the normal map inside `TileRenderRig`.
 Key decisions: collapse happens in `optimizeStack()` before UBO
 encoding; the result is rig-local (shared `MapTexture` untouched);
 two rigs alive simultaneously (current + last) each collapse
-independently. Rounds 1–2 addressed; round 3 open.
+independently. Rounds 1–3 addressed; round 4 open.
 
 ## 2026-05-20 — Depth hitmap: RGBA8UI with float bit-pattern encoding
 

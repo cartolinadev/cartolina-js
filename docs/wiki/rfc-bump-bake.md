@@ -116,7 +116,8 @@ Two consequences follow.
 fewer layers, different layers, or none. If the old rig had written its
 collapsed result back into the shared `MapTexture` GPU texture, the new
 rig would start from a normal map with bumps already collapsed in,
-which does not match its own layer stack. The rig-local approach (§2.2) avoids this: the shared
+which does not match its own layer stack. The rig-local approach
+(§2.2) avoids this: the shared
 `MapTexture` is never modified, so the new rig always starts from the
 original clean texture regardless of what the old rig did.
 
@@ -184,23 +185,30 @@ remain in the layer stack with their `flagMask` set to `FlagBumpMaps`;
 the shader reads that flag from the UBO on each draw call and skips the
 layer when bump rendering is off.
 
-When `mapBakeBumps` is `true`, the collapse pass checks the current
-render flags before collapsing a layer (implementation step 2b). The
-check uses `this.renderer.getRenderingOptions().useBumpMaps`, which
-reflects both the debug override and the config value (the same
-expression `Renderer.updateBuffer` uses when encoding frame flags). A
-bump layer is only collapsed when `useBumpMaps` is true at that moment.
-Collapsing is deferred for any layer while the flag is off and resumes
-when the flag is re-enabled. The toggle therefore remains fully
-functional for layers not yet collapsed.
+When `mapBakeBumps` is `true`, the collapse pass checks
+`this.renderer.getRenderingOptions()` before collapsing (implementation
+step 2b). Both `useBumpMaps` and `useNormalMaps` must be true. Collapse
+is deferred while either flag is off and resumes when both are on.
 
-Layers that were collapsed while the flag was on cannot be un-collapsed
-by toggling the flag off later. When the user presses Shift+F B and any
-bump layer has already been collapsed, emit a console warning from the
-keyboard handler in `src/core/inspector/input.js`. URL-configured flags
-are applied before any tile loads, before any collapse can occur, so no
-warning is needed in that path. Programmatic post-load changes to
-`mapFlagBumpMaps` are not warned in the first implementation.
+The `useNormalMaps` guard is required because collapsed bump data is
+stored in `bakedNormalGpu` and bound through the normal-map push layer,
+whose `flagMask` is `FlagNormalMaps`. After collapse, toggling normal
+maps off also hides the collapsed bump data — even if `FlagBumpMaps`
+remains on. Before collapse, `FlagNormalMaps = off, FlagBumpMaps = on`
+produced bump shading on `flatNormal`; after collapse the same flags
+hide all bump data. This is an accepted diagnostic-mode behavior
+change: the combination is unusual and does not occur in production.
+Requiring both flags on at collapse time prevents a tile from entering
+the collapsed state in a configuration where the behavior change would
+be immediately visible.
+
+Layers that were collapsed cannot be un-collapsed by toggling flags
+later. When the user presses Shift+F B and any bump layer has already
+been collapsed, emit a console warning from the keyboard handler in
+`src/core/inspector/input.js`. URL-configured flags are applied before
+any tile loads, so no warning is needed in that path. Programmatic
+post-load changes to `mapFlagBumpMaps` are not warned in the first
+implementation.
 
 ### 2.7 Reusing `nmblender`
 
@@ -230,31 +238,35 @@ The backlog already notes this; it is not in scope here.
       source `'texture'`, operation `'blend'`, not `optimizedOut`) in
       layer-stack order. If none, skip the collapse pass entirely.
 
-   b. Check `this.renderer.getRenderingOptions().useBumpMaps`. If
-      false, skip the collapse pass this frame.
+   b. Check `this.renderer.getRenderingOptions()`. If `useBumpMaps` is
+      false or `useNormalMaps` is false, skip the collapse pass this
+      frame. (Collapse requires both flags on — see §2.6.)
 
-   c. Check that the first un-collapsed bump layer is GPU-ready. If
+   c. Check that `this.normalMap` is non-null and its GPU texture is
+      ready. If not, skip. Bump layers cannot be collapsed without a
+      ready base normal map to blend into.
+
+   d. Check that the first un-collapsed bump layer is GPU-ready. If
       not, skip. (Collapsing must stay in layer-stack order.)
 
-   d. Call `nmblender.init()` to clear the FBO. (`nmblender` is
+   e. Call `nmblender.init()` to clear the FBO. (`nmblender` is
       borrowed synchronously; no guard is needed — see §2.7.)
 
-   e. Blend the source into the FBO at alpha 1.0: if `bakedNormalGpu`
+   f. Blend the source into the FBO at alpha 1.0: if `bakedNormalGpu`
       is non-null, blend `bakedNormalGpu`; otherwise blend the base
       normal map texture.
 
-   f. For each bump layer starting from the first un-collapsed, while
-      the layer is GPU-ready and its `flagMask` bits are set: blend the
-      bump texture at its configured alpha and mark the layer
-      `optimizedOut`. Stop at the first non-ready or flag-disabled
-      layer.
+   g. For each bump layer starting from the first un-collapsed, while
+      the layer is GPU-ready: blend the bump texture at its configured
+      alpha and mark the layer `optimizedOut`. Stop at the first
+      non-ready layer.
 
-   g. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
+   h. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
       using `gl.createTexture` and `gl.texImage2D`. Set
       `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
       both wrap modes to `CLAMP_TO_EDGE`. Assign to `bakedNormalGpu`.
 
-   h. Call `nmblender.copyResult(bakedNormalGpu)` to copy the FBO into
+   i. Call `nmblender.copyResult(bakedNormalGpu)` to copy the FBO into
       the rig's texture.
 
 3. In `encodeLayer()`, when binding the texture for the base normal-map
@@ -452,6 +464,10 @@ reminder to verify it before proceeding with the legacy deletion.
    to skip collapse unless a base normal-map layer exists and its GPU
    texture is ready.
 
+   *Implemented. Step 2c added: skip collapse if `this.normalMap` is
+   null or its GPU texture is not ready. The old step 2c is now 2d,
+   and subsequent sub-steps are relabeled.*
+
 2. Blocker: the design changes `FlagNormalMaps` behavior after a bump
    layer is collapsed. Before collapse, the shader pre-pushes
    `flatNormal`; if `FlagNormalMaps` is off and `FlagBumpMaps` is on,
@@ -465,5 +481,29 @@ reminder to verify it before proceeding with the legacy deletion.
    flag masks preserve the old `FlagNormalMaps` / `FlagBumpMaps`
    separation after collapse.
 
+   *Implemented. §2.6 updated. The render-flag guard (step 2b) now
+   requires both `useBumpMaps` and `useNormalMaps` to be true. This
+   prevents collapsing in any configuration where the post-collapse
+   `FlagNormalMaps` behavior change would be immediately visible.
+   The behavior change is accepted for the case where normal maps are
+   turned off after collapse: this is a diagnostic-mode combination not
+   expected in production. §2.6 documents the accepted change
+   explicitly.*
+
 3. Non-blocking: line 119 is over the wiki line-length limit. Rewrap
    the style-change paragraph when responding to this review round.
+
+   *Implemented. Line rewrapped.*
+
+## Review round 4
+
+1. Blocker: §2.6 says the Shift+F B warning is emitted only when any
+   bump layer has already been collapsed, but the RFC does not define
+   how `src/core/inspector/input.js` can know that. Collapsed state is
+   currently rig-local (`bakedNormalGpu` and per-layer `optimizedOut`
+   state inside `TileRenderRig`), while the keyboard handler only has
+   the map, renderer, and inspector objects. Add a minimal observable
+   path, or change the warning rule to one that can be implemented from
+   existing state. For example, a conservative keyboard-only warning
+   whenever `mapBakeBumps` is true would be implementable without
+   exposing rig internals.
