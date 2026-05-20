@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** In review
+**Status:** Accepted
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -203,10 +203,13 @@ the collapsed state in a configuration where the behavior change would
 be immediately visible.
 
 Layers that were collapsed cannot be un-collapsed by toggling flags
-later. When the user presses Shift+F B and any bump layer has already
-been collapsed, emit a console warning from the keyboard handler in
-`src/core/inspector/input.js`. URL-configured flags are applied before
-any tile loads, so no warning is needed in that path. Programmatic
+later. When the user presses Shift+F B while `mapBakeBumps` is true,
+emit a console warning from the keyboard handler in
+`src/core/inspector/input.js`. The warning does not require checking
+whether any tile has actually collapsed: if `mapBakeBumps` is true, the
+toggle is unreliable for any tile that has been resident long enough to
+complete its collapse pass. URL-configured flags are applied before any
+tile loads, so no warning is needed in that path. Programmatic
 post-load changes to `mapFlagBumpMaps` are not warned in the first
 implementation.
 
@@ -507,3 +510,18 @@ reminder to verify it before proceeding with the legacy deletion.
    existing state. For example, a conservative keyboard-only warning
    whenever `mapBakeBumps` is true would be implementable without
    exposing rig internals.
+
+   *Implemented. §2.6 updated to use the conservative rule: warn
+   whenever `mapBakeBumps` is true, without checking actual collapse
+   state. If `mapBakeBumps` is true, any tile resident long enough to
+   have completed its collapse pass is already affected, so the warning
+   is accurate for the meaningful case. No new observable path or rig
+   introspection is needed.*
+
+## Review round 5 — sign-off
+
+The design is accepted. The remaining behavior changes are documented:
+the first implementation does not reclaim bump texture memory, collapsed
+bump data follows the normal-map push layer after baking, and the
+Shift+F B warning uses a conservative keyboard-only rule when
+`mapBakeBumps` is true.
