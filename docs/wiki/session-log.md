@@ -1,23 +1,23 @@
 # Session log
 
-## 2026-05-20 — depth-test demo: live overlay refresh
+## 2026-05-20 — depth-test demo: live overlay and crosshair
 
-**`demos/depth-test/demo.js`**: the overlay now refreshes continuously
-instead of only on mouse input.
+**`demos/depth-test/`**: overlay now refreshes continuously and the
+browser cursor is replaced by a custom crosshair.
 
-- `cursorX`/`cursorY` track the last known pointer position; `mapReady`
-  gates all updates until the splash screen has hidden.
-- `mousemove` and `mouseover` on the map element update the cursor
-  coordinates. `mouseover` covers the case where the pointer is
-  stationary under the splash screen: when the splash element gets
-  `display:none`, the browser fires `mouseover` on the newly exposed
-  element with the current pointer coordinates, producing the first
-  reading without requiring mouse movement.
-- `map-update` is subscribed so the overlay refreshes on every render
-  pass in which the scene is dirty — covering geometry changes as
-  higher-resolution tiles stream in.
-- `map-position-changed` refreshes the overlay when the camera moves
-  independently of user input.
+Overlay refresh: `cursorX`/`cursorY` track the pointer; `mapReady`
+gates all updates until `loading-screen-hidden` fires. `mouseover` on
+the map element captures the pointer position when the splash fades
+out, giving a first reading without mouse movement. `map-update`
+refreshes on every dirty render pass (tile streaming); `map-position-
+changed` refreshes when the camera moves independently.
+
+Crosshair: two full-span 1 px white lines meet at the sampling point,
+framed by `box-shadow:0 0 0 1px #000` (zero-blur 1 px spread — a hard
+black border on all sides, readable against any background). A
+coordinate label sits to the top-right. `cursor:none` is applied in JS
+only after `mapReady`, so the system pointer is visible during the
+splash.
 
 ## 2026-05-20 — Hitmap depth decode cleanup; depth-hitmap-compare script
 

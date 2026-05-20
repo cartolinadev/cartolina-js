@@ -35,10 +35,13 @@
         ],
     });
 
-    var el      = document.getElementById('map');
-    var overlay = document.getElementById('overlay');
-    var veBtn   = document.getElementById('ve-btn');
-    var veSpec  = null;
+    var el        = document.getElementById('map');
+    var overlay   = document.getElementById('overlay');
+    var veBtn     = document.getElementById('ve-btn');
+    var crossH    = document.getElementById('crosshair-h');
+    var crossV    = document.getElementById('crosshair-v');
+    var crossLbl  = document.getElementById('crosshair-label');
+    var veSpec    = null;
 
     var cursorX  = null;
     var cursorY  = null;
@@ -60,7 +63,27 @@
         }
     });
 
+    function showCrosshair(x, y) {
+        crossH.style.top     = y + 'px';
+        crossV.style.left    = x + 'px';
+        crossLbl.style.left  = (x + 4) + 'px';
+        crossLbl.style.top   = (y - 15) + 'px';
+        crossLbl.textContent = x + ', ' + y;
+        crossH.style.display   = 'block';
+        crossV.style.display   = 'block';
+        crossLbl.style.display = 'block';
+        el.style.cursor = 'none';
+    }
+
+    function hideCrosshair() {
+        crossH.style.display   = 'none';
+        crossV.style.display   = 'none';
+        crossLbl.style.display = 'none';
+        el.style.cursor = '';
+    }
+
     function resetOverlay() {
+        hideCrosshair();
         overlay.innerHTML =
             'Elevation: <b>— m</b> · Ground dist: <b>— m</b> · ' +
             'Rendered depth: <b>—</b>';
@@ -101,6 +124,7 @@
     function trackCursor(e) {
         cursorX = e.clientX;
         cursorY = e.clientY;
+        if (mapReady) showCrosshair(cursorX, cursorY);
         updateOverlay();
     }
 
@@ -120,6 +144,7 @@
 
     viewer.on('loading-screen-hidden', function () {
         mapReady = true;
+        if (cursorX !== null) showCrosshair(cursorX, cursorY);
         updateOverlay();
     });
 

@@ -8,7 +8,7 @@
   <script src="../../build/cartolina.js"></script>
   <style>
     html, body { height:100%; margin:0; }
-    #map { position:fixed; inset:0; cursor:crosshair; }
+    #map { position:fixed; inset:0; }
     #overlay {
       position:fixed; top:10px; left:10px; z-index:9999;
       background:rgba(0,0,0,.55); color:#fff; font:14px/1.25 system-ui,sans-serif;
@@ -22,10 +22,24 @@
       cursor:pointer;
     }
     #ve-btn.off { opacity:.5; }
+    #crosshair-h, #crosshair-v {
+      position:fixed; pointer-events:none; display:none;
+      background:#fff; box-shadow:0 0 0 1px #000; z-index:9998;
+    }
+    #crosshair-h { left:0; right:0; height:1px; }
+    #crosshair-v { top:0; bottom:0; width:1px; }
+    #crosshair-label {
+      position:fixed; pointer-events:none; display:none;
+      color:#fff; font:11px/1 monospace; z-index:9998; white-space:nowrap;
+      text-shadow:0 0 2px #000, 0 0 2px #000;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="crosshair-h"></div>
+  <div id="crosshair-v"></div>
+  <div id="crosshair-label"></div>
   <div id="overlay">
     Elevation: <b>— m</b> · Ground dist: <b>— m</b> · Rendered depth: <b>—</b>
   </div>
