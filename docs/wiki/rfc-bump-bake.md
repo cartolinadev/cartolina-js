@@ -91,10 +91,20 @@ map, would receive a texture already altered by a specific bump
 sequence, with no reliable record of what sequence produced it.
 
 The collapsed result shall not be written back into the shared
-`MapTexture`. Instead, the rig holds the blend output as a rig-local
-`WebGLTexture`. The shared `MapTexture` is left unmodified. At draw
-time, `encodeLayer` substitutes the rig-local texture for the base
-normal map.
+`MapTexture`. Instead, the rig holds the blend output as a
+`WebGLTexture` registered with `map.gpuCache`, following the same
+pattern as `MapSubtexture`. The shared `MapTexture` is left unmodified.
+At draw time, `encodeLayer` substitutes the rig-local texture for the
+base normal map and calls `map.gpuCache.updateItem()` to mark it as
+recently used.
+
+When the cache evicts the baked texture, the destructor clears
+`bakedNormalGpu`, resets `optimizedOut` to false on every layer that
+was collapsed into it, and invalidates the UBO by setting `uboLayers`
+to null. On the next frame, `isReady()` calls `optimizeStack()`, which
+finds the un-collapsed layers and re-runs the collapse. Because the
+bump `MapTexture` objects are not freed post-collapse, re-collapse
+proceeds as soon as their GPU textures are resident again.
 
 ### 2.3 Two rigs alive simultaneously
 
@@ -227,8 +237,10 @@ The backlog already notes this; it is not in scope here.
 
 ## 3. Implementation steps
 
-1. Add `private bakedNormalGpu: WebGLTexture | null = null` to
-   `TileRenderRig`.
+1. Add two private fields to `TileRenderRig`:
+   - `bakedNormalGpu: WebGLTexture | null = null`
+   - `bakedNormalGpuCacheItem: object | null = null` (the opaque item
+     returned by `map.gpuCache.insert()`)
 
 2. In `optimizeStack()`, after the mask and watertight checks, add a
    collapse pass:
@@ -272,20 +284,36 @@ The backlog already notes this; it is not in scope here.
       using `gl.createTexture` and `gl.texImage2D`. Set
       `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
       both wrap modes to `CLAMP_TO_EDGE`. Assign to `bakedNormalGpu`.
+      Register it with `map.gpuCache`:
+      ```
+      bakedNormalGpuCacheItem = map.gpuCache.insert(
+          evictBakedNormal.bind(this), 256 * 256 * 4);
+      ```
+      where `evictBakedNormal()` is a private method that:
+      - calls `gl.deleteTexture(bakedNormalGpu)`
+      - sets `bakedNormalGpu = null` and `bakedNormalGpuCacheItem = null`
+      - sets `optimizedOut = false` on every layer in `rt.layerStack`
+        with target `'normal'`, source `'texture'`, operation `'blend'`
+        that is currently `optimizedOut`
+      - sets `uboLayers = null` to force UBO rebuild next frame
 
    i. Call `nmblender.copyResult(bakedNormalGpu)` to copy the FBO into
       the rig's texture.
 
 3. In `encodeLayer()`, when binding the texture for the base normal-map
    push layer: if `bakedNormalGpu` is non-null, bind `bakedNormalGpu`
-   instead of `normalMap.mainTexture.getGpuTexture()`.
+   instead of `normalMap.mainTexture.getGpuTexture()`, and call
+   `map.gpuCache.updateItem(bakedNormalGpuCacheItem)`.
 
 4. Add `mapBakeBumps: boolean = true` to the config schema and default
    values. Gate step 2 on this flag. Wire the Shift+F B warning when
    the flag is on (see §2.6 for call site).
 
-5. In `TileRenderRig.dispose()`: if `bakedNormalGpu` is non-null, call
-   `gl.deleteTexture(bakedNormalGpu)`.
+5. In `TileRenderRig.dispose()`: if `bakedNormalGpuCacheItem` is
+   non-null, call `map.gpuCache.remove(bakedNormalGpuCacheItem)` (which
+   triggers `evictBakedNormal` and frees the GPU texture). If
+   `bakedNormalGpuCacheItem` is null but `bakedNormalGpu` is non-null,
+   call `gl.deleteTexture(bakedNormalGpu)` directly.
 
 6. Verify with screenshot regression tests (`simple-terrain`,
    `complex-terrain`, `full-terrain`).
@@ -625,3 +653,41 @@ through tile resource eviction.
    clears `bakedNormalGpu` and makes the baked bump layers renderable
    again, or it must avoid marking those source bump layers permanently
    `optimizedOut`.
+
+   *Implemented. §2.2 updated: the baked texture is registered with
+   `map.gpuCache` following the `MapSubtexture` pattern. The eviction
+   destructor clears `bakedNormalGpu`, resets `optimizedOut` on all
+   collapsed layers, and invalidates the UBO so `optimizeStack()` re-
+   runs the collapse on the next frame. `encodeLayer()` calls
+   `updateItem()` when binding. Implementation steps 1, 3, and 5
+   updated accordingly. Access to `map.gpuCache` follows the existing
+   pattern at tile-render-rig.ts line 276.*
+
+## Review round 9
+
+1. Blocker: step 2h says `evictBakedNormal()` invalidates the UBO by
+   setting `uboLayers = null`, but the existing `uboLayers` value is a
+   live `WebGLBuffer`. `TileRenderRig.dispose()` currently deletes that
+   buffer. If cache eviction sets the field to null without first
+   calling `gl.deleteBuffer(uboLayers)`, the eviction path leaks one UBO
+   per evicted baked normal. The eviction method must delete the old UBO
+   before clearing the field, or call a shared helper that does so.
+
+2. Blocker: step 2h registers the newly allocated baked texture with
+   `map.gpuCache` before step 2i copies the blend result into it.
+   `MapCache.insert()` calls `checkCost()` synchronously. The inserted
+   baked texture is first in the LRU list, so it will usually survive
+   while older items are evicted, but it can still be evicted before
+   `insert()` returns if the cache budget is smaller than the baked
+   texture cost or if removing older items cannot bring the cache under
+   budget. In that case `evictBakedNormal()` clears `bakedNormalGpu`,
+   and the following `copyResult(bakedNormalGpu)` has no destination.
+   Register the baked texture after `copyResult()`, or state the
+   post-insert check that aborts the collapse if the cache immediately
+   evicted the new texture.
+
+3. Non-blocking: step 2h resets `optimizedOut` on every normal-target
+   texture blend layer that is currently optimized out. Today those are
+   the collapsed bump layers, but the RFC already discusses stack-level
+   optimizations. Track the exact collapsed layer indices if this path
+   may coexist with any other future normal-target optimization.
