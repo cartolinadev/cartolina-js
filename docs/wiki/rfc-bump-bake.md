@@ -39,8 +39,10 @@ into the normal map. The saving per collapsed bump layer is larger than
 in the old pipeline because the UBO and shader loop are new overheads
 that the old pipeline never incurred at all.
 
-No explicit post-collapse free is performed; memory is reclaimed later
-through normal tile resource eviction.
+Source bump textures are not freed after collapse; their GPU memory is
+reclaimed when the tile is evicted from the resource tree. The
+collapsed normal GPU texture is accounted and evicted through
+`map.gpuCache`; it is not tied to tile lifetime.
 
 Collapsing is therefore an optimization, not a requirement. The tile
 renders correctly either way. Whether to collapse is a runtime config
@@ -171,18 +173,20 @@ Because `collapsedNormalGpu` is a rig-owned `WebGLTexture` separate from the
 blender's internal FBO texture, calling `init()` for any future collapse
 does not corrupt the previously stored result.
 
-### 2.5 The collapsed result is not added to the resource cache
+### 2.5 Ownership of the collapsed texture
 
-A collapsed normal map is the blend of a specific normal map texture and
-a specific ordered bump sequence. In principle, a second rig with the
-same sequence could reuse the result. The first implementation does not
-add the collapsed result to the resource tree or any other shared cache.
+The collapsed normal GPU texture is registered with `map.gpuCache` for
+memory accounting and LRU eviction. It is not added to the resource
+tree and is not shareable by key between rigs in this implementation —
+`map.gpuCache` is a keyless LRU pool with no lookup mechanism (see open
+questions).
 
-Rebuilding the collapsed texture from the clean source costs one
-full-screen quad draw per bump layer at the moment each texture arrives;
-it does not recur per frame. Per the codebase principle of simple
-function first: add caching only if profiling identifies this as a
-measured cost.
+A second rig with the same normal map and bump sequence cannot reuse the
+result. Rebuilding the collapsed texture costs one full-screen quad draw
+per bump layer at the moment each texture arrives; it does not recur per
+frame. Per the codebase principle of simple function first: key-based
+sharing is added only if profiling identifies rebuilding as a measured
+cost.
 
 ### 2.6 `Shift+F B` diagnostic guard
 
@@ -868,3 +872,37 @@ through tile resource eviction.
      `map.gpuCache`;
    - the collapsed normal is not added to the resource tree and is not
      key-shareable across rigs in this implementation.
+
+   *Implemented. §1.3 updated: source bump textures are reclaimed via
+   tile eviction; the collapsed normal GPU texture is managed by
+   `map.gpuCache` and is not tied to tile lifetime. §2.5 rewritten
+   with a new heading "Ownership of the collapsed texture": registered
+   with `map.gpuCache`, not in the resource tree, not key-shareable.*
+
+## Review round 14
+
+1. Blocker: §1.3 now says source bump texture GPU memory is reclaimed
+   when "the tile is evicted from the resource tree." That is not how
+   this codebase manages tile or texture lifetime. `MapSurfaceTile`
+   objects are kept for reuse during normal browsing and are not evicted
+   under cache pressure. `tile.resources` points to a `MapResourceNode`,
+   but `MapResourceNode.kill()` does not free the resources stored in
+   its `textures`, `subtextures`, `meshes`, or other dictionaries; it
+   only recurses children and detaches the node, with a `//kill
+   resources?` comment left in the method. Existing texture GPU memory
+   is reclaimed by `MapSubtexture.killGpuTexture()` through
+   `map.gpuCache`; CPU image memory is reclaimed through
+   `map.resourcesCache`. The persistent `MapTexture` / `MapSubtexture`
+   objects can remain reachable from the resource tree after their GPU
+   payload has been evicted.
+
+   Rewrite §1.3 so it does not mention tile or resource-tree eviction.
+   The ownership model should say:
+
+   - source bump textures are not explicitly freed after collapse;
+   - source bump texture GPU payloads remain managed by their existing
+     `MapSubtexture` `map.gpuCache` entries;
+   - the collapsed normal has its own `map.gpuCache` entry and is
+     evicted independently from source textures;
+   - the resource tree is a lookup/ownership graph for resource objects,
+     not the GPU memory eviction mechanism.
