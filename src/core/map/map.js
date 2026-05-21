@@ -939,6 +939,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapFlagAtmosphere':            this.config.mapFlagAtmosphere = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagShadows':               this.config.mapFlagShadows = utils.validateBool(value, true); this.markDirty(); break;
     case 'mapFlagLabels':                this.config.mapFlagLabels = utils.validateBool(value, true); this.markDirty(); break;
+    case 'mapCollapseBumps':             this.config.mapCollapseBumps = utils.validateBool(value, true); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
     case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
