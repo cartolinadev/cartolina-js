@@ -2,9 +2,10 @@
 
 ## 2026-05-21 — Confirm bump collapse and remove debug log
 
-Loaded complex-terrain in Playwright. Console showed `encoded 11 / 14
-layers` on every visible tile — 3 layers collapsed per tile (the three
-bump-map blend layers). Collapse confirmed working. Debug log removed.
+Added a targeted log inside `collapseNormalStack` and loaded
+complex-terrain in Playwright. Console showed `bump collapse —
+eoxit-s2c-normalmap` per tile, confirming the one bump-map layer is
+being baked. Debug log removed. All six regression screenshot tests pass.
 
 ## 2026-05-21 — Replace local Config stub with CoreConfig
 

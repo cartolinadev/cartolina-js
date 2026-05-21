@@ -1124,6 +1124,7 @@ export class TileRenderRig {
         // mark collapsed layers optimized out only after cache registration
         for (const idx of collectedIndices)
             stack[idx].rt.optimizedOut = true;
+
     }
 
     /** Cache eviction destructor for the collapsed normal texture. */
