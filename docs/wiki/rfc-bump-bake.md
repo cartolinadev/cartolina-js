@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** Accepted
+**Status:** In review
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -39,11 +39,10 @@ into the normal map. The saving per collapsed bump layer is larger than
 in the old pipeline because the UBO and shader loop are new overheads
 that the old pipeline never incurred at all.
 
-Memory reclamation — freeing the bump texture from CPU and GPU cache
-after collapse — is deferred to a follow-up. Because the collapsed
-result is rig-local (§2.2), multiple rigs may reference the same bump
-`MapTexture`; freeing it requires shared ownership rules that are not
-defined in this version.
+Memory reclamation of the bump texture happens via the normal tile
+eviction path: when `tile.resources` is freed, all `MapTexture` objects
+in it are killed together. No explicit post-collapse free is needed or
+performed.
 
 Collapsing is therefore an optimization, not a requirement. The tile
 renders correctly either way. Whether to collapse is a runtime config
@@ -56,10 +55,15 @@ decision (§2.6).
 ### 2.1 When to collapse
 
 The collapse belongs in `optimizeStack()`, which is called from
-`isReady()` before the UBO is encoded (tile-render-rig.ts line 209).
-This is the latest possible point — optimizations that run here are
-guaranteed to complete before the UBO encoding step reads the layer
-stack.
+`isReady()` before the UBO is encoded. The method already contains a
+`TODO: merge of subsequent static blends (bump maps)` at line 987 —
+that comment is the intended hook for this implementation.
+
+The collapse runs as a separate pass after the existing watertight
+loop, operating only on the innermost normal stack level. It does not
+cross `push` or `pop` boundaries on the `'normal'` target; bump layers
+on other stack levels are left in the stack. Current style layers
+produce no nested push/pop on the `'normal'` target.
 
 An earlier collapse (outside `isReady()`, as a dedicated pre-pass) is
 not needed. There is no per-frame cost to deferring to `optimizeStack()`:
@@ -68,21 +72,15 @@ UBO is created; once the UBO exists, the readiness check is bypassed and
 the collapse never runs again. The collapse therefore runs at most once
 per bump layer per rig lifetime.
 
-The collapse for a given bump layer fires when:
+A bump layer is eligible for collapse when its `MapTexture` is
+GPU-ready and the normal it would blend into is ready to receive it.
+For the first bump layer that is the base normal map GPU texture; for
+each subsequent one it is `bakedNormalGpu`, which already holds all
+prior collapsed layers.
 
-1. The normal-map base layer has a ready GPU texture, and
-2. The bump layer's `MapTexture` is GPU-ready.
-
-Bump layers are `necessity: 'optional'`; the normal map is
-`necessity: 'essential'`. Collapsing cannot proceed until the essential
-resource is available, and it does not block rendering while the
-optional resource is still loading.
-
-Bump layers may become ready at different times. Collapsing is
-incremental: each bump layer is collapsed as it arrives, in layer-stack
-order. If bump layer N is ready but layer N−1 is not, N waits. The
-underlying normal for layer N is the result of all blends through
-layer N−1.
+Collapsing is incremental and in layer-stack order. If bump layer N is
+ready but layer N−1 is not yet collapsed, N waits: the underlying
+normal for layer N is the result of all blends through layer N−1.
 
 ### 2.2 The collapsed result is rig-local
 
@@ -237,9 +235,15 @@ The backlog already notes this; it is not in scope here.
 2. In `optimizeStack()`, after the mask and watertight checks, add a
    collapse pass:
 
-   a. Scan for the next un-collapsed bump layer (target `'normal'`,
-      source `'texture'`, operation `'blend'`, not `optimizedOut`) in
-      layer-stack order. If none, skip the collapse pass entirely.
+   a. After the existing watertight loop, re-scan the layer stack to
+      compute a `normalCleanSlate`: iterate from 0, resetting
+      `normalCleanSlate = i + 1` on every layer with target `'normal'`
+      and operation `'push'` or `'pop'`. Then scan from
+      `normalCleanSlate` for the next un-collapsed bump layer (target
+      `'normal'`, source `'texture'`, operation `'blend'`, not
+      `optimizedOut`). Stop at any further `'normal'`-target `push` or
+      `pop`. If no eligible bump layer is found, skip the collapse
+      pass.
 
    b. Check `this.renderer.getRenderingOptions()`. If `useBumpMaps` is
       false or `useNormalMaps` is false, skip the collapse pass this
@@ -262,7 +266,8 @@ The backlog already notes this; it is not in scope here.
    g. For each bump layer starting from the first un-collapsed, while
       the layer is GPU-ready: blend the bump texture at its configured
       alpha and mark the layer `optimizedOut`. Stop at the first
-      non-ready layer.
+      non-ready layer or at any intervening `push`/`pop` on the
+      `'normal'` target (same rule as step 2a).
 
    h. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
       using `gl.createTexture` and `gl.texImage2D`. Set
@@ -525,3 +530,43 @@ the first implementation does not reclaim bump texture memory, collapsed
 bump data follows the normal-map push layer after baking, and the
 Shift+F B warning uses a conservative keyboard-only rule when
 `mapBakeBumps` is true.
+
+## Review round 6 requested, document back in review
+
+Requesting additional review. The following changes were made to the
+accepted design.
+
+§2.1 revised:
+
+- The `necessity` paragraph removed; those fields control rig-level
+  draw readiness, not the collapse decision.
+- Collapse precondition rewritten in terms of GPU texture readiness.
+- Reference added to the `TODO` at tile-render-rig.ts line 987 as the
+  implementation hook.
+- Push/pop scoping added: the collapse operates only on the innermost
+  normal stack level and does not cross `push` or `pop` boundaries.
+
+Implementation steps 2a and 2g updated to reflect the push/pop
+boundary rule.
+
+## Review round 6
+
+1. Blocker: implementation step 2a says to reset `normalCleanSlate` on
+   every normal-target layer whose operation is `'push'` or `'pop'`.
+   The current `Layer` type has `operation: 'push'` for pushes, but pop
+   layers are represented as `source: 'pop'` with `operation: 'blend'`
+   (`PopLayer` in `tile-render-rig.ts`). Step 2g has the same shorthand
+   when it says to stop at intervening `push`/`pop` on the `'normal'`
+   target. Rewrite the rule in terms of the actual layer fields:
+   normal-target `operation === 'push'` or normal-target
+   `source === 'pop'`.
+
+2. Non-blocking: the old sign-off section still says the first
+   implementation does not reclaim bump texture memory. The revised
+   §1.3 now says memory is reclaimed through normal tile eviction. That
+   is compatible with the original point if read as "no explicit
+   post-collapse free", but the wording is easy to misread. Consider
+   changing the new §1.3 sentence to say "No explicit post-collapse
+   free is performed; memory is reclaimed later through tile resource
+   eviction." That keeps the accepted review history and current design
+   language aligned.
