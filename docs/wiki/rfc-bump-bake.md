@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** Accepted
+**Status:** In review
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -96,7 +96,7 @@ sequence, with no reliable record of what sequence produced it.
 
 The collapsed result shall not be written back into the shared
 `MapTexture`. Instead, the rig holds the blend output as a
-`WebGLTexture` registered with `map.gpuCache`, following the same
+`GpuTexture` registered with `map.gpuCache`, following the same
 pattern as `MapSubtexture`. The shared `MapTexture` is left unmodified.
 At draw time, `encodeLayer` substitutes the rig-local texture for the
 base normal map and calls `map.gpuCache.updateItem()` to mark it as
@@ -151,7 +151,7 @@ the bump layers are ready, `optimizeStack()` collapses the ready ones
 and leaves the rest for later frames.
 
 `collapsedNormalGpu` is the accumulator. On first collapse, the rig
-allocates a 256×256 `WebGLTexture` for `collapsedNormalGpu`. The collapse
+allocates a 256×256 `GpuTexture` for `collapsedNormalGpu`. The collapse
 sequence each frame:
 
 1. `nmblender.init()` — clear the FBO.
@@ -171,7 +171,7 @@ prior collapsed bumps), blend the new bump layer, copy back into
 step uses `collapsedNormalGpu` as the normal map and no further collapse
 runs.
 
-Because `collapsedNormalGpu` is a rig-owned `WebGLTexture` separate from the
+Because `collapsedNormalGpu` is a rig-owned `GpuTexture` separate from the
 blender's internal FBO texture, calling `init()` for any future collapse
 does not corrupt the previously stored result.
 
@@ -245,7 +245,7 @@ The backlog already notes this; it is not in scope here.
 ## 3. Implementation steps
 
 1. Add three private fields to `TileRenderRig`:
-   - `collapsedNormalGpu: WebGLTexture | null = null`
+   - `collapsedNormalGpu: GpuTexture | null = null`
    - `collapsedNormalGpuCacheItem: object | null = null` (the opaque
      item returned by `map.gpuCache.insert()`)
    - `collapsedLayerIndices: number[] = []` (layer-stack indices of
@@ -289,8 +289,8 @@ The backlog already notes this; it is not in scope here.
       borrowed synchronously; no guard is needed — see §2.7.)
 
    f. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
-      is non-null, blend `collapsedNormalGpu`; otherwise blend the base
-      normal map texture.
+      is non-null, blend `collapsedNormalGpu.texture`; otherwise blend
+      the base normal map's `getGpuTexture().texture`.
 
    g. For each bump layer starting from the first un-collapsed, while
       the layer's GPU texture is non-null: blend the bump texture at its
@@ -300,18 +300,19 @@ The backlog already notes this; it is not in scope here.
       `source === 'pop'` layer on the `'normal'` target (same rule as
       step 2a).
 
-   h. If `collapsedNormalGpu` is null: allocate a `WebGLTexture` at
-      256×256 using `gl.createTexture` and `gl.texImage2D`. Set
-      `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
-      both wrap modes to `CLAMP_TO_EDGE`. Assign to `collapsedNormalGpu`.
+   h. If `collapsedNormalGpu` is null: allocate a `GpuTexture` via
+      `new GpuTexture(this.renderer.gpu)` and call `createFromData(256,
+      256, emptyData, GpuTexture.Type.Color, 'linear')` where `emptyData`
+      is a zeroed 256×256×4 `Uint8Array`. Assign to `collapsedNormalGpu`.
 
-   i. Call `nmblender.copyResult(collapsedNormalGpu)` to copy the FBO
-      into the rig's texture.
+   i. Call `nmblender.copyResult(collapsedNormalGpu.texture)` to copy
+      the FBO into the rig's texture.
 
    j. Update cache registration:
       - If `collapsedNormalGpuCacheItem` is null (first allocation):
         store `map.gpuCache.insert(evictCollapsedNormal.bind(this),
-        256 * 256 * 4)` in a local `const cacheItem`. Check whether
+        collapsedNormalGpu.getSize())` in a local `const cacheItem`.
+        Check whether
         `collapsedNormalGpu` is still non-null: if null, the cache
         immediately evicted the entry and `evictCollapsedNormal()` has
         already run; do not assign `collapsedNormalGpuCacheItem` and
@@ -321,7 +322,7 @@ The backlog already notes this; it is not in scope here.
         pass): call `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)`.
 
       The destructor `evictCollapsedNormal()` is a private method that:
-      - calls `gl.deleteTexture(collapsedNormalGpu)`
+      - calls `collapsedNormalGpu.kill()`
       - sets `collapsedNormalGpu = null` and
         `collapsedNormalGpuCacheItem = null`
       - sets `optimizedOut = false` on each index in
@@ -341,9 +342,9 @@ The backlog already notes this; it is not in scope here.
 
 5. In `TileRenderRig.dispose()`: if `collapsedNormalGpuCacheItem` is
    non-null, call `map.gpuCache.remove(collapsedNormalGpuCacheItem)` (which
-   triggers `evictCollapsedNormal` and frees the GPU texture). If
+   triggers `evictCollapsedNormal` and frees the `GpuTexture`). If
    `collapsedNormalGpuCacheItem` is null but `collapsedNormalGpu` is non-null,
-   call `gl.deleteTexture(collapsedNormalGpu)` directly.
+   call `collapsedNormalGpu.kill()` directly.
 
 6. Verify with screenshot regression tests (`simple-terrain`,
    `complex-terrain`, `full-terrain`).
@@ -921,3 +922,54 @@ codebase: source texture GPU payloads remain under their existing
 `MapSubtexture` cache entries, the collapsed normal has its own
 `map.gpuCache` entry, and the resource tree is not described as a GPU
 memory eviction mechanism.
+
+## Review round 16 requested
+
+Requesting additional review. The collapsed normal was specified as
+`WebGLTexture` throughout the design and implementation steps, but the
+codebase type for GPU textures is `GpuTexture`. `gpu.bindTexture()`
+takes `GpuTexture`; using a raw `WebGLTexture` would fail at the
+`encodeLayer()` binding call.
+
+The following changes were made:
+
+- §2.2, §2.4, §2.5 and all implementation steps: `WebGLTexture` →
+  `GpuTexture` for the `collapsedNormalGpu` field and related text.
+- Step 2f: `nmblender.blend()` receives `collapsedNormalGpu.texture`
+  (the raw handle), since `TextureBlend.blend()` takes `WebGLTexture`.
+- Step 2h: allocation uses `new GpuTexture(this.renderer.gpu)` +
+  `createFromData(256, 256, emptyData, GpuTexture.Type.Color, 'linear')`
+  instead of raw `gl.createTexture` + `gl.texImage2D`.
+- Step 2i: `nmblender.copyResult()` receives `collapsedNormalGpu.texture`.
+- Step 2j: cache size uses `collapsedNormalGpu.getSize()` instead of
+  the hardcoded `256 * 256 * 4`.
+- Destructor and `dispose()`: `collapsedNormalGpu.kill()` instead of
+  `gl.deleteTexture(collapsedNormalGpu)`.
+
+No logic changes. The `gpuCache` registration, eviction recovery, and
+all other design decisions from rounds 8–14 are unchanged.
+
+## Review round 16
+
+1. Blocker: step 2h says to allocate with
+   `new GpuTexture(this.renderer.gpu)`, but `GpuTexture` is a
+   TypeScript class whose constructor currently requires `gpu`, `path`,
+   and `core` arguments. JavaScript callers can omit the latter two
+   arguments, but `TileRenderRig` is TypeScript and this call will not
+   type-check. Use the existing TypeScript pattern from `renderer.ts`:
+   `new GpuTexture(this.renderer.gpu, null as any, this.renderer.core)`,
+   or change the `GpuTexture` constructor signature so `path` and `core`
+   are optional before this RFC asks `TileRenderRig` to call it with one
+   argument.
+
+2. Blocker: steps 2f and 2i now pass `collapsedNormalGpu.texture` to
+   `TextureBlend.blend()` and `TextureBlend.copyResult()`, but
+   `GpuTexture.texture` is typed as `WebGLTexture | null`. The RFC
+   should state the null-handling rule at those call sites. A local
+   guard after allocation and before each blend/copy is enough:
+   `const handle = collapsedNormalGpu.texture; if (!handle) abort`.
+   The same applies to the base normal-map handle returned by
+   `this.normalMap.getGpuTexture().texture` in the first-collapse path.
+   Without this, the planned TypeScript implementation either fails
+   strict checking or relies on unchecked non-null assertions in the
+   code that calls `TextureBlend`.
