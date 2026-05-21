@@ -285,30 +285,39 @@ The backlog already notes this; it is not in scope here.
       non-null using a read-only test (do not trigger GPU texture
       upload). If not ready, skip. (Collapsing must stay in order.)
 
-   e. Call `nmblender.init()` to clear the FBO. (`nmblender` is
+   e. Extract `WebGLTexture` handles for the blend source:
+      - If `collapsedNormalGpu` is non-null: `srcHandle =
+        collapsedNormalGpu.texture`. If null, abort (should not
+        occur after step 2c confirmed the texture exists).
+      - If `collapsedNormalGpu` is null: `srcHandle =
+        this.normalMap.getGpuTexture()?.texture`. If null, abort.
+      These handles are passed to `TextureBlend.blend()` and
+      `copyResult()`, which require `WebGLTexture` not `GpuTexture`.
+
+   f. Call `nmblender.init()` to clear the FBO. (`nmblender` is
       borrowed synchronously; no guard is needed — see §2.7.)
 
-   f. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
-      is non-null, blend `collapsedNormalGpu.texture`; otherwise blend
-      the base normal map's `getGpuTexture().texture`.
+   g. Blend `srcHandle` into the FBO at alpha 1.0.
 
-   g. For each bump layer starting from the first un-collapsed, while
-      the layer's GPU texture is non-null: blend the bump texture at its
-      configured alpha, mark the layer `optimizedOut`, and append its
-      index in `rt.layerStack` to `collapsedLayerIndices`. Stop at the
-      first non-ready layer or at any `operation === 'push'` or
-      `source === 'pop'` layer on the `'normal'` target (same rule as
-      step 2a).
+   h. For each bump layer starting from the first un-collapsed, while
+      the layer's GPU texture is non-null: blend the bump texture's
+      `.texture` handle at its configured alpha, mark the layer
+      `optimizedOut`, and append its index in `rt.layerStack` to
+      `collapsedLayerIndices`. Stop at the first non-ready layer or at
+      any `operation === 'push'` or `source === 'pop'` layer on the
+      `'normal'` target (same rule as step 2a).
 
-   h. If `collapsedNormalGpu` is null: allocate a `GpuTexture` via
-      `new GpuTexture(this.renderer.gpu)` and call `createFromData(256,
-      256, emptyData, GpuTexture.Type.Color, 'linear')` where `emptyData`
-      is a zeroed 256×256×4 `Uint8Array`. Assign to `collapsedNormalGpu`.
+   i. If `collapsedNormalGpu` is null: allocate a `GpuTexture` via
+      `new GpuTexture(this.renderer.gpu, null as any, this.renderer.core)`
+      and call `createFromData(256, 256, emptyData, GpuTexture.Type.Color,
+      'linear')` where `emptyData` is a zeroed 256×256×4 `Uint8Array`.
+      Assign to `collapsedNormalGpu`.
 
-   i. Call `nmblender.copyResult(collapsedNormalGpu.texture)` to copy
-      the FBO into the rig's texture.
+   j. Call `nmblender.copyResult(collapsedNormalGpu.texture!)` to copy
+      the FBO into the rig's texture. The non-null assertion is safe:
+      `createFromData` always populates `.texture`.
 
-   j. Update cache registration:
+   k. Update cache registration:
       - If `collapsedNormalGpuCacheItem` is null (first allocation):
         store `map.gpuCache.insert(evictCollapsedNormal.bind(this),
         collapsedNormalGpu.getSize())` in a local `const cacheItem`.
@@ -962,6 +971,10 @@ all other design decisions from rounds 8–14 are unchanged.
    are optional before this RFC asks `TileRenderRig` to call it with one
    argument.
 
+   *Implemented. Step 2i updated to use the existing TypeScript pattern:
+   `new GpuTexture(this.renderer.gpu, null as any, this.renderer.core)`.
+   No constructor change required.*
+
 2. Blocker: steps 2f and 2i now pass `collapsedNormalGpu.texture` to
    `TextureBlend.blend()` and `TextureBlend.copyResult()`, but
    `GpuTexture.texture` is typed as `WebGLTexture | null`. The RFC
@@ -973,3 +986,34 @@ all other design decisions from rounds 8–14 are unchanged.
    Without this, the planned TypeScript implementation either fails
    strict checking or relies on unchecked non-null assertions in the
    code that calls `TextureBlend`.
+
+   *Implemented. New step 2e extracts `srcHandle: WebGLTexture` for
+   the blend source before the blend sequence, aborting if null.
+   Step 2j uses `collapsedNormalGpu.texture!` with a documented
+   non-null assertion (safe because `createFromData` always sets
+   `.texture`). Bump layer handles in step 2h are accessed via
+   `.texture` on each layer's GPU texture, which is already guarded
+   by the non-null check in the loop condition.*
+
+## Review round 17
+
+1. Blocker: step 2h still does not define a non-null `WebGLTexture`
+   handle for each bump layer before calling `TextureBlend.blend()`.
+   The current loop condition only says the bump layer's GPU texture is
+   non-null. That proves the `GpuTexture` object exists, but
+   `GpuTexture.texture` is still typed as `WebGLTexture | null`, and
+   `TextureBlend.blend()` requires `WebGLTexture`. Add the same guard
+   used for `srcHandle`: extract `const bumpHandle =
+   bumpGpu.texture`; stop the loop if it is null; otherwise pass
+   `bumpHandle` to `nmblender.blend()`. This keeps the design
+   consistent with the strict TypeScript boundary introduced in round
+   16.
+
+2. Non-blocking: step 2j says the non-null assertion on
+   `collapsedNormalGpu.texture!` is safe because `createFromData`
+   always populates `.texture`. That explains the first collapse, but
+   incremental passes do not call `createFromData`; they rely on step
+   2e proving the existing `collapsedNormalGpu.texture` handle is
+   non-null. Reword the explanation so it covers both cases, or extract
+   a `dstHandle` after step 2i and pass that to `copyResult()` without a
+   non-null assertion.
