@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-05-21 — Implement bump-layer collapse RFC
+
+Implemented [rfc-bump-bake.md](rfc-bump-bake.md) across three files.
+`nmblender` moved from `MapDraw` (`draw.js`) to `Renderer`
+(`renderer.ts`); `MapDraw` now accesses it as
+`this.renderer.nmblender`. `TileRenderRig` gains a private `collapsed`
+field holding a rig-local baked `GpuTexture` registered with
+`map.gpuCache`. `optimizeStack()` calls `collapseNormalStack()` when
+`mapCollapseBumps` is not false; the method incrementally blends ready
+bump layers via `nmblender` and copies the result into
+`collapsed.normalGpu`. `encodeLayer()` substitutes `collapsed.normalGpu`
+for the base normal-map push layer when `collapsed` is non-null.
+`evictCollapsed()` handles cache eviction: kills the GPU texture,
+restores `optimizedOut` flags on all collapsed layers, deletes the UBO
+so readiness re-runs on the next frame. `dispose()` removes the cache
+entry. `mapCollapseBumps` added to `CoreConfig` and URL config booleans.
+Log at `updateBuffer:427` temporarily enabled to confirm collapse by
+showing encoded layer count vs total stack length. All six regression
+screenshot tests pass.
+
 ## 2026-05-21 — Bump collapse flag split
 
 Reopened [rfc-bump-bake.md](rfc-bump-bake.md) after acceptance to

@@ -5,8 +5,6 @@ import MapGeodata_ from './geodata';
 import MapGeodataView_ from './geodata-view';
 import MapDrawTiles_ from './draw-tiles';
 import * as Illumination from './illumination';
-import { TextureBlend } from '../renderer/textureblend';
-
 import * as vts from '../constants';
 
 
@@ -151,7 +149,6 @@ var MapDraw = function(map) {
 
     this.drawTiles = new MapDrawTiles(map, this);
 
-    this.nmblender = new TextureBlend(this.renderer.gpu.gl, 256, 256);
 };
 
 
@@ -784,10 +781,10 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             if (bumpsReady.length == 0) continue;
 
             // init blender
-            this.nmblender.init();
+            this.renderer.nmblender.init();
 
             // blend normal map
-            this.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
+            this.renderer.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
 
             // iterate bumps
             for (let j = 0; j < bumpsReady.length; j++) {
@@ -797,7 +794,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
                 let bumpTexture = command.textures[bump.layer.id];
 
                 // blend texture
-                this.nmblender.blend(bumpTexture.getGpuTexture().texture,
+                this.renderer.nmblender.blend(bumpTexture.getGpuTexture().texture,
                                      bump.alpha);
 
                 // note that the bump map was blended
@@ -811,7 +808,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
             };
 
             // store result back into normal map
-            this.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
+            this.renderer.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
 
             // done
             break;

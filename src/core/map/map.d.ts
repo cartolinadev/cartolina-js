@@ -140,4 +140,10 @@ export default class Map {
         coordinateSpace?: Renderer.CoordinateSpace,
     ): [boolean, number];
     isAtmospheric(): boolean;
+
+    gpuCache: {
+        insert(destructor: () => void, cost: number): object;
+        remove(item: object): void;
+        updateItem(item: object): void;
+    };
 }

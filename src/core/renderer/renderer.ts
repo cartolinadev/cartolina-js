@@ -16,6 +16,7 @@ import * as IlluminationMath from '../map/illumination';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
 import type { CoreConfig } from '../types';
+import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
@@ -335,6 +336,7 @@ export class Renderer {
     init : any = null;
     rmap: any = null; // RenderRM
     draw: any = null;
+    nmblender!: TextureBlend;
 
     // no idea
     killed = false;
@@ -395,6 +397,7 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
     this.initTextureIdxs();
     this.programs = {}
 
+    this.nmblender = new TextureBlend(this.gpu.gl, 256, 256);
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 };

@@ -9,6 +9,7 @@ import MapSurfaceTile from './surface-tile'
 import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
+import GpuTexture from '../renderer/gpu/texture';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
 
@@ -62,6 +63,12 @@ export class TileRenderRig {
     private normalMap?: MapTexture;
 
     private uboLayers?: WebGLBuffer;
+
+    private collapsed: {
+        normalGpu: GpuTexture;
+        cacheItem: object;
+        layerIndices: number[];
+    } | null = null;
 
     // a failed rig, waiting to be replaced
     private isAborted = false;
@@ -417,9 +424,9 @@ export class TileRenderRig {
         // set the layer count last
         bufacc.i32.set([numLayers], 0);            // ivec4 layerCount
 
-        //if (numLayers < this.rt.layerStack.length)
-        //    __DEV__ && console.log(`${this.logSign()}: encoded ${numLayers} `
-        //        + `/ ${this.rt.layerStack.length} layers.`);
+        if (numLayers < this.rt.layerStack.length)
+            __DEV__ && console.log(`${this.logSign()}: encoded `
+                + `${numLayers} / ${this.rt.layerStack.length} layers.`);
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers ?? null);
@@ -478,8 +485,20 @@ export class TileRenderRig {
                 const texture = layer.srcTextureTexture;
                 let mainIdx = -1, maskIdx = -1;
 
-                let main = texture.getGpuTexture();
-                let mask = texture.getGpuMaskTexture();
+                // use baked normal for the base normal-map push layer
+                let main: ReturnType<MapTexture['getGpuTexture']>;
+                let mask: ReturnType<MapTexture['getGpuMaskTexture']>;
+
+                if (this.collapsed && layer.target === 'normal'
+                        && layer.operation === 'push') {
+                    this.tile.map.gpuCache.updateItem(
+                        this.collapsed.cacheItem);
+                    main = this.collapsed.normalGpu;
+                    mask = null;
+                } else {
+                    main = texture.getGpuTexture();
+                    mask = texture.getGpuMaskTexture();
+                }
 
                 const needUnits = (main ? 1 : 0) + (mask ? 1 : 0);
                 if (samplers.nextTextureUnit + needUnits > samplers.ub)
@@ -649,6 +668,9 @@ export class TileRenderRig {
 
         //__DEV__ && console.log(
         //    `${this.logSign()}: disposing of UBO.`);
+
+        const collapsed = this.collapsed;
+        if (collapsed) this.tile.map.gpuCache.remove(collapsed.cacheItem);
 
         let gl = this.renderer.gpu.gl;
 
@@ -984,7 +1006,141 @@ export class TileRenderRig {
             // but stacks are never this complicated
         }
 
-        // TODO: merge of subsequent static blends (bump maps)
+        // bump-layer collapse
+        if (this.config.mapCollapseBumps !== false) this.collapseNormalStack();
+    }
+
+    /**
+     * Bake ready bump layers into a rig-local collapsed normal texture,
+     * incrementally as each bump GPU texture becomes resident.
+     */
+    private collapseNormalStack() {
+
+        const stack = this.rt.layerStack;
+
+        // find the base normal-map push layer
+        const pushIdx = stack.findIndex(
+            l => l.target === 'normal' && l.operation === 'push');
+        if (pushIdx < 0) return;
+
+        // find first un-collapsed bump after the push layer
+        let firstBump = -1;
+
+        for (let i = pushIdx + 1; i < stack.length; i++) {
+            const l = stack[i];
+            if (l.target === 'normal'
+                    && (l.operation === 'push' || l.source === 'pop')) break;
+            if (l.target === 'normal' && l.source === 'texture'
+                    && l.operation === 'blend' && !l.rt.optimizedOut) {
+                firstBump = i; break;
+            }
+        }
+
+        if (firstBump < 0) return;
+
+        // prepare blend source; warm cache item to protect it before any
+        // gpuCache operations below that could evict it
+        const gpuCache = this.tile.map.gpuCache;
+
+        if (!this.collapsed && !this.normalMap?.getGpuTexture()) return;
+        if (this.collapsed) gpuCache.updateItem(this.collapsed.cacheItem);
+
+        // check first bump GPU texture ready (read-only — no upload)
+        const firstBumpLayer = stack[firstBump] as TextureBlendLayer;
+        if (!firstBumpLayer.srcTextureTexture.getGpuTexture()) return;
+
+        // extract blend source handle
+        const srcHandle = this.collapsed
+            ? this.collapsed.normalGpu.texture
+            : this.normalMap!.getGpuTexture()!.texture;
+        if (!srcHandle) return;
+
+        // blend sequence: init → base → each ready bump
+        const nmb = this.renderer.nmblender;
+        nmb.init();
+        nmb.blend(srcHandle, 1.0);
+
+        const collectedIndices: number[] = [];
+
+        for (let i = firstBump; i < stack.length; i++) {
+
+            const l = stack[i];
+            if (l.target === 'normal'
+                    && (l.operation === 'push' || l.source === 'pop')) break;
+            if (l.target !== 'normal' || l.source !== 'texture'
+                    || l.operation !== 'blend' || l.rt.optimizedOut) continue;
+
+            const bumpLayer = l as TextureBlendLayer;
+            const bumpGpu = bumpLayer.srcTextureTexture.getGpuTexture();
+            if (!bumpGpu) break;
+            const bumpHandle = bumpGpu.texture;
+            if (!bumpHandle) break;
+
+            const alpha = bumpLayer.opBlendAlpha.mode === 'constant'
+                ? bumpLayer.opBlendAlpha.value
+                : (bumpLayer.rt.alpha ?? 0);
+            nmb.blend(bumpHandle, alpha);
+            collectedIndices.push(i);
+        }
+
+        if (!collectedIndices.length) return;
+
+        // allocate collapsed texture on first collapse
+        let normalGpu: GpuTexture;
+
+        if (this.collapsed) normalGpu = this.collapsed.normalGpu;
+        else {
+            normalGpu = new GpuTexture(
+                this.renderer.gpu, null, this.renderer.core);
+            normalGpu.createFromData(
+                256, 256, new Uint8Array(256 * 256 * 4),
+                GpuTexture.Type.Color, 'linear');
+        }
+
+        // copy FBO result into the collapsed texture
+        const dstHandle = normalGpu.texture;
+        if (!dstHandle) return;
+        nmb.copyResult(dstHandle);
+
+        // register with cache or update existing registration
+        if (!this.collapsed) {
+            // populate layerIndices before insert() so the eviction
+            // destructor can restore layers if immediately evicted
+            this.collapsed = {
+                normalGpu,
+                cacheItem: null!,
+                layerIndices: collectedIndices,
+            };
+            const cacheItem = gpuCache.insert(
+                this.evictCollapsed.bind(this), normalGpu.getSize());
+            if (!this.collapsed) return; // immediately evicted
+            this.collapsed.cacheItem = cacheItem;
+        } else {
+            this.collapsed.layerIndices.push(...collectedIndices);
+            gpuCache.updateItem(this.collapsed.cacheItem);
+        }
+
+        // mark collapsed layers optimized out only after cache registration
+        for (const idx of collectedIndices)
+            stack[idx].rt.optimizedOut = true;
+    }
+
+    /** Cache eviction destructor for the collapsed normal texture. */
+    private evictCollapsed() {
+
+        const collapsed = this.collapsed!;
+        const gl = this.renderer.gpu.gl;
+
+        collapsed.normalGpu.kill();
+
+        for (const idx of collapsed.layerIndices)
+            this.rt.layerStack[idx].rt.optimizedOut = false;
+
+        // delete the UBO so isReady() re-runs optimizeStack on next frame
+        gl.deleteBuffer(this.uboLayers ?? null);
+        this.uboLayers = undefined;
+
+        this.collapsed = null;
     }
 
     /**
@@ -1296,6 +1452,7 @@ type Config = {
 
     // do not download or use normal maps (use GL derivatives instead)
     mapNoNormalMaps?: boolean;
+    mapCollapseBumps?: boolean;
 }
 
 
