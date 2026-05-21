@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** In review
+**Status:** Accepted
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -300,12 +300,12 @@ The backlog already notes this; it is not in scope here.
    g. Blend `srcHandle` into the FBO at alpha 1.0.
 
    h. For each bump layer starting from the first un-collapsed, while
-      the layer's GPU texture is non-null: blend the bump texture's
-      `.texture` handle at its configured alpha, mark the layer
-      `optimizedOut`, and append its index in `rt.layerStack` to
-      `collapsedLayerIndices`. Stop at the first non-ready layer or at
-      any `operation === 'push'` or `source === 'pop'` layer on the
-      `'normal'` target (same rule as step 2a).
+      the layer's GPU texture is non-null: extract `const bumpHandle =
+      bumpGpu.texture`; if null, stop the loop. Otherwise blend
+      `bumpHandle` at its configured alpha, mark the layer `optimizedOut`,
+      and append its index in `rt.layerStack` to `collapsedLayerIndices`.
+      Stop also at any `operation === 'push'` or `source === 'pop'` layer
+      on the `'normal'` target (same rule as step 2a).
 
    i. If `collapsedNormalGpu` is null: allocate a `GpuTexture` via
       `new GpuTexture(this.renderer.gpu, null as any, this.renderer.core)`
@@ -313,9 +313,10 @@ The backlog already notes this; it is not in scope here.
       'linear')` where `emptyData` is a zeroed 256×256×4 `Uint8Array`.
       Assign to `collapsedNormalGpu`.
 
-   j. Call `nmblender.copyResult(collapsedNormalGpu.texture!)` to copy
-      the FBO into the rig's texture. The non-null assertion is safe:
-      `createFromData` always populates `.texture`.
+   j. Extract `const dstHandle = collapsedNormalGpu.texture`; if null,
+      abort the pass. Call `nmblender.copyResult(dstHandle)`. This guard
+      covers both the first-collapse and incremental cases without
+      assertions.
 
    k. Update cache registration:
       - If `collapsedNormalGpuCacheItem` is null (first allocation):
@@ -1009,6 +1010,10 @@ all other design decisions from rounds 8–14 are unchanged.
    consistent with the strict TypeScript boundary introduced in round
    16.
 
+   *Implemented. Step 2h updated: extract `const bumpHandle =
+   bumpGpu.texture`; stop the loop if null; pass `bumpHandle` to
+   `nmblender.blend()`.*
+
 2. Non-blocking: step 2j says the non-null assertion on
    `collapsedNormalGpu.texture!` is safe because `createFromData`
    always populates `.texture`. That explains the first collapse, but
@@ -1017,3 +1022,15 @@ all other design decisions from rounds 8–14 are unchanged.
    non-null. Reword the explanation so it covers both cases, or extract
    a `dstHandle` after step 2i and pass that to `copyResult()` without a
    non-null assertion.
+
+   *Implemented. Step 2j replaced with a `dstHandle` extraction plus
+   null guard, no assertion needed. Covers both first-collapse and
+   incremental passes uniformly.*
+
+## Review round 18 — sign-off
+
+The revised design is accepted. The `GpuTexture` conversion now matches
+the current TypeScript API boundaries: `TileRenderRig` constructs the
+texture with the existing `renderer.ts` constructor pattern, uses
+`GpuTexture` for renderer binding and cache accounting, and extracts
+guarded `WebGLTexture` handles only when calling `TextureBlend`.
