@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** In review
+**Status:** Accepted
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -161,7 +161,8 @@ collapse sequence each frame:
    already been blended in.
 3. For each bump layer that is GPU-ready and not yet `optimizedOut` (in
    layer-stack order, stopping at the first non-ready layer): blend the
-   bump texture at its configured alpha and mark the layer `optimizedOut`.
+   bump texture at its configured alpha and collect its layer-stack
+   index for the later commit step.
 4. `nmblender.copyResult(collapsed.normalGpu)` — copy the FBO into the
    rig's own texture.
 
@@ -392,8 +393,10 @@ The backlog already notes this; it is not in scope here.
    - If `useBumpMaps` is off, do not evaluate bump layers for
      residency.
    - Collapsed bump layers are already `optimizedOut`; flag toggles do
-     not make them readiness candidates again. Eviction or disposal
-     restores them.
+     not make them readiness candidates again. When `useNormalMaps` is
+     off after collapse, this means bump shading is not visible — the
+     accepted diagnostic-mode limitation from §2.6. Eviction or
+     disposal restores the original bump layers.
 
 5. In `encodeLayer()`, when binding the texture for the base
    normal-map push layer: if `this.collapsed` is non-null and
@@ -1306,6 +1309,10 @@ on eviction or disposal to restore them.
    stack index collected in `collectedIndices`; `optimizedOut` is not
    mentioned at this stage.
 
+   *Implemented. §2.4 step 3 now says the layer-stack index is collected
+   for the later commit step. It no longer says `optimizedOut` is set
+   during the blend loop.*
+
 2. Non-blocking: the editorial shortening of step 4 removes the explicit
    `!useNormalMaps && useBumpMaps` two-sub-case wording that round 21
    required as a blocker and round 22 accepted. The shortened text covers
@@ -1316,3 +1323,14 @@ on eviction or disposal to restore them.
    `useNormalMaps` is off and the rig has already collapsed, this means
    bump shading is not visible — the accepted diagnostic-mode limitation
    stated in §2.6."
+
+   *Implemented. Step 4's final bullet now names the accepted
+   diagnostic-mode limitation from §2.6.*
+
+## Review round 24 — sign-off
+
+Both round 23 responses are correct. §2.4 step 3 no longer mentions
+`optimizedOut`; the collected index and the deferred commit are now
+consistent with implementation step 3g. Step 4's final bullet explicitly
+names the accepted diagnostic-mode limitation, matching the round 21–22
+blocker resolution. The design is accepted.
