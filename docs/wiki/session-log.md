@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-05-21 — Normal encoding doc, RFC closed, backlog cleanup
+
+Wrote [normal-encoding.md](normal-encoding.md) covering octahedral RG
+encoding: why the full-sphere fold is kept (overhangs on procedural
+geometry), the nonlinearity problem when blending encoded values, and how
+`TextureBlend` oct-normal mode fixes it. Added oct-normal mode to
+`TextureBlend` alongside the existing trivial mode (selected via
+`init(mode)`), restoring the fold step for z < 0. Updated
+`collapseNormalStack` to call `nmb.init('oct-normal')`. Moved
+`rfc-bump-bake.md` to the Implemented section of the wiki index.
+Removed the completed bump-bake backlog entry; updated the legacy
+pipeline deletion entry to reflect that `nmblender` is already on
+`Renderer` (not being moved as part of that refactor).
+
 ## 2026-05-21 — Confirm bump collapse and remove debug log
 
 Added a targeted log inside `collapseNormalStack` and loaded

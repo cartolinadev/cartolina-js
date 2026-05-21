@@ -23,11 +23,8 @@ then branch into more specific documents as needed.
   navigation, geodata overlays, and historical note on the
   removed `vts-core.js` build
 
-### RFCs
+### RFCs — active
 
-- [rfc-bump-bake.md](rfc-bump-bake.md) — collapse bump layers into the
-  normal map inside `TileRenderRig`, eliminating per-frame texture
-  units, UBO slots, and shader iterations for each collapsed bump layer
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design
@@ -39,8 +36,19 @@ then branch into more specific documents as needed.
   `core.js` to a typed `EventBus<EventMap>` class as part of the
   `core.js` suppression track; `EventTarget` evaluated and rejected
 
+### RFCs — implemented
+
+- [rfc-bump-bake.md](rfc-bump-bake.md) — collapse bump layers into the
+  normal map inside `TileRenderRig`, eliminating per-frame texture
+  units, UBO slots, and shader iterations for each collapsed bump layer;
+  implemented 2026-05-21
+
 ### Subsystem and feature notes
 
+- [normal-encoding.md](normal-encoding.md) — octahedral RG normal
+  encoding: why it is kept for full-sphere coverage and uniform precision,
+  the nonlinearity problem when blending encoded values, and how
+  `TextureBlend` oct-normal mode fixes it for bump-layer collapse
 - [reference-frames.md](reference-frames.md) — reference frame concepts,
   the melown2015 and QSC families, client loading path, and tileserver
   production

@@ -1058,7 +1058,7 @@ export class TileRenderRig {
 
         // blend sequence: init → base → each ready bump
         const nmb = this.renderer.nmblender;
-        nmb.init();
+        nmb.init('oct-normal');
         nmb.blend(srcHandle, 1.0);
 
         const collectedIndices: number[] = [];
@@ -1124,7 +1124,6 @@ export class TileRenderRig {
         // mark collapsed layers optimized out only after cache registration
         for (const idx of collectedIndices)
             stack[idx].rt.optimizedOut = true;
-
     }
 
     /** Cache eviction destructor for the collapsed normal texture. */

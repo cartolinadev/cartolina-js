@@ -75,61 +75,6 @@ follows the existing camera-frustum code in
 
 ---
 
-## PERF: bake bump maps into normal map inside `TileRenderRig`
-
-**Opened:** 2026-05-19
-**Status:** deferred — implement before or alongside draw-channel-1 support
-in `TileRenderRig`
-
-### Background
-
-The old pipeline processed a `DRAWCOMMAND_APPLY_BUMPS` command in
-`draw.js` that used `nmblender` to blend each ready bump texture into
-the normal map GPU texture in place, then killed the bump texture from
-CPU and GPU cache. The tile draw call then bound only the normal map —
-no bump textures, no bump entries in the draw list.
-
-`TileRenderRig` has no equivalent. Each bump-map style layer sits as a
-separate entry in the layer stack targeting `'normal'`, added in
-`buildLayerStack`. Every active bump layer costs one texture unit, one
-UBO slot, and one fragment shader loop iteration.
-
-### Optimization
-
-As each bump layer becomes ready, blend it into the normal map GPU
-texture using `nmblender`, mark the layer `optimizedOut` in its `rt`
-record, and free the bump texture from CPU and GPU cache. Bump layers
-are not essential, so baking can happen incrementally — one layer at a
-time as each texture arrives — mirroring the old pipeline's behaviour.
-
-Net saving per bump layer: one texture binding, one UBO slot, one
-shader iteration — proportionally more beneficial than before because
-the UBO and shader loop are new costs that did not exist in the old
-pipeline.
-
-The baking step belongs in the `TileRenderRig` readiness logic, checked
-each frame before the UBO is encoded. When a bump layer's texture
-becomes ready, blend it into the normal map, mark the layer
-`optimizedOut`, and free the source texture. The normal-map layer must
-be ready first.
-
-### Constraint: Shift+F B diagnostic
-
-`FlagBumpMaps` (Shift+F B) toggles bump-map rendering off. Once a
-bump is baked into the normal map the flag has nothing to act on.
-
-Guard the baking path behind a config option `mapBakeBumps` (default
-`true`). When `false`, bump layers stay in the layer stack and the
-toggle works normally. When the user presses Shift+F B with baking
-enabled, emit a visible warning.
-
-### Note on nmblender
-
-`nmblender` can be reused as-is in the first implementation. A follow-up
-can modernise it to fit the current architecture — use a no-projection
-`RenderTarget`, adopt the GLSL include / shader-file conventions — but
-that is a separate step.
-
 ---
 
 ## REFACTOR: delete legacy mesh tile rendering pipeline
@@ -140,9 +85,7 @@ that is a separate step.
 ### Goal
 
 Remove all code that existed to serve the old `drawMeshTile` call,
-which is already commented out. The bump-baking optimization (see
-above) must be completed first, since `nmblender` is salvaged from
-this path and moved into `TileRenderRig`.
+which is already commented out.
 
 ### Scope (~1 700 lines deleted)
 
@@ -168,7 +111,9 @@ this path and moved into `TileRenderRig`.
   (lines 749–900; `DRAWCOMMAND_GEODATA` survives)
 - `areDrawCommandsReady` `DRAWCOMMAND_SUBMESH` branch
   (~35 lines; `DRAWCOMMAND_GEODATA` survives)
-- `nmblender` instantiation and `TextureBlend` import
+- `nmblender` field and call sites (`nmblender` itself now lives on
+  `Renderer`; only the `MapDraw` field assignment and the
+  `DRAWCOMMAND_APPLY_BUMPS` usage are deleted here)
 
 **`shaders.js`** (~580 lines):
 

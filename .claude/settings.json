@@ -17,7 +17,7 @@
           {
             "type": "command",
             "if": "Bash(git commit*)",
-            "command": "echo '{\"decision\": \"block\", \"reason\": \"Do not commit without explicit user instruction.\"}'"
+            "command": "echo '{\"systemMessage\": \"Committing — make sure this was explicitly requested.\"}'"
           }
         ]
       }
