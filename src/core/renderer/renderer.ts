@@ -409,7 +409,7 @@ private initHitmapTexture(): void {
         this.hitmapData = data;
     }
 
-    this.hitmapTexture = new GpuTexture(this.gpu, null!, null);
+    this.hitmapTexture = new GpuTexture(this.gpu, null, null);
 
     this.hitmapTexture.createFromData(size, size, data,
         GpuTexture.Type.DepthUint);
@@ -2092,7 +2092,7 @@ createTexture(options: any): GpuTexture | null {
 
         if (width && height) {
 
-            const texture = new GpuTexture(this.gpu, null as any, this.core);
+            const texture = new GpuTexture(this.gpu, null, this.core);
             texture.createFromData(
                 width, height, source, GpuTexture.Type.Color, filter, repeat
             );
@@ -2102,7 +2102,7 @@ createTexture(options: any): GpuTexture | null {
 
     if (source instanceof Image) {
 
-        const texture = new GpuTexture(this.gpu, null as any, this.core);
+        const texture = new GpuTexture(this.gpu, null, this.core);
         texture.createFromImage(source, GpuTexture.Type.Color, filter, repeat);
         return texture;
     }

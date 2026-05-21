@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** Accepted
+**Status:** In review
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -200,7 +200,7 @@ frame. Per the codebase principle of simple function first: key-based
 sharing is added only if profiling identifies rebuilding as a measured
 cost.
 
-### 2.6 Config guard and render-flag semantics
+### 2.6 Config guard and data/rendering split
 
 Guard the collapse path with the config option `mapCollapseBumps`
 (default `true`). When `false`, collapsing is skipped entirely. Bump
@@ -208,30 +208,35 @@ layers remain in the layer stack with their `flagMask` set to
 `FlagBumpMaps`; the shader reads that flag from the UBO on each draw
 call and skips the layer when bump rendering is off.
 
-Collapse is a data-preprocessing step driven by layer stack and texture
-residency. `useBumpMaps` does not govern when collapse runs.
-`useNormalMaps` does: collapse requires normal maps to be on, because
-the baked result is bound through the normal-map push layer. When
-`useNormalMaps` is false before collapse, bump layers remain in the
-stack and can still render into the shader's flat-normal accumulator.
+Collapse is a data-preprocessing step. It changes the rig-local
+texture data from "base normal map plus separate bump textures" to
+"one normal map that already contains those bumps." That decision is
+driven by the layer stack, texture residency, and `mapCollapseBumps`.
+It is not driven by the current render flags.
+
+Render flags are execution policy for an already-encoded layer stack.
+`FlagNormalMaps` decides whether the normal-map push layer runs in the
+shader. `FlagBumpMaps` decides whether uncollapsed bump blend layers
+run in the shader. These flags do not describe which texture data
+exists in the rig and do not rewrite rig state after a collapse.
 
 Once a bump layer is collapsed, it is marked `optimizedOut` until the
-collapsed texture is evicted or the rig is disposed. Runtime flag
-changes do not uncollapse layers. At draw time, `encodeLayer` binds
-`collapsed.normalGpu` for the base normal-map push layer when
-`useBumpMaps` is on and `collapsed` exists; otherwise it binds the base
-normal map. `useNormalMaps` is not checked in `encodeLayer` because the
-normal-map push layer already carries `FlagNormalMaps`, and the shader
-skips the layer when that flag is off.
+collapsed texture is evicted or the rig is disposed. The rig does not
+un-collapse layers when `FlagBumpMaps` or `FlagNormalMaps` changes.
 
-Two diagnostic combinations follow from that rule. Turning `useBumpMaps`
-off after collapse falls back to the base normal map; the collapsed
-data remains available for later use. Turning `useNormalMaps` off after
-collapse hides the collapsed bump data because the shader skips the
-normal-map push layer. This is accepted diagnostic-mode behavior. The
-data remains in `collapsed.normalGpu`; turning `useNormalMaps` back on
-restores the collapsed bump shading, and cache eviction or disposal
-restores the original bump layers.
+At draw time, `encodeLayer` binds `collapsed.normalGpu` for the base
+normal-map push layer whenever `collapsed` exists. Otherwise it binds
+the base normal map. The normal-map push layer already carries
+`FlagNormalMaps`, so the shader skips the layer when that flag is off.
+
+Collapsed bump data therefore follows the normal-map layer, not the
+bump-layer flag. If `FlagNormalMaps` is off after collapse, collapsed
+bump shading is hidden. If `FlagBumpMaps` is off after collapse while
+`FlagNormalMaps` is on, collapsed bump shading remains visible because
+the bump data has become part of the normal map. These are accepted
+diagnostic-mode consequences of changing the representation. They are
+misconfigurations for production terrain rendering, not states the rig
+tries to compensate for.
 
 ### 2.7 Reusing `nmblender`
 
@@ -276,12 +281,7 @@ The backlog already notes this; it is not in scope here.
 3. In `optimizeStack()`, after the mask and watertight checks, add a
    collapse pass:
 
-   a. Check `this.renderer.getRenderingOptions().useNormalMaps`. If
-      false, skip the collapse pass this frame. The baked result is
-      bound through the normal-map push layer; collapse without that
-      path available would leave bump data inaccessible (see §2.6).
-
-   b. After the existing watertight loop, find the first layer in the
+   a. After the existing watertight loop, find the first layer in the
       stack with `target === 'normal'` and `operation === 'push'`. If
       none, skip the collapse pass — there is no normal-map base to
       blend into. From that push layer's index, scan forward for the
@@ -291,7 +291,7 @@ The backlog already notes this; it is not in scope here.
       and `operation === 'push'` or `source === 'pop'`, or at end of
       stack. If no eligible bump layer is found, skip the collapse pass.
 
-   c. Branch on whether `this.collapsed` is already non-null:
+   b. Branch on whether `this.collapsed` is already non-null:
       - If null (first collapse or post-eviction restart): check that
         `this.normalMap` is non-null and its GPU texture is resident
         using a read-only test. If not, skip. The base normal-map
@@ -304,11 +304,11 @@ The backlog already notes this; it is not in scope here.
         to protect it from any eviction that can happen in the steps
         below. Do not test `this.normalMap` residency.
 
-   d. Check that the first un-collapsed bump layer's GPU texture is
+   c. Check that the first un-collapsed bump layer's GPU texture is
       non-null using a read-only test (do not trigger GPU texture
       upload). If not ready, skip. (Collapsing must stay in order.)
 
-   e. Extract `WebGLTexture` handles for the blend source:
+   d. Extract `WebGLTexture` handles for the blend source:
       - If `this.collapsed` is non-null: `srcHandle =
         this.collapsed.normalGpu.texture`. If null, abort.
       - If `this.collapsed` is null: `srcHandle =
@@ -316,36 +316,36 @@ The backlog already notes this; it is not in scope here.
       These handles are passed to `TextureBlend.blend()` and
       `copyResult()`, which require `WebGLTexture` not `GpuTexture`.
 
-   f. Call `this.renderer.nmblender.init()` to clear the FBO.
+   e. Call `this.renderer.nmblender.init()` to clear the FBO.
       (`nmblender` is borrowed synchronously; no guard is needed —
       see §2.7.)
 
-   g. Blend `srcHandle` into the FBO at alpha 1.0.
+   f. Blend `srcHandle` into the FBO at alpha 1.0.
 
-   h. For each bump layer starting from the first un-collapsed, while
+   g. For each bump layer starting from the first un-collapsed, while
       the layer's GPU texture is non-null: extract `const bumpHandle =
       bumpGpu.texture`; if null, stop the loop. Otherwise blend
       `bumpHandle` at its configured alpha and record its index in
       `rt.layerStack` in a local array `collectedIndices`. Do not mark
-      layers `optimizedOut` here — that is deferred to step 3k after
+      layers `optimizedOut` here — that is deferred to step 3j after
       cache registration survives, so that any abort between here and
-      step 3k leaves the layer stack unmodified. Stop also at any
+      step 3j leaves the layer stack unmodified. Stop also at any
       `operation === 'push'` or `source === 'pop'` layer on the
-      `'normal'` target (same boundary rule as step 3b).
+      `'normal'` target (same boundary rule as step 3a).
 
-   i. If `this.collapsed` is null: allocate a `GpuTexture` via
+   h. If `this.collapsed` is null: allocate a `GpuTexture` via
       `new GpuTexture(this.renderer.gpu, null, this.renderer.core)`
       and call `createFromData(256, 256, emptyData,
       GpuTexture.Type.Color, 'linear')` where `emptyData` is a zeroed
       256×256×4 `Uint8Array`. Store the result in a local
       `normalGpu`.
 
-   j. Extract `const dstHandle` from the `normalGpu` (local, if just
+   i. Extract `const dstHandle` from the `normalGpu` (local, if just
       allocated) or `this.collapsed.normalGpu.texture` (incremental).
       If null, abort the pass. Call
       `this.renderer.nmblender.copyResult(dstHandle)`.
 
-   k. Update cache registration and commit the collapse:
+   j. Update cache registration and commit the collapse:
       - If `this.collapsed` is null (first allocation): set
         `this.collapsed = { normalGpu, cacheItem: null!, layerIndices:
         collectedIndices }`. Populating `layerIndices` before `insert()`
@@ -378,29 +378,16 @@ The backlog already notes this; it is not in scope here.
         `dispose()` also deletes `uboLayers`)
       - sets `this.collapsed = null`
 
-4. In `isReady()`, read the current flags once via
-   `this.renderer.getRenderingOptions()` and apply the same rules as
-   §2.6:
-
-   - If `useNormalMaps` is on, require the base normal-map GPU texture
-     unless `this.collapsed` is non-null and `useBumpMaps` is on, in
-     which case require `this.collapsed.normalGpu` instead.
-   - If `useNormalMaps` is off, do not require the base normal-map GPU
-     texture.
-   - If `useBumpMaps` is on, evaluate uncollapsed bump layers for
-     residency subject to their existing necessity and readiness-level
-     rules.
-   - If `useBumpMaps` is off, do not evaluate bump layers for
-     residency.
-   - Collapsed bump layers are already `optimizedOut`; flag toggles do
-     not make them readiness candidates again. When `useNormalMaps` is
-     off after collapse, this means bump shading is not visible — the
-     accepted diagnostic-mode limitation from §2.6. Eviction or
-     disposal restores the original bump layers.
+4. In `isReady()`, do not consult render flags. Readiness follows the
+   layer stack and the existing necessity/readiness-level rules. When
+   `this.collapsed` is non-null, require `this.collapsed.normalGpu`
+   instead of the base normal-map GPU texture for the normal-map push
+   layer. Collapsed bump layers are already `optimizedOut`, so they are
+   not readiness candidates until eviction or disposal restores them.
 
 5. In `encodeLayer()`, when binding the texture for the base
-   normal-map push layer: if `this.collapsed` is non-null and
-   `useBumpMaps` is true, bind `this.collapsed.normalGpu` instead of
+   normal-map push layer: if `this.collapsed` is non-null, bind
+   `this.collapsed.normalGpu` instead of
    `normalMap.mainTexture.getGpuTexture()`, and call
    `map.gpuCache.updateItem(this.collapsed.cacheItem)`. Otherwise bind
    the base normal map as before.
@@ -1334,3 +1321,47 @@ Both round 23 responses are correct. §2.4 step 3 no longer mentions
 consistent with implementation step 3g. Step 4's final bullet explicitly
 names the accepted diagnostic-mode limitation, matching the round 21–22
 blocker resolution. The design is accepted.
+
+## Review round 25 requested
+
+Requesting review after simplifying the accepted design.
+
+§2.6 now states the data/rendering split directly. Collapse is a
+rig-local data-preprocessing step: it converts separate base-normal and
+bump textures into one rig-owned normal texture. The only inputs to that
+decision are the layer stack, texture residency, and `mapCollapseBumps`.
+
+Render flags remain execution policy. `FlagNormalMaps` controls whether
+the shader executes the normal-map push layer. `FlagBumpMaps` controls
+whether the shader executes uncollapsed bump blend layers. The rig does
+not inspect `useNormalMaps` or `useBumpMaps` while collapsing, and it
+does not rewrite collapse state when those flags change.
+
+Implementation steps were updated to match:
+
+- `optimizeStack()` no longer checks renderer options before collapse.
+- `isReady()` no longer consults render flags.
+- `encodeLayer()` binds `collapsed.normalGpu` whenever collapse state
+  exists; otherwise it binds the base normal map.
+
+The diagnostic consequences are explicit. If `FlagNormalMaps` is off
+after collapse, collapsed bump shading is hidden. If `FlagBumpMaps` is
+off after collapse while `FlagNormalMaps` is on, collapsed bump shading
+remains visible because the bump data has become part of the normal
+map. These states are treated as misconfigurations, not cases the rig
+compensates for.
+
+## Review round 25 — sign-off
+
+The data/rendering split is coherent. Collapse is driven by layer stack
+and texture residency; render flags remain shader-execution policy and
+do not rewrite rig state. The `isReady()` simplification holds because
+`collapsed.normalGpu` is trivially resident whenever `collapsed` is
+non-null — eviction sets `collapsed` to null atomically, so no flag
+check is needed to determine which texture to require. The `encodeLayer`
+change (bind `collapsed.normalGpu` unconditionally when `collapsed`
+exists) produces the accepted diagnostic consequence for `FlagBumpMaps`
+off post-collapse, which §2.6 now documents explicitly. The incidental
+change in step 3h from `null as any` to `null` is also correct: the
+`GpuTexture` constructor accepts `path: string | null`. The design is
+accepted.

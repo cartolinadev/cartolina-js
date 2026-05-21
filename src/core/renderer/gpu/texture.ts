@@ -29,7 +29,28 @@ export class GpuTexture {
 
     loaded: boolean = false;
 
-    constructor(gpu: GpuDevice, path: string, core: any, _?: any, direct = false, 
+
+    /**
+     * Create a GPU texture.
+     *
+     * When `path` is non-null, the image is fetched from that URL and
+     * uploaded asynchronously. When null, the texture is left empty;
+     * call `createFromData` or `createFromImage` to populate it.
+     *
+     * @param gpu     - owning GPU device
+     * @param path    - image URL to load, or null for a manually
+     *                  populated texture
+     * @param core    - application core (used for `markDirty` and
+     *                  lifetime checks)
+     * @param direct  - pass true to bypass the image-cache path in
+     *                  `utils.loadImage`
+     * @param repeat  - texture wrap mode; false means clamp-to-edge
+     * @param filter  - minification/magnification filter
+     * @param keepImage - retain the `HTMLImageElement` after upload
+     * @param onLoaded  - called after the texture is uploaded
+     * @param onError   - called if the fetch fails
+     */
+    constructor(gpu: GpuDevice, path: string | null, core: any, _?: any, direct = false,
         repeat = false, filter?: GpuTexture.Filter, keepImage = false,
                           onLoaded?: () => void, onError?: () => void) {
 

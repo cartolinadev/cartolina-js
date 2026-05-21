@@ -1,5 +1,20 @@
 # Session log
 
+## 2026-05-21 — Bump collapse flag split
+
+Reopened [rfc-bump-bake.md](rfc-bump-bake.md) after acceptance to
+remove `useNormalMaps` and `useBumpMaps` from the collapse decision.
+The RFC now treats collapse as rig-local texture preprocessing governed
+by the layer stack, texture residency, and `mapCollapseBumps`. Render
+flags remain shader execution policy: `FlagNormalMaps` controls the
+normal-map push layer, and `FlagBumpMaps` controls uncollapsed bump
+blend layers. Review round 25 accepted the simplified design.
+
+Updated `GpuTexture` so TypeScript callers can pass `null` for manually
+populated textures without `as any` or non-null assertions. Renderer
+call sites that create hitmap or caller-provided textures now use
+`new GpuTexture(..., null, ...)` directly.
+
 ## 2026-05-21 — RFC: bump-layer collapse inside TileRenderRig
 
 Wrote [rfc-bump-bake.md](rfc-bump-bake.md) covering the design for
