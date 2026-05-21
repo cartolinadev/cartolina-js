@@ -10,6 +10,7 @@ import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
 import GpuTexture from '../renderer/gpu/texture';
+import type { CoreConfig } from '../types';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
 
@@ -52,7 +53,7 @@ import * as vts from '../constants';
 
 export class TileRenderRig {
 
-    private readonly config!: Config;
+    private readonly config!: CoreConfig;
     private readonly tile!: MapSurfaceTile;
     private readonly renderer!: Renderer;
 
@@ -95,7 +96,7 @@ export class TileRenderRig {
      */
 
     constructor(submeshIndex: number, style: MapStyle.StyleSpecification,
-        tile: MapSurfaceTile, renderer: Renderer, config: Config) {
+        tile: MapSurfaceTile, renderer: Renderer, config: CoreConfig) {
 
         this.tile = tile;
         this.renderer = renderer;
@@ -1446,14 +1447,6 @@ export class TileRenderRig {
 
 
 // local types
-
-type Config = {
-    [key: string]: boolean | number | string | number[] | undefined;
-
-    // do not download or use normal maps (use GL derivatives instead)
-    mapNoNormalMaps?: boolean;
-    mapCollapseBumps?: boolean;
-}
 
 
 type Necessity = 'essential' | 'optional';

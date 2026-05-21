@@ -1,5 +1,12 @@
 # Session log
 
+## 2026-05-21 — Replace local Config stub with CoreConfig
+
+The `Config` type in `tile-render-rig.ts` was a pre-`CoreConfig` stub
+modelling the same `map.config` object. Replaced it with `CoreConfig`
+throughout; `mapNoNormalMaps` migrated into `CoreConfig` alongside
+`mapCollapseBumps`.
+
 ## 2026-05-21 — Implement bump-layer collapse RFC
 
 Implemented [rfc-bump-bake.md](rfc-bump-bake.md) across three files.

@@ -23,6 +23,7 @@ export interface CoreConfig {
     mapFlagSpecularMaps?: boolean;
     mapFlagBumpMaps?: boolean;
     mapFlagAtmosphere?: boolean;
+    mapNoNormalMaps?: boolean;
     mapCollapseBumps?: boolean;
     mapFlagShadows?: boolean;
     mapFlagLabels?: boolean;
