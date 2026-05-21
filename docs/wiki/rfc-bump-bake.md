@@ -39,10 +39,8 @@ into the normal map. The saving per collapsed bump layer is larger than
 in the old pipeline because the UBO and shader loop are new overheads
 that the old pipeline never incurred at all.
 
-Memory reclamation of the bump texture happens via the normal tile
-eviction path: when `tile.resources` is freed, all `MapTexture` objects
-in it are killed together. No explicit post-collapse free is needed or
-performed.
+No explicit post-collapse free is performed; memory is reclaimed later
+through normal tile resource eviction.
 
 Collapsing is therefore an optimization, not a requirement. The tile
 renders correctly either way. Whether to collapse is a runtime config
@@ -238,12 +236,12 @@ The backlog already notes this; it is not in scope here.
    a. After the existing watertight loop, re-scan the layer stack to
       compute a `normalCleanSlate`: iterate from 0, resetting
       `normalCleanSlate = i + 1` on every layer with target `'normal'`
-      and operation `'push'` or `'pop'`. Then scan from
-      `normalCleanSlate` for the next un-collapsed bump layer (target
-      `'normal'`, source `'texture'`, operation `'blend'`, not
-      `optimizedOut`). Stop at any further `'normal'`-target `push` or
-      `pop`. If no eligible bump layer is found, skip the collapse
-      pass.
+      and either `operation === 'push'` or `source === 'pop'`. Then
+      scan from `normalCleanSlate` for the next un-collapsed bump layer
+      (target `'normal'`, source `'texture'`, operation `'blend'`, not
+      `optimizedOut`). Stop at any further layer with target `'normal'`
+      and `operation === 'push'` or `source === 'pop'`. If no eligible
+      bump layer is found, skip the collapse pass.
 
    b. Check `this.renderer.getRenderingOptions()`. If `useBumpMaps` is
       false or `useNormalMaps` is false, skip the collapse pass this
@@ -267,7 +265,8 @@ The backlog already notes this; it is not in scope here.
       the layer is GPU-ready: blend the bump texture at its configured
       alpha and mark the layer `optimizedOut`. Stop at the first
       non-ready layer or at any intervening `push`/`pop` on the
-      `'normal'` target (same rule as step 2a).
+      `operation === 'push'` or `source === 'pop'` on the `'normal'`
+      target (same rule as step 2a).
 
    h. If `bakedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
       using `gl.createTexture` and `gl.texImage2D`. Set
@@ -561,6 +560,9 @@ boundary rule.
    normal-target `operation === 'push'` or normal-target
    `source === 'pop'`.
 
+   *Implemented. Steps 2a and 2g updated to use `operation === 'push'`
+   and `source === 'pop'` as the boundary discriminants.*
+
 2. Non-blocking: the old sign-off section still says the first
    implementation does not reclaim bump texture memory. The revised
    §1.3 now says memory is reclaimed through normal tile eviction. That
@@ -570,3 +572,56 @@ boundary rule.
    free is performed; memory is reclaimed later through tile resource
    eviction." That keeps the accepted review history and current design
    language aligned.
+
+   *Implemented. §1.3 updated to the suggested wording.*
+
+## Review round 7 — sign-off
+
+The revised design is accepted. The push/pop boundary rule now matches
+the current `Layer` representation: normal-target pushes use
+`operation === 'push'`, and normal-target pops use `source === 'pop'`.
+The memory-reclamation wording also matches the implementation rule:
+there is no explicit post-collapse free; memory is reclaimed later
+through tile resource eviction.
+
+## Review round 8
+
+1. Blocker: the accepted design still makes the baked normal a raw
+   rig-local `WebGLTexture`, but surface-tile lifetime is not the normal
+   map-browsing lifetime. During ordinary browsing, `MapSurfaceTile`
+   objects are created as traversal descends into the metatile tree and
+   are kept for reuse. `MapSurfaceTile.kill()` is not called as part of
+   normal cache pressure or normal camera movement; it is reached only
+   through child removal, explicit subtree kill, or whole-map teardown.
+   `MapSurfaceTree.kill()` only drops `surfaceTree`; it does not walk
+   the tile tree and call `MapSurfaceTile.kill()` on the root.
+   `MapSurfaceTile.validate()` has `this.kill()` commented out. In
+   practice, surface tiles created while a user browses around the map
+   can live for the rest of the map session. A rig-local baked texture
+   would therefore also live for the rest of the session unless the rig
+   is replaced by style/view changes.
+
+   This is a GPU memory leak under interactive use. A session that
+   visits thousands of tiles can create thousands of 256x256 baked
+   normal textures. At RGBA8 that is about 256 KiB per rig, before
+   counting current/last rig duplication or multiple submeshes. Because
+   the textures are not registered in `map.gpuCache`, the cache cannot
+   count them, evict them, or slow further GPU allocation in response to
+   them. The memory is untracked and can grow with browsing history, not
+   with the currently visible working set.
+
+   Existing GPU resources such as `MapSubtexture` insert a destructor
+   into `map.gpuCache` and call `map.gpuCache.updateItem()` when the GPU
+   texture is used. The baked normal needs equivalent accounting and
+   warming. The RFC should not allocate an unmanaged rig-local
+   `WebGLTexture`. It should either:
+
+   - make the baked normal a `gpuCache` item with a destructor, a known
+     byte cost, and an update call whenever `encodeLayer()` binds it; or
+   - defer the feature until a cache-owned baked-normal object exists.
+
+   If the baked normal can be evicted while the rig survives, eviction
+   must be behaviorally reversible. The design must state how the rig
+   clears `bakedNormalGpu` and makes the baked bump layers renderable
+   again, or it must avoid marking those source bump layers permanently
+   `optimizedOut`.
