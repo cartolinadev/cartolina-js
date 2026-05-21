@@ -1,6 +1,6 @@
 # RFC: bump-layer collapse inside `TileRenderRig`
 
-**Status:** In review
+**Status:** Accepted
 **Context:** PERF: bake bump maps into normal map inside
 `TileRenderRig` in [backlog.md](backlog.md)
 
@@ -39,10 +39,12 @@ into the normal map. The saving per collapsed bump layer is larger than
 in the old pipeline because the UBO and shader loop are new overheads
 that the old pipeline never incurred at all.
 
-Source bump textures are not freed after collapse; their GPU memory is
-reclaimed when the tile is evicted from the resource tree. The
-collapsed normal GPU texture is accounted and evicted through
-`map.gpuCache`; it is not tied to tile lifetime.
+Source bump textures are not explicitly freed after collapse. Their GPU
+payloads remain managed by their existing `MapSubtexture` `map.gpuCache`
+entries — the same mechanism used for all other tile textures. The
+collapsed normal GPU texture has its own `map.gpuCache` entry and is
+evicted independently. The resource tree is a lookup and ownership
+graph for resource objects, not the GPU memory eviction mechanism.
 
 Collapsing is therefore an optimization, not a requirement. The tile
 renders correctly either way. Whether to collapse is a runtime config
@@ -906,3 +908,16 @@ through tile resource eviction.
      evicted independently from source textures;
    - the resource tree is a lookup/ownership graph for resource objects,
      not the GPU memory eviction mechanism.
+
+   *Implemented. §1.3 rewritten: source bump texture GPU payloads remain
+   managed by their existing `MapSubtexture` `map.gpuCache` entries; the
+   collapsed normal has its own entry and is evicted independently; the
+   resource tree is described accurately as a lookup/ownership graph.*
+
+## Review round 15 — sign-off
+
+The revised design is accepted. The ownership model now matches the
+codebase: source texture GPU payloads remain under their existing
+`MapSubtexture` cache entries, the collapsed normal has its own
+`map.gpuCache` entry, and the resource tree is not described as a GPU
+memory eviction mechanism.
