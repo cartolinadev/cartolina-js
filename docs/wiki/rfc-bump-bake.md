@@ -100,11 +100,12 @@ recently used.
 
 When the cache evicts the baked texture, the destructor clears
 `collapsedNormalGpu`, resets `optimizedOut` to false on every layer that
-was collapsed into it, and invalidates the UBO by setting `uboLayers`
-to null. On the next frame, `isReady()` calls `optimizeStack()`, which
-finds the un-collapsed layers and re-runs the collapse. Because the
-bump `MapTexture` objects are not freed post-collapse, re-collapse
-proceeds as soon as their GPU textures are resident again.
+was collapsed into it, deletes the existing UBO with `gl.deleteBuffer`
+and sets `uboLayers` to null. On the next frame, `isReady()` calls
+`optimizeStack()`, which finds the un-collapsed layers and re-runs the
+collapse. Because the bump `MapTexture` objects are not freed
+post-collapse, re-collapse proceeds as soon as their GPU textures are
+resident again.
 
 ### 2.3 Two rigs alive simultaneously
 
@@ -262,27 +263,30 @@ The backlog already notes this; it is not in scope here.
       false or `useNormalMaps` is false, skip the collapse pass this
       frame. (Collapse requires both flags on — see §2.6.)
 
-   c. Check that `this.normalMap` is non-null and its GPU texture is
-      ready. If not, skip. Bump layers cannot be collapsed without a
-      ready base normal map to blend into.
+   c. Branch on whether `collapsedNormalGpu` is already allocated:
+      - If null (first collapse or post-eviction restart): check that
+        `this.normalMap` is non-null and its GPU texture is resident
+        using a read-only test. If not, skip. The base normal-map
+        texture is the blend source for the first layer and must be
+        resident before the pass begins.
+      - If non-null (incremental pass): the base normal-map texture is
+        not needed — `collapsedNormalGpu` already holds the prior
+        result. Call `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)`
+        immediately to protect it from any eviction that can happen in
+        the steps below. Do not test `this.normalMap` residency.
 
    d. Check that the first un-collapsed bump layer's GPU texture is
       non-null using a read-only test (do not trigger GPU texture
       upload). If not ready, skip. (Collapsing must stay in order.)
 
-   e. If `collapsedNormalGpuCacheItem` is non-null, call
-      `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)` to mark it
-      as recently used before any subsequent `gpuCache.insert()` calls
-      in this pass can evict it.
-
-   f. Call `nmblender.init()` to clear the FBO. (`nmblender` is
+   e. Call `nmblender.init()` to clear the FBO. (`nmblender` is
       borrowed synchronously; no guard is needed — see §2.7.)
 
-   g. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
+   f. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
       is non-null, blend `collapsedNormalGpu`; otherwise blend the base
       normal map texture.
 
-   h. For each bump layer starting from the first un-collapsed, while
+   g. For each bump layer starting from the first un-collapsed, while
       the layer's GPU texture is non-null: blend the bump texture at its
       configured alpha, mark the layer `optimizedOut`, and append its
       index in `rt.layerStack` to `collapsedLayerIndices`. Stop at the
@@ -290,15 +294,15 @@ The backlog already notes this; it is not in scope here.
       `source === 'pop'` layer on the `'normal'` target (same rule as
       step 2a).
 
-   i. If `collapsedNormalGpu` is null: allocate a `WebGLTexture` at
+   h. If `collapsedNormalGpu` is null: allocate a `WebGLTexture` at
       256×256 using `gl.createTexture` and `gl.texImage2D`. Set
       `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
       both wrap modes to `CLAMP_TO_EDGE`. Assign to `collapsedNormalGpu`.
 
-   j. Call `nmblender.copyResult(collapsedNormalGpu)` to copy the FBO
+   i. Call `nmblender.copyResult(collapsedNormalGpu)` to copy the FBO
       into the rig's texture.
 
-   k. Update cache registration:
+   j. Update cache registration:
       - If `collapsedNormalGpuCacheItem` is null (first allocation):
         call `map.gpuCache.insert(evictCollapsedNormal.bind(this),
         256 * 256 * 4)` and store the result. If `collapsedNormalGpu`
@@ -802,7 +806,42 @@ through tile resource eviction.
      residency check and warm `collapsedNormalGpuCacheItem` before any
      operation that can touch `gpuCache`.
 
+   *Implemented. Step 2c now branches on `collapsedNormalGpu`. When
+   null: read-only check of the base normal-map GPU texture; when
+   non-null: skip the normal-map check and call `updateItem()`
+   immediately. The standalone warm step 2e is removed; the warm is
+   now part of step 2c. Remaining steps relabeled e–j.*
+
 2. Non-blocking: §2.2 still says the eviction destructor invalidates the
    UBO "by setting `uboLayers` to null." Step 2k now correctly deletes
    the old `WebGLBuffer` before clearing the field. Update §2.2 so the
    design body does not preserve the earlier leaking wording.
+
+   *Implemented. §2.2 updated: destructor now described as deleting
+   the UBO with `gl.deleteBuffer` before setting `uboLayers` to null.*
+
+## Review round 12
+
+1. Blocker: step 2j still has an assignment-order hazard in the
+   immediate-eviction case. It says to call
+   `map.gpuCache.insert(evictCollapsedNormal.bind(this), ...)` and store
+   the result, then check whether `collapsedNormalGpu` is null. In
+   JavaScript, the right-hand side of an assignment runs before the
+   field is assigned. If `insert()` synchronously evicts the newly
+   inserted item, `evictCollapsedNormal()` runs while
+   `collapsedNormalGpuCacheItem` still has its old value (`null` on
+   first allocation). After `insert()` returns, a direct assignment would
+   then store the returned cache item even though the cache has already
+   removed it and the texture has already been deleted. The rig would
+   hold a stale non-null cache item.
+
+   Specify this sequence instead:
+
+   - store the return value in a local `const cacheItem`;
+   - if `collapsedNormalGpu` is null after `insert()` returns, leave
+     `collapsedNormalGpuCacheItem` null and abort the pass;
+   - only assign `collapsedNormalGpuCacheItem = cacheItem` after the
+     post-insert survival check passes.
+
+   The same rule should be used for any other cache insertion whose
+   destructor can mutate the object receiving the cache item.
