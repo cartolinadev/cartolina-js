@@ -425,9 +425,9 @@ export class TileRenderRig {
         // set the layer count last
         bufacc.i32.set([numLayers], 0);            // ivec4 layerCount
 
-        if (numLayers < this.rt.layerStack.length)
-            __DEV__ && console.log(`${this.logSign()}: encoded `
-                + `${numLayers} / ${this.rt.layerStack.length} layers.`);
+        //if (numLayers < this.rt.layerStack.length)
+        //    __DEV__ && console.log(`${this.logSign()}: encoded `
+        //        + `${numLayers} / ${this.rt.layerStack.length} layers.`);
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers ?? null);

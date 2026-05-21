@@ -1,5 +1,11 @@
 # Session log
 
+## 2026-05-21 — Confirm bump collapse and remove debug log
+
+Loaded complex-terrain in Playwright. Console showed `encoded 11 / 14
+layers` on every visible tile — 3 layers collapsed per tile (the three
+bump-map blend layers). Collapse confirmed working. Debug log removed.
+
 ## 2026-05-21 — Replace local Config stub with CoreConfig
 
 The `Config` type in `tile-render-rig.ts` was a pre-`CoreConfig` stub
