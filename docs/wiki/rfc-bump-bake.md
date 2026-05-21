@@ -266,47 +266,57 @@ The backlog already notes this; it is not in scope here.
       ready. If not, skip. Bump layers cannot be collapsed without a
       ready base normal map to blend into.
 
-   d. Check that the first un-collapsed bump layer is GPU-ready. If
-      not, skip. (Collapsing must stay in layer-stack order.)
+   d. Check that the first un-collapsed bump layer's GPU texture is
+      non-null using a read-only test (do not trigger GPU texture
+      upload). If not ready, skip. (Collapsing must stay in order.)
 
-   e. Call `nmblender.init()` to clear the FBO. (`nmblender` is
+   e. If `collapsedNormalGpuCacheItem` is non-null, call
+      `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)` to mark it
+      as recently used before any subsequent `gpuCache.insert()` calls
+      in this pass can evict it.
+
+   f. Call `nmblender.init()` to clear the FBO. (`nmblender` is
       borrowed synchronously; no guard is needed — see §2.7.)
 
-   f. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
+   g. Blend the source into the FBO at alpha 1.0: if `collapsedNormalGpu`
       is non-null, blend `collapsedNormalGpu`; otherwise blend the base
       normal map texture.
 
-   g. For each bump layer starting from the first un-collapsed, while
-      the layer is GPU-ready: blend the bump texture at its configured
-      alpha, mark the layer `optimizedOut`, and append its index in
-      `rt.layerStack` to `collapsedLayerIndices`. Stop at the first
-      non-ready layer or at any `operation === 'push'` or
+   h. For each bump layer starting from the first un-collapsed, while
+      the layer's GPU texture is non-null: blend the bump texture at its
+      configured alpha, mark the layer `optimizedOut`, and append its
+      index in `rt.layerStack` to `collapsedLayerIndices`. Stop at the
+      first non-ready layer or at any `operation === 'push'` or
       `source === 'pop'` layer on the `'normal'` target (same rule as
       step 2a).
 
-   h. If `collapsedNormalGpu` is null: allocate a `WebGLTexture` at 256×256
-      using `gl.createTexture` and `gl.texImage2D`. Set
+   i. If `collapsedNormalGpu` is null: allocate a `WebGLTexture` at
+      256×256 using `gl.createTexture` and `gl.texImage2D`. Set
       `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER` to `LINEAR` and
       both wrap modes to `CLAMP_TO_EDGE`. Assign to `collapsedNormalGpu`.
-   i. Call `nmblender.copyResult(collapsedNormalGpu)` to copy the FBO
+
+   j. Call `nmblender.copyResult(collapsedNormalGpu)` to copy the FBO
       into the rig's texture.
 
-   j. Register with `map.gpuCache` after the copy:
-      ```
-      collapsedNormalGpuCacheItem = map.gpuCache.insert(
-          evictCollapsedNormal.bind(this), 256 * 256 * 4);
-      ```
-      Registering after `copyResult()` ensures the texture is
-      populated before the cache can evict it. The destructor
-      `evictCollapsedNormal()` is a private method that:
+   k. Update cache registration:
+      - If `collapsedNormalGpuCacheItem` is null (first allocation):
+        call `map.gpuCache.insert(evictCollapsedNormal.bind(this),
+        256 * 256 * 4)` and store the result. If `collapsedNormalGpu`
+        is null after `insert()` returns, the cache immediately evicted
+        the new entry and `evictCollapsedNormal()` has already restored
+        the rig; abort the collapse pass for this frame.
+      - If `collapsedNormalGpuCacheItem` is already set (incremental
+        pass): call `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)`.
+
+      The destructor `evictCollapsedNormal()` is a private method that:
       - calls `gl.deleteTexture(collapsedNormalGpu)`
       - sets `collapsedNormalGpu = null` and
         `collapsedNormalGpuCacheItem = null`
       - sets `optimizedOut = false` on each index in
         `collapsedLayerIndices`, then clears `collapsedLayerIndices`
       - calls `gl.deleteBuffer(uboLayers)` then sets `uboLayers = null`
-        to force UBO rebuild next frame (the explicit delete prevents
-        a GPU buffer leak, since `dispose()` also deletes `uboLayers`)
+        (the explicit delete prevents a GPU buffer leak, since
+        `dispose()` also deletes `uboLayers`)
 
 3. In `encodeLayer()`, when binding the texture for the base normal-map
    push layer: if `collapsedNormalGpu` is non-null, bind `collapsedNormalGpu`
@@ -336,6 +346,16 @@ unconditionally; the same policy is acceptable here. If the normal map
 is larger, the collapsed result is a downsampled blend. This is a known
 trade-off from the old pipeline and can be addressed in a follow-up
 when `nmblender` is modernised.
+
+**Collapsed normal cache key.** `map.gpuCache` (`MapCache`) is a
+keyless LRU eviction pool: `insert()` accepts a destructor and a byte
+cost and returns an opaque token; there is no key lookup. The collapsed
+normal is therefore rig-local and cannot be shared between rigs even
+when two rigs target the same normal map with the same bump sequence.
+Cross-rig reuse would require a separate key-based cache entry, keyed
+on the normal map URL plus the ordered bump sequence (layer IDs and
+alphas). That is a valid follow-up optimization but is out of scope
+here.
 
 **`nmblender` ownership.** The backlog entry for deleting the legacy
 mesh tile rendering pipeline schedules `nmblender` removal from
@@ -728,6 +748,11 @@ through tile resource eviction.
    checks that can touch `gpuCache`, or abort and restart the collapse
    pass whenever `collapsedNormalGpu` is evicted during the pass.
 
+   *Implemented. Step 2d changed to a read-only GPU texture check that
+   does not trigger upload. New step 2e calls `updateItem()` on the
+   existing cache item (if any) before the blend begins, protecting it
+   from eviction by any `insert()` calls later in the same pass.*
+
 2. Blocker: step 2j registers `collapsedNormalGpu` with `map.gpuCache`
    after every collapse pass. Incremental collapse means the same
    `collapsedNormalGpu` may be reused on later frames when more bump
@@ -739,6 +764,10 @@ through tile resource eviction.
    updates should call `map.gpuCache.updateItem()` for the existing
    cache item after `copyResult()`.
 
+   *Implemented. Step 2k (formerly 2j) now branches: `insert()` only
+   when `collapsedNormalGpuCacheItem` is null (first allocation);
+   `updateItem()` on all subsequent incremental passes.*
+
 3. Non-blocking: step 2j says registering after `copyResult()` ensures
    the texture is populated before the cache can evict it. That is true,
    but insertion can still evict the newly registered texture before
@@ -747,3 +776,33 @@ through tile resource eviction.
    rig in the uncollapsed state because `evictCollapsedNormal()` has
    restored the collapsed layer indices, and the current collapse pass
    must then stop without assuming `collapsedNormalGpu` still exists.
+
+   *Implemented. Step 2k states: after `insert()`, check if
+   `collapsedNormalGpu` is still non-null; if it was immediately
+   evicted, abort the collapse pass for this frame.*
+
+## Review round 11
+
+1. Blocker: step 2c still unconditionally requires `this.normalMap` to
+   have a ready GPU texture before any collapse pass. That matches the
+   first collapse, but not incremental collapse. After the first bump is
+   collapsed, later passes use `collapsedNormalGpu` as the source
+   accumulator; the original normal-map GPU texture may have been
+   evicted from `map.gpuCache`, and reloading it is not needed for the
+   next bump. This also reopens the mid-pass eviction hazard: if step 2c
+   calls `this.normalMap.isReady()` to reload the normal texture before
+   step 2e warms `collapsedNormalGpuCacheItem`, that upload can insert
+   into `gpuCache` and evict the existing collapsed normal. Change the
+   guard to:
+
+   - when `collapsedNormalGpu` is null, require the base normal-map GPU
+     texture to be resident using a read-only check; do not upload it in
+     this pass;
+   - when `collapsedNormalGpu` is non-null, skip the base normal-map
+     residency check and warm `collapsedNormalGpuCacheItem` before any
+     operation that can touch `gpuCache`.
+
+2. Non-blocking: §2.2 still says the eviction destructor invalidates the
+   UBO "by setting `uboLayers` to null." Step 2k now correctly deletes
+   the old `WebGLBuffer` before clearing the field. Update §2.2 so the
+   design body does not preserve the earlier leaking wording.
