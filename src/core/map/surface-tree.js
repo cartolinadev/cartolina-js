@@ -335,19 +335,11 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                     // desired rendering: texel size fits
                     //console.log("Drawing %s (fit)", tile.id);
 
-                    size = draw.getDrawCommandsGpuSize(tile.drawCommands[draw.drawChannel] || tile.lastRenderState.drawCommands[draw.drawChannel]);
-
-                    gpuNeeded += size;
-                    gpuNeededForRender += size;
-
                     tile.drawCounter = draw.drawCounter;
                     drawBuffer[drawBufferIndex] = tile;
                     drawBufferIndex++;
                     
                 } else { //go deeper
-
-                    size = draw.getDrawCommandsGpuSize(tile.drawCommands[draw.drawChannel] || tile.lastRenderState.drawCommands[draw.drawChannel]);
-                    gpuNeeded += size;
 
                     var childrenCount = 0;
                     var readyCount = 0;
@@ -556,20 +548,12 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
 
                     if (tile.skipRenderCounter != drawCounter) {
 
-                        size = draw.getDrawCommandsGpuSize(tile.drawCommands[draw.drawChannel] || tile.lastRenderState.drawCommands[draw.drawChannel]);
-
-                        gpuNeeded += size;
-                        gpuNeededForRender += size;
-
                         tile.drawCounter = drawCounter;
                         drawBuffer[drawBufferIndex] = tile;
                         drawBufferIndex++;
                     }
                     
                 } else { //go deeper
-                    size = draw.getDrawCommandsGpuSize(tile.drawCommands[draw.drawChannel] || tile.lastRenderState.drawCommands[draw.drawChannel]);
-                    gpuNeeded += size;
-
                     var childrenCount = 0;
                     var childrenBuffer = [];
                     var mask = [1,1,1,1];

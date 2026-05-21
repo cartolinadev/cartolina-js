@@ -34,12 +34,8 @@ import * as vts from '../constants';
   * draws the tile using MapMesh.draw2, after binding textures and setting all
   * the necessary uniforms and samplers.
   *
-  * The rig is meant to be a replacement for a swath of old vts functionality,
-  * mostly in MapDrawTiles.drawMeshTile, MapDrawTiles.updateTileBounds and
-  * MapMesh.drawSubmesh. Unlike the old setup split across these methods,
-  * the rig renders the tile always in a single pass, using a single, unified
-  * program, including optional atmospheric scattering, hence there is no "draw
-  * command" sequence.
+  * The rig replaced the old terrain draw-command path. It renders each tile
+  * in one pass with one program, including optional atmospheric scattering.
   *
   * The rig is self-contained in the sense that it can draw independently even
   * when/while the original tile changes.

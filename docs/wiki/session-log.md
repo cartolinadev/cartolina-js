@@ -1,5 +1,24 @@
 # Session log
 
+## 2026-05-21 — Delete legacy terrain draw-command renderer
+
+Removed the old terrain `drawMeshTile` path from `draw-tiles.js`,
+including its bound-layer sequence builder, heightmap updater, last-state
+replay block, and dead command generation. `TileRenderRig` is now the
+only terrain tile renderer for color and depth passes.
+
+Simplified `MapDraw.processDrawCommands()` and
+`areDrawCommandsReady()` so they handle only `DRAWCOMMAND_GEODATA`.
+Removed the old command memory estimates from `surface-tree.js` and
+deleted the unused draw-command constants. Removed the unused heightmap
+and skydome programs and shader strings.
+
+Kept `MapMesh.drawSubmesh()` and the old tile shader family because
+geodata mesh jobs still call that method, and public custom mesh drawing
+still uses the old shaded/depth mesh programs. Those need a separate
+migration before `mesh.js` and the remaining legacy tile shaders can be
+cut.
+
 ## 2026-05-21 — Normal encoding doc, RFC closed, backlog cleanup
 
 Wrote [normal-encoding.md](normal-encoding.md) covering octahedral RG

@@ -622,8 +622,6 @@ GpuShaders.text2FragmentShader = 'precision mediump float;\n'+
         'gl_FragColor = vec4(uColor.rgb, alpha);\n'+
     '}';
 
-/* Removal candidates: skydomeFragmentShader used only by unused progSkydome.
- * skydomeVertexShader also used by progStardome (inspector replay — live). */
 GpuShaders.skydomeVertexShader =
     'attribute vec3 aPosition;\n'+
     'attribute vec2 aTexCoord;\n'+
@@ -632,16 +630,6 @@ GpuShaders.skydomeVertexShader =
     'void main(){ \n'+
         'gl_Position = uMVP * vec4(aPosition, 1.0);\n'+
         'vTexCoord = aTexCoord;\n'+
-    '}';
-
-
-GpuShaders.skydomeFragmentShader = 'precision mediump float;\n'+
-    'uniform sampler2D uSampler;\n'+
-    'varying vec2 vTexCoord;\n'+
-    'const vec4 gray = vec4(0.125, 0.125, 0.125, 1.0);\n'+
-    'void main() {\n'+
-        'float fade = smoothstep(0.51, 0.55, vTexCoord.t);\n'+
-        'gl_FragColor = mix(texture2D(uSampler, vTexCoord), gray, fade);\n'+
     '}';
 
 
@@ -788,87 +776,6 @@ GpuShaders.atmoFragmentShader3 = 'precision mediump float;\n'+
 
     '}';
 
-
-//heightmap tile
-GpuShaders.heightmapVertexShader =
-    'attribute vec3 aPosition;\n'+
-    'attribute vec2 aTexCoord;\n'+
-    'uniform mat4 uMV, uProj;\n'+
-    'uniform float uFogDensity;\n'+
-    'uniform mat4 uGridMat;\n'+
-    'uniform float uGridStep1, uGridStep2;\n'+
-    'const int HMSize = 5;\n'+
-    'const float HMSize1 = float(HMSize-1);\n'+
-    'uniform float uHeight[HMSize*HMSize];\n'+
-    'varying vec2 vTexCoord1;\n'+
-    'varying vec2 vTexCoord2;\n'+
-    'varying float vFogFactor;\n'+
-    'float round(float x) { return floor(x + 0.5); }\n'+
-    'void main() {\n'+
-        'vec3 pos = aPosition;\n'+
-        'float z = uHeight[int(round(pos.y*HMSize1)*float(HMSize) + round(pos.x*HMSize1))];\n'+
-        'vec4 camSpacePos = uMV * vec4(pos.xy, z, 1.0);\n'+
-        'gl_Position = uProj * camSpacePos;\n'+
-        'float camDist = length(camSpacePos.xyz);\n'+
-        'vFogFactor = exp(uFogDensity * camDist);\n'+
-        'vec4 gridCoord = uGridMat * vec4(pos, 1.0);\n'+
-        'vTexCoord1 = aTexCoord;\n'+
-        'vTexCoord1 = gridCoord.xy * vec2(uGridStep1);\n'+
-        'vTexCoord2 = gridCoord.xy * vec2(uGridStep2);\n'+
-    '}';
-
-
-GpuShaders.heightmapFragmentShader = 'precision mediump float;\n'+
-    'uniform sampler2D uSampler;\n'+
-    'uniform float uGridBlend;\n'+
-    'varying vec2 vTexCoord1;\n'+
-    'varying vec2 vTexCoord2;\n'+
-    'varying float vFogFactor;\n'+
-    'uniform vec4 uFogColor;\n'+ // = vec4(216.0/255.0, 232.0/255.0, 243.0/255.0, 1.0);\n'+
-    'void main() {\n'+
-        'vec4 gridColor = mix(texture2D(uSampler, vTexCoord1), texture2D(uSampler, vTexCoord2), uGridBlend);\n'+
-        'gl_FragColor = mix(uFogColor, gridColor, vFogFactor);\n'+
-    '}';
-
-
-//depth encoded heightmap tile
-GpuShaders.heightmapDepthVertexShader =
-    'attribute vec3 aPosition;\n'+
-    'attribute vec2 aTexCoord;\n'+
-    'uniform mat4 uMV, uProj;\n'+
-    'uniform float uFogDensity;\n'+
-    'uniform mat4 uGridMat;\n'+
-    'uniform float uGridStep1, uGridStep2;\n'+
-    'const int HMSize = 5;\n'+
-    'const float HMSize1 = float(HMSize-1);\n'+
-    'uniform float uHeight[HMSize*HMSize];\n'+
-    'varying vec2 vTexCoord1;\n'+
-    'varying vec2 vTexCoord2;\n'+
-    'varying float vDepth;\n'+
-    'float round(float x) { return floor(x + 0.5); }\n'+
-    'void main() {\n'+
-        'vec3 pos = aPosition;\n'+
-        'float z = uHeight[int(round(pos.y*HMSize1)*float(HMSize) + round(pos.x*HMSize1))];\n'+
-        'vec4 camSpacePos = uMV * vec4(pos.xy, z, 1.0);\n'+
-        'gl_Position = uProj * camSpacePos;\n'+
-        'float camDist = length(camSpacePos.xyz);\n'+
-        'vDepth = camDist;\n'+
-        'vec4 gridCoord = uGridMat * vec4(pos, 1.0);\n'+
-        'vTexCoord1 = aTexCoord;\n'+
-        'vTexCoord1 = gridCoord.xy * vec2(uGridStep1);\n'+
-        'vTexCoord2 = gridCoord.xy * vec2(uGridStep2);\n'+
-    '}';
-
-
-GpuShaders.heightmapDepthFragmentShader = 'precision mediump float;\n'+
-    'uniform sampler2D uSampler;\n'+
-    'uniform float uGridBlend;\n'+
-    'varying vec2 vTexCoord1;\n'+
-    'varying vec2 vTexCoord2;\n'+
-    'varying float vDepth;\n'+
-    'void main() {\n'+
-        'gl_FragColor = fract(vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0) * vDepth) + (-0.5/255.0);\n'+
-    '}';
 
 GpuShaders.quadPoint =
     'vec3 quadPoint(int i1, int i2, int i3, float t, float t2) {\n'+

@@ -181,10 +181,10 @@ texture URLs for resource fetching.
 
 If the lookup returns falsy (a `sourceReference` outside the parsed
 mapping), `tile.resourceSurface` is left pointing at the
-`MapVirtualSurface` itself, which has no per-tile mesh URL. Both
-`drawMeshTile` and the tile-render-rig path in `drawSurfaceTile` guard
-against this with an early return. This should never fire in a
-well-formed deployment.
+`MapVirtualSurface` itself, which has no per-tile mesh URL.
+`MapDrawTiles.drawSurfaceTile()` guards against this with an early
+return before constructing a `TileRenderRig`. This should never fire in
+a well-formed deployment.
 
 Concretely: the server ran the seam-stitching logic offline, wrote the
 winning source into each metatile's `sourceReference` field, and

@@ -1,15 +1,12 @@
 
-import {vec3 as vec3_} from '../utils/matrix';
 import * as math from '../utils/math';
 import MapGeodata_ from './geodata';
 import MapGeodataView_ from './geodata-view';
 import MapDrawTiles_ from './draw-tiles';
-import * as Illumination from './illumination';
 import * as vts from '../constants';
 
 
 //get rid of compiler mess
-var vec3 = vec3_;
 var MapDrawTiles = MapDrawTiles_;
 var MapGeodataView = MapGeodataView_;
 var MapGeodata = MapGeodata_;
@@ -572,113 +569,24 @@ MapDraw.prototype.drawGeodataHitmap = function() {
     this.map.geoHitMapDirty = false;
 };
 
-MapDraw.prototype.getDrawCommandsGpuSize = function(commands) {
-    var gpuNeeded = 0;
-    
-    for (var i = 0, li = commands.length; i < li; i++) {
-        var command = commands[i];
-        
-        switch (command.type) {
-
-        case vts.DRAWCOMMAND_APPLY_BUMPS:
-            gpuNeeded += command.normalMap.getGpuSize();
-            break;
-
-        case vts.DRAWCOMMAND_SUBMESH:
-               
-            var mesh = command.mesh; 
-            var texture = this.config.mapNoTextures ? 0 : command.texture; 
-
-            if (mesh) {
-                gpuNeeded += mesh.gpuSize;
-            }
-
-            if (texture) {
-                gpuNeeded += texture.getGpuSize();
-            }
-                
-            break;
-
-        case vts.DRAWCOMMAND_GEODATA:
-                
-            var geodataView = command.geodataView; 
-                
-            if (geodataView) {
-                gpuNeeded += geodataView.size;
-            }
-                
-            break;
-        }
-    }
-    
-    return gpuNeeded;
-};
-
-
 MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad, doNotCheckGpu) {
     var ready = true;
     var checkGpu = doNotCheckGpu ? true : false;
-    
+
     for (var i = 0, li = commands.length; i < li; i++) {
         var command = commands[i];
-        
-        switch (command.type) {
-        case vts.DRAWCOMMAND_SUBMESH:
 
-            /* // long dead
-             var pipeline = command.pipeline;
-             if (pipeline) {
-                var hmap = command.hmap;
-    
-                if (!(hmap && hmap.isReady(doNotLoad, priority))) {
-                    ready = false;
-                }
+        if (command.type === vts.DRAWCOMMAND_GEODATA) {
+            var geodataView = command.geodataView;
 
-                if (this.debug.drawTestMode == 9) {
-                    var texture = command.texture; 
-                    var textureReady = this.config.mapNoTextures ? true : (!texture  || (texture && texture.isReady(doNotLoad, priority, checkGpu)));
-                        
-                    if (!textureReady) {
-                        ready = false;   
-                    }
-                }
+            if (!(geodataView && geodataView.isReady(
+                doNotLoad, priority, checkGpu))) {
 
-                break;
-            }*/
-                
-            var mesh = command.mesh; 
-            var texture = command.texture; 
-                
-            var meshReady = (mesh && mesh.isReady(doNotLoad, priority, checkGpu));
-            var textureReady = this.config.mapNoTextures ? true : (!texture  || (texture && texture.isReady(doNotLoad, priority, checkGpu)));
-
-            if (!(meshReady && textureReady) ) {
                 ready = false;
             }
-
-            let normalMap = command.normalMap;
-
-            if (command.illuminatedSubmesh) {
-
-                // illuminated submeshes need all three
-                let normalMapReady = normalMap.isReady(doNotLoad, priority);
-                ready = ready && normalMapReady;
-            }
-
-            break;
-
-        case vts.DRAWCOMMAND_GEODATA:
-                
-            var geodataView = command.geodataView; 
-                
-            if (!(geodataView && geodataView.isReady(doNotLoad, priority, checkGpu))) {
-                ready = false;   
-            }
-                
-            break;
         }
     }
-    
+
     return ready;
 };
 
@@ -688,223 +596,17 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
         this.drawTileCounter++;
     }
 
-    // the 'doNotLoad' option seems to exist to suppress artefacts in view switching
-    // its all this 'lastRenderState' stuff
-
-    // normalize viewdep alphas for bound layers
-    let vdalphaSum = 0;
-    const epsilon = 1E-3;
-
-    for (var i = 0; i < commands.length; i ++) {
-
-        let command = commands[i];
-
-        if (command.type === vts.DRAWCOMMAND_SUBMESH && command.alpha
-            && command.alpha.mode === 'viewdep') {
-
-                command.runtime.vdalpha = math.clamp(
-                    Math.pow(vec3.dot(
-                        command.runtime.illuminationNED,
-                        Illumination.lned2ned(
-                            this.map.idealIlluminationLNED,
-                            this.map.position)), 5),
-                    0.0, 1.0) + epsilon;
-
-               vdalphaSum += command.runtime.vdalpha;
-        }
-    }
-
-    if (vdalphaSum > 0) {
-
-        let factor = 1.0 / vdalphaSum;
-        //console.log(factor);
-
-        for (var i = 0; i < commands.length; i ++) {
-
-            let command = commands[i];
-
-            if (command.type === vts.DRAWCOMMAND_SUBMESH && command.alpha
-                && command.alpha.mode === 'viewdep') {
-
-                    command.runtime.vdalphan =
-                        command.runtime.vdalpha * factor;
-
-                    //console.log("layer: ", command.layer.id, ", vdalpha: ",
-                    //       command.runtime.vdalphan);
-
-                }
-        }
-    }
-   
-    // process commands
     for (var i = 0, li = commands.length; i < li; i++) {
         var command = commands[i];
 
-        // the meat of the rendering pipeline follows
+        if (command.type === vts.DRAWCOMMAND_GEODATA) {
+            var geodataView = command.geodataView;
 
-        switch (command.type) {
-        case vts.DRAWCOMMAND_STATE:
-            this.renderer.gpu.setState(command.state);
-            break;
+            if (geodataView && geodataView.isReady(
+                doNotLoad, priority, true)) {
 
-        case vts.DRAWCOMMAND_APPLY_BUMPS:
-            // normal map not ready? Nothing to do, yet.
-            if (!command.normalMap.isReady(doNotLoad, priority)) continue;
-
-            // find out which bump maps may be blended into the normal map
-            let bumpsReady = [];
-
-
-            for (let j = 0; j < command.bumps.length; j++) {
-
-                let bump = command.bumps[j];
-
-                // bumps are not necessary for rendering - do not enqueue them
-                // if loader is busy
-                let loader = this.map.loader;
-                let holdBumps = (loader.usedThreads > 0.1 * loader.maxThreads);
-
-                // was it already blended? Skip it.
-                if (command.normalMap.bumpsApplied.includes(bump.layer.id))
-                    continue;
-
-                // is it ready? If not, stop here.
-                // the scheduling priority is hacked lower, without measurable effect
-                if (!command.textures[bump.layer.id].isReady(doNotLoad || holdBumps,
-                    20 * priority)) break;
-
-                // ok, we'll merge this one
-                bumpsReady.push(bump);
-            }
-
-            // no bumps ready? Nothing to do, yet.
-            if (bumpsReady.length == 0) continue;
-
-            // init blender
-            this.renderer.nmblender.init();
-
-            // blend normal map
-            this.renderer.nmblender.blend(command.normalMap.getGpuTexture().texture, 1.0);
-
-            // iterate bumps
-            for (let j = 0; j < bumpsReady.length; j++) {
-
-                // grab texture
-                let bump = bumpsReady[j];
-                let bumpTexture = command.textures[bump.layer.id];
-
-                // blend texture
-                this.renderer.nmblender.blend(bumpTexture.getGpuTexture().texture,
-                                     bump.alpha);
-
-                // note that the bump map was blended
-                command.normalMap.noteBump(bump.layer.id);
-
-                // kill the bump textures that have been blended to save cache space
-                // they should not be needed until the normal map is evicted from cache
-                bumpTexture.mainTexture.killImage();
-                bumpTexture.mainTexture.killGpuTexture();
-
-            };
-
-            // store result back into normal map
-            this.renderer.nmblender.copyResult(command.normalMap.getGpuTexture().texture);
-
-            // done
-            break;
-
-        case vts.DRAWCOMMAND_SUBMESH:
-
-            //console.log(command);
-
-            // the unfinished procedural pipeline, removal candidate
-            /*var pipeline = command.pipeline;
-            if (pipeline) {
-                var hmap = command.hmap;
-    
-                if (this.debug.drawTestMode == 9) {
-                    var texture = command.texture; 
-                    var textureReady = this.config.mapNoTextures ? true : (!texture  || (texture && texture.isReady(doNotLoad, priority)));
-                        
-                    if (textureReady) {
-                        if (hmap && hmap.isReady(doNotLoad, priority)) {
-                            tile.drawHmapTile(cameraPos, null, null, pipeline, texture);
-                        }
-                    }
-                } else {
-                    if (hmap && hmap.isReady(doNotLoad, priority)) {
-                        tile.drawHmapTile(cameraPos, null, null, pipeline);
-                    }
-                }
-
-                return;
-            }*/
-
-            // the real start of stuff happening - check readiness
-
-            var mesh = command.mesh; 
-            var texture = command.texture;
-
-            var meshReady = (mesh && mesh.isReady(doNotLoad, priority)), textureReady;
-
-            if (this.config.mapNoTextures) {
-                textureReady = true;
-                texture = null;
-            } else {
-                textureReady = (!texture || (texture && texture.isReady(doNotLoad, priority)));
-            }
-
-            let ready = meshReady && textureReady;
-
-            // iluminated submeshes require normal maps
-            let normalMap = command.normalMap;
-
-            if (command.illuminatedSubmesh) {
-
-                // illuminated submeshes need all three
-                let normalMapReady = normalMap.isReady(doNotLoad, priority);
-                ready = ready && normalMapReady;
-            }
-
-            if (ready) {
-                //debug bbox
-                if (this.debug.drawBBoxes && this.debug.drawMeshBBox) {
-                    mesh.submeshes[command.submesh].drawBBox(cameraPos);
-                }
-
-                let material = command.material;
-
-                if (!texture) {
-                    // the syntax is odd, but there is lots of other materials
-                    switch (material) {
-                            //case "fog":
-                    case vts.MATERIAL_EXTERNAL:
-                    case vts.MATERIAL_INTERNAL:
-
-                        material = vts.MATERIAL_FLAT;
-                        break; 
-                    }
-                }
-
-                mesh.drawSubmesh(cameraPos, command.submesh, texture, material,
-                                     command.blending, command.alpha, command.runtime,
-                                     command.layer, command.surface,
-                                     tile.splitMask, undefined,
-                                     command.normalMap);
-            }
-                
-            break;
-                
-        case vts.DRAWCOMMAND_GEODATA:
-                
-            var geodataView = command.geodataView; 
-            //tile.renderHappen = true;
-                
-            if (geodataView && geodataView.isReady(doNotLoad, priority, true)) {
                 geodataView.draw(cameraPos);
             }
-
-            break;
         }
     }
 };

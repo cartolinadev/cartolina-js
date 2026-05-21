@@ -267,12 +267,12 @@ The current tile-rendering direction is centered on
 
 `TileRenderRig` is the newer per-tile render-preparation object. It resolves
 resources, tracks readiness, builds the layer stack, and renders a tile in a
- single unified pass. Its purpose is to replace older rendering logic that was
- historically split across `MapDrawTiles.drawMeshTile`,
- `MapDrawTiles.updateTileBounds`, and `MapMesh.drawSubmesh`.
+single unified pass. It replaced the old terrain draw-command path that
+was historically split across `MapDrawTiles.drawMeshTile`,
+`MapDrawTiles.updateTileBounds`, and `MapMesh.drawSubmesh`.
 
-The older pipeline is not just `surface-sequence.ts`. It is a broader legacy
-draw subsystem spread across modules such as:
+The remaining draw code is not just `surface-sequence.ts`. It is a broader
+legacy draw subsystem spread across modules such as:
 
 - `src/core/map/draw.js`
 - `src/core/map/draw-tiles.js`
@@ -280,9 +280,9 @@ draw subsystem spread across modules such as:
 - related map-config-era helpers that prepare surface, glue, and bound-layer
   ordering for the original multi-step draw path
 
-These modules still carry important runtime behavior, especially for
-map-config-based maps and older render paths, but they are not the target
-design. They represent historical orchestration that predates the
+These modules still carry runtime behavior, especially for map-config-based
+maps and geodata rendering, but they are not the target design. They
+represent historical orchestration that predates the
 style-driven layer stack and the newer per-tile rig model.
 
 The architectural direction is to continue consolidating tile rendering around

@@ -118,7 +118,6 @@ MapSurfaceTile.prototype.kill = function() {
     //this.renderReady = false;
     this.lastSurface = null;
     this.lastState = null;
-    this.lastRenderState = null;
         
     this.hmap = null;
     this.heightMap = null;
@@ -165,16 +164,6 @@ MapSurfaceTile.prototype.viewSwitched = function() {
         resourceSurface : this.resourceSurface 
     };    
 
-    if (this.drawCommands[0].length > 0) {  // check only visible chanel
-        this.lastRenderState = {
-            drawCommands : this.drawCommands,
-            imageryCredits : this.imageryCredits,
-            mapdataCredits : this.mapdataCredits
-        };
-    } else {
-        this.lastRenderState = null;
-    }
-    
     //zero surface related data    
     this.verifyChildren = true;
     //this.renderReady = false;
@@ -192,7 +181,6 @@ MapSurfaceTile.prototype.viewSwitched = function() {
         }
 
         this.lastState = null;
-        this.lastRenderState = null;
         this.lastMetanode = null;
         this.metanode = null;
         this.gridPoints = null;
@@ -1847,5 +1835,4 @@ MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null
 
 
 export default MapSurfaceTile;
-
 

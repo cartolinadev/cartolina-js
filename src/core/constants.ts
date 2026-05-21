@@ -12,10 +12,7 @@ export const PIPELINE_BASIC = 0;
 export const PIPELINE_HMAP = 1;
 export const PIPELINE_PROCEDURAL =2;
 
-export const DRAWCOMMAND_STATE = 1;
-export const DRAWCOMMAND_SUBMESH = 2;
 export const DRAWCOMMAND_GEODATA = 3;
-export const DRAWCOMMAND_APPLY_BUMPS = 4;
 
 export const TEXTURECHECK_METATILE = 1;
 export const TEXTURECHECK_TYPE = 2;

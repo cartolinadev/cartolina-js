@@ -77,17 +77,125 @@ follows the existing camera-frustum code in
 
 ---
 
+## REFACTOR: remove OGC 3D Tiles streaming mechanism
+
+**Opened:** 2026-05-21
+**Status:** deferred
+
+### Goal
+
+Delete the client-side OGC 3D Tiles loader and all code that exists
+solely to serve it.
+
+### Rationale
+
+A 3D Tiles streaming engine has no place in a cartographic library. The
+feature was wired in around April–September 2020 as a `config.tiles3d`
+option on the browser widget, bypassing the VTS map-config pipeline
+entirely. It was never completed (the mesh parser has typos in extension
+names and falls through silently; the v1 import path in
+`geodata-builder.js` is already commented out) and has been untouched
+since September 2020.
+
+### What to delete
+
+- `src/core/map/geodata-import/3dtiles.js` — v1 importer (unused;
+  import already commented out in `geodata-builder.js`)
+- `src/core/map/geodata-import/3dtiles2.js` — v2 importer (active)
+- `src/core/map/geodata-processor/worker-main.js` — the
+  `nodes[].meshes[]` dispatch block (lines ~445–452)
+- `src/core/renderer/gpu/group.js` — `GpuGroup.prototype.drawMesh`
+  (lines 1287–1305), the `binFiles`/`binPath` streaming machinery
+  (lines ~1600–1850), and the `direct-3dtiles` loader calls
+- `src/core/map/loader/loader.js` — the `'direct-3dtiles'` case
+  (line 189)
+- `src/browser/browser.js` — the `config.tiles3d` branch (lines ~148–151)
+- `geodata-builder.js` — the commented-out `load3DTiles` / `import3DTiles`
+  methods and the `binPath` field (lines ~1474–1491, 1942–1943)
+- `geodata-view.js` — the `directBinParse` path and the
+  `geodata['binPath']` check (lines ~252–256, 273–274)
+
+Once those callers are gone, `MATERIAL_INTERNAL` in `mesh.js` and
+`progTile[v]` in `init.js` / `renderer.ts` also lose their last
+terrain-code consumer and can be removed in the same pass (the only
+remaining caller of `renderer.drawMesh({ shader: 'textured' })` is the
+inspector, which is already scheduled for deletion in the draw-path
+refactor).
+
+### Prerequisite
+
+The draw-path refactor entry below must reach its deletion pass first,
+so that `renderer.drawMesh()` and the inspector are already gone before
+`progTile` is removed.
+
+---
+
+## REFACTOR: delete legacy tile shader family
+
+**Opened:** 2026-05-21
+**Status:** deferred — blocked by replay and geodata mesh removal
+
+### Goal
+
+Delete the old VTS tile shader family and the JavaScript variant builder
+that still serve non-terrain mesh callers.
+
+### Preconditions
+
+Do this only after both of these are true:
+
+- The replay inspector is deleted, including the internal
+  `renderer.drawMesh()` call from `inspector.js`. That call keeps
+  `Renderer.drawMesh()` and its string shader dispatch alive.
+- The OGC 3D Tiles / geodata mesh path is deleted. That removes
+  `nodes[].meshes[]`, `binPath`, `WORKER_TYPE_MESH`, `JOB_MESH`,
+  `GpuGroup.drawMesh()`, and the last non-terrain calls into
+  `MapMesh.drawSubmesh()`.
+
+### What should become removable
+
+- `MapMesh.generateTileShader()`
+- `MapMesh.drawSubmesh()`
+- `Renderer.drawMesh()` if no non-demo caller remains
+- `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
+  `progFogTile`, `progFlatShadeTile`, `progCFlatShadeTile`,
+  `progWireFrameBasic`, and their variant arrays
+- `progShadedTile` and `progTShadedTile` if replay/custom mesh
+  drawing is gone
+- `GpuShaders.tileVertexShader`
+- `GpuShaders.tileFragmentShader`
+- material constants that exist only for `MapMesh.drawSubmesh()`
+
+Before deleting, run `rg` for `drawSubmesh`, `drawMesh(`, `progTile`,
+`progDepthTile`, `tileVertexShader`, and `tileFragmentShader`. The
+remaining terrain renderer must be `TileRenderRig`.
+
+---
+
 ## REFACTOR: delete legacy mesh tile rendering pipeline
 
 **Opened:** 2026-05-20
-**Status:** next — do before steps 2–4 of the draw refactor
+**Status:** done — 2026-05-21
 
 ### Goal
 
 Remove all code that existed to serve the old `drawMeshTile` call,
 which is already commented out.
 
-### Scope (~1 700 lines deleted)
+### Result
+
+Deleted the old terrain draw-command renderer and its command-generation
+path. `TileRenderRig` remains the terrain tile renderer for color and
+depth passes. `DRAWCOMMAND_GEODATA` remains because geodata tiles still
+use `MapDraw.processDrawCommands()`.
+
+Kept `MapMesh.drawSubmesh()` and the legacy tile shaders it uses because
+geodata mesh jobs in `src/core/renderer/gpu/group.js` still call it, and
+the public custom mesh renderer still uses the old shaded/depth mesh
+programs. Deleting those requires a separate migration for geodata mesh
+jobs and custom mesh rendering.
+
+Deleted:
 
 **`draw-tiles.js`** (~895 lines, 62% of file):
 
@@ -99,11 +207,6 @@ which is already commented out.
   (lines 236–241) and the commented-out `drawMeshTile` call
   (line 213)
 
-**`mesh.js`** (~567 lines, 60% of file):
-
-- `generateTileShader` (line 378–416)
-- `drawSubmesh` (line 417–end)
-
 **`draw.js`** (~190 lines):
 
 - `processDrawCommands` branches for `DRAWCOMMAND_STATE`,
@@ -111,26 +214,20 @@ which is already commented out.
   (lines 749–900; `DRAWCOMMAND_GEODATA` survives)
 - `areDrawCommandsReady` `DRAWCOMMAND_SUBMESH` branch
   (~35 lines; `DRAWCOMMAND_GEODATA` survives)
-- `nmblender` field and call sites (`nmblender` itself now lives on
-  `Renderer`; only the `MapDraw` field assignment and the
-  `DRAWCOMMAND_APPLY_BUMPS` usage are deleted here)
+- `getDrawCommandsGpuSize`, which only served old tile command memory
+  estimates
 
-**`shaders.js`** (~580 lines):
+**`shaders.js`**:
 
-- `tileVertexShader` (line 1186–1396)
-- `tileFragmentShader` (line 1397–1609)
-- `shadedMeshVertexShader` (line 1610–1631)
-- `shadedMeshFragmentShader` (line 1632–1666)
 - `heightmapVertexShader` / `heightmapFragmentShader` /
   `heightmapDepthVertexShader` / `heightmapDepthFragmentShader`
   (lines 793–881)
-- `skydomeFragmentShader` (line 638–647, already dead)
+- `skydomeFragmentShader`
 
-**`renderer.ts` / `init.js`** (~35 lines):
+**`renderer.ts` / `init.js`**:
 
-- `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
-  `progShadedTile`, `progHeightmap`, `progSkydome` field
-  declarations, construction, and uses.
+- `progHeightmap`, `progDepthHeightmap`, and `progSkydome`
+  construction and declarations
 
 **`surface-tree.js`** (~8 lines):
 

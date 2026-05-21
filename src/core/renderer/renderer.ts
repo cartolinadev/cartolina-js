@@ -175,8 +175,6 @@ export class Renderer {
     progTile: Optional<GpuProgram> = null;
     progTile2: Optional<GpuProgram> = null;
     progTile3: Optional<GpuProgram> = null;
-    progHeightmap: Optional<GpuProgram> = null;
-    progSkydome: Optional<GpuProgram> = null;
     progWireframeTile: Optional<GpuProgram> = null;
     progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;

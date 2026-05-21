@@ -357,7 +357,7 @@ the credit bitmask array for the node at grid position (x, y) and
 pushes matching credit IDs into `metanode.credits[]`. This is
 called every time a metanode is first parsed.
 
-`MapDrawTiles.drawMeshTile()` in `draw-tiles.js` then iterates
-`node.credits` and writes credit IDs into `tile.imageryCredits`
-(or `tile.glueImageryCredits` for glue surfaces) with a
-surface-specificity weight.
+Terrain imagery credits now come from active `TileRenderRig` layer IDs:
+`MapDrawTiles.drawSurfaceTile()` records layer credits during the color
+pass, then `map.applyCredits(tile)` merges them into the visible-credit
+set. Geodata tiles still read `node.credits` in `drawGeodataTile()`.
