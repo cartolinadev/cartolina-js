@@ -724,6 +724,9 @@ change itself makes the original wording incorrect, in which case
 update it to match the new reality. The test: does the documentation
 still accurately describe the code after the change? If yes, preserve
 it. If no, fix it. Never silently discard accurate documentation.
+The same rule applies to comments and context markers. Do not remove
+them unless they are obsolete, inaccurate, or attached to code being
+deleted.
 
 **When modifying a class, review its class-level JSDoc block.** Field
 additions, removals, and behavioural changes frequently make the class

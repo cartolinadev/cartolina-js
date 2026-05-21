@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-21 — Preserve render-rig context and reduce hot-path churn
+
+Reduced allocation churn in `MapDrawTiles.drawSurfaceTile()` by reusing
+readiness option objects and by calling `TileRenderRig.activeLayerIds()`
+once per drawn submesh. Restored the original tile-render-rig
+integration comments around the edited block after review showed that
+they mark useful context inside the legacy draw traversal.
+
+Updated `AGENTS.md` to state that comments and context markers follow
+the same preservation rule as documentation: remove them only when they
+are obsolete, inaccurate, or attached to deleted code.
+
 ## 2026-05-21 — Delete legacy terrain draw-command renderer
 
 Removed the old terrain `drawMeshTile` path from `draw-tiles.js`,

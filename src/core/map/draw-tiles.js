@@ -21,6 +21,10 @@ var MapDrawTiles = function(map, draw) {
     this.drawText = this.renderer.draw.drawText.bind(this.renderer.draw);
     this.defaultColorPair = this.renderer.draw.constructor.defaultColorPair;
 
+    this.readinessFull = { minimum: 'fallback', desired: 'full' };
+    this.readinessFallback = { minimum: 'fallback', desired: 'fallback' };
+    this.readyPriority = { essential: 0, optional: 0 };
+    this.readyOptions = { doNotLoad: false, doNotCheckGpu: false };
 };
 
 
@@ -77,6 +81,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
             if (!tile.surface.geodata) {
 
+                // -- tile-render-rig integration - start
+
                 if (!tile.surfaceMesh) {
                     // resourceSurface unresolved from virtual surface —
                     // no mesh URL available, skip tile.
@@ -86,11 +92,20 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     tile.surfaceMesh = tile.resources.getMesh(path, tile);
                 }
 
-                // Submesh info need not exist until mesh is ready. This
-                // serialization results from meshes with embedded texture
-                // information (internal or external).
+                // submesh info need not exist until mesh is ready
+                // this serialization results from meshes with embedded
+                // texture information (internal or external)
                 tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu);
 
+                let priority_ = this.readyPriority;
+                priority_.essential = priority;
+                priority_.optional = priority;
+
+                let readyOptions = this.readyOptions;
+                readyOptions.doNotLoad = preventLoad;
+                readyOptions.doNotCheckGpu = doNotCheckGpu;
+
+                // iterate through submeshes
                 for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
 
                     var submeshSurface = tile.resourceSurface;
@@ -99,32 +114,37 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         submeshSurface = tile.resourceSurface.getSurfaceReference(
                             tile.surfaceMesh.submeshes[i].surfaceReference);
 
+                    // we are either drawing the tile for the first time, or
+                    // there has been a boundlayer fallback, or a view
+                    // has been switched
                     if (!tile.tileRenderRig[i] || tile.updateBounds) {
+
+                        //if (tile.tileRenderRig[i])
+                        //    console.log('Replacing rig for %s.',
+                        //        [...tile.id, i].join('-'));
 
                         if (tile.lastRenderRig[i]) tile.lastRenderRig[i].dispose();
 
                         if (tile.tileRenderRig[i])
                             tile.lastRenderRig[i] = tile.tileRenderRig[i];
 
+                        // create new rig from submeshSurface layer sequence
                         tile.tileRenderRig[i] = new TileRenderRig(
                             i, submeshSurface.style, tile, this.renderer,
                             this.config);
 
+                        // WARN comment out this line if you want the old call below to work
                         tile.updateBounds = false;
                     }
 
                     let curRig = tile.tileRenderRig[i];
                     let lastRig = tile.lastRenderRig[i];
-                    let priority_ = { essential: priority, optional: priority };
-                    let readyOptions = {
-                        doNotLoad: preventLoad,
-                        doNotCheckGpu: doNotCheckGpu
-                    };
                     let curRigReady = false;
 
+                    // is the tile rig ready? Draw it. If not, try the last rig
                     if (this.draw.drawChannel === 0)
                         curRigReady = curRig.isReady(
-                            { minimum: 'fallback', desired: 'full'},
+                            this.readinessFull,
                             priority_, readyOptions);
 
                     if (this.draw.drawChannel === 1)
@@ -137,7 +157,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                         if (this.draw.drawChannel === 0)
                             lastRigReady = lastRig && lastRig.isReady(
-                                { minimum: 'fallback', desired: 'fallback' },
+                                this.readinessFallback,
                                 priority_, readyOptions);
 
                         if (this.draw.drawChannel === 1 )
@@ -151,13 +171,18 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             ? lastRig
                             : null;
 
+                    // draw
                     if (rigToDraw && !preventRedener) {
 
                         if (this.draw.drawChannel === 0 ) {
 
+                            // draw something
                             rigToDraw.draw(cameraPos);
 
-                            rigToDraw.activeLayerIds().forEach((id) => {
+                            // process layer credits (only active layers)
+                            let activeLayerIds = rigToDraw.activeLayerIds();
+
+                            activeLayerIds.forEach((id) => {
 
                                 let layer = tile.boundLayers[id];
 
@@ -167,9 +192,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                                         layer.specificity;
                             });
 
-                            tile.addSubmeshCredits(i,
-                                rigToDraw.activeLayerIds());
+                            tile.addSubmeshCredits(i, activeLayerIds);
 
+                            // extract and flush credits
                             this.map.applyCredits(tile);
                         }
 
@@ -178,7 +203,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     }
 
                     ret = rigToDraw;
-                }
+                } // end iterate through submeshes
+
+                // -- tile-render-rig integration - end
 
             } else {
 
