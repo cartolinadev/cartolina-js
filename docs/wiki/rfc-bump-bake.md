@@ -304,11 +304,13 @@ The backlog already notes this; it is not in scope here.
 
    j. Update cache registration:
       - If `collapsedNormalGpuCacheItem` is null (first allocation):
-        call `map.gpuCache.insert(evictCollapsedNormal.bind(this),
-        256 * 256 * 4)` and store the result. If `collapsedNormalGpu`
-        is null after `insert()` returns, the cache immediately evicted
-        the new entry and `evictCollapsedNormal()` has already restored
-        the rig; abort the collapse pass for this frame.
+        store `map.gpuCache.insert(evictCollapsedNormal.bind(this),
+        256 * 256 * 4)` in a local `const cacheItem`. Check whether
+        `collapsedNormalGpu` is still non-null: if null, the cache
+        immediately evicted the entry and `evictCollapsedNormal()` has
+        already run; do not assign `collapsedNormalGpuCacheItem` and
+        abort the pass. If `collapsedNormalGpu` is still non-null,
+        assign `collapsedNormalGpuCacheItem = cacheItem`.
       - If `collapsedNormalGpuCacheItem` is already set (incremental
         pass): call `map.gpuCache.updateItem(collapsedNormalGpuCacheItem)`.
 
@@ -845,3 +847,24 @@ through tile resource eviction.
 
    The same rule should be used for any other cache insertion whose
    destructor can mutate the object receiving the cache item.
+
+   *Implemented. Step 2j updated: `insert()` result stored in a local
+   `const cacheItem`; `collapsedNormalGpuCacheItem` assigned only after
+   the post-insert `collapsedNormalGpu` null check passes.*
+
+## Review round 13
+
+1. Blocker: the cache-owned design now contradicts §1.3 and §2.5.
+   Section 1.3 still says memory is reclaimed through normal tile
+   resource eviction, but the revised design reclaims the baked normal
+   through `map.gpuCache` eviction or rig disposal. Section 2.5 says
+   the collapsed result is not added to the resource tree "or any other
+   shared cache"; the revised design explicitly registers it in the
+   shared `map.gpuCache` LRU. Update both sections so the accepted
+   design has one ownership model:
+
+   - no explicit post-collapse free of source bump textures;
+   - the collapsed normal GPU texture is accounted and evicted through
+     `map.gpuCache`;
+   - the collapsed normal is not added to the resource tree and is not
+     key-shareable across rigs in this implementation.
