@@ -279,6 +279,11 @@ eliminates a concept is better than one that models it more precisely.
   still rely on those surfaces, update the callers or promote the
   needed capability as a deliberate flat `Viewer` method instead.
 
+- **Keep new code out of legacy JavaScript modules.** Treat `.js`
+  modules as legacy. Put new behavior in TypeScript modules or modern
+  public API surfaces. Integrate with legacy JavaScript through the
+  smallest hooks needed at existing call sites.
+
 - **Functionality of applications under src/demos needs to be
   ensured.** When changes are made to the API, it shall either preserve
   backward compatibility or the demo applications need to be modified to
@@ -640,6 +645,11 @@ flow in one of those clearer forms.
 
 **Multi-line comments** use block comment syntax (`/* ... */`) rather
 than a stack of `//` lines. Single-line comments may use `//`.
+
+**Do not use underscore import shims.** Import symbols under the name
+used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
+`//get rid of compiler mess`. When editing a file that still has this
+shim, remove the shim for the imports you touch.
 
 **Private TypeScript backing members** should use a trailing underscore.
 This is the preferred pattern when exposing read-only state through a

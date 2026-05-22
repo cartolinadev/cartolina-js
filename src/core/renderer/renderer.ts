@@ -27,6 +27,9 @@ import backgroundTileFrag from './shaders/background.frag.glsl';
 import shaderTileDepthVert from './shaders/tile-depth.vert.glsl';
 import shaderTileDepthFrag from './shaders/tile-depth.frag.glsl';
 
+import shaderFrustumVert from './shaders/frustum.vert.glsl';
+import shaderFrustumFrag from './shaders/frustum.frag.glsl';
+
 
 /**
  * As with many classes in vts-browser-js, it is difficult to find any
@@ -164,7 +167,11 @@ export class Renderer {
         tile?: GpuProgram,
         background?: GpuProgram
         tileDepth?: GpuProgram
+        frustum?: GpuProgram
     }
+
+    private frustumVao_: Optional<WebGLVertexArrayObject> = null;
+    private frustumState_: Optional<GpuDevice.State> = null;
 
     // texture unit indices
     textureIdxs!: {
@@ -517,6 +524,80 @@ programTileDepth() : GpuProgram {
 
     // done
     return this.programs.tileDepth;
+}
+
+/**
+ * Frustum overlay program, lazy initialization.
+ */
+programFrustum(): GpuProgram {
+
+    if (this.programs.frustum) return this.programs.frustum;
+
+    __DEV__ && console.log('Initializing programs.frustum');
+
+    this.programs.frustum = new GpuProgram(
+        this.gpu, shaderFrustumVert, shaderFrustumFrag,
+        'shader-frustum', {
+            uboFrame: Renderer.UniformBlockName.Frame
+        }, {});
+
+    this.frustumVao_ = this.gpu.gl.createVertexArray();
+    this.frustumState_ = this.gpu.createState({
+        blend: true,
+        zwrite: false,
+        ztest: true,
+        culling: true
+    });
+
+    return this.programs.frustum;
+}
+
+/**
+ * Draw a frozen camera frustum as a translucent pyramid.
+ *
+ * @param apex physical-space camera position at freeze time
+ * @param base four physical-space base corners
+ * @param liveCamPos current physical-space camera position
+ */
+drawFrustumPyramid(
+    apex: number[],
+    base: number[][],
+    liveCamPos: number[],
+): void {
+
+    const program = this.programFrustum();
+    if (!program.isReady() || !this.frustumVao_ || !this.frustumState_) {
+        return;
+    }
+
+    const toRenderer = (p: number[]) => [
+        p[0] - liveCamPos[0],
+        p[1] - liveCamPos[1],
+        p[2] - liveCamPos[2],
+    ];
+    const a = toRenderer(apex);
+    const tl = toRenderer(base[0]);
+    const tr = toRenderer(base[1]);
+    const br = toRenderer(base[2]);
+    const bl = toRenderer(base[3]);
+    const vertices = new Float32Array([
+        ...a, ...tl, ...tr,
+        ...a, ...tr, ...br,
+        ...a, ...br, ...bl,
+        ...a, ...bl, ...tl,
+        ...tl, ...bl, ...br,
+        ...tl, ...br, ...tr,
+    ]);
+
+    const gl = this.gpu.gl;
+    this.gpu.setState(this.frustumState_);
+    this.gpu.useProgram2(program);
+    program.setVec3('uVertices[0]', vertices);
+    program.setVec4('uColor', [1.0, 0.5, 0.5, 0.5]);
+
+    gl.bindVertexArray(this.frustumVao_);
+    gl.drawArrays(gl.TRIANGLES, 0, 18);
+    gl.bindVertexArray(null);
 }
 
 

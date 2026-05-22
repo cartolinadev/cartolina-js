@@ -1,22 +1,14 @@
 
-import {mat4 as mat4_} from '../utils/matrix';
+import {mat4} from '../utils/matrix';
 import * as math from '../utils/math';
 import * as utils from '../utils/utils';
-import InspectorInput_ from './input';
-import InspectorStats_ from './stats';
-import InspectorGraphs_ from './graphs';
-import InspectorLayers_ from './layers';
-import InspectorReplay_ from './replay';
-import InspectorStylesheets_ from './stylesheets';
-
-//get rid of compiler mess
-var mat4 = mat4_;
-var InspectorInput = InspectorInput_;
-var InspectorStats = InspectorStats_;
-var InspectorGraphs = InspectorGraphs_;
-var InspectorLayers = InspectorLayers_;
-var InspectorReplay = InspectorReplay_;
-var InspectorStylesheets = InspectorStylesheets_;
+import InspectorInput from './input';
+import InspectorStats from './stats';
+import InspectorGraphs from './graphs';
+import InspectorLayers from './layers';
+import InspectorReplay from './replay';
+import InspectorStylesheets from './stylesheets';
+import {FreezeMode} from './freeze';
 
 
 var Inspector = function(core) {
@@ -28,6 +20,7 @@ var Inspector = function(core) {
     this.layers = new InspectorLayers(this);
     this.replay = new InspectorReplay(this);
     this.stylesheets = new InspectorStylesheets(this);
+    this.freeze = new FreezeMode(this.core);
 
     if (this.core.config.inspector) {
         this.input.init();
@@ -328,6 +321,29 @@ Inspector.prototype.onMapUpdate = function() {
             });
         }
     }
+
+    if (this.freeze.drawFrustum
+            && this.freeze.frustumApex
+            && this.freeze.frustumBase) {
+
+        var legacyMap = this.core.getMap();
+        if (legacyMap) {
+            renderer.drawFrustumPyramid(
+                this.freeze.frustumApex,
+                this.freeze.frustumBase,
+                legacyMap.camera.position);
+        }
+    }
+};
+
+
+Inspector.prototype.enterFreeze = function() {
+    this.freeze.enter();
+};
+
+
+Inspector.prototype.exitFreeze = function() {
+    this.freeze.exit();
 };
 
 

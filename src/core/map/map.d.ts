@@ -115,7 +115,7 @@ export default class Map {
     getBoundLayerById(id: string): MapBoundLayer | undefined;
     getPhysicalSrs(): MapSrs;
     /**
-     * Samples terrain depth at a 2D position in the current screen view.
+     * Returns terrain distance at a 2D position in the current screen view.
      *
      * Coordinates are interpreted according to `coordinateSpace`. Use the
      * default `layout` for mouse-event positions. Use `apparent` for
@@ -125,18 +125,20 @@ export default class Map {
      * @param screenX Horizontal coordinate in the selected space.
      * @param screenY Vertical coordinate in the selected space.
      * @param dilate Depth-map dilation radius in hitmap pixels.
-     * @param useFallback Use mathematical ray intersection instead of the
-     * depth hitmap.
+     * @param useGeometricIntersection Compute a geometric ray intersection
+     * instead of sampling the depth hitmap. Geocentric maps intersect the
+     * ellipsoid; projected maps intersect the base plane.
      * @param coordinateSpace Coordinate space of `screenX` and `screenY`.
-     * @returns `[hit, depth]` — `hit` is false when no surface geometry
-     * covers the pixel (e.g. sky); `depth` is then a large sentinel value
-     * and must not be used.
+     * @returns `[hit, distance]` — `distance` is the Euclidean distance
+     * from the viewer to the terrain surface at the selected position.
+     * `hit` is false when no terrain covers the position; `distance` is
+     * then a sentinel value.
      */
     getScreenDepth(
         screenX: number,
         screenY: number,
         dilate?: number,
-        useFallback?: boolean,
+        useGeometricIntersection?: boolean,
         coordinateSpace?: Renderer.CoordinateSpace,
     ): [boolean, number];
     isAtmospheric(): boolean;

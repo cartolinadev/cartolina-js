@@ -1097,10 +1097,10 @@ Map.prototype.getScreenRay = function(screenX, screenY) {
 
 
 Map.prototype.getScreenDepth = function(
-    screenX, screenY, dilate = 0, useFallback = false,
+    screenX, screenY, dilate = 0, useGeometricIntersection = false,
     coordinateSpace = 'layout') {
 
-    if (useFallback) {
+    if (useGeometricIntersection) {
 
         var cameraPos = this.camera.position;
         var ray = this.renderer.getScreenRay(

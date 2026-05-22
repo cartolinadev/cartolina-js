@@ -260,6 +260,28 @@ into `Map`.
 **`Renderer`** — owns the WebGL2 context (`GpuDevice`), the render pipeline,
 shading, illumination, vertical exaggeration, and all GPU resource management.
 
+### Target map and renderer ownership
+
+`Map` (`src/core/map.ts`) is the future home for map data, camera state,
+tile selection, culling decisions, coordinate conversion, measurement,
+style interpretation, and calls that decide what should be drawn.
+
+Supporting TypeScript modules under `src/core/map/` should hold pieces of
+that work when a separate file keeps the code clearer. Legacy files such
+as `map.js`, `draw.js`, and `surface-tree.js` are to be dissolved into
+`Map` and those supporting modules as feature work touches them.
+
+`Renderer` remains a separate object. It owns the WebGL2 context, GPU
+resources, shader programs, render targets, renderer-local camera data,
+draw commands, and other state needed to issue rendering work.
+
+The boundary should become explicit: map code builds per-pass context
+data and render requests; `Renderer` consumes those requests and manages
+GPU state. Diagnostic freeze mode currently exposes why this matters:
+tile selection and final rendering can need different camera contexts.
+The current implementation swaps legacy camera fields; the target design
+passes separate contexts through the draw traversal.
+
 ### Modern tile rendering vs the legacy draw subsystem
 
 The current tile-rendering direction is centered on
@@ -380,7 +402,7 @@ is fully absorbed.
 | `RendererInterface` | Legacy renderer wrapper | **Deleted** |
 | `Core` | Map-engine coordinator | **To be dissolved into `Map`** |
 | `LegacyMap` | Terrain engine (`map/map.js`) | **To be dissolved into `Map`** |
-| `Renderer` | WebGL2 pipeline | **To be absorbed into `Map`** |
+| `Renderer` | WebGL2 pipeline | **Stays separate; owns GPU rendering** |
 
 The priority order for remaining work is:
 
@@ -389,6 +411,8 @@ The priority order for remaining work is:
 - continue dissolving `Browser` into `Viewer`
 - absorb legacy core objects into `Map` incrementally as feature work
   touches them
+- keep `Renderer` separate while moving map decisions out of renderer
+  callers and into explicit context data
 
 None of these happen speculatively. Each step is taken only when active
 feature work already touches that layer.

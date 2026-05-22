@@ -1603,6 +1603,8 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         map.renderer.gpu.clearDepth();
     }
 
+    cameraPos = draw.freeze.beforeDrawBuffer(cameraPos);
+
     // update renderer buffers
     map.renderer.updateBuffers();
 
@@ -1687,6 +1689,8 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
     map.gpuCache.skipCostCheck = false;
     map.gpuCache.checkCost();
+
+    draw.freeze.afterDrawBuffer();
 
 };
 

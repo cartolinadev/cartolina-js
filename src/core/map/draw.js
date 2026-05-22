@@ -1,15 +1,11 @@
 
 import * as math from '../utils/math';
-import MapGeodata_ from './geodata';
-import MapGeodataView_ from './geodata-view';
-import MapDrawTiles_ from './draw-tiles';
+import MapGeodata from './geodata';
+import MapGeodataView from './geodata-view';
+import MapDrawTiles from './draw-tiles';
+import FreezeCameraState from './freeze-camera-state';
 import * as vts from '../constants';
 
-
-//get rid of compiler mess
-var MapDrawTiles = MapDrawTiles_;
-var MapGeodataView = MapGeodataView_;
-var MapGeodata = MapGeodata_;
 
 var MapDraw = function(map) {
     this.map = map;
@@ -143,6 +139,8 @@ var MapDraw = function(map) {
         loadFirst : 0,
         loadLast : 0
     };
+
+    this.freeze = new FreezeCameraState(this);
 
     this.drawTiles = new MapDrawTiles(map, this);
 
@@ -377,9 +375,11 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                     renderer.draw.drawGpuJobs(this.map.position);
                 }
             }
-    
+
             return;
         }  // used only in inspector
+
+        this.freeze.beforeTileDescent();
         
         for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
             this.tileBuffer[i] = null;    
@@ -510,7 +510,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
                 // geodata hot path
                 //console.log('drawGpuJob');
-                renderer.draw.drawGpuJobs(this.map.position);
+                this.freeze.withLiveCamera(function() {
+                    renderer.draw.drawGpuJobs(this.map.position);
+                }.bind(this));
             }
         }
     }
@@ -521,6 +523,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             this.config.mapForceFrameTime = -1;
         }
     }
+
+    this.freeze.afterDrawMap();
 };
 
 /**
@@ -659,7 +663,9 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
                 }
             }
 
-            surface.monoGeodataView.draw(this.camera.position);
+            this.freeze.withLiveCamera(function() {
+                surface.monoGeodataView.draw(this.camera.position);
+            }.bind(this));
         }
     }
 };

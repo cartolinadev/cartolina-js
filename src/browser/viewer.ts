@@ -441,7 +441,7 @@ class Viewer {
         );
         const dilate = map.config.mapDMapDilatePx ?? 0;
         const screenDepth = map.getScreenDepth(
-            screenX, screenY, dilate, undefined, 'apparent');
+            screenX, screenY, dilate, false, 'apparent');
 
         __DEV__ && utils.logOnce(
             '[checkVisibility] raw depth debug logging is enabled in '
@@ -524,24 +524,34 @@ class Viewer {
     }
 
     /**
-     * Samples the cached depth buffer at a canvas pixel.
+     * Returns terrain distance at a canvas pixel.
      *
      * @param screenX canvas X coordinate in CSS pixels
      * @param screenY canvas Y coordinate in CSS pixels
      * @param dilate optional dilation radius in pixels
-     * @returns `[hit, depthMeters]`, or `null` when the map is not ready.
-     * `hit` is false when no surface geometry covers the pixel (e.g. sky);
-     * `depthMeters` is then a large sentinel value and must not be used.
+     * @param useGeometricIntersection compute a geometric ray intersection
+     * instead of sampling the depth hitmap. Geocentric maps intersect the
+     * ellipsoid; projected maps intersect the base plane.
+     * @returns `[hit, distanceMeters]`, or `null` when the map is not ready.
+     * `distanceMeters` is the Euclidean distance from the viewer to the
+     * terrain surface at that layout position. `hit` is false when no terrain
+     * covers the pixel; `distanceMeters` is then a sentinel value.
      */
     getScreenDepth(
         screenX: number,
         screenY: number,
         dilate?: number,
+        useGeometricIntersection = false,
     ): [boolean, number] | null {
 
         this.assertAlive_();
-        return this.legacyMap_?.getScreenDepth(
-            screenX, screenY, dilate, undefined, 'layout') ?? null;
+        return this.map_.getScreenDepth(
+            screenX,
+            screenY,
+            dilate,
+            useGeometricIntersection,
+            'layout',
+        );
     }
 
     // -------------------------------------------------------------------------

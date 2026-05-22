@@ -47,6 +47,7 @@ export default class InspectorInput {
      *   'renderFlags' — map.renderer.debug.flagX overrides
      *   'tileBBox'    — debug.drawBBoxes / debug.drawNBBoxes
      *   'radar'       — inspector.drawRadar
+     *   'freeze'      — map.draw.freeze selection-camera override
      *
      * For 'tileBBox', the specific rendering flag (drawBBoxes vs drawNBBoxes)
      * is set by the caller after this method returns, depending on which key
@@ -68,10 +69,15 @@ export default class InspectorInput {
 
             inspector.drawRadar = false;
         }
+        if (this.subMode === 'freeze') {
+
+            inspector.exitFreeze();
+        }
 
         this.subMode = name;
 
         if (name === 'radar') inspector.drawRadar = true;
+        if (name === 'freeze') inspector.enterFreeze();
 
         const rfLabel = 'Diagnostics mode > Render flags'
             + ' — f:light n:normal d:diffuse s:specular'
@@ -80,7 +86,8 @@ export default class InspectorInput {
         const labels = {
             renderFlags: rfLabel,
             tileBBox:    'Diagnostics mode > Tile bounding boxes',
-            radar:       'Diagnostics mode > Radar'
+            radar:       'Diagnostics mode > Radar',
+            freeze:      'Diagnostics mode > Freeze — C: frustum'
         };
         inspector.showNotification(labels[name] || 'Diagnostic mode');
     }
@@ -317,6 +324,15 @@ export default class InspectorInput {
                     }
                     if (radarHit) hit = true;
                 }
+
+                if (this.subMode === 'freeze') {
+
+                    if (keyCode === 67 || keyCode === 99) {  // c
+
+                        inspector.freeze.toggleFrustum();
+                        hit = true;
+                    }
+                }
             }
 
             // wireframe test-data: numpad 0–9, active whenever wireframe is visible
@@ -370,6 +386,10 @@ export default class InspectorInput {
 
                 case 76: case 108:  // Shift+L — radar sub-mode
                     this.setSubMode(this.subMode === 'radar' ? null : 'radar');
+                    hit = true; break;
+
+                case 90: case 122:  // Shift+Z — freeze sub-mode
+                    this.setSubMode(this.subMode === 'freeze' ? null : 'freeze');
                     hit = true; break;
 
                 case 67: case 99:   // Shift+C — shake camera
@@ -502,9 +522,6 @@ export default class InspectorInput {
                 case 79: case 111:  // Shift+O — ortho camera
                     map.camera.camera.setOrtho(!map.camera.camera.getOrtho());
                     hit = true; break;
-
-                case 90: case 122:  // Shift+Z — max zoom
-                    debug.maxZoom = !debug.maxZoom; hit = true; break;
 
                 }
             }

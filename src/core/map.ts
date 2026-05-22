@@ -294,6 +294,39 @@ class Map {
     }
 
     /**
+     * Returns terrain distance at a 2D position in the current screen view.
+     *
+     * @param screenX horizontal coordinate in the selected space
+     * @param screenY vertical coordinate in the selected space
+     * @param dilate depth-map dilation radius in hitmap pixels
+     * @param useGeometricIntersection compute a geometric ray intersection
+     * instead of sampling the depth hitmap. Geocentric maps intersect the
+     * ellipsoid; projected maps intersect the base plane.
+     * @param coordinateSpace coordinate space of `screenX` and `screenY`
+     * @returns `[hit, distance]`, or null when the map is not ready.
+     * `distance` is the Euclidean distance from the viewer to the terrain
+     * surface at the selected position. When `hit` is false, no terrain
+     * covers the position and `distance` is a sentinel value.
+     */
+    getScreenDepth(
+        screenX: number,
+        screenY: number,
+        dilate = 0,
+        useGeometricIntersection = false,
+        coordinateSpace: Renderer.CoordinateSpace = 'layout',
+    ): [boolean, number] | null {
+
+        this.assertAlive_();
+        return this.core_.map?.getScreenDepth(
+            screenX,
+            screenY,
+            dilate,
+            useGeometricIntersection,
+            coordinateSpace,
+        ) ?? null;
+    }
+
+    /**
      * Subscribe to a named map event.
      *
      * @param eventName event to subscribe to

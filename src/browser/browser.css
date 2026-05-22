@@ -615,3 +615,31 @@
     pointer-events: none;
     transition: opacity 0.5s;
 }
+
+.vts-freeze-reset {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font: 14px/1.25 system-ui, sans-serif;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+}
+
+.vts-freeze-status {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: 13px/1.25 Arial, "Helvetica Neue", Helvetica, sans-serif;
+    padding: 7px 16px;
+    border-radius: 4px;
+    pointer-events: none;
+}

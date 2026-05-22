@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-05-23 — Diagnostic freeze mode and camera context bridge
+
+Implemented diagnostic freeze mode behind `Shift+D`, `Shift+Z`. The mode
+freezes the camera state used for culling, texel-size tile selection, and
+depth sampling while navigation and final rendering continue to use the
+live camera. `C` toggles a finite camera-frustum pyramid rendered through a
+dedicated GLSL 300 shader path on `Renderer`; the reset button restores the
+navigation position captured when freeze mode was entered.
+
+Kept the legacy draw hooks narrow. `FreezeCameraState` in
+`src/core/map/freeze-camera-state.ts` owns the camera snapshot/restore
+policy while `draw.js` and `surface-tree.js` call phase hooks. Geodata
+rendering must run with the live camera; otherwise selected terrain and
+geodata disagree during freeze navigation. Restoring renderer buffers after
+the final live-camera restore removed intermittent full-viewport flashes on
+dirty geodata maps.
+
+Promoted `getScreenDepth(..., coordinateSpace)` through `Map` and
+`Viewer`, documented that it returns Euclidean viewer-to-terrain distance,
+and renamed the alternate geometric-intersection boolean away from
+`useFallback`. Updated `architecture.md` to record that `Map` and
+supporting TypeScript modules own map data and selection decisions, while
+`Renderer` remains the WebGL/WebGPU boundary.
+
 ## 2026-05-21 — Preserve render-rig context and reduce hot-path churn
 
 Reduced allocation churn in `MapDrawTiles.drawSurfaceTile()` by reusing
