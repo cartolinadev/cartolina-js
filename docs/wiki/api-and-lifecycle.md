@@ -207,10 +207,10 @@ Known events:
 `kill()` is the inherited lifecycle convention used by engine objects,
 map resources, GPU resources, and tile resources.
 
-Engine objects such as `Core`, `LegacyMap`, `Renderer`, `Browser`, and
-`Viewer` hold a `killed` flag. After `destroy()` or `kill()`, the
-animation frame callback and pending async callbacks check that flag
-before touching the object.
+Engine objects such as `Core`, `LegacyMap`, `Browser`, and `Viewer`
+hold a `killed` flag. After `destroy()` or `kill()`, the animation
+frame callback and pending async callbacks check that flag before
+touching the object.
 
 The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing
@@ -220,12 +220,34 @@ Known gap: `Browser.kill()` does not unsubscribe its `tick` listener
 from `Core.on`. The callback keeps firing and hitting the flag until
 `Core` is garbage collected.
 
+The following TypeScript classes implement `[Symbol.dispose]()` as the
+canonical teardown hook:
+
+| Class | `kill()` shim? | Reason |
+|---|---|---|
+| `Map` | no | no JS callers |
+| `Viewer` | no | no JS callers |
+| `Renderer` | yes | `map.js`, `core.js` |
+| `GpuTexture` | yes | `subtexture.js` |
+| `GpuMesh` | yes | `mesh.js` |
+| `GpuDevice` | no | no JS callers |
+| `Atmosphere` | no | no JS callers |
+
+Classes that keep `kill()` retain it only because a legacy JS file
+calls it directly. The shim delegates to `[Symbol.dispose]()` and
+carries a comment naming the JS file. Remove it once that file is
+migrated to TypeScript.
+
+`Renderer` uses `disposed_` as its guard field. The legacy `killed`
+name is retained on `Core`, `LegacyMap`, `Browser`, and their JS
+resource callbacks.
+
 New classes and major refactors should prefer modern forms:
 
 - use `AbortSignal` for tile fetches, GPU uploads, and async chains
 - implement `[Symbol.dispose]()` as the canonical teardown hook
-- let `kill()` or `destroy()` delegate to `[Symbol.dispose]()` when a
-  legacy name is still needed
+- let `kill()` delegate to `[Symbol.dispose]()` when a legacy JS
+  file calls it directly; name the file in the comment
 
 ## CSS Imports
 

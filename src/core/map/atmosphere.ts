@@ -473,11 +473,12 @@ class Atmosphere {
         return spec;
     }
 
-    kill() {
 
-        this.atmDensityTexture && this.atmDensityTexture.kill();
+    /** Releases the atmosphere density texture. */
+    [Symbol.dispose](): void {
+
+        this.atmDensityTexture?.kill();
     }
-
 
 } // class Atmosphere
 

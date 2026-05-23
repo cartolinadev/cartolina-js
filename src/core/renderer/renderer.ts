@@ -341,8 +341,7 @@ export class Renderer {
     draw: any = null;
     nmblender!: TextureBlend;
 
-    // no idea
-    killed = false;
+    disposed_ = false;
 
 
 constructor(core: Core, div: HTMLElement, config : CoreConfig) {
@@ -922,7 +921,7 @@ updateIllumination(position: MapPosition) {
  *    or the renderer has been disposed. */
 ensureCanvasRenderTarget(): boolean {
 
-    if (this.killed) return false;
+    if (this.disposed_) return false;
 
     if (!this.gpu.canvasRenderTargetNeedsUpdate()) {
         this.gpu.setCanvasRenderTarget();
@@ -2290,33 +2289,35 @@ drawLineString(options: any): void {
     );
 }
 
-kill() {
-    if (this.killed){
-        return;
-    }
 
-    this.killed = true;
+/**
+ * Releases all GPU resources owned by this renderer.
+ * Sets `disposed_` to block further rendering after teardown.
+ */
+[Symbol.dispose](): void {
 
-    //if (this.heightmapMesh) this.heightmapMesh.kill();
-    if (this.heightmapTexture) this.heightmapTexture.kill();
-    if (this.skydomeMesh) this.skydomeMesh.kill();
-    //if (this.skydomeTexture) this.skydomeTexture.kill();
-    if (this.hitmapTexture) this.hitmapTexture.kill();
-    if (this.geoHitmapTexture) this.geoHitmapTexture.kill();
-    if (this.redTexture) this.redTexture.kill();
-    if (this.whiteTexture) this.whiteTexture.kill();
-    if (this.blackTexture) this.blackTexture.kill();
-    //if (this.lineTexture) this.lineTexture.kill();
-    if (this.textTexture2) this.textTexture2.kill();
-    if (this.atmoMesh) this.atmoMesh.kill();
-    if (this.bboxMesh) this.bboxMesh.kill();
-    //if (this.font) this.font.kill();
-    if (this.plines) this.plines.kill();
-    if (this.plineJoints) this.plineJoints.kill();
+    if (this.disposed_) return;
+    this.disposed_ = true;
 
-    this.gpu.kill();
-    //this.div.removeChild(this.gpu.getCanvas());
-};
+    this.heightmapTexture?.[Symbol.dispose]();
+    this.skydomeMesh?.[Symbol.dispose]();
+    this.hitmapTexture?.[Symbol.dispose]();
+    this.geoHitmapTexture?.[Symbol.dispose]();
+    this.geoHitmapTexture2?.[Symbol.dispose]();
+    this.redTexture?.[Symbol.dispose]();
+    this.whiteTexture?.[Symbol.dispose]();
+    this.blackTexture?.[Symbol.dispose]();
+    this.textTexture2?.[Symbol.dispose]();
+    this.atmoMesh?.[Symbol.dispose]();
+    this.bboxMesh?.[Symbol.dispose]();
+    this.plines?.kill();
+    this.plineJoints?.kill();
+    this.nmblender?.destroy();
+    this.gpu[Symbol.dispose]();
+}
+
+// map.js and core.js call this directly; remove once both are TS.
+kill() { this[Symbol.dispose](); }
 
 } // export class Renderer
 

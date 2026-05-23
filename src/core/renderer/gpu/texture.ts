@@ -29,6 +29,8 @@ export class GpuTexture {
 
     loaded: boolean = false;
 
+    private disposed_ = false;
+
 
     /**
      * Create a GPU texture.
@@ -68,12 +70,18 @@ export class GpuTexture {
         }
     };
 
-//destructor
-kill() {
+
+/** Releases the GPU texture handle. */
+[Symbol.dispose](): void {
+
+    if (this.disposed_) return;
+    this.disposed_ = true;
     this.gl.deleteTexture(this.texture);
-    
     this.texture = null;
-};
+}
+
+// subtexture.js calls this directly; remove once subtexture.js is TS.
+kill() { this[Symbol.dispose](); }
 
 
 /**

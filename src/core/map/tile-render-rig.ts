@@ -1128,7 +1128,7 @@ export class TileRenderRig {
         const collapsed = this.collapsed!;
         const gl = this.renderer.gpu.gl;
 
-        collapsed.normalGpu.kill();
+        collapsed.normalGpu[Symbol.dispose]();
 
         for (const idx of collapsed.layerIndices)
             this.rt.layerStack[idx].rt.optimizedOut = false;

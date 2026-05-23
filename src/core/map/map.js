@@ -215,6 +215,11 @@ Map.prototype.kill = function() {
     this.resourcesCache.clear();
     this.metatileCache.clear();
 
+    if (this.atmosphere != null) {
+        this.atmosphere[Symbol.dispose]();
+        this.atmosphere = null;
+    }
+
     if (this.renderer != null) {
         this.renderer.kill();
         this.renderer = null;

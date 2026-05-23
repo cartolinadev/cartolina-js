@@ -116,6 +116,8 @@ export class GpuDevice {
      */
     enabledAttributes = new Uint8Array(this.maxAttributesCount);
 
+    private disposed_ = false;
+
 /**
  * Create the WebGL canvas/context wrapper for a renderer.
  *
@@ -219,9 +221,14 @@ private init() {
 };
 
 
-kill() {
+
+/** Detaches the managed canvas from the DOM container. */
+[Symbol.dispose](): void {
+
+    if (this.disposed_) return;
+    this.disposed_ = true;
     this.div.removeChild(this.canvas);
-};
+}
 
 
 contextLost(event: Event) {

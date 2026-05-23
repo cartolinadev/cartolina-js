@@ -33,6 +33,8 @@ export class GpuMesh {
      */
     private vaos = new Map<GpuProgram, WebGLVertexArrayObject>();
 
+    private disposed_ = false;
+
     /**
      * Create a GPUMesh object from mesh data. Buffer data to the GPU.
      *
@@ -341,11 +343,13 @@ getBBox(): any { return this.bbox; }
 
 getPolygons(): number { return this.polygons; }
 
-//destructor
-kill() {
-    if (!this.gl) {
-        return;
-    }
+
+/** Releases all GPU buffer and vertex array objects. */
+[Symbol.dispose](): void {
+
+    if (this.disposed_) return;
+    this.disposed_ = true;
+    if (!this.gl) return;
 
     if (this.vertexBuffer) {
         this.gl.deleteBuffer(this.vertexBuffer);
@@ -370,7 +374,10 @@ kill() {
     this.uvBuffer = null;
     this.uv2Buffer = null;
     this.indexBuffer = null;
-};
+}
+
+// mesh.js calls this directly; remove once mesh.js is TS.
+kill() { this[Symbol.dispose](); }
 
 } // class GpuMesh
 

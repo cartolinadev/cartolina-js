@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-23 — Migrate legacy kill() to [Symbol.dispose]()
+
+`GpuTexture`, `GpuDevice`, `GpuMesh`, `Atmosphere`, and `Renderer` now
+implement `[Symbol.dispose]()` as the canonical teardown hook. Each uses
+a `disposed_` guard flag for idempotency.
+
+`GpuTexture`, `GpuMesh`, and `Renderer` retain a `kill()` shim because
+a legacy JS file calls them directly (`subtexture.js`, `mesh.js`,
+`map.js`/`core.js` respectively). `GpuDevice` and `Atmosphere` have no
+JS callers and expose `[Symbol.dispose]()` only.
+
+`Renderer.killed` was renamed `Renderer.disposed_`.
+
+`Atmosphere.kill()` was dead code (never called). Replacing it with
+`[Symbol.dispose]()` also closed a pre-existing teardown gap:
+`Map.prototype.kill` in `map.js` now calls
+`atmosphere[Symbol.dispose]()` before clearing the reference, so
+`atmDensityTexture` is properly released on map teardown.
+
+All typed TS call sites of the old `kill()` methods were updated to
+`[Symbol.dispose]()`. `tile-render-rig.ts:evictCollapsed` now calls
+`normalGpu[Symbol.dispose]()`.
+
+**Regression tests:** `simple-terrain`, `complex-terrain`, `full-terrain`
+all pass.
+
 ## 2026-05-23 — Remove stale fog functionality
 
 Removed the legacy fog system that had been superseded by `Atmosphere`
