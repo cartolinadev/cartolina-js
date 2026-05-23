@@ -58,10 +58,10 @@ then branch into more specific documents as needed.
 - [surface-metatile.md](surface-metatile.md) — surface metatile binary
   format (v1–v5), metanode fields, version history, and how the client
   uses metatiles for LOD selection, culling, and resource loading
-- [lod-selection.md](lod-selection.md) — how `updateTexelSize` computes
-  screen-space error from metanode fields, the two distance functions
-  (`getPixelSize` vs `getPixelSize3`), degrade-horizon logic, tree
-  traversal, and free-layer vs surface-layer differences
+- [lod-selection.md](lod-selection.md) — how metatile texel length is
+  generated, stored, and projected to screen-space error in
+  `updateTexelSize`; distance functions, degrade-horizon logic, tree
+  traversal, and comparisons with other renderers
 - [tileserver-metatile-production.md](tileserver-metatile-production.md) —
   how the tileserver generates metatiles on demand (VRTWO, tile index,
   serve-time GDAL warp), where the cost lies, and the structural problem

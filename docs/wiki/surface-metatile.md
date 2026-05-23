@@ -270,12 +270,12 @@ order.
 
 ### LOD selection
 
-`MapSurfaceTile.getTexelSize()` in `src/core/map/surface-tile.js`
+`MapSurfaceTile.updateTexelSize()` in `src/core/map/surface-tile.js`
 computes `tile.texelSize` from the metanode:
 
 - If `applyTexelSize` is set, the texel size is read from
-  `node.pixelSize` (the half-float decoded at parse time) and
-  converted to screen pixels via the current projection.
+  `node.pixelSize`. This is the half-float physical length per
+  nominal tile sample decoded at parse time.
 - If `applyDisplaySize` is set (v5+), `node.bboxMaxSize /
   node.displaySize` is used instead, where `bboxMaxSize` is
   computed in `generateCullingHelpers()` from the physical bbox
@@ -283,8 +283,11 @@ computes `tile.texelSize` from the metanode:
 - `hasChildren()` (flag bits 4–7) controls whether the traversal
   descends further or renders the current tile.
 
-The threshold for descent is `tile.texelSize > 4.4` (roughly,
-the tile would render at fewer than four screen pixels per texel).
+`updateTexelSize()` projects the length to physical viewport pixels
+for the current camera. The normal descent test is
+`tile.texelSize > draw.texelSizeFit`; `mapTexelSizeFit` defaults to
+`1.1`. See `lod-selection.md` for the full calculation and traversal
+rules.
 
 ### Frustum culling and disk distance
 

@@ -1,5 +1,24 @@
 # Session log
 
+## 2026-05-23 — LOD selection documentation rewrite
+
+Rewrote `lod-selection.md` around the active legacy screen-space error
+calculation. The page now separates the producer-side physical sample
+length from the client-side projection to viewport pixels, documents the
+`surface-dem` metatile formula, and records that loader `priority` is an
+inverse priority.
+
+Checked `cartolina-tileserver`: `surface-dem` computes metanode
+`texelSize` as `sqrt(physical surface area / nominal sample count)` from
+an 8 by 8 DEM sample grid. The server variable is named `textureArea`,
+but `surface-dem` uses it as a 256 by 256 tile-density denominator, not
+as an actual source texture. The prepared `delivery.index` stores tile
+availability; `texelSize` is computed during on-the-fly metatile
+generation. `vts::MetaNode::save()` stores the result as a clamped
+half-float in the metanode suffix after `internalTextureCount`; the JS
+client decodes it to `node.pixelSize`. Updated `surface-metatile.md` to
+remove the stale `getTexelSize()` name and old `4.4` threshold note.
+
 ## 2026-05-23 — Current-geometry capture removal
 
 Deleted the undocumented `getCurrentGeometry()` entry point from
