@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-05-23 — OGC 3D Tiles RFC: review round 2
+
+Review round 2 found two blockers and two non-blocking notes.
+
+Blocker 1: `progCFlatShadeTile[SE]` and `progWireFrameBasic[SE]` are
+still used in `draw.js` for geodata polygon flat-shading and debug wire
+drawing. Both compile against `GpuShaders.tileVertexShader` and
+`tileFragmentShader`. §3.3 narrowed to exclude those programs and the
+shared shader strings; they survive until a geodata polygon migration.
+
+Blocker 2: §4 verification greps were not scoped. Fixed to target
+`src/`, `test/`, and `demos/` only.
+
+Non-blocking 3: GpuGroup deletion list expanded to include
+`onBinFileLoaded`, the `MapResourceNode` import (all four call sites
+in `group.js` are in the octree path), `loadMode`/`binFiles`
+constructor fields, and `rootPath`/`rootPoints`/`rootCenter`/
+`rootRadius`/`rootTexelSize` instance fields.
+
+Non-blocking 4: Added deletion entries for octree-only config and
+debug names: `mapTraverseToMeshNode` (`map.js`, `url-config.ts`,
+`group.js`), `mapSplitLods` (`core.js`, `inspector/input.js`,
+`group.js`), `drawNBBoxes` and `drawOctants` (`draw.js`,
+`inspector/input.js`, `group.js`, `renderer.ts`).
+
 ## 2026-05-23 — OGC 3D Tiles investigation and RFC
 
 Investigated the legacy `config.tiles3d` integration before scheduling

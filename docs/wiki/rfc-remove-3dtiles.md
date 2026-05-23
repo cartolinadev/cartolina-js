@@ -1,6 +1,6 @@
 # RFC: remove the OGC 3D Tiles / VTS octree pipeline
 
-**Status:** In review
+**Status:** In review (round 2 responded)
 **Elevates:** "REFACTOR: remove OGC 3D Tiles streaming mechanism" and
 "REFACTOR: delete legacy tile shader family" in
 [backlog.md](backlog.md)
@@ -205,13 +205,26 @@ family (`progTile`, `progTile2`, `progTile3`, and their variants,
 
 - `GpuGroup.prototype.addMeshJob`
 - `GpuGroup.prototype.drawMesh`
+- `GpuGroup.prototype.onBinFileLoaded`
 - All handling of `WORKER_TYPE_NODE_BEGIN`, `WORKER_TYPE_NODE_END`,
   `WORKER_TYPE_MESH`, and `WORKER_TYPE_LOAD_NODE` (the `rootNode`
   tree and its traversal)
 - The `binFiles` / `binPath` streaming and traversal machinery
   (~lines 1380–1853)
 - The `import` of `MapGeodataImportVTSTree_` and its local alias
+- The `import` of `MapResourceNode_` and its local alias — all four
+  call sites in the file (`addMeshJob`, `drawMesh` ×2,
+  `onBinFileLoaded`) are in the octree path
 - The `direct-3dtiles` loader call
+- Constructor fields: `this.loadMode`, `this.binFiles`
+- Instance fields set by `onBinFileLoaded`: `rootPath`, `rootPoints`,
+  `rootCenter`, `rootRadius`, `rootTexelSize`
+- The hardcoded `this.map.config.mapTraverseToMeshNode = false` debug
+  override (~line 1403) and the `mapTraverseToMeshNode` guard
+  (~line 1412) inside the traversal
+- The `mapSplitLods` config read (~line 1432)
+- The `debug.drawNBBoxes` and `debug.drawOctants` branches (~lines
+  1032, 1091, 1164) inside `drawMesh`
 
 **`src/core/map/resource-node.js`**
 
@@ -224,6 +237,39 @@ family (`progTile`, `progTile2`, `progTile3`, and their variants,
 - The commented-out `load3DTiles` branch inside the block comment
   (~lines 76–84). The comment contains a broken double-dot reference
   (`this..mapLoaderUrl`) and calls a method that will no longer exist.
+
+**`src/core/core.js`**
+
+- The `mapSplitLods: false` entry in the default config object
+- The `mapTraverseToMeshNode` entry if one exists in the default config
+
+**`src/core/map/map.js`**
+
+- The `'mapTraverseToMeshNode'` case in `setConfigParam`
+
+**`src/browser/url-config.ts`**
+
+(existing `'tiles3d'` entry already listed above)
+
+- `'mapTraverseToMeshNode'` from `STRING_KEYS` or equivalent set
+
+**`src/core/map/draw.js`**
+
+- The `drawNBBoxes: false` field in the debug object defaults
+- The `drawOctants: false` field in the debug object defaults
+
+**`src/core/inspector/input.js`**
+
+- The `mapSplitLods` toggle (key handler and inverse)
+- The `drawNBBoxes` assignment sites (initialization and tileBBox
+  handler) — `drawBBoxes` (terrain bounding boxes) is unrelated and
+  stays
+- The `drawOctants` assignment sites (key `U`/`u` handler and
+  URL-param handler)
+
+**`src/core/renderer/renderer.ts`**
+
+- The `drawNBBoxes` field in the debug type/interface
 
 **`src/core/constants.ts`**
 
@@ -243,12 +289,18 @@ remain, delete:
 - `MapMesh.prototype.drawSubmesh`
 - `MapMesh.prototype.generateTileShader`
 - `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
-  `progFogTile`, `progFlatShadeTile`, `progCFlatShadeTile`,
-  `progWireFrameBasic` and their variant arrays from `renderer.ts`
-  and `init.js`
-- `GpuShaders.tileVertexShader`
-- `GpuShaders.tileFragmentShader`
+  `progFogTile`, `progFlatShadeTile`, `progFlatShadeTileSE`, and
+  their variant arrays from `renderer.ts` and `init.js`
 - `MATERIAL_INTERNAL` from `constants.ts`
+
+**Not removable in this pass:**
+`progCFlatShadeTile`, `progCFlatShadeTileSE`, `progWireFrameBasic`,
+and `progWireFrameBasicSE` are still used by `src/core/renderer/draw.js`
+for geodata polygon flat-shading and polygon debug wire drawing.
+Because those programs are built from `GpuShaders.tileVertexShader`
+and `GpuShaders.tileFragmentShader`, the shared tile shader strings
+cannot be deleted here either. They survive until the geodata polygon
+rendering path is migrated to a dedicated shader.
 
 The remaining terrain renderer must be `TileRenderRig`. Run the full
 test suite and screenshot regression tests after this pass.
@@ -257,23 +309,32 @@ test suite and screenshot regression tests after this pass.
 
 ## 4. Verification
 
-After the main deletion pass, confirm with `grep -r` that no references
-remain to:
+Scope all grep checks to `src/`, `test/`, and `demos/` — the RFC
+itself, backlog, and session log retain historical references and are
+not subject to these checks.
+
+After the main deletion pass, confirm with `grep -r src/ test/ demos/`
+that no references remain to:
 
 ```
 tiles3d        3DTiles        direct-3dtiles
 vts-tree       pointcloud     JOB_MESH
 JOB_POINTCLOUD WORKER_TYPE_MESH WORKER_TYPE_LOAD_NODE
 WORKER_TYPE_NODE_BEGIN WORKER_TYPE_NODE_END
+mapTraverseToMeshNode mapSplitLods
+drawNBBoxes    drawOctants
 ```
 
-After the shader family pass, confirm no references remain to:
+After the shader family pass (§3.3), confirm no references remain to:
 
 ```
 drawSubmesh    generateTileShader    progTile
-progDepthTile  tileVertexShader      tileFragmentShader
-MATERIAL_INTERNAL
+progDepthTile  MATERIAL_INTERNAL
 ```
+
+(`tileVertexShader` and `tileFragmentShader` are expected to remain
+in `src/` because `progCFlatShadeTile` and `progWireFrameBasic` still
+use them — see §3.3.)
 
 Then run `npx tsc --noEmit` and the canonical screenshot checks
 `simple-terrain`, `complex-terrain`, and `full-terrain`.
@@ -385,3 +446,77 @@ of this project. Not recommended.
 
    *Implemented.* §4 (Verification) now lists both grep term sets
    and the required test commands.
+
+---
+
+## Review round 2
+
+1. Blocker: narrow the legacy shader follow-on. `progCFlatShadeTile`
+   and `progWireFrameBasic` are not proven removable by deleting
+   `MapMesh.drawSubmesh()`. `src/core/renderer/draw.js` still uses
+   `renderer.progCFlatShadeTile` for flat-shaded geodata polygons and
+   `renderer.progWireFrameBasic` for polygon debug wire drawing. Both
+   are created in `src/core/renderer/init.js` from
+   `GpuShaders.tileVertexShader`; `progCFlatShadeTile` also uses
+   `GpuShaders.tileFragmentShader`. The RFC must either keep those
+   programs and shared shader strings until geodata polygon drawing is
+   migrated, or add that migration/removal as an explicit prerequisite
+   of the shader-family pass.
+
+   *Implemented.* §3.3 is narrowed. `progCFlatShadeTile[SE]` and
+   `progWireFrameBasic[SE]` are removed from the deletion list with
+   an explicit note that they survive because `draw.js` uses them for
+   geodata polygon flat-shading and debug wire drawing. Because both
+   programs compile against `GpuShaders.tileVertexShader` and
+   `GpuShaders.tileFragmentShader`, those strings are also removed
+   from the deletion list and kept until a geodata polygon migration
+   replaces them. The programs and shader strings are not removed from
+   §4's post-deletion grep checks (they are expected to remain).
+
+2. Blocker: make the verification grep scope executable. Section 4 says
+   to confirm with `grep -r` that terms such as `tiles3d`, `3DTiles`,
+   `pointcloud`, and `drawSubmesh` have no references remaining, but the
+   RFC itself, backlog entries, and session logs are expected to keep
+   historical references. Scope the command to code-bearing paths such
+   as `src`, `test`, and `demos`, or state which documentation references
+   are allowed to remain.
+
+   *Implemented.* §4 now scopes all grep checks to `src/`, `test/`,
+   and `demos/`. A note explicitly states that the RFC, backlog, and
+   session log retain historical references and are not subject to these
+   checks.
+
+3. Non-blocking: list the `GpuGroup` imports and constructor fields that
+   disappear with the octree/node path. The current bullets cover the
+   main methods, but implementation will also need to remove the
+   `MapResourceNode` import if no geodata path uses it, `binFiles`,
+   `loadMode`, and octree-only fields created by `onBinFileLoaded()` such
+   as `rootPath`, `rootPoints`, `rootCenter`, `rootRadius`, and
+   `rootTexelSize`.
+
+   *Implemented.* §3.2 (`group.js`) now lists `onBinFileLoaded`,
+   the `MapResourceNode` import and alias (all four call sites in
+   `group.js` — in `addMeshJob`, `drawMesh`, and `onBinFileLoaded`
+   — are in the octree path), the `loadMode` and `binFiles`
+   constructor fields, and the five `root*` instance fields.
+
+4. Non-blocking: decide whether octree-only debug/config names should be
+   deleted with the same pass. `mapTraverseToMeshNode` and
+   `mapSplitLods` are only used by the `GpuGroup` octree traversal, so
+   removing that traversal leaves stale config keys in `core.js`,
+   `map.js`, and `url-config.ts`. `drawNBBoxes`, `drawOctants`, and
+   related inspector toggles may still be useful for terrain or geodata,
+   but the RFC should call out which debug controls survive and which
+   are octree-only.
+
+   *Implemented.* All four are octree-only. `mapTraverseToMeshNode`
+   is consumed only by `group.js`'s traversal function; its only
+   outside presence is the `map.js` case and the `url-config.ts`
+   entry. `mapSplitLods` is likewise consumed only by
+   `group.js`; it has no `map.js` case and is set only via the
+   inspector toggle and the `core.js` default. `drawNBBoxes` and
+   `drawOctants` are declared in `draw.js` and read exclusively
+   inside `group.js`'s octree draw path; `drawBBoxes` (terrain
+   bounding boxes) is unrelated and stays. §3.2 now lists all of
+   these across `group.js`, `map.js`, `url-config.ts`, `core.js`,
+   `draw.js`, `inspector/input.js`, and `renderer.ts`.
