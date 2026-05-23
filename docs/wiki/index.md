@@ -10,7 +10,7 @@ then branch into more specific documents as needed.
 ### Overview
 
 - [architecture.md](architecture.md) — broad system structure, object
-  ownership, and cross-cutting runtime notes
+  ownership, and links to focused topic notes
 - [backlog.md](backlog.md) — deferred bugs, follow-up work, and
   documentation restructuring tasks
 - [session-log.md](session-log.md) — chronological record of significant
@@ -48,6 +48,14 @@ then branch into more specific documents as needed.
 
 ### Subsystem and feature notes
 
+- [api-and-lifecycle.md](api-and-lifecycle.md) — public API direction,
+  construction, async readiness, configuration routing, events, teardown,
+  and CSS runtime dependency
+- [rendering-architecture.md](rendering-architecture.md) — map/renderer
+  ownership boundary, `TileRenderRig`, legacy draw code, and
+  illumination notes
+- [testing-notes.md](testing-notes.md) — non-obvious regression-test
+  behaviour, including transient upstream tile-source failures
 - [normal-encoding.md](normal-encoding.md) — octahedral RG normal
   encoding: why it is kept for full-sphere coverage and uniform precision,
   the nonlinearity problem when blending encoded values, and how

@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-05-23 — Session log chronology repair
+
+Moved the detached historical May entries from the bottom of
+`session-log.md` back into reverse chronological order. Reattached the
+`2026-05-14 — Style-based runtime free-layer gap` body, which had been
+separated from its heading by a later `2026-05-19` entry. Updated
+`architecture.md` to state explicitly that `LegacyMap` is destined to
+dissolve into `Map`.
+
+## 2026-05-23 — Architecture wiki cleanup
+
+Rewrote `architecture.md` as a high-level first-read page covering the
+system shape, VTS divergence, entry point, runtime object ownership,
+terrain data flow, public API direction, and design references.
+
+Moved detailed API and runtime notes into `api-and-lifecycle.md`:
+construction errors, wrapper migration state, style versus mapConfig
+rules, config routing, async initialization, the render loop, the event
+bus, teardown, and CSS imports. Moved renderer-boundary and terrain
+draw notes into `rendering-architecture.md`. Moved transient upstream
+tile-source failures during screenshot tests into `testing-notes.md`.
+Updated `index.md` so the new pages are reachable from the wiki table of
+contents.
+
 ## 2026-05-23 — LOD selection documentation rewrite
 
 Rewrote `lod-selection.md` around the active legacy screen-space error
@@ -88,6 +112,14 @@ and renamed the alternate geometric-intersection boolean away from
 `useFallback`. Updated `architecture.md` to record that `Map` and
 supporting TypeScript modules own map data and selection decisions, while
 `Renderer` remains the WebGL/WebGPU boundary.
+
+## 2026-05-23 — Track package-lock.json
+
+Removed `/package-lock.json` from `.gitignore` and committed the
+lockfile. Cartolina is an application, not a published library, so
+locking transitive dependency versions is correct. The change also
+allows Dependabot to confirm resolved versions and auto-close
+vulnerability alerts.
 
 ## 2026-05-21 — Preserve render-rig context and reduce hot-path churn
 
@@ -269,6 +301,17 @@ statistics (mean, RMSE, max, quantiles, hit-mismatch count).
 **`AGENTS.md`**: blank-line rule around multi-line blocks extended to
 nested loops, nested `if` statements, callbacks, and helper methods.
 
+## 2026-05-20 — Backlog: depth pass done; pipeline cleanup entry added
+
+Marked step 1 of the draw-refactor backlog item complete: `TileRenderRig`
+is now wired into the depth pass with dedicated shaders and a typed
+clear/readback API.
+
+Added backlog entry **Delete legacy mesh tile rendering pipeline** —
+removes ~1 700 lines across `draw-tiles.js` (62%), `mesh.js` (60%),
+`draw.js`, `shaders.js`, `renderer.ts`, `init.js`, and
+`surface-tree.js`. Scheduled before draw-refactor steps 2–4.
+
 ## 2026-05-19 — Restore portable RGBA8 depth hitmap
 
 Restored the depth hitmap to the WebGL2-baseline RGBA8 colour
@@ -407,6 +450,27 @@ declaration.
 Added a render-loop performance rule to AGENTS.md. Added a backlog
 entry for bump-map baking inside `TileRenderRig`.
 
+## 2026-05-19 — Tile rig owns tile program binding
+
+`TileRenderRig.draw()` no longer accepts a `GpuProgram` from
+`draw-tiles.js`. The rig already owns the tile shader uniforms, layer
+UBO, sampler array, texture binding, and mesh attribute names, so the
+caller no longer selects the program. `draw()` now fetches
+`Renderer.programTile()` and binds it through `GpuDevice.useProgram2()`.
+The device-side program cache makes repeated tile draws pay only the
+object comparison when the tile program is already current.
+
+`Renderer.programTile()` and `Renderer.programBackground()` now declare
+`GpuProgram` return types. Shared frame-space shader helpers for
+vertical exaggeration and ellipsoid zenith moved from `tile.vert.glsl`
+to `frame.inc.glsl`, so future shader programs can reuse the same
+calculations.
+
+`TextureBlend.restoreInitialState()` now carries a warning that it
+restores only part of the raw WebGL state it changes. Blend state,
+array-buffer binding, and vertex attribute enables can still drift from
+renderer-side state caches after the helper runs.
+
 ## 2026-05-18 — Replay inspector diagnosis and partial fix
 
 Diagnosed the VTS-era replay inspector (`src/core/inspector/replay.js`
@@ -505,6 +569,41 @@ distance functions (`getPixelSize` vs `getPixelSize3`), the
 free-layer vs surface-layer differences. `rendering-sizes.md` updated
 with a note on CSS-transform / apparent-size behaviour and label
 stability.
+
+## 2026-05-17 — Renderer: canvas render target naming and logic cleanup
+
+Identified and fixed two related problems in the canvas render target
+management path.
+
+**Naming**: `updateSizeIfNeeded` and `updateCanvasRenderTargetIfNeeded`
+both sounded like passive checks but carried hard GL side effects
+(binding a framebuffer, setting the GL viewport, resizing the canvas
+element). Renamed and split:
+
+- `GpuDevice.updateCanvasRenderTargetIfNeeded` → split into
+  `canvasRenderTargetNeedsUpdate()` (pure boolean read) and
+  `updateCanvasRenderTarget()` (resize + bind).
+- `GpuDevice.setCanvasRenderTarget()` added as a cheap bind-only path
+  (no DOM read, no canvas element resize) for switching back from
+  auxiliary passes.
+- `Renderer.updateSizeIfNeeded` → `ensureCanvasRenderTarget()`.
+
+**Logic**: `canvasRenderTargetNeedsUpdate()` previously compared the
+current render target (whatever was bound) against the DOM-measured
+canvas size. Introduced `canvasTarget_` field on `GpuDevice` to track
+the last configured canvas target independently of `renderTarget_`.
+The check now compares `canvasTarget_` to the DOM, which is correct
+regardless of which target is currently bound.
+
+`ensureCanvasRenderTarget()` now always binds the canvas at the top of
+the render loop; resize and projection update only happen when the DOM
+size actually changed. The dead `wasCanvasTarget` guard and its TODO
+comment were removed.
+
+**Dead code**: marked `drawFog` / `debug.drawFog` references dead in
+`draw.js`, `map.js`, `renderer.ts`, `inspector/input.js`, and
+`init.js` (progFogTile), pointing to the existing `updateFogDensity`
+dead-code comment in `draw.js`.
 
 ## 2026-05-16 — wiki: tileserver metatile production analysis
 
@@ -1123,6 +1222,198 @@ restarted dev server. The `vts-core.js` output is no longer produced.
 The current follow-up also passes `simple-terrain`, `complex-terrain`,
 and `full-terrain` screenshot checks after moving WebGL2 construction
 failure handling into `GpuDevice`.
+
+## 2026-05-14 — RFC: ConfigStore
+
+Architectural discussion of the path to suppressing `core.js`. The
+config routing system was identified as the main structural blocker:
+three independent `this.config` stores (Browser, Core, LegacyMap),
+a stringly-typed `setConfigParam(key, value)` chain, and a
+string-prefix routing convention (`map*`, `renderer*`, `debug*`)
+spread across four files.
+
+Surveyed how MapLibre GL JS, CesiumJS, Babylon.js, and Pixi.js v8
+handle configuration. None use a general reactive store. Babylon.js
+is the closest: per-property observables on `Scene` that fire when
+a setter is called. Pixi.js plugin self-selection (each plugin reads
+its own slice from a shared options bag) is also relevant.
+
+Evaluated `nanostores` and `@preact/signals-core` as off-the-shelf
+implementations. Both lack the flush-at-frame-boundary contract
+required by a renderer; recommendation is to write the store (~50
+lines) rather than take a dependency.
+
+Proposed design: a single `ConfigStore<ViewerConfig>` with `set()`,
+`get()`, `watch(keys, fn)`, and `flush()`. The store holds no
+domain knowledge. Subsystems receive the store reference at
+construction and call `watch()` for the keys they own. The existing
+`setConfigParam()` chain becomes a two-line compatibility shim
+(`this.configStore.set({ [key]: value })`), removing all routing
+logic in one step while allowing legacy JS call sites to continue
+working indefinitely.
+
+RFC written at `docs/wiki/rfc-config-store.md`. RFC lifecycle rules
+and agent responsibilities added to `AGENTS.md`.
+
+---
+
+## 2026-05-14 — Style-based runtime free-layer gap
+
+### Goal
+
+Diagnose why the non-interactive demo's runtime geodata route is not
+visible after the browser/core refactor work.
+
+### Work done
+
+`demos/core/style.json` was missing `version: 2`; Typia reported
+`$input.version: expected 2, got undefined`. The style now validates.
+
+`demos/core/index.html` registers `addRouteLayer()` on `map-loaded`.
+Playwright instrumentation confirmed the listener fires and
+`viewer.createGeodata()` returns a builder.
+
+The route still does not render because style-based maps build
+`map.freeLayerSequence` from `style.layers` in `MapStyle.refreshSequences`.
+The legacy `MapInterface.addFreeLayer()` call only registers the object in
+`map.freeLayers`. The old mapConfig demos also add an entry to
+`view.freeLayers` and call `setView(view)`, but style-based maps bypass that
+view activation path.
+
+### Current state
+
+`docs/wiki/backlog.md` records the runtime free-layer gap as deferred work.
+No style-era runtime overlay API exists yet.
+
+### Open questions
+
+Design the new API for runtime style-based overlays. It should register the
+geodata/free-layer source and the style layer or stylesheet used to render it,
+then refresh the style-driven sequences. Do not hide legacy `view.freeLayers`
+mutation inside `Viewer.addFreeLayer()`.
+
+## 2026-05-14 — Wiki rename: core-build → non-interactive
+
+`docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.
+The filename `core-build` referred to the removed `vts-core.js` build
+target; the file's content had already been rewritten to document
+`interactive: false` usage. Three cross-references updated:
+`docs/wiki/index.md`, `docs/wiki/architecture.md`, and an earlier entry
+in this log.
+
+`AGENTS.md`: added a paragraph on simplicity as a design criterion
+(fewer moving parts preferred over more precise modelling).
+
+## 2026-05-13 — TypeScript `Map` public class (CoreInterface replacement)
+
+### Goal
+
+Replace the legacy `CoreInterface` ES5 wrapper with a proper TypeScript
+`Map` class as the public boundary for the core build. This is the first
+step of the north-star refactor described in `architecture.md`: build the
+`Map` TypeScript class before continuing method promotions, so that every
+subsequent promotion goes through a typed public surface rather than
+reaching into legacy internals.
+
+The `Map.draw()` stub added here is the future home of the surface-tree
+traversal replacement (the `feature/draw-surfaces` work).
+
+### Work done
+
+**`src/core/map.ts` created** — new TypeScript `Map` class replacing the
+`CoreInterface` ES5 wrapper. Owns `Core` as a private field (`core_`).
+Public surface: `[Symbol.dispose]()`, `destroy()` (deprecated),
+`ready`, `on()`, `once()`, `loadMap()`, `unloadMap()`, VE / illumination /
+atmosphere / rendering-options methods. The `core` getter is a typed
+migration shim that fires `warnOnce` on every access.
+
+**`Symbol.dispose` support** — `src/types/globals.d.ts` augmented with
+`SymbolConstructor.dispose` so ts-loader picks it up without a lib target
+change.
+
+**`CoreInterface` deleted** — `src/core/interface.js` and
+`src/core/interface.d.ts` removed.
+
+**`LegacyMap` alias applied** — `viewer.ts`, `renderer.ts`, and `style.ts`
+now import the old terrain engine as `LegacyMap` per the new AGENTS.md rule.
+`src/core/index.js` updated to import `Map` from `./map`.
+
+**`browser.js` updated** — constructs `Map` directly.
+
+**`viewer.ts` updated** — `_core: Map`; `destroy()` calls
+`_core[Symbol.dispose]()`; `destroyMap()` calls `_core.unloadMap()`.
+
+**`src/core/map.ts`** also carries a private `draw()` stub — the future
+home of the surface-tree traversal replacement.
+
+**Wiki and backlog updated** — `architecture.md` object model, "current
+state" table, event bus section; `backlog.md` Map class item marked
+in-progress, new event bus migration item added.
+
+**All three screenshot tests pass** — simple-terrain, complex-terrain,
+full-terrain. No visual regressions, no console errors.
+
+### Remaining
+
+- Remove `Map.core` escape hatch once `Viewer` callers are promoted to
+  proper `Map` public methods.
+- Absorb `Core`, `LegacyMap`, `Renderer` into `Map` incrementally as
+  feature work touches them.
+- Event bus migration to `EventTarget` (separate backlog item).
+
+---
+
+## 2026-05-13 — index.ts, MapInterface promotion, map.ts cleanup
+
+`src/core/index.js` migrated to TypeScript (`index.ts`). The ES5 alias
+pattern ("get rid of compiler mess") replaced with clean imports and a
+properly typed `core()` factory function. `index.js` deleted.
+
+Six coordinate-conversion and hit-testing methods promoted from
+`MapInterface` onto `Map` (`src/core/map.ts`):
+`convertCoordsFromPublicToNav`, `convertCoordsFromNavToCanvas`,
+`convertCoordsFromNavToPublic`, `convertCoordsFromNavToPhys`,
+`convertCoordsFromPhysToCameraSpace`, `getHitCoords`.
+Each delegates to `this.core_.mapInterface` internally; the JS wrapper
+becomes a private implementation detail with no TypeScript exposure.
+
+`src/core/map/interface.d.ts` deleted — no TypeScript module references
+`MapInterface` by type. `interface.js` retained (Core still constructs
+it internally).
+
+`src/browser/viewer.ts` updated: `MapInterface` import and `_mapInterface`
+getter removed; six call sites now delegate directly to `this.map_`.
+Class JSDoc updated to reflect current bypass-point state.
+
+`src/core/map.ts` method order cleaned up: lifecycle → rendering controls
+→ coordinate conversion → event subscriptions → deprecated → shim → stub.
+
+All three screenshot tests pass; `tsc --noEmit` clean.
+
+---
+
+## 2026-05-13 — Eliminate RendererInterface
+
+`RendererInterface` (`src/core/renderer/interface.js`) deleted. It was
+the last `*Interface` ES5 wrapper in the codebase.
+
+Six inspector/replay GPU methods promoted onto `Renderer` as public
+TypeScript methods: `createTexture`, `createMesh`, `createState`,
+`setState`, `drawMesh`, `drawImage`, `drawLineString`. All carry JSDoc
+naming the specific caller. Dead code (16 unused methods) discarded.
+
+`getCanvasCoords` call sites in `draw-tiles.js` and `group.js` replaced
+with direct `renderer.project2()` calls — already an exact equivalent.
+
+`core.js` import and `getRendererInterface()` method removed.
+`map.ts` updated to call `this.core_.renderer` directly.
+
+Architecture doc updated: `*Interface` pattern section rewritten as
+archaeology; `RendererInterface` row removed from dissolution table;
+`Renderer` row updated to note it is no longer wrapped.
+| `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |
+
+---
 
 ## 2026-05-05 — Contributor documentation refresh
 
@@ -2521,7 +2812,6 @@ Browser→Viewer dissolution goal documented.
   JS file is part of the compilation. The pattern is valid for
   incremental migration.
 
-
 ## 2026-04-12 — labels render flag
 
 **Branch:** main
@@ -2800,270 +3090,3 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 | `setSuperElevationProgression` | `setVeScaleRampFromProgression` (deprecated) |
 
 ---
-
-## 2026-05-13 — TypeScript `Map` public class (CoreInterface replacement)
-
-### Goal
-
-Replace the legacy `CoreInterface` ES5 wrapper with a proper TypeScript
-`Map` class as the public boundary for the core build. This is the first
-step of the north-star refactor described in `architecture.md`: build the
-`Map` TypeScript class before continuing method promotions, so that every
-subsequent promotion goes through a typed public surface rather than
-reaching into legacy internals.
-
-The `Map.draw()` stub added here is the future home of the surface-tree
-traversal replacement (the `feature/draw-surfaces` work).
-
-### Work done
-
-**`src/core/map.ts` created** — new TypeScript `Map` class replacing the
-`CoreInterface` ES5 wrapper. Owns `Core` as a private field (`core_`).
-Public surface: `[Symbol.dispose]()`, `destroy()` (deprecated),
-`ready`, `on()`, `once()`, `loadMap()`, `unloadMap()`, VE / illumination /
-atmosphere / rendering-options methods. The `core` getter is a typed
-migration shim that fires `warnOnce` on every access.
-
-**`Symbol.dispose` support** — `src/types/globals.d.ts` augmented with
-`SymbolConstructor.dispose` so ts-loader picks it up without a lib target
-change.
-
-**`CoreInterface` deleted** — `src/core/interface.js` and
-`src/core/interface.d.ts` removed.
-
-**`LegacyMap` alias applied** — `viewer.ts`, `renderer.ts`, and `style.ts`
-now import the old terrain engine as `LegacyMap` per the new AGENTS.md rule.
-`src/core/index.js` updated to import `Map` from `./map`.
-
-**`browser.js` updated** — constructs `Map` directly.
-
-**`viewer.ts` updated** — `_core: Map`; `destroy()` calls
-`_core[Symbol.dispose]()`; `destroyMap()` calls `_core.unloadMap()`.
-
-**`src/core/map.ts`** also carries a private `draw()` stub — the future
-home of the surface-tree traversal replacement.
-
-**Wiki and backlog updated** — `architecture.md` object model, "current
-state" table, event bus section; `backlog.md` Map class item marked
-in-progress, new event bus migration item added.
-
-**All three screenshot tests pass** — simple-terrain, complex-terrain,
-full-terrain. No visual regressions, no console errors.
-
-### Remaining
-
-- Remove `Map.core` escape hatch once `Viewer` callers are promoted to
-  proper `Map` public methods.
-- Absorb `Core`, `LegacyMap`, `Renderer` into `Map` incrementally as
-  feature work touches them.
-- Event bus migration to `EventTarget` (separate backlog item).
-
----
-
-## 2026-05-13 — index.ts, MapInterface promotion, map.ts cleanup
-
-`src/core/index.js` migrated to TypeScript (`index.ts`). The ES5 alias
-pattern ("get rid of compiler mess") replaced with clean imports and a
-properly typed `core()` factory function. `index.js` deleted.
-
-Six coordinate-conversion and hit-testing methods promoted from
-`MapInterface` onto `Map` (`src/core/map.ts`):
-`convertCoordsFromPublicToNav`, `convertCoordsFromNavToCanvas`,
-`convertCoordsFromNavToPublic`, `convertCoordsFromNavToPhys`,
-`convertCoordsFromPhysToCameraSpace`, `getHitCoords`.
-Each delegates to `this.core_.mapInterface` internally; the JS wrapper
-becomes a private implementation detail with no TypeScript exposure.
-
-`src/core/map/interface.d.ts` deleted — no TypeScript module references
-`MapInterface` by type. `interface.js` retained (Core still constructs
-it internally).
-
-`src/browser/viewer.ts` updated: `MapInterface` import and `_mapInterface`
-getter removed; six call sites now delegate directly to `this.map_`.
-Class JSDoc updated to reflect current bypass-point state.
-
-`src/core/map.ts` method order cleaned up: lifecycle → rendering controls
-→ coordinate conversion → event subscriptions → deprecated → shim → stub.
-
-All three screenshot tests pass; `tsc --noEmit` clean.
-
----
-
-## 2026-05-14 — RFC: ConfigStore
-
-Architectural discussion of the path to suppressing `core.js`. The
-config routing system was identified as the main structural blocker:
-three independent `this.config` stores (Browser, Core, LegacyMap),
-a stringly-typed `setConfigParam(key, value)` chain, and a
-string-prefix routing convention (`map*`, `renderer*`, `debug*`)
-spread across four files.
-
-Surveyed how MapLibre GL JS, CesiumJS, Babylon.js, and Pixi.js v8
-handle configuration. None use a general reactive store. Babylon.js
-is the closest: per-property observables on `Scene` that fire when
-a setter is called. Pixi.js plugin self-selection (each plugin reads
-its own slice from a shared options bag) is also relevant.
-
-Evaluated `nanostores` and `@preact/signals-core` as off-the-shelf
-implementations. Both lack the flush-at-frame-boundary contract
-required by a renderer; recommendation is to write the store (~50
-lines) rather than take a dependency.
-
-Proposed design: a single `ConfigStore<ViewerConfig>` with `set()`,
-`get()`, `watch(keys, fn)`, and `flush()`. The store holds no
-domain knowledge. Subsystems receive the store reference at
-construction and call `watch()` for the keys they own. The existing
-`setConfigParam()` chain becomes a two-line compatibility shim
-(`this.configStore.set({ [key]: value })`), removing all routing
-logic in one step while allowing legacy JS call sites to continue
-working indefinitely.
-
-RFC written at `docs/wiki/rfc-config-store.md`. RFC lifecycle rules
-and agent responsibilities added to `AGENTS.md`.
-
----
-
-## 2026-05-13 — Eliminate RendererInterface
-
-`RendererInterface` (`src/core/renderer/interface.js`) deleted. It was
-the last `*Interface` ES5 wrapper in the codebase.
-
-Six inspector/replay GPU methods promoted onto `Renderer` as public
-TypeScript methods: `createTexture`, `createMesh`, `createState`,
-`setState`, `drawMesh`, `drawImage`, `drawLineString`. All carry JSDoc
-naming the specific caller. Dead code (16 unused methods) discarded.
-
-`getCanvasCoords` call sites in `draw-tiles.js` and `group.js` replaced
-with direct `renderer.project2()` calls — already an exact equivalent.
-
-`core.js` import and `getRendererInterface()` method removed.
-`map.ts` updated to call `this.core_.renderer` directly.
-
-Architecture doc updated: `*Interface` pattern section rewritten as
-archaeology; `RendererInterface` row removed from dissolution table;
-`Renderer` row updated to note it is no longer wrapped.
-| `seProgression` / `SeProgression` | `veScaleRamp` / `VeScaleRamp` |
-
----
-
-## 2026-05-14 — Style-based runtime free-layer gap
-
-## 2026-05-19 — Tile rig owns tile program binding
-
-`TileRenderRig.draw()` no longer accepts a `GpuProgram` from
-`draw-tiles.js`. The rig already owns the tile shader uniforms, layer
-UBO, sampler array, texture binding, and mesh attribute names, so the
-caller no longer selects the program. `draw()` now fetches
-`Renderer.programTile()` and binds it through `GpuDevice.useProgram2()`.
-The device-side program cache makes repeated tile draws pay only the
-object comparison when the tile program is already current.
-
-`Renderer.programTile()` and `Renderer.programBackground()` now declare
-`GpuProgram` return types. Shared frame-space shader helpers for
-vertical exaggeration and ellipsoid zenith moved from `tile.vert.glsl`
-to `frame.inc.glsl`, so future shader programs can reuse the same
-calculations.
-
-`TextureBlend.restoreInitialState()` now carries a warning that it
-restores only part of the raw WebGL state it changes. Blend state,
-array-buffer binding, and vertex attribute enables can still drift from
-renderer-side state caches after the helper runs.
-
-### Goal
-
-Diagnose why the non-interactive demo's runtime geodata route is not
-visible after the browser/core refactor work.
-
-### Work done
-
-`demos/core/style.json` was missing `version: 2`; Typia reported
-`$input.version: expected 2, got undefined`. The style now validates.
-
-`demos/core/index.html` registers `addRouteLayer()` on `map-loaded`.
-Playwright instrumentation confirmed the listener fires and
-`viewer.createGeodata()` returns a builder.
-
-The route still does not render because style-based maps build
-`map.freeLayerSequence` from `style.layers` in `MapStyle.refreshSequences`.
-The legacy `MapInterface.addFreeLayer()` call only registers the object in
-`map.freeLayers`. The old mapConfig demos also add an entry to
-`view.freeLayers` and call `setView(view)`, but style-based maps bypass that
-view activation path.
-
-### Current state
-
-`docs/wiki/backlog.md` records the runtime free-layer gap as deferred work.
-No style-era runtime overlay API exists yet.
-
-### Open questions
-
-Design the new API for runtime style-based overlays. It should register the
-geodata/free-layer source and the style layer or stylesheet used to render it,
-then refresh the style-driven sequences. Do not hide legacy `view.freeLayers`
-mutation inside `Viewer.addFreeLayer()`.
-
-## 2026-05-17 — Renderer: canvas render target naming and logic cleanup
-
-Identified and fixed two related problems in the canvas render target
-management path.
-
-**Naming**: `updateSizeIfNeeded` and `updateCanvasRenderTargetIfNeeded`
-both sounded like passive checks but carried hard GL side effects
-(binding a framebuffer, setting the GL viewport, resizing the canvas
-element). Renamed and split:
-
-- `GpuDevice.updateCanvasRenderTargetIfNeeded` → split into
-  `canvasRenderTargetNeedsUpdate()` (pure boolean read) and
-  `updateCanvasRenderTarget()` (resize + bind).
-- `GpuDevice.setCanvasRenderTarget()` added as a cheap bind-only path
-  (no DOM read, no canvas element resize) for switching back from
-  auxiliary passes.
-- `Renderer.updateSizeIfNeeded` → `ensureCanvasRenderTarget()`.
-
-**Logic**: `canvasRenderTargetNeedsUpdate()` previously compared the
-current render target (whatever was bound) against the DOM-measured
-canvas size. Introduced `canvasTarget_` field on `GpuDevice` to track
-the last configured canvas target independently of `renderTarget_`.
-The check now compares `canvasTarget_` to the DOM, which is correct
-regardless of which target is currently bound.
-
-`ensureCanvasRenderTarget()` now always binds the canvas at the top of
-the render loop; resize and projection update only happen when the DOM
-size actually changed. The dead `wasCanvasTarget` guard and its TODO
-comment were removed.
-
-**Dead code**: marked `drawFog` / `debug.drawFog` references dead in
-`draw.js`, `map.js`, `renderer.ts`, `inspector/input.js`, and
-`init.js` (progFogTile), pointing to the existing `updateFogDensity`
-dead-code comment in `draw.js`.
-
-## 2026-05-20 — Backlog: depth pass done; pipeline cleanup entry added
-
-Marked step 1 of the draw-refactor backlog item complete: `TileRenderRig`
-is now wired into the depth pass with dedicated shaders and a typed
-clear/readback API.
-
-Added backlog entry **Delete legacy mesh tile rendering pipeline** —
-removes ~1 700 lines across `draw-tiles.js` (62%), `mesh.js` (60%),
-`draw.js`, `shaders.js`, `renderer.ts`, `init.js`, and
-`surface-tree.js`. Scheduled before draw-refactor steps 2–4.
-
-## 2026-05-23 — Track package-lock.json
-
-Removed `/package-lock.json` from `.gitignore` and committed the
-lockfile. Cartolina is an application, not a published library, so
-locking transitive dependency versions is correct. The change also
-allows Dependabot to confirm resolved versions and auto-close
-vulnerability alerts.
-
-## 2026-05-14 — Wiki rename: core-build → non-interactive
-
-`docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.
-The filename `core-build` referred to the removed `vts-core.js` build
-target; the file's content had already been rewritten to document
-`interactive: false` usage. Three cross-references updated:
-`docs/wiki/index.md`, `docs/wiki/architecture.md`, and an earlier entry
-in this log.
-
-`AGENTS.md`: added a paragraph on simplicity as a design criterion
-(fewer moving parts preferred over more precise modelling).
