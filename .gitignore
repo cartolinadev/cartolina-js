@@ -11,7 +11,6 @@ build/*.css
 *.lock
 *~
 *.bak
-/package-lock.json
 *.kate-swp
 /dist.old
 DEADJOE

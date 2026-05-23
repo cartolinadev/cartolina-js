@@ -3029,6 +3029,14 @@ removes ~1 700 lines across `draw-tiles.js` (62%), `mesh.js` (60%),
 `draw.js`, `shaders.js`, `renderer.ts`, `init.js`, and
 `surface-tree.js`. Scheduled before draw-refactor steps 2–4.
 
+## 2026-05-23 — Track package-lock.json
+
+Removed `/package-lock.json` from `.gitignore` and committed the
+lockfile. Cartolina is an application, not a published library, so
+locking transitive dependency versions is correct. The change also
+allows Dependabot to confirm resolved versions and auto-close
+vulnerability alerts.
+
 ## 2026-05-14 — Wiki rename: core-build → non-interactive
 
 `docs/wiki/core-build.md` was renamed to `docs/wiki/non-interactive.md`.
