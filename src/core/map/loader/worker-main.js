@@ -1,13 +1,11 @@
 
 import {globals as globals_} from './worker-globals.js';
 import {parseMesh as parseMesh_} from './worker-mesh.js';
-import MapGeodataImport3DTiles2_ from '../geodata-import/3dtiles2';
 
 
 //get rid of compiler mess
 var globals = globals_;
 var parseMesh = parseMesh_;
-var MapGeodataImport3DTiles2 = MapGeodataImport3DTiles2_;
 
 var packedEvents = [];
 var packedTransferables = [];
@@ -70,11 +68,6 @@ function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, respons
                 } else if (kind == 'direct-mesh') {
                     var data = parseMesh({data:new DataView(abuffer), index:0});
                     postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': data.mesh}, data.transferables);
-                } else if (kind == 'direct-3dtiles') {
-                    //debugger
-                    var data = parse3DTile(JSON.parse(abuffer), options);
-                    //postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': data.geodata}, data.transferables);
-                    postMessage({'command' : 'on-loaded', 'path': path, 'data': data.geodata}, data.transferables);
                 } else {
                     postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': abuffer}, [abuffer]);
                 }
@@ -116,26 +109,6 @@ function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, respons
     xhr.send('');
 };
 
-function parse3DTile(json, options) {
-
-    var geodata = new MapGeodataImport3DTiles2();
-    geodata.processJSON(json, options);
-
-    return { geodata:{
-                'bintree': geodata.bintree,
-                'pathTable': geodata.pathTable,
-                'totalNodes': geodata.totalNodes,
-                'rootSize': geodata.rootSize,
-                'points': geodata.rootPoints,
-                'center': geodata.rootCenter,
-                'radius': geodata.rootRadius,
-                'texelSize': geodata.rootTexelSize
-             },
-             transferables:[geodata.bintree.buffer, geodata.pathTable.buffer]
-           };
-
-}
-
 self.onmessage = function (e) {
     var message = e.data;
     var command = message['command'];
@@ -170,4 +143,3 @@ self.onmessage = function (e) {
 
     }
 };
-

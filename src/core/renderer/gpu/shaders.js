@@ -1321,13 +1321,6 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         // '#endif\n'+
     '}';
 
-GpuShaders.tileWireFrameBasicShader = 'precision mediump float;\n'+
-    'uniform vec4 uColor;\n'+
-    'void main() {\n'+
-        'gl_FragColor = uColor;\n'+
-    '}';
-
-
 //used for 2d images
 GpuShaders.imageVertexShader = '\n'+
     'attribute vec4 aPosition;\n'+

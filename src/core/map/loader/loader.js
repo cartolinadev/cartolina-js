@@ -182,11 +182,9 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
             case 'texture':
             case 'direct-texture':
             case 'mesh':
-            case 'pointcloud':
             case 'direct-mesh':
             case 'metadata':
             case 'geodata':
-            case 'direct-3dtiles':
 
 
                 this.workerTask[path] = { onLoaded: onLoaded, onError: onError, kind: kind };

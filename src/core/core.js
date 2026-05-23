@@ -54,7 +54,6 @@ var Core = function(element, config) {
         mapSplitMeshes : false, // used for topdown load mode
         mapSplitMargin : 0.0025, // used for topdown load mode
         mapSplitSpace : null, // used octant spliting demo
-        mapSplitLods : false, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,
         mapGridUnderSurface: 0,
@@ -71,7 +70,6 @@ var Core = function(element, config) {
         mapParseMeshInWorker : true,
         mapPackGeodataEvents : true,
         mapCheckTextureSize : false,
-        mapTraverseToMeshNode : true,
         mapNormalizeOctantTexelSize : true,
 
         mapFeatureStickMode : [1,1],

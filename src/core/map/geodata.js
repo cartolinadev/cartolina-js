@@ -73,16 +73,7 @@ MapGeodata.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, fast
                 //not loaded
                 //add to loading queue or top position in queue
 
-                /*if (typeof this.mapLoaderUrl !== 'object' || this..mapLoaderUrl.indexOf('tileset.json')) { 
-
-                    var geodata = new MapGeodataBuilder(this.map);
-                    geodata.load3DTiles(this..mapLoaderUrl, {}, (function(){ 
-
-                        //TODO:
-                    }));
-
-                }
-                else*/ if (typeof this.mapLoaderUrl === 'object') { //use geodata directly
+                if (typeof this.mapLoaderUrl === 'object') { //use geodata directly
                     this.geodata = fastParse ? this.mapLoaderUrl : JSON.stringify(this.mapLoaderUrl);
                     this.loadState = 2;
                     this.size = this.geodata.length ? this.geodata.length : 0;
@@ -183,5 +174,4 @@ MapGeodata.prototype.onLoaded = function(data) {
 //};
 
 export default MapGeodata;
-
 

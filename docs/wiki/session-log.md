@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-23 — OGC 3D Tiles and tile shader removal implemented
+
+Implemented [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md). Deleted the
+client-side OGC 3D Tiles / VTS octree import path, including the
+`config.tiles3d` browser entry point, `direct-3dtiles` loader worker
+branch, node-shaped geodata dispatch, `GpuGroup` octree traversal,
+point-cloud resource path, and the three importer files under
+`src/core/map/geodata-import/`.
+
+The deletion removed the last caller of `MapMesh.drawSubmesh`, so the
+removable legacy tile shader family also went away: `drawSubmesh`,
+`generateTileShader`, `progTile*`, `progDepthTile`,
+`progFlatShadeTile`, `progWireFrameBasic`, `MATERIAL_INTERNAL`, and the
+debug polygon wire branch that depended on `progWireFrameBasic`.
+`progCFlatShadeTile` and `tileVertexShader` / `tileFragmentShader`
+remain because geodata polygon flat shading still uses them.
+
+Verification passed: RFC grep gates for 3D Tiles, node worker types,
+octree config/debug flags, and removable shader names; `npx tsc
+--noEmit`; and sequential screenshots for `simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
 ## 2026-05-23 — OGC 3D Tiles RFC accepted
 
 `docs/wiki/rfc-remove-3dtiles.md` status set to `Accepted` by reviewer

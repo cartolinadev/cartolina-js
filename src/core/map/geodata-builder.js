@@ -4,7 +4,6 @@ import proj4 from 'proj4';
 import MapGeodataGeometry_ from './geodata-geometry';
 import MapGeodataImportGeoJSON_ from './geodata-import/geojson';
 import MapGeodataImportVTSGeodata_ from './geodata-import/vts-geodata';
-import MapGeodataImport3DTiles_ from './geodata-import/3dtiles';
 //import GeographicLib_ from 'geographiclib';
 import {vec3 as vec3_, mat4 as mat4_,} from '../utils/matrix';
 
@@ -13,7 +12,6 @@ import {vec3 as vec3_, mat4 as mat4_,} from '../utils/matrix';
 var MapGeodataGeometry = MapGeodataGeometry_;
 var MapGeodataImportGeoJSON = MapGeodataImportGeoJSON_;
 var MapGeodataImportVTSGeodata = MapGeodataImportVTSGeodata_;
-var MapGeodataImport3DTiles = MapGeodataImport3DTiles_;
 
 //var GeographicLib = GeographicLib_;
 var vec3 = vec3_;
@@ -23,7 +21,6 @@ var mat4 = mat4_;
 var MapGeodataBuilder = function(map) {
     this.map = map;
     this.groups = [];
-    this.nodes = [];
     this.currentGroup = null;
     this.bboxMin = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
     this.bboxMax = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
@@ -110,43 +107,6 @@ MapGeodataBuilder.prototype.addGroup = function(id) {
     this.currentGroup = this.groups[this.groups.length - 1];
 
     return this;
-};
-
-
-MapGeodataBuilder.prototype.addNode = function(parentNode, volume, precision, tileset) {
-    var node = {
-        meshes: [],
-        precision : precision,
-        volume : volume,
-        tileset: tileset ? true : false,
-        nodes : []
-    };
-
-    if(!parentNode) {
-        parentNode = this;
-    }
-
-    parentNode.nodes.push(node);
-
-    return node;
-};
-
-
-MapGeodataBuilder.prototype.addMesh = function(node, path) {
-    if (node) {
-        node.meshes.push(path);
-    }
-};
-
-
-MapGeodataBuilder.prototype.addLoadNode = function(node, path) {
-    if (node) {
-        if (!node.loadNodes) {
-            node.loadNodes = [];
-        }
-        
-        node.loadNodes.push(path);
-    }
 };
 
 
@@ -1471,26 +1431,6 @@ MapGeodataBuilder.prototype.importGeoJson = function(json, heightMode, srs, opti
 };
 
 
-MapGeodataBuilder.prototype.import3DTiles = function(json, options) {
-    var importer = new MapGeodataImport3DTiles(this, options);
-    return importer.processJSON(json);
-};
-
-
-MapGeodataBuilder.prototype.load3DTiles = function(path, options, onLoaded) {
-    var importer = new MapGeodataImport3DTiles(this, options);
-    importer.loadJSON(path, options, onLoaded);
-};
-
-
-MapGeodataBuilder.prototype.load3DTiles2 = function(path, options, onLoaded) {
-    this.binPath = path;
-    if (onMapLoaded) {
-        onMapLoaded();
-    }
-};
-
-
 MapGeodataBuilder.prototype.processHeights = function(heightsSource, precision, onProcessed) {
     if (this.heightsToProcess <= 0) {
         if (onProcessed) {
@@ -1939,19 +1879,8 @@ MapGeodataBuilder.prototype.makeGeodata = function(resolution) {
         "groups" : [],
     }
     
-    if (this.binPath) {
-        geodata["binPath"] = this.binPath;
-    }
-
     for (var i = 0, li = this.groups.length; i < li; i++) {
         geodata["groups"].push(this.compileGroup(this.groups[i], resolution));
-    }
-
-    if (this.nodes.length > 0) {
-        geodata.nodes = [];
-        for (i = 0, li = this.nodes.length; i < li; i++) {
-            geodata["nodes"].push(this.nodes[i]);
-        }
     }
 
     return geodata;
@@ -2000,4 +1929,3 @@ MapGeodataBuilder.prototype.makeFreeLayer = function(style, resolution, geodata)
 };
 
 export default MapGeodataBuilder;
-

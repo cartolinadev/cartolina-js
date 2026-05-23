@@ -44,10 +44,10 @@ This replaced the old terrain draw-command path that was split across:
 
 - `MapDrawTiles.drawMeshTile`
 - `MapDrawTiles.updateTileBounds`
-- `MapMesh.drawSubmesh`
 
-Part of that path has already been deleted. Remaining draw code still
-serves runtime behaviour, especially mapConfig-era maps and geodata.
+`MapMesh.drawSubmesh` was removed with the 3D Tiles octree path in
+2026-05. Remaining draw code still serves runtime behaviour, especially
+mapConfig-era maps and geodata.
 The legacy draw files include:
 
 - `src/core/map/draw.js`

@@ -199,63 +199,6 @@ MapGeodataView.prototype.onGeodataProcessorMessage = function(command, message, 
 };
 
 
-MapGeodataView.prototype.directParseNode = function(node, lod) {
-
-    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_NODE_BEGIN, data: {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }});
-
-    var meshes = node['meshes'] || [];
-    var i, li;
-
-    //loop elements
-    for (i = 0, li = meshes.length; i < li; i++) {
-        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_MESH, data: { 'path':meshes[i] } });
-    }
-
-    var nodes = node['nodes'] || [];
-
-    for (i = 0, li = nodes.length; i < li; i++) {
-        this.directParseNode(nodes[i], lod+1);
-    }
-
-    var loadNodes = node['loadNodes'] || [];
-
-    for (i = 0, li = loadNodes.length; i < li; i++) {
-        this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_LOAD_NODE, data: { 'path':loadNodes[i] } });
-    }
-
-    this.currentGpuGroup.addRenderJob2(null, null, this.tile, { type: vts.WORKER_TYPE_NODE_END, data: {} });
-
-};
-
-
-MapGeodataView.prototype.directParse = function(data) {
-    if (!data) {
-        return;
-    }
-
-    var nodes = data['nodes'] || [];
-
-    for (var i = 0, li = nodes.length; i < li; i++) {
-        
-        //vts.WORKERCOMMAND_GROUP_BEGIN
-        this.currentGpuGroup = new GpuGroup(null /*data['id']*/, null /*data['bbox']*/, null /*data['origin']*/, this.gpu, this.renderer);
-        this.gpuGroups.push(this.currentGpuGroup);
-    
-        this.directParseNode(nodes[i], 0);
-    
-        //vts.WORKERCOMMAND_GROUP_END:
-        this.size += this.currentGpuGroup.size;
-    }
-};
-
-
-MapGeodataView.prototype.directBinParse = function(path) {
-    this.currentGpuGroup = new GpuGroup(null /*data['id']*/, null /*data['bbox']*/, null /*data['origin']*/, this.gpu, this.renderer);
-    this.gpuGroups.push(this.currentGpuGroup);
-    this.currentGpuGroup.binPath = path;
-};
-
-
 MapGeodataView.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     if (this.killed) {
         return false;
@@ -265,38 +208,23 @@ MapGeodataView.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) 
     doNotLoad = doNotLoad || doNotUseGpu;
     
     if (!this.ready && !this.processing && !doNotLoad && this.surface.stylesheet.isReady()) {
-        if (this.geodata.isReady(doNotLoad, priority, doNotCheckGpu, this.surface.options.fastParse) && this.geodataProcessor.isReady()) {
+        if (this.geodata.isReady(doNotLoad, priority, doNotCheckGpu, false) &&
+            this.geodataProcessor.isReady()) {
 
-            if (this.surface.options.fastParse) {
+            var geodata = this.geodata.geodata;
 
-                if (typeof this.geodata.geodata === 'object') { //use geodata directly
-                    if (this.geodata.geodata['binPath']) {
-                        this.directBinParse(this.geodata.geodata['binPath']);
-                    } else {
-                        this.directParse(this.geodata.geodata);
-                    }
-                } else {
-                    this.directParse(JSON.parse(this.geodata.geodata));
-                }
-                
-                this.map.markDirty();
-                this.ready = true;
+            this.processing = true;
+            this.killedByCache = false;
+            this.geodataProcessor.setListener(this.onGeodataProcessorMessage.bind(this));
+
+            if (this.map.config.mapGeodataBinaryLoad && (typeof geodata !== 'string')) {
+                this.geodataProcessor.sendCommand('processGeodataRaw', geodata, this.tile, (window.devicePixelRatio || 1), [geodata]);
             } else {
-                var geodata = this.geodata.geodata;
-
-                this.processing = true;
-                this.killedByCache = false;
-                this.geodataProcessor.setListener(this.onGeodataProcessorMessage.bind(this));
-
-                if (this.map.config.mapGeodataBinaryLoad && (typeof geodata !== 'string')) {
-                    this.geodataProcessor.sendCommand('processGeodataRaw', geodata, this.tile, (window.devicePixelRatio || 1), [geodata]);
-                } else {
-                    this.geodataProcessor.sendCommand('processGeodata', geodata, this.tile, (window.devicePixelRatio || 1));
-                }
-
-                this.geodataProcessor.busy = true;
-                //console.log('processGeodata ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
+                this.geodataProcessor.sendCommand('processGeodata', geodata, this.tile, (window.devicePixelRatio || 1));
             }
+
+            this.geodataProcessor.busy = true;
+            //console.log('processGeodata ' + (this.tile ? JSON.stringify(this.tile.id) : '[free]'));
         }
     }
 
@@ -337,12 +265,7 @@ MapGeodataView.prototype.draw = function(cameraPos) {
         for (var i = 0, li = this.gpuGroups.length; i < li; i++) {
             var group = this.gpuGroups[i]; 
 
-            if (group.rootNode || group.binPath) {
-                group.draw(mv, mvp, null, tiltAngle, (this.tile ? this.tile.texelSize : 1));
-                continue;
-            }
-
-            if (!(group.jobs.length || group.rootNode)) {
+            if (!group.jobs.length) {
                 continue; //TODO: remove empty groups
             }
 

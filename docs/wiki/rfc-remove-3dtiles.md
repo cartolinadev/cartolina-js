@@ -1,6 +1,6 @@
 # RFC: remove the OGC 3D Tiles / VTS octree pipeline
 
-**Status:** Accepted
+**Status:** Implemented
 **Elevates:** "REFACTOR: remove OGC 3D Tiles streaming mechanism" and
 "REFACTOR: delete legacy tile shader family" in
 [backlog.md](backlog.md)

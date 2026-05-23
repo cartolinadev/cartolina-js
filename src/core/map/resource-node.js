@@ -5,7 +5,6 @@ import MapSubtexture from './subtexture';
 import MapMetatile from './metatile';
 import MapMesh from './mesh';
 import MapGeodata from './geodata';
-import MapPointCloud from './pointcloud';
 
 
 export class MapResourceNode {
@@ -95,24 +94,6 @@ getMesh(path, tile) {
     }
     
     return mesh;
-}
-
-
-// Point Clouds ---------------------------------
-
-
-getPointCloud(path, tile, offset, size) {
-    if (!this.pointclouds) this.pointclouds = {}
-
-    var path2 = offset ? path+'@'+offset : path;
-    var pointcloud = this.pointclouds[path2];
-    
-    if (!pointcloud) {
-        pointcloud = new MapPointCloud(this.map, path, tile, offset, size);
-        this.pointclouds[path2] = pointcloud;
-    }
-    
-    return pointcloud;
 }
 
 
@@ -220,6 +201,5 @@ getMetatile(surface, allowCreation, tile) {
 
 
 export default MapResourceNode;
-
 
 

@@ -28,9 +28,6 @@ then branch into more specific documents as needed.
 
 ### RFCs — active
 
-- [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md) — remove the OGC 3D
-  Tiles / VTS octree pipeline and, as a follow-on, the legacy tile
-  shader family (`drawSubmesh`, `progTile*`)
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design
@@ -44,6 +41,9 @@ then branch into more specific documents as needed.
 
 ### RFCs — implemented
 
+- [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md) — removed the OGC
+  3D Tiles / VTS octree pipeline and the removable legacy tile shader
+  family (`drawSubmesh`, `progTile*`); implemented 2026-05-23
 - [rfc-bump-bake.md](rfc-bump-bake.md) — collapse bump layers into the
   normal map inside `TileRenderRig`, eliminating per-frame texture
   units, UBO slots, and shader iterations for each collapsed bump layer;

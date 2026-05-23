@@ -84,7 +84,7 @@ frustum with the modern `useProgram2` shader path.
 ## REFACTOR: remove OGC 3D Tiles streaming mechanism
 
 **Opened:** 2026-05-21
-**Status:** elevated to [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
+**Status:** implemented by [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
 
 ### Goal
 
@@ -129,7 +129,7 @@ the public custom-mesh demos no longer keep `Renderer.drawMesh()` alive.
 ## REFACTOR: delete legacy tile shader family
 
 **Opened:** 2026-05-21
-**Status:** elevated to [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
+**Status:** implemented by [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
 (§3.3)
 
 ### Goal

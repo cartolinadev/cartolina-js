@@ -45,13 +45,12 @@ export default class InspectorInput {
      *
      * Command modes and affected rendering state:
      *   'renderFlags' — map.renderer.debug.flagX overrides
-     *   'tileBBox'    — debug.drawBBoxes / debug.drawNBBoxes
+     *   'tileBBox'    — debug.drawBBoxes
      *   'radar'       — inspector.drawRadar
      *   'freeze'      — controls persistent map.draw.freeze state
      *
-     * For 'tileBBox', the specific rendering flag (drawBBoxes vs drawNBBoxes)
-     * is set by the caller after this method returns, depending on which key
-     * was used.
+     * For 'tileBBox', `debug.drawBBoxes` is set by the caller after this
+     * method returns.
      */
     setSubMode(name) {
 
@@ -63,7 +62,6 @@ export default class InspectorInput {
         if (this.subMode === 'tileBBox') {
 
             debug.drawBBoxes = false;
-            debug.drawNBBoxes = false;
         }
         if (this.subMode === 'radar') {
 
@@ -140,7 +138,6 @@ export default class InspectorInput {
                 if (this.subMode === 'tileBBox') {
 
                     debug.drawBBoxes = false;
-                    debug.drawNBBoxes = false;
                 }
                 if (this.subMode === 'radar') {
 
@@ -281,7 +278,6 @@ export default class InspectorInput {
 
                     case 76: case 108:  debug.drawLods = !debug.drawLods; break;  // l
                     case 80: case 112:  debug.drawPositions = !debug.drawPositions; break;  // p
-                    case 85: case 117:  debug.drawOctants = !debug.drawOctants; break;  // u
                     case 84: case 116:  debug.drawTextureSize = !debug.drawTextureSize; break;  // t
                     case 70: case 102:  debug.drawFaceCount = !debug.drawFaceCount; break;  // f
                     case 71: case 103:  debug.drawGeodataOnly = !debug.drawGeodataOnly; break;  // g
@@ -302,7 +298,6 @@ export default class InspectorInput {
                     case 88: case 120:  // x
                         map.config.mapPreciseBBoxTest = !map.config.mapPreciseBBoxTest;
                         break;
-                    case 87: case 119:  debug.drawPolyWires = !debug.drawPolyWires; break;  // w
                     case 75: case 107:  debug.drawGPixelSize = !debug.drawGPixelSize; break;  // k
                     default: bboxHit = false; break;
                     }
@@ -386,17 +381,6 @@ export default class InspectorInput {
 
                         this.setSubMode('tileBBox');
                         debug.drawBBoxes = true;
-                    }
-                    hit = true; break;
-
-                case 78: case 110:  // Shift+N — tile-bbox sub-mode (node-bbox view)
-                    if (this.subMode === 'tileBBox') {
-
-                        this.setSubMode(null);
-                    } else {
-
-                        this.setSubMode('tileBBox');
-                        debug.drawNBBoxes = true;
                     }
                     hit = true; break;
 
@@ -524,9 +508,6 @@ export default class InspectorInput {
                 case 74: case 106:  // Shift+J — draw earth
                     debug.drawEarth = !debug.drawEarth; hit = true; break;
 
-                case 89: case 121:  // Shift+Y — split LODs
-                    map.config.mapSplitLods = !map.config.mapSplitLods; hit = true; break;
-
                 case 82: case 114:  // Shift+R — graphs panel
                     inspector.graphs.switchPanel(); hit = true; break;
 
@@ -551,9 +532,9 @@ export default class InspectorInput {
      * encounters a `debugX=…` parameter.  Mirrors the interactive shortcuts so
      * that a URL can reproduce any debug view without manual key presses.
      *
-     * For `debugBBox` and `debugNBBox` the value is a string of capital letters
-     * that enable individual bbox annotations (e.g. `"LPN"` → lods + positions
-     * + node info).  For all other parameters the value is a boolean or number.
+     * For `debugBBox` the value is a string of capital letters that enable
+     * individual bbox annotations (e.g. `"LPN"` → lods + positions + node
+     * info). For all other parameters the value is a boolean or number.
      *
      * Also sets `this.subMode` so the corresponding sub-mode key handler is
      * immediately active without requiring the user to press the entry shortcut.
@@ -574,12 +555,9 @@ export default class InspectorInput {
         switch (key) {
 
         case 'debugMode': this.diagnosticMode = true; break;
-        case 'debugBBox':
+        case 'debugBBox': {
             debug.drawBBoxes = true;
-            // fall through — bbox and nbbox share the annotation-letter parsing below
-        case 'debugNBBox': {
 
-            if (key == 'debugNBBox') debug.drawNBBoxes = true;
             const has = (a) => value.indexOf(a) != -1;
             if (has('L')) debug.drawLods = true;
             if (has('P')) debug.drawPositions = true;
@@ -591,7 +569,6 @@ export default class InspectorInput {
             if (has('V')) debug.drawSpaceBBox = true;
             if (has('M')) debug.drawMeshBBox = true;
             if (has('I')) debug.drawIndices = true;
-            if (has('U')) debug.drawOctants = true;
             if (has('B')) debug.drawBoundLayers = true;
             if (has('S')) debug.drawSurfaces = true;
             if (has('Z')) debug.drawSurfaces2 = true;

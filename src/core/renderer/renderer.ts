@@ -179,11 +179,6 @@ export class Renderer {
     }
 
     // legacy programs
-    progTile: Optional<GpuProgram> = null;
-    progTile2: Optional<GpuProgram> = null;
-    progTile3: Optional<GpuProgram> = null;
-    progWireframeTile: Optional<GpuProgram> = null;
-    progWireframeTile2: Optional<GpuProgram> = null;
     progText: Optional<GpuProgram> = null;
 
 
@@ -318,9 +313,6 @@ export class Renderer {
     drawnGeodataTiles = 0;
     drawnGeodataTilesFactor = 0;
     drawnGeodataTilesUsed = false;
-
-    // tile shader program variants, created in MapMesh.drawSubmesh
-    progMap : {[key: string] : GpuProgram } = {};
 
     gridHmax = 0;
     gridHmin = 0;
@@ -2451,7 +2443,6 @@ export type Debug = {
     drawWireframe?: number;
     heightmapOnly?: boolean;
     drawBBoxes?: boolean;
-    drawNBBoxes?: boolean;
     drawEarth?: boolean;
     drawLabelBoxes?: boolean;
     drawGridCells?: boolean;

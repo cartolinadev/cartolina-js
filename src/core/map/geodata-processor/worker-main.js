@@ -435,32 +435,6 @@ function processGroup(group, lod) {
 }
 
 
-function processNode(node, lod) {
-    var i, li;
-
-    //TODO: get volume
-
-    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_NODE_BEGIN, {'volume': node.volume, 'precision': node.precision, 'tileset': node.tileset }, [], "");
-
-    var meshes = node['meshes'] || [];
-
-    //loop elements
-    for (i = 0, li = meshes.length; i < li; i++) {
-
-        var signature = meshes[i];
-
-        postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_MESH, { 'path':meshes[i] }, [], signature);
-    }
-
-    var nodes = node['nodes'] || [];
-
-    for (i = 0, li = nodes.length; i < li; i++) {
-        processNode(nodes[i], lod);
-    }
-
-    postGroupMessageFast(vts.WORKERCOMMAND_ADD_RENDER_JOB, vts.WORKER_TYPE_NODE_END, {}, [], "");
-}
-
 function processGeodata(data, lod) {
     //console.log("processGeodata");
 
@@ -484,13 +458,6 @@ function processGeodata(data, lod) {
             processGroup(groups[i], lod);
         }
 
-        var nodes = geodata['nodes'] || [];
-
-        for (var i = 0, li = nodes.length; i < li; i++) {
-            postGroupMessageFast(vts.WORKERCOMMAND_GROUP_BEGIN, 0, {}, [], "");
-            processNode(nodes[i], lod);
-            postGroupMessageLite(vts.WORKERCOMMAND_GROUP_END, 0);
-        }
     }
 
     //console.log("processGeodata-ready");
@@ -598,4 +565,3 @@ self.onmessage = function (e) {
 
     }
 };
-
