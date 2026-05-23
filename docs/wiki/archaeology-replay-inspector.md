@@ -164,13 +164,11 @@ the cleanup pass.
 
 ## Replacement: freeze mode
 
-See `backlog.md` for the freeze mode feature. The concept: a single
-boolean that locks the camera matrices used for tile selection and
-rendering, displays the snapshotted frustum as an overlay, and
-optionally pauses the loader. The tile descent continues running every
-frame against the frozen viewpoint, so the scene stays live (tiles that
-finish loading appear), and you can navigate away to inspect the frozen
-frustum from a different angle. This covers the primary diagnostic
-purpose of the replay tool — observing what renders at a specific
-viewport — without any snapshot machinery, store flags, or pipeline
-hooks.
+See `backlog.md` for the freeze mode feature. Freeze locks the camera
+state used for tile selection, culling, and depth sampling while the live
+camera still drives navigation and final rendering. The tile descent
+continues running every frame against the frozen viewpoint, so the scene
+stays live and tiles that finish loading appear. The finite frustum
+overlay can be viewed after navigating away from the frozen position.
+This covers the primary diagnostic purpose of the replay tool without
+snapshot machinery, store flags, or replay-specific draw hooks.

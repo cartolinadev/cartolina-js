@@ -40,11 +40,17 @@ map draws at a given position.
   enabled. Its depth comes from the farthest finite depth hitmap sample,
   with a reference-frame fallback only when the hitmap has no finite depth.
 
-**Controls (no inspector panel needed):**
+**Controls:**
 
-- `Shift+D`, `Shift+Z` toggles freeze mode.
-- `C` toggles the frustum overlay.
-- The reset button returns the live camera to the frozen position.
+- `Shift+D`, `Shift+Z` enters freeze controls. This command mode does not
+  itself freeze or unfreeze the map.
+- `F` freezes at the current navigation position when unfrozen, or
+  unfreezes when already frozen.
+- `C` toggles the frustum overlay while frozen.
+- `R` resets the live camera to the frozen position.
+- Freeze controls show a three-button strip: freeze/unfreeze, frustum
+  toggle, and reset view. If the map is frozen, the strip remains visible
+  after leaving freeze controls.
 
 ### Why this replaces the replay inspector
 

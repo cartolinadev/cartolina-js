@@ -7,7 +7,7 @@
  * Actual actions only fire on keyup (press = false/undefined) to avoid
  * repeated triggering while a key is held.
  *
- * Within diagnostic mode, one of three mutually exclusive sub-modes may be
+ * Within diagnostic mode, one mutually exclusive command sub-mode may be
  * active at a time.  See `setSubMode` for details.
  */
 export default class InspectorInput {
@@ -39,15 +39,15 @@ export default class InspectorInput {
     }
 
     /**
-     * Switch to a named sub-mode, or pass null to return to plain diagnostic
-     * mode. Activating a new sub-mode automatically deactivates the current
-     * one and clears its owned rendering state.
+     * Switch to a named command sub-mode, or pass null to return to plain
+     * diagnostic mode. Activating a new sub-mode automatically deactivates
+     * the current one and clears rendering state owned by that command mode.
      *
-     * Sub-modes and owned rendering state:
+     * Command modes and affected rendering state:
      *   'renderFlags' — map.renderer.debug.flagX overrides
      *   'tileBBox'    — debug.drawBBoxes / debug.drawNBBoxes
      *   'radar'       — inspector.drawRadar
-     *   'freeze'      — map.draw.freeze selection-camera override
+     *   'freeze'      — controls persistent map.draw.freeze state
      *
      * For 'tileBBox', the specific rendering flag (drawBBoxes vs drawNBBoxes)
      * is set by the caller after this method returns, depending on which key
@@ -71,13 +71,12 @@ export default class InspectorInput {
         }
         if (this.subMode === 'freeze') {
 
-            inspector.exitFreeze();
+            inspector.setFreezeControlsActive(false);
         }
-
         this.subMode = name;
 
         if (name === 'radar') inspector.drawRadar = true;
-        if (name === 'freeze') inspector.enterFreeze();
+        if (name === 'freeze') inspector.setFreezeControlsActive(true);
 
         const rfLabel = 'Diagnostics mode > Render flags'
             + ' — f:light n:normal d:diffuse s:specular'
@@ -87,7 +86,8 @@ export default class InspectorInput {
             renderFlags: rfLabel,
             tileBBox:    'Diagnostics mode > Tile bounding boxes',
             radar:       'Diagnostics mode > Radar',
-            freeze:      'Diagnostics mode > Freeze — C: frustum'
+            freeze:      'Diagnostics mode > Freeze — F: freeze here/unfreeze'
+                + ' C: frustum R: reset view'
         };
         inspector.showNotification(labels[name] || 'Diagnostic mode');
     }
@@ -145,6 +145,10 @@ export default class InspectorInput {
                 if (this.subMode === 'radar') {
 
                     inspector.drawRadar = false;
+                }
+                if (this.subMode === 'freeze') {
+
+                    inspector.setFreezeControlsActive(false);
                 }
                 this.subMode = null;
                 inspector.showNotification('Diagnostic mode off');
@@ -327,9 +331,21 @@ export default class InspectorInput {
 
                 if (this.subMode === 'freeze') {
 
+                    if (keyCode === 70 || keyCode === 102) {  // f
+
+                        inspector.toggleFreeze();
+                        hit = true;
+                    }
+
                     if (keyCode === 67 || keyCode === 99) {  // c
 
                         inspector.toggleFreezeFrustum();
+                        hit = true;
+                    }
+
+                    if (keyCode === 82 || keyCode === 114) {  // r
+
+                        inspector.resetFreezeView();
                         hit = true;
                     }
                 }
@@ -388,8 +404,9 @@ export default class InspectorInput {
                     this.setSubMode(this.subMode === 'radar' ? null : 'radar');
                     hit = true; break;
 
-                case 90: case 122:  // Shift+Z — freeze sub-mode
-                    this.setSubMode(this.subMode === 'freeze' ? null : 'freeze');
+                case 90: case 122:  // Shift+Z — freeze controls
+                    this.setSubMode(
+                        this.subMode === 'freeze' ? null : 'freeze');
                     hit = true; break;
 
                 case 67: case 99:   // Shift+C — shake camera

@@ -13,14 +13,21 @@ Updated frustum depth selection to scan the depth hitmap with stride 3.
 The pyramid extends to the farthest finite hitmap depth plus margin. The
 reference-frame extent is used only when the hitmap has no finite depth.
 
+Changed freeze from a diagnostic sub-mode into persistent diagnostic state.
+`Shift+Z` now enters freeze controls only. `F` freezes at the current
+navigation position or unfreezes an existing freeze, `C` toggles the
+frustum, and `R` resets the live camera to the frozen position. A compact
+control strip appears while freeze controls are active. If the map is
+frozen, the strip remains visible after leaving freeze controls.
+
 ## 2026-05-23 — Diagnostic freeze mode and camera context bridge
 
 Implemented diagnostic freeze mode behind `Shift+D`, `Shift+Z`. The mode
 freezes the camera state used for culling, texel-size tile selection, and
 depth sampling while navigation and final rendering continue to use the
 live camera. `C` toggles a finite camera-frustum pyramid rendered through a
-dedicated GLSL 300 shader path on `Renderer`; the reset button restores the
-navigation position captured when freeze mode was entered.
+dedicated GLSL 300 shader path on `Renderer`; reset view restores the
+navigation position captured when the map was frozen.
 
 Kept the legacy draw hooks narrow. `FreezeCameraState` in
 `src/core/map/freeze-camera-state.ts` owns the camera snapshot/restore

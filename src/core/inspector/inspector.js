@@ -22,7 +22,7 @@ var Inspector = function(core) {
     this.stylesheets = new InspectorStylesheets(this);
     this.freeze = new FreezeMode();
 
-    if (this.core.config.inspector) {
+    if (this.core.config.inspector || __DEV__) {
         this.input.init();
     }
 
@@ -33,6 +33,11 @@ var Inspector = function(core) {
     this.debugValue = 0;
     this.measureMode = false;
     this.measurePoints = [];
+
+    if (__DEV__) {
+        this.input.diagnosticMode = true;
+        this.enableInspector();
+    }
 };
 
 
@@ -346,16 +351,18 @@ Inspector.prototype.drawFreezeFrustum = function() {
 };
 
 
-Inspector.prototype.enterFreeze = function() {
-    var map = this.core.getMap();
-    if (map) {
-        this.freeze.enter(map);
-    }
+Inspector.prototype.toggleFreeze = function() {
+    this.freeze.toggleFrozen(this.core.getMap());
 };
 
 
-Inspector.prototype.exitFreeze = function() {
-    this.freeze.exit(this.core.getMap());
+Inspector.prototype.resetFreezeView = function() {
+    this.freeze.resetView(this.core.getMap());
+};
+
+
+Inspector.prototype.setFreezeControlsActive = function(active) {
+    this.freeze.setControlsActive(this.core.getMap(), active);
 };
 
 
