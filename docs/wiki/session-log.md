@@ -1,5 +1,11 @@
 # Session log
 
+## 2026-05-23 — OGC 3D Tiles RFC accepted
+
+`docs/wiki/rfc-remove-3dtiles.md` status set to `Accepted` by reviewer
+after round 3. Implementation (`§3.1`–`§3.2` deletion pass, then
+`§3.3` shader-family pass) is next.
+
 ## 2026-05-23 — OGC 3D Tiles RFC: review round 3
 
 Review round 3 found two blockers and one non-blocking note.

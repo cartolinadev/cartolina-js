@@ -1,6 +1,6 @@
 # RFC: remove the OGC 3D Tiles / VTS octree pipeline
 
-**Status:** In review
+**Status:** Accepted
 **Elevates:** "REFACTOR: remove OGC 3D Tiles streaming mechanism" and
 "REFACTOR: delete legacy tile shader family" in
 [backlog.md](backlog.md)
@@ -597,3 +597,14 @@ of this project. Not recommended.
    which round is open.
 
    *Implemented.* Status restored to `In review`.
+
+---
+
+## Review round 4 — sign-off
+
+Accepted. The design now identifies the octree, point-cloud,
+node-shaped geodata, debug/config, and shader cleanup boundaries. The
+remaining legacy shader dependency through `progCFlatShadeTile[SE]` is
+documented as a separate geodata polygon migration. The verification
+commands are scoped to source-bearing paths and distinguish expected
+historical documentation references from code references.
