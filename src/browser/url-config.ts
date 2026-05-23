@@ -53,7 +53,6 @@ const BOOLEAN_KEYS = new Set([
     'inspector',
     'mapMobileMode',
     'mapMobileModeAutodect',
-    'mapFog',
     'mapFlatshade',
     'mapIgnoreNavtiles',
     'mapAllowHires',

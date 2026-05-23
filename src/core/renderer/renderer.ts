@@ -271,8 +271,6 @@ export class Renderer {
 
     fonts: {[key:string] : any} = {};
 
-    fogDensity = 0; // dead — see updateFogDensity in draw.js
-
     // feature caches, hitmaps, etc. for geodata rendering
     gmap = new Array(2048);
     gmap2 = new Array(2048);
@@ -2451,7 +2449,6 @@ export type Debug = {
     flagShadingAspect?: boolean;
     // fields from MapDraw.debug read by the renderer
     shaderIllumination?: boolean; // TODO: remove when legacy draw path is retired
-    drawFog?: boolean; // dead — see updateFogDensity in draw.js
     drawWireframe?: number;
     heightmapOnly?: boolean;
     drawBBoxes?: boolean;

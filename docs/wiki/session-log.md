@@ -1,5 +1,42 @@
 # Session log
 
+## 2026-05-23 — Remove stale fog functionality
+
+Removed the legacy fog system that had been superseded by `Atmosphere`
+and its shader. The fog tile pipeline (`progFogTile`, `MATERIAL_FOG`,
+`updateFogDensity`, `fogDensity`, `drawFog`, `mapFog`) was dead code:
+`TileRenderRig` replaced the old tile pipeline and never called the fog
+path.
+
+**Files changed:** `constants.ts`, `renderer.ts`, `url-config.ts`,
+`core.js`, `map.js`, `draw.js`, `mesh.js`, `surface-tile.js`,
+`camera.js`, `init.js`, `inspector/input.js`, `gpu/shaders.js`.
+
+**What was removed:**
+- `MATERIAL_FOG`, `MATERIAL_INTERNAL_NOFOG`, `MATERIAL_EXTERNAL_NOFOG`
+  constants and their switch-case handlers in `mesh.js`
+- `updateFogDensity()` method and all callers
+- `fogDensity` / `drawFog` fields on `MapDraw` and `Renderer`
+- `mapFog` config key from `core.js`, `map.js`, `url-config.ts`
+- `progFogTile` shader program creation in `init.js`
+- Shift+X fog toggle in `inspector/input.js`
+- `uFogColor` setters in `surface-tile.js` (grid/hmap tiles)
+- `#ifdef onlyFog` dead-code branches in `tileVertexShader` and
+  `tileFragmentShader` in `gpu/shaders.js`
+
+**What was kept:** the general fog-factor calculation and
+`#ifdef fogAndColor` / `#ifdef fog` branches in the tile shader (they
+produce a harmless 0.0 blend and are shared with the still-live
+flat-shade programs). The `uFogColor` uniforms remain declared in the
+plane/hmap shaders but are no longer fed from application code.
+
+**Docs:** `rfc-config-store.md` updated to remove `mapFog` from the
+example `ViewerConfig` interface; status set to `In review` per
+AGENTS.md since the accepted document body was changed.
+
+**Regression tests:** `simple-terrain`, `complex-terrain`,
+`full-terrain` all pass, no console errors.
+
 ## 2026-05-23 — Session log chronology repair
 
 Moved the detached historical May entries from the bottom of

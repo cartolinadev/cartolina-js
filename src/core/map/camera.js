@@ -69,8 +69,7 @@ MapCamera.prototype.update = function() {
 
     this.perceivedDistance = Math.max(this.terrainHeight, this.distance2 * this.distanceFactor);
     
-    //this.renderer.cameraDistance = camInfo.distance; //needed for fog
-    map.renderer.cameraDistance = this.distance; //needed for fog
+    map.renderer.cameraDistance = this.distance;
     map.renderer.viewExtent = map.position.getViewExtent();
 
     this.camera.setViewHeight(map.position.getViewExtent());

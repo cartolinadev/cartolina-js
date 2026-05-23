@@ -1093,21 +1093,13 @@ GpuShaders.planeFragmentShader2 = 'precision mediump float;\n'+
 GpuShaders.tileVertexShader =
     'attribute vec3 aPosition;\n'+
 
-    '#ifdef onlyFog\n'+
-        'varying float vFogFactor;\n'+
-        '#if defined(shader_illumination)\n' +
-            'attribute vec2 aTexCoord2;\n'+
-        '#endif\n'+
+    '#if defined(externalTex) || defined(shader_illumination)\n' +
+        'attribute vec2 aTexCoord2;\n'+
     '#else\n'+
-        '#if defined(externalTex) || defined(shader_illumination)\n' +
-            'attribute vec2 aTexCoord2;\n'+
-        '#else\n'+
-            'attribute vec2 aTexCoord;\n'+
-        '#endif\n'+
-
-        'varying vec3 vTexCoord;\n'+  //u,v,fogFactor
-
+        'attribute vec2 aTexCoord;\n'+
     '#endif\n'+
+
+    'varying vec3 vTexCoord;\n'+  //u,v,fogFactor
 
     '#ifdef clip4\n'+
         '#if !defined(externalTex) && !defined(shader_illumination)\n'+
@@ -1211,22 +1203,17 @@ GpuShaders.tileVertexShader =
         'float fogFactor = 1.0-exp(uParams[0][1] * camDist);\n'+
         'fogFactor = clamp((1.0-abs(l))*uParams[1][3] + fogFactor, 0.0, 1.0);\n'+
 
-        '#ifdef onlyFog\n'+
-            'vFogFactor = fogFactor;\n'+
+        'vTexCoord.z = fogFactor;\n'+
+
+        '#ifdef externalTex\n'+
+            // texture transformation, for textures propagated from higher lods
+            'vTexCoord.xy = vec2(uParams[2][0] * aTexCoord2[0] + uParams[2][2], uParams[2][1] * aTexCoord2[1] + uParams[2][3]);\n'+
+        '#elif defined(shader_illumination)\n' +
+            // not sure, perhaps no longer needed - we use nmTexCoord
+            'vTexCoord.xy = aTexCoord2;\n' +
         '#else\n'+
-            'vTexCoord.z = fogFactor;\n'+
-
-            '#ifdef externalTex\n'+
-                // texture transformation, for textures propagated from higher lods
-                'vTexCoord.xy = vec2(uParams[2][0] * aTexCoord2[0] + uParams[2][2], uParams[2][1] * aTexCoord2[1] + uParams[2][3]);\n'+
-            '#elif defined(shader_illumination)\n' +
-                // not sure, perhaps no longer needed - we use nmTexCoord
-                'vTexCoord.xy = aTexCoord2;\n' +
-            '#else\n'+
-                // internal texture
-                'vTexCoord.xy = aTexCoord;\n'+
-            '#endif\n'+
-
+            // internal texture
+            'vTexCoord.xy = aTexCoord;\n'+
         '#endif\n'+
 
         '#ifdef clip4\n'+
@@ -1314,17 +1301,11 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
     '#endif\n'+
 
 
-    '#ifdef onlyFog\n'+
-        'varying float vFogFactor;\n'+
-    '#else\n'+
+    'varying vec3 vTexCoord;\n'+
+    'uniform sampler2D uSampler;\n'+
 
-        'varying vec3 vTexCoord;\n'+
-        'uniform sampler2D uSampler;\n'+
-
-        '#ifdef mask\n'+
-            'uniform sampler2D uSampler2;\n'+
-        '#endif\n'+
-
+    '#ifdef mask\n'+
+        'uniform sampler2D uSampler2;\n'+
     '#endif\n'+
 
     '#ifdef shader_illumination\n' +
@@ -1463,45 +1444,34 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
 
             'vec4 fogColor = vec4(uParams2.xyz, 1.0);\n'+
 
-            '#ifdef onlyFog\n'+
-                'vec4 c = vec4(fogColor.xyz, vFogFactor);\n' +
-                '#ifdef shader_illumination\n'+
-                    'c = vec4((ambientCoef + diffuseCoef) * c.xyz, c.w);\n' +
-                    '//c = vec4((ambientCoef + diffuseCoef) * c.xyz, c.w);\n' +
-                '#endif\n'+
-                'gl_FragColor = c;\n' +
+            '#ifdef depth\n'+
+                'gl_FragColor = fract(vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0) * vDepth) + (-0.5/255.0);\n'+
             '#else\n'+
 
-                '#ifdef depth\n'+
-                    'gl_FragColor = fract(vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0) * vDepth) + (-0.5/255.0);\n'+
-                '#else\n'+
-
-                    '#ifdef externalTex\n'+
-                        'vec4 c = texture2D(uSampler, vTexCoord.xy);'+'__FILTER__' + '\n' +
-                        '#ifndef blendMultiply\n'+
-                            'vec4 cc = mix(c, fogColor, vTexCoord.z);\n'+
-                            'cc.w = c.w * uParams2.w;\n'+
-                        '#endif\n'+
-                        '#ifdef blendMultiply\n'+
-                            'vec4 cc = vec4(0.0);\n'+
-                            'cc.w = c.w * uParams2.w * (1.0 - c.y);\n' +
-                        '#endif\n'+
-                        '#ifdef shader_illumination\n'+
-                            'cc = vec4((ambientCoef + diffuseCoef) * vec3(c), cc.w);\n' +
-                        '#endif\n'+
-                        '#ifdef whitewash\n' +
-                            'cc = vec4(mix(vec3(cc), vec3(1.0), uWhitewash), cc.w);\n' +
-                        '#endif\n'+
-                        '#ifdef mask\n'+
-                            'vec4 c2 = texture2D(uSampler2, vTexCoord.xy);\n'+
-                            'cc.w *= c2.x;\n'+
-                        '#endif\n'+
-
-                        'gl_FragColor = cc;\n'+
-                    '#else\n'+
-                        'gl_FragColor = mix(texture2D(uSampler, vTexCoord.xy), fogColor, vTexCoord.z);\n'+
+                '#ifdef externalTex\n'+
+                    'vec4 c = texture2D(uSampler, vTexCoord.xy);'+'__FILTER__' + '\n' +
+                    '#ifndef blendMultiply\n'+
+                        'vec4 cc = mix(c, fogColor, vTexCoord.z);\n'+
+                        'cc.w = c.w * uParams2.w;\n'+
+                    '#endif\n'+
+                    '#ifdef blendMultiply\n'+
+                        'vec4 cc = vec4(0.0);\n'+
+                        'cc.w = c.w * uParams2.w * (1.0 - c.y);\n' +
+                    '#endif\n'+
+                    '#ifdef shader_illumination\n'+
+                        'cc = vec4((ambientCoef + diffuseCoef) * vec3(c), cc.w);\n' +
+                    '#endif\n'+
+                    '#ifdef whitewash\n' +
+                        'cc = vec4(mix(vec3(cc), vec3(1.0), uWhitewash), cc.w);\n' +
+                    '#endif\n'+
+                    '#ifdef mask\n'+
+                        'vec4 c2 = texture2D(uSampler2, vTexCoord.xy);\n'+
+                        'cc.w *= c2.x;\n'+
                     '#endif\n'+
 
+                    'gl_FragColor = cc;\n'+
+                '#else\n'+
+                    'gl_FragColor = mix(texture2D(uSampler, vTexCoord.xy), fogColor, vTexCoord.z);\n'+
                 '#endif\n'+
 
             '#endif\n'+

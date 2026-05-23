@@ -449,7 +449,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     if (splitMask) {
         v |= vts.TILE_SHADER_CLIP4;
 
-        if (type != vts.MATERIAL_EXTERNAL && type != vts.MATERIAL_INTERNAL_NOFOG) {
+        if (type != vts.MATERIAL_EXTERNAL) {
             texcoords2Attr = 'aTexCoord2';
             attributes.push('aTexCoord2');
         }
@@ -497,10 +497,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         }
 
     } else {
-        if (drawWireframe > 0 && type == vts.MATERIAL_FOG) {
-            return;
-        }
-
         if (drawWireframe == 1 || drawWireframe == 3) {
             program = renderer.progFlatShadeTile[v];
 
@@ -511,7 +507,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         } else {
             switch(type) {
             case vts.MATERIAL_INTERNAL:
-            case vts.MATERIAL_INTERNAL_NOFOG:
 
                 texcoordsAttr = 'aTexCoord';
                 attributes.push('aTexCoord');
@@ -525,7 +520,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 break;
 
             case vts.MATERIAL_EXTERNAL:
-            case vts.MATERIAL_EXTERNAL_NOFOG:
 
                 var prog = renderer.progTile2;
 
@@ -644,15 +638,6 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
                 texcoords2Attr = 'aTexCoord2';
                 attributes.push('aTexCoord2');
                 break;
-
-            case vts.MATERIAL_FOG:
-                program = renderer.progFogTile[v];
-
-                if (!program) {
-                    program = this.generateTileShader(renderer.progFogTile, v, useSuperElevation, splitMask);
-                }
-
-                break;
             }
         }
     }
@@ -685,7 +670,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
         } else {
             return;
         }
-    } else if (type != vts.MATERIAL_FOG && type != vts.MATERIAL_DEPTH && type != vts.MATERIAL_FLAT) {
+    } else if (type != vts.MATERIAL_DEPTH && type != vts.MATERIAL_FLAT) {
         return;
     }
 
@@ -827,10 +812,8 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
         switch(type) {
         case vts.MATERIAL_INTERNAL:
-        case vts.MATERIAL_FOG:
-        case vts.MATERIAL_INTERNAL_NOFOG:
 
-            m[0] = draw.zFactor, m[1] = (type == vts.MATERIAL_INTERNAL_NOFOG) ? 0 : draw.fogDensity;
+            m[0] = draw.zFactor, m[1] = 0;
             m[2] = bmax[0] - bmin[0], m[3] = bmax[1] - bmin[1],
             m[4] = cv[0], m[5] = cv[1], m[6] = cv[2], m[7] = cv[3],
             m[12] = bmax[2] - bmin[2], m[13] = bmin[0], m[14] = bmin[1], m[15] = bmin[2];
@@ -844,14 +827,14 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             break;
 
         case vts.MATERIAL_EXTERNAL:
-        case vts.MATERIAL_EXTERNAL_NOFOG:
 
             // the bound layer texture transformation, computed in MapTexture due to hierarchy fallback
             t = texture.getTransform();
 
-            // the texture tranformation is passed over in the third column (the major difference from the internal version above)
+            /* the texture transformation is passed over in the third column
+               (the major difference from the internal version above) */
 
-            m[0] = draw.zFactor, m[1] = (type == vts.MATERIAL_EXTERNAL) ? draw.fogDensity : 0;
+            m[0] = draw.zFactor, m[1] = 0;
             m[2] = bmax[0] - bmin[0], m[3] = bmax[1] - bmin[1],
             m[4] = cv[0], m[5] = cv[1], m[6] = cv[2], m[7] = cv[3],
             m[8] = t[0], m[9] = t[1], m[10] = t[2], m[11] = t[3],
@@ -876,7 +859,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             }
 
             // c is atmo color, last byte used for alpha
-            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = (type == vts.MATERIAL_EXTERNAL) ? 1 : alpha_;
+            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = 1;
             program.setVec4('uParams2', v);
 
             break;

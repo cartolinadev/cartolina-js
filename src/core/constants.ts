@@ -2,11 +2,8 @@
 
 export const MATERIAL_DEPTH = 1;
 export const MATERIAL_FLAT = 2;
-export const MATERIAL_FOG = 3;
 export const MATERIAL_INTERNAL = 4;
-export const MATERIAL_INTERNAL_NOFOG = 5;
 export const MATERIAL_EXTERNAL = 6;
-export const MATERIAL_EXTERNAL_NOFOG = 7;
 
 export const PIPELINE_BASIC = 0;
 export const PIPELINE_HMAP = 1;

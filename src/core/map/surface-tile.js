@@ -1036,7 +1036,7 @@ MapSurfaceTile.prototype.drawGrid = function(cameraPos, divNode, angle, onlySetB
     var sz = cameraPos[2];
     var buffer = draw.planeBuffer;
     var flatGrid = draw.gridFlat;
-    var joinGrids = draw.gridGlues; //this.map.draw.debug.drawFog;
+    var joinGrids = draw.gridGlues;
     var gridPoints = this.gridPoints;
     var useSurrogatez = map.config.mapGridSurrogatez;
 
@@ -1406,7 +1406,7 @@ MapSurfaceTile.prototype.drawGrid = function(cameraPos, divNode, angle, onlySetB
 
     if (useTexture) {
         renderer.gpu.bindTexture(this.gridTexture.getGpuTexture());
-        prog.setVec4('uParams', [step1 * factor, draw.fogDensity, 1/15, node.gridStep2 * factor]);
+        prog.setVec4('uParams', [step1 * factor, 0, 1/15, node.gridStep2 * factor]);
 
         var tt = this.gridTexture.getTransform();
 
@@ -1416,13 +1416,11 @@ MapSurfaceTile.prototype.drawGrid = function(cameraPos, divNode, angle, onlySetB
         //prog.setVec4('uParams3', [(py - Math.floor(py)), (px - Math.floor(px)), lly*0.5, llx*0.5]);
         prog.setVec4('uParams2', [0, 0, 0, 0]);
     } else {
-        renderer.gpu.bindTexture(renderer.heightmapTexture);       
-        prog.setVec4('uParams', [step1 * factor, draw.fogDensity, 1/15, node.gridStep2 * factor]);
+        renderer.gpu.bindTexture(renderer.heightmapTexture);
+        prog.setVec4('uParams', [step1 * factor, 0, 1/15, node.gridStep2 * factor]);
         prog.setVec4('uParams3', [(py - Math.floor(py)), (px - Math.floor(px)), lly, llx]);
         prog.setVec4('uParams2', [0, 0, node.gridBlend, 0]);
     }
-    
-    prog.setVec4('uFogColor', draw.atmoColor);
 
     //draw bbox
     renderer.planeMesh.draw(prog, 'aPosition', 'aTexCoord');    
@@ -1717,7 +1715,7 @@ MapSurfaceTile.prototype.drawHmapTile = function(cameraPos, divNode, angle, pipe
     
 
     var step1 = node.gridStep1 * factor;
-    prog.setVec4('uParams', [step1 * factor, draw.fogDensity, 1/127, node.gridStep2 * factor]);
+    prog.setVec4('uParams', [step1 * factor, 0, 1/127, node.gridStep2 * factor]);
 
     if (testMode >= 3 && testMode <= 4) {
         prog.setVec4('uParams3', [1,1,0,0]);
@@ -1737,8 +1735,6 @@ MapSurfaceTile.prototype.drawHmapTile = function(cameraPos, divNode, angle, pipe
     }
 
     prog.setVec4('uParams2', [0, 0, node.gridBlend, 0]);
-    prog.setVec4('uFogColor', draw.atmoColor);
-
 
     if (this.hmap.extraBound) {
         //get height form parent

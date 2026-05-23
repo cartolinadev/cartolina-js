@@ -53,7 +53,6 @@ var MapDraw = function(map) {
         drawGridCells : false,
         drawTileCounter : 0,
         drawPolyWires : false,
-        drawFog : this.config.mapFog, // dead — see updateFogDensity
         drawGPixelSize : false,
         debugTextSize : 2.0,
         ignoreTexelSize : false,
@@ -70,7 +69,6 @@ var MapDraw = function(map) {
     this.atmoHeightFactor = 1; //this.atmoHeight / 50000;
     this.atmoDensity = 1; //this.atmoHeight / 50000;
 
-    this.fogDensity = 0;
     this.zFactor = 0;
     //this.zFactor2 = 0.000012;
     this.zFactor2 = 0.003;
@@ -154,7 +152,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
     renderer.debugStr = 'AsyncImageDecode: ' + this.config.mapAsyncImageDecode;
     renderer.dirty = true;
-    renderer.drawFog = this.debug.drawFog; // dead — see updateFogDensity
     renderer.shaderIllumination = this.debug.shaderIllumination;
     renderer.debug = this.debug; 
     renderer.mapHack = map;
@@ -228,7 +225,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     this.ndcToScreenPixel =
         this.renderer.gpu.currentRenderTarget.viewportSize[0] * 0.5;
 
-    this.updateFogDensity();
     this.updateGridFactors();
     this.maxGpuUsed = Math.max(32*102*1204, map.gpuCache.getMaxCost() - 32*102*1204); 
     //this.cameraCenter = this.position.getCoords();
@@ -482,40 +478,6 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
             }.bind(this));
         }
     }
-};
-
-
-// dead — TileRenderRig replaced the old tile pipeline; fog is never
-// drawn in the new path. Remove together with all drawFog/fogDensity
-// references in draw.js, map.js, mesh.js, surface-tile.js,
-// renderer.ts, init.js, url-config.ts, inspector/input.js, and the
-// MATERIAL_INTERNAL_NOFOG / MATERIAL_EXTERNAL_NOFOG constants.
-MapDraw.prototype.updateFogDensity = function() {
-    // the fog equation is: exp(-density*distance), this gives the fraction
-    // of the original color that is still visible at some distance
-
-    // we define visibility as a distance where only 5% of the original color
-    // is visible; from this it is easy to calculate the correct fog density
-
-    //var density = Math.log(0.05) / this.core.coreConfig.cameraVisibility;
-    var pos = this.map.getPosition();
-    var orientation = pos.getOrientation();
-    
-    var cameraVisibility = this.camera.getFar();
-    
-    var tiltFactor = (Math.max(5,-orientation[1])/90);
-    var density = Math.log(0.05) / ((this.atmoDensity * cameraVisibility * this.atmoHeightFactor * Math.max(1,this.camera.height*0.0001))* tiltFactor);
-    density *= (5.0) / (Math.min(50000, Math.max(this.camera.distance, 1000)) /5000);
-
-    if (!this.debug.drawFog) {
-        density = 0;
-    }
-    
-    //reduce fog when camera is facing down
-    //density *= 1.0 - (-this.orientation[0]/90)
-    
-    this.fogDensity = density;
-    this.renderer.fogDensity = density; 
 };
 
 

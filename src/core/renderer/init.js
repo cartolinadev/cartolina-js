@@ -49,9 +49,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progTile2 = [new GpuProgram(gpu, '#define variants\n#define externalTex\n' + shaders.tileVertexShader, '#define variants\n#define externalTex\n' + shaders.tileFragmentShader.replace('__FILTER__', ''))];
     renderer.progTile3 = [new GpuProgram(gpu, '#define variants\n#define externalTex\n' + shaders.tileVertexShader, '#define variants\n#define externalTex\n#define mask\n' + shaders.tileFragmentShader.replace('__FILTER__', ''))];
 
-    // dead — see updateFogDensity comment in draw.js
-    renderer.progFogTile = [new GpuProgram(gpu, '#define variants\n#define onlyFog\n' + shaders.tileVertexShader, '#define variants\n#define onlyFog\n' + shaders.tileFragmentShader)];
-
     var sdExt = '#extension GL_OES_standard_derivatives : enable\n';
 
     renderer.progFlatShadeTile = [new GpuProgram(gpu, '#define variants\n#define flatShadeVar\n' + shaders.tileVertexShader, sdExt+'#define variants\n#define flatShadeVar\n#define flatShade\n' + shaders.tileFragmentShader)];

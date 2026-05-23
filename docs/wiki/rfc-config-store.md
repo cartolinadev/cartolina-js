@@ -1,6 +1,6 @@
 # RFC: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** Accepted  
+**Status:** In review  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -147,7 +147,7 @@ value immediately, with no flush required. The initial defaults
 object passed to the constructor covers all keys, so a value set
 before subsystem construction is always visible via `get()`.
 
-The store holds no domain knowledge. It does not know what `mapFog`
+The store holds no domain knowledge. It does not know what `mapCache`
 means, which subsystem owns it, or what valid values are. It is a
 typed, observable key-value map.
 
@@ -159,7 +159,7 @@ key. It replaces the three `this.config` objects and the partial
 
 The interface is divided into named groups by comment block for
 readability, but remains flat — no nesting. Flat layout keeps
-`set({ mapFog: true, antialias: false })` natural and avoids
+`set({ mapCache: 512, antialias: false })` natural and avoids
 deeply nested patch types.
 
 ```typescript
@@ -174,7 +174,6 @@ interface ViewerConfig {
     // ... (all ~31 Browser keys)
 
     // --- Terrain engine (LegacyMap) ---
-    mapFog: boolean;
     mapCache: number;
     mapMaxProcessingTime: number;
     // ... (all ~80 map* keys)
@@ -487,3 +486,11 @@ Signed off. The bridge shim now preserves current Browser, Core,
 LegacyMap, and Renderer config behavior during the migration, and the
 earlier validation, flush timing, renderer ownership, and numbering
 comments have been addressed.
+
+## Review round 4
+
+`mapFog` was removed as dead code (the fog tile system it controlled
+was replaced by `Atmosphere` and never drew in the `TileRenderRig`
+path). Three places in this document that used `mapFog` as a
+representative example have been updated to use `mapCache` instead.
+No design decisions changed; only the example key was replaced.
