@@ -1,5 +1,46 @@
 # Session log
 
+## 2026-05-23 — OGC 3D Tiles investigation and RFC
+
+Investigated the legacy `config.tiles3d` integration before scheduling
+removal. The pipeline was dead at runtime since commit `6e578488`
+(Sep 2025, utils.js → utils.ts migration), which commented out the
+`MapGeodataImport3DTiles` import in `geodata-builder.js`. Restoring
+the import and fixing two additional bugs (CORS not set on the sample
+server; null renderer dereference in `MapView.getInfo` before the
+first render tick) brought the pipeline to the point where
+`tileset.json` loads without error. No geometry rendered: OGC sample
+tilesets use `b3dm` leaf content, which the importer silently ignores.
+The importer only handles `region` bounding volumes and VTS `.mesh`
+leaf URIs.
+
+**History:** The pipeline was built between April 2020 and March 2021
+during the Melown/Leica era to stream proprietary dense photogrammetry
+datasets organised as a 3D octree. The `tileset.json` structure was
+borrowed as a convenient octree index format; standard OGC payload
+formats (`b3dm`, `i3dm`, `pnts`) were never implemented. Three
+generations: `3dtiles.js` prototype → `3dtiles2.js` with compact
+binary `bintree`+`pathTable` → `vts-tree.js` with binary wire format.
+
+**Backend survey:** `vts-vtsd` contains a live `tdt2vts` delivery
+driver serving conformant `b3dm` tiles for Cesium viewers.
+`vts-tools` has batch converters `vts23dtiles` and `3dtiles2vts`.
+Neither is aligned with the client-side VTS-mesh prototype.
+`cartolina-tileserver` produces quantized-mesh terrain tiles and
+embeds a Cesium introspection UI; it has no `tileset.json` generation
+and no `b3dm` output.
+
+**Fixes kept:** the `renderer &&` null guard in `MapView.getInfo`
+(`view.js`) is a legitimate defensive fix independent of the 3D Tiles
+removal.
+
+**RFC filed:** `docs/wiki/rfc-remove-3dtiles.md` — covers deletion of
+`3dtiles.js`, `3dtiles2.js`, `vts-tree.js`, `pointcloud.js`, and the
+node-shaped geodata path through `geodata-view.js`, `group.js`,
+`geodata-builder.js`, `loader.js`, and `constants.ts`. Follow-on §3.3
+covers the legacy tile shader family (`progTile*`, `drawSubmesh`,
+`MATERIAL_INTERNAL`). Status: in review.
+
 ## 2026-05-23 — Migrate legacy kill() to [Symbol.dispose]()
 
 `GpuTexture`, `GpuDevice`, `GpuMesh`, `Atmosphere`, and `Renderer` now
