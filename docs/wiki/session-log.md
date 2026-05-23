@@ -50,11 +50,18 @@ path.
 - `#ifdef onlyFog` dead-code branches in `tileVertexShader` and
   `tileFragmentShader` in `gpu/shaders.js`
 
-**What was kept:** the general fog-factor calculation and
-`#ifdef fogAndColor` / `#ifdef fog` branches in the tile shader (they
-produce a harmless 0.0 blend and are shared with the still-live
-flat-shade programs). The `uFogColor` uniforms remain declared in the
-plane/hmap shaders but are no longer fed from application code.
+**Follow-up:** the tile shader fog-factor calculation and
+`draw.atmoColor` were removed after review showed that `MapMesh`
+still fed the old fog colour into `uParams2`. The tile shader now
+passes texture coordinates as `vec2` and samples tile textures without
+fog blending. The plane and hmap shaders no longer compute or apply
+their fog blend; the plane shader keeps a renamed `vDepth` varying for
+depth render passes. The `fogAndColor` define name still exists for the
+coloured flat-shade program, but that branch now only applies `uColor`.
+The legacy atmosphere shell programs (`progAtmo`, `progAtmo2`), their
+shader strings, their shell mesh, and the dead `RendererDraw.drawBall*`
+helpers were removed after source search showed no callers outside their
+own initialization path.
 
 **Docs:** `rfc-config-store.md` updated to remove `mapFog` from the
 example `ViewerConfig` interface; status set to `In review` per
@@ -569,8 +576,10 @@ Freeze mode added to backlog as the intended replacement.
 Removed the stardome draw call (commented out, never used a real texture)
 and the surrounding `gpu.setState(drawStardomeState)` noise. Marked
 `drawStardomeState`, `drawAuraState`, `drawAtmoState/2`, `progSkydome`,
-`progAtmo/2`, and the old skydome/atmo shaders as removal candidates —
-all superseded by `renderer.drawBackground()`.
+`progAtmo/2`, and the old skydome/atmo shaders as removal candidates;
+the atmosphere shell code was later deleted after source search showed
+no callers outside its own initialization path. The remaining background
+path is `renderer.drawBackground()`.
 
 Fixed a GL state regression from the removal: `drawBackground()` now
 installs `backgroundState` (`ztest:false, zwrite:false`) itself rather

@@ -237,7 +237,6 @@ export class Renderer {
     textTexture2: Optional<GpuTexture> = null;
 
     // meshes
-    atmoMesh: Optional<GpuMesh> = null;
     bboxMesh: Optional<GpuMesh> = null;
 
     // GpuPixelLine3
@@ -2308,7 +2307,6 @@ drawLineString(options: any): void {
     this.whiteTexture?.[Symbol.dispose]();
     this.blackTexture?.[Symbol.dispose]();
     this.textTexture2?.[Symbol.dispose]();
-    this.atmoMesh?.[Symbol.dispose]();
     this.bboxMesh?.[Symbol.dispose]();
     this.plines?.kill();
     this.plineJoints?.kill();

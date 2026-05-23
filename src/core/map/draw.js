@@ -63,12 +63,6 @@ var MapDraw = function(map) {
     this.gridGlues = false;
     this.gridSkipped = false;
 
-    this.atmoColor = [216.0/255.0, 232.0/255.0, 243.0/255.0, 1.0];
-    this.atmoColor2 = [72.0/255.0, 154.0/255.0, 255.0/255.0, 1.0];
-    this.atmoHeight = 50000;
-    this.atmoHeightFactor = 1; //this.atmoHeight / 50000;
-    this.atmoDensity = 1; //this.atmoHeight / 50000;
-
     this.zFactor = 0;
     //this.zFactor2 = 0.000012;
     this.zFactor2 = 0.003;
@@ -100,11 +94,8 @@ var MapDraw = function(map) {
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
-    // removal candidates: superseded by renderer.drawBackground()
     this.drawStardomeState = gpu.createState({zwrite:false, ztest:false});
     this.drawAuraState = gpu.createState({zwrite:false, blend:true});
-    this.drawAtmoState = gpu.createState({zwrite:false, ztest:false, blend:true});
-    this.drawAtmoState2 = gpu.createState({zwrite:false, ztest:true, blend:false});
 
     this.drawBlendedTileState = gpu.createState({zequal:true, blend:true});
 

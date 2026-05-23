@@ -69,13 +69,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progStardome = new GpuProgram(
         gpu, shaders.skydomeVertexShader, shaders.stardomeFragmentShader);
 
-    // removal candidates: superseded by renderer.drawBackground()
-    renderer.progAtmo2 = new GpuProgram(
-        gpu, shaders.atmoVertexShader, shaders.atmoFragmentShader);
-
-    renderer.progAtmo = new GpuProgram(
-        gpu, shaders.atmoVertexShader3, shaders.atmoFragmentShader3);
-
     renderer.progPCloud = new GpuProgram(gpu, shaders.pointsVertexShader, shaders.pointsFragmentShader);
 
     renderer.progBBox = new GpuProgram(gpu, shaders.bboxVertexShader, shaders.bboxFragmentShader);
@@ -356,9 +349,6 @@ RendererInit.prototype.initSkydome = function() {
     renderer.skydomeMesh = new GpuMesh(this.gpu, meshData, this.core, use16Bit);
     //this.skydomeTexture = new GpuTexture(this.gpu, "./skydome.jpg", this.core);
 
-    meshData = RendererGeometry.buildSkydome(128, 256, use16Bit, true);
-//    var meshData = RendererGeometry.buildSkydome(256, 512);
-    renderer.atmoMesh = new GpuMesh(this.gpu, meshData, this.core, use16Bit);
 };
 
 

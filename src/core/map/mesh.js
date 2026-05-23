@@ -416,7 +416,7 @@ MapMesh.prototype.generateTileShader = function (progs, v, useSuperElevation, sp
 
 MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blending, alpha, runtime, layer, surface, splitMask, splitSpace, normalMap) {
     // index is the submesh index
-    // type is the material (internal, external, both with fog and nofog variants, flat, depth, etc.
+    // type is the material (internal, external, flat, depth, etc.
 
     if (this.gpuSubmeshes[index] == null && this.submeshes[index] != null && !this.submeshes[index].killed) {
         this.gpuSubmeshes[index] = this.submeshes[index].buildGpuMesh();
@@ -808,7 +808,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
     }
 
     if (drawWireframe == 0) {
-        var cv = this.map.camera.vector2, c = draw.atmoColor, t, bmin = submesh.bbox.min, bmax = submesh.bbox.max;
+        var cv = this.map.camera.vector2, t, bmin = submesh.bbox.min, bmax = submesh.bbox.max;
 
         switch(type) {
         case vts.MATERIAL_INTERNAL:
@@ -820,8 +820,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
 
             program.setMat4('uParams', m);
 
-            // c is atmo color
-            v[0] = c[0], v[1] = c[1], v[2] = c[2];
+            v[0] = 0, v[1] = 0, v[2] = 0, v[3] = 0;
             program.setVec4('uParams2', v);
 
             break;
@@ -843,23 +842,7 @@ MapMesh.prototype.drawSubmesh = function (cameraPos, index, texture, type, blend
             program.setMat4('uParams', m);
 
 
-            // establish texture alpha
-            let alpha_ = 1.0;
-
-            if (alpha) {
-                // alpha object present in command
-                alpha_ = alpha.value;
-
-                if (alpha.mode == 'viewdep' ) {
-
-                    // view-dependent normalized alpha is precomputed
-                    alpha_ = runtime.vdalphan * alpha.value;
-                    //console.log(alpha_);
-                }
-            }
-
-            // c is atmo color, last byte used for alpha
-            v[0] = c[0], v[1] = c[1], v[2] = c[2]; v[3] = 1;
+            v[0] = 0, v[1] = 0, v[2] = 0; v[3] = 1;
             program.setVec4('uParams2', v);
 
             break;

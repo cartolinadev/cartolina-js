@@ -1,12 +1,12 @@
 
-import {vec3 as vec3_, mat3 as mat3_, mat4 as mat4_} from '../utils/matrix';
+import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
 import * as math from '../utils/math';
 import {processGMap as processGMap_, processGMap4 as processGMap4_, processGMap5 as processGMap5_,
         processGMap6 as processGMap6_, processGMap7 as processGMap7_, radixDepthSortFeatures as radixDepthSortFeatures_ } from './gmap';
 import * as vts from '../constants';
 
 //get rid of compiler mess
-var vec3 = vec3_, mat3 = mat3_, mat4 = mat4_;
+var vec3 = vec3_, mat4 = mat4_;
 var processGMap = processGMap_;
 var processGMap4 = processGMap4_;
 var processGMap5 = processGMap5_;
@@ -106,127 +106,6 @@ RendererDraw.prototype.drawTBall = function(position, size, shader, texture, siz
     if (nocull) {
         //gl.enable(gl.CULL_FACE);
     }
-};
-
-
-RendererDraw.prototype.drawBall = function(position, size, size2, shader, params, params2, params3, color, color2, normals) {
-    var gpu = this.gpu;
-    var gl = this.gl;
-    var renderer = this.renderer;
-
-    var normMat = mat4.create();
-    mat4.multiply(math.scaleMatrix(2, 2, 2), math.translationMatrix(-0.5, -0.5, -0.5), normMat);
-
-    var pos = [position[0], position[1], position[2] ];
-
-    var domeMat = mat4.create();
-    size = size || 1.5;
-    size2 = size2 || 1.5;
-    mat4.multiply(math.translationMatrix(pos[0], pos[1], pos[2]), math.scaleMatrix(size, size, size2), domeMat);
-
-    var mv = mat4.create();
-    mat4.multiply(renderer.camera.getModelviewMatrix(), domeMat, mv);
-    mat4.multiply(mv, normMat, mv);
-    var proj = renderer.camera.getProjectionMatrix();
-
-    var norm = [0,0,0, 0,0,0, 0,0,0];
-    mat4.toInverseMat3(mv, norm);
-    mat3.transpose(norm);
-    
-    gpu.useProgram(shader, ['aPosition']);
-    //gpu.bindTexture(renderer.redTexture);
-
-    let lightDir = [0.0, 0.0, 0.0, 0.0];
-
-    if (renderer.getIlluminationState() && renderer.shaderIllumination) {
-
-        mat4.multiplyVec3_(renderer.camera.getModelviewMatrixInverse(),
-                          renderer.getIlluminationVectorVC(), lightDir);
-
-        lightDir[3] = 1.0;
-
-        //console.log("lightDir: ", lightDir);
-
-    }
-
-    shader.setVec4('lightDir', lightDir);
-
-    //shader.setSampler('uSampler', 0);
-    shader.setMat4('uProj', proj);
-    shader.setMat4('uMV', mv);
-
-    shader.setMat3('uNorm', norm);
-
-    if (normals) {
-        shader.setMat3('uNorm', norm);
-        gl.cullFace(gl.FRONT);
-        //gl.disable(gl.DEPTH_TEST);
-    }
-    
-    if (params) {
-        shader.setVec4('uParams', params);
-    }
-
-    if (params2) {
-        shader.setVec4('uParams2', params2);
-    }
-
-    if (params2) {
-        shader.setVec4('uParams3', params3);
-    }
-
-    if (color) {
-        shader.setVec4('uFogColor', color);
-    }
-
-    if (color2) {
-        shader.setVec4('uFogColor2', color2);
-    }
-
-    renderer.atmoMesh.draw(shader, 'aPosition', null /*"aTexCoord"*/);
-
-    renderer.renderedPolygons += renderer.skydomeMesh.getPolygons();
-
-    if (normals) {
-        gl.cullFace(gl.BACK);
-    }
-};
-
-
-RendererDraw.prototype.drawBall2 = function(position, size, shader, nfactor, _, radius2) {
-    var gpu = this.gpu;
-    var renderer = this.renderer;
-
-    var normMat = mat4.create();
-    mat4.multiply(math.scaleMatrix(2, 2, 2), math.translationMatrix(-0.5, -0.5, -0.5), normMat);
-
-    var pos = [position[0], position[1], position[2] ];
-
-    var domeMat = mat4.create();
-    mat4.multiply(math.translationMatrix(pos[0], pos[1], pos[2]), math.scaleMatrixf(size != null ? size : 1.5), domeMat);
-
-    var mv = mat4.create();
-    mat4.multiply(renderer.camera.getModelviewMatrix(), domeMat, mv);
-    mat4.multiply(mv, normMat, mv);
-    var proj = renderer.camera.getProjectionMatrix();
-
-    var norm = [0,0,0, 0,0,0, 0,0,0];
-    mat4.toInverseMat3(mv, norm);
-    mat3.transpose(norm);
-    
-    gpu.useProgram(shader, ['aPosition']);
-    gpu.bindTexture(renderer.redTexture);
-
-    shader.setSampler('uSampler', 0);
-    shader.setMat4('uProj', proj);
-    shader.setMat4('uMV', mv);
-    shader.setMat3('uNorm', norm);
-    shader.setFloat('uNFactor', nfactor);
-    shader.setVec3('uCenter', position);
-    shader.setVec2('uRadius', [size, radius2]);
-
-    renderer.atmoMesh.draw(shader, 'aPosition', null /*"aTexCoord"*/);
-    renderer.renderedPolygons += renderer.skydomeMesh.getPolygons();
 };
 
 

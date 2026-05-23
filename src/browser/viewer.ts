@@ -49,7 +49,7 @@ class Viewer {
     //private readonly _browser: InstanceType<typeof Browser>;
     private readonly _browser: Browser;
     private readonly map_: Map;
-    private _killed = false;
+    private disposed_ = false;
 
     private get legacyMap_(): LegacyMap | null {
         return this.map_.core.map;
@@ -67,7 +67,7 @@ class Viewer {
     /** Throws if the viewer has been destroyed. */
     private assertAlive_(): void {
 
-        if (this._killed) {
+        if (this.disposed_) {
             throw new Error('Viewer has been destroyed.');
         }
     }
@@ -107,10 +107,10 @@ class Viewer {
      */
     [Symbol.dispose](): void {
 
-        if (this._killed) return;
+        if (this.disposed_) return;
         this.map_[Symbol.dispose]();
         this._browser.kill();
-        this._killed = true;
+        this.disposed_ = true;
     }
 
     // -------------------------------------------------------------------------
