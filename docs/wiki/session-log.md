@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-23 — Dead legacy renderer shaders removed
+
+Removed legacy shader strings whose only references were unused program
+initializers or commented-out initializer lines:
+`skydomeVertexShader`, `stardomeFragmentShader`,
+`pointsVertexShader`, `pointsFragmentShader`, `text2VertexShader`,
+`etlineVertexShader`, and `etplineVertexShader`.
+
+The cleanup also removed `progStardome`, `progPCloud`,
+`RendererInit.initSkydome`, `RendererDraw.drawSkydome`,
+`RendererDraw.drawTBall`, the skydome mesh field, and the now-unused
+skydome sphere geometry helpers. `drawSkydome` had no runtime effect:
+`paintGL` called it without a texture, and the method returned before
+issuing any GL work. `progPCloud` had no draw-time references after the
+3D Tiles / point-cloud path was deleted.
+
+Verification passed: no source references remain for the deleted names;
+`npx tsc --noEmit`; and sequential screenshots for `simple-terrain`,
+`complex-terrain`, and `full-terrain`. The `complex-terrain` and
+`full-terrain` screenshot checks each passed on rerun after transient
+CDN tile-fetch errors.
+
 ## 2026-05-23 — OGC 3D Tiles and tile shader removal implemented
 
 Implemented [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md). Deleted the
@@ -674,7 +696,8 @@ Fixed the read loop with `Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i]`
 (one line, both the Drawn Tiles and Drawn Tiles Free Layers paths).
 Separately fixed a Globe crash: `drawTBall` was called before the
 base64 globe texture finished async loading; added a `.loaded` guard
-in `inspector.js`. Removed leftover `here1`–`here6` debug logs from
+in `inspector.js`. The replay inspector and `drawTBall` were removed in
+later cleanup. Removed leftover `here1`–`here6` debug logs from
 `draw.js`.
 
 Confirmed Traced Nodes always worked (CPU-side metanode data, no GPU

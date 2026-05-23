@@ -30,7 +30,6 @@ var RendererInit = function(renderer) {
 
     this.initShaders();
     this.initHeightmap();
-    this.initSkydome();
     this.initHitmap();
     this.initTextMap();
     this.initImage();
@@ -57,11 +56,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progPlane2D = new GpuProgram(gpu, '#define depth\n#define poles\n' + shaders.planeVertexShader, '#define depth\n#define poles\n' + shaders.planeFragmentShader); //poles
     renderer.progPlane3D = new GpuProgram(gpu, '#define depth\n' + shaders.planeVertexShader, '#define depth\n' + shaders.planeFragmentShader); // grid
 
-    renderer.progStardome = new GpuProgram(
-        gpu, shaders.skydomeVertexShader, shaders.stardomeFragmentShader);
-
-    renderer.progPCloud = new GpuProgram(gpu, shaders.pointsVertexShader, shaders.pointsFragmentShader);
-
     renderer.progBBox = new GpuProgram(gpu, shaders.bboxVertexShader, shaders.bboxFragmentShader);
     renderer.progBBox2 = new GpuProgram(gpu, shaders.bbox2VertexShader, shaders.bboxFragmentShader);
 
@@ -84,8 +78,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progTPLine = new GpuProgram(gpu, shaders.tplineVertexShader, shaders.tlineFragmentShader); //textured pixed line
     renderer.progTBLine = new GpuProgram(gpu, shaders.tlineVertexShader, shaders.tblineFragmentShader); //textured line with background color
     renderer.progTPBLine = new GpuProgram(gpu, shaders.tplineVertexShader, shaders.tblineFragmentShader); //textured pixel line with background color
-    //renderer.progETLine = new GpuProgram(gpu, shaders.etlineVertexShader, shaders.elineFragmentShader); //textured line elements
-    //renderer.progETPLine = new GpuProgram(gpu, shaders.etplineVertexShader, shaders.elineFragmentShader); //textured pixed line elements
     //renderer.progLineWireframe = new GpuProgram(gpu, shaders.lineWireframeVertexShader, shaders.lineWireframeFragmentShader); //line with wireframe for debugging
 
     renderer.progText2 = new GpuProgram(gpu, '#define lineLabel\n' + shaders.lineVertexShader, shaders.text2FragmentShader); //line label 
@@ -332,16 +324,6 @@ RendererInit.prototype.generateTextQuads = function(num) {
 
     return vbuffer;
 };
-
-RendererInit.prototype.initSkydome = function() {
-    var renderer = this.renderer;
-    var use16Bit = renderer.core.config.map16bitMeshes;
-    var meshData = RendererGeometry.buildSkydome(32, 64, use16Bit);
-    renderer.skydomeMesh = new GpuMesh(this.gpu, meshData, this.core, use16Bit);
-    //this.skydomeTexture = new GpuTexture(this.gpu, "./skydome.jpg", this.core);
-
-};
-
 
 RendererInit.prototype.initBBox = function() {
     var renderer = this.renderer;

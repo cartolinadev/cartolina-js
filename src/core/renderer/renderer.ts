@@ -200,8 +200,6 @@ export class Renderer {
 
     // textures
     heightmapTexture: Optional<GpuTexture> = null;
-    skydomeMesh: Optional<GpuMesh> = null;
-
     /**
      * Depth hitmap: off-screen auxiliary texture rendered with
      * `onlyDepth = true`. Each pixel encodes the depth of the closest
@@ -2291,7 +2289,6 @@ drawLineString(options: any): void {
     this.disposed_ = true;
 
     this.heightmapTexture?.[Symbol.dispose]();
-    this.skydomeMesh?.[Symbol.dispose]();
     this.hitmapTexture?.[Symbol.dispose]();
     this.geoHitmapTexture?.[Symbol.dispose]();
     this.geoHitmapTexture2?.[Symbol.dispose]();

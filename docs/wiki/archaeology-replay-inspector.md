@@ -138,7 +138,7 @@ could be scrubbed after the fact to see what loaded when and where.
 | Load Sequence recording | Worked, but requires starting the recording during active tile loading; a fully-loaded scene records nothing |
 | Load Sequence display | Broken for the same reason as Drawn Tiles (bare-tile bug) |
 | Camera frustum | Always worked; must rotate the camera after snapping to see the frustum from a different angle |
-| Globe overlay | Crashed on first use: `drawTBall` called before the base64 texture finished loading; fixed May 2026 with a `loaded` guard |
+| Globe overlay | Removed with the replay inspector; its `drawTBall` helper was removed during legacy shader cleanup |
 
 ## Pipeline pollution
 

@@ -31,84 +31,6 @@ RendererDraw.prototype.noOverlap = function(job) {
     return job.noOverlap;
 }
 
-RendererDraw.prototype.drawSkydome = function(texture, shader) {
-    if (!texture) {
-        return;
-    }
-
-    var gpu = this.gpu;
-    var gl = this.gl;
-    var renderer = this.renderer;
-    
-    var lower = 400; // put the dome a bit lower
-    var normMat = mat4.create();
-    mat4.multiply(math.scaleMatrix(2, 2, 2), math.translationMatrix(-0.5, -0.5, -0.5), normMat);
-
-    var domeMat = mat4.create();
-
-    var pos = renderer.camera.getPosition();
-    mat4.multiply(math.translationMatrix(pos[0], pos[1], pos[2] - lower), math.scaleMatrixf(Math.min(renderer.camera.getFar()*0.9,600000)), domeMat);
-
-    var mvp = mat4.create();
-    mat4.multiply(renderer.camera.getMvpMatrix(), domeMat, mvp);
-    mat4.multiply(mvp, normMat, mvp);
-
-
-    gpu.useProgram(shader, ['aPosition', 'aTexCoord']);
-    gpu.bindTexture(texture);
-
-    shader.setSampler('uSampler', 0);
-    shader.setMat4('uMVP', mvp);
-
-    gl.depthMask(false);
-
-    renderer.skydomeMesh.draw(shader, 'aPosition', 'aTexCoord');
-
-    gl.depthMask(true);
-    gl.enable(gl.CULL_FACE);
-
-    renderer.renderedPolygons += renderer.skydomeMesh.getPolygons();
-};
-
-
-RendererDraw.prototype.drawTBall = function(position, size, shader, texture, size2, nocull) {
-    var gpu = this.gpu;
-    var renderer = this.renderer;
-
-    if (nocull) {
-        //gl.disable(gl.CULL_FACE);
-    }
-
-    var normMat = mat4.create();
-    mat4.multiply(math.scaleMatrix(2, 2, 2), math.translationMatrix(-0.5, -0.5, -0.5), normMat);
-
-    var pos = [position[0], position[1], position[2] ];
-
-    size = (size != null) ? size : 1.5;
-
-    var domeMat = mat4.create();
-    mat4.multiply(math.translationMatrix(pos[0], pos[1], pos[2]), math.scaleMatrix(size, size, size2 || size), domeMat);
-
-    var mvp = mat4.create();
-    mat4.multiply(renderer.camera.getMvpMatrix(), domeMat, mvp);
-    mat4.multiply(mvp, normMat, mvp);
-
-    gpu.useProgram(shader, ['aPosition', 'aTexCoord']);
-    gpu.bindTexture(texture || renderer.redTexture);
-
-    shader.setSampler('uSampler', 0);
-    shader.setMat4('uMVP', mvp);
-
-    renderer.skydomeMesh.draw(shader, 'aPosition', 'aTexCoord');
-
-    renderer.renderedPolygons += renderer.skydomeMesh.getPolygons();
-
-    if (nocull) {
-        //gl.enable(gl.CULL_FACE);
-    }
-};
-
-
 RendererDraw.prototype.drawLineString = function(points, screenSpace, size, color, depthOffset, depthTest, transparent, writeDepth, useState) {
     var gpu = this.gpu;
     var renderer = this.renderer;
@@ -959,11 +881,6 @@ RendererDraw.prototype.paintGL = function() {   //remove this??
 
     this.gpu.clearDepth();
 
-    if (!renderer.onlyLayers) {
-        if (!renderer.onlyDepth && !renderer.onlyHitLayers) {
-            this.drawSkydome();
-        }
-    }
 };
 
 

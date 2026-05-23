@@ -25,30 +25,6 @@ GpuShaders.bboxFragmentShader = 'precision mediump float;\n'+
     '}';
 
 
-GpuShaders.text2VertexShader =
-    'attribute vec4 aPosition;\n'+
-    'void main(){ \n'+
-    '}';
-
-
-GpuShaders.pointsVertexShader =
-    'attribute vec3 aPosition;\n'+
-    'attribute vec3 aColor;\n'+
-    'varying vec3 vColor;\n'+
-    'uniform mat4 uMVP;\n'+
-    'void main(){ \n'+
-        'vColor= aColor;\n'+
-        'gl_Position = uMVP * vec4(aPosition, 1.0);\n'+
-    '}';
-
-
-GpuShaders.pointsFragmentShader = 'precision mediump float;\n'+
-    'varying vec3 vColor;\n'+
-    'void main() {\n'+
-        'gl_FragColor = vec4(vColor.x, vColor.y, vColor.z, 1.0);\n'+
-    '}';
-
-
 GpuShaders.lineVertexShader = //line
     '#ifndef dataPoints2\n'+
         'uniform mat4 uMVP;\n'+
@@ -406,21 +382,6 @@ GpuShaders.tlineVertexShader = // textured line
     '}';
 
 
-GpuShaders.etlineVertexShader = // textured line elements
-    'attribute vec4 aPosition;\n'+
-    'attribute vec4 aNormal;\n'+
-    'attribute float aElement;\n'+
-    'uniform mat4 uMVP;\n'+
-    'uniform vec2 uScale;\n'+
-    'uniform vec4 uParams;\n'+
-    'varying float vElement;\n'+
-    'void main(){ \n'+
-        'vec4 p=vec4(aPosition.xyz, 1.0);\n'+
-        'p.xyz+=aNormal.xyz*(abs(aNormal.w)*uParams[3]);\n'+
-        'vElement = aElement;\n'+
-        'gl_Position = uMVP * p;\n'+
-    '}';
-
 GpuShaders.tplineVertexShader = // textured pixel line
     'attribute vec4 aPosition;\n'+
     'attribute vec4 aNormal;\n'+
@@ -431,28 +392,6 @@ GpuShaders.tplineVertexShader = // textured pixel line
     'void main(){ \n'+
         'vec4 pp0 = (uMVP * vec4(aPosition.xyz, 1.0));\n'+
         'vTexCoord=vec2(abs(aPosition.w)*uParams[0], aPosition.w < 0.0 ? uParams[1] : uParams[2]);\n'+
-        'if (aNormal.w == 0.0) {\n'+
-            'gl_Position = pp0 + vec4((vec3(aNormal.x*uParams[3]*uScale.x*pp0.w, aNormal.y*uParams[3]*uScale.y*pp0.w, 0.0)), 0.0);\n'+
-        '} else {\n'+
-            'vec2 pp1 = pp0.xy / pp0.w;\n'+
-            'vec4 pp3 = (uMVP * vec4(aNormal.xyz, 1.0));\n'+
-            'vec2 pp2 = pp3.xy / pp3.w;\n'+
-            'vec2 n = normalize(pp2 - pp1);\n'+
-            'gl_Position = pp0 + vec4((vec3(-n.y*uParams[3]*uScale.x*aNormal.w*pp0.w, n.x*uParams[3]*uScale.y*aNormal.w*pp0.w, 0.0)), 0.0);\n'+
-        '}\n'+
-    '}';
-
-GpuShaders.etplineVertexShader = // textured pixel line elements
-    'attribute vec4 aPosition;\n'+
-    'attribute vec4 aNormal;\n'+
-    'attribute float aElement;\n'+
-    'uniform mat4 uMVP;\n'+
-    'uniform vec2 uScale;\n'+
-    'uniform vec4 uParams;\n'+
-    'varying float vElement;\n'+
-    'void main(){ \n'+
-        'vec4 pp0 = (uMVP * vec4(aPosition.xyz, 1.0));\n'+
-        'vElement = aElement;\n'+
         'if (aNormal.w == 0.0) {\n'+
             'gl_Position = pp0 + vec4((vec3(aNormal.x*uParams[3]*uScale.x*pp0.w, aNormal.y*uParams[3]*uScale.y*pp0.w, 0.0)), 0.0);\n'+
         '} else {\n'+
@@ -621,25 +560,6 @@ GpuShaders.text2FragmentShader = 'precision mediump float;\n'+
         'if(alpha < 0.01){ discard; }\n'+
         'gl_FragColor = vec4(uColor.rgb, alpha);\n'+
     '}';
-
-GpuShaders.skydomeVertexShader =
-    'attribute vec3 aPosition;\n'+
-    'attribute vec2 aTexCoord;\n'+
-    'uniform mat4 uMVP;\n'+
-    'varying vec2 vTexCoord;\n'+
-    'void main(){ \n'+
-        'gl_Position = uMVP * vec4(aPosition, 1.0);\n'+
-        'vTexCoord = aTexCoord;\n'+
-    '}';
-
-
-GpuShaders.stardomeFragmentShader = 'precision mediump float;\n'+
-    'uniform sampler2D uSampler;\n'+
-    'varying vec2 vTexCoord;\n'+
-    'void main() {\n'+
-        'gl_FragColor = texture2D(uSampler, vTexCoord);\n'+
-    '}';
-
 
 GpuShaders.quadPoint =
     'vec3 quadPoint(int i1, int i2, int i3, float t, float t2) {\n'+
