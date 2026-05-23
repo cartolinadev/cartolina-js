@@ -114,12 +114,69 @@ export default class Map {
     getSelectionPosition(): MapPosition;
     markDirty(): void;
 
+    /**
+     * Called before tile descent begins.
+     *
+     * If freeze mode is active, installs the frozen selection camera
+     * so that culling and texel-size tile selection use the snapshot
+     * position rather than the live navigation position.
+     */
     beforeTileSelection(): void;
+
+    /**
+     * Called before the selected tile buffer is drawn to the screen.
+     *
+     * If freeze mode is active, switches to the live camera for final
+     * rendering and returns the live camera position. Otherwise
+     * returns `cameraPos` unchanged.
+     *
+     * @param cameraPos Camera position from the tile traversal.
+     * @returns Camera position to use for tile rendering.
+     */
     beforeSelectedTileDraw(cameraPos: [number, number, number]):
         [number, number, number];
+
+    /**
+     * Called after the selected tile buffer has been drawn.
+     *
+     * If freeze mode is active, restores the frozen selection camera
+     * so that subsequent passes in the same frame see the selection
+     * context.
+     */
     afterSelectedTileDraw(): void;
+
+    /**
+     * Called at the end of a complete frame draw pass.
+     *
+     * If freeze mode is active, restores the live camera so that
+     * navigation and UI updates for the next frame see the current
+     * position.
+     */
     afterFrameDraw(): void;
+
+    /**
+     * Runs `callback` with the live navigation camera installed.
+     *
+     * When freeze mode is active, the selection camera is normally in
+     * place during the draw loop. Call this for code that must see
+     * the live position even then, e.g. the freeze-frustum overlay.
+     *
+     * @param callback Code to run under the live camera.
+     * @returns The value returned by `callback`.
+     */
     withNavigationCamera<T>(callback: () => T): T;
+
+    /**
+     * Runs `callback` with the frozen selection camera installed.
+     *
+     * Use for code that must operate in the selection camera's
+     * coordinate space, e.g. depth sampling at the selection
+     * position. When freeze mode is inactive, runs `callback`
+     * without any swap.
+     *
+     * @param callback Code to run under the selection camera.
+     * @returns The value returned by `callback`.
+     */
     withSelectionCamera<T>(callback: () => T): T;
 
     addSrs(id: string, srs: MapSrs): void;

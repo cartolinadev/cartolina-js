@@ -104,7 +104,6 @@ var Core = function(element, config) {
         mapMetricUnits : !(lang == 'en' || lang.indexOf('en-') == 0),
         mapLanguage : lang,
         mapForceFrameTime: 0,
-        mapForcePipeline: 0,
         mapLogGeodataStyles: true,
         mapBenevolentMargins: false,
         mapLabelFreeMargins: [30, 30, 30, 30],
@@ -542,8 +541,6 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.mapShadingSlope = utils.validateBool(value, false); break;
     case 'mapShadingAspect':
         this.config.mapShadingAspect = utils.validateBool(value, false); break;
-    case 'mapForcePipeline':
-        this.config.mapForcePipeline = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapDMapSize':
         this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER); break;
     case 'mapDMapMode':

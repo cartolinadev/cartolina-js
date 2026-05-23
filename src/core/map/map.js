@@ -905,7 +905,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapMobileModeAutodect':         this.config.mapMobileModeAutodect = utils.validateBool(value, false); break;
     case 'mapMobileDetailDegradation':    this.config.mapMobileDetailDegradation = utils.validateNumber(value, 0, Number.MAXINTEGER, 2); break;
     case 'mapNavSamplesPerViewExtent':    this.config.mapNavSamplesPerViewExtent = utils.validateNumber(value, 0.00000000001, Number.MAXINTEGER, 4); break;
-    case 'mapFlatshade':                  this.config.mapFlatshade = utils.validateBool(value, false); if(this.draw){ this.draw.debug.drawWireframe = this.config.mapFlatshade ? 3 : 0; this.dirty = true; } break;
     case 'mapIgnoreNavtiles':             this.config.mapIgnoreNavtiles = utils.validateBool(value, false); break;
     case 'mapAllowHires':                 this.config.mapAllowHires = utils.validateBool(value, true); break;
     case 'mapAllowLowres':                this.config.mapAllowLowres = utils.validateBool(value, true); break;
@@ -950,7 +949,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
     case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
     case 'mapForceFrameTime':             this.config.mapForceFrameTime = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
-    case 'mapForcePipeline':              this.config.mapForcePipeline = utils.validateNumber(value, 0, Number.MAXINTEGER, 0); break;
     case 'mapFeatureGridCells':           this.config.mapFeatureGridCells = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
     case 'mapFeaturesPerSquareInch':      this.config.mapFeaturesPerSquareInch = utils.validateNumber(value, 0.000001, Number.MAXINTEGER, 0); break;
     case 'mapFeaturesSortByTop':          this.config.mapFeaturesSortByTop = utils.validateBool(value, false); break;
@@ -1006,7 +1004,6 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapMobileModeAutodect':         return this.config.mapMobileModeAutodect;
     case 'mapMobileDetailDegradation':    return this.config.mapMobileDetailDegradation;
     case 'mapNavSamplesPerViewExtent':    return this.config.mapNavSamplesPerViewExtent;
-    case 'mapFlatshade':                  return this.config.mapFlatshade;
     case 'mapIgnoreNavtiles':             return this.config.mapIgnoreNavtiles;
     case 'mapAllowHires':                 return this.config.mapAllowHires;
     case 'mapAllowLowres':                return this.config.mapAllowLowres;
@@ -1049,7 +1046,6 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapLanguage':                   return this.config.mapLanguage;
     case 'mapNoTextures':                 return this.config.mapNoTextures;
     case 'mapForceFrameTime':             return this.config.mapForceFrameTime;
-    case 'mapForcePipeline':              return this.config.mapForcePipeline;
     case 'mapFeatureGridCells':           return this.config.mapFeatureGridCells;
     case 'mapFeaturesPerSquareInch':      return this.config.mapFeaturesPerSquareInch;
     case 'mapFeaturesSortByTop':          return this.config.mapFeaturesSortByTop;

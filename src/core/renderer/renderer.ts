@@ -878,10 +878,6 @@ private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
 }
 
 
-initProceduralShaders() {
-    this.init.initProceduralShaders();
-};
-
 updateIllumination(position: MapPosition) {
 
     if (!this.illumination) return;
@@ -2440,8 +2436,6 @@ export type Debug = {
     flagShadingSlope?: boolean;
     flagShadingAspect?: boolean;
     // fields from MapDraw.debug read by the renderer
-    shaderIllumination?: boolean; // TODO: remove when legacy draw path is retired
-    drawWireframe?: number;
     heightmapOnly?: boolean;
     drawBBoxes?: boolean;
     drawEarth?: boolean;
@@ -2451,7 +2445,6 @@ export type Debug = {
     drawHiddenLabels?: boolean;
     meshStats?: boolean;
     maxZoom?: boolean;
-    drawTestData?: number;
     [key: string]: boolean | number | undefined;
 }
 

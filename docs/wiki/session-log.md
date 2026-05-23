@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-05-24 — Dead pipeline and wireframe debug code removed
+
+Removed all code that became unreachable when the draw-command terrain
+pipeline was deleted in 2026-05-21:
+
+- `drawHmapTile` and its recursive callers in `surface-tile.js` (360
+  lines) — the only external call site was in `processDrawCommands`,
+  which no longer exists.
+- `initProceduralShaders` and the eight `progHmapPlane*` programs it
+  compiled, `planeMesh2`, and the two GLSL shader strings
+  (`planeVertex4Shader`, `planeFragmentShader2`) plus helper strings
+  (`getHFNormal`, `getHFNormal2`) that were embedded in them.
+- `drawWireframe`, `drawTestMode`, `drawTestData` debug flags, their
+  key bindings (Shift+W, numpad), and the `debugShader` URL param.
+- `mapFlatshade` config param, setter, getter, and URL entry — its
+  only effect was setting `drawWireframe`.
+- `PIPELINE_BASIC`, `PIPELINE_HMAP`, `PIPELINE_PROCEDURAL` constants,
+  `surface.pipeline` field, `mapForcePipeline` config param with its
+  setter, getter, and URL entry.
+- Ten dead `MapDraw.debug` flags with no render-side readers:
+  `blendHeightmap`, `drawSpaceBBox`, `drawTexelSize`, `drawMaxLod`,
+  `drawLayers`, `drawBoundLayers`, `drawOrder`, `shaderIllumination`,
+  `drawTileCounter`, `ignoreTexelSize`. Associated key bindings and
+  URL param branches removed from `input.js` and `renderer.ts`.
+
+Also added javadoc to the six freeze-mode phase hooks declared in
+`map.d.ts` (`beforeTileSelection`, `beforeSelectedTileDraw`,
+`afterSelectedTileDraw`, `afterFrameDraw`, `withNavigationCamera`,
+`withSelectionCamera`).
+
+Verification: `npx tsc --noEmit` clean; screenshot tests passed for
+`simple-terrain`, `complex-terrain`, and `full-terrain`.
+
 ## 2026-05-23 — Dead legacy renderer shaders removed
 
 Removed legacy shader strings whose only references were unused program

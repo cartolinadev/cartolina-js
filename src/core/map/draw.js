@@ -21,37 +21,24 @@ var MapDraw = function(map) {
 
     this.debug = {
         heightmapOnly : false,
-        blendHeightmap : true,
         drawBBoxes : false,
-        drawSpaceBBox : false,        
         drawMeshBBox : false,
         drawLods : false,
         drawPositions : false,
-        drawTexelSize : false,
-        drawWireframe : 0,
-        drawTestMode : 0,
-        drawTestData : 0,
         drawFaceCount : false,
         drawDistance : false,
-        drawMaxLod : false,
         drawGeodataOnly : false,
         drawTextureSize : false,
         drawNodeInfo : false,
-        drawLayers : true,
-        drawBoundLayers : false,
         drawSurfaces : false,
         drawCredits : false,
-        drawOrder : false,
         drawLabelBoxes : false,
         drawAllLabels : false,
         drawHiddenLabels : false,
-        shaderIllumination : true,
-        drawEarth : true, 
+        drawEarth : true,
         drawGridCells : false,
-        drawTileCounter : 0,
         drawGPixelSize : false,
         debugTextSize : 2.0,
-        ignoreTexelSize : false,
         maxZoom : false
     };
 
@@ -136,9 +123,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     var renderer = this.renderer;
 
     renderer.debugStr = 'AsyncImageDecode: ' + this.config.mapAsyncImageDecode;
-    renderer.dirty = true;
-    renderer.shaderIllumination = this.debug.shaderIllumination;
-    renderer.debug = this.debug; 
+    //renderer.dirty = true;  // no reader found
+    renderer.debug = this.debug;
     renderer.mapHack = map;
     renderer.benevolentMargins = this.config.mapBenevolentMargins;
 
@@ -159,14 +145,13 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.cameraPosition = camera.position;
     renderer.cameraOrientation = map.position.getOrientation();
     renderer.cameraTiltFator = Math.cos(math.radians(renderer.cameraOrientation[1]));
-    renderer.cameraVector = camera.vector; 
+    //renderer.cameraVector = camera.vector;  // no reader found
     renderer.cameraViewExtent = map.position.getViewExtent();
     renderer.cameraViewExtent2 = Math.pow(2.0, Math.max(1.0, Math.floor(Math.log(map.position.getViewExtent()) / Math.log(2))));
     renderer.drawLabelBoxes = this.debug.drawLabelBoxes;
     renderer.drawGridCells = this.debug.drawGridCells;
     renderer.drawAllLabels = this.debug.drawAllLabels;
     renderer.drawHiddenLabels = this.debug.drawHiddenLabels;
-    renderer.debug = this.debug;
     renderer.fmaxDist = Number.NEGATIVE_INFINITY;
     renderer.fminDist = Number.POSITIVE_INFINITY;
 
@@ -193,11 +178,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     this.degradeHorizonTiltFactor = 0.5*(1.0+Math.cos(math.radians(Math.min(180,Math.abs(renderer.cameraOrientation[1]*2*3)))));
    
     if (this.drawChannel != 1) {
-        if (debug.drawWireframe == 2) {
-            gpu.clearColorAndDepth([255,255,255,255]);
-        } else {
-            gpu.clearColorAndDepth([0,0,0,255]);
-        }
+        gpu.clearColorAndDepth([0,0,0,255]);
     } else { //render depth map
         gpu.clearDepth();
     }
@@ -224,6 +205,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         renderer.draw.clearJobBuffer();
     }
 
+    // draw background (skydome)
     if (this.drawChannel === 0 && map.isAtmospheric())
         this.renderer.drawBackground();
 
@@ -233,13 +215,13 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         //console.log('debug.drawEarth');
 
+        // make sure we use selection context when position is frozen by inspector
         map.beforeTileSelection();
         
         for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
             this.tileBuffer[i] = null;    
         }
     
-
         // the hot path - draw mesh tiles
         if (this.tree.surfaceSequence.length > 0) {
             //console.log("here7");
@@ -281,11 +263,9 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
     // drawGPUJobs needs these
     var navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
-    var earthRadius =  navigationSrsInfo['a'];
-    var earthRadius2 =  navigationSrsInfo['b'];
-    renderer.earthRadius = earthRadius;
-    renderer.earthRadius2 = earthRadius2;
-    renderer.earthERatio = earthRadius / earthRadius2;
+    renderer.earthRadius =  navigationSrsInfo['a'];
+    renderer.earthRadius2 =  navigationSrsInfo['b'];
+    renderer.earthERatio = renderer.earthRadius / renderer.earthRadius2;
 
     if (this.drawChannel == 0
             && map.core.inspector
@@ -319,6 +299,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }
     }
 
+    // restore navigation context if inspector has frozen position
     map.afterFrameDraw();
 };
 

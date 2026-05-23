@@ -103,20 +103,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progLabel128 = new GpuProgram(gpu, '#define DSIZE 128\n' + shaders.icon3VertexShader, shaders.text2FragmentShader); 
 };
 
-RendererInit.prototype.initProceduralShaders = function() {
-    var shaders = GpuShaders;
-    var renderer = this.renderer;
-    var gpu = this.gpu;
-    renderer.progHmapPlane = new GpuProgram(gpu, shaders.planeVertex4Shader, shaders.planeFragmentShader2);
-    renderer.progHmapPlane2 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define grid\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane3 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define exmap\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane4 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define flat\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane5 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define normals\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane6 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define nmix\n#define normals\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane7 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define nmix\n' + shaders.planeFragmentShader2);
-    renderer.progHmapPlane8 = new GpuProgram(gpu, shaders.planeVertex4Shader, '#define exmap\n#define classmap\n' + shaders.planeFragmentShader2);
-}
-
 RendererInit.prototype.initHeightmap = function() {
     var renderer = this.renderer;
     var use16Bit = renderer.core.config.map16bitMeshes;
@@ -128,9 +114,6 @@ RendererInit.prototype.initHeightmap = function() {
 
     meshData = RendererGeometry.buildPlane(16, true);
     renderer.planeMesh = new GpuMesh(gpu, meshData, this.core, use16Bit, false);
-
-    meshData = RendererGeometry.buildPlane(128, true);
-    renderer.planeMesh2 = new GpuMesh(gpu, meshData, this.core, use16Bit, false);
 
     // create heightmap texture
     var size = 64;

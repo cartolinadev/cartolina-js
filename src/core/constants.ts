@@ -1,9 +1,5 @@
 // a list of obsolete vts constants, automatically created from the old version of webpack.config.json
 
-export const PIPELINE_BASIC = 0;
-export const PIPELINE_HMAP = 1;
-export const PIPELINE_PROCEDURAL =2;
-
 export const DRAWCOMMAND_GEODATA = 3;
 
 export const TEXTURECHECK_METATILE = 1;

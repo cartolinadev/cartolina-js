@@ -282,16 +282,13 @@ export default class InspectorInput {
                     case 70: case 102:  debug.drawFaceCount = !debug.drawFaceCount; break;  // f
                     case 71: case 103:  debug.drawGeodataOnly = !debug.drawGeodataOnly; break;  // g
                     case 68: case 100:  debug.drawDistance = !debug.drawDistance; break;  // d
-                    case 86: case 118:  debug.drawSpaceBBox = !debug.drawSpaceBBox; break;  // v
                     case 78: case 110:  debug.drawNodeInfo = !debug.drawNodeInfo; break;  // n
                     case 77: case 109:  debug.drawMeshBBox = !debug.drawMeshBBox; break;  // m
                     case 73: case 105:  debug.drawIndices = !debug.drawIndices; break;  // i
-                    case 66: case 98:   debug.drawBoundLayers = !debug.drawBoundLayers; break;  // b
                     case 82: case 114:  debug.drawResources = !debug.drawResources; break;  // r
                     case 83: case 115:  debug.drawSurfaces = !debug.drawSurfaces; break;  // s
                     case 90: case 122:  debug.drawSurfaces2 = !debug.drawSurfaces2; break;  // z
                     case 67: case 99:   debug.drawCredits = !debug.drawCredits; break;  // c
-                    case 79: case 111:  debug.drawOrder = !debug.drawOrder; break;  // o
                     case 69: case 101:  // e
                         debug.debugTextSize = (debug.debugTextSize == 2.0) ? 3.0 : 2.0;
                         break;
@@ -343,23 +340,6 @@ export default class InspectorInput {
                         inspector.resetFreezeView();
                         hit = true;
                     }
-                }
-            }
-
-            // wireframe test-data: numpad 0–9, active whenever wireframe is visible
-            if (debug.drawWireframe && !press) {
-
-                if (keyCode >= 96 && keyCode <= 105) {
-
-                    if (this.altDown) {
-
-                        debug.drawTestData = keyCode - 96;
-                        if (this.ctrlDown) debug.drawTestData += 10;
-                    } else {
-
-                        debug.drawTestMode = keyCode - 96;
-                    }
-                    hit = true;
                 }
             }
 
@@ -485,15 +465,6 @@ export default class InspectorInput {
                 case 75: case 107:  // Shift+K — all labels
                     debug.drawAllLabels = !debug.drawAllLabels; hit = true; break;
 
-                case 73: case 105:  // Shift+I — shader illumination (legacy CPU-level gate)
-                    debug.shaderIllumination = !debug.shaderIllumination;
-                    hit = true; break;
-
-                case 87: case 119:  // Shift+W — wireframe cycle (0→1→2→0)
-                    debug.drawWireframe = (debug.drawWireframe >= 2)
-                        ? 0 : debug.drawWireframe + 1;
-                    hit = true; break;
-
                 case 85: case 117:  // Shift+U — super elevation toggle
                     map.renderer.setSuperElevationState(
                         !map.renderer.useSuperElevation);
@@ -566,14 +537,11 @@ export default class InspectorInput {
             if (has('G')) debug.drawGeodataOnly = true;
             if (has('D')) debug.drawDistance = true;
             if (has('N')) debug.drawNodeInfo = true;
-            if (has('V')) debug.drawSpaceBBox = true;
             if (has('M')) debug.drawMeshBBox = true;
             if (has('I')) debug.drawIndices = true;
-            if (has('B')) debug.drawBoundLayers = true;
             if (has('S')) debug.drawSurfaces = true;
             if (has('Z')) debug.drawSurfaces2 = true;
             if (has('C')) debug.drawCredits = true;
-            if (has('O')) debug.drawOrder = true;
             if (has('E')) debug.debugTextSize = 3.0;
             if (has('K')) debug.drawGPixelSize = true;
             this.subMode = 'tileBBox';
@@ -581,7 +549,6 @@ export default class InspectorInput {
         }
         case 'debugLBox':      debug.drawLabelBoxes = getBool(); break;
         case 'debugNoEarth':   debug.drawEarth = !getBool(); break;
-        case 'debugShader':    debug.drawWireframe = parseInt(value); break;
         case 'debugHeightmap': debug.heightmapOnly = getBool(); break;
         case 'debugGridCells': debug.drawGridCells = getBool(); break;
         case 'debugRadar': {
