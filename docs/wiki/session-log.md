@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-05-23 — OGC 3D Tiles RFC: review round 3
+
+Review round 3 found two blockers and one non-blocking note.
+
+Blocker 1: `progWireFrameBasic[SE]` were listed in the round-2
+"not removable" note but are already broken in `draw.js`. `init.js`
+initializes `progWireFrameBasic` as a variant array; `draw.js` passes
+it to `gpu.useProgram` as a direct `GpuProgram`. `progWireFrameBasicSE`
+is never initialized. The branch is guarded by `drawPolyWires`, which
+defaults to false. The only working caller of the array form is
+`mesh.js:drawSubmesh` (the octree path). §3.3 now deletes both
+programs, `GpuShaders.tileWireFrameBasicShader`, and the `draw.js`
+`drawPolyWires` debug branch together. `progCFlatShadeTile[SE]` and
+the tile shader strings still survive.
+
+Blocker 2: §4 verification commands used `grep -r src/ test/ demos/`
+(pattern and path swapped). Fixed to `rg -n PATTERN src test demos`
+with alternation groups.
+
+Non-blocking 3: Status line was `In review (round 2 responded)`,
+which no longer matched the defined lifecycle values. Restored to
+`In review`.
+
 ## 2026-05-23 — OGC 3D Tiles RFC: review round 2
 
 Review round 2 found two blockers and two non-blocking notes.

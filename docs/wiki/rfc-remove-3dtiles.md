@@ -1,6 +1,6 @@
 # RFC: remove the OGC 3D Tiles / VTS octree pipeline
 
-**Status:** In review (round 2 responded)
+**Status:** In review
 **Elevates:** "REFACTOR: remove OGC 3D Tiles streaming mechanism" and
 "REFACTOR: delete legacy tile shader family" in
 [backlog.md](backlog.md)
@@ -135,10 +135,13 @@ octree tileset is served by any infrastructure this project connects to.
 **It blocks removal of the legacy tile shader family.** The only
 remaining callers of `MapMesh.drawSubmesh()` with `MATERIAL_INTERNAL`
 are in `GpuGroup.drawMesh()`, which is part of the octree mesh rendering
-path. Deleting the octree pipeline makes the entire legacy tile shader
-family (`progTile`, `progTile2`, `progTile3`, and their variants,
-`tileVertexShader`, `tileFragmentShader`, `MapMesh.drawSubmesh`,
-`MapMesh.generateTileShader`) removable as a follow-on step.
+path. Deleting the octree pipeline makes most of the legacy tile shader
+family removable as a follow-on step: `progTile`, `progTile2`,
+`progTile3`, `progDepthTile`, `progFogTile`, `progFlatShadeTile`,
+`progWireFrameBasic`, `MapMesh.drawSubmesh`, and
+`MapMesh.generateTileShader`. `progCFlatShadeTile` and the shared
+`tileVertexShader`/`tileFragmentShader` strings survive until the
+geodata polygon flat-shading path is migrated.
 
 ---
 
@@ -282,25 +285,40 @@ family (`progTile`, `progTile2`, `progTile3`, and their variants,
 
 ### 3.3 Follow-on: legacy tile shader family
 
-Once the octree mesh path is gone, verify with `grep` that no callers
+Once the octree mesh path is gone, verify with `rg` that no callers
 of `MapMesh.drawSubmesh()` remain outside `mesh.js` itself. If none
 remain, delete:
 
 - `MapMesh.prototype.drawSubmesh`
 - `MapMesh.prototype.generateTileShader`
 - `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
-  `progFogTile`, `progFlatShadeTile`, `progFlatShadeTileSE`, and
-  their variant arrays from `renderer.ts` and `init.js`
+  `progFogTile`, `progFlatShadeTile`, `progFlatShadeTileSE`,
+  `progWireFrameBasic`, `progWireFrameBasicSE`, and their variant
+  arrays from `renderer.ts` and `init.js`
+- `GpuShaders.tileWireFrameBasicShader`
 - `MATERIAL_INTERNAL` from `constants.ts`
+- The `drawPolyWires` debug branch in `src/core/renderer/draw.js`
+  (~lines 1311–1332) together with its `progWireFrameBasic[SE]`
+  references
+- `drawPolyWires: false` from the debug object defaults in
+  `src/core/map/draw.js`
+- The `W/w` `drawPolyWires` toggle in `src/core/inspector/input.js`
+
+`progWireFrameBasic[SE]` can be deleted here because the only working
+caller is `mesh.js:drawSubmesh` (the octree path being removed). The
+`draw.js` debug branch at line 1315 references these programs but is
+already broken: `progWireFrameBasic` is initialized as a variant array
+and used there as a direct `GpuProgram`, and `progWireFrameBasicSE`
+is never initialized. The branch is guarded by `drawPolyWires`, which
+defaults to false.
 
 **Not removable in this pass:**
-`progCFlatShadeTile`, `progCFlatShadeTileSE`, `progWireFrameBasic`,
-and `progWireFrameBasicSE` are still used by `src/core/renderer/draw.js`
-for geodata polygon flat-shading and polygon debug wire drawing.
-Because those programs are built from `GpuShaders.tileVertexShader`
-and `GpuShaders.tileFragmentShader`, the shared tile shader strings
-cannot be deleted here either. They survive until the geodata polygon
-rendering path is migrated to a dedicated shader.
+`progCFlatShadeTile` and `progCFlatShadeTileSE` are still used by
+`src/core/renderer/draw.js` for geodata polygon flat-shading (the
+working, non-debug path at ~line 1258). Because those programs compile
+against `GpuShaders.tileVertexShader` and `GpuShaders.tileFragmentShader`,
+those shared shader strings survive until the geodata polygon rendering
+path is migrated to a dedicated shader.
 
 The remaining terrain renderer must be `TileRenderRig`. Run the full
 test suite and screenshot regression tests after this pass.
@@ -309,32 +327,36 @@ test suite and screenshot regression tests after this pass.
 
 ## 4. Verification
 
-Scope all grep checks to `src/`, `test/`, and `demos/` — the RFC
-itself, backlog, and session log retain historical references and are
-not subject to these checks.
+Scope all checks to `src/`, `test/`, and `demos/` — the RFC itself,
+backlog, and session log retain historical references by design and
+are not subject to these checks.
 
-After the main deletion pass, confirm with `grep -r src/ test/ demos/`
-that no references remain to:
+After the main deletion pass, confirm no references remain to the
+following terms by running one `rg` call per group:
 
-```
-tiles3d        3DTiles        direct-3dtiles
-vts-tree       pointcloud     JOB_MESH
-JOB_POINTCLOUD WORKER_TYPE_MESH WORKER_TYPE_LOAD_NODE
-WORKER_TYPE_NODE_BEGIN WORKER_TYPE_NODE_END
-mapTraverseToMeshNode mapSplitLods
-drawNBBoxes    drawOctants
-```
-
-After the shader family pass (§3.3), confirm no references remain to:
-
-```
-drawSubmesh    generateTileShader    progTile
-progDepthTile  MATERIAL_INTERNAL
+```sh
+rg -n "tiles3d|3DTiles|direct-3dtiles|vts-tree" src test demos
+rg -n "JOB_MESH|JOB_POINTCLOUD" src test demos
+rg -n "WORKER_TYPE_MESH|WORKER_TYPE_LOAD_NODE|\
+WORKER_TYPE_NODE_BEGIN|WORKER_TYPE_NODE_END" src test demos
+rg -n "mapTraverseToMeshNode|mapSplitLods" src test demos
+rg -n "drawNBBoxes|drawOctants" src test demos
 ```
 
-(`tileVertexShader` and `tileFragmentShader` are expected to remain
-in `src/` because `progCFlatShadeTile` and `progWireFrameBasic` still
-use them — see §3.3.)
+(`pointcloud` is a common English word; search the compound forms
+`getPointCloud\|JOB_POINTCLOUD` rather than the bare token.)
+
+After the shader family pass (§3.3), confirm no references remain:
+
+```sh
+rg -n "drawSubmesh|generateTileShader" src test demos
+rg -n "progTile|progDepthTile|progFogTile|progFlatShadeTile|\
+progWireFrameBasic" src test demos
+rg -n "MATERIAL_INTERNAL|drawPolyWires" src test demos
+```
+
+(`tileVertexShader` and `tileFragmentShader` are expected to survive
+in `src/` because `progCFlatShadeTile` still uses them — see §3.3.)
 
 Then run `npx tsc --noEmit` and the canonical screenshot checks
 `simple-terrain`, `complex-terrain`, and `full-terrain`.
@@ -520,3 +542,58 @@ of this project. Not recommended.
    bounding boxes) is unrelated and stays. §3.2 now lists all of
    these across `group.js`, `map.js`, `url-config.ts`, `core.js`,
    `draw.js`, `inspector/input.js`, and `renderer.ts`.
+
+---
+
+## Review round 3
+
+1. Blocker: define how polygon debug wire drawing survives after
+   `MapMesh.generateTileShader()` is deleted. Section 3.3 says
+   `progWireFrameBasic` and `progWireFrameBasicSE` stay because
+   `src/core/renderer/draw.js` uses them. The current initialization in
+   `src/core/renderer/init.js` creates `progWireFrameBasic` as a variant
+   array, not as the direct `GpuProgram` that `draw.js` expects.
+   `progWireFrameBasicSE` is not initialized there at all. The
+   super-elevation variant is currently tied to the same dynamic variant
+   mechanism that `generateTileShader()` owns. The RFC should either
+   replace polygon debug wire drawing with dedicated non-tile programs,
+   remove that debug branch with this pass, or state the exact program
+   initialization that remains after `generateTileShader()` is gone.
+
+   *Implemented.* The previous `§3.3` note about `progWireFrameBasic[SE]`
+   surviving was wrong. Tracing the call sites:
+   `mesh.js:drawSubmesh` (~line 867) uses `progWireFrameBasic[v]`
+   with `generateTileShader` — this is inside the octree code and
+   disappears with `drawSubmesh`. The `draw.js` branch at line 1315
+   is the only other call site, and it is already broken: `init.js`
+   creates `progWireFrameBasic` as a variant array but `draw.js`
+   passes it to `gpu.useProgram` as a direct `GpuProgram`, and
+   `progWireFrameBasicSE` is never initialized at all. The branch is
+   guarded by `drawPolyWires`, which defaults to false.
+   `§3.3` now deletes `progWireFrameBasic`, `progWireFrameBasicSE`,
+   `GpuShaders.tileWireFrameBasicShader`, and the `drawPolyWires`
+   debug branch in `draw.js` together with the wireframe programs.
+   `progCFlatShadeTile[SE]` and the shared tile shader strings still
+   survive to a later pass (legitimate, non-broken use by the geodata
+   polygon flat-shading path).
+
+2. Blocker: make the verification command syntactically executable.
+   Section 4 says `grep -r src/ test/ demos/`, but `grep -r` expects the
+   pattern before the paths. Use `rg -n "<pattern>" src test demos`, or
+   give one combined alternation command per check set. If generated
+   performance results under `test/perf/results/` are not part of the
+   source-bearing surface, exclude that directory.
+
+   *Implemented.* §4 now gives one `rg -n PATTERN src test demos`
+   call per check group with alternation syntax. The note about
+   `pointcloud` being a bare English word is addressed by searching
+   `getPointCloud\|JOB_POINTCLOUD` instead.
+
+3. Non-blocking: restore the status line to one lifecycle value. The
+   project RFC lifecycle defines `Draft`, `In review`, `Accepted`, and
+   `Implemented`. `**Status:** In review (round 2 responded)` is clear
+   to a human, but it no longer matches the table in `AGENTS.md`.
+   Keep the status as `In review` and let the latest review section show
+   which round is open.
+
+   *Implemented.* Status restored to `In review`.
