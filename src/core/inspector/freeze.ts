@@ -9,44 +9,10 @@
 import type Renderer from '../renderer/renderer';
 import type MapPosition from '../map/position';
 import type FreezeCameraState from '../map/freeze-camera-state';
-import type {
-    FrozenCameraState,
-} from '../map/freeze-camera-state';
+import type LegacyMap from '../map/map';
 
 
 type DepthSample = [boolean, number];
-
-type FreezeMap = {
-    camera: { update(): void };
-    draw: {
-        freeze: FreezeCameraState;
-    };
-    hitMapDirty: boolean;
-    position: MapPosition;
-    referenceFrame: {
-        division: {
-            extents: {
-                ll: [number, number, number];
-                ur: [number, number, number];
-            };
-        };
-    };
-    getScreenDepth(
-        x: number,
-        y: number,
-        dilate: number,
-        useGeometricIntersection: boolean,
-        coordinateSpace: Renderer.CoordinateSpace,
-    ): DepthSample;
-    getScreenRay(x: number, y: number): number[];
-    setPosition(position: MapPosition): void;
-    markDirty(): void;
-};
-
-type FreezeCore = {
-    renderer: Renderer;
-    getMap(): FreezeMap | null;
-};
 
 
 /**
@@ -63,15 +29,12 @@ export class FreezeMode {
     private resetBtn_: HTMLElement | null = null;
     private statusEl_: HTMLElement | null = null;
 
-    constructor(private readonly core: FreezeCore) {}
-
     /**
      * Snapshot the current culling camera and create freeze controls.
+     *
+     * @param map legacy terrain engine for the current loaded map
      */
-    enter(): void {
-
-        const map = this.core.getMap();
-        if (!map) return;
+    enter(map: LegacyMap): void {
 
         map.camera.update();
         this.navPosition_ = map.position.clone();
@@ -86,13 +49,12 @@ export class FreezeMode {
 
     /**
      * Disable freeze mode and remove its DOM controls.
+     *
+     * @param map legacy terrain engine for the current loaded map
      */
-    exit(): void {
-
-        const map = this.core.getMap();
+    exit(map: LegacyMap | null): void {
 
         if (map) {
-
             map.draw.freeze.deactivate();
             map.markDirty();
         }
@@ -111,13 +73,16 @@ export class FreezeMode {
 
     /**
      * Toggle the frozen-camera frustum pyramid.
+     *
+     * @param map legacy terrain engine for the current loaded map
+     * @param renderer renderer used to sample the current viewport size
      */
-    toggleFrustum(): void {
+    toggleFrustum(map: LegacyMap | null, renderer: Renderer): void {
 
         this.drawFrustum = !this.drawFrustum;
-        if (this.drawFrustum) {
+        if (this.drawFrustum && map) {
 
-            this.captureFrustum();
+            this.captureFrustum(map, renderer);
         } else {
 
             this.frustumApex = null;
@@ -129,26 +94,27 @@ export class FreezeMode {
 
     /**
      * Compute the frozen-camera pyramid from five depth samples.
+     *
+     * @param map legacy terrain engine for the current loaded map
+     * @param renderer renderer used to sample the current viewport size
      */
-    captureFrustum(): void {
+    captureFrustum(map: LegacyMap, renderer: Renderer): void {
 
-        const map = this.core.getMap();
         const selectionState = map?.draw.freeze.selectionCameraState ?? null;
         if (!map || !selectionState) return;
 
-        const renderer: Renderer = this.core.renderer;
         const [w, h] = renderer.getCanvasSize();
         const samples: [number, number][] = [
-            [1, 1],
-            [w - 1, 1],
-            [w - 1, h - 1],
-            [1, h - 1],
+            [0, 0],
+            [w, 0],
+            [w, h],
+            [0, h],
             [w * 0.5, h * 0.5],
         ];
 
         const hits = map.draw.freeze.withSelectionCamera(() => {
 
-            map.hitMapDirty = true;
+            map.markDirty();
             return samples.map(([x, y]) =>
                 map.getScreenDepth(x, y, 0, false, 'layout') as DepthSample);
         });
@@ -158,9 +124,12 @@ export class FreezeMode {
                 hit && hit[0] && Number.isFinite(hit[1]))
             .map((hit: DepthSample) => hit[1]);
 
+        const farthestDepth = finiteDepths.length
+            ? Math.max(...finiteDepths)
+            : 0;
         const depth = finiteDepths.length === samples.length
-            ? Math.max(...finiteDepths) * 1.25
-            : this.referenceFrameExtent_(map);
+            ? farthestDepth * 1.25
+            : farthestDepth + this.referenceFrameExtent_(map);
 
         const apex = this.cameraPosition_(selectionState);
         const corners: [number, number][] = [
@@ -173,7 +142,7 @@ export class FreezeMode {
         const base = map.draw.freeze.withSelectionCamera(() =>
             corners.map(([x, y]) => {
 
-                const ray = map.getScreenRay(x, y);
+                const ray = renderer.getScreenRay(x, y, 'layout');
                 return [
                     apex[0] + ray[0] * depth,
                     apex[1] + ray[1] * depth,
@@ -198,22 +167,26 @@ export class FreezeMode {
             + ' | Shift+Z or Esc: exit';
     }
 
-    private referenceFrameExtent_(map: FreezeMap): number {
+    private referenceFrameExtent_(map: LegacyMap): number {
 
-        const ext = map.referenceFrame.division.extents;
+        const ext = map.referenceFrame?.division?.extents;
+        if (!ext) return 0;
+
         const dx = ext.ur[0] - ext.ll[0];
         const dy = ext.ur[1] - ext.ll[1];
         const dz = ext.ur[2] - ext.ll[2];
 
-        return Math.hypot(dx, dy, dz);
+        return Math.max(dx, dy, dz);
     }
 
-    private cameraPosition_(state: FrozenCameraState): number[] {
+    private cameraPosition_(
+        state: FreezeCameraState.CapturedCameraState,
+    ): number[] {
 
         return state.map.position.slice();
     }
 
-    private createResetButton_(map: FreezeMap): HTMLElement {
+    private createResetButton_(map: LegacyMap): HTMLElement {
 
         const btn = document.createElement('button');
         btn.className = 'vts-freeze-reset';

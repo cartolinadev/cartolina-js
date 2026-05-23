@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-05-23 — Freeze frustum follow-up
+
+Moved freeze-frustum drawing before the final geodata label flush so
+geodata label depth checks cannot disturb the overlay after their
+1.5-second hitmap refresh. `FreezeMode` no longer stores `Core`, `Map`,
+`Renderer`, or a map callback; `Inspector` passes the current legacy map
+and renderer at the call sites. Removed the local `FreezeMap` type and
+declared the touched legacy members in `map.d.ts`.
+
+Kept frustum depth selection as: all five samples finite uses the farthest
+sample times 1.25; otherwise the pyramid extends by the reference-frame
+extent beyond the farthest finite sample, or just the extent when no sample
+is finite.
+
 ## 2026-05-23 — Diagnostic freeze mode and camera context bridge
 
 Implemented diagnostic freeze mode behind `Shift+D`, `Shift+Z`. The mode

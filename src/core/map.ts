@@ -11,7 +11,6 @@
  */
 
 import { Core } from './core';
-import type LegacyMap from './map/map';
 import type Renderer from './renderer/renderer';
 import Atmosphere from './map/atmosphere';
 import * as utils from './utils/utils';

@@ -133,23 +133,18 @@ type RendererCameraState = {
     dirty: boolean;
 };
 
-export type FrozenCameraState = {
-    map: MapCameraState;
-    renderer: RendererCameraState;
-};
-
-
 /**
  * Stores the frozen selection camera and swaps legacy camera fields at draw
  * phases. The primary motivation for this module was the diagnostic freeze
  * mode, which needs tile selection to use a frozen camera while navigation
  * and final rendering use the live camera.
  */
-export default class FreezeCameraState {
+class FreezeCameraState {
 
     active = false;
-    selectionCameraState: FrozenCameraState | null = null;
-    private liveCameraState_: FrozenCameraState | null = null;
+    selectionCameraState: FreezeCameraState.CapturedCameraState | null = null;
+    private liveCameraState_: FreezeCameraState.CapturedCameraState | null =
+        null;
 
     constructor(private readonly draw_: FreezeDraw) {}
 
@@ -262,7 +257,7 @@ export default class FreezeCameraState {
         }
     }
 
-    private capture(): FrozenCameraState {
+    private capture(): FreezeCameraState.CapturedCameraState {
 
         const mapCamera = this.draw_.camera;
         const renderCamera = mapCamera.camera;
@@ -314,7 +309,7 @@ export default class FreezeCameraState {
         };
     }
 
-    private restore(state: FrozenCameraState): void {
+    private restore(state: FreezeCameraState.CapturedCameraState): void {
 
         const mapCamera = this.draw_.camera;
         const renderCamera = mapCamera.camera;
@@ -380,3 +375,12 @@ export default class FreezeCameraState {
         return [value[0], value[1], value[2], value[3]];
     }
 }
+
+namespace FreezeCameraState {
+    export type CapturedCameraState = {
+        map: MapCameraState;
+        renderer: RendererCameraState;
+    };
+}
+
+export default FreezeCameraState;

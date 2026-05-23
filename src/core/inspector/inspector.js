@@ -20,7 +20,7 @@ var Inspector = function(core) {
     this.layers = new InspectorLayers(this);
     this.replay = new InspectorReplay(this);
     this.stylesheets = new InspectorStylesheets(this);
-    this.freeze = new FreezeMode(this.core);
+    this.freeze = new FreezeMode();
 
     if (this.core.config.inspector) {
         this.input.init();
@@ -322,13 +322,22 @@ Inspector.prototype.onMapUpdate = function() {
         }
     }
 
-    if (this.freeze.drawFrustum
-            && this.freeze.frustumApex
-            && this.freeze.frustumBase) {
+};
 
+
+Inspector.prototype.hasFreezeFrustum = function() {
+    return this.freeze.active
+            && this.freeze.drawFrustum
+            && this.freeze.frustumApex
+            && this.freeze.frustumBase;
+};
+
+
+Inspector.prototype.drawFreezeFrustum = function() {
+    if (this.hasFreezeFrustum()) {
         var legacyMap = this.core.getMap();
         if (legacyMap) {
-            renderer.drawFrustumPyramid(
+            this.core.renderer.drawFrustumPyramid(
                 this.freeze.frustumApex,
                 this.freeze.frustumBase,
                 legacyMap.camera.position);
@@ -338,12 +347,20 @@ Inspector.prototype.onMapUpdate = function() {
 
 
 Inspector.prototype.enterFreeze = function() {
-    this.freeze.enter();
+    var map = this.core.getMap();
+    if (map) {
+        this.freeze.enter(map);
+    }
 };
 
 
 Inspector.prototype.exitFreeze = function() {
-    this.freeze.exit();
+    this.freeze.exit(this.core.getMap());
+};
+
+
+Inspector.prototype.toggleFreezeFrustum = function() {
+    this.freeze.toggleFrustum(this.core.getMap(), this.core.renderer);
 };
 
 

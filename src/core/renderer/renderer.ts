@@ -546,7 +546,7 @@ programFrustum(): GpuProgram {
         blend: true,
         zwrite: false,
         ztest: true,
-        culling: true
+        culling: false,
     });
 
     return this.programs.frustum;
@@ -581,19 +581,19 @@ drawFrustumPyramid(
     const br = toRenderer(base[2]);
     const bl = toRenderer(base[3]);
     const vertices = new Float32Array([
-        ...a, ...tl, ...tr,
-        ...a, ...tr, ...br,
-        ...a, ...br, ...bl,
-        ...a, ...bl, ...tl,
-        ...tl, ...bl, ...br,
-        ...tl, ...br, ...tr,
+        ...a, ...tr, ...tl,
+        ...a, ...br, ...tr,
+        ...a, ...bl, ...br,
+        ...a, ...tl, ...bl,
+        ...tl, ...br, ...bl,
+        ...tl, ...tr, ...br,
     ]);
 
     const gl = this.gpu.gl;
     this.gpu.setState(this.frustumState_);
     this.gpu.useProgram2(program);
     program.setVec3('uVertices[0]', vertices);
-    program.setVec4('uColor', [1.0, 0.5, 0.5, 0.5]);
+    program.setVec4('uColor', [1.0, 0.5, 0.5, 0.3]);
 
     gl.bindVertexArray(this.frustumVao_);
     gl.drawArrays(gl.TRIANGLES, 0, 18);

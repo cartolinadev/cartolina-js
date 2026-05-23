@@ -500,6 +500,14 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     renderer.earthRadius2 = earthRadius2;
     renderer.earthERatio = earthRadius / earthRadius2;
 
+    if (this.drawChannel == 0
+            && map.core.inspector
+            && map.core.inspector.hasFreezeFrustum()) {
+        this.freeze.withLiveCamera(function() {
+            map.core.inspector.drawFreezeFrustum();
+        });
+    }
+
     // geodata hot path
     if (debug.drawEarth) {
         if (!skipFreeLayers) {

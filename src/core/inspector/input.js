@@ -329,7 +329,7 @@ export default class InspectorInput {
 
                     if (keyCode === 67 || keyCode === 99) {  // c
 
-                        inspector.freeze.toggleFrustum();
+                        inspector.toggleFreezeFrustum();
                         hit = true;
                     }
                 }

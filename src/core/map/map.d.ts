@@ -9,6 +9,7 @@ import type MapSrs from './srs';
 import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
+import type FreezeCameraState from './freeze-camera-state';
 import type Renderer from '../renderer/renderer';
 import type { CoreConfig, NodeInformation } from '../types';
 
@@ -16,6 +17,15 @@ type MapReferenceFrame = (MapRefFrame & {
     id: string;
     body?: MapBody & {
         atmosphere?: Partial<Atmosphere.Specification>;
+    };
+    division?: {
+        rootLod?: unknown;
+        arity?: unknown;
+        heightRange?: unknown;
+        extents?: {
+            ll: [number, number, number];
+            ur: [number, number, number];
+        };
     };
 }) | null;
 
@@ -81,6 +91,10 @@ export default class Map {
     tree: {
         surfaceSequence: SurfaceSequenceItem[];
         surfaceOnlySequence: SurfaceSequenceItem[];
+    };
+
+    draw: {
+        freeze: FreezeCameraState;
     };
 
     measure: {
