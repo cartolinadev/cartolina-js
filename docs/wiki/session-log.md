@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-23 — Current-geometry capture removal
+
+Deleted the undocumented `getCurrentGeometry()` entry point from
+`MapInterface` and the legacy map object. Removed the `storeTilesOnly`
+argument from surface traversal and deleted `storeDrawBufferGeometry()`.
+The mapy.com API check in `compat-mapy-integration.md` records that
+their integration does not call `getCurrentGeometry()`. `storeGeometry()`
+stays because `getSurfaceAreaGeometry()` still uses it for measurement
+geometry.
+
+## 2026-05-23 — Replay inspector and custom mesh demo removal
+
+Deleted the VTS-era replay inspector after freeze mode replaced its tile
+selection diagnostic role. Removed `src/core/inspector/replay.js`,
+`map.draw.replay`, replay capture and display branches in `draw.js`,
+node/tile capture hooks in `surface-tree.js`, load-sequence capture in
+`loader.js`, and the `mapStoreLoadStats` config and URL parameter.
+
+Removed the legacy custom-mesh demos that depended on
+`Renderer.createMesh()` and `Renderer.drawMesh()`. Deleted those two
+public helper methods plus the shaded custom-mesh programs and shader
+strings. `createTexture`, `drawImage`, and `drawLineString` remain
+because inspector radar, measurement UI, ROI code, and other legacy demos
+still call them. The OGC 3D Tiles/geodata mesh path remains separate and
+still uses `GpuGroup.drawMesh()`.
+
 ## 2026-05-23 — Freeze frustum follow-up
 
 Moved freeze-frustum drawing before the final geodata label flush so

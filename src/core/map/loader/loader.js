@@ -274,26 +274,6 @@ MapLoader.prototype.onLoaded = function(item) {
     var index = this.downloading.indexOf(item.id);
     var timer = performance.now();
     var stats = this.map.stats;
-    var recordStats = this.map.draw.replay.storeLoaded;
-
-    if (recordStats) {
-        this.map.draw.replay.loaded.push({
-            url : item.id,
-            kind : item.kind,
-            tile: item.tile,
-            priority : item.priority,
-            time : timer,
-            duration : timer - this.downloadingTime[index],
-            interval : timer - this.lastDownloadTime,
-            threads : this.downloading.length
-        });
-
-        //var a = (timer - this.downloadingTime[index]);
-        //if (Number.isNaN(a)) {
-            //a = a; 
-        //}
-
-    }
 
     this.downloading.splice(index, 1);
     this.downloadingTime.splice(index, 1);
@@ -311,20 +291,6 @@ MapLoader.prototype.onLoadError = function(item) {
     var index = this.downloading.indexOf(item.id);
     var timer = performance.now();
     var stats = this.map.stats;
-    var recordStats = this.map.draw.replay.storeLoaded;
-
-    if (recordStats) {
-        this.map.draw.replay.loaded.push({
-            url : item.id,
-            kind : item.kind,
-            tile: item.tile,
-            priority : item.priority,
-            time : timer,
-            duration : timer - this.downloadingTime[index],
-            interval : timer - this.lastDownloadTime,
-            threads : this.downloading.length
-        });
-    }
 
     this.downloading.splice(index, 1);
     this.downloadingTime.splice(index, 1);
@@ -385,4 +351,3 @@ MapLoader.prototype.update = function(skipTick) {
 
 
 export default MapLoader;
-

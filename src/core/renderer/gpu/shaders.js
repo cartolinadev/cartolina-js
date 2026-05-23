@@ -1513,56 +1513,6 @@ GpuShaders.tileFragmentShader = 'precision mediump float;\n'+
         // '#endif\n'+
     '}';
 
-
-GpuShaders.shadedMeshVertexShader =
-    'attribute vec3 aPosition;\n'+
-    'attribute vec2 aTexCoord;\n'+
-    'attribute vec3 aNormal;\n'+
-    'uniform mat4 uMV, uProj;\n'+
-    'uniform mat3 uNorm;\n'+
-    'uniform float uFogDensity;\n'+
-    'varying vec2 vTexCoord;\n'+
-    'varying vec4 vPosition;\n'+
-    'varying vec3 vNormal;\n'+
-    'varying float vFogFactor;\n'+
-    'void main() {\n'+
-        'vec4 camSpacePos = uMV * vec4(aPosition, 1.0);\n'+
-        'gl_Position = uProj * camSpacePos;\n'+
-        'float camDist = length(camSpacePos.xyz);\n'+
-        'vFogFactor = exp(uFogDensity * camDist);\n'+
-        'vTexCoord = aTexCoord;\n'+
-        'vPosition = camSpacePos;\n'+
-        'vNormal = aNormal * uNorm;\n'+
-    '}';
-
-
-GpuShaders.shadedMeshFragmentShader = 'precision mediump float;\n'+
-    '#ifdef textured\n'+
-        'uniform sampler2D uSampler;\n'+
-        'varying vec2 vTexCoord;\n'+
-    '#endif\n'+
-    'varying vec4 vPosition;\n'+
-    'varying vec3 vNormal;\n'+
-    'uniform mat4 uMaterial;\n'+
-    'varying float vFogFactor;\n'+
-    'uniform vec4 uFogColor;\n'+
-    'void main() {\n'+
-        'vec3 ldir = normalize(-vPosition.xyz);\n'+
-        'vec3 normal = normalize(vNormal);\n'+
-        'vec3 eyeDir = ldir;\n'+
-        'vec3 refDir = reflect(-ldir, normal);\n'+
-        'float specW = min(1.0, pow(max(dot(refDir, eyeDir), 0.0), uMaterial[3][0]));\n'+
-        'float diffW = min(1.0, max(dot(normal, ldir), 0.0));\n'+
-        'vec4 lcolor = uMaterial[0]+(uMaterial[1]*diffW)+(uMaterial[2]*specW);\n'+
-        '#ifdef textured\n'+
-            'vec4 tcolor = texture2D(uSampler, vTexCoord);\n'+
-            'gl_FragColor = mix(uFogColor, vec4(lcolor.xyz*(1.0/255.0), 1.0) * tcolor, vFogFactor); gl_FragColor.w *= uMaterial[3][1];\n'+
-        '#else\n'+
-            'gl_FragColor = mix(uFogColor, vec4(lcolor.xyz*(1.0/255.0), 1.0), vFogFactor);  gl_FragColor.w = uMaterial[3][1];\n'+
-        '#endif\n'+
-
-    '}';
-
 GpuShaders.tileWireFrameBasicShader = 'precision mediump float;\n'+
     'uniform vec4 uColor;\n'+
     'void main() {\n'+

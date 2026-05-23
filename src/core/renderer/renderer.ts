@@ -2185,7 +2185,7 @@ getFont(url: string) {
 
 // -------------------------------------------------------------------------
 // Inspector scripting API — promoted from the legacy RendererInterface
-// wrapper. These methods are used by the inspector and replay subsystem.
+// wrapper.
 // -------------------------------------------------------------------------
 
 /**
@@ -2233,132 +2233,6 @@ createTexture(options: any): GpuTexture | null {
 }
 
 /**
- * Create a GPU mesh from vertex, UV, and normal data.
- *
- * Called from `replay.js` to reconstruct frustum mesh geometry
- * for the camera visualisation in the inspector replay view.
- *
- * @param options `{ vertices, uvs, normals, vertexSize, uvSize,
- *   normalSize?, vertexAttr?, uvAttr?, normalAttr?, bbox? }`
- * @returns new `GpuMesh`, or null if options are invalid
- */
-createMesh(options: any): GpuMesh | null {
-
-    if (options == null || typeof options !== 'object') return null;
-
-    const data = {
-        vertices:   new Float32Array(options['vertices']),
-        uvs:        new Float32Array(options['uvs']),
-        uvs2:       new Float32Array(options['normals']),
-        vertexSize: options['vertexSize'],
-        uvSize:     options['uvSize'],
-        uv2Size:    options['normalSize'] || 3,
-        vertexAttr: options['vertexAttr'],
-        uvAttr:     options['uvAttr'],
-        uv2Attr:    options['normalAttr'],
-        bbox:       options['bbox'],
-    };
-
-    return new GpuMesh(this.gpu, data, this.core);
-}
-
-
-
-/**
- * Draw a mesh with explicit shader variables.
- *
- * Used by the debug inspector to render the frustum mesh
- * camera visualisation overlay.
- *
- * @param options `{ mesh, shader?, texture?, shaderVariables,
- *   vertex?, uv?, normal?, depthOffset? }`
- */
-drawMesh(options: any): void {
-
-    if (options == null || typeof options !== 'object') return;
-    if (!options['mesh'] || !options['shaderVariables']) return;
-
-    const vertexAttr  = options['vertex'] || 'aPosition';
-    const uvAttr      = options['uv']     || 'aTexCoord';
-    let uv2Attr       = options['normal'] || 'aNormal';
-    const depthOffset = options['depthOffset'] ?? null;
-
-    const shaderVariables = options['shaderVariables'];
-    let shader = options['shader'] || 'textured';
-
-    const mesh    = options['mesh'];
-    const texture = options['texture'];
-    const mv      = this.camera.getModelviewMatrix();
-    const proj    = this.camera.getProjectionMatrix();
-    const fogDensity = this.fogDensity;
-
-    if (typeof shader === 'string') {
-
-        switch (shader) {
-
-        case 'hit':
-            shaderVariables['uMV']   ||= ['mat4', mv];
-            shaderVariables['uProj'] ||= ['mat4', proj];
-            shader = (this as any).progDepthTile[0];
-            uv2Attr = null;
-            break;
-
-        case 'shaded':
-            uv2Attr = null;
-            // falls through
-        case 'textured':
-        case 'textured-and-shaded':
-            shaderVariables['uMV']         ||= ['mat4', mv];
-            shaderVariables['uProj']       ||= ['mat4', proj];
-            shaderVariables['uFogDensity'] ||= ['float', fogDensity];
-            uv2Attr = (shader === 'textured') ? null : 'aNormal';
-            shader  = (shader === 'textured')
-                ? (this.progTile as any)[0]
-                : (shader === 'shaded'
-                    ? (this as any).progShadedTile
-                    : (this as any).progTShadedTile);
-            break;
-        }
-    }
-
-    if (!shader || !(shader as any).isReady()) return;
-
-    const attributes: string[] = [vertexAttr];
-    if (uvAttr)  attributes.push(uvAttr);
-    if (uv2Attr) attributes.push(uv2Attr);
-
-    this.gpu.useProgram(shader as any, attributes, false);
-
-    for (const key in shaderVariables) {
-
-        const item = shaderVariables[key];
-        if (item.length !== 2) continue;
-
-        switch (item[0]) {
-        case 'floatArray': shader.setFloatArray(key, item[1]); break;
-        case 'float':      shader.setFloat(key, item[1]); break;
-        case 'mat3':       shader.setMat3(key, item[1]); break;
-        case 'mat4':
-            if (depthOffset && key === 'uProj') {
-                shader.setMat4(
-                    key, item[1],
-                    this.getZoffsetFactor(depthOffset));
-            } else {
-                shader.setMat4(key, item[1]);
-            }
-            break;
-        case 'vec2':    shader.setVec2(key, item[1]); break;
-        case 'vec3':    shader.setVec3(key, item[1]); break;
-        case 'vec4':    shader.setVec4(key, item[1]); break;
-        case 'sampler': shader.setSampler(key, item[1]); break;
-        }
-    }
-
-    if (texture) this.gpu.bindTexture(texture);
-    mesh.draw(shader, vertexAttr, uvAttr, uv2Attr, null);
-}
-
-/**
  * Draw a textured rectangle at given canvas coordinates.
  *
  * Used by the debug inspector to draw circle markers
@@ -2392,8 +2266,7 @@ drawImage(options: any): void {
 /**
  * Draw a world-space or screen-space polyline.
  *
- * Used by the debug inspector to draw camera frustum lines
- * and control-point grid lines in the replay view.
+ * Used by the debug inspector and measurement UI.
  *
  * @param options `{ points, color?, size?, screenSpace?,
  *   depthOffset?, depthTest?, blend?, writeDepth?, useState? }`

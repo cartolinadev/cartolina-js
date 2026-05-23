@@ -113,33 +113,6 @@ var MapDraw = function(map) {
     this.degradeHorizonFactor = 0;
     this.degradeHorizonTiltFactor = 0;
 
-    this.replay = {
-        camera : null,
-        drawnTiles : null,
-        drawnFreeTiles : null,
-        nodeBuffer : null,
-        tracedNodes : null,
-        tracedFreeNodes : null,
-        storeTiles : false,
-        storeFreeTiles : false,
-        storeNodes : false,
-        storeFreeNodes : false,
-        storeLoaded : this.config.mapStoreLoadStats,
-        drawGlobe : false,
-        drawTiles : false,
-        drawNodes : false,
-        drawFreeTiles : false,
-        drawFreeNodes : false,
-        drawLoaded : false,
-        lod : 30,
-        singleLod : false,
-        loadedIndex : 0,
-        singleLodedIndex : 0,
-        loaded : [],
-        loadFirst : 0,
-        loadLast : 0
-    };
-
     this.freeze = new FreezeCameraState(this);
 
     this.drawTiles = new MapDrawTiles(map, this);
@@ -151,7 +124,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     var map = this.map;
     var renderer = this.renderer;
     var camera = this.camera;
-    var replay = this.replay;
     var gpu = renderer.gpu;
     var debug = this.debug;
 
@@ -177,7 +149,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         case 'fastlinear': this.gridSkipped = false; this.gridFlat = false; this.gridGlues = false; break;
     }
 
-    var drawTiles = this.drawTiles;
     var camInfo = camera.update();
     var renderer = this.renderer;
 
@@ -264,7 +235,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     this.stats.renderBuild = 0;
     this.drawTileCounter = 0;
     var cameraPos = camera.position;
-    var i, li, j, lj, tile, tiles, tmp, layer, drawnTiles, nodeBuffer;
+    var i, li, layer;
     var labelsEnabled = renderer.debug.flagLabels
         ?? map.config.mapFlagLabels;
 
@@ -281,104 +252,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         //console.log('debug.drawEarth');
 
-        if (replay.storeNodes || replay.storeFreeNodes) {
-            replay.nodeBuffer = [];
-        }
-        
-        if (replay.drawGlobe || replay.drawTiles || replay.drawFreeTiles||
-            replay.drawNodes || replay.drawFreeNodes || replay.drawLoaded) { //used only in inspector
-    
-            var lod = replay.lod; 
-            var single = replay.singleLod; 
-    
-            if (replay.drawTiles && replay.drawnTiles) {
-
-                tiles = replay.drawnTiles;
-                for (i = 0, li = tiles.length; i < li; i++) {
-                    tile = Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i];
-                    if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
-                        drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
-                    }
-                }
-            }
-
-            if (replay.drawFreeTiles && replay.drawnFreeTiles) {
-
-                tiles = replay.drawnFreeTiles;
-                for (i = 0, li = tiles.length; i < li; i++) {
-                    tile = Array.isArray(tiles[i]) ? tiles[i][0] : tiles[i];
-                    if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
-                        drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
-                    }
-                }
-            }
-
-            if (replay.drawNodes && replay.tracedNodes) {
-                tiles = replay.tracedNodes;
-                tmp = debug.drawBBoxes;
-                debug.drawBBoxes = true;
-                for (i = 0, li = tiles.length; i < li; i++) {
-                    tile = tiles[i];
-                    if (tile && ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod))) {
-                        drawTiles.drawTileInfo(tile, tile.metanode, cameraPos, tile.surfaceMesh, tile.pixelSize);
-                    }
-                }
-                debug.drawBBoxes = tmp;
-            }
-
-            if (replay.drawFreeNodes && replay.tracedFreeNodes) {
-                tiles = replay.tracedFreeNodes;
-                tmp = debug.drawBBoxes;
-                debug.drawBBoxes = true;  
-                for (i = 0, li = tiles.length; i < li; i++) {
-                    tile = tiles[i];
-                    if ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod)) {
-                        drawTiles.drawTileInfo(tile, tile.metanode, cameraPos, tile.surfaceMesh, tile.pixelSize);
-                    }
-                }
-                debug.drawBBoxes = tmp;
-            }
-    
-            var index = replay.loadedIndex; 
-            var singleIndex = replay.singleLodedIndex; 
-    
-            if (replay.drawLoaded && replay.loaded) {
-                var  loaded = replay.loaded;
-                debug.drawBBoxes = true;  
-                for (i = 0, li = loaded.length; i < li; i++) {
-                    var file = loaded[i];
-                    if (file && file.tile && file.tile.id) {
-                        tile = file.tile;
-                        if (((singleIndex && i == index) || (!singleIndex && i <= index)) &&
-                             ((single && tile.id[0] == lod) || (!single && tile.id[0] <= lod)) ) {
-                            if (tile.metanode) {
-                                if (tile.metanode.hasGeometry()) {
-                                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.pixelSize, tile.priority, false, false);
-                                } else {
-                                    drawTiles.drawTileInfo(tile, tile.metanode, cameraPos, tile.surfaceMesh, tile.pixelSize);
-                                }
-                            }
-                        }
-                    }
-                }
-                debug.drawBBoxes = tmp;
-            }
-    
-            if ((replay.drawFreeTiles && replay.drawnFreeTiles) ||
-                (replay.drawLoaded && replay.loaded)) {
-
-                if (labelsEnabled
-                    && this.freeLayersHaveGeodata
-                    && this.drawChannel == 0) {
-                    renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
-                    renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
-                    renderer.draw.drawGpuJobs(this.map.position);
-                }
-            }
-
-            return;
-        }  // used only in inspector
-
         this.freeze.beforeTileDescent();
         
         for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
@@ -391,38 +264,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
             //console.log("here7");
             this.tree.draw(false);
         }
-    
-        if (replay.storeTiles) { //used only in inspectors
-            drawnTiles = [];
-    
-            for (i = 0, li = this.tileBuffer.length; i < li; i++) {
-                tiles = this.tileBuffer[i];
-               
-                if (tiles) {
-                    for (j = 0, lj = tiles.length; j < lj; j++) {
-                        drawnTiles.push(tiles[j]);
-                    }
-                }
-            }
-            
-            replay.cameraPos = cameraPos; 
-            replay.drawnTiles = drawnTiles;
-            replay.storeTiles = false; 
-        }
-    
-        if (replay.storeNodes) { //used only in inspector
-            nodeBuffer = []; 
-    
-            for (i = 0, li = replay.nodeBuffer.length; i < li; i++) {
-                tile = replay.nodeBuffer[i];
-                nodeBuffer.push(tile);
-            }
-    
-            replay.cameraPos = cameraPos; 
-            replay.tracedNodes = nodeBuffer;
-            replay.storeNodes = false; 
-        }
-    
+
         //draw free layers
         for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
 
@@ -451,42 +293,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
                 this.zbufferOffset = null;
             }
-        }
-    
-        if (replay.storeFreeTiles) { //used only in inspector
-            drawnTiles = [];
-    
-            for (i = 0, li = this.tileBuffer.length; i < li; i++) {
-                tiles = this.tileBuffer[i];
-               
-                if (tiles) {
-                    for (j = 0, lj = tiles.length; j < lj; j++) {
-                        tile = tiles[j];
-                        if (tile.surface && tile.surface.free) { //do no draw free layers
-                            drawnTiles.push(tile);
-                        }
-                    }
-                }
-            }
-            
-            replay.cameraPos = cameraPos; 
-            replay.drawnFreeTiles = drawnTiles;
-            replay.storeFreeTiles = false; 
-        }
-    
-        if (replay.storeFreeNodes) { //used only in inspector
-            nodeBuffer = []; 
-    
-            for (i = 0, li = replay.nodeBuffer.length; i < li; i++) {
-                tile = replay.nodeBuffer[i];
-                if (tile.surface && tile.surface.free) { //do no draw free layers
-                    nodeBuffer.push(tile);
-                }
-            }
-    
-            replay.cameraPos = cameraPos; 
-            replay.tracedFreeNodes = nodeBuffer;
-            replay.storeFreeNodes = false; 
         }
     } // if (debug.drawEarth)
 

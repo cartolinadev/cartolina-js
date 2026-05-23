@@ -61,7 +61,6 @@ var Core = function(element, config) {
         mapGridTextureLevel: -1,
         mapGridTextureLayer: null, // 'bing",
         mapXhrImageLoad : true,
-        mapStoreLoadStats : false,
         mapRefreshCycles : 3,
         mapSoftViewSwitch : true,
         mapSortHysteresis : true,

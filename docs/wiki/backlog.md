@@ -121,23 +121,15 @@ since September 2020.
 
 Once those callers are gone, `MATERIAL_INTERNAL` in `mesh.js` and
 `progTile[v]` in `init.js` / `renderer.ts` also lose their last
-terrain-code consumer and can be removed in the same pass (the only
-remaining caller of `renderer.drawMesh({ shader: 'textured' })` is the
-inspector, which is already scheduled for deletion in the draw-path
-refactor).
-
-### Prerequisite
-
-The draw-path refactor entry below must reach its deletion pass first,
-so that `renderer.drawMesh()` and the inspector are already gone before
-`progTile` is removed.
+terrain-code consumer and can be removed in the same pass. Replay and
+the public custom-mesh demos no longer keep `Renderer.drawMesh()` alive.
 
 ---
 
 ## REFACTOR: delete legacy tile shader family
 
 **Opened:** 2026-05-21
-**Status:** deferred — blocked by replay and geodata mesh removal
+**Status:** deferred — blocked by geodata mesh removal
 
 ### Goal
 
@@ -146,26 +138,25 @@ that still serve non-terrain mesh callers.
 
 ### Preconditions
 
-Do this only after both of these are true:
+Do this only after the OGC 3D Tiles / geodata mesh path is deleted. That
+removes:
 
-- The replay inspector is deleted, including the internal
-  `renderer.drawMesh()` call from `inspector.js`. That call keeps
-  `Renderer.drawMesh()` and its string shader dispatch alive.
-- The OGC 3D Tiles / geodata mesh path is deleted. That removes
-  `nodes[].meshes[]`, `binPath`, `WORKER_TYPE_MESH`, `JOB_MESH`,
-  `GpuGroup.drawMesh()`, and the last non-terrain calls into
-  `MapMesh.drawSubmesh()`.
+- `config.tiles3d` and `direct-3dtiles`
+- `nodes[].meshes[]`, `binPath`, `WORKER_TYPE_MESH`, and `JOB_MESH`
+- `GpuGroup.drawMesh()`
+- the last non-terrain calls into `MapMesh.drawSubmesh()`
+
+Replay and the public custom-mesh demos have already been deleted. They
+no longer keep `Renderer.drawMesh()` or the shaded custom-mesh programs
+alive.
 
 ### What should become removable
 
 - `MapMesh.generateTileShader()`
 - `MapMesh.drawSubmesh()`
-- `Renderer.drawMesh()` if no non-demo caller remains
 - `progTile`, `progTile2`, `progTile3`, `progDepthTile`,
   `progFogTile`, `progFlatShadeTile`, `progCFlatShadeTile`,
   `progWireFrameBasic`, and their variant arrays
-- `progShadedTile` and `progTShadedTile` if replay/custom mesh
-  drawing is gone
 - `GpuShaders.tileVertexShader`
 - `GpuShaders.tileFragmentShader`
 - material constants that exist only for `MapMesh.drawSubmesh()`

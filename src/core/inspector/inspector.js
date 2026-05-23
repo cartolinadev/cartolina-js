@@ -1,12 +1,10 @@
 
-import {mat4} from '../utils/matrix';
 import * as math from '../utils/math';
 import * as utils from '../utils/utils';
 import InspectorInput from './input';
 import InspectorStats from './stats';
 import InspectorGraphs from './graphs';
 import InspectorLayers from './layers';
-import InspectorReplay from './replay';
 import InspectorStylesheets from './stylesheets';
 import {FreezeMode} from './freeze';
 
@@ -18,7 +16,6 @@ var Inspector = function(core) {
     this.stats = new InspectorStats(this);
     this.graphs = new InspectorGraphs(this);
     this.layers = new InspectorLayers(this);
-    this.replay = new InspectorReplay(this);
     this.stylesheets = new InspectorStylesheets(this);
     this.freeze = new FreezeMode();
 
@@ -27,7 +24,6 @@ var Inspector = function(core) {
     }
 
     this.shakeCamera = false; 
-    this.drawReplayCamera = false; 
     this.drawRadar = false;
     this.radarLod = null;
     this.debugValue = 0;
@@ -46,7 +42,6 @@ Inspector.prototype.enableInspector = function() {
         this.stats.init();
         this.graphs.init();
         this.layers.init();
-        this.replay.init();
         this.stylesheets.init();
 
         //load image    
@@ -125,122 +120,7 @@ Inspector.prototype.onMapUpdate = function() {
         map.convertCoordsFromPhysToCanvas(this.measurePoints[0]);
     }*/
 
-    var renderer = this.core.renderer, i, li, j, lj, lines, slines, p;
-
-    if (this.replay.drawGlobe && this.replay.globeTexture && this.replay.globeTexture.loaded) {
-        p = map.convertCoordsFromPhysToCameraSpace([0,0,0]);
-        var renderer2 = this.core.getRenderer();
-        renderer2.draw.drawTBall(p, 12742000 * 0.5, renderer2.progStardome, this.replay.globeTexture, 12742000 * 0.5, true);
-    }
-
-    if (this.replay.drawCamera) {
-        lines = this.replay.cameraLines;
-        slines = []; 
-        //for (i = 0, li = lines.length; i < li; i++) {
-          //  slines.push(map.convertCoordsFromPhysToCanvas(lines[i]));
-        //}
-        
-        renderer.drawLineString({
-            points : lines,
-            size : 2.0,
-            color : [0,128,255,255],
-            depthTest : false,
-            screenSpace : false,
-            blend : false
-        });            
-
-        lines = this.replay.cameraLines3;
-        for (i = 0, li = lines.length; i < li; i++) {
-            slines = []; 
-            for (j = 0, lj = lines[i].length; j < lj; j++) {
-                //slines.push(map.convertCoordsFromPhysToCanvas(lines[i][j]));
-                slines.push(lines[i][j]);
-            }
-
-            renderer.drawLineString({
-                points : slines,
-                size : 2.0,
-                color : [0,255,128,255],
-                depthTest : false,
-                screenSpace : false,
-                blend : false
-            });   
-        }
-
-        lines = this.replay.cameraLines2;
-        for (i = 0, li = lines.length; i < li; i++) {
-            slines = []; 
-            for (j = 0, lj = lines[i].length; j < lj; j++) {
-                //slines.push(map.convertCoordsFromPhysToCanvas(lines[i][j]));
-                slines.push(lines[i][j]);
-            }
-
-            renderer.drawLineString({
-                points : slines,
-                size : 2.0,
-                color : [0,255,255,255],
-                depthTest : false,
-                screenSpace : false,
-                blend : false
-            });   
-        }
-
-
-        var cameInfo = map.getCameraInfo();
-        var p1 = map.convertCoordsFromPhysToCameraSpace(this.replay.cameraLines[0]);
-
-        //var map2 = this.core.getMap();
-    
-        //var m2 = map2.camera.getRotationviewMatrix();
-        var mv = mat4.create(this.replay.cameraMatrix);
-        //mat4.inverse(m2, mv);
-    
-        //matrix which tranforms mesh position and scale
-        /*
-        var mv = [
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            p1[0], p1[1], p1[2], 1
-        ];*/
-        mv[12] = p1[0];
-        mv[13] = p1[1];
-        mv[14] = p1[2];
-    
-        //setup material 
-        var material = [ 
-            255,128,128, 0, //ambient,
-            0,0,0,0, //diffuse
-            0,0,0,0, //specular 
-            0,0.5,0,0 //shininess, alpha,0,0
-        ];
-    
-        //multiply cube matrix with camera view matrix
-        mat4.multiply(cameInfo.viewMatrix, mv, mv);
-    
-        var norm = [
-            0,0,0,
-            0,0,0,
-            0,0,0
-        ];
-    
-        //normal transformation matrix
-        mat4.toInverseMat3(mv, norm);
-    
-        renderer.gpu.setState(this.replay.frustumState);
-    
-        //draw cube
-        renderer.drawMesh({
-            mesh : this.replay.frustumMesh,
-            texture : null,
-            shader : 'shaded',
-            shaderVariables : {
-                'uMV' : ['mat4', mv],
-                'uNorm' : ['mat3', norm],
-                'uMaterial' : ['mat4', material]
-            }
-        });
-    }
+    var renderer = this.core.renderer, i, li, j, lj, p;
     
     if (this.drawRadar && this.circleTexture) {
         //var renderer = this.core.getRendererInterface();

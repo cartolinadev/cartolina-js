@@ -126,7 +126,7 @@ MapSurfaceTree.prototype.findNavTile = function(id) {
 };
 
 
-MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
+MapSurfaceTree.prototype.draw = function() {
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];
 
@@ -151,8 +151,8 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
         this.drawSurface([0,0,0]);
 
         if (periodicity.type == 'X') {
-            this.drawSurface([periodicity.period,0,0], storeTilesOnly);
-            this.drawSurface([-periodicity.period,0,0], storeTilesOnly);
+            this.drawSurface([periodicity.period,0,0]);
+            this.drawSurface([-periodicity.period,0,0]);
         }
 
     } else {
@@ -173,23 +173,23 @@ MapSurfaceTree.prototype.draw = function(storeTilesOnly) {
 
             if (map.config.mapSplitMeshes) {
                 //console.log("Here 2-3");
-                this.drawSurfaceWithSpliting([0,0,0], storeTilesOnly);
+                this.drawSurfaceWithSpliting([0,0,0]);
             } else {
                 //console.log("Here 2-4");
-                this.drawSurface([0,0,0], storeTilesOnly);
+                this.drawSurface([0,0,0]);
             }
 
             break;
 
         case 'downtop':
             //console.log("Here 2-0");
-            this.drawSurfaceDownTop([0,0,0], storeTilesOnly); break;
+            this.drawSurfaceDownTop([0,0,0]); break;
         case 'fit':
             //console.log("Here 2-1");
-            this.drawSurfaceFit([0,0,0], storeTilesOnly); break;
+            this.drawSurfaceFit([0,0,0]); break;
         case 'fitonly':
             //console.log("Here 2-2");
-            this.drawSurfaceFitOnly([0,0,0], storeTilesOnly); break;
+            this.drawSurfaceFitOnly([0,0,0]); break;
         }
 
     }
@@ -245,12 +245,8 @@ MapSurfaceTree.prototype.logTileInfo = function(tile, node, cameraPos) {
 
 
 //loadmode = topdown
-MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurface = function(shift) {
     this.counter++;
-
-    // storeTilesOnly set only in Map.getCurrentGeometry
-    // (undocumented api method, not used inside project)
-    //console.log("storeTilesOnly = %s", storeTilesOnly);
 
     var tile = this.surfaceTree;
     
@@ -288,9 +284,6 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
     var texelSizeFit = draw.texelSizeFit;
 
     var best2 = 0;
-    var replay = draw.replay;
-    var storeNodes = replay.storeNodes || replay.storeFreeNodes;
-    var storeNodesBuffer = replay.nodeBuffer; 
    
     draw.drawCounter++;
     
@@ -326,10 +319,6 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
                     }
                 }
                 
-                if (storeNodes) { //used only for inspector
-                    storeNodesBuffer.push(tile);
-                }
-              
                 if (tile.texelSize <= texelSizeFit) {
 
                     // desired rendering: texel size fits
@@ -437,11 +426,6 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
 
     } while (processBufferIndex > 0);
 
-    if (storeTilesOnly) {
-        this.storeDrawBufferGeometry(drawBufferIndex);
-        return;
-    }
-    
     if (best2 > draw.bestMeshTexelSize) {
         draw.bestMeshTexelSize = best2;
     }
@@ -456,12 +440,12 @@ MapSurfaceTree.prototype.drawSurface = function(shift, storeTilesOnly) {
     //console.log("texel: "+ this.map.bestMeshTexelSize);
     //console.log("more: "+ more + "more2: " + more2);
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, replay, drawBuffer, drawBufferIndex, true);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, drawBuffer, drawBufferIndex, true);
 };
 
 
 //loadmode = topdown + split
-MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift) {
     this.counter++;
 
     var tile = this.surfaceTree;
@@ -500,9 +484,6 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
     var texelSizeFit = draw.texelSizeFit;
 
     var best2 = 0;
-    var replay = draw.replay;
-    var storeNodes = replay.storeNodes || replay.storeFreeNodes;
-    var storeNodesBuffer = replay.nodeBuffer; 
    
     draw.drawCounter++;
     
@@ -540,10 +521,6 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
                     }
                 }
                 
-                if (storeNodes) { //used only for inspector
-                    storeNodesBuffer.push(tile);
-                }
-              
                 if (tile.texelSize <= texelSizeFit) {
 
                     if (tile.skipRenderCounter != drawCounter) {
@@ -653,11 +630,6 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
 
     } while(processBufferIndex > 0);
 
-    if (storeTilesOnly) {
-        this.storeDrawBufferGeometry(drawBufferIndex);
-        return;
-    }
-    
     if (best2 > draw.bestMeshTexelSize) {
         draw.bestMeshTexelSize = best2;
     }
@@ -672,12 +644,12 @@ MapSurfaceTree.prototype.drawSurfaceWithSpliting = function(shift, storeTilesOnl
     //console.log("texel: "+ this.map.bestMeshTexelSize);
     //console.log("more: "+ more + "more2: " + more2);
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, replay, drawBuffer, drawBufferIndex, true);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, drawBuffer, drawBufferIndex, true);
 };
 
 
 //loadmode = fitonly
-MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift) {
     this.counter++;
 //    this.surfaceTracer.trace(this.surfaceTree);//this.rootId);
 
@@ -713,10 +685,6 @@ MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
 
     var texelSizeFit = draw.texelSizeFit;
 
-    var replay = map.draw.replay;
-    var storeNodes = replay.storeNodes || replay.storeFreeNodes;
-    var storeNodesBuffer = replay.nodeBuffer; 
-
     draw.drawCounter++;
     
     var usedNodes = 1;
@@ -744,10 +712,6 @@ MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
             if (tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) {
 
                 usedNodes++;
-
-                if (storeNodes) { //used only for inspector
-                    storeNodesBuffer.push(tile);
-                }
 
                 if (tile.texelSize  != Number.POSITIVE_INFINITY){
                     if (tile.texelSize > best) {
@@ -833,23 +797,18 @@ MapSurfaceTree.prototype.drawSurfaceFitOnly = function(shift, storeTilesOnly) {
         
     } while(processBufferIndex > 0);
 
-    if (storeTilesOnly) {
-        this.storeDrawBufferGeometry(drawBufferIndex);
-        return drawBufferIndex;
-    }
-
     var stats = map.stats;
 
     stats.usedNodes = usedNodes;    
     stats.processedNodes = pocessedNodes;    
     stats.processedMetatiles = pocessedMetatiles;    
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, replay, drawBuffer, drawBufferIndex, true);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, false, false, drawBuffer, drawBufferIndex, true);
 };
 
 
 //loadmode = fit
-MapSurfaceTree.prototype.drawSurfaceFit = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     this.counter++;
 
     var tile = this.surfaceTree;
@@ -884,7 +843,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift, storeTilesOnly) {
     
     var draw = map.draw;
     var drawTiles = draw.drawTiles;
-    var replay = draw.replay;
     var drawBuffer = draw.drawBuffer;
     var processBuffer = draw.processBuffer;
     var newProcessBuffer = draw.processBuffer2;
@@ -896,9 +854,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift, storeTilesOnly) {
     processBufferIndex = 1;
 
     var texelSizeFit = draw.texelSizeFit;
-
-    var storeNodes = replay.storeNodes || replay.storeFreeNodes;
-    var storeNodesBuffer = replay.nodeBuffer; 
 
     draw.drawCounter++;
     
@@ -980,10 +935,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift, storeTilesOnly) {
                     }
                 }
 
-                if (storeNodes) { //used only for inspaector
-                    storeNodesBuffer.push(tile);
-                }
-                
                 var lastProcessBufferIndex = newProcessBufferIndex;
                 var lastDrawBufferIndex = drawBufferIndex;
 
@@ -1180,23 +1131,18 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift, storeTilesOnly) {
         
     } while(processBufferIndex > 0);
 
-    if (storeTilesOnly) {
-        this.storeDrawBufferGeometry(drawBufferIndex);
-        return;
-    }
-
     var stats = map.stats;
 
     stats.usedNodes = usedNodes;    
     stats.processedNodes = pocessedNodes;    
     stats.processedMetatiles = pocessedMetatiles;    
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, replay, drawBuffer, drawBufferIndex);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, drawBuffer, drawBufferIndex);
 };
 
 
 //loadmode = downtop
-MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
+MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift) {
     this.counter++;
 
     var map = this.map;
@@ -1215,11 +1161,6 @@ MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
     if (!tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) {
         return;
     }
-
-    //var drawBufferIndex2 = this.drawSurfaceFitOnly(shift, true, true);
-    //if (drawBufferIndex2 == 0) {
-      //  return;
-    //}
 
     var draw = map.draw;
     var drawTiles = draw.drawTiles;
@@ -1242,10 +1183,6 @@ MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
 
     draw.drawCounter++;
     
-    var replay = map.draw.replay;
-    var storeNodes = replay.storeNodes || replay.storeFreeNodes;
-    var storeNodesBuffer = replay.nodeBuffer; 
-
     var usedNodes = 1;
     var pocessedNodes = 1;
     var pocessedMetatiles = 1;  
@@ -1271,10 +1208,6 @@ MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
             if (tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) {
 
                 usedNodes++;
-
-                if (storeNodes) { //used only for inspector
-                    storeNodesBuffer.push(tile);
-                }
 
                 if (tile.texelSize  != Number.POSITIVE_INFINITY){
                     if (tile.texelSize > best) {
@@ -1557,7 +1490,6 @@ MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
     var stats = map.stats;
     var draw = map.draw;
     var drawTiles = draw.drawTiles;
-    var replay = draw.replay;
 
     var geodata = tile.surface ? tile.surface.geodata : null;
     var free = tile.surface ? tile.surface.free : null;
@@ -1567,22 +1499,11 @@ MapSurfaceTree.prototype.drawSurfaceDownTop = function(shift, storeTilesOnly) {
     //stats.processedNodes = pocessedNodes;    
     //stats.processedMetatiles = pocessedMetatiles;    
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, replay, drawBuffer, drawBufferIndex);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, drawBuffer, drawBufferIndex);
 };
 
 
-MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, replay, drawBuffer, drawBufferIndex, noGrid) {
-
-    if (replay.storeTiles || replay.storeFreeTiles) { //used only in inspectors
-        if (!draw.tileBuffer[0]) {
-            draw.tileBuffer[0] = [];
-        }
-        
-        var tiles = draw.tileBuffer[0];
-        for (i = drawBufferIndex - 1; i >= 0; i--) {
-            tiles.push(drawBuffer[i]);
-        }
-    }
+MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, drawBuffer, drawBufferIndex, noGrid) {
 
     var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2); // && this.freeLayerSurface.geodata && draw.drawChannel == 0);
     var hmax = -999999, hmin = 999999;
@@ -1694,14 +1615,6 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
 };
 
-
-
-MapSurfaceTree.prototype.storeDrawBufferGeometry = function(drawBufferIndex) {
-    var map = this.map;
-    var drawBuffer = map.draw.drawBuffer;
-
-    this.storeGeometry(drawBuffer, drawBufferIndex);
-};
 
 
 MapSurfaceTree.prototype.storeGeometry = function(array, length) {

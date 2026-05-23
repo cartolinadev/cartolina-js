@@ -909,7 +909,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapHeightNodeBlend':            this.config.mapHeightNodeBlend = utils.validateBool(value, true); break;
     case 'mapBasicTileSequence':          this.config.mapBasicTileSequence = utils.validateBool(value, true); break;
     case 'mapSmartNodeParsing':           this.config.mapSmartNodeParsing = utils.validateBool(value, true); break;
-    case 'mapStoreLoadStats':             this.config.mapStoreLoadStats = utils.validateBool(value, true);  if (this.draw && this.draw.replay) this.draw.replay.storeLoaded = this.config.mapStoreLoadStats; break;
     case 'mapXhrImageLoad':               this.config.mapXhrImageLoad = utils.validateBool(value, false); break;
     case 'mapLoadMode':                   this.config.mapLoadMode = utils.validateString(value, 'topdown'); break;
     case 'mapGeodataLoadMode':            this.config.mapGeodataLoadMode = utils.validateString(value, 'fit'); break;
@@ -1013,7 +1012,6 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapHeightNodeBlend':            return this.config.mapHeightNodeBlend;
     case 'mapBasicTileSequence':          return this.config.mapBasicTileSequence;
     case 'mapSmartNodeParsing':           return this.config.mapSmartNodeParsing;
-    case 'mapStoreLoadStats':             return this.config.mapStoreLoadStats;
     case 'mapXhrImageLoad':               return this.config.mapXhrImageLoad;
     case 'mapLoadMode':                   return this.config.mapLoadMode;
     case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
@@ -1356,17 +1354,6 @@ Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
 
         return [null, false, relatedEvents, elementIndex];
     }
-};
-
-Map.prototype.getCurrentGeometry = function() {
-    if (this.draw.tree.surfaceSequence.length > 0) {
-        this.draw.tree.draw(true);
-        var res = this.storedTilesRes;
-        this.storedTilesRes = [];
-        return res;
-    }
-
-    return res;
 };
 
 Map.prototype.applyCredits = function(tile) {

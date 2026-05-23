@@ -62,9 +62,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progDepthTile = [new GpuProgram(gpu, '#define variants\n#define depth\n' + shaders.tileVertexShader, ('#define variants\n#define depth\n' + shaders.tileFragmentShader).replace('mediump', 'highp'))];
     renderer.progWireFrameBasic = [new GpuProgram(gpu, '#define variants\n' + shaders.tileVertexShader, '#define variants\n' + shaders.tileWireFrameBasicShader)];
 
-    renderer.progShadedTile = new GpuProgram(gpu, shaders.shadedMeshVertexShader, shaders.shadedMeshFragmentShader);
-    renderer.progTShadedTile = new GpuProgram(gpu, shaders.shadedMeshVertexShader, '#define textured\n' + shaders.shadedMeshFragmentShader);
-
     renderer.progPlane = new GpuProgram(gpu, '#define flat\n' + shaders.planeVertexShader, shaders.planeFragmentShader); //flat
     renderer.progPlane2 = new GpuProgram(gpu, '#define poles\n' + shaders.planeVertexShader, '#define poles\n' + shaders.planeFragmentShader); //poles
     renderer.progPlane3 = new GpuProgram(gpu, shaders.planeVertexShader, shaders.planeFragmentShader); // grid
@@ -72,7 +69,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progPlane2D = new GpuProgram(gpu, '#define depth\n#define poles\n' + shaders.planeVertexShader, '#define depth\n#define poles\n' + shaders.planeFragmentShader); //poles
     renderer.progPlane3D = new GpuProgram(gpu, '#define depth\n' + shaders.planeVertexShader, '#define depth\n' + shaders.planeFragmentShader); // grid
 
-    // live: inspector replay globe
     renderer.progStardome = new GpuProgram(
         gpu, shaders.skydomeVertexShader, shaders.stardomeFragmentShader);
 

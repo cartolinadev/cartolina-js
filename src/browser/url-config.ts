@@ -64,7 +64,6 @@ const BOOLEAN_KEYS = new Set([
     'mapHeightLodBlend',
     'mapHeightNodeBlend',
     'mapBasicTileSequence',
-    'mapStoreLoadStats',
     'mapXhrImageLoad',
     'mapGridSurrogatez',
     'mapPreciseBBoxTest',

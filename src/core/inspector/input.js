@@ -495,9 +495,6 @@ export default class InspectorInput {
                 case 69: case 101:  // Shift+E — stylesheets panel
                     inspector.stylesheets.switchPanel(); hit = true; break;
 
-                case 84: case 116:  // Shift+T — replay panel
-                    inspector.replay.switchPanel(); hit = true; break;
-
                 case 65: case 97:   // Shift+A — label boxes
                     debug.drawLabelBoxes = !debug.drawLabelBoxes; hit = true; break;
 

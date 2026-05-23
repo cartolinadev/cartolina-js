@@ -1,8 +1,8 @@
 # VTS archaeology: the replay inspector
 
 This document records what the replay inspector was, how it worked, and
-why it was left in place rather than deleted. Written in May 2026 after
-a diagnostic session that found it broken and partially fixed it.
+why it was deleted after freeze mode replaced it. Written in May 2026
+after a diagnostic session that found it broken and partially fixed it.
 
 ## What it was for
 
@@ -25,6 +25,7 @@ that algorithm stabilised it had no further purpose.
 | 2019-01-24 | Silently broken by `processDrawBuffer` refactor (`4e0d557d`) — see below |
 | 2026-05-13 | Documented (`2b4dde32`, "old inspector replay documented") |
 | 2026-05-18 | Diagnosed, Drawn Tiles bug fixed, Globe crash fixed, debug logs removed |
+| 2026-05-23 | Deleted after freeze mode shipped |
 
 The tool was functional for roughly two years of the VTS development
 cycle, which itself continued for at least two to three years after the
@@ -153,14 +154,19 @@ cost was the branch checks, not significant. But the code weight in
 `drawMap` was considerable: roughly 230 lines of replay machinery inside
 the normal draw function, plus the capture blocks after each draw call.
 
-## Why it was not deleted
+## Deletion
 
-The draw pipeline refactor (see `backlog.md`, "replace legacy map draw
-path with TileRenderRig") will rewrite `drawMap` and the surface-tree
-draw variants from scratch. The replay code will simply not be carried
-over into the new implementation. Deleting it before that point would be
-correct but premature — the refactor will delete it as a side effect of
-the cleanup pass.
+Freeze mode shipped before the full draw traversal rewrite. The replay
+panel was then deleted directly instead of waiting for the broader draw
+cleanup. The deletion removed `src/core/inspector/replay.js`,
+`map.draw.replay`, replay branches in `draw.js`, node/tile capture in
+`surface-tree.js`, load-sequence capture in `loader.js`, and the
+`mapStoreLoadStats` config flag.
+
+The same cleanup removed the legacy custom-mesh demos that used
+`Renderer.createMesh()` and `Renderer.drawMesh()`. Those methods had no
+remaining source caller after replay was removed. The 3D Tiles/geodata
+mesh path is separate and still uses `GpuGroup.drawMesh()`.
 
 ## Replacement: freeze mode
 

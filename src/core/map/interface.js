@@ -427,11 +427,6 @@ MapInterface.prototype.getScreenRay = function(screenX, screenY) {
 };
 
 
-MapInterface.prototype.getCurrentGeometry = function() {
-    return this.map.getCurrentGeometry();
-};
-
-
 MapInterface.prototype.getStats = function(switches) {
     if (switches) {
         return {
