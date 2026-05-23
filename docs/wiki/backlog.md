@@ -20,7 +20,7 @@ RGBA8 carry-error path as the cause of the horizon dead strip.
 ## FEATURE: freeze mode for viewport diagnostics
 
 **Opened:** 2026-05-18
-**Status:** deferred — implement as part of the draw pipeline refactor
+**Status:** implemented
 
 ### Goal
 
@@ -32,21 +32,19 @@ map draws at a given position.
 
 **Frozen:**
 
-- The camera matrices used for tile selection and rendering are locked to
-  the position at freeze time. The tile descent continues running every
-  frame against the frozen matrices — so tiles that finish loading still
-  appear, and the scene stays live.
-- The frustum is drawn as a line overlay in world space, visible when the
-  live camera moves away from the frozen position.
-- Optionally: the loader is paused (no new fetches, no callbacks). This
-  gives a true snapshot of what was resident at freeze time.
+- The camera state used for tile selection, culling, and depth sampling is
+  locked to the position at freeze time. The live camera still drives
+  navigation and final rendering, so the developer can move away from the
+  frozen position and inspect what was selected there.
+- The frustum is drawn as a finite translucent pyramid in world space when
+  enabled. Its depth comes from the farthest finite depth hitmap sample,
+  with a reference-frame fallback only when the hitmap has no finite depth.
 
 **Controls (no inspector panel needed):**
 
-- Toggle freeze on/off with a single key binding.
-- Separate toggle for the frustum overlay (on by default when frozen).
-- A restore button (or key) that returns the live camera to the frozen
-  position.
+- `Shift+D`, `Shift+Z` toggles freeze mode.
+- `C` toggles the frustum overlay.
+- The reset button returns the live camera to the frozen position.
 
 ### Why this replaces the replay inspector
 
@@ -67,11 +65,11 @@ of a frozen scene gives you Traced Nodes for free.
 
 ### Implementation note
 
-The hook is in `drawMap` at the camera update —
-[draw.js:189](src/core/map/draw.js#L189) — where `camera.update()` is
-called. When frozen, substitute the saved matrices. The frustum draw
-follows the existing camera-frustum code in
-[inspector.js:138](src/core/inspector/inspector.js#L138).
+`src/core/map/freeze-camera-state.ts` owns the captured camera state.
+Legacy draw code uses narrow hooks to switch between the frozen selection
+camera and the live navigation camera. `src/core/inspector/freeze.ts`
+owns mode state, DOM controls, and frustum capture. `Renderer` draws the
+frustum with the modern `useProgram2` shader path.
 
 ---
 

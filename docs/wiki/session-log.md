@@ -9,10 +9,9 @@ geodata label depth checks cannot disturb the overlay after their
 and renderer at the call sites. Removed the local `FreezeMap` type and
 declared the touched legacy members in `map.d.ts`.
 
-Kept frustum depth selection as: all five samples finite uses the farthest
-sample times 1.25; otherwise the pyramid extends by the reference-frame
-extent beyond the farthest finite sample, or just the extent when no sample
-is finite.
+Updated frustum depth selection to scan the depth hitmap with stride 3.
+The pyramid extends to the farthest finite hitmap depth plus margin. The
+reference-frame extent is used only when the hitmap has no finite depth.
 
 ## 2026-05-23 — Diagnostic freeze mode and camera context bridge
 

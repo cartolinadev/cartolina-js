@@ -593,7 +593,7 @@ drawFrustumPyramid(
     this.gpu.setState(this.frustumState_);
     this.gpu.useProgram2(program);
     program.setVec3('uVertices[0]', vertices);
-    program.setVec4('uColor', [1.0, 0.5, 0.5, 0.3]);
+    program.setVec4('uColor', [1.0, 0.5, 0.5, 0.25]);
 
     gl.bindVertexArray(this.frustumVao_);
     gl.drawArrays(gl.TRIANGLES, 0, 18);
@@ -1937,6 +1937,46 @@ copyHitmap() {
         0, 0, this.hitmapSize, this.hitmapSize, hitmapData
     );
 };
+
+
+/**
+ * Return the farthest finite hitmap depth.
+ *
+ * This scans the copied hitmap buffer when available, or reads the full
+ * hitmap framebuffer for non-cached hitmap modes. Intended for diagnostic
+ * one-shot queries, not per-frame render work.
+ *
+ * @param stride pixel step used while scanning the hitmap
+ * @returns farthest finite depth, or null when no surface was hit
+ */
+getMaxFiniteDepth(stride: number = 3): number | null {
+
+    const hitmapTexture = this.hitmapTexture;
+    if (!hitmapTexture) return null;
+
+    const pixels = this.hitmapData ?? hitmapTexture.readFramebufferPixels(
+        0, 0, this.hitmapSize, this.hitmapSize);
+    const step = Math.max(1, Math.floor(stride));
+    const view = new DataView(
+        pixels.buffer,
+        pixels.byteOffset,
+        pixels.byteLength,
+    );
+    let maxDepth = Number.NEGATIVE_INFINITY;
+
+    for (let y = 0; y < this.hitmapSize; y += step) {
+
+        for (let x = 0; x < this.hitmapSize; x += step) {
+
+            const offset = (x + y * this.hitmapSize) * 4;
+            const depth = view.getFloat32(offset, true);
+            if (Number.isFinite(depth) && depth > maxDepth)
+                maxDepth = depth;
+        }
+    }
+
+    return maxDepth > Number.NEGATIVE_INFINITY ? maxDepth : null;
+}
 
 
 /**

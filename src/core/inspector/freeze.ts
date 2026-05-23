@@ -12,9 +12,6 @@ import type FreezeCameraState from '../map/freeze-camera-state';
 import type LegacyMap from '../map/map';
 
 
-type DepthSample = [boolean, number];
-
-
 /**
  * Owns freeze-mode DOM, draw-state wiring, and frustum capture.
  */
@@ -93,7 +90,7 @@ export class FreezeMode {
     }
 
     /**
-     * Compute the frozen-camera pyramid from five depth samples.
+     * Compute the frozen-camera pyramid from the hitmap's farthest depth.
      *
      * @param map legacy terrain engine for the current loaded map
      * @param renderer renderer used to sample the current viewport size
@@ -104,32 +101,15 @@ export class FreezeMode {
         if (!map || !selectionState) return;
 
         const [w, h] = renderer.getCanvasSize();
-        const samples: [number, number][] = [
-            [0, 0],
-            [w, 0],
-            [w, h],
-            [0, h],
-            [w * 0.5, h * 0.5],
-        ];
-
-        const hits = map.draw.freeze.withSelectionCamera(() => {
+        const maxDepth = map.draw.freeze.withSelectionCamera(() => {
 
             map.markDirty();
-            return samples.map(([x, y]) =>
-                map.getScreenDepth(x, y, 0, false, 'layout') as DepthSample);
+            map.getScreenDepth(w * 0.5, h * 0.5, 0, false, 'layout');
+            return renderer.getMaxFiniteDepth();
         });
-
-        const finiteDepths = hits
-            .filter((hit: DepthSample) =>
-                hit && hit[0] && Number.isFinite(hit[1]))
-            .map((hit: DepthSample) => hit[1]);
-
-        const farthestDepth = finiteDepths.length
-            ? Math.max(...finiteDepths)
-            : 0;
-        const depth = finiteDepths.length === samples.length
-            ? farthestDepth * 1.25
-            : farthestDepth + this.referenceFrameExtent_(map);
+        const depth = maxDepth !== null
+            ? maxDepth * 1.1
+            : this.referenceFrameExtent_(map);
 
         const apex = this.cameraPosition_(selectionState);
         const corners: [number, number][] = [
