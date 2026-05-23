@@ -1524,10 +1524,10 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         map.renderer.gpu.clearDepth();
     }
 
-    cameraPos = draw.freeze.beforeDrawBuffer(cameraPos);
+    cameraPos = map.beforeSelectedTileDraw(cameraPos);
 
     // update renderer buffers
-    map.renderer.updateBuffers();
+    map.renderer.updateBuffers(map.getSelectionPosition());
 
     //draw surface
     for (i = drawBufferIndex - 1; i >= 0; i--) {
@@ -1611,7 +1611,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
     map.gpuCache.skipCostCheck = false;
     map.gpuCache.checkCost();
 
-    draw.freeze.afterDrawBuffer();
+    map.afterSelectedTileDraw();
 
 };
 

@@ -93,8 +93,10 @@ export default class Map {
         surfaceOnlySequence: SurfaceSequenceItem[];
     };
 
+    freeze: FreezeCameraState;
+
     draw: {
-        freeze: FreezeCameraState;
+        drawChannel: number;
     };
 
     measure: {
@@ -108,7 +110,17 @@ export default class Map {
 
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
+    getNavigationPosition(): MapPosition;
+    getSelectionPosition(): MapPosition;
     markDirty(): void;
+
+    beforeTileSelection(): void;
+    beforeSelectedTileDraw(cameraPos: [number, number, number]):
+        [number, number, number];
+    afterSelectedTileDraw(): void;
+    afterFrameDraw(): void;
+    withNavigationCamera<T>(callback: () => T): T;
+    withSelectionCamera<T>(callback: () => T): T;
 
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;

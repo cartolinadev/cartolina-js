@@ -3,7 +3,6 @@ import * as math from '../utils/math';
 import MapGeodata from './geodata';
 import MapGeodataView from './geodata-view';
 import MapDrawTiles from './draw-tiles';
-import FreezeCameraState from './freeze-camera-state';
 import * as vts from '../constants';
 
 
@@ -98,8 +97,6 @@ var MapDraw = function(map) {
 
     this.degradeHorizonFactor = 0;
     this.degradeHorizonTiltFactor = 0;
-
-    this.freeze = new FreezeCameraState(this);
 
     this.drawTiles = new MapDrawTiles(map, this);
 
@@ -236,7 +233,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         //console.log('debug.drawEarth');
 
-        this.freeze.beforeTileDescent();
+        map.beforeTileSelection();
         
         for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
             this.tileBuffer[i] = null;    
@@ -293,7 +290,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     if (this.drawChannel == 0
             && map.core.inspector
             && map.core.inspector.hasFreezeFrustum()) {
-        this.freeze.withLiveCamera(function() {
+        map.withNavigationCamera(function() {
             map.core.inspector.drawFreezeFrustum();
         });
     }
@@ -308,8 +305,8 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
                 // geodata hot path
                 //console.log('drawGpuJob');
-                this.freeze.withLiveCamera(function() {
-                    renderer.draw.drawGpuJobs(this.map.position);
+                map.withNavigationCamera(function() {
+                    renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
                 }.bind(this));
             }
         }
@@ -322,7 +319,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }
     }
 
-    this.freeze.afterDrawMap();
+    map.afterFrameDraw();
 };
 
 /**
@@ -360,11 +357,11 @@ MapDraw.prototype.drawHitmap = function() {
 MapDraw.prototype.drawGeodataHitmap = function() {
     this.renderer.gpu.setState(this.drawTileState);
     this.renderer.switchToFramebuffer('geo');
-    this.renderer.draw.drawGpuJobs(this.map.position);
+    this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
 
     if (this.renderer.advancedPassNeeded) {
         this.renderer.switchToFramebuffer('geo2');
-        this.renderer.draw.drawGpuJobs(this.map.position);
+        this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
     }
 
     this.renderer.switchToFramebuffer('base');
@@ -461,7 +458,7 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
                 }
             }
 
-            this.freeze.withLiveCamera(function() {
+            this.map.withNavigationCamera(function() {
                 surface.monoGeodataView.draw(this.camera.position);
             }.bind(this));
         }

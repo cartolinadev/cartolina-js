@@ -315,6 +315,12 @@ geodata disagree during freeze navigation. Restoring renderer buffers after
 the final live-camera restore removed intermittent full-viewport flashes on
 dirty geodata maps.
 
+Freeze state now belongs to the legacy map object rather than
+`MapDraw`. Tile and geodata drawing ask `Map.getSelectionPosition()` for
+scale-dependent vertical exaggeration, so shaders keep the frozen
+selection exaggeration even when final rendering uses the live navigation
+camera matrices.
+
 Promoted `getScreenDepth(..., coordinateSpace)` through `Map` and
 `Viewer`, documented that it returns Euclidean viewer-to-terrain distance,
 and renamed the alternate geometric-intersection boolean away from

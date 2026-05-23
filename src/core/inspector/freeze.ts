@@ -39,7 +39,7 @@ export class FreezeMode {
 
         map.camera.update();
         this.navPosition_ = map.position.clone();
-        map.draw.freeze.activateFromCurrentCamera();
+        map.freeze.activateFromCurrentCamera();
 
         this.active = true;
         this.ensureControls_(map);
@@ -55,7 +55,7 @@ export class FreezeMode {
     unfreeze(map: LegacyMap | null): void {
 
         if (map) {
-            map.draw.freeze.deactivate();
+            map.freeze.deactivate();
             map.markDirty();
         }
 
@@ -151,11 +151,11 @@ export class FreezeMode {
      */
     captureFrustum(map: LegacyMap, renderer: Renderer): void {
 
-        const selectionState = map?.draw.freeze.selectionCameraState ?? null;
+        const selectionState = map?.freeze.selectionCameraState ?? null;
         if (!map || !selectionState) return;
 
         const [w, h] = renderer.getCanvasSize();
-        const maxDepth = map.draw.freeze.withSelectionCamera(() => {
+        const maxDepth = map.withSelectionCamera(() => {
 
             map.markDirty();
             map.getScreenDepth(w * 0.5, h * 0.5, 0, false, 'layout');
@@ -173,7 +173,7 @@ export class FreezeMode {
             [0, h],
         ];
 
-        const base = map.draw.freeze.withSelectionCamera(() =>
+        const base = map.withSelectionCamera(() =>
             corners.map(([x, y]) => {
 
                 const ray = renderer.getScreenRay(x, y, 'layout');

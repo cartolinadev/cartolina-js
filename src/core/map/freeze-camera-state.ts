@@ -30,6 +30,7 @@
 
 import type Renderer from '../renderer/renderer';
 import type MapCamera from './camera';
+import type MapPosition from './position';
 
 
 type Vec3 = [number, number, number];
@@ -82,17 +83,21 @@ type MutableMapCamera = MapCamera & {
     geocentNormal?: Vec3;
 };
 
-type FreezeDraw = {
+type FreezeMap = {
+    position: MapPosition;
     camera: MutableMapCamera;
     renderer: Renderer & {
         cameraPosition: Vec3;
         cameraVector: Vec3;
         updateBuffers(): void;
     };
-    drawChannel: number;
+    draw: {
+        drawChannel: number;
+    };
 };
 
 type MapCameraState = {
+    mapPosition: MapPosition;
     distance: number;
     distance2: number;
     distanceFactor: number;
@@ -146,7 +151,7 @@ class FreezeCameraState {
     private liveCameraState_: FreezeCameraState.CapturedCameraState | null =
         null;
 
-    constructor(private readonly draw_: FreezeDraw) {}
+    constructor(private readonly map_: FreezeMap) {}
 
     /**
      * Snapshot the current camera and make it the selection camera.
@@ -186,7 +191,7 @@ class FreezeCameraState {
     beforeDrawBuffer(cameraPos: Vec3): Vec3 {
 
         if (!this.active || !this.liveCameraState_) return cameraPos;
-        if (this.draw_.drawChannel !== 0) return cameraPos;
+        if (this.map_.draw.drawChannel !== 0) return cameraPos;
 
         this.restore(this.liveCameraState_);
         return this.liveCameraState_.map.position;
@@ -198,7 +203,7 @@ class FreezeCameraState {
     afterDrawBuffer(): void {
 
         if (!this.active || !this.selectionCameraState) return;
-        if (this.draw_.drawChannel !== 0) return;
+        if (this.map_.draw.drawChannel !== 0) return;
 
         this.restore(this.selectionCameraState);
     }
@@ -212,7 +217,7 @@ class FreezeCameraState {
 
             this.restore(this.liveCameraState_);
             this.liveCameraState_ = null;
-            this.draw_.renderer.updateBuffers();
+            this.map_.renderer.updateBuffers();
         }
     }
 
@@ -257,13 +262,22 @@ class FreezeCameraState {
         }
     }
 
+    /** Return the map position used for tile selection. */
+    getSelectionPosition(): MapPosition | null {
+
+        return this.active && this.selectionCameraState
+            ? this.selectionCameraState.map.mapPosition.clone()
+            : null;
+    }
+
     private capture(): FreezeCameraState.CapturedCameraState {
 
-        const mapCamera = this.draw_.camera;
+        const mapCamera = this.map_.camera;
         const renderCamera = mapCamera.camera;
 
         return {
             map: {
+                mapPosition: this.map_.position.clone(),
                 distance: mapCamera.distance,
                 distance2: mapCamera.distance2,
                 distanceFactor: mapCamera.distanceFactor,
@@ -311,11 +325,15 @@ class FreezeCameraState {
 
     private restore(state: FreezeCameraState.CapturedCameraState): void {
 
-        const mapCamera = this.draw_.camera;
+        const mapCamera = this.map_.camera;
         const renderCamera = mapCamera.camera;
         const mapState = state.map;
         const renderState = state.renderer;
 
+        /*
+         * `map.position` is intentionally not restored here. Freeze mode
+         * leaves navigation state live and swaps only legacy camera fields.
+         */
         mapCamera.distance = mapState.distance;
         mapCamera.distance2 = mapState.distance2;
         mapCamera.distanceFactor = mapState.distanceFactor;
@@ -361,8 +379,8 @@ class FreezeCameraState {
         renderCamera.projection32.set(renderCamera.projection);
         renderCamera.dirty = renderState.dirty;
 
-        this.draw_.renderer.cameraPosition = mapCamera.position;
-        this.draw_.renderer.cameraVector = mapCamera.vector;
+        this.map_.renderer.cameraPosition = mapCamera.position;
+        this.map_.renderer.cameraVector = mapCamera.vector;
     }
 
     private vec3_(value: ArrayLike<number>): Vec3 {

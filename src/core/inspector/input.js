@@ -47,7 +47,7 @@ export default class InspectorInput {
      *   'renderFlags' — map.renderer.debug.flagX overrides
      *   'tileBBox'    — debug.drawBBoxes
      *   'radar'       — inspector.drawRadar
-     *   'freeze'      — controls persistent map.draw.freeze state
+     *   'freeze'      — controls persistent map freeze state
      *
      * For 'tileBBox', `debug.drawBBoxes` is set by the caller after this
      * method returns.

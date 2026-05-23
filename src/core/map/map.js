@@ -21,6 +21,7 @@ import MapUrl from './url';
 import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
+import FreezeCameraState from './freeze-camera-state';
 
 
 var Map = function(core, path, config, configStorage) {
@@ -135,6 +136,7 @@ Map.createMapFromStyle = async function(core, style, path, config, configStorage
     map.hitMapDirty = true; map.geoHitMapDirty = true;
 
     map.draw = new MapDraw(map);
+    map.freeze = new FreezeCameraState(map);
     map.draw.setupDetailDegradation();  // probably not needed
 
     let body = map.referenceFrame.body;
@@ -177,6 +179,7 @@ Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStora
     map.geoHitMapDirty = true;
 
     map.draw = new MapDraw(map);
+    map.freeze = new FreezeCameraState(map);
     map.draw.setupDetailDegradation();
 
     var body = map.referenceFrame.body;
@@ -1395,6 +1398,54 @@ Map.prototype.applyCredits = function(tile) {
 
 Map.prototype.drawMap = function() {
     this.draw.drawMap(null);
+};
+
+Map.prototype.getNavigationPosition = function() {
+
+    return this.position;
+};
+
+Map.prototype.getSelectionPosition = function() {
+
+    return this.freeze
+        ? (this.freeze.getSelectionPosition() || this.position)
+        : this.position;
+};
+
+Map.prototype.beforeTileSelection = function() {
+
+    if (this.freeze) this.freeze.beforeTileDescent();
+};
+
+Map.prototype.beforeSelectedTileDraw = function(cameraPos) {
+
+    return this.freeze
+        ? this.freeze.beforeDrawBuffer(cameraPos)
+        : cameraPos;
+};
+
+Map.prototype.afterSelectedTileDraw = function() {
+
+    if (this.freeze) this.freeze.afterDrawBuffer();
+};
+
+Map.prototype.afterFrameDraw = function() {
+
+    if (this.freeze) this.freeze.afterDrawMap();
+};
+
+Map.prototype.withNavigationCamera = function(callback) {
+
+    return this.freeze
+        ? this.freeze.withLiveCamera(callback)
+        : callback();
+};
+
+Map.prototype.withSelectionCamera = function(callback) {
+
+    return this.freeze
+        ? this.freeze.withSelectionCamera(callback)
+        : callback();
 };
 
 

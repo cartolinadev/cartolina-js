@@ -642,12 +642,16 @@ createBuffers() {
 }
 
 /**
- * Update the contents of the uboFrame and uboAtm unform buffer objects based
- * on current position and view configuration. This should be called once per
- * frame.
+ * Update the contents of the uboFrame and uboAtm uniform buffer objects based
+ * on current position and view configuration.
+ *
+ * @param position map position or view extent used for scale-dependent
+ *   vertical exaggeration
  */
 
-updateBuffers() {
+updateBuffers(
+    position: MapPosition | number = this.core.map.getNavigationPosition()
+) {
 
     let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagNone;
 
@@ -666,7 +670,7 @@ updateBuffers() {
     data.projection = this.camera.getProjectionFMatrix();
 
     // obtain the data: body params and vertical exaggeration
-    let se = this.getSuperElevation(map.position);
+    let se = this.getSuperElevation(position);
     let srsInfo = this.core.map.getPhysicalSrs().getSrsInfo();
     let majorAxis = srsInfo.a;
     let minorAxis = srsInfo.b;
