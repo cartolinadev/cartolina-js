@@ -1398,7 +1398,9 @@ Map.prototype.drawMap = function() {
 
 Map.prototype.getNavigationPosition = function() {
 
-    return this.position;
+    return this.freeze
+        ? (this.freeze.getNavigationPosition() || this.position)
+        : this.position;
 };
 
 Map.prototype.getSelectionPosition = function() {
@@ -1408,32 +1410,10 @@ Map.prototype.getSelectionPosition = function() {
         : this.position;
 };
 
-Map.prototype.beforeTileSelection = function() {
-
-    if (this.freeze) this.freeze.beforeTileDescent();
-};
-
-Map.prototype.beforeSelectedTileDraw = function(cameraPos) {
-
-    return this.freeze
-        ? this.freeze.beforeDrawBuffer(cameraPos)
-        : cameraPos;
-};
-
-Map.prototype.afterSelectedTileDraw = function() {
-
-    if (this.freeze) this.freeze.afterDrawBuffer();
-};
-
-Map.prototype.afterFrameDraw = function() {
-
-    if (this.freeze) this.freeze.afterDrawMap();
-};
-
 Map.prototype.withNavigationCamera = function(callback) {
 
     return this.freeze
-        ? this.freeze.withLiveCamera(callback)
+        ? this.freeze.withNavigationCamera(callback)
         : callback();
 };
 

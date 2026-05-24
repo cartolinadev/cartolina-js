@@ -273,23 +273,45 @@ class Viewer {
     /**
      * Returns the scale denominator for a given view extent.
      *
+     * If `extent` is omitted, returns the denominator for the current
+     * selection position. During freeze diagnostics this matches the terrain
+     * selection context rather than the live navigation camera.
+     *
      * @param extent view extent in metres
      */
-    getScaleDenominator(extent: number): number {
+    getScaleDenominator(extent?: number): number {
 
         this.assertAlive_();
-        return this._renderer.getScaleDenominator(extent);
+        const currentExtent = extent
+            ?? this.legacyMap_?.getSelectionPosition().getViewExtent();
+
+        if (currentExtent === undefined) {
+            throw new Error('No map is loaded.');
+        }
+
+        return this._renderer.getScaleDenominator(currentExtent);
     }
 
     /**
      * Returns the vertical exaggeration scale factor at the given position.
      *
-     * @param position a `MapPosition` instance or 10-component array
+     * If `position` is omitted, returns the factor for the current selection
+     * position. During freeze diagnostics this matches the vertical
+     * exaggeration used for terrain rendering.
+     *
+     * @param position a `MapPosition` instance
      */
-    getVeScaleFactor(position: MapPosition): number {
+    getVeScaleFactor(position?: MapPosition): number {
 
         this.assertAlive_();
-        return this._renderer.getVeScaleFactor(position);
+        const currentPosition = position
+            ?? this.legacyMap_?.getSelectionPosition();
+
+        if (!currentPosition) {
+            throw new Error('No map is loaded.');
+        }
+
+        return this._renderer.getVeScaleFactor(currentPosition);
     }
 
     // -------------------------------------------------------------------------

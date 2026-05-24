@@ -72,12 +72,50 @@ of a frozen scene gives you Traced Nodes for free.
 ### Implementation note
 
 `src/core/map/freeze-camera-state.ts` owns the captured camera state.
-Legacy draw code uses narrow hooks to switch between the frozen selection
-camera and the live navigation camera. `src/core/inspector/freeze.ts`
-owns mode state, DOM controls, and frustum capture. `Renderer` draws the
-frustum with the modern `useProgram2` shader path.
+Legacy draw code scopes ambient camera and position reads with
+`withSelectionCamera` and `withNavigationCamera`. Final terrain and
+geodata rendering use the navigation context for camera matrices while
+passing the selection position to `Renderer.updateBuffers()` or
+`drawGpuJobs()` so scale-dependent vertical exaggeration follows the
+selected tile set. `src/core/inspector/freeze.ts` owns mode state, DOM
+controls, and frustum capture. `Renderer` draws the frustum with the
+modern `useProgram2` shader path.
 
 ---
+
+## REFACTOR: pass explicit draw contexts
+
+**Opened:** 2026-05-24
+**Status:** open
+
+### Goal
+
+Replace the freeze-mode `withSelectionCamera` and
+`withNavigationCamera` bridge with explicit draw context parameters once
+legacy camera and position reads are removed from the draw code.
+
+### Target shape
+
+Draw code should receive the context it needs instead of installing it
+by mutating `map.position`, `MapCamera`, `Renderer.camera`, and renderer
+camera mirrors. A frame should make the two roles explicit:
+
+- `view`: the camera and position used to render the final image.
+- `selection`: the camera and position used for tile selection, culling,
+  depth sampling, and scale-dependent vertical exaggeration.
+
+Freeze mode then becomes a context choice:
+
+```ts
+const view = map.navigationContext();
+const selection = freeze.active ? freeze.selectionContext() : view;
+
+drawFrame({ view, selection });
+```
+
+Final terrain and geodata rendering must preserve the existing hybrid
+semantics: draw from `view`, but derive vertical exaggeration from
+`selection`.
 
 ---
 

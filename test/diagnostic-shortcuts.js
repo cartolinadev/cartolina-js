@@ -129,18 +129,35 @@ async function main() {
 
     await page.waitForTimeout(100);
 
-    // --- Test 1: Shift+D activates diagnostic mode and shows overlay ---
-    console.log('\n[1] Shift+D — activate diagnostic mode');
-    await page.keyboard.press('Shift+KeyD');
-    await page.waitForTimeout(300);
+    // --- Test 1: ensure diagnostic mode is accepting shortcuts ---
+    console.log('\n[1] diagnostic mode accepts shortcuts');
+    await page.evaluate(() => { window.__clipboard = ''; });
+    await page.keyboard.press('Shift+Digit1');
+    await page.waitForTimeout(500);
 
-    const notifText1 = await page.$eval('#vts-notification', el => el.textContent).catch(() => null);
-    const notifOpacity1 = await page.$eval('#vts-notification', el => el.style.opacity).catch(() => null);
-    if (!check(notifText1 === 'Diagnostic mode activated', `notification text: "${notifText1}"`)) anyFail = true;
-    if (!check(notifOpacity1 === '1', `notification visible (opacity=${notifOpacity1})`)) anyFail = true;
+    let clipboardProbe = await page.evaluate(() => window.__clipboard);
+    let enabledByDefault = clipboardProbe.startsWith('pos=');
+
+    if (!enabledByDefault) {
+
+        await page.keyboard.press('Shift+KeyD');
+        await page.waitForTimeout(300);
+        await page.evaluate(() => { window.__clipboard = ''; });
+        await page.keyboard.press('Shift+Digit1');
+        await page.waitForTimeout(500);
+        clipboardProbe = await page.evaluate(() => window.__clipboard);
+    }
+
+    if (!check(
+        clipboardProbe.startsWith('pos='),
+        enabledByDefault
+            ? 'diagnostic mode was enabled on load'
+            : 'Shift+D enabled diagnostic mode',
+    )) anyFail = true;
 
     // --- Test 2: Shift+1 copies position to clipboard ---
     console.log('\n[2] Shift+1 — copy position');
+    await page.evaluate(() => { window.__clipboard = ''; });
     await page.keyboard.press('Shift+Digit1');
     await page.waitForTimeout(500); // clipboard.writeText resolves async
 

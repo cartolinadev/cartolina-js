@@ -2073,9 +2073,8 @@ function syncOptsUi() {
 function updateComputedScaleIndicator() {
   if (!map || !scaleGraph) return;
 
-  const position = map.getPosition();
-  const currentScale = map.getScaleDenominator(position.getViewExtent());
-  const currentVeScaleFactor = map.getVeScaleFactor(position);
+  const currentScale = map.getScaleDenominator();
+  const currentVeScaleFactor = map.getVeScaleFactor();
   scaleGraph.setCurrentX(currentScale);
   document.getElementById('sg-status').textContent =
     fmtScaleDenominatorReadable(currentScale);

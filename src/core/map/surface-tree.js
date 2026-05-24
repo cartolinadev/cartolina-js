@@ -1524,84 +1524,110 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         map.renderer.gpu.clearDepth();
     }
 
-    cameraPos = map.beforeSelectedTileDraw(cameraPos);
+    var drawSelectedBuffer = function(drawCameraPos) {
 
-    // update renderer buffers
-    map.renderer.updateBuffers(map.getSelectionPosition());
+        // update renderer buffers
+        map.renderer.updateBuffers(map.getSelectionPosition());
 
-    //draw surface
-    for (i = drawBufferIndex - 1; i >= 0; i--) {
-        var item = drawBuffer[i];
-        tile = (noGrid) ? item : item[0];
-        node = tile.metanode;
+        //draw surface
+        for (i = drawBufferIndex - 1; i >= 0; i--) {
+            var item = drawBuffer[i];
+            tile = (noGrid) ? item : item[0];
+            node = tile.metanode;
 
-        if (scanExtents && node) {
+            if (scanExtents && node) {
 
-            // TODO noramlize by distance and tilt
+                // TODO noramlize by distance and tilt
 
-            p2 = node.diskPos;
-            p1 = renderer.cameraPosition;
-            camVec = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
-            length = vec3.normalize4(camVec);
-            tilt = -vec3.dot(camVec, node.diskNormal);
+                p2 = node.diskPos;
+                p1 = renderer.cameraPosition;
+                camVec = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
+                length = vec3.normalize4(camVec);
+                tilt = -vec3.dot(camVec, node.diskNormal);
 
-            if (tilt < 0) {
-                tilt = 0;
-            }
-
-            tilt = 1 - tilt;
-
-            factor = (renderer.camera.fovDist / length) * tilt;
-            //renderer.camera.scaleFactor2(d) * screenPixelSize
-            //pp = this.renderer.project2(tile.diskPos, mvp);                
-
-            if (node.minZ * factor < hmin) {
-                hmin = node.minZ * factor;
-            }
-
-            if (node.maxZ * factor > hmax) {
-                hmax = node.maxZ * factor;
-            }
-        }
-
-
-        if (noGrid)  {
-
-            if (stats.gpuRenderUsed >= draw.maxGpuUsed)  {
-                break;
-            }
-
-            //draw tile,  preventRender=false, preventLoad=false
-            drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
-
-        } else { // if !noGrid
-
-            if (underSurfaceGrid) {
-
-                if (!item[1] && !(stats.gpuRenderUsed >= draw.maxGpuUsed))  {
-                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
-                } else {
-                    if (drawTiles.debug.drawBBoxes) {
-                        drawTiles.drawTileInfo(tile, tile.metanode, cameraPos);
-                    }
+                if (tilt < 0) {
+                    tilt = 0;
                 }
 
-            } else { // if (!noGrid && !underSurfaceGrid)
+                tilt = 1 - tilt;
 
-                if ((drawGrid && item[1]) || stats.gpuRenderUsed >= draw.maxGpuUsed)  {
+                factor = (renderer.camera.fovDist / length) * tilt;
+                //renderer.camera.scaleFactor2(d) * screenPixelSize
+                //pp = this.renderer.project2(tile.diskPos, mvp);
 
-                    if (drawTiles.debug.drawBBoxes) {
-                        drawTiles.drawTileInfo(tile, tile.metanode, cameraPos);
-                    }
+                if (node.minZ * factor < hmin) {
+                    hmin = node.minZ * factor;
+                }
 
-                    tile.drawGrid(cameraPos); 
-                } else if (!item[1]) {
-                    drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, 0, false, false);
+                if (node.maxZ * factor > hmax) {
+                    hmax = node.maxZ * factor;
                 }
             }
 
-        }
-    } // for (i = drawBufferIndex - 1; i >= 0; i--)
+
+            if (noGrid)  {
+
+                if (stats.gpuRenderUsed >= draw.maxGpuUsed)  {
+                    break;
+                }
+
+                //draw tile,  preventRender=false, preventLoad=false
+                drawTiles.drawSurfaceTile(
+                    tile, tile.metanode, drawCameraPos,
+                    tile.texelSize, 0, false, false);
+
+            } else { // if !noGrid
+
+                if (underSurfaceGrid) {
+
+                    if (!item[1]
+                        && !(stats.gpuRenderUsed >= draw.maxGpuUsed)) {
+                        drawTiles.drawSurfaceTile(
+                            tile, tile.metanode, drawCameraPos,
+                            tile.texelSize, 0, false, false);
+                    } else {
+                        if (drawTiles.debug.drawBBoxes) {
+                            drawTiles.drawTileInfo(
+                                tile, tile.metanode, drawCameraPos);
+                        }
+                    }
+
+                } else { // if (!noGrid && !underSurfaceGrid)
+
+                    if ((drawGrid && item[1])
+                        || stats.gpuRenderUsed >= draw.maxGpuUsed) {
+
+                        if (drawTiles.debug.drawBBoxes) {
+                            drawTiles.drawTileInfo(
+                                tile, tile.metanode, drawCameraPos);
+                        }
+
+                        tile.drawGrid(drawCameraPos); 
+                    } else {
+
+                        if (!item[1]) {
+                            drawTiles.drawSurfaceTile(
+                                tile, tile.metanode, drawCameraPos,
+                                tile.texelSize, 0, false, false);
+                        }
+                    }
+                }
+
+            }
+        } // for (i = drawBufferIndex - 1; i >= 0; i--)
+    };
+
+    if (draw.drawChannel === 0) {
+
+        map.withNavigationCamera(function() {
+
+            drawSelectedBuffer(map.camera.position);
+        });
+
+    } else {
+
+        drawSelectedBuffer(cameraPos);
+    }
 
     if (scanExtents) {
         renderer.gridHmax = hmax;
@@ -1610,8 +1636,6 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
     map.gpuCache.skipCostCheck = false;
     map.gpuCache.checkCost();
-
-    map.afterSelectedTileDraw();
 
 };
 

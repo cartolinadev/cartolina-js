@@ -215,48 +215,52 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
 
         //console.log('debug.drawEarth');
 
-        // make sure we use selection context when position is frozen by inspector
-        map.beforeTileSelection();
+        map.withSelectionCamera(function() {
+
+            //todo remove this
+            for (i = 0, li = this.tileBuffer.length; i < li; i++) {
+                this.tileBuffer[i] = null;    
+            }
         
-        for (i = 0, li = this.tileBuffer.length; i < li; i++) {  //todo remove this
-            this.tileBuffer[i] = null;    
-        }
-    
-        // the hot path - draw mesh tiles
-        if (this.tree.surfaceSequence.length > 0) {
-            //console.log("here7");
-            this.tree.draw(false);
-        }
-
-        //draw free layers
-        for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
-
-            layer = map.freeLayerSequence[i];
-
-            if (!labelsEnabled && (layer.type == 'geodata' || layer.geodata)) {
-                continue;
+            // the hot path - draw mesh tiles
+            if (this.tree.surfaceSequence.length > 0) {
+                //console.log("here7");
+                this.tree.draw(false);
             }
 
+            //draw free layers
+            for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
 
-            if (layer.ready && layer.tree && 
-                (!layer.geodata || (layer.stylesheet && layer.stylesheet.isReady())) && this.drawChannel == 0) {
-                
-                if (layer.zFactor) {
-                    this.zbufferOffset = layer.zFactor;
+                layer = map.freeLayerSequence[i];
+
+                if (!labelsEnabled
+                    && (layer.type == 'geodata' || layer.geodata)) {
+                    continue;
                 }
 
-                if (layer.type == 'geodata') {
-                    // monolitic geodata hot path
-                    this.drawMonoliticGeodata(layer);
-                } else {
-                    // geodata-tiles hot path
-                    //console.log('geodata layer tree draw');
-                    layer.tree.draw();
-                }
 
-                this.zbufferOffset = null;
+                if (layer.ready && layer.tree
+                    && (!layer.geodata
+                        || (layer.stylesheet && layer.stylesheet.isReady()))
+                    && this.drawChannel == 0) {
+                    
+                    if (layer.zFactor) {
+                        this.zbufferOffset = layer.zFactor;
+                    }
+
+                    if (layer.type == 'geodata') {
+                        // monolitic geodata hot path
+                        this.drawMonoliticGeodata(layer);
+                    } else {
+                        // geodata-tiles hot path
+                        //console.log('geodata layer tree draw');
+                        layer.tree.draw();
+                    }
+
+                    this.zbufferOffset = null;
+                }
             }
-        }
+        }.bind(this));
     } // if (debug.drawEarth)
 
     var body = map.referenceFrame.body;
@@ -299,8 +303,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }
     }
 
-    // restore navigation context if inspector has frozen position
-    map.afterFrameDraw();
 };
 
 /**
@@ -336,17 +338,20 @@ MapDraw.prototype.drawHitmap = function() {
 
 
 MapDraw.prototype.drawGeodataHitmap = function() {
-    this.renderer.gpu.setState(this.drawTileState);
-    this.renderer.switchToFramebuffer('geo');
-    this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
+    this.map.withSelectionCamera(function() {
 
-    if (this.renderer.advancedPassNeeded) {
-        this.renderer.switchToFramebuffer('geo2');
+        this.renderer.gpu.setState(this.drawTileState);
+        this.renderer.switchToFramebuffer('geo');
         this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
-    }
 
-    this.renderer.switchToFramebuffer('base');
-    this.map.geoHitMapDirty = false;
+        if (this.renderer.advancedPassNeeded) {
+            this.renderer.switchToFramebuffer('geo2');
+            this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
+        }
+
+        this.renderer.switchToFramebuffer('base');
+        this.map.geoHitMapDirty = false;
+    }.bind(this));
 };
 
 MapDraw.prototype.areDrawCommandsReady = function(commands, priority, doNotLoad, doNotCheckGpu) {

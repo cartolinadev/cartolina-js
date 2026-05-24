@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-05-24 — Freeze camera bridge narrowed
+
+Replaced the freeze-mode draw phase hooks on the legacy `Map` surface
+with scoped context calls. Draw traversal now enters
+`withSelectionCamera` for tile selection, culling, free-layer descent,
+and geodata hitmaps. Final terrain and geodata drawing enter
+`withNavigationCamera`, while `Renderer.updateBuffers()` and
+`drawGpuJobs()` still receive the selection position so
+scale-dependent vertical exaggeration follows the selected tile set.
+
+`FreezeCameraState.restore()` now swaps `map.position` with the camera
+fields so legacy code sees a complete ambient context inside each
+callback. The class remembers the navigation state while selection is
+installed, allowing nested navigation draws without draw-phase methods.
+
+Added a backlog entry for the target design: pass explicit `view` and
+`selection` contexts into draw code once legacy ambient camera reads are
+removed.
+
+Adjusted VE readbacks after the scoped-context cleanup. The stats panel
+now reports scale-dependent vertical exaggeration from
+`Map.getSelectionPosition()`. `Viewer.getScaleDenominator()` and
+`Viewer.getVeScaleFactor()` now default to the current selection position
+when called without an argument, and `demos/relief-lab/` uses that public
+readback for its current scale and VE indicator.
+
+Verification: `npx tsc --noEmit` clean. Screenshot tests passed for
+`simple-terrain`, `complex-terrain`, and `full-terrain`. A local
+Playwright freeze smoke toggled freeze, showed the frustum, navigated
+away from the frozen position, and reported no console or page errors.
+
 ## 2026-05-24 — Dead pipeline and wireframe debug code removed
 
 Removed all code that became unreachable when the draw-command terrain
@@ -25,10 +56,8 @@ pipeline was deleted in 2026-05-21:
   `drawTileCounter`, `ignoreTexelSize`. Associated key bindings and
   URL param branches removed from `input.js` and `renderer.ts`.
 
-Also added javadoc to the six freeze-mode phase hooks declared in
-`map.d.ts` (`beforeTileSelection`, `beforeSelectedTileDraw`,
-`afterSelectedTileDraw`, `afterFrameDraw`, `withNavigationCamera`,
-`withSelectionCamera`).
+Also added JSDoc to the freeze-mode declarations in `map.d.ts`; a later
+cleanup replaced the draw phase hooks with scoped context callbacks.
 
 Verification: `npx tsc --noEmit` clean; screenshot tests passed for
 `simple-terrain`, `complex-terrain`, and `full-terrain`.

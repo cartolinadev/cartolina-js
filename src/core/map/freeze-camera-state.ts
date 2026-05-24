@@ -8,11 +8,11 @@
  * selection context fixed while navigation continues to move.
  *
  * The legacy map draw code does not pass these contexts explicitly. It reads
- * camera values from mutable fields spread across `MapCamera`,
- * `Renderer.camera`, and `Renderer` itself. This class is the narrow bridge
- * used while that code still exists: `draw.js` and `surface-tree.js` call
- * small phase hooks, and the hook implementation swaps the fields that those
- * phases read.
+ * camera and position values from mutable fields spread across `Map`,
+ * `MapCamera`, `Renderer.camera`, and `Renderer` itself. This class is the
+ * narrow bridge used while that code still exists: draw code scopes legacy
+ * reads with `withSelectionCamera` or `withNavigationCamera`, and this class
+ * swaps the fields those reads use.
  *
  * This is not the target design. As legacy `map.js`, `draw.js`, and related
  * files are dissolved into `map.ts` and supporting TypeScript modules, map
@@ -89,10 +89,6 @@ type FreezeMap = {
     renderer: Renderer & {
         cameraPosition: Vec3;
         cameraVector: Vec3;
-        updateBuffers(): void;
-    };
-    draw: {
-        drawChannel: number;
     };
 };
 
@@ -139,17 +135,18 @@ type RendererCameraState = {
 };
 
 /**
- * Stores the frozen selection camera and swaps legacy camera fields at draw
- * phases. The primary motivation for this module was the diagnostic freeze
- * mode, which needs tile selection to use a frozen camera while navigation
- * and final rendering use the live camera.
+ * Stores the frozen selection camera and swaps legacy map fields for scoped
+ * draw callbacks. The primary motivation for this module was the diagnostic
+ * freeze mode, which needs tile selection to use a frozen camera while
+ * navigation and final rendering use the live camera.
  */
 class FreezeCameraState {
 
     active = false;
     selectionCameraState: FreezeCameraState.CapturedCameraState | null = null;
-    private liveCameraState_: FreezeCameraState.CapturedCameraState | null =
-        null;
+    private navigationCameraState_:
+        FreezeCameraState.CapturedCameraState | null = null;
+    private context_: FreezeCameraState.Context = 'navigation';
 
     constructor(private readonly map_: FreezeMap) {}
 
@@ -160,7 +157,8 @@ class FreezeCameraState {
 
         this.active = true;
         this.selectionCameraState = this.capture();
-        this.liveCameraState_ = null;
+        this.navigationCameraState_ = null;
+        this.context_ = 'navigation';
     }
 
     /** Clear the frozen selection camera. */
@@ -168,68 +166,27 @@ class FreezeCameraState {
 
         this.active = false;
         this.selectionCameraState = null;
-        this.liveCameraState_ = null;
+        this.navigationCameraState_ = null;
+        this.context_ = 'navigation';
     }
 
     /**
-     * Switch to the frozen camera before tile descent begins.
-     */
-    beforeTileDescent(): void {
-
-        if (!this.active || !this.selectionCameraState) return;
-
-        this.liveCameraState_ = this.capture();
-        this.restore(this.selectionCameraState);
-    }
-
-    /**
-     * Switch to the live camera before drawing selected tiles.
-     *
-     * @param cameraPos selection camera position passed by legacy traversal
-     * @returns live camera position for base-pass tile rendering
-     */
-    beforeDrawBuffer(cameraPos: Vec3): Vec3 {
-
-        if (!this.active || !this.liveCameraState_) return cameraPos;
-        if (this.map_.draw.drawChannel !== 0) return cameraPos;
-
-        this.restore(this.liveCameraState_);
-        return this.liveCameraState_.map.position;
-    }
-
-    /**
-     * Restore the frozen camera after drawing selected tiles.
-     */
-    afterDrawBuffer(): void {
-
-        if (!this.active || !this.selectionCameraState) return;
-        if (this.map_.draw.drawChannel !== 0) return;
-
-        this.restore(this.selectionCameraState);
-    }
-
-    /**
-     * Restore the live camera at the end of a draw pass.
-     */
-    afterDrawMap(): void {
-
-        if (this.liveCameraState_) {
-
-            this.restore(this.liveCameraState_);
-            this.liveCameraState_ = null;
-            this.map_.renderer.updateBuffers();
-        }
-    }
-
-    /**
-     * Run a callback with the frozen selection camera installed.
+     * Run a callback with the frozen selection context installed.
      */
     withSelectionCamera<T>(callback: () => T): T {
 
         if (!this.selectionCameraState) return callback();
 
         const restoreState = this.capture();
+        const restoreNavigationState = this.navigationCameraState_;
+        const restoreContext = this.context_;
+
+        if (this.context_ === 'navigation') {
+            this.navigationCameraState_ = restoreState;
+        }
+
         this.restore(this.selectionCameraState);
+        this.context_ = 'selection';
 
         try {
 
@@ -238,17 +195,25 @@ class FreezeCameraState {
         } finally {
 
             this.restore(restoreState);
+            this.navigationCameraState_ = restoreNavigationState;
+            this.context_ = restoreContext;
         }
     }
 
     /**
-     * Run a callback with the live render camera installed.
+     * Run a callback with the live navigation context installed.
      */
-    withLiveCamera<T>(callback: () => T): T {
+    withNavigationCamera<T>(callback: () => T): T {
 
-        if (!this.active || !this.liveCameraState_) return callback();
+        if (!this.active || !this.navigationCameraState_) {
+            return callback();
+        }
 
-        this.restore(this.liveCameraState_);
+        const restoreState = this.capture();
+        const restoreContext = this.context_;
+
+        this.restore(this.navigationCameraState_);
+        this.context_ = 'navigation';
 
         try {
 
@@ -256,10 +221,17 @@ class FreezeCameraState {
 
         } finally {
 
-            if (this.selectionCameraState) {
-                this.restore(this.selectionCameraState);
-            }
+            this.restore(restoreState);
+            this.context_ = restoreContext;
         }
+    }
+
+    /** Return the live navigation position. */
+    getNavigationPosition(): MapPosition | null {
+
+        return this.navigationCameraState_
+            ? this.navigationCameraState_.map.mapPosition.clone()
+            : null;
     }
 
     /** Return the map position used for tile selection. */
@@ -330,10 +302,7 @@ class FreezeCameraState {
         const mapState = state.map;
         const renderState = state.renderer;
 
-        /*
-         * `map.position` is intentionally not restored here. Freeze mode
-         * leaves navigation state live and swaps only legacy camera fields.
-         */
+        this.map_.position = mapState.mapPosition.clone();
         mapCamera.distance = mapState.distance;
         mapCamera.distance2 = mapState.distance2;
         mapCamera.distanceFactor = mapState.distanceFactor;
@@ -395,6 +364,8 @@ class FreezeCameraState {
 }
 
 namespace FreezeCameraState {
+    export type Context = 'navigation' | 'selection';
+
     export type CapturedCameraState = {
         map: MapCameraState;
         renderer: RendererCameraState;
