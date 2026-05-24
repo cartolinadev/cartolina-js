@@ -23,6 +23,14 @@ as `map.js`, `draw.js`, and `surface-tree.js` are being absorbed into
 shader programs, render targets, renderer-local camera data, draw
 commands, and state needed to issue rendering work.
 
+`Renderer.initFrame()` is the frame entry point for renderer-owned
+runtime state. It reads the current `Map`, updates renderer caches,
+updates illumination, and uploads the frame UBO from
+`Map.getSelectionPosition()`. Legacy draw code must not write those
+renderer fields directly. `Renderer.syncCameraState()` recomputes the
+camera-derived caches after `FreezeCameraState` swaps the ambient map
+camera context.
+
 The intended boundary is:
 
 - map code builds per-pass context data and render requests

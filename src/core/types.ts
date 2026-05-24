@@ -31,6 +31,8 @@ export interface CoreConfig {
     mapDMapMode?: number;
     mapDMapCopyIntervalMs?: number;
     mapDMapDilatePx?: number;
+    mapBenevolentMargins?: boolean;
+    mapForceFrameTime?: number;
     mapSplitMargin?: number;
     mapLabelFreeMargins?: [number, number, number, number];
 }

@@ -105,8 +105,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         };
     }
 
-    var projected = this.isProjected;
-
     //console.log(this.renderer);
 
     //console.log(map.resourcesTree);
@@ -119,60 +117,7 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         case 'fastlinear': this.gridSkipped = false; this.gridFlat = false; this.gridGlues = false; break;
     }
 
-    var camInfo = camera.update();
-    var renderer = this.renderer;
-
-    renderer.debugStr = 'AsyncImageDecode: ' + this.config.mapAsyncImageDecode;
-    //renderer.dirty = true;  // no reader found
-    renderer.debug = this.debug;
-    renderer.mapHack = map;
-    renderer.benevolentMargins = this.config.mapBenevolentMargins;
-
-    if (this.config.mapForceFrameTime) {
-        if (this.config.mapForceFrameTime != -1) {
-            renderer.frameTime = this.config.mapForceFrameTime;
-        } else {
-            renderer.frameTime = 0;
-        }
-    } else {
-        renderer.frameTime = this.stats.frameTime;        
-    }
-
-    renderer.hoverFeatureCounter = 0;
-    renderer.hoverFeatureList = map.hoverFeatureList;
-    renderer.hoverFeature = map.hoverFeature;
-
-    renderer.cameraPosition = camera.position;
-    renderer.cameraOrientation = map.position.getOrientation();
-    renderer.cameraTiltFator = Math.cos(math.radians(renderer.cameraOrientation[1]));
-    //renderer.cameraVector = camera.vector;  // no reader found
-    renderer.cameraViewExtent = map.position.getViewExtent();
-    renderer.cameraViewExtent2 = Math.pow(2.0, Math.max(1.0, Math.floor(Math.log(map.position.getViewExtent()) / Math.log(2))));
-    renderer.drawLabelBoxes = this.debug.drawLabelBoxes;
-    renderer.drawGridCells = this.debug.drawGridCells;
-    renderer.drawAllLabels = this.debug.drawAllLabels;
-    renderer.drawHiddenLabels = this.debug.drawHiddenLabels;
-    renderer.fmaxDist = Number.NEGATIVE_INFINITY;
-    renderer.fminDist = Number.POSITIVE_INFINITY;
-
-
-    if (projected) {
-        var yaw = math.radians(renderer.cameraOrientation[0]);
-        renderer.labelVector = [-Math.sin(yaw), Math.cos(yaw), 0, 0, 0];
-    } else {
-        var v = camInfo.vector;
-        renderer.labelVector = [v[0], v[1], v[2], 0]; 
-    }
-
-    renderer.distanceFactor = 1 / Math.max(1,Math.log(camera.distance) / Math.log(1.04));
-    renderer.tiltFactor = (Math.abs(renderer.cameraOrientation[1]/-90));
-    renderer.localViewExtentFactor = 2 * Math.tan(math.radians(map.position.getFov()*0.5));
-
-    // update renderer illumination information
-    renderer.updateIllumination(map.position);
-
-    // update per frame UBOs
-    renderer.updateBuffers();
+    renderer.initFrame();
 
     this.degradeHorizonFactor = 200.0 * this.config.mapDegradeHorizonParams[0];
     this.degradeHorizonTiltFactor = 0.5*(1.0+Math.cos(math.radians(Math.min(180,Math.abs(renderer.cameraOrientation[1]*2*3)))));
@@ -263,14 +208,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
         }.bind(this));
     } // if (debug.drawEarth)
 
-    var body = map.referenceFrame.body;
-
-    // drawGPUJobs needs these
-    var navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
-    renderer.earthRadius =  navigationSrsInfo['a'];
-    renderer.earthRadius2 =  navigationSrsInfo['b'];
-    renderer.earthERatio = renderer.earthRadius / renderer.earthRadius2;
-
     if (this.drawChannel == 0
             && map.core.inspector
             && map.core.inspector.hasFreezeFrustum()) {
@@ -293,13 +230,6 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                     renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
                 }.bind(this));
             }
-        }
-    }
-
-    if (this.config.mapForceFrameTime) {
-        if (this.config.mapForceFrameTime != -1) {
-            renderer.frameTime = 0;
-            this.config.mapForceFrameTime = -1;
         }
     }
 

@@ -57,6 +57,9 @@ export default class Map {
     renderer: Renderer;
     url: MapUrl;
     config: CoreConfig;
+    stats: {
+        frameTime: number;
+    } & Record<string, unknown>;
 
     position: MapPosition;
     camera: MapCamera;
@@ -97,7 +100,11 @@ export default class Map {
 
     draw: {
         drawChannel: number;
+        debug: Renderer.Debug;
     };
+
+    hoverFeature: unknown;
+    hoverFeatureList: unknown[];
 
     measure: {
         getNodeInformation(
@@ -156,6 +163,7 @@ export default class Map {
 
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;
+    getNavigationSrs(): MapSrs;
     getPhysicalSrs(): MapSrs;
     /**
      * Returns terrain distance at a 2D position in the current screen view.

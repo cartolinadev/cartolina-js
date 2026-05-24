@@ -351,10 +351,11 @@ RendererRMap.prototype.addRectangle = function(x1, y1, x2, y2, z, subjob, any, c
         // If we're in per-pixel hitmap mode (<=2), only use the math fallback for very far distances.
         // In copy-hitmap modes (>2), always use the hitmap (no per-label readback required).
         // WARN: per-pixel hitmap mode is a performance killer, particularly in Chromium
+        var map = renderer.core.map;
         var useFallback = (renderer.hitmapMode <= 2) && (reduce[4] > 10000000);
-        var depth = renderer.mapHack.getScreenDepth(
+        var depth = map.getScreenDepth(
             checkDepthMap[0], checkDepthMap[1],
-            renderer.mapHack.config.mapDMapDilatePx,
+            map.config.mapDMapDilatePx,
             useFallback, 'apparent');
 
         if (depth[0]) {

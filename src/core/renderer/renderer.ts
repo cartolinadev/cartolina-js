@@ -140,12 +140,11 @@ export class Renderer {
     stencilLineState: Optional<GpuDevice.State> = null;
     backgroundState: Optional<GpuDevice.State> = null;
 
-    mapHack: any = null; // assigned in map/draw.js
-
     geodataSelection: any[] = [];
 
     hoverFeatureCounter = 0;
     hoverFeatureList: any[] = [];
+    hoverFeature: any = null;
 
     touchSurfaceEvent: any[] = [];
 
@@ -303,6 +302,7 @@ export class Renderer {
     cameraOrientation = [0,0,0];
     cameraTiltFator = 1;
     cameraViewExtent = 1;
+    cameraViewExtent2 = 1;
     distanceFactor = 1;
     tiltFactor = 1;
     localViewExtentFactor = 1;
@@ -311,6 +311,9 @@ export class Renderer {
     drawnGeodataTiles = 0;
     drawnGeodataTilesFactor = 0;
     drawnGeodataTilesUsed = false;
+    debugStr: string | null = null;
+    benevolentMargins = false;
+    drawHiddenLabels = false;
 
     gridHmax = 0;
     gridHmin = 0;
@@ -639,6 +642,119 @@ createBuffers() {
 
     // uboLayers not initialized here: each submesh keeps its own
 
+}
+
+/**
+ * Initialize renderer-owned state for the current map frame.
+ *
+ * The legacy map draw code used to write these fields directly before
+ * drawing. This method keeps the same data local to the renderer and updates
+ * the frame UBO from the selection position used for terrain selection.
+ */
+initFrame(): void {
+
+    const map = this.core.map;
+    const config = map.config;
+    const debug = map.draw.debug;
+
+    this.debugStr = `AsyncImageDecode: ${config.mapAsyncImageDecode}`;
+    this.debug = debug;
+    this.benevolentMargins = !!config.mapBenevolentMargins;
+
+    const forcedFrameTime = config.mapForceFrameTime;
+
+    if (typeof forcedFrameTime === 'number' && forcedFrameTime !== 0) {
+
+        this.frameTime = forcedFrameTime !== -1
+            ? forcedFrameTime
+            : 0;
+
+        if (forcedFrameTime !== -1) {
+            config.mapForceFrameTime = -1;
+        }
+
+    } else {
+
+        this.frameTime = map.stats.frameTime;
+    }
+
+    this.hoverFeatureCounter = 0;
+    this.hoverFeatureList = map.hoverFeatureList;
+    this.hoverFeature = map.hoverFeature;
+
+    this.drawLabelBoxes = !!debug.drawLabelBoxes;
+    this.drawGridCells = !!debug.drawGridCells;
+    this.drawAllLabels = !!debug.drawAllLabels;
+    this.drawHiddenLabels = !!debug.drawHiddenLabels;
+    this.fmaxDist = Number.NEGATIVE_INFINITY;
+    this.fminDist = Number.POSITIVE_INFINITY;
+
+    const navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
+    this.earthRadius = navigationSrsInfo.a;
+    this.earthRadius2 = navigationSrsInfo.b;
+    this.earthERatio = navigationSrsInfo.a / navigationSrsInfo.b;
+
+    const updateFrameBuffers = () => {
+
+        map.camera.update();
+        this.syncCameraState();
+        this.updateIllumination(map.position);
+        this.updateBuffers(map.getSelectionPosition());
+    };
+
+    if (map.draw.drawChannel === 0) {
+
+        updateFrameBuffers();
+
+    } else {
+
+        map.withSelectionCamera(updateFrameBuffers);
+    }
+}
+
+/**
+ * Recompute renderer camera caches from the currently installed map camera.
+ *
+ * Freeze mode swaps legacy map and camera fields for scoped draw callbacks.
+ * Calling this after a swap keeps renderer draw helpers aligned with the
+ * active camera context without forcing another UBO upload.
+ */
+syncCameraState(): void {
+
+    const map = this.core.map;
+    const camera = map.camera;
+    const position = map.position;
+
+    this.cameraPosition = camera.position;
+    this.cameraVector = camera.vector;
+    this.cameraOrientation = position.getOrientation();
+    this.cameraTiltFator =
+        Math.cos(math.radians(this.cameraOrientation[1]));
+    this.cameraViewExtent = position.getViewExtent();
+    this.cameraViewExtent2 = Math.pow(
+        2.0,
+        Math.max(
+            1.0,
+            Math.floor(Math.log(this.cameraViewExtent) / Math.log(2))
+        )
+    );
+
+    if (map.getNavigationSrs().isProjected()) {
+
+        const yaw = math.radians(this.cameraOrientation[0]);
+        this.labelVector = [-Math.sin(yaw), Math.cos(yaw), 0, 0, 0];
+
+    } else {
+
+        const vector = camera.vector;
+        this.labelVector = [vector[0], vector[1], vector[2], 0];
+    }
+
+    this.distanceFactor =
+        1 / Math.max(1, Math.log(camera.distance) / Math.log(1.04));
+    this.tiltFactor = Math.abs(this.cameraOrientation[1] / -90);
+    this.localViewExtentFactor =
+        2 * Math.tan(math.radians(position.getFov() * 0.5));
 }
 
 /**

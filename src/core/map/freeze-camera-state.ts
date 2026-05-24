@@ -87,8 +87,7 @@ type FreezeMap = {
     position: MapPosition;
     camera: MutableMapCamera;
     renderer: Renderer & {
-        cameraPosition: Vec3;
-        cameraVector: Vec3;
+        syncCameraState(): void;
     };
 };
 
@@ -348,8 +347,7 @@ class FreezeCameraState {
         renderCamera.projection32.set(renderCamera.projection);
         renderCamera.dirty = renderState.dirty;
 
-        this.map_.renderer.cameraPosition = mapCamera.position;
-        this.map_.renderer.cameraVector = mapCamera.vector;
+        this.map_.renderer.syncCameraState();
     }
 
     private vec3_(value: ArrayLike<number>): Vec3 {

@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-05-24 — Renderer frame initialization centralized
+
+Moved renderer frame-state setup out of `MapDraw.drawMap()` and into
+`Renderer.initFrame()`. The renderer now owns its debug state, hover
+state, frame timing, camera-derived caches, ellipsoid radii,
+illumination update, and frame UBO upload. `drawMap()` calls one
+renderer entry point instead of writing those fields directly.
+
+Removed `Renderer.mapHack`; `RendererRMap` now reads the map through
+`renderer.core.map`. Removed the `Renderer.updateBuffers()` call from
+`surface-tree.js`; `initFrame()` uploads the frame UBO once using
+`Map.getSelectionPosition()`. For non-base draw channels, `initFrame()`
+does the upload inside `withSelectionCamera()` so depth hitmaps keep the
+selection camera.
+
+`FreezeCameraState.restore()` now calls `Renderer.syncCameraState()`
+after restoring the map and renderer camera fields. This keeps
+camera-derived renderer caches aligned with the active freeze context
+without adding another UBO upload.
+
+Verification: `npx tsc --noEmit` clean. The diagnostic shortcut script
+passed. Screenshot captures completed for `simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
 ## 2026-05-24 — Freeze camera bridge narrowed
 
 Replaced the freeze-mode draw phase hooks on the legacy `Map` surface

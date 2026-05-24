@@ -1526,9 +1526,6 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
     var drawSelectedBuffer = function(drawCameraPos) {
 
-        // update renderer buffers
-        map.renderer.updateBuffers(map.getSelectionPosition());
-
         //draw surface
         for (i = drawBufferIndex - 1; i >= 0; i--) {
             var item = drawBuffer[i];
