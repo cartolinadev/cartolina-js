@@ -31,6 +31,13 @@ renderer fields directly. `Renderer.syncCameraState()` recomputes the
 camera-derived caches after `FreezeCameraState` swaps the ambient map
 camera context.
 
+Frame setup is split by ownership:
+
+- `Map.initFrame()` resets map-visible accumulators and loader channel
+  state.
+- `Renderer.initFrame()` resets renderer state and uploads frame UBOs.
+- `MapDraw.initFrame()` resets legacy traversal and grid draw state.
+
 The intended boundary is:
 
 - map code builds per-pass context data and render requests

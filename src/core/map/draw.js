@@ -47,7 +47,6 @@ var MapDraw = function(map) {
     this.gridSkipped = false;
 
     this.zFactor = 0;
-    //this.zFactor2 = 0.000012;
     this.zFactor2 = 0.003;
     this.zbufferOffset = null;    
     this.zShift = 0;
@@ -73,7 +72,6 @@ var MapDraw = function(map) {
     this.tmpVec5 = new Array(5);
     this.bboxBuffer = new Float32Array(8*3);
     this.planeBuffer = new Float32Array(9*3);
-    //this.drawBufferIndex = 0;
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
@@ -90,57 +88,55 @@ var MapDraw = function(map) {
 };
 
 
-MapDraw.prototype.drawMap = function(skipFreeLayers) {
+/**
+ * Reset draw-owned state at the start of a render pass.
+ */
+MapDraw.prototype.initFrame = function() {
+
+    var gridMode = this.config.mapGridMode;
+    this.gridSkipped = gridMode == 'none';
+    this.gridFlat = gridMode == 'flat';
+    this.gridGlues = gridMode == 'linear';
+
+    this.degradeHorizonFactor =
+        200.0 * this.config.mapDegradeHorizonParams[0];
+    this.degradeHorizonTiltFactor = 0.5 * (
+        1.0 + Math.cos(math.radians(Math.min(
+            180,
+            Math.abs(this.renderer.cameraOrientation[1] * 2 * 3)
+        )))
+    );
+    this.setupDetailDegradation();
+
+    this.zFactor = 0;
+    this.ndcToScreenPixel =
+        this.renderer.gpu.currentRenderTarget.viewportSize[0] * 0.5;
+    this.updateGridFactors();
+    this.maxGpuUsed = Math.max(
+        32 * 102 * 1204,
+        this.map.gpuCache.getMaxCost() - 32 * 102 * 1204
+    );
+    this.drawTileCounter = 0;
+};
+
+
+MapDraw.prototype.drawMap = function() {
     var map = this.map;
     var renderer = this.renderer;
     var camera = this.camera;
     var gpu = renderer.gpu;
     var debug = this.debug;
 
-    if (this.drawChannel != 1) {
-        map.visibleCredits = {
-            imagery : {},
-            glueImagery : {},
-            mapdata : {}
-        };
-    }
-
-    //console.log(this.renderer);
-
-    //console.log(map.resourcesTree);
-    //console.log(map.tree);
-
-    switch (this.config.mapGridMode) {
-        case 'none':       this.gridSkipped = true; this.gridFlat = false; this.gridGlues = false;  break;
-        case 'flat':       this.gridSkipped = false; this.gridFlat = true; this.gridGlues = false;  break;
-        case 'linear':     this.gridSkipped = false; this.gridFlat = false; this.gridGlues = true;  break;
-        case 'fastlinear': this.gridSkipped = false; this.gridFlat = false; this.gridGlues = false; break;
-    }
+    map.initFrame(this.drawChannel);
 
     renderer.initFrame();
+    this.initFrame();
 
-    this.degradeHorizonFactor = 200.0 * this.config.mapDegradeHorizonParams[0];
-    this.degradeHorizonTiltFactor = 0.5*(1.0+Math.cos(math.radians(Math.min(180,Math.abs(renderer.cameraOrientation[1]*2*3)))));
-   
-    if (this.drawChannel != 1) {
+    if (this.drawChannel != 1) 
         gpu.clearColorAndDepth([0,0,0,255]);
-    } else { //render depth map
+    else 
         gpu.clearDepth();
-    }
 
-    this.setupDetailDegradation();
-
-    map.loader.setChannel(0); //0 = hires channel
-    this.zFactor = 0;
-
-    this.ndcToScreenPixel =
-        this.renderer.gpu.currentRenderTarget.viewportSize[0] * 0.5;
-
-    this.updateGridFactors();
-    this.maxGpuUsed = Math.max(32*102*1204, map.gpuCache.getMaxCost() - 32*102*1204); 
-    //this.cameraCenter = this.position.getCoords();
-    this.stats.renderBuild = 0;
-    this.drawTileCounter = 0;
     var cameraPos = camera.position;
     var i, li, layer;
     var labelsEnabled = renderer.debug.flagLabels
@@ -154,11 +150,10 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
     if (this.drawChannel === 0 && map.isAtmospheric())
         this.renderer.drawBackground();
 
+    // draw surfaces
     gpu.setState(this.drawTileState);
 
-    if (this.debug.drawEarth) { // debug.drawEarth? :-)
-
-        //console.log('debug.drawEarth');
+    if (this.debug.drawEarth) {
 
         map.withSelectionCamera(function() {
 
@@ -167,13 +162,13 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 this.tileBuffer[i] = null;    
             }
         
-            // the hot path - draw mesh tiles
+            // draw mesh tiles
             if (this.tree.surfaceSequence.length > 0) {
                 //console.log("here7");
                 this.tree.draw(false);
             }
 
-            //draw free layers
+            // draw free layers
             for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
 
                 layer = map.freeLayerSequence[i];
@@ -206,33 +201,35 @@ MapDraw.prototype.drawMap = function(skipFreeLayers) {
                 }
             }
         }.bind(this));
+
     } // if (debug.drawEarth)
 
+    // draw freeze frustum, if applicable
     if (this.drawChannel == 0
             && map.core.inspector
             && map.core.inspector.hasFreezeFrustum()) {
+
         map.withNavigationCamera(function() {
             map.core.inspector.drawFreezeFrustum();
         });
     }
 
-    // geodata hot path
+    // draw geodata
     if (debug.drawEarth) {
-        if (!skipFreeLayers) {
-            if (labelsEnabled
-                && map.freeLayersHaveGeodata
-                && this.drawChannel == 0) {
-                renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; //drawnGeodataTiles;
-                renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
-                // geodata hot path
-                //console.log('drawGpuJob');
-                map.withNavigationCamera(function() {
-                    renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
-                }.bind(this));
-            }
+        if (labelsEnabled
+            && map.freeLayersHaveGeodata
+            && this.drawChannel == 0) {
+
+            renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; 
+            renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
+
+            map.withNavigationCamera(function() {
+                renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
+            }.bind(this));
         }
     }
 
+    // done
 };
 
 /**

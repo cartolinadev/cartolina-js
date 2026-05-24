@@ -1393,7 +1393,25 @@ Map.prototype.applyCredits = function(tile) {
 
 
 Map.prototype.drawMap = function() {
-    this.draw.drawMap(null);
+    this.draw.drawMap();
+};
+
+/**
+ * Reset map-owned state at the start of a render pass.
+ */
+Map.prototype.initFrame = function(drawChannel) {
+
+    if (drawChannel != 1) {
+
+        this.visibleCredits = {
+            imagery : {},
+            glueImagery : {},
+            mapdata : {}
+        };
+    }
+
+    this.loader.setChannel(0); // 0 = hires channel
+    this.stats.renderBuild = 0;
 };
 
 Map.prototype.getNavigationPosition = function() {

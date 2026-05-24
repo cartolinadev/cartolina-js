@@ -1,5 +1,21 @@
 # Session log
 
+## 2026-05-24 — Map and draw frame initialization split
+
+Split the remaining `MapDraw.drawMap()` setup into owner-specific frame
+initializers. `Map.initFrame()` now resets visible credits, selects the
+hires loader channel, and resets `stats.renderBuild`.
+`MapDraw.initFrame()` now resets grid mode flags, horizon degradation,
+detail degradation, NDC scale, grid factors, GPU budget, and tile count.
+
+`drawMap()` now calls `Map.initFrame()`, `Renderer.initFrame()`, and
+`MapDraw.initFrame()` before clearing and drawing. The terrain,
+free-layer, freeze-frustum, and geodata draw phases remain inline.
+
+Verification: `npx tsc --noEmit` clean. The diagnostic shortcut script
+passed. Screenshot captures completed for `simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
 ## 2026-05-24 — Renderer frame initialization centralized
 
 Moved renderer frame-state setup out of `MapDraw.drawMap()` and into

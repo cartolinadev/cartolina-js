@@ -117,6 +117,13 @@ export default class Map {
 
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
+    /**
+     * Reset map-owned state at the start of a render pass.
+     *
+     * @param drawChannel Active draw channel. Channel 1 is the depth pass and
+     *   keeps the current visible-credit accumulator.
+     */
+    initFrame(drawChannel: number): void;
     getNavigationPosition(): MapPosition;
     getSelectionPosition(): MapPosition;
     markDirty(): void;
