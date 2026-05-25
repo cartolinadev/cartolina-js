@@ -28,6 +28,35 @@ Terrain normal maps are discovered from tileserver metadata. Style files
 do not configure them directly. See `normal-encoding.md` for the stored
 normal format and the bump-map collapse path.
 
+## Principal Classes
+
+cartolina-js has three principal classes. Every other object in the
+codebase is either owned by one of them, scoped to UI / inspector /
+worker concerns, or scheduled to absorb into one of them.
+
+| Class | File | Role |
+|---|---|---|
+| `Viewer` | [src/browser/viewer.ts](../../src/browser/viewer.ts) | The public API. Flat, typed, MapLibre-style method surface. The object `cartolina.map()` returns. |
+| `Map` | [src/core/map.ts](../../src/core/map.ts) | The typed map data model and logic, graphics-library-independent. Owns the frame loop (per [rfc-map-frame.md](rfc-map-frame.md)), lifecycle, and the state that is map-model in nature. Not the public API class. |
+| `Renderer` | [src/core/renderer/renderer.ts](../../src/core/renderer/renderer.ts) | The WebGL2 graphics class. Owns the GL context, render targets, shader programs, and draw calls. Also serves as the public surface for custom drawing from inside overlay callbacks (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`). |
+
+The split is by concern: `Viewer` is the consumer-facing API and the
+home of UI conveniences; `Map` is the map model and frame
+orchestration; `Renderer` is graphics. New code lands on the class
+whose concern it matches. New public API belongs on `Viewer`. New map
+data model state and per-frame state belongs on `Map`. New graphics
+work belongs on `Renderer`.
+
+Several other classes exist as residual or transitional structures:
+`Browser` holds legacy UI helpers being absorbed into `Viewer`;
+`Core` is residual JS scheduled to dissolve into `Map`; `LegacyMap`
+is the JS half of `Map` being absorbed; `MapInterface` is a thin
+delegation wrapper scheduled for removal. None of these is a separate
+subsystem of the architecture; they are work-in-progress on the way to
+the three-class shape.
+
+The "Runtime Objects" section below shows the full ownership chain.
+
 ## From VTS To Cartolina
 
 cartolina-js is a heavily diverged fork of `vts-browser-js`, the browser
@@ -97,15 +126,15 @@ The current ownership chain is:
 
 ```text
 Viewer                         public API
-  Browser                      legacy UI engine
+  Browser                      legacy UI helpers
     UI                         DOM controls
     Autopilot                  camera animation
     Presenter                  tour playback
     ControlMode                input handling
-    Map                        internal engine boundary
-      Core                     engine coordinator
-        LegacyMap              terrain data and scene state
-        MapInterface           legacy terrain API wrapper
+    Map                        typed map data model and logic
+      Core                     legacy startup / event coordinator
+        LegacyMap              JS half of Map (being absorbed)
+        MapInterface           thin legacy delegation wrapper
         Renderer               WebGL2 renderer
           GpuDevice            GL context and render targets
 ```
@@ -115,30 +144,35 @@ surface and owns the `Browser` instance. It also keeps a shortcut to the
 internal `Map` object so public methods do not repeatedly walk through
 `Browser`.
 
-`Browser` is the legacy UI engine. It creates DOM controls, input
+`Browser` holds the legacy UI helper objects: DOM controls, input
 handling, camera animation, and presenter playback. It is private to
 `Viewer` and is being absorbed into it as feature work touches that code.
 
-`Map` in `src/core/map.ts` is not the public API class. It is the typed
-boundary between the UI code and the older engine objects. It owns the
-event methods, the `ready` Promise, and lifecycle disposal. Its `core`
-getter is a temporary migration hook.
+`Map` in `src/core/map.ts` is the typed map data model and logic,
+graphics-library-independent. It is not the public API class — that is
+`Viewer`. `Map` owns the event methods, the `ready` Promise, lifecycle
+disposal, and (post-[rfc-map-frame.md](rfc-map-frame.md)) the per-frame
+entry point and frame state. Its `core` getter is a temporary migration
+hook that warns on every access.
 
-`Core` coordinates startup, map loading, configuration routing, the
-animation frame callback, auth headers, `LegacyMap`, and `Renderer`.
-It is a legacy coordinator scheduled to disappear into `Map`.
+`Core` (`src/core/core.js`) coordinates startup, map loading,
+configuration routing, the animation frame callback, and auth headers.
+It is residual JS scheduled to dissolve into `Map`.
 
-`LegacyMap` is the terrain engine in `src/core/map/map.js`. It owns the
-tile tree, loader, geodata processing, camera state, coordinate
-conversion, measurement, atmosphere object, and render slots. TypeScript
-files import it as `LegacyMap` to avoid colliding with the newer `Map`
-class. `LegacyMap` is also destined to dissolve into `Map` as feature
-work moves terrain-engine behaviour into TypeScript.
+`LegacyMap` is the JS half of `Map` in `src/core/map/map.js`. It holds
+the parts of the map data model that have not been rewritten in
+TypeScript yet: the tile tree, loader, geodata processing, surface and
+free-layer registries, camera state, coordinate conversion, and
+measurement. TypeScript files import it as `LegacyMap` to avoid
+colliding with the newer `Map` class. It is not a separate subsystem;
+the name describes implementation status, not a logical boundary.
 
 `Renderer` owns the WebGL2 context, GPU resources, render targets,
-shader programs, and draw calls. It remains separate from `Map`. Map
-code should decide what to draw; renderer code should issue the GPU
-work. See `rendering-architecture.md`, `render-targets.md`, and
+shader programs, and draw calls. It is also the public surface for
+custom drawing from inside overlay callbacks (`drawImage`,
+`drawLineString`, `createTexture`, `getCanvasSize`). Map code decides
+what to draw; renderer code issues the GPU work. See
+`rendering-architecture.md`, `render-targets.md`, and
 `renderer-coordinate-spaces.md`.
 
 ## Terrain Data Flow

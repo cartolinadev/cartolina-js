@@ -28,6 +28,12 @@ then branch into more specific documents as needed.
 
 ### RFCs — active
 
+- [rfc-map-frame.md](rfc-map-frame.md) — move the per-frame entry
+  point onto typed `Map`: `MapDraw.drawMap` becomes `Map.draw`,
+  `LegacyMap.update` becomes `Map.tick` with a residual
+  `LegacyMap.tick`. Promotes step 2 of the
+  "replace legacy map draw path" backlog item; audits the recent
+  additions on `LegacyMap` for promotion
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design

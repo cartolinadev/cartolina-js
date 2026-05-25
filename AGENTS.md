@@ -558,14 +558,14 @@ runtime shape, define the input type as a variation of that derived type
 the full structure.
 
 **Resolving the `Map` name collision.**
-The old ES5 terrain engine (`src/core/map/map.js`) has the same
-default-export name as the new TypeScript `Map` public class
-(`src/core/map.ts`). In any TypeScript module that imports the old
-class, use the alias `LegacyMap`:
+The old ES5 `Map` class (`src/core/map/map.js`, the JS half being
+absorbed) has the same default-export name as the new TypeScript `Map`
+class (`src/core/map.ts`). In any TypeScript module that imports the
+old class, use the alias `LegacyMap`:
 
 ```ts
-import type LegacyMap from './map/map'; // old terrain engine
-import Map from '../map';               // new public API class
+import type LegacyMap from './map/map'; // JS half of Map (being absorbed)
+import Map from '../map';               // typed map data model
 ```
 
 Apply the alias in all TypeScript modules — not only where both names
@@ -808,18 +808,34 @@ implementation ideas, not API surface.
 
 ## API structure
 
-`cartolina-js` inherits a two-level API structure from `vts-browser-js`:
+`cartolina-js` exposes one public surface: the `Viewer` class returned
+by `cartolina.map()`. Applications that need to drive their own input
+handling, navigation, or autopilot pass `interactive: false` at
+construction. See [non-interactive.md](docs/wiki/non-interactive.md).
 
-- **Core API** (`src/core/`) — map rendering only. Consumers wire their
-  own UI and navigation. Use this level when you need full control over
-  interaction.
+The old vts-browser-js two-level split (separate "core" build for
+headless rendering vs "browser" build with UI) was removed in 2026-05
+along with the `vts-core.js` entry point. `interactive: false` covers
+the headless use case from the same build.
 
-- **Browser API** ([src/browser/index.ts](src/browser/index.ts)) —
-  higher-level, out-of-the-box solution with built-in UI controls and
-  navigation. The term "browser" is dated but the structural split is
-  preserved. Public API design should follow the
+Internal class structure:
+
+- **`Viewer`** ([src/browser/viewer.ts](src/browser/viewer.ts)) — the
+  public API. Flat, typed, MapLibre-style method surface. Public API
+  design should follow the
   [MapLibre GL JS](#maplibre-gl-js-primary) conventions where
   applicable.
+- **`Map`** ([src/core/map.ts](src/core/map.ts)) — the typed map data
+  model and logic, graphics-library-independent. Owns the frame loop,
+  lifecycle, and state that is map-model in nature. Not the public API
+  class. `LegacyMap` ([src/core/map/map.js](src/core/map/map.js)) is
+  the unfinished JS version of the same object and is absorbed into
+  `Map` as feature work touches it.
+- **`Renderer`** ([src/core/renderer/renderer.ts](src/core/renderer/renderer.ts))
+  — the WebGL2 graphics class. Also serves as the public surface for
+  custom drawing from inside overlay callbacks (`Renderer.drawImage`,
+  `Renderer.drawLineString`, `Renderer.createTexture`,
+  `Renderer.getCanvasSize`).
 
 
 ## Source layout (new modules)

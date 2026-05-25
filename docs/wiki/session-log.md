@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-25 — submit rfc-map-frame; correct API-surface framing
+
+Wrote [rfc-map-frame.md](rfc-map-frame.md) promoting step 2 of the
+"replace legacy map draw path with `TileRenderRig`" backlog item to
+a full design. The RFC moves the per-frame entry point from
+`LegacyMap.update` to typed `Map.tick`, relocates `MapDraw.drawMap`
+to `Map.draw`, installs an `outerMap` back-pointer on `LegacyMap`,
+and migrates the post-`55a34f27` additions on `LegacyMap`
+(`drawChannel`, the overlay registry, `initFrame`, freeze-mode
+position accessors) to typed `Map`. Step 6 audit closes the loop
+on both `LegacyMap` content and `Viewer`'s routing through
+`legacyMap_`.
+
+Corrected stale framing across the docs along the way. The wiki and
+`AGENTS.md` carried language describing `LegacyMap` as a "terrain
+engine" and claiming a two-level Core/Browser API split, both of
+which are wrong. `LegacyMap` is the unfinished JS half of `Map`,
+not a separate subsystem; the Core build was removed in 2026-05
+and replaced by `interactive: false`. `architecture.md` now opens
+with a "Principal Classes" section naming the three real surfaces
+(`Viewer`, `Map`, `Renderer`).
+
+`MapInterface` deletion (69 methods) split into its own backlog
+entry rather than ride along in the RFC: independent of the
+frame-loop relocation, no design overlap, can run in parallel.
+
 ## 2026-05-25 — replace render-slots with typed overlay API
 
 Deleted the inherited `MapRenderSlots` extension point and replaced it

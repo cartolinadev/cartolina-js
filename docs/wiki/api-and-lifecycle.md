@@ -41,14 +41,14 @@ That pattern is partly gone:
 | Name | Role | Status |
 |---|---|---|
 | `Viewer` | Public API | Stays |
-| `Browser` | Legacy UI engine | Moves into `Viewer` |
-| `Map` | Internal engine boundary | Not public |
+| `Browser` | Legacy UI helpers | Moves into `Viewer` |
+| `Map` | Typed map data model and logic | Stays; absorbs JS halves below |
 | `CoreInterface` | Legacy public wrapper | Deleted |
-| `MapInterface` | Legacy terrain wrapper | Moves into `Map` |
+| `MapInterface` | Thin legacy delegation wrapper | Moves into `Map` |
 | `RendererInterface` | Legacy renderer wrapper | Deleted |
-| `Core` | Engine coordinator | Moves into `Map` |
-| `LegacyMap` | Terrain engine | Moves into `Map` |
-| `Renderer` | WebGL2 renderer | Stays separate |
+| `Core` | Legacy startup / event coordinator | Moves into `Map` |
+| `LegacyMap` | JS half of `Map` (unfinished) | Moves into `Map` |
+| `Renderer` | WebGL2 renderer; public draw helpers | Stays separate |
 
 Do not add new public wrapper objects. When a capability needs public
 access, add a deliberate flat `Viewer` method.

@@ -281,7 +281,8 @@ only to delete them on the other side.
 ## REFACTOR: replace legacy map draw path with `TileRenderRig`
 
 **Opened:** 2026-05-16
-**Status:** step 1 done; steps 2–4 pending
+**Status:** step 1 done; step 2 promoted to
+[rfc-map-frame.md](rfc-map-frame.md); steps 3–4 pending
 
 ### Goal
 
@@ -305,11 +306,20 @@ scheduled for deletion.
    `TileRenderRig` is wired into the depth pass with dedicated shaders
    and a typed clear/readback API.
 
-2. Write a simplified map draw function.
+2. Move the map draw function and the frame loop onto typed `Map`.
+   **Promoted to [rfc-map-frame.md](rfc-map-frame.md).**
 
-   Replace `MapDraw.drawMap` with a smaller draw entry point that
-   operates on the surface sequence. Do not carry over inspector-only
-   paths unless a current non-inspector render path still needs them.
+   The RFC moves `MapDraw.drawMap` into `Map.draw` and
+   `LegacyMap.update` into `Map.tick`, with a residual
+   `LegacyMap.tick` for the loader / worker / deferred-event work
+   that has not been promoted yet. The "simplified draw function"
+   wording of the original brief is satisfied by earlier shrink
+   refactors; the remaining win is the relocation and TypeScript
+   rewrite, not further size reduction. Also covers the audit and
+   relocation of post-`55a34f27` additions on `LegacyMap`
+   (`drawChannel`, overlay registry, `initFrame`, position
+   accessors). `MapInterface` deletion runs as an independent
+   track — see the dedicated entry below.
 
 3. Implement the new unified traversal per [rfc-draw-traversal.md](rfc-draw-traversal.md).
 
@@ -370,6 +380,59 @@ Background on the legacy stack:
 
 ---
 
+## REFACTOR: delete `MapInterface`
+
+**Opened:** 2026-05-25
+**Status:** open — independent track, no design overlap with
+[rfc-map-frame.md](rfc-map-frame.md)
+
+### Goal
+
+Delete `src/core/map/interface.js`. Today it is a thin layer that
+delegates 69 methods to `LegacyMap` (after the render-slot removal in
+commit `ff70938e`). `Viewer` reaches it via the `legacyMapInterface_`
+getter.
+
+### Plan
+
+For each method `Viewer` calls via `legacyMapInterface_`:
+
+- If the same capability is already on `Map`, route the call through
+  `map_` instead.
+- If not, either promote it to a typed `Map` (or `Viewer`) method, or
+  route directly to `legacyMap_.method()` if the promotion is not
+  trivial yet.
+
+Once no `Viewer` caller remains, delete `interface.js` and the
+`legacyMapInterface_` getter on `Viewer`.
+
+The 69 methods break down into clear groups and can land as one PR
+per group:
+
+- `get*Info` queries (`getCreditInfo`, `getViewInfo`,
+  `getBoundLayerInfo`, `getFreeLayerInfo`, `getSurfaceInfo`,
+  `getSrsInfo`).
+- Coordinate conversion (`convertCoords`,
+  `convertCoordsFromNavToPublic`, `convertPositionHeightMode`,
+  `convertPositionViewMode`).
+- Registry add / remove (`addFreeLayer`, `removeFreeLayer`,
+  `addBoundLayer`, `removeBoundLayer`, with their option pairs).
+- Position / view (`setPosition`, `getPosition`, `setView`,
+  `getView`, `getViews`).
+- Reference frame / SRS (`getReferenceFrame`, `getSrses`).
+- Loader and miscellaneous (`setLoaderSuspended`, `redraw`,
+  `getConfigParam`).
+
+### Why a separate item
+
+The deletion is mechanical but not small. It targets `interface.js`
+exclusively and does not interact with the frame-loop relocation
+covered by [rfc-map-frame.md](rfc-map-frame.md). Keeping it as an
+independent track avoids inflating the RFC's scope and lets the two
+streams run in parallel.
+
+---
+
 ## REFACTOR: continue absorbing legacy objects into `Map`
 
 **Opened:** 2026-05-04
@@ -383,7 +446,7 @@ and its `.d.ts` are deleted.
 
 ### Remaining
 
-`Viewer` still accesses the terrain engine and renderer via the `Map.core`
+`Viewer` still accesses `LegacyMap` and `Renderer` via the `Map.core`
 escape hatch (`this._core.core.map`, `this._core.core.renderer`, etc.).
 Each method promotion must route through a proper `Map` public method
 instead, allowing the `core` shim to be deleted.
@@ -394,7 +457,7 @@ instead, allowing the `core` shim to be deleted.
 | `Core` | Private in `Map.core_`; pending absorption |
 | `MapInterface` | Pending — first methods to promote onto `Map` |
 | `RendererInterface` | Pending — second set |
-| `LegacyMap` (terrain engine) | Pending — long-term absorption |
+| `LegacyMap` (JS half of `Map`) | Pending — long-term absorption |
 | `Renderer` | Pending — private implementation of `Map` |
 
 ### Next steps

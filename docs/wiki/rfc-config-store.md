@@ -329,7 +329,7 @@ For each subsystem, replace `setConfigParam` case handling with a
    `Core.setRendererConfigParam()`; the switch lives in `Core`.
    Move that switch into `Renderer` first, then replace it with
    `watch()`.
-2. `Browser` UI controls — self-contained, no terrain engine
+2. `Browser` UI controls — self-contained, no `Map` or `LegacyMap`
    involvement.
 3. `LegacyMap` — large (~80 keys), but migration is mechanical;
    each case becomes a `watch()` entry.
