@@ -142,7 +142,7 @@ MapSurfaceTree.prototype.draw = function() {
         //this.surfaceTracer = this.surfaceTracerBasic;
     //}
     
-    if (this.freeLayerSurface && this.freeLayerSurface.geodata && draw.drawChannel != 0) {
+    if (this.freeLayerSurface && this.freeLayerSurface.geodata && map.drawChannel !== 'color') {
         return;
     }
 
@@ -1614,7 +1614,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         } // for (i = drawBufferIndex - 1; i >= 0; i--)
     };
 
-    if (draw.drawChannel === 0) {
+    if (map.drawChannel === 'color') {
 
         map.withNavigationCamera(function() {
 

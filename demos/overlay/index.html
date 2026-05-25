@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>cartolina-js: custom overlay demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="../../build/cartolina.js"></script>
+<link href="../../build/cartolina.css" rel="stylesheet"/>
+<style>
+  body { margin: 0; padding: 0; font: 13px/1.4 system-ui, sans-serif; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  #panel {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.62);
+    color: #fff;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 220px;
+  }
+  #panel button {
+    font: inherit;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  #status { font: 12px/1.4 monospace; opacity: 0.85; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+    <div><b>Custom overlay demo</b></div>
+    <div>
+        <button id="toggle">Disable</button>
+        <button id="remove">Remove</button>
+        <button id="add">Add</button>
+    </div>
+    <div id="status">waiting for map…</div>
+</div>
+<script>
+/* Custom overlay demo: registers an overlay through
+ * viewer.addOverlay(name, spec). The overlay draws a billboard icon
+ * at a fixed geographic position on every canvas-target frame.
+ *
+ * Exercises every overlay lifecycle hook:
+ * - onAdd:   creates a texture on the first frame after registration.
+ * - render:  projects the world position to canvas pixels and calls
+ *            renderer.drawImage to draw the icon.
+ * - onRemove: cleared by the engine; nothing application-owned to
+ *            free here, but the hook is shown for completeness.
+ */
+
+const MARKER_NAME = 'demo-marker';
+const MARKER_POS = [14.42, 50.09, 0];  // Prague
+
+const viewer = cartolina.map({
+    container: 'map',
+    style: './style.json',
+    position: [
+        'obj', 14.42, 50.09, 'fix', 0, 0, -55, 0, 12000, 45,
+    ],
+});
+
+const statusEl = document.getElementById('status');
+const toggleBtn = document.getElementById('toggle');
+const removeBtn = document.getElementById('remove');
+const addBtn = document.getElementById('add');
+
+let enabled = true;
+
+function setStatus(text) {
+    statusEl.textContent = text;
+}
+
+/* Generate a small circular icon as a data URL. Self-contained so the
+ * demo does not depend on an external image host. */
+function makeMarkerImage() {
+    const size = 24;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(220, 60, 80, 0.95)';
+    g.beginPath();
+    g.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#fff';
+    g.lineWidth = 2;
+    g.stroke();
+    const img = new Image();
+    img.src = c.toDataURL('image/png');
+    return img;
+}
+
+function makeOverlaySpec() {
+
+    let texture = null;
+
+    return {
+
+        onAdd: (ctx) => {
+
+            const img = makeMarkerImage();
+
+            /* Image is loaded synchronously from a data URL but
+             * createTexture wants a complete image; wait for decode. */
+            const upload = () => {
+                texture = ctx.renderer.createTexture({ source: img });
+                setStatus('overlay added; texture ready');
+            };
+
+            if (img.complete) upload();
+            else img.addEventListener('load', upload, { once: true });
+        },
+
+        render: (ctx) => {
+
+            if (!texture) return;
+
+            const p = viewer.convertCoordsFromNavToCanvas(
+                MARKER_POS, 'float');
+            if (!p) return;
+
+            const r = 12;
+            ctx.renderer.drawImage({
+                rect: [p[0] - r, p[1] - r, r * 2, r * 2],
+                texture: texture,
+                depth: p[2],
+                depthTest: false,
+                blend: true,
+            });
+        },
+
+        onRemove: () => {
+            setStatus('overlay removed');
+        },
+    };
+}
+
+viewer.on('map-loaded', () => {
+
+    viewer.addOverlay(MARKER_NAME, makeOverlaySpec());
+    setStatus('overlay registered; waiting for first frame');
+});
+
+toggleBtn.addEventListener('click', () => {
+
+    enabled = !enabled;
+    viewer.setOverlayEnabled(MARKER_NAME, enabled);
+    toggleBtn.textContent = enabled ? 'Disable' : 'Enable';
+    setStatus(enabled ? 'overlay enabled' : 'overlay disabled');
+    viewer.redraw();
+});
+
+removeBtn.addEventListener('click', () => {
+
+    viewer.removeOverlay(MARKER_NAME);
+    viewer.redraw();
+});
+
+addBtn.addEventListener('click', () => {
+
+    viewer.addOverlay(MARKER_NAME, makeOverlaySpec());
+    enabled = true;
+    toggleBtn.textContent = 'Disable';
+    setStatus('overlay re-registered');
+    viewer.redraw();
+});
+</script>
+</body>
+</html>

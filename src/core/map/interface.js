@@ -366,41 +366,6 @@ MapInterface.prototype.redraw = function() {
 };
 
 
-MapInterface.prototype.addRenderSlot = function(id, callback, enabled) {
-    this.map.renderSlots.addRenderSlot(id, callback, enabled);
-    return this;    
-};
-
-
-MapInterface.prototype.moveRenderSlotBefore = function(whichId, whereId) {
-    this.map.renderSlots.moveRenderSlotBefore(whichId, whereId);
-    return this;    
-};
-
-
-MapInterface.prototype.moveRenderSlotAfter = function(whichId, whereId) {
-    this.map.renderSlots.moveRenderSlotAfter(whichId, whereId);
-    return this;    
-};
-
-
-MapInterface.prototype.removeRenderSlot = function(id) {
-    this.map.renderSlots.removeRenderSlot(id);
-    return this;    
-};
-
-
-MapInterface.prototype.setRenderSlotEnabled = function(id, state) {
-    this.map.renderSlots.setRenderSlotEnabled(id, state);
-    return this;    
-};
-
-
-MapInterface.prototype.getRenderSlotEnabled = function(id) {
-    return this.map.renderSlots.getRenderSlotEnabled(id);
-};
-
-
 MapInterface.prototype.setLoaderSuspended = function(state) {
     this.map.loaderSuspended = state;
     return this;

@@ -706,7 +706,7 @@ initFrame(): void {
         this.updateBuffers(map.getSelectionPosition());
     };
 
-    if (map.draw.drawChannel === 0) {
+    if (map.drawChannel === 'color') {
 
         updateFrameBuffers();
 

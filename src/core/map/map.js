@@ -14,7 +14,6 @@ import MapMeasure from './measure';
 import MapDraw from './draw';
 import MapLoader from './loader/loader';
 import MapPosition from './position';
-import MapRenderSlots from './render-slots';
 import MapStats from './stats';
 import MapSurfaceSequence from './surface-sequence';
 import MapUrl from './url';
@@ -75,6 +74,26 @@ var Map = function(core, path, config, configStorage) {
     this.freeLayerSequence = [];
 
     this.freeLayersHaveGeodata = false;
+
+    /**
+     * Active rendering channel for the current frame.
+     *
+     * - `'color'`: visual canvas pass.
+     * - `'depth'`: depth/hit pass that feeds the hitmap.
+     *
+     * @type {'color' | 'depth'}
+     */
+    this.drawChannel = 'color';
+
+    /**
+     * Registered overlays. Each entry is
+     * `{ name, spec, enabled, added }`. `spec` follows the
+     * `OverlaySpec` shape declared in `src/core/types.ts`.
+     *
+     * @type {Array<{ name: string, spec: object, enabled: boolean,
+     *                added: boolean }>}
+     */
+    this.overlays = [];
 
     this.visibleCredits = {
         imagery : {},
@@ -144,11 +163,6 @@ Map.createMapFromStyle = async function(core, style, path, config, configStorage
     let body = map.referenceFrame.body;
     let services = map.services;
 
-    // render slots
-    map.renderSlots = new MapRenderSlots(map);
-    map.renderSlots.addRenderSlot('map', map.drawMap.bind(map), true);
-
-    // done
     return map;
 }
 
@@ -193,18 +207,27 @@ Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStora
             body.atmosphere, map.getPhysicalSrs(),
             map.url.makeUrl(services.atmdensity.url, {}), map);
 
-    // render slots
-    map.renderSlots = new MapRenderSlots(map);
-    map.renderSlots.addRenderSlot('map', map.drawMap.bind(map), true);
-
-    // done
     return map;
 };
 
 
 Map.prototype.kill = function() {
     this.killed = true;
-    
+
+    /* Fire onRemove for added overlays in registration-reverse order
+     * before tearing down renderer-owned state. */
+    if (this.overlays && this.overlays.length > 0 && this.renderer) {
+
+        var ctx = this.overlayContext_();
+        for (var oi = this.overlays.length - 1; oi >= 0; oi--) {
+
+            var overlay = this.overlays[oi];
+            if (overlay.added && overlay.spec.onRemove)
+                overlay.spec.onRemove(ctx);
+        }
+        this.overlays.length = 0;
+    }
+
     if (this.tree) {
         this.tree.kill();
     }
@@ -1398,12 +1421,91 @@ Map.prototype.drawMap = function() {
     this.draw.drawMap();
 };
 
+
+/* Overlay registry — see `OverlaySpec` in `src/core/types.ts` for the
+ * `spec` shape and lifecycle. */
+
+Map.prototype.addOverlay = function(name, spec) {
+
+    if (this.findOverlayIndex_(name) !== -1) return;
+
+    this.overlays.push({
+        name: name,
+        spec: spec,
+        enabled: true,
+        added: false,
+    });
+};
+
+
+Map.prototype.removeOverlay = function(name) {
+
+    var index = this.findOverlayIndex_(name);
+    if (index === -1) return;
+
+    var entry = this.overlays[index];
+    this.overlays.splice(index, 1);
+
+    if (entry.added && entry.spec.onRemove)
+        entry.spec.onRemove(this.overlayContext_());
+};
+
+
+Map.prototype.setOverlayEnabled = function(name, enabled) {
+
+    var index = this.findOverlayIndex_(name);
+    if (index === -1) return;
+
+    this.overlays[index].enabled = !!enabled;
+};
+
+
+Map.prototype.findOverlayIndex_ = function(name) {
+
+    for (var i = 0, li = this.overlays.length; i < li; i++) {
+
+        if (this.overlays[i].name === name) return i;
+    }
+    return -1;
+};
+
+
+Map.prototype.overlayContext_ = function() {
+
+    return { renderer: this.renderer };
+};
+
+
+/* Called as the explicit last step of the canvas-target frame; must
+ * not be called for any auxiliary pass. */
+
+Map.prototype.runOverlays_ = function() {
+
+    if (this.overlays.length === 0) return;
+
+    var ctx = this.overlayContext_();
+
+    for (var i = 0, li = this.overlays.length; i < li; i++) {
+
+        var entry = this.overlays[i];
+        if (!entry.enabled) continue;
+
+        if (!entry.added) {
+
+            if (entry.spec.onAdd) entry.spec.onAdd(ctx);
+            entry.added = true;
+        }
+
+        entry.spec.render(ctx);
+    }
+};
+
 /**
  * Reset map-owned state at the start of a render pass.
  */
 Map.prototype.initFrame = function() {
 
-    if (this.draw.drawChannel != 1) {
+    if (this.drawChannel !== 'depth') {
 
         this.visibleCredits = {
             imagery : {},
@@ -1542,7 +1644,8 @@ Map.prototype.update = function() {
         this.bestMeshTexelSize = 0;//Number.MAX_VALUE;
         this.bestGeodataTexelSize = 0;//Number.MAX_VALUE;
         
-        this.renderSlots.processRenderSlots();
+        this.drawMap();
+        this.runOverlays_();
 
         // promote new requests to downloads
         this.loader.update();

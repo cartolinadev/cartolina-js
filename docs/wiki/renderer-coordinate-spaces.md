@@ -92,6 +92,12 @@ come from legacy code. New renderer work should use the active
 belong in the base canvas pass; calling them while an auxiliary target is
 active indicates a scheduling problem.
 
+Custom overlays registered through `Viewer.addOverlay(name, spec)` are
+called as the explicit last step of the canvas-target frame, so the
+precondition above holds by construction: overlay callbacks always run
+on the canvas target, never during the depth/hit pass or any auxiliary
+pass.
+
 ## Hit Input Coordinate Spaces
 
 Mouse events provide coordinates in pre-transform CSS layout space.

@@ -12,7 +12,7 @@ import type MapUrl from './url';
 import type FreezeCameraState from './freeze-camera-state';
 import type Renderer from '../renderer/renderer';
 import type { Overrides } from './overrides';
-import type { CoreConfig, NodeInformation } from '../types';
+import type { CoreConfig, NodeInformation, OverlaySpec } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -101,9 +101,15 @@ export default class Map {
 
     freeze: FreezeCameraState;
 
-    draw: {
-        drawChannel: number;
-    };
+    /**
+     * Active rendering channel for the current frame.
+     *
+     * - `'color'`: visual canvas pass.
+     * - `'depth'`: depth/hit pass that feeds the hitmap.
+     */
+    drawChannel: 'color' | 'depth';
+
+    draw: object;
 
     hoverFeature: unknown;
     hoverFeatureList: unknown[];
@@ -119,6 +125,10 @@ export default class Map {
 
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
+
+    addOverlay(name: string, spec: OverlaySpec): void;
+    removeOverlay(name: string): void;
+    setOverlayEnabled(name: string, enabled: boolean): void;
     /**
      * Reset map-owned state at the start of a render pass.
      */

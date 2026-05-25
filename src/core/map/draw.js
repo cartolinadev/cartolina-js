@@ -37,8 +37,6 @@ var MapDraw = function(map) {
     this.geodataTilesPerLayer = 0;
 
     this.drawCounter = 0;
-    this.drawChannel = 0;
-    this.drawChannelNames = ['base', 'hit'];
 
     this.planetRadius = this.isGeocent ? map.getNavigationSrs().getSrsInfo()['a'] : 100;
     this.tileBuffer = new Array(500);
@@ -110,26 +108,26 @@ MapDraw.prototype.drawMap = function() {
     this.initFrame();
 
     /*
-     * Channel 1 color was cleared to the white "no hit" sentinel in
+     * Depth-channel color was cleared in
      * `switchToFramebuffer('depth')`; only depth is reset here.
      */
-    if (this.drawChannel != 1) 
+    if (map.drawChannel !== 'depth')
         gpu.clearColorAndDepth();
-    else 
+    else
         gpu.clearDepth();
 
     // draw background (skydome)
-    if (this.drawChannel === 0 && map.isAtmospheric())
+    if (map.drawChannel === 'color' && map.isAtmospheric())
         this.renderer.drawBackground();
 
     // runtime label override falls back to the map configuration.
     var labelsEnabled = map.overrides.flagLabels
         ?? map.config.mapFlagLabels;
 
-    // clear queued geodata jobs 
+    // clear queued geodata jobs
     if (labelsEnabled
         && map.freeLayersHaveGeodata
-        && this.drawChannel == 0) {
+        && map.drawChannel === 'color') {
 
         renderer.draw.clearJobBuffer();
     }
@@ -168,7 +166,7 @@ MapDraw.prototype.drawMap = function() {
                 if (layer.ready && layer.tree
                     && (!layer.geodata
                         || (layer.stylesheet && layer.stylesheet.isReady()))
-                    && this.drawChannel == 0) {
+                    && map.drawChannel === 'color') {
                     
                     if (layer.zFactor) {
                         this.zbufferOffset = layer.zFactor;
@@ -194,7 +192,7 @@ MapDraw.prototype.drawMap = function() {
     } // if (map.overrides.drawEarth)
 
     // draw freeze frustum, if applicable
-    if (this.drawChannel == 0
+    if (map.drawChannel === 'color'
             && map.core.inspector
             && map.core.inspector.hasFreezeFrustum()) {
 
@@ -207,7 +205,7 @@ MapDraw.prototype.drawMap = function() {
     if (map.overrides.drawEarth) {
         if (labelsEnabled
             && map.freeLayersHaveGeodata
-            && this.drawChannel == 0) {
+            && map.drawChannel === 'color') {
 
             renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; 
             renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
@@ -239,16 +237,16 @@ MapDraw.prototype.drawHitmap = function() {
         this.renderer.lastHitmapCopyTime = now;
     }
 
-    this.drawChannel = 1;
+    this.map.drawChannel = 'depth';
     this.renderer.switchToFramebuffer('depth');
-    this.map.renderSlots.processRenderSlots();
+    this.drawMap();
     this.renderer.switchToFramebuffer('base');
 
     if (this.renderer.hitmapMode > 2) {
         this.renderer.copyHitmap();
     }
 
-    this.drawChannel = 0;
+    this.map.drawChannel = 'color';
     this.map.hitMapDirty = false;
 };
 
@@ -314,7 +312,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
 
 MapDraw.prototype.drawMonoliticGeodata = function(surface) {
-    if (!surface || this.drawChannel != 0) {
+    if (!surface || this.map.drawChannel !== 'color') {
         return;
     }
 

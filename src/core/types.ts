@@ -1,4 +1,5 @@
 import type MapSrs from './map/srs';
+import type Renderer from './renderer/renderer';
 
 /**
  * Shared configuration object owned by the legacy core and passed to the
@@ -63,6 +64,40 @@ export type NodeInformation = {
     };
     divisionNode: unknown;
     upVector: [number, number, number];
+};
+
+/**
+ * Per-frame context passed to overlay lifecycle callbacks.
+ *
+ * Overlays run as the explicit last step of the canvas-target frame,
+ * after the engine has finished drawing terrain, free layers, and
+ * label/icon jobs. Forward-compatible: new context fields may be
+ * added; existing callbacks need no change.
+ */
+export type OverlayContext = {
+    /**
+     * The renderer for issuing draw helpers
+     * (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`).
+     */
+    readonly renderer: Renderer;
+};
+
+/**
+ * Lifecycle hooks for a custom overlay registered through
+ * `viewer.addOverlay(name, spec)`.
+ *
+ * - `onAdd` fires once when the engine is ready to accept draw calls
+ *   from the overlay (after `map-loaded`). Overlays registered before
+ *   the engine is ready have `onAdd` deferred to that moment.
+ * - `render` fires every frame, as the last step against the canvas
+ *   target, after engine draws have completed.
+ * - `onRemove` fires when the overlay is removed via
+ *   `viewer.removeOverlay(name)` or when the viewer is disposed.
+ */
+export type OverlaySpec = {
+    onAdd?: (ctx: OverlayContext) => void;
+    render: (ctx: OverlayContext) => void;
+    onRemove?: (ctx: OverlayContext) => void;
 };
 
 /**

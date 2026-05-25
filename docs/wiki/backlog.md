@@ -704,6 +704,61 @@ Bugs and deferred work that are not yet scheduled.
 
 ---
 
+## FEATURE: MapLibre-style `type: 'custom'` style layer
+
+**Opened:** 2026-05-25
+**Status:** deferred — depends on style-era runtime overlay API
+
+### Motivation
+
+`Viewer.addOverlay(name, spec)` (added 2026-05-25, replacing the
+deleted render-slot machinery) runs once per frame as the explicit
+last step of the canvas-target frame. The single placement is
+deliberate: pass sequencing inside the engine is in flux, and naming
+internal placements on the public surface would lock the engine out
+of reordering.
+
+A MapLibre-style `type: 'custom'` style layer is the next step up.
+The host registers a custom layer through `addLayer` with a render
+callback; the layer takes its position in the style's layer array
+and the engine guarantees order relative to other visible layers.
+This expresses "draw between the bridges and the labels" through the
+same vocabulary already used for declarative layers.
+
+### Preconditions
+
+- Pass sequencing has settled enough to make layer-relative
+  placement honest. Currently terrain, label, and geodata-job
+  phases are still being moved around (see the draw refactor and
+  the geodata RFC).
+- The style-era runtime overlay API question is resolved (see
+  "BUG: runtime free layers do not render on style-based maps" in
+  this file). That entry tracks the closely related question of
+  how style layers are added at runtime; a custom-layer mechanism
+  should land alongside it, not separately.
+
+### Sketch
+
+```ts
+viewer.addLayer({
+    id: 'my-overlay',
+    type: 'custom',
+    renderingMode: '2d' | '3d',
+    onAdd?:  (ctx) => void,
+    render:  (ctx) => void,
+    onRemove?: (ctx) => void,
+}, beforeId?);
+```
+
+`addOverlay` does not go away — it remains the right tool for
+content that genuinely belongs on top of the whole map (debug HUDs,
+host-owned post-effects) where layer-relative placement would
+require inventing a sentinel layer to anchor against. The two APIs
+coexist; the custom-layer API is for content that is logically part
+of the map.
+
+---
+
 ## FEATURE: explicit offscreen render-pass API
 
 **Opened:** 2026-05-03

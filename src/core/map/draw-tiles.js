@@ -141,12 +141,12 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     let curRigReady = false;
 
                     // is the tile rig ready? Draw it. If not, try the last rig
-                    if (this.draw.drawChannel === 0)
+                    if (this.map.drawChannel === 'color')
                         curRigReady = curRig.isReady(
                             this.readinessFull,
                             priority_, readyOptions);
 
-                    if (this.draw.drawChannel === 1)
+                    if (this.map.drawChannel === 'depth')
                         curRigReady = curRig.isDepthReady(
                             priority_.essential, readyOptions);
 
@@ -154,12 +154,12 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
 
                     if (!curRigReady) {
 
-                        if (this.draw.drawChannel === 0)
+                        if (this.map.drawChannel === 'color')
                             lastRigReady = lastRig && lastRig.isReady(
                                 this.readinessFallback,
                                 priority_, readyOptions);
 
-                        if (this.draw.drawChannel === 1 )
+                        if (this.map.drawChannel === 'depth')
                             lastRigReady = lastRig && lastRig.isDepthReady(
                                 priority_.essential, readyOptions);
                     }
@@ -173,7 +173,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     // draw
                     if (rigToDraw && !preventRedener) {
 
-                        if (this.draw.drawChannel === 0 ) {
+                        if (this.map.drawChannel === 'color') {
 
                             // draw something
                             rigToDraw.draw(cameraPos);
@@ -197,7 +197,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             this.map.applyCredits(tile);
                         }
 
-                        if (this.draw.drawChannel === 1)
+                        if (this.map.drawChannel === 'depth')
                             rigToDraw.drawDepth(cameraPos);
                     }
 
@@ -246,7 +246,9 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
         tile.surfaceGeodata = tile.resources.getGeodata(path, {tile:tile, surface:tile.surface});
     }
 
-    var channel = this.draw.drawChannel;
+    // tile.drawCommands is a numeric-indexed array of per-channel
+    // command lists; convert the typed channel at this boundary.
+    var channel = this.map.drawChannel === 'color' ? 0 : 1;
 
     if (tile.geodataCounter != tile.surface.geodataCounter) {
         tile.drawCommands = [[],[],[]];

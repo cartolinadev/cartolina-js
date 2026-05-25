@@ -1,5 +1,52 @@
 # Session log
 
+## 2026-05-25 — replace render-slots with typed overlay API
+
+Deleted the inherited `MapRenderSlots` extension point and replaced it
+with `Viewer.addOverlay(name, spec)` / `removeOverlay` /
+`setOverlayEnabled`. `OverlaySpec` and `OverlayContext` are declared in
+`src/core/types.ts`. The registry and per-frame dispatcher live on
+legacy `Map` in `src/core/map/map.js`; `Viewer` delegates to them.
+
+The replacement uses explicit sequencing instead of a generic slot
+loop. `Map.update` now calls `drawMap()` followed by `runOverlays_()`
+as the last step of the canvas-target frame. Overlays do not run from
+`drawHitmap` (which previously also iterated the slot list) or any
+auxiliary pass. This fixes a latent bug where user slots fired during
+the depth/hit pass and corrupted hitmap readings.
+
+Named placement points (`'after-terrain'`, etc.) were considered and
+rejected. Pass sequencing inside the engine is in flux; committing
+named placements to the public surface would lock the engine out of
+internal reordering. The single placement — "after the engine's
+canvas frame" — is the only public contract for now. A MapLibre-style
+`type: 'custom'` style layer remains a separate backlog item.
+
+`MapDraw.drawChannel` (numeric 0/1) was retyped as
+`Map.drawChannel: 'color' | 'depth'` and ownership moved from the
+phased-out `MapDraw` onto legacy `Map`. The 26 read sites across
+`draw.js`, `draw-tiles.js`, `surface-tree.js`, `map.js`, and
+`renderer.ts` were migrated to the string form. `tile.drawCommands` at
+[draw-tiles.js:249](src/core/map/draw-tiles.js#L249) stays a
+numeric-indexed array; the typed channel is converted to an index
+explicitly at that boundary.
+
+The `moveRenderSlotAfter('after-map-render', 'custom-render')` call
+that every legacy demo and mapy.com used was found to be a silent
+no-op (the gate `to != from+1` was inverted, firing in the exact case
+the move would have been needed). Both bugs cancelled because
+`addRenderSlot` already appended the slot in the right order.
+
+Demo: `demos/overlay/` registers a billboard marker through
+`addOverlay`, exercising `onAdd` (texture creation), `render` (project
++ `drawImage`), and `onRemove`. Buttons toggle and re-register the
+overlay to verify lifecycle.
+
+mapy.com migration note recorded in
+[compat-mapy-integration.md](compat-mapy-integration.md): the legacy
+demo idiom maps to `viewer.addOverlay(name, { render: fn })` with the
+no-op `moveRenderSlotAfter` line dropped.
+
 ## 2026-05-25 — lettering wiki and legacy mapConfig demo
 
 Rewrote `geodata-rendering.md` as `Lettering and vector overlay

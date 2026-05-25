@@ -29,6 +29,7 @@ import type {
     HeightMode,
     Lod,
     CoreEventMap,
+    OverlaySpec,
 } from '../core/types';
 
 import type { vec3 } from '../core/utils/math';
@@ -616,6 +617,61 @@ class Viewer {
 
         this.assertAlive_();
         this.legacyMapInterface_?.removeFreeLayer(id);
+        return this;
+    }
+
+    // -------------------------------------------------------------------------
+    // Custom overlays
+    // -------------------------------------------------------------------------
+
+    /**
+     * Registers a custom overlay that runs as the explicit last step
+     * of every canvas-target frame, after the engine has drawn terrain,
+     * free layers, and label/icon jobs.
+     *
+     * Overlays do not run during the depth/hit pass or any auxiliary
+     * render target. Inside `render(ctx)` the host may issue WebGL
+     * draws through `ctx.renderer` (`drawImage`, `drawLineString`,
+     * `createTexture`, `getCanvasSize`).
+     *
+     * `onAdd` fires on the first frame after registration (deferred
+     * until the engine is ready). `onRemove` fires when the overlay
+     * is removed or the viewer is disposed.
+     *
+     * @param name unique overlay id
+     * @param spec lifecycle callbacks; only `render` is required
+     */
+    addOverlay(name: string, spec: OverlaySpec): this {
+
+        this.assertAlive_();
+        this.legacyMap_?.addOverlay(name, spec);
+        return this;
+    }
+
+    /**
+     * Removes the overlay registered under the given id and fires
+     * its `onRemove` callback if `onAdd` had run.
+     *
+     * @param name overlay id passed to `addOverlay`
+     */
+    removeOverlay(name: string): this {
+
+        this.assertAlive_();
+        this.legacyMap_?.removeOverlay(name);
+        return this;
+    }
+
+    /**
+     * Toggles whether the overlay's `render` callback runs each frame.
+     * Does not fire `onAdd` or `onRemove`.
+     *
+     * @param name overlay id passed to `addOverlay`
+     * @param enabled `true` to render, `false` to skip
+     */
+    setOverlayEnabled(name: string, enabled: boolean): this {
+
+        this.assertAlive_();
+        this.legacyMap_?.setOverlayEnabled(name, enabled);
         return this;
     }
 

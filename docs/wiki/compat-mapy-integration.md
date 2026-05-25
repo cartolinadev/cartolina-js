@@ -85,18 +85,12 @@ Methods that currently exist on `MapInterface` only:
 | `.createGeodata()` | Returns a geodata builder |
 | `.addFreeLayer(name, freeLayer)` | Add a vector overlay |
 | `.removeFreeLayer(name)` | |
-| `.addRenderSlot(name, fn, bool)` | Custom render callback |
-| `.moveRenderSlotAfter(slot, afterSlot)` | Order render passes |
 | `.generateTrajectory(from, to, opts)` | Fly-to animation |
 | `.getView()` | Returns named mapConfig view |
 | `.setView(viewName)` | Switches named mapConfig view |
 
 `getView` / `setView` use the legacy mapConfig view system. That
 system is not a committed public API direction.
-
-`addRenderSlot` / `moveRenderSlotAfter` expose legacy render-loop
-insertion points. They are recorded here because mapy.com calls them,
-not because they should be promoted unchanged.
 
 `getCurrentGeometry` was specifically checked: it is **not** called
 by the mapy.com integration.
@@ -109,7 +103,23 @@ Use this section for methods from the observed mapy.com call surface
 that are later deleted from cartolina-js. Each entry should say what
 replaced it, or that no replacement is planned.
 
-No observed mapy.com methods have been deleted as of 2026-05-23.
+`.addRenderSlot(name, fn, enabled)`, `.moveRenderSlotAfter(...)`,
+`.moveRenderSlotBefore(...)`, `.removeRenderSlot(...)`,
+`.setRenderSlotEnabled(...)`, `.getRenderSlotEnabled(...)` — **removed
+2026-05-25**. Replaced by typed `Viewer.addOverlay(name, spec)`,
+`removeOverlay`, `setOverlayEnabled`. Migration:
+
+```diff
+- map.addRenderSlot('custom-render', fn, true);
+- map.moveRenderSlotAfter('after-map-render', 'custom-render');
++ viewer.addOverlay('custom-render', { render: fn });
+```
+
+The `moveRenderSlotAfter` line was a silent no-op in the inherited
+idiom (the gate in `MapRenderSlots` was inverted); removing it is a
+behavioural no-op. The overlay runs once per frame, after the engine
+draws to the canvas, and is skipped on the depth/hit pass — fixing a
+latent bug where custom slots ran in the hitmap pass.
 
 ---
 
