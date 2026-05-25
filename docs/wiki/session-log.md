@@ -1,5 +1,55 @@
 # Session log
 
+## 2026-05-25 — implement rfc-map-frame
+
+Landed all six steps of
+[rfc-map-frame.md](rfc-map-frame.md) in one pass; status moved to
+`Implemented`.
+
+- `Core` and `LegacyMap` gained an `outerMap` back-pointer to typed
+  `Map`. `Map` ctor sets `core_.outerMap = this`; `Core` sets
+  `map.outerMap = this.outerMap` when each `LegacyMap` is created.
+  The legacy helper classes (`MapDraw`, `MapDrawTiles`,
+  `MapSurfaceTree`, `Renderer`, inspector stats) now reach typed
+  `Map` state via `legacyMap.outerMap.*`.
+- `drawChannel` moved off `LegacyMap` onto typed `Map`. All readers
+  updated; `LegacyMap.initFrame` deleted (the body moved into the
+  new `Map.initFrame`).
+- Overlay registry moved off `LegacyMap` onto typed `Map`
+  (`addOverlay` / `removeOverlay` / `setOverlayEnabled` + the
+  internal `runOverlays_` / `findOverlayIndex_` / `overlayContext_`
+  / `disposeOverlays_`). `Viewer` routes overlay calls through
+  `map_` directly. `Map[Symbol.dispose]()` now owns the
+  registration-reverse `onRemove` cleanup; `LegacyMap.kill` lost its
+  overlay block.
+- `MapDraw.drawMap` body relocated into typed `Map.draw`.
+  `MapDraw.drawHitmap` toggles the channel and calls
+  `this.map.outerMap.draw()` instead. `Map.draw` reaches the legacy
+  MapDraw helpers (`drawTileState`, `tileBuffer`, `zbufferOffset`,
+  `drawMonoliticGeodata`, `initFrame`) through a new sibling
+  `draw.d.ts` declaration.
+- `LegacyMap.update` replaced by `LegacyMap.tickBefore`
+  (loader + worker-callback work) and
+  `LegacyMap.tickDeferredEvents` (post-draw queued hover/click
+  hit-tests). `Map.tick` owns the frame entry: null-map branch,
+  one-time `map-loaded` + `markReady_`, `srsReady` early-return,
+  position events, canvas sync, `stats.begin`, `tickBefore`, the
+  dirty-gated draw + overlay + second `loader.update()`,
+  `tickDeferredEvents`, `stats.end`, public `'tick'`.
+  `Core.onUpdate` shrank to `if (killed || contextLost) return;
+  this.outerMap.tick(); rAF(onUpdate);`. `Core.markReady_` is the
+  thin ready-Promise resolver `Map.tick` calls into.
+- `getNavigationPosition` / `getSelectionPosition` moved onto typed
+  `Map` as internal methods returning `MapPosition | null`. Callers
+  in `Renderer`, inspector stats, and `MapDraw.drawGeodataHitmap`
+  now go through `outerMap`; `Viewer.getScaleDenominator` and
+  `Viewer.getVeScaleFactor` route through `map_`.
+
+Verification: `npx tsc --noEmit` clean. Screenshot regression on
+`simple-terrain`, `complex-terrain`, `full-terrain` shows dev/prod
+parity. The overlay demo at `/demos/overlay/` renders the marker
+and the `onAdd` / `render` lifecycle messages.
+
 ## 2026-05-25 — accept rfc-map-frame
 
 Signed off [rfc-map-frame.md](rfc-map-frame.md) after review round 3

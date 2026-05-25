@@ -10,9 +10,11 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type FreezeCameraState from './freeze-camera-state';
+import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
+import type TypedMap from '../map';
 import type { Overrides } from './overrides';
-import type { CoreConfig, NodeInformation, OverlaySpec } from '../types';
+import type { CoreConfig, NodeInformation } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -42,6 +44,12 @@ type FreeLayer = MapSurface & {
     surfaceOnlySequence: MapSurface[];
     options: Record<string, unknown>;
     setStyle(style: unknown): void;
+
+    ready?: boolean;
+    tree?: { draw(): void } | null;
+    stylesheet?: { isReady(): boolean } | null;
+    type?: string;
+    zFactor?: number | null;
 };
 
 type SurfaceSequenceItem = [MapSurface, boolean];
@@ -55,11 +63,28 @@ type SurfaceSequenceItem = [MapSurface, boolean];
  */
 export default class Map {
 
+    /**
+     * Back-pointer to the typed `Map` wrapper. Migration scaffolding so
+     * the legacy auxiliary classes (`MapDraw`, `MapDrawTiles`,
+     * `MapSurfaceTree`, `Renderer`, ...) can reach typed-`Map` state
+     * (`drawChannel`, overlays, per-frame entry points) while they still
+     * hold a `this.map = LegacyMap` reference. Disappears when those
+     * classes absorb into typed `Map`.
+     *
+     * Set by `Core` when the `LegacyMap` instance is created.
+     */
+    outerMap: TypedMap;
+
     renderer: Renderer;
     url: MapUrl;
     config: CoreConfig;
     stats: {
         frameTime: number;
+        drawnGeodataTilesPerLayer: number;
+        drawnGeodataTilesFactor: number;
+        renderBuild: number;
+        begin(dirty: boolean): void;
+        end(dirty: boolean): void;
     } & Record<string, unknown>;
 
     position: MapPosition;
@@ -95,21 +120,14 @@ export default class Map {
     tree: {
         surfaceSequence: SurfaceSequenceItem[];
         surfaceOnlySequence: SurfaceSequenceItem[];
+        draw(stopOnFinish: boolean): void;
     };
 
     overrides: Overrides;
 
     freeze: FreezeCameraState;
 
-    /**
-     * Active rendering channel for the current frame.
-     *
-     * - `'color'`: visual canvas pass.
-     * - `'depth'`: depth/hit pass that feeds the hitmap.
-     */
-    drawChannel: 'color' | 'depth';
-
-    draw: object;
+    draw: MapDraw;
 
     hoverFeature: unknown;
     hoverFeatureList: unknown[];
@@ -126,13 +144,6 @@ export default class Map {
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
 
-    addOverlay(name: string, spec: OverlaySpec): void;
-    removeOverlay(name: string): void;
-    setOverlayEnabled(name: string, enabled: boolean): void;
-    /**
-     * Reset map-owned state at the start of a render pass.
-     */
-    initFrame(): void;
     getNavigationPosition(): MapPosition;
     getSelectionPosition(): MapPosition;
     markDirty(): void;

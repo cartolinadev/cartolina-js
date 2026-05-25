@@ -152,7 +152,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         }
 
         if (renderer && renderer.veScaleRamp) {
-            const position = map.getSelectionPosition();
+            const position = map.outerMap.getSelectionPosition();
             text2 += '<br/>VE scale factor: ' +
                 renderer.getVeScaleFactor(position).toFixed(2) + '<br/>';
             text2 += 'Map scale : 1 : ' +

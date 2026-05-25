@@ -75,26 +75,6 @@ var Map = function(core, path, config, configStorage) {
 
     this.freeLayersHaveGeodata = false;
 
-    /**
-     * Active rendering channel for the current frame.
-     *
-     * - `'color'`: visual canvas pass.
-     * - `'depth'`: depth/hit pass that feeds the hitmap.
-     *
-     * @type {'color' | 'depth'}
-     */
-    this.drawChannel = 'color';
-
-    /**
-     * Registered overlays. Each entry is
-     * `{ name, spec, enabled, added }`. `spec` follows the
-     * `OverlaySpec` shape declared in `src/core/types.ts`.
-     *
-     * @type {Array<{ name: string, spec: object, enabled: boolean,
-     *                added: boolean }>}
-     */
-    this.overlays = [];
-
     this.visibleCredits = {
         imagery : {},
         glueImagery : {},
@@ -213,20 +193,6 @@ Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStora
 
 Map.prototype.kill = function() {
     this.killed = true;
-
-    /* Fire onRemove for added overlays in registration-reverse order
-     * before tearing down renderer-owned state. */
-    if (this.overlays && this.overlays.length > 0 && this.renderer) {
-
-        var ctx = this.overlayContext_();
-        for (var oi = this.overlays.length - 1; oi >= 0; oi--) {
-
-            var overlay = this.overlays[oi];
-            if (overlay.added && overlay.spec.onRemove)
-                overlay.spec.onRemove(ctx);
-        }
-        this.overlays.length = 0;
-    }
 
     if (this.tree) {
         this.tree.kill();
@@ -1417,121 +1383,6 @@ Map.prototype.applyCredits = function(tile) {
 };
 
 
-Map.prototype.drawMap = function() {
-    this.draw.drawMap();
-};
-
-
-/* Overlay registry — see `OverlaySpec` in `src/core/types.ts` for the
- * `spec` shape and lifecycle. */
-
-Map.prototype.addOverlay = function(name, spec) {
-
-    if (this.findOverlayIndex_(name) !== -1) return;
-
-    this.overlays.push({
-        name: name,
-        spec: spec,
-        enabled: true,
-        added: false,
-    });
-};
-
-
-Map.prototype.removeOverlay = function(name) {
-
-    var index = this.findOverlayIndex_(name);
-    if (index === -1) return;
-
-    var entry = this.overlays[index];
-    this.overlays.splice(index, 1);
-
-    if (entry.added && entry.spec.onRemove)
-        entry.spec.onRemove(this.overlayContext_());
-};
-
-
-Map.prototype.setOverlayEnabled = function(name, enabled) {
-
-    var index = this.findOverlayIndex_(name);
-    if (index === -1) return;
-
-    this.overlays[index].enabled = !!enabled;
-};
-
-
-Map.prototype.findOverlayIndex_ = function(name) {
-
-    for (var i = 0, li = this.overlays.length; i < li; i++) {
-
-        if (this.overlays[i].name === name) return i;
-    }
-    return -1;
-};
-
-
-Map.prototype.overlayContext_ = function() {
-
-    return { renderer: this.renderer };
-};
-
-
-/* Called as the explicit last step of the canvas-target frame; must
- * not be called for any auxiliary pass. */
-
-Map.prototype.runOverlays_ = function() {
-
-    if (this.overlays.length === 0) return;
-
-    var ctx = this.overlayContext_();
-
-    for (var i = 0, li = this.overlays.length; i < li; i++) {
-
-        var entry = this.overlays[i];
-        if (!entry.enabled) continue;
-
-        if (!entry.added) {
-
-            if (entry.spec.onAdd) entry.spec.onAdd(ctx);
-            entry.added = true;
-        }
-
-        entry.spec.render(ctx);
-    }
-};
-
-/**
- * Reset map-owned state at the start of a render pass.
- */
-Map.prototype.initFrame = function() {
-
-    if (this.drawChannel !== 'depth') {
-
-        this.visibleCredits = {
-            imagery : {},
-            glueImagery : {},
-            mapdata : {}
-        };
-    }
-
-    this.loader.setChannel(0); // 0 = hires channel
-    this.stats.renderBuild = 0;
-};
-
-Map.prototype.getNavigationPosition = function() {
-
-    return this.freeze
-        ? (this.freeze.getNavigationPosition() || this.position)
-        : this.position;
-};
-
-Map.prototype.getSelectionPosition = function() {
-
-    return this.freeze
-        ? (this.freeze.getSelectionPosition() || this.position)
-        : this.position;
-};
-
 Map.prototype.withNavigationCamera = function(callback) {
 
     return this.freeze
@@ -1583,139 +1434,121 @@ Map.prototype.addProcessingTask2 = function(task) {
 };
 
 
-Map.prototype.update = function() {
-
-    // disposal check
-    if (this.killed) {
-        return;
-    }
+/* Residual pre-draw JS work owned by `LegacyMap`. Called from
+ * `Map.tick` on the ready path, after `stats.begin` and before the
+ * dirty-gated draw. */
+Map.prototype.tickBefore = function() {
 
     // the obsolete token expiration check
     if (this.core.tokenExpiration) {
-        if (Date.now() > (this.core.tokenExpiration - (1000*60))) {
+
+        if (Date.now() > (this.core.tokenExpiration - (1000 * 60))) {
             this.core.tokenExpirationCallback();
         }
     }
-
-    // still waiting for geoid grids? Dispatch any pending requests and bail out.
-    if (!this.srsReady) {
-        this.loader.update();
-        return;
-    }
-
-    // position change events
-    if (!this.position.isSame(this.lastPosition)) {
-        this.core.callListener('map-position-changed', {'position':this.position.toArray(), 'last-position':this.lastPosition.toArray()});
-    }
-
-    if (this.camera.lastTerrainHeight != this.camera.terrainHeight) {
-        this.core.callListener('map-position-fixed-height-changed', {'height':this.camera.terrainHeight, 'last-height':this.camera.lastTerrainHeight});
-    }
-
-    this.lastPosition = this.position.clone();
-    this.camera.lastTerrainHeight = this.camera.terrainHeight;
-
-    // canvas change => map redraw
-    if (this.renderer.ensureCanvasRenderTarget()) {
-        this.dirty = true;
-    }
-
-    // dirty map => redraw
-    var dirty = (this.dirty || this.dirtyCountdown > 0), result;
-
-    // fps clock starts
-    this.stats.begin(dirty);
 
     // promote pending requests to downloads
     this.loader.update();
 
     // process callbacks from workers
     this.processProcessingTasks();
+};
 
-    // prepare and/or draw if dirty
-    if (dirty) {
-        if (this.dirty) {
-            this.dirtyCountdown = this.config.mapRefreshCycles;
-        } else {
-            this.dirtyCountdown--;
+
+/* Residual post-draw JS work owned by `LegacyMap`. Runs every frame
+ * after the dirty-gated draw block; the queued hover/click hit-tests
+ * use the canvas that was just drawn. No-op when neither event is
+ * queued. */
+Map.prototype.tickDeferredEvents = function() {
+
+    if (this.clickEvent == null && this.hoverEvent == null) return;
+
+    var renderer = this.renderer;
+    var camPos = renderer.cameraPosition;
+    var p, result;
+
+    if (this.hoverEvent != null) {
+
+        result = this.hitTestGeoLayers(
+            this.hoverEvent[0], this.hoverEvent[1], 'hover');
+
+        var relatedEvents = result[2];
+
+        if (relatedEvents != null) {
+
+            for (var i = 0, li = relatedEvents.length; i < li; i++) {
+
+                var event = relatedEvents[i];
+                p = event[1][1];
+
+                var payload = {
+                    'feature': event[1][0],
+                    'canvas-coords': renderer.project2(
+                        event[1][1], renderer.camera.mvp, camPos),
+                    'physical-coords': [
+                        p[0] + camPos[0],
+                        p[1] + camPos[1],
+                        p[2] + camPos[2],
+                    ],
+                    'state': this.hoverEvent[3],
+                    'element': result[3],
+                };
+
+                if (event[0] === 'enter')
+                    this.core.callListener('geo-feature-enter', payload);
+
+                if (event[0] === 'leave')
+                    this.core.callListener('geo-feature-leave', payload);
+            }
         }
 
-        this.dirty = false;
-        this.bestMeshTexelSize = 0;//Number.MAX_VALUE;
-        this.bestGeodataTexelSize = 0;//Number.MAX_VALUE;
-        
-        this.drawMap();
-        this.runOverlays_();
+        if (result[1] && result[0] != null) {
 
-        // promote new requests to downloads
-        this.loader.update();
-        
-        this.core.callListener('map-update', {});
+            p = result[0][1];
+            this.core.callListener('geo-feature-hover', {
+                'feature': result[0][0],
+                'canvas-coords': renderer.project2(
+                    result[0][1], renderer.camera.mvp, camPos),
+                'physical-coords': [
+                    p[0] + camPos[0],
+                    p[1] + camPos[1],
+                    p[2] + camPos[2],
+                ],
+                'state': this.hoverEvent[3],
+                'element': result[3],
+            });
+        }
 
+        // is it persistent event?
+        if (this.hoverEvent[2] !== true) {
+            this.hoverEvent = null;
+        }
     }
 
-    // deferred geodata hover and click events processing
-    if (this.clickEvent != null || this.hoverEvent != null) {
+    if (this.clickEvent != null) {
 
-        let p;
-        let renderer = this.renderer;
-        let camPos = renderer.cameraPosition;
+        result = this.hitTestGeoLayers(
+            this.clickEvent[0], this.clickEvent[1], 'click');
 
-        if (this.hoverEvent != null) {
-            result = this.hitTestGeoLayers(this.hoverEvent[0], this.hoverEvent[1], 'hover');
+        if (result[1] && result[0] != null) {
 
-            var relatedEvents = result[2];
-
-            if (relatedEvents != null) {
-                for(var i = 0, li = relatedEvents.length; i < li; i++) {
-                    var event = relatedEvents[i];
-
-                    switch(event[0]) {
-                    case 'enter':
-                        p = event[1][1];
-                        this.core.callListener('geo-feature-enter', {'feature': event[1][0], 'canvas-coords':renderer.project2(event[1][1], renderer.camera.mvp, camPos),
-                            'physical-coords':[p[0] + camPos[0], p[1] + camPos[1], p[2] + camPos[2]], 'state': this.hoverEvent[3], 'element': result[3] });
-                        break;
-
-                    case 'leave':
-                        p = event[1][1];
-                        this.core.callListener('geo-feature-leave', {'feature':event[1][0], 'canvas-coords':renderer.project2(event[1][1], renderer.camera.mvp, camPos),
-                            'physical-coords':[p[0] + camPos[0], p[1] + camPos[1], p[2] + camPos[2]], 'state': this.hoverEvent[3], 'element': result[3] });
-                        break;
-                    }
-                }
-            }
-
-            if (result[1] && result[0] != null) {
-                p = result[0][1];
-                this.core.callListener('geo-feature-hover', {'feature': result[0][0], 'canvas-coords':renderer.project2(result[0][1], renderer.camera.mvp, camPos),
-                    'physical-coords':[p[0] + camPos[0], p[1] + camPos[1], p[2] + camPos[2]], 'state': this.hoverEvent[3], 'element': result[3]});
-            }
-
-            //is it persistent event?
-            if (this.hoverEvent[2] !== true) {
-                this.hoverEvent = null;
-            }
+            p = result[0][1];
+            this.core.callListener('geo-feature-click', {
+                'feature': result[0][0],
+                'canvas-coords': renderer.project2(
+                    result[0][1], renderer.camera.mvp, camPos),
+                'physical-coords': [
+                    p[0] + camPos[0],
+                    p[1] + camPos[1],
+                    p[2] + camPos[2],
+                ],
+                'state': this.clickEvent[2],
+                'element': result[3],
+            });
         }
 
-        if (this.clickEvent != null) {
-            result = this.hitTestGeoLayers(this.clickEvent[0], this.clickEvent[1], 'click');
-
-            if (result[1] && result[0] != null) {
-                p = result[0][1];
-                this.core.callListener('geo-feature-click', {'feature': result[0][0], 'canvas-coords':renderer.project2(result[0][1], renderer.camera.mvp, camPos),
-                    'physical-coords':[p[0] + camPos[0], p[1] + camPos[1], p[2] + camPos[2]], 'state': this.clickEvent[2], 'element': result[3] });
-            }
-
-            this.clickEvent = null;
-        }
-
+        this.clickEvent = null;
     }
-
-    // fps clock stops
-    this.stats.end(dirty);
-
-    // done
 };
 
 

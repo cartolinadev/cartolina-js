@@ -96,136 +96,16 @@ MapDraw.prototype.initFrame = function() {
 };
 
 
-MapDraw.prototype.drawMap = function() {
-    
-    var map = this.map;
-    var renderer = this.renderer;
-    var gpu = renderer.gpu;
-
-    // Reset owner-specific frame state before issuing draw work.
-    map.initFrame();
-    renderer.initFrame();
-    this.initFrame();
-
-    /*
-     * Depth-channel color was cleared in
-     * `switchToFramebuffer('depth')`; only depth is reset here.
-     */
-    if (map.drawChannel !== 'depth')
-        gpu.clearColorAndDepth();
-    else
-        gpu.clearDepth();
-
-    // draw background (skydome)
-    if (map.drawChannel === 'color' && map.isAtmospheric())
-        this.renderer.drawBackground();
-
-    // runtime label override falls back to the map configuration.
-    var labelsEnabled = map.overrides.flagLabels
-        ?? map.config.mapFlagLabels;
-
-    // clear queued geodata jobs
-    if (labelsEnabled
-        && map.freeLayersHaveGeodata
-        && map.drawChannel === 'color') {
-
-        renderer.draw.clearJobBuffer();
-    }
-
-    // draw surfaces and free layers
-    gpu.setState(this.drawTileState);
-
-    if (map.overrides.drawEarth) {
-
-        var i, li, layer;
-        
-        map.withSelectionCamera(function() {
-
-            //todo remove this
-            for (i = 0, li = this.tileBuffer.length; i < li; i++) {
-                this.tileBuffer[i] = null;    
-            }
-        
-            // draw mesh tiles
-            if (this.tree.surfaceSequence.length > 0) {
-                //console.log("here7");
-                this.tree.draw(false);
-            }
-
-            // draw free layers
-            for (i = 0, li = map.freeLayerSequence.length; i < li; i++) {
-
-                layer = map.freeLayerSequence[i];
-
-                if (!labelsEnabled
-                    && (layer.type == 'geodata' || layer.geodata)) {
-                    continue;
-                }
-
-
-                if (layer.ready && layer.tree
-                    && (!layer.geodata
-                        || (layer.stylesheet && layer.stylesheet.isReady()))
-                    && map.drawChannel === 'color') {
-                    
-                    if (layer.zFactor) {
-                        this.zbufferOffset = layer.zFactor;
-                    }
-
-                    if (layer.type == 'geodata') {
-                        // monolithic geodata job collection
-                        this.drawMonoliticGeodata(layer);
-
-                    } else {
-                        /*
-                         * Tiled free-layer traversal. Surface tiles draw
-                         * directly; geodata-tiles merely collect jobs.
-                         */
-                        layer.tree.draw();
-                    }
-
-                    this.zbufferOffset = null;
-                }
-            }
-        }.bind(this));
-
-    } // if (map.overrides.drawEarth)
-
-    // draw freeze frustum, if applicable
-    if (map.drawChannel === 'color'
-            && map.core.inspector
-            && map.core.inspector.hasFreezeFrustum()) {
-
-        map.withNavigationCamera(function() {
-            map.core.inspector.drawFreezeFrustum();
-        });
-    }
-
-    // draw queued geodata labels and icons
-    if (map.overrides.drawEarth) {
-        if (labelsEnabled
-            && map.freeLayersHaveGeodata
-            && map.drawChannel === 'color') {
-
-            renderer.drawnGeodataTiles = this.stats.drawnGeodataTilesPerLayer; 
-            renderer.drawnGeodataTilesFactor = this.stats.drawnGeodataTilesFactor;
-
-            map.withNavigationCamera(function() {
-                renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
-            }.bind(this));
-        }
-    }
-
-    // done
-};
-
 /**
- * Triggered by map.getScreenDepth and map.getHitcoords
+ * Triggered by map.getScreenDepth and map.getHitcoords.
+ *
+ * Toggles `drawChannel` to `'depth'`, switches the framebuffer, calls
+ * the typed `Map.draw` to issue the depth pass, restores the channel
+ * and framebuffer.
  */
-
 MapDraw.prototype.drawHitmap = function() {
 
-    // throtle hitmap drawing (and copying) to 1 / hitmapCopyIntervalMs
+    // throttle hitmap drawing (and copying) to 1 / hitmapCopyIntervalMs
     // per frame
     var interval = this.renderer.hitmapCopyIntervalMs;
     if (interval > 0) {
@@ -237,16 +117,16 @@ MapDraw.prototype.drawHitmap = function() {
         this.renderer.lastHitmapCopyTime = now;
     }
 
-    this.map.drawChannel = 'depth';
+    this.map.outerMap.drawChannel = 'depth';
     this.renderer.switchToFramebuffer('depth');
-    this.drawMap();
+    this.map.outerMap.draw();
     this.renderer.switchToFramebuffer('base');
 
     if (this.renderer.hitmapMode > 2) {
         this.renderer.copyHitmap();
     }
 
-    this.map.drawChannel = 'color';
+    this.map.outerMap.drawChannel = 'color';
     this.map.hitMapDirty = false;
 };
 
@@ -256,11 +136,13 @@ MapDraw.prototype.drawGeodataHitmap = function() {
 
         this.renderer.gpu.setState(this.drawTileState);
         this.renderer.switchToFramebuffer('geo');
-        this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
+        this.renderer.draw.drawGpuJobs(
+            this.map.outerMap.getSelectionPosition());
 
         if (this.renderer.advancedPassNeeded) {
             this.renderer.switchToFramebuffer('geo2');
-            this.renderer.draw.drawGpuJobs(this.map.getSelectionPosition());
+            this.renderer.draw.drawGpuJobs(
+                this.map.outerMap.getSelectionPosition());
         }
 
         this.renderer.switchToFramebuffer('base');
@@ -312,7 +194,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
 
 MapDraw.prototype.drawMonoliticGeodata = function(surface) {
-    if (!surface || this.map.drawChannel !== 'color') {
+    if (!surface || this.map.outerMap.drawChannel !== 'color') {
         return;
     }
 

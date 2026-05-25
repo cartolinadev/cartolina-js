@@ -13,6 +13,16 @@ var Core = function(element, config) {
     var lang = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
     this.killed = false;
 
+    /* Back-pointer to the typed `Map` wrapper. Set by the `Map`
+     * constructor immediately after `new Core(...)`, so it is non-null
+     * from the first animation frame onwards (rAF runs after the Map
+     * constructor returns). `Core.onUpdate` uses it to call `Map.tick`
+     * even when `Core.map` is null (async style loading, post-destroy).
+     *
+     * @type {import('./map').default | null}
+     */
+    this.outerMap = /** @type {import('./map').default | null} */ (null);
+
     // ready Promise: resolves once when the map becomes ready ('map-loaded')
     this._readyResolved = false;
     var self = this;
@@ -195,6 +205,7 @@ Core.prototype.loadMapFromStyle = async function(style) {
     // create map
     this.map = await Map.createMapFromStyle(this, style_, path,
                     this.config, this.configStorage);
+    this.map.outerMap = this.outerMap;
 
     this.mapInterface = new MapInterface(this.map);
     this.setConfigParams(this.configStorage);
@@ -239,6 +250,7 @@ Core.prototype.loadMap = function(path) {
 
         //this.map = new Map(this, data, path, this.config, this.configStorage);
         this.map = Map.createMapFromMapConfig(this, data, path, this.config, this.configStorage);
+        this.map.outerMap = this.outerMap;
         this.mapInterface = new MapInterface(this.map);
         this.setConfigParams(this.map.browserOptions, true);
         this.setConfigParams(this.configStorage);
@@ -470,33 +482,24 @@ Core.prototype.markDirty = function() {
 };
 
 Core.prototype.onUpdate = function() {
+
     if (this.killed || this.contextLost) {
         return;
     }
 
-    if (this.map != null) {
-        if (!this.map.srsReady && this.map.isReferenceFrameReady()) {
-            this.map.srsReady = true;
-            this.callListener('map-loaded', { 'browserOptions':this.map.browserOptions});
-            // resolve ready() once, after emitting the legacy event
-            if (!this._readyResolved) {
-                this._readyResolved = true;
-                if (this._resolveReady) { this._resolveReady({ 'browserOptions': this.map.browserOptions }); }
-            }
-        }
-
-        this.map.update();
-    }
-
-    //TODO: detect view change
-    //this.callListener("view-update", {"position": position, "orientaion":orientation,
-    //                                  "fov": renderer.camera.getFov()});
-
-    //this.callListener("render-update", { "dirty": true, "message": "DOM element does not exist" });
-
-    this.callListener('tick', {});
-
+    this.outerMap.tick();
     this.requestAnimFrame.call(window, this.onUpdate.bind(this));
+};
+
+
+/* Resolves the `Map.ready` Promise. Called once per map load by
+ * `Map.tick` when the reference frame first becomes ready. Owns only
+ * the Promise plumbing — the gate decision lives on `Map`. */
+Core.prototype.markReady_ = function(payload) {
+
+    if (this._readyResolved) return;
+    this._readyResolved = true;
+    if (this._resolveReady) this._resolveReady(payload);
 };
 
 

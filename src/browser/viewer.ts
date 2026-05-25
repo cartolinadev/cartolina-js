@@ -284,7 +284,7 @@ class Viewer {
 
         this.assertAlive_();
         const currentExtent = extent
-            ?? this.legacyMap_?.getSelectionPosition().getViewExtent();
+            ?? this.map_.getSelectionPosition()?.getViewExtent();
 
         if (currentExtent === undefined) {
             throw new Error('No map is loaded.');
@@ -306,7 +306,7 @@ class Viewer {
 
         this.assertAlive_();
         const currentPosition = position
-            ?? this.legacyMap_?.getSelectionPosition();
+            ?? this.map_.getSelectionPosition();
 
         if (!currentPosition) {
             throw new Error('No map is loaded.');
@@ -644,7 +644,7 @@ class Viewer {
     addOverlay(name: string, spec: OverlaySpec): this {
 
         this.assertAlive_();
-        this.legacyMap_?.addOverlay(name, spec);
+        this.map_.addOverlay(name, spec);
         return this;
     }
 
@@ -657,7 +657,7 @@ class Viewer {
     removeOverlay(name: string): this {
 
         this.assertAlive_();
-        this.legacyMap_?.removeOverlay(name);
+        this.map_.removeOverlay(name);
         return this;
     }
 
@@ -671,7 +671,7 @@ class Viewer {
     setOverlayEnabled(name: string, enabled: boolean): this {
 
         this.assertAlive_();
-        this.legacyMap_?.setOverlayEnabled(name, enabled);
+        this.map_.setOverlayEnabled(name, enabled);
         return this;
     }
 

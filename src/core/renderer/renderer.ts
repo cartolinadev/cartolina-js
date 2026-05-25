@@ -703,10 +703,10 @@ initFrame(): void {
         map.camera.update();
         this.syncCameraState();
         this.updateIllumination(map.position);
-        this.updateBuffers(map.getSelectionPosition());
+        this.updateBuffers(map.outerMap.getSelectionPosition()!);
     };
 
-    if (map.drawChannel === 'color') {
+    if (map.outerMap.drawChannel === 'color') {
 
         updateFrameBuffers();
 
@@ -770,7 +770,7 @@ syncCameraState(): void {
  */
 
 updateBuffers(
-    position: MapPosition | number = this.core.map.getNavigationPosition()
+    position: MapPosition | number = this.core.map!.outerMap.getNavigationPosition()!
 ) {
 
     let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagNone;

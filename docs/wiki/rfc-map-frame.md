@@ -1,6 +1,6 @@
 # RFC: Map owns the frame loop
 
-**Status:** Accepted
+**Status:** Implemented
 **Context:** Promotes step 2 of
 [REFACTOR: replace legacy map draw path with `TileRenderRig`](backlog.md)
 to a full design. Complementary to
