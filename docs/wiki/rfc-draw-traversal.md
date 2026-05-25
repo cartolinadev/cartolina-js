@@ -1733,3 +1733,33 @@ problem statement now includes `drawSurfaceDownTop`; the rollout no
 longer lists the completed `TileRenderRig` depth program as future work;
 and the proposed `TileRenderRig` signatures now match the current
 `draw(cameraPos)` and `GpuDevice` render-target model.
+
+## Review round 6
+
+1. The geodata traversal path is not identified in the RFC, and
+   `mapGeodataLoadMode` is absent from the removal table.
+
+   The §1 out-of-scope section gives the correct behavioral description
+   for geodata (fitted-frontier, `texelSize` threshold, job collection
+   via `MapGeodataView.draw()`), and §8 step 8 correctly gates deletion
+   of the terrain methods on a geodata replacement. Neither section names
+   the current dispatch path or the config key that drives it.
+
+   In `MapSurfaceTree.draw()` (`surface-tree.js:162`), the geodata
+   caller is distinguished from terrain by `freeLayerSurface.geodata`.
+   The dispatch reads `map.config.mapGeodataLoadMode` (not `mapLoadMode`)
+   and routes through the same switch, defaulting to `drawSurfaceFit`.
+   `mapGeodataLoadMode` is not in the §7 removal table. `drawSurfaceFit`
+   appears in that table as a terrain replacement, with no note that
+   geodata also uses it.
+
+   Two things are missing:
+
+   - §7 or §8: state that `drawSurfaceFit` is the method geodata
+     currently calls, via `mapGeodataLoadMode = 'fit'`. That method must
+     not be deleted until the geodata replacement exists, regardless of
+     when the terrain path is complete.
+   - §7 removal table: add `mapGeodataLoadMode` alongside `mapLoadMode`.
+
+   Without these, §7 as written authorises deleting `drawSurfaceFit`
+   while geodata still depends on it.
