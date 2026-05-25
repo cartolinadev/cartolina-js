@@ -91,15 +91,37 @@ async function loadStyle(params) {
 }
 
 async function main() {
-  let position = ['obj', -118.302348, 36.560197, 'fix', 3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00];
-  position = posFromURL() || position;
-
   const params = getSearchParams();
-  const style = await loadStyle(params);
+  const hasStyle = params.has('style');
+  const mapConfigUrl = params.get('mapConfig');
+
+  if (hasStyle && mapConfigUrl) {
+    throw new Error(
+      'Specify either ?style= or ?mapConfig=, not both.'
+    );
+  }
+
   const options = cartolina.runtimeOptionsFromUrl({
     positionInUrl: true,
     mapExposeFpsToWindow: true
   });
+
+  if (!hasStyle && mapConfigUrl) {
+    const browserConfig = {...options, map: mapConfigUrl};
+    const urlPos = posFromURL();
+
+    if (urlPos) browserConfig.position = urlPos;
+    cartolina.browser('map', browserConfig);
+    return;
+  }
+
+  let position = [
+    'obj', -118.302348, 36.560197, 'fix',
+    3313.32, -133.38, -25.09, 0.00, 33347.92, 45.00
+  ];
+
+  position = posFromURL() || position;
+  const style = await loadStyle(params);
 
   cartolina.map({
     container: 'map',

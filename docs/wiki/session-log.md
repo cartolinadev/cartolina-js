@@ -1,5 +1,24 @@
 # Session log
 
+## 2026-05-25 — lettering wiki and legacy mapConfig demo
+
+Rewrote `geodata-rendering.md` as `Lettering and vector overlay
+rendering`. The document now covers what the subsystem achieves before
+describing code paths, uses cartolina terminology (lettering, free
+layer, label layer) instead of VTS-era internal terms, and includes a
+section on dead code, the area-label centroid gap, and a MapLibre
+comparison. Monolithic free layers are documented as the designed
+solution for sparse planet-wide datasets, with `peaklist-org-ultras`
+(ultra-prominent Earth peaks) as a concrete example.
+
+Added `?mapConfig=<url>` support to `demos/map/index.html`. The style
+path remains primary; `?mapConfig=` is only used when `?style=` is
+absent. Passing both is an error. The legacy path calls
+`cartolina.browser()` with options spread in and position omitted from
+the config when not supplied via URL (explicit `undefined` would
+overwrite the mapConfig home position through the `configStorage`
+re-apply sequence in `core.js`).
+
 ## 2026-05-25 — geodata render path documented
 
 Started `geodata-rendering.md` to record how geodata is drawn today.
