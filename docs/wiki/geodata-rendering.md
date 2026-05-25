@@ -54,6 +54,11 @@ For non-geodata surface free layers, traversal reaches
 `MapDrawTiles.drawSurfaceTile()` and renders terrain through
 `TileRenderRig`. No geodata jobs are collected for that path.
 
+The draw-traversal RFC does not preserve that branch. Non-geodata free
+layers are unsupported in the new path and will be ignored with a
+one-off console warning. Style-based maps do not produce these layers,
+and no current test URL depends on them.
+
 Tree traversal reaches `MapDrawTiles.drawGeodataTile()` in
 `src/core/map/draw-tiles.js` only when `tile.surface.geodata` is true.
 That method:
@@ -75,6 +80,11 @@ that buffer and issues the draw calls.
 
 Geodata free layers use `mapGeodataLoadMode`, whose default is `fit`.
 The `fit` path calls `MapSurfaceTree.drawSurfaceFit()`.
+
+The target design removes `mapGeodataLoadMode`. Geodata has one retained
+traversal behavior: fitted-frontier selection with parent fallback while
+fitted tiles load. Keeping a config option would preserve a mode switch
+with only one supported value.
 
 `drawSurfaceFit()` descends until a visible tile satisfies
 `tile.texelSize <= draw.texelSizeFit`, has no children, or reaches the

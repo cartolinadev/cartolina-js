@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review
+**Status:** Accepted
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -94,6 +94,12 @@ threshold, collect jobs for those tiles, and use parent fallback only
 while fitted tiles load. It may share culling, texel-size, and loader
 helpers with the new terrain traversal, but it must not route geodata
 through terrain mask rendering.
+
+Non-geodata free layers are not supported by the new traversal. The
+legacy path can render free layers that behave like independent tiled
+surface trees, but style-based maps do not produce them and no current
+test URL depends on them. The new path ignores such layers and emits a
+one-off console warning naming the unsupported free layer.
 
 ---
 
@@ -967,7 +973,7 @@ After this traversal is validated and the old methods are removed:
 |---|---|
 | `drawSurface` (topdown) | fallback cadence = 1 |
 | `drawSurfaceWithSpliting` (topdown+split) | new traversal |
-| `drawSurfaceFit` (fit) | fallback cadence < ∞ |
+| `drawSurfaceFit` (fit) | terrain: fallback cadence < ∞; geodata keeps fitted-frontier traversal until replaced |
 | `drawSurfaceFitOnly` (fitonly) | fallback cadence = ∞ |
 | `drawSurfaceDownTop` (downtop) | fallback cadence < ∞ |
 | `processBuffer`, `newProcessBuffer` arrays | JS call stack |
@@ -975,7 +981,17 @@ After this traversal is validated and the old methods are removed:
 | `tile.splitMask` field | mask texture uniform |
 | `uClip` uniform in legacy shader | `uMask` sampler in rig shader |
 | `mapLoadMode` config value | `mapFallbackLodCadence` integer |
+| `mapGeodataLoadMode` config value | removed; geodata always uses fitted-frontier traversal until replaced |
 | `mapSplitMeshes` config flag | always-on in new traversal |
+
+`drawSurfaceFit` currently serves two callers. Terrain reaches it
+through `mapLoadMode = 'fit'`; geodata reaches it through
+`mapGeodataLoadMode = 'fit'`, selected in `MapSurfaceTree.draw()` when
+`freeLayerSurface.geodata` is true. The new design removes
+`mapGeodataLoadMode` rather than preserving a one-value mode switch.
+The terrain replacement may stop terrain from using `drawSurfaceFit`,
+but the method or an equivalent fixed geodata fitted-frontier traversal
+must remain until the geodata replacement exists.
 
 Glues are ignored entirely. The new traversal visits plain surface
 entries only; it never constructs a `surfaceSequence` entry for a glue,
@@ -1027,7 +1043,7 @@ equivalent screenshots before the legacy path is removed.
   five draw methods and both draw buffers. Geodata keeps only the
   fitted-frontier traversal until it has a dedicated replacement. The
   file retains utility traversals (height tracing, area tiles,
-  `findSurfaceTile`).
+  `findSurfaceTile`). Non-geodata free-layer traversal is removed.
 - `src/core/map/surface-tile.js` — loses `splitMask`, `drawGrid`
   fallback path, `createVirtualMetanode`, alien flag handling.
 - `src/core/map/draw-tiles.js` — `drawSurfaceTile` orchestration
@@ -1044,6 +1060,11 @@ The old traversal and new traversal can coexist behind the
 `TileRenderRig` gate already used in the color-pass draw path.
 The new traversal applies only when `TileRenderRig` is active.
 The old `drawSurface*` methods remain untouched during validation.
+Geodata free layers keep calling the fitted-frontier traversal directly
+until the dedicated geodata path exists. `mapGeodataLoadMode` is removed
+because fitted-frontier traversal is the only retained geodata behavior.
+Non-geodata free layers are ignored with a one-off console warning; they
+are not routed through the terrain traversal as one-surface sequences.
 
 Validation sequence:
 
@@ -1763,3 +1784,53 @@ and the proposed `TileRenderRig` signatures now match the current
 
    Without these, §7 as written authorises deleting `drawSurfaceFit`
    while geodata still depends on it.
+
+   *Implemented.* §7 now lists `mapGeodataLoadMode` in the removal
+   table and states that `drawSurfaceFit` currently has both terrain
+   and geodata callers. The resolution removes `mapGeodataLoadMode`
+   rather than preserving it as a one-value option. §8 now states that
+   geodata keeps calling fixed fitted-frontier traversal directly until
+   the dedicated geodata path exists.
+
+## Review round 7 — requested
+
+This request makes non-geodata free layers unsupported in the new path.
+The legacy renderer can draw free layers that behave like independent
+tiled surface trees, but style-based maps do not produce them and no
+known mapConfig or test URL depends on them. Supporting them would mean
+running the terrain traversal once per free layer as a one-surface
+sequence.
+
+The proposed design does not do that. The new path ignores non-geodata
+free layers and emits a one-off console warning naming the unsupported
+layer. Geodata free layers remain covered by the fitted-frontier path
+described above.
+
+## Review round 7 — sign-off
+
+The design is accepted.
+
+Round 6 note 1 is resolved. §7 now names `drawSurfaceFit` as the method
+geodata currently calls via `mapGeodataLoadMode = 'fit'`, adds
+`mapGeodataLoadMode` to the removal table, and states the geodata
+deletion dependency clearly. §8 states that geodata keeps the
+fitted-frontier traversal directly and `mapGeodataLoadMode` is removed.
+
+The round 7 scope decision — non-geodata free layers unsupported in the
+new path — is correct. In `surface.js:38`, a non-geodata free layer
+requires `type == 'free'` with `geodata == false`. No current test URL
+mapConfig produces that type (`test/urls.json` has no free-layer
+references), so ignoring it with a warning drops no active functionality.
+
+Two editorial notes, neither a blocker:
+
+1. §1 describes non-geodata free layers as absent from "style-based
+   maps", a term not defined in the codebase. Replace with a verifiable
+   claim: "No current test URL mapConfig includes a type-`'free'` free
+   layer."
+
+2. §1 says the new path "emits a one-off console warning naming the
+   unsupported free layer." "One-off" leaves the throttle undefined; at
+   60 fps an unthrottled warning fires every frame the layer is visible.
+   Specify the throttle: once per unique free layer name per session, or
+   move the definition to an implementation note in §8.

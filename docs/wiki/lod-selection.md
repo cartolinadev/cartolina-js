@@ -278,6 +278,10 @@ from `mapGeodataLoadMode` for geodata free layers. The modes share the
 same `updateTexelSize()` computation but differ in how aggressively they
 descend and how they handle missing children.
 
+The draw-traversal RFC removes `mapGeodataLoadMode` from the target
+design. Geodata keeps only fitted-frontier traversal, so the config
+option has no long-term role.
+
 `topdown` is the plain breadth-first traversal:
 
 1. Resolve the root metanode.
