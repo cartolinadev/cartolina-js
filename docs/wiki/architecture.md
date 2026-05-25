@@ -132,7 +132,7 @@ Viewer                         public API
     Presenter                  tour playback
     ControlMode                input handling
     Map                        typed map data model and logic
-      Core                     legacy startup / event coordinator
+      Core                     legacy startup / animation-frame shell
         LegacyMap              JS half of Map (being absorbed)
         MapInterface           thin legacy delegation wrapper
         Renderer               WebGL2 renderer
@@ -155,9 +155,10 @@ disposal, and (post-[rfc-map-frame.md](rfc-map-frame.md)) the per-frame
 entry point and frame state. Its `core` getter is a temporary migration
 hook that warns on every access.
 
-`Core` (`src/core/core.js`) coordinates startup, map loading,
-configuration routing, the animation frame callback, and auth headers.
-It is residual JS scheduled to dissolve into `Map`.
+`Core` (`src/core/core.js`) is the legacy startup shell: map loading,
+configuration routing, the `requestAnimationFrame` callback (which now
+delegates straight to `Map.tick`), and auth headers. It is residual JS
+scheduled to dissolve into `Map`; not a load-bearing abstraction.
 
 `LegacyMap` is the JS half of `Map` in `src/core/map/map.js`. It holds
 the parts of the map data model that have not been rewritten in

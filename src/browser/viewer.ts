@@ -25,13 +25,6 @@ import type LegacyMap from '../core/map/map';
 import type LegacyMapInterface from '../core/map/interface';
 import * as utils from '../core/utils/utils';
 
-import type {
-    HeightMode,
-    Lod,
-    CoreEventMap,
-    OverlaySpec,
-} from '../core/types';
-
 import type { vec3 } from '../core/utils/math';
 
 
@@ -120,15 +113,15 @@ class Viewer {
 
     /**
      * Subscribes to a named map event.
-     * See `CoreEventMap` for available event names.
+     * See `Map.CoreEventMap` for available event names.
      *
      * @param eventName the event to subscribe to
      * @param callback invoked each time the event fires
      * @returns an unsubscribe function
      */
-    on<K extends keyof CoreEventMap>(
+    on<K extends keyof Map.CoreEventMap>(
         eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
+        callback: (event: Map.CoreEventMap[K]) => void,
     ): (() => void) {
 
         this.assertAlive_();
@@ -137,15 +130,15 @@ class Viewer {
 
     /**
      * Subscribes to a named map event for a single invocation.
-     * See `CoreEventMap` for available event names.
+     * See `Map.CoreEventMap` for available event names.
      *
      * @param eventName the event to subscribe to
      * @param callback invoked once when the event fires
      * @param wait number of events to skip before invoking the callback
      */
-    once<K extends keyof CoreEventMap>(
+    once<K extends keyof Map.CoreEventMap>(
         eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
+        callback: (event: Map.CoreEventMap[K]) => void,
         wait?: number,
     ): void {
 
@@ -323,7 +316,7 @@ class Viewer {
      * Sets a single runtime configuration parameter.
      *
      * Parameters prefixed with `renderer*` are routed to the renderer;
-     * those prefixed with `map*` are routed to the terrain engine.
+     * those prefixed with `map*` are routed to the map.
      *
      * @param key parameter key
      * @param value parameter value
@@ -360,8 +353,8 @@ class Viewer {
      */
     convertCoordsFromPublicToNav(
         pos: vec3,
-        mode: HeightMode,
-        lod?: Lod,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
     ): vec3 | null {
 
         this.assertAlive_();
@@ -380,8 +373,8 @@ class Viewer {
      */
     convertCoordsFromNavToCanvas(
         pos: vec3,
-        mode: HeightMode,
-        lod?: Lod,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
     ): vec3 | null {
 
         this.assertAlive_();
@@ -406,7 +399,7 @@ class Viewer {
      */
     checkVisibility(
         pos: vec3,
-        mode: HeightMode,
+        mode: Map.HeightMode,
     ): boolean | null {
 
         this.assertAlive_();
@@ -490,8 +483,8 @@ class Viewer {
     getHitCoords(
         screenX: number,
         screenY: number,
-        mode: HeightMode,
-        lod?: Lod,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
     ): vec3 | null {
 
         this.assertAlive_();
@@ -507,8 +500,8 @@ class Viewer {
      */
     convertCoordsFromNavToPublic(
         pos: vec3,
-        mode: HeightMode,
-        lod?: Lod,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
     ): vec3 | null {
 
         this.assertAlive_();
@@ -525,8 +518,8 @@ class Viewer {
      */
     convertCoordsFromNavToPhys(
         pos: vec3,
-        mode: HeightMode,
-        lod?: Lod,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
         applyVerticalExaggeration?: boolean,
     ): vec3 | null {
 
@@ -626,8 +619,8 @@ class Viewer {
 
     /**
      * Registers a custom overlay that runs as the explicit last step
-     * of every canvas-target frame, after the engine has drawn terrain,
-     * free layers, and label/icon jobs.
+     * of every canvas-target frame, after terrain, free layers, and
+     * label/icon jobs have been drawn.
      *
      * Overlays do not run during the depth/hit pass or any auxiliary
      * render target. Inside `render(ctx)` the host may issue WebGL
@@ -635,13 +628,13 @@ class Viewer {
      * `createTexture`, `getCanvasSize`).
      *
      * `onAdd` fires on the first frame after registration (deferred
-     * until the engine is ready). `onRemove` fires when the overlay
+     * until the map is loaded). `onRemove` fires when the overlay
      * is removed or the viewer is disposed.
      *
      * @param name unique overlay id
      * @param spec lifecycle callbacks; only `render` is required
      */
-    addOverlay(name: string, spec: OverlaySpec): this {
+    addOverlay(name: string, spec: Map.OverlaySpec): this {
 
         this.assertAlive_();
         this.map_.addOverlay(name, spec);

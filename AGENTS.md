@@ -697,15 +697,78 @@ Modules that export only free functions and types (no primary class) use
 regular named exports, as in
 [illumination.ts](src/core/map/illumination.ts).
 
+### Order of declarations in a class module
+
+For modules that export a class as their default export, lay the file
+out in this order:
+
+1. Imports.
+2. The class (with its JSDoc).
+3. Local, non-exported types used by the class — keep them out of
+   the way at the top so the class is what the reader sees first.
+4. The same-name namespace re-exporting public types (see next
+   section).
+5. `export default`.
+
+[atmosphere.ts](src/core/map/atmosphere.ts) and
+[tile-render-rig.ts](src/core/map/tile-render-rig.ts) follow this
+pattern. Do **not** put local types between the imports and the class
+— that pushes the class down and reads as if those types were part of
+the public surface.
+
+### Declaration merging for re-exported types
+
+Types that appear on a class's public surface (method parameters,
+return values, generic constraints) belong in that class's same-name
+namespace, so consumers reach them through the class:
+
+```ts
+// consumer
+import Map from '../core/map';
+
+viewer.addOverlay('id', spec satisfies Map.OverlaySpec);
+```
+
+When the type itself lives in a shared module like `core/types.ts`
+because more than one class needs it, re-export it under the class
+namespace using an inline `import()` type:
+
+```ts
+namespace Map {
+    export type OverlaySpec = import('./types').OverlaySpec;
+    export type CoreEventMap = import('./types').CoreEventMap;
+}
+```
+
+This keeps the canonical definition in `types.ts` while letting
+consumers reach the type through `Map.X` rather than reaching across
+into `core/types`. Apply this rule when a class adds a type-bearing
+method: if the type is part of that class's API, surface it under the
+class namespace.
+
 ### Documentation
 
 Every new class and every new module shall have a JSDoc block:
 
-- **Module-level:** a leading block comment describing purpose,
-  responsibilities, and any significant design decisions.
+- **Module-level:** a leading one-line block comment naming the file
+  and stating its job in a single sentence, matching the pattern in
+  [tile-render-rig.ts](src/core/map/tile-render-rig.ts):
+
+  ```ts
+  /*
+   * tilerenderrig.ts - prepare and draw mesh tiles
+   */
+  ```
+
+  Do **not** restate the class description in the module header — the
+  class JSDoc carries the substantive documentation. A multi-line
+  module header that duplicates the class description is wrong; remove
+  it and keep only the one-liner.
 
 - **Class-level:** a JSDoc comment immediately before the `class`
-  keyword.
+  keyword. This is where the substantive description lives:
+  responsibilities, ownership, lifecycle, any non-obvious design
+  decisions.
 
 - **Public methods and constructors:** JSDoc with `@param` and
   `@returns` for non-obvious signatures.

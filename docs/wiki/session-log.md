@@ -1,5 +1,47 @@
 # Session log
 
+## 2026-05-25 — clean up Map: real Core typing, ordering, namespace
+
+Polish pass on [src/core/map.ts](../../src/core/map.ts) after
+rfc-map-frame landed. The file had accumulated framing problems that
+obscured what `Map` is:
+
+- Module header duplicated the class JSDoc; class JSDoc led with
+  `Core` plumbing instead of stating `Map`'s architectural role.
+- `core_` was typed via `InstanceType<typeof Core>` against an
+  inferred shape — pretend-typed.
+- Method order was chaotic; multi-line `for` split awkwardly across
+  five lines.
+- No `Map.*` namespace, so callers had to import types from
+  `core/types` directly.
+
+Changes:
+
+- New one-line module header. Class JSDoc rewritten to describe
+  `Map` as cartolina's central data model — graphics-library- and
+  UI-independent — that `Viewer` and `Renderer` are built around.
+- New sibling [src/core/core.d.ts](../../src/core/core.d.ts)
+  declares `Core` properly. `Map` switches to `private core_: Core`.
+  `Core` is described as the legacy startup / animation-frame shell
+  being phased out, not as an "engine coordinator". The same reframe
+  propagates through `map.d.ts`, `viewer.ts`,
+  [architecture.md](architecture.md), and
+  [api-and-lifecycle.md](api-and-lifecycle.md).
+- Methods regrouped under section banners (Lifecycle, Events,
+  Rendering controls, Coordinate conversion and hit-testing,
+  Position accessors, Overlays, Frame loop, Private helpers,
+  Migration shim). Fields hoisted to the top. Local `OverlayEntry`
+  moved below the class, matching the layout in `atmosphere.ts` and
+  `tile-render-rig.ts`.
+- Same-name `Map.*` namespace re-exports `CoreConfig`,
+  `CoreEventMap`, `HeightMode`, `Lod`, `OverlayContext`,
+  `OverlaySpec` via inline `import()` types. `Viewer` now uses
+  `Map.HeightMode`, `Map.OverlaySpec`, `Map.CoreEventMap`.
+
+[AGENTS.md](../../AGENTS.md) gains two new sections codifying the
+patterns: file layout order for class modules, and re-exporting
+cross-module types under the class namespace.
+
 ## 2026-05-25 — implement rfc-map-frame
 
 Landed all six steps of

@@ -36,6 +36,7 @@ export interface CoreConfig {
     mapForceFrameTime?: number;
     mapSplitMargin?: number;
     mapLabelFreeMargins?: [number, number, number, number];
+    mapRefreshCycles?: number;
 }
 
 /** Height mode for coordinate conversions and hit-testing. */

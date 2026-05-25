@@ -46,7 +46,7 @@ That pattern is partly gone:
 | `CoreInterface` | Legacy public wrapper | Deleted |
 | `MapInterface` | Thin legacy delegation wrapper | Moves into `Map` |
 | `RendererInterface` | Legacy renderer wrapper | Deleted |
-| `Core` | Legacy startup / event coordinator | Moves into `Map` |
+| `Core` | Legacy startup / animation-frame shell | Dissolves into `Map` |
 | `LegacyMap` | JS half of `Map` (unfinished) | Moves into `Map` |
 | `Renderer` | WebGL2 renderer; public draw helpers | Stays separate |
 

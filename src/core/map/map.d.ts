@@ -55,11 +55,11 @@ type FreeLayer = MapSurface & {
 type SurfaceSequenceItem = [MapSurface, boolean];
 
 /**
- * Legacy terrain engine object.
- *
- * The runtime implementation is in `map.js`. This declaration covers the
- * subset used by current TypeScript modules and should grow incrementally
- * as refactoring work touches more of the legacy surface.
+ * Legacy map data model — the JavaScript half of `Map` being absorbed
+ * into the typed class in `src/core/map.ts`. Runtime implementation
+ * is in `map.js`. This declaration covers the subset used by current
+ * TypeScript modules and grows incrementally as refactoring work
+ * touches more of the legacy surface.
  */
 export default class Map {
 
@@ -88,10 +88,40 @@ export default class Map {
     } & Record<string, unknown>;
 
     position: MapPosition;
+    lastPosition: MapPosition;
     camera: MapCamera;
     atmosphere: Atmosphere | null;
     referenceFrame: MapReferenceFrame;
     services: MapServices;
+
+    /** Set when the runtime decides the next frame must redraw. */
+    dirty: boolean;
+    /** Remaining frames to keep drawing after `dirty` flips false; lets
+     * the scene reach a stable state across the configured refresh
+     * cycles (`mapRefreshCycles`). */
+    dirtyCountdown: number;
+
+    /** Best texel-size achieved by the last drawn mesh tile; reset
+     * before each dirty draw and read by load prioritisation. */
+    bestMeshTexelSize: number;
+    /** Best texel-size achieved by the last drawn geodata tile;
+     * companion to `bestMeshTexelSize`. */
+    bestGeodataTexelSize: number;
+
+    /** Initial `browserOptions` payload from the loaded mapConfig;
+     * forwarded with the `map-loaded` event and the ready Promise. */
+    browserOptions: unknown;
+    /** Becomes true once the reference frame and any geoid grids have
+     * finished loading. Gates the ready path inside `Map.tick`. */
+    srsReady: boolean;
+
+    /** Loader for tile / geodata download promotion. The runtime
+     * shape has more methods than declared here; declarations grow on
+     * demand. */
+    loader: {
+        update(): void;
+        setChannel(channel: number): void;
+    };
 
     srses: Record<string, MapSrs>;
     bodies: Record<string, MapBody>;
@@ -144,9 +174,23 @@ export default class Map {
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
 
-    getNavigationPosition(): MapPosition;
-    getSelectionPosition(): MapPosition;
     markDirty(): void;
+    isReferenceFrameReady(): boolean;
+
+    /**
+     * Pre-draw residual work owned by `LegacyMap`. Called by `Map.tick`
+     * on the ready path after `stats.begin` and before the dirty-gated
+     * draw. Drives the loader and worker-callback processing.
+     */
+    tickBefore(): void;
+
+    /**
+     * Post-draw residual work owned by `LegacyMap`. Called by `Map.tick`
+     * every frame after the dirty-gated draw block. Runs hit tests for
+     * queued hover and click events against the canvas that was just
+     * drawn; no-op when no event is queued.
+     */
+    tickDeferredEvents(): void;
 
     /**
      * Runs `callback` with the live navigation camera installed.

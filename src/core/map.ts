@@ -1,20 +1,10 @@
-/**
- * Internal engine boundary used by the browser build.
- *
- * `Map` owns the map engine coordinator (`Core`) and exposes a typed
- * method surface used by `Viewer`: lifecycle, events, rendering
- * controls, coordinate conversion, and hit-testing.
- *
- * The `core` getter is a temporary migration shim that exposes the legacy
- * engine internals to code that has not yet been promoted to this surface.
- * It will be removed once the terrain engine is fully absorbed into `Map`.
+/*
+ * map.ts — typed map data model and frame-loop owner
  */
 
 import { Core } from './core';
-import type Renderer from './renderer/renderer';
 import Atmosphere from './map/atmosphere';
-import * as utils from './utils/utils';
-
+import type Renderer from './renderer/renderer';
 import type MapPosition from './map/position';
 import type {
     CoreConfig,
@@ -25,27 +15,38 @@ import type {
     OverlaySpec,
 } from './types';
 import type { vec3 } from './utils/math';
-
-
-type OverlayEntry = {
-    name: string;
-    spec: OverlaySpec;
-    enabled: boolean;
-    added: boolean;
-};
+import * as utils from './utils/utils';
 
 
 /**
- * Internal API class between `Viewer` and the map engine.
+ * The map data model — cartolina's central object. The typed,
+ * graphics-library- and UI-independent representation of a loaded
+ * map together with the logic that operates on it. Holds the
+ * reference frame, surfaces, free layers, atmosphere, named views,
+ * current position, and registered overlays; exposes the per-frame
+ * tick, the canvas-target draw, coordinate conversion, and hit-
+ * testing.
  *
- * Replaces the legacy `CoreInterface` ES5 wrapper. Owns the engine
- * coordinator and exposes typed methods for `Viewer` to call. Internal
- * engine objects (`Core`, terrain engine, `Renderer`) remain private
- * implementation details except for the temporary `core` migration shim.
+ * The other two layers are built around `Map`. UI-facing concerns
+ * live on `Viewer` (`src/browser/viewer.ts`); the GPU and shader
+ * layer lives on `Renderer` (`src/core/renderer/renderer.ts`).
+ * `Map` is neither — it is the model both of them work with.
+ *
+ * Map-model state and behaviour that still lives in JavaScript
+ * sit on `LegacyMap` (`src/core/map/map.js`); they absorb into
+ * `Map` as feature work touches them.
+ *
+ * Public types are re-exported under `Map.*` via declaration
+ * merging at the bottom of this file. Consumers should write
+ * `Map.OverlaySpec`, `Map.CoreEventMap`, etc.
  */
 class Map {
 
-    private core_: InstanceType<typeof Core>;
+    // -----------------------------------------------------------------
+    // Fields
+    // -----------------------------------------------------------------
+
+    private core_: Core;
     private disposed_ = false;
 
     /**
@@ -57,15 +58,23 @@ class Map {
     drawChannel: 'color' | 'depth' = 'color';
 
     /**
-     * Registered overlays in registration order. `onAdd` fires the first
-     * time each entry runs through `runOverlays_`; `onRemove` fires when
-     * the entry is removed or when the `Map` is disposed.
+     * Registered overlays in registration order. `onAdd` fires the
+     * first time an entry runs through `runOverlays_`; `onRemove`
+     * fires when the entry is removed or when the `Map` is disposed.
      */
     private overlays_: OverlayEntry[] = [];
 
+    /** Did the one-time `map-loaded` completion fire for the loaded
+     * map already? Reset implicitly by replacing the typed `Map`. */
+    private mapLoadedFired_ = false;
+
+    // -----------------------------------------------------------------
+    // Lifecycle
+    // -----------------------------------------------------------------
+
     /**
      * @param element canvas element to render into
-     * @param config engine configuration
+     * @param config map configuration
      */
     constructor(element: HTMLElement, config: Partial<CoreConfig>) {
 
@@ -73,27 +82,13 @@ class Map {
         this.core_.outerMap = this;
     }
 
-    /** Throws if the map has been disposed. */
-    private assertAlive_(): void {
-
-        if (this.disposed_) {
-            throw new Error('Map has been destroyed.');
-        }
-    }
-
     /**
-     * Resolves once the map is fully loaded and ready to render.
-     */
-    get ready(): Promise<void> {
-
-        this.assertAlive_();
-        return this.core_.ready;
-    }
-
-    /**
-     * Destroy the engine and release all owned resources.
+     * Destroys the map and releases all owned resources. `onRemove`
+     * fires for every added overlay before teardown so overlays can
+     * still draw through the live renderer.
      *
-     * Prefer the `using` statement with `[Symbol.dispose]()` in new code.
+     * Prefer the `using` statement with `[Symbol.dispose]()` in new
+     * code.
      */
     [Symbol.dispose](): void {
 
@@ -104,7 +99,24 @@ class Map {
     }
 
     /**
-     * Load a map from a mapConfig URL.
+     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
+     */
+    destroy(): void {
+
+        __DEV__ && utils.warnOnce(
+            '[Map] destroy() is deprecated. Use Symbol.dispose instead.');
+        this[Symbol.dispose]();
+    }
+
+    /** Resolves once the map is fully loaded and ready to render. */
+    get ready(): Promise<void> {
+
+        this.assertAlive_();
+        return this.core_.ready;
+    }
+
+    /**
+     * Loads a map from a mapConfig URL.
      *
      * @param path URL to the mapConfig.json resource
      */
@@ -115,9 +127,8 @@ class Map {
     }
 
     /**
-     * Unload the currently loaded map without destroying the engine.
-     *
-     * The engine remains alive and a new map can be loaded afterwards.
+     * Unloads the currently loaded map. The `Map` instance stays
+     * alive and a new map can be loaded afterwards.
      */
     unloadMap(): void {
 
@@ -125,8 +136,90 @@ class Map {
         this.core_.destroyMap();
     }
 
+    // -----------------------------------------------------------------
+    // Events
+    // -----------------------------------------------------------------
+
     /**
-     * Set the vertical exaggeration ramps used by the renderer.
+     * Subscribes to a named map event.
+     *
+     * @param eventName event to subscribe to
+     * @param callback invoked each time the event fires
+     * @returns unsubscribe function
+     */
+    on<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+    ): (() => void) {
+
+        this.assertAlive_();
+        const unsubscribe = this.core_.on(eventName, callback);
+        if (unsubscribe == null) {
+            throw new Error('Map event subscription failed.');
+        }
+
+        return unsubscribe;
+    }
+
+    /**
+     * Subscribes to a named map event for a single invocation.
+     *
+     * @param eventName event to subscribe to
+     * @param callback invoked once when the event fires
+     * @param wait number of matching events to skip before invocation
+     */
+    once<K extends keyof CoreEventMap>(
+        eventName: K,
+        callback: (event: CoreEventMap[K]) => void,
+        wait?: number,
+    ): void {
+
+        this.assertAlive_();
+        this.core_.once(eventName, callback, wait);
+    }
+
+    // -----------------------------------------------------------------
+    // Rendering controls
+    // -----------------------------------------------------------------
+
+    /**
+     * Sets the renderer feature flags (labels, atmosphere, shading).
+     *
+     * @param options rendering feature flags
+     */
+    setRenderingOptions(options: Renderer.RenderingOptions): void {
+
+        this.assertAlive_();
+        this.core_.renderer.setRenderingOptions(options);
+    }
+
+    /** Returns the current renderer feature flags. */
+    getRenderingOptions(): Renderer.RenderingOptions | null {
+
+        this.assertAlive_();
+        return this.core_.renderer.getRenderingOptions();
+    }
+
+    /**
+     * Sets the renderer illumination definition.
+     *
+     * @param spec illumination definition
+     */
+    setIllumination(spec: Renderer.IlluminationDef): void {
+
+        this.assertAlive_();
+        this.core_.renderer.setIllumination(spec);
+    }
+
+    /** Returns the current renderer illumination definition. */
+    getIllumination(): Renderer.IlluminationDef | null {
+
+        this.assertAlive_();
+        return this.core_.renderer.getIllumination();
+    }
+
+    /**
+     * Sets the vertical exaggeration ramps used by the renderer.
      *
      * @param spec vertical exaggeration ramp specification
      */
@@ -135,14 +228,10 @@ class Map {
     ): void {
 
         this.assertAlive_();
-        return this.core_.renderer.setVerticalExaggeration(spec);
+        this.core_.renderer.setVerticalExaggeration(spec);
     }
 
-    /**
-     * Return the current vertical exaggeration ramps.
-     *
-     * @returns vertical exaggeration specification
-     */
+    /** Returns the current vertical exaggeration ramps. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
         this.assertAlive_();
@@ -150,29 +239,7 @@ class Map {
     }
 
     /**
-     * Set the renderer illumination definition.
-     *
-     * @param spec illumination definition
-     */
-    setIllumination(spec: Renderer.IlluminationDef): void {
-
-        this.assertAlive_();
-        return this.core_.renderer.setIllumination(spec);
-    }
-
-    /**
-     * Return the current renderer illumination definition.
-     *
-     * @returns illumination definition, or null when unset
-     */
-    getIllumination(): Renderer.IlluminationDef | null {
-
-        this.assertAlive_();
-        return this.core_.renderer.getIllumination();
-    }
-
-    /**
-     * Set live atmosphere parameters on the loaded map.
+     * Sets live atmosphere parameters on the loaded map.
      *
      * @param spec atmosphere runtime parameters
      */
@@ -182,38 +249,16 @@ class Map {
         this.core_.map?.atmosphere?.setRuntimeParameters(spec);
     }
 
-    /**
-     * Return live atmosphere parameters from the loaded map.
-     *
-     * @returns atmosphere runtime parameters, or null when unavailable
-     */
+    /** Returns live atmosphere parameters from the loaded map. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
         this.assertAlive_();
         return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
-    /**
-     * Set renderer feature flags such as labels, atmosphere, and shading.
-     *
-     * @param options rendering feature flags
-     */
-    setRenderingOptions(options: Renderer.RenderingOptions): void {
-
-        this.assertAlive_();
-        return this.core_.renderer.setRenderingOptions(options);
-    }
-
-    /**
-     * Return the current renderer feature flags.
-     *
-     * @returns rendering feature flags
-     */
-    getRenderingOptions(): Renderer.RenderingOptions | null {
-
-        this.assertAlive_();
-        return this.core_.renderer.getRenderingOptions();
-    }
+    // -----------------------------------------------------------------
+    // Coordinate conversion and hit-testing
+    // -----------------------------------------------------------------
 
     /**
      * Converts public (lon/lat/height) coordinates to navigation
@@ -256,7 +301,8 @@ class Map {
     }
 
     /**
-     * Converts navigation coordinates to public (lon/lat/height) coordinates.
+     * Converts navigation coordinates to public (lon/lat/height)
+     * coordinates.
      *
      * @param pos `[x, y, z]` in navigation space
      * @param mode height mode
@@ -326,19 +372,22 @@ class Map {
     }
 
     /**
-     * Returns terrain distance at a 2D position in the current screen view.
+     * Returns terrain distance at a 2D position in the current screen
+     * view.
      *
      * @param screenX horizontal coordinate in the selected space
      * @param screenY vertical coordinate in the selected space
      * @param dilate depth-map dilation radius in hitmap pixels
-     * @param useGeometricIntersection compute a geometric ray intersection
-     * instead of sampling the depth hitmap. Geocentric maps intersect the
-     * ellipsoid; projected maps intersect the base plane.
-     * @param coordinateSpace coordinate space of `screenX` and `screenY`
+     * @param useGeometricIntersection compute a geometric ray
+     *   intersection instead of sampling the depth hitmap. Geocentric
+     *   maps intersect the ellipsoid; projected maps intersect the
+     *   base plane.
+     * @param coordinateSpace coordinate space of `screenX` / `screenY`
      * @returns `[hit, distance]`, or null when the map is not ready.
-     * `distance` is the Euclidean distance from the viewer to the terrain
-     * surface at the selected position. When `hit` is false, no terrain
-     * covers the position and `distance` is a sentinel value.
+     *   `distance` is the Euclidean distance from the viewer to the
+     *   terrain surface at the selected position. When `hit` is false,
+     *   no terrain covers the position and `distance` is a sentinel
+     *   value.
      */
     getScreenDepth(
         screenX: number,
@@ -358,78 +407,55 @@ class Map {
         ) ?? null;
     }
 
+    // -----------------------------------------------------------------
+    // Position accessors (internal, not promoted to Viewer)
+    // -----------------------------------------------------------------
+
     /**
-     * Subscribe to a named map event.
+     * Returns the navigation position — the position driving the live
+     * camera. In freeze mode this is the unfrozen navigation context;
+     * outside freeze mode it equals `getSelectionPosition()`. Returns
+     * `null` before the map is loaded.
      *
-     * @param eventName event to subscribe to
-     * @param callback invoked each time the event fires
-     * @returns unsubscribe function
+     * Internal: not promoted to `Viewer`. Public callers should use
+     * `Viewer.getPosition()`.
      */
-    on<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-    ): (() => void) {
+    getNavigationPosition(): MapPosition | null {
 
-        this.assertAlive_();
-        const unsubscribe = this.core_.on(eventName, callback);
-        if (unsubscribe == null) {
-            throw new Error('Map event subscription failed.');
-        }
-
-        return unsubscribe;
+        const legacyMap = this.core_.map;
+        if (legacyMap == null) return null;
+        return legacyMap.freeze
+            ? (legacyMap.freeze.getNavigationPosition() ?? legacyMap.position)
+            : legacyMap.position;
     }
 
     /**
-     * Subscribe to a named map event for a single invocation.
+     * Returns the selection position — the position driving terrain
+     * selection (culling, texel-size choice, depth sampling). In
+     * freeze mode this is the frozen view; outside freeze mode it
+     * equals `getNavigationPosition()`. Returns `null` before the map
+     * is loaded.
      *
-     * @param eventName event to subscribe to
-     * @param callback invoked once when the event fires
-     * @param wait number of matching events to skip before invocation
+     * Internal: not promoted to `Viewer`.
      */
-    once<K extends keyof CoreEventMap>(
-        eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-        wait?: number,
-    ): void {
+    getSelectionPosition(): MapPosition | null {
 
-        this.assertAlive_();
-        this.core_.once(eventName, callback, wait);
+        const legacyMap = this.core_.map;
+        if (legacyMap == null) return null;
+        return legacyMap.freeze
+            ? (legacyMap.freeze.getSelectionPosition() ?? legacyMap.position)
+            : legacyMap.position;
     }
 
-    /**
-     * Destroy the engine and release all owned resources.
-     *
-     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
-     */
-    destroy(): void {
-
-        __DEV__ && utils.warnOnce('[Map] destroy() is deprecated. Use Symbol.dispose instead.');
-        this[Symbol.dispose]();
-    }
+    // -----------------------------------------------------------------
+    // Overlays
+    // -----------------------------------------------------------------
 
     /**
-     * Migration shim exposing legacy engine internals.
-     *
-     * @internal
-     * @deprecated Access internals through Map public methods instead.
-     *   This getter will be removed when the terrain engine is absorbed
-     *   into Map.
-     */
-    get core(): InstanceType<typeof Core> {
-
-        __DEV__ && utils.warnOnce(
-            '[Map] .core is a migration shim and will be removed. ' +
-            'Access internals through Map public methods instead.',
-        );
-        this.assertAlive_();
-        return this.core_;
-    }
-
-    /**
-     * Registers a custom overlay that runs as the explicit last step of
-     * every canvas-target frame, after the engine has drawn terrain,
-     * free layers, and label / icon jobs. Idempotent: a second call with
-     * the same name is ignored.
+     * Registers a custom overlay that runs as the explicit last step
+     * of every canvas-target frame, after terrain, free layers, and
+     * label / icon jobs have been drawn. Idempotent: a second call
+     * with the same name is ignored.
      *
      * @param name unique overlay id
      * @param spec lifecycle callbacks; only `render` is required
@@ -474,69 +500,9 @@ class Map {
         this.overlays_[index].enabled = enabled;
     }
 
-    private findOverlayIndex_(name: string): number {
-
-        for (let i = 0; i < this.overlays_.length; i++) {
-
-            if (this.overlays_[i].name === name) return i;
-        }
-        return -1;
-    }
-
-    private overlayContext_(): OverlayContext {
-
-        return { renderer: this.core_.renderer };
-    }
-
-    /**
-     * Runs every registered overlay's `render` callback. Called as the
-     * explicit last step of the canvas-target frame; must not be called
-     * for any auxiliary pass.
-     */
-    private runOverlays_(): void {
-
-        if (this.overlays_.length === 0) return;
-
-        const ctx = this.overlayContext_();
-
-        for (let i = 0; i < this.overlays_.length; i++) {
-
-            const entry = this.overlays_[i];
-            if (!entry.enabled) continue;
-
-            if (!entry.added) {
-
-                if (entry.spec.onAdd) entry.spec.onAdd(ctx);
-                entry.added = true;
-            }
-
-            entry.spec.render(ctx);
-        }
-    }
-
-    /**
-     * Fires `onRemove` for every added overlay in registration-reverse
-     * order. Called from `[Symbol.dispose]` before tearing down `Core`
-     * so overlays can still draw through the live renderer.
-     */
-    private disposeOverlays_(): void {
-
-        const ctx = this.overlayContext_();
-        for (let i = this.overlays_.length - 1; i >= 0; i--) {
-
-            const entry = this.overlays_[i];
-            if (entry.added && entry.spec.onRemove)
-                entry.spec.onRemove(ctx);
-        }
-        this.overlays_.length = 0;
-    }
-
-    // -------------------------------------------------------------------
+    // -----------------------------------------------------------------
     // Frame loop
-    // -------------------------------------------------------------------
-
-    /** Was `LegacyMap.srsReady` already true at the previous tick? */
-    private mapLoadedFired_ = false;
+    // -----------------------------------------------------------------
 
     /**
      * Per-frame entry point. Called by `Core.onUpdate` once per
@@ -574,7 +540,8 @@ class Map {
 
         // Reference frame still loading: only let the loader make
         // progress, emit `tick`, and bail out before opening a stats
-        // frame. Mirrors the legacy `LegacyMap.update` not-ready branch.
+        // frame. Mirrors the legacy `LegacyMap.update` not-ready
+        // branch.
         if (!legacyMap.srsReady) {
 
             legacyMap.loader.update();
@@ -612,13 +579,20 @@ class Map {
 
         const dirty = legacyMap.dirty || legacyMap.dirtyCountdown > 0;
 
+        // fps clock starts
         legacyMap.stats.begin(dirty);
         legacyMap.tickBefore();
 
+        // prepare and/or draw if dirty
         if (dirty) {
 
             if (legacyMap.dirty) {
-                legacyMap.dirtyCountdown = legacyMap.config.mapRefreshCycles;
+                /* `mapRefreshCycles` always resolves to a number at
+                 * runtime (Core ctor seeds it with 3); the cast is
+                 * needed because the CoreConfig index signature
+                 * widens reads to the full union. */
+                legacyMap.dirtyCountdown =
+                    (legacyMap.config.mapRefreshCycles ?? 3) as number;
             } else {
                 legacyMap.dirtyCountdown--;
             }
@@ -639,68 +613,15 @@ class Map {
         }
 
         legacyMap.tickDeferredEvents();
+        // fps clock stops
         legacyMap.stats.end(dirty);
         core.callListener('tick', {});
     }
 
     /**
-     * Reset map-owned per-frame state. Called at the top of `Map.draw`.
-     */
-    private initFrame(): void {
-
-        const legacyMap = this.core_.map!;
-
-        if (this.drawChannel !== 'depth') {
-
-            legacyMap.visibleCredits = {
-                imagery: {}, glueImagery: {}, mapdata: {},
-            };
-        }
-
-        legacyMap.loader.setChannel(0); // 0 = hires channel
-        legacyMap.stats.renderBuild = 0;
-    }
-
-    /**
-     * Returns the navigation position — the position driving the live
-     * camera. In freeze mode this is the unfrozen navigation context;
-     * outside freeze mode it equals `getSelectionPosition()`. Returns
-     * `null` before the map is loaded.
-     *
-     * Internal: not promoted to `Viewer`. Public callers should use
-     * `Viewer.getPosition()`.
-     */
-    getNavigationPosition(): MapPosition | null {
-
-        const legacyMap = this.core_.map;
-        if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getNavigationPosition() ?? legacyMap.position)
-            : legacyMap.position;
-    }
-
-    /**
-     * Returns the selection position — the position driving terrain
-     * selection (culling, texel-size choice, depth sampling). In freeze
-     * mode this is the frozen view; outside freeze mode it equals
-     * `getNavigationPosition()`. Returns `null` before the map is
-     * loaded.
-     *
-     * Internal: not promoted to `Viewer`.
-     */
-    getSelectionPosition(): MapPosition | null {
-
-        const legacyMap = this.core_.map;
-        if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getSelectionPosition() ?? legacyMap.position)
-            : legacyMap.position;
-    }
-
-    /**
      * Draws one frame against the current render target. Called from
-     * `Map.tick` for the canvas frame and from `MapDraw.drawHitmap` for
-     * the depth pass. The body relocates from the legacy
+     * `Map.tick` for the canvas frame and from `MapDraw.drawHitmap`
+     * for the depth pass. The body relocates from the legacy
      * `MapDraw.drawMap`; the per-channel decisions still flow through
      * `this.drawChannel`.
      */
@@ -713,7 +634,7 @@ class Map {
         const channel = this.drawChannel;
 
         // Reset owner-specific frame state before issuing draw work.
-        this.initFrame();
+        this.initFrame_();
         renderer.initFrame();
         mapDraw.initFrame();
 
@@ -758,13 +679,10 @@ class Map {
                 }
 
                 // draw free layers
-                for (
-                    let i = 0;
-                    i < legacyMap.freeLayerSequence.length;
-                    i++
-                ) {
+                const freeLayers = legacyMap.freeLayerSequence;
+                for (let i = 0; i < freeLayers.length; i++) {
 
-                    const layer = legacyMap.freeLayerSequence[i];
+                    const layer = freeLayers[i];
 
                     if (!labelsEnabled
                         && (layer.type === 'geodata' || layer.geodata)) {
@@ -785,8 +703,8 @@ class Map {
                             // monolithic geodata job collection
                             mapDraw.drawMonoliticGeodata(layer);
                         } else {
-                            /* Tiled free-layer traversal. Surface tiles
-                             * draw directly; geodata tiles only
+                            /* Tiled free-layer traversal. Surface
+                             * tiles draw directly; geodata tiles only
                              * collect jobs. */
                             layer.tree.draw();
                         }
@@ -827,6 +745,139 @@ class Map {
 
         // done
     }
+
+    // -----------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------
+
+    /** Throws if the map has been disposed. */
+    private assertAlive_(): void {
+
+        if (this.disposed_) {
+            throw new Error('Map has been destroyed.');
+        }
+    }
+
+    /** Resets map-owned per-frame state. Called at the top of `draw`. */
+    private initFrame_(): void {
+
+        const legacyMap = this.core_.map!;
+
+        if (this.drawChannel !== 'depth') {
+
+            legacyMap.visibleCredits = {
+                imagery: {}, glueImagery: {}, mapdata: {},
+            };
+        }
+
+        legacyMap.loader.setChannel(0); // 0 = hires channel
+        legacyMap.stats.renderBuild = 0;
+    }
+
+    private findOverlayIndex_(name: string): number {
+
+        for (let i = 0; i < this.overlays_.length; i++) {
+
+            if (this.overlays_[i].name === name) return i;
+        }
+        return -1;
+    }
+
+    private overlayContext_(): OverlayContext {
+
+        return { renderer: this.core_.renderer };
+    }
+
+    /**
+     * Runs every registered overlay's `render` callback. Called as the
+     * explicit last step of the canvas-target frame; must not be
+     * called for any auxiliary pass.
+     */
+    private runOverlays_(): void {
+
+        if (this.overlays_.length === 0) return;
+
+        const ctx = this.overlayContext_();
+
+        for (let i = 0; i < this.overlays_.length; i++) {
+
+            const entry = this.overlays_[i];
+            if (!entry.enabled) continue;
+
+            if (!entry.added) {
+
+                if (entry.spec.onAdd) entry.spec.onAdd(ctx);
+                entry.added = true;
+            }
+
+            entry.spec.render(ctx);
+        }
+    }
+
+    /**
+     * Fires `onRemove` for every added overlay in registration-reverse
+     * order. Called from `[Symbol.dispose]` before tearing down `Core`
+     * so overlays can still draw through the live renderer.
+     */
+    private disposeOverlays_(): void {
+
+        const ctx = this.overlayContext_();
+        for (let i = this.overlays_.length - 1; i >= 0; i--) {
+
+            const entry = this.overlays_[i];
+            if (entry.added && entry.spec.onRemove)
+                entry.spec.onRemove(ctx);
+        }
+        this.overlays_.length = 0;
+    }
+
+    // -----------------------------------------------------------------
+    // Migration shim
+    // -----------------------------------------------------------------
+
+    /**
+     * Migration shim exposing legacy JS internals to code that has
+     * not been promoted to the `Map` public surface yet.
+     *
+     * @internal
+     * @deprecated Access internals through `Map` public methods
+     *   instead. This getter goes away when `LegacyMap` is fully
+     *   absorbed into `Map`.
+     */
+    get core(): Core {
+
+        __DEV__ && utils.warnOnce(
+            '[Map] .core is a migration shim and will be removed. '
+            + 'Access internals through Map public methods instead.',
+        );
+        this.assertAlive_();
+        return this.core_;
+    }
+}
+
+
+// Local non-exported types used by the class above.
+
+type OverlayEntry = {
+    name: string;
+    spec: OverlaySpec;
+    enabled: boolean;
+    added: boolean;
+};
+
+
+/* Declaration merging: re-export public types under `Map.*`. Consumers
+ * (`Viewer`, demos) should reference them as `Map.OverlaySpec`,
+ * `Map.CoreEventMap`, etc. rather than reaching into `core/types`.
+ * Same-name namespace pattern is documented in AGENTS.md. */
+namespace Map {
+
+    export type CoreConfig = import('./types').CoreConfig;
+    export type CoreEventMap = import('./types').CoreEventMap;
+    export type HeightMode = import('./types').HeightMode;
+    export type Lod = import('./types').Lod;
+    export type OverlayContext = import('./types').OverlayContext;
+    export type OverlaySpec = import('./types').OverlaySpec;
 }
 
 
