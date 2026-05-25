@@ -153,6 +153,37 @@ nearly flat terrain this quantity is ill-defined because the normal
 projection approaches zero. The shader uses a neutral aspect value for
 those cases to avoid visible artifacts.
 
+## Runtime Overrides
+
+`Map.overrides` is a single runtime object holding all per-frame
+rendering overrides. Its type, `Overrides`, and its defaults,
+`defaultOverrides`, are defined in `src/core/map/overrides.ts` and
+derived with `typeof` so the type and the defaults cannot drift.
+
+`Map` (map.js) owns the object. The constructor spreads the defaults:
+
+```js
+this.overrides = { ...defaultOverrides };
+```
+
+`Renderer` shares the same reference, installed in
+`Renderer.initFrame()`:
+
+```ts
+this.overrides = map.overrides;
+```
+
+`draw.*` fields are explicit booleans (`false` by default). They
+toggle debug visualizations.
+
+`flag*` fields default to `undefined`, meaning "defer to the
+corresponding `config` value". Any explicit `boolean` overrides the
+config for that frame.
+
+Inspector and input code write `map.overrides.flagX` directly. Legacy
+JS files that still read `renderer.debug.X` reach the same object
+through a `get debug()` accessor on `Renderer`.
+
 ## Colour Encoding
 
 All colour values in the style spec and public APIs use integer 0-255

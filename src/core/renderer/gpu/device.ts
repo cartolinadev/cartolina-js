@@ -313,11 +313,11 @@ private buildCanvasRenderTarget(): GpuDevice.RenderTarget {
     const H = el.offsetHeight || el.clientHeight;
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const viewportSize: NumberPair = [
+    const viewportSize: GpuDevice.NumberPair = [
         Math.round(rect.width * dpr),
         Math.round(rect.height * dpr),
     ];
-    const cssLayoutSize: NumberPair = [W, H];
+    const cssLayoutSize: GpuDevice.NumberPair = [W, H];
 
     return {
         kind: 'canvas',
@@ -410,7 +410,7 @@ setCanvasRenderTarget(): GpuDevice.RenderTarget {
  */
 setAuxiliaryRenderTarget(
     texture: GpuTexture,
-    viewportSize: Readonly<NumberPair>,
+    viewportSize: Readonly<GpuDevice.NumberPair>,
 ): GpuDevice.RenderTarget {
 
     const base = this.renderTarget_;
@@ -445,7 +445,7 @@ clearDepth(): void {
  *
  * @param color Clear color in 0-255 RGBA components.
  */
-clearColor(color : Color): void {
+clearColor(color: GpuDevice.Color = GpuDevice.Black): void {
 
     this.setClearColor(color);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
@@ -456,7 +456,7 @@ clearColor(color : Color): void {
  *
  * @param color Clear color in 0-255 RGBA components.
  */
-clearColorAndDepth(color : Color): void {
+clearColorAndDepth(color: GpuDevice.Color = GpuDevice.Black): void {
 
     const gl = this.gl;
 
@@ -483,9 +483,13 @@ clearColorAndDepth(color : Color): void {
  * @param clearColor Whether to clear the color buffer.
  * @param color Clear color in 0-255 RGBA components.
  */
-clear(clearDepth: boolean, clearColor: boolean, color? : Color): void {
+clear(
+    clearDepth: boolean,
+    clearColor: boolean,
+    color: GpuDevice.Color = GpuDevice.Black,
+): void {
 
-    if (color != null) {
+    if (clearColor) {
         this.setClearColor(color);
     }
 
@@ -493,7 +497,7 @@ clear(clearDepth: boolean, clearColor: boolean, color? : Color): void {
                   (clearDepth ? this.gl.DEPTH_BUFFER_BIT : 0) );
 };
 
-private setClearColor(color : Color): void {
+private setClearColor(color: GpuDevice.Color): void {
 
     this.gl.clearColor(
         color[0]/255, color[1]/255, color[2]/255, color[3]/255);
@@ -775,12 +779,28 @@ useProgram(program: GpuProgram, attributes: string[], nextSampler: boolean) {
 
 } // class GpuDevice
 
-// local types
-type NumberPair = [number, number];
-type Color = [number, number, number, number]
-
 // exported types
 export namespace GpuDevice {
+
+/**
+ * Two-number tuple used for dimensions and scale factors.
+ */
+export type NumberPair = [number, number];
+
+/**
+ * Clear color in 0-255 RGBA components.
+ */
+export type Color = readonly [number, number, number, number];
+
+/**
+ * Opaque black clear color.
+ */
+export const Black: Color = [0, 0, 0, 255];
+
+/**
+ * Opaque white clear color.
+ */
+export const White: Color = [255, 255, 255, 255];
 
 /**
  * Cached WebGL fixed-function state managed by `GpuDevice.setState()`.

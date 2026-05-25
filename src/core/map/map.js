@@ -22,11 +22,13 @@ import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
 import FreezeCameraState from './freeze-camera-state';
+import { defaultOverrides } from './overrides';
 
 
 var Map = function(core, path, config, configStorage) {
 
     this.config = config || {};
+    this.overrides = { ...defaultOverrides };
     this.setConfigParams(config);
     this.core = core;
     this.coreConfig = core.coreConfig;
@@ -1246,7 +1248,7 @@ Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
 
 
 Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
-    var labelsEnabled = this.renderer.debug.flagLabels
+    var labelsEnabled = this.overrides.flagLabels
         ?? this.config.mapFlagLabels;
 
     if (!labelsEnabled) {
@@ -1399,9 +1401,9 @@ Map.prototype.drawMap = function() {
 /**
  * Reset map-owned state at the start of a render pass.
  */
-Map.prototype.initFrame = function(drawChannel) {
+Map.prototype.initFrame = function() {
 
-    if (drawChannel != 1) {
+    if (this.draw.drawChannel != 1) {
 
         this.visibleCredits = {
             imagery : {},

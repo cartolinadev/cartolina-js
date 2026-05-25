@@ -79,6 +79,8 @@ then branch into more specific documents as needed.
 - [label-styling-engine.md](label-styling-engine.md) — reference notes
   about the shared lettering style engine, expression domains, and
   textured line patterns
+- [geodata-rendering.md](geodata-rendering.md) — current geodata
+  render path: tile traversal, job collection, and queued job drawing
 - [label-regression-diagnostics.md](label-regression-diagnostics.md) —
   workflow for empirical label-pipeline regression tracing
 - [render-targets.md](render-targets.md) — render-target ownership,

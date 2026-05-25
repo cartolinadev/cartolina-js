@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** Accepted
+**Status:** In review
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -11,7 +11,7 @@
 
 ## 1. Problem
 
-The tile tree traversal lives in `src/core/map/surface-tree.js` as four
+The tile tree traversal lives in `src/core/map/surface-tree.js` as five
 separate iterative methods:
 
 | Method | Mode config value |
@@ -20,9 +20,10 @@ separate iterative methods:
 | `drawSurfaceWithSpliting` | `topdown` + `mapSplitMeshes` |
 | `drawSurfaceFit` | `fit` |
 | `drawSurfaceFitOnly` | `fitonly` |
+| `drawSurfaceDownTop` | `downtop` |
 
 Each method is a manual stack loop (`processBuffer` / `newProcessBuffer`
-arrays swapped on each generation). Combined they are roughly 1 200
+arrays swapped on each generation). Combined they are roughly 1 300
 lines and share no code. The split variant (`drawSurfaceWithSpliting`)
 contains the embryo of the masking idea: it propagates a `splitMask`
 array of four `0|1` values to the tile, which the tile shader reads
@@ -70,11 +71,29 @@ integrators unfamiliar with VTS internals they are opaque.
 
 **Goals of this RFC:**
 
-- Replace the four traversal methods with one recursive function.
+- Replace the five traversal methods with one recursive function.
 - Replace server-side seam stitching with client-side mask compositing,
   eliminating the need to generate or serve glue tilesets.
 - Allow progressive loading via configurable fallback LODs, eliminating
   the data-intensity of the topdown mode without requiring separate code.
+
+**Out of scope: geodata rendering.**
+
+Geodata free layers also call `MapSurfaceTree.draw()`, but they use the
+tree as a tile selector and loader for label and icon jobs. The selected
+geodata tiles call `MapGeodataView.draw()`, which collects jobs into
+`renderer.jobZBuffer`; `RendererDraw.drawGpuJobs()` draws those jobs
+later. The mask-compositing design in this RFC applies to terrain
+surface rendering through `TileRenderRig`; it does not apply to geodata
+job collection or label collision.
+
+The implementation must keep a geodata traversal path until geodata has
+its own replacement. Only the fitted-frontier behavior is needed for
+that path: descend to the tiles whose `texelSize` fits the configured
+threshold, collect jobs for those tiles, and use parent fallback only
+while fitted tiles load. It may share culling, texel-size, and loader
+helpers with the new terrain traversal, but it must not route geodata
+through terrain mask rendering.
 
 ---
 
@@ -773,11 +792,11 @@ following changes are required:
 **Mask-aware draw method:**
 
 ```ts
-draw(program: GpuProgram, cameraPos: vec3,
-     maskTexture?: GpuTexture): void
+draw(cameraPos: vec3, maskTexture?: GpuTexture): void
 ```
 
-The existing `draw()` method gains an optional `maskTexture` parameter.
+The existing `draw(cameraPos)` method gains an optional `maskTexture`
+parameter.
 When present, the tile shader samples `maskTexture` at the fragment's
 UV coordinate (`aTexCoords2`) and discards if the value exceeds 0.5.
 When absent, no mask discard occurs (existing behavior).
@@ -788,20 +807,21 @@ texture input. The `splitMask` field on `MapSurfaceTile` is removed.
 **Footprint method:**
 
 ```ts
-footprint(maskFBO: GpuFramebuffer): void
+footprint(maskTexture: GpuTexture): void
 ```
 
-A new method renders the tile mesh into a UV-space R8 FBO. The vertex
-shader uses `aTexCoords2 * 2.0 - 1.0` as the clip-space position;
-the fragment shader outputs 1.0. Called once per non-watertight
-surface in the footprint pass (step 1 of §5.1).
+A new method renders the tile mesh into a UV-space R8 texture with a
+framebuffer. `GpuDevice.setAuxiliaryRenderTarget()` binds that texture
+as the active draw target. The vertex shader uses
+`aTexCoords2 * 2.0 - 1.0` as the clip-space position; the fragment
+shader outputs 1.0. Called once per non-watertight surface in the
+footprint pass (step 1 of §5.1).
 
 **Depth program:**
 
-The rig also needs a depth program for draw channel 1 (the depth
-hitmap), as specified in the backlog. This is prerequisite for the
-traversal refactor because the new traversal replaces both color and
-depth draw paths. See backlog §1 for the depth program plan.
+The rig already has `isDepthReady()` and `drawDepth(cameraPos)`, backed
+by `Renderer.programTileDepth()`. The depth program prerequisite from
+the original RFC text is implemented.
 
 ### 5.6 Tile shader changes
 
@@ -949,6 +969,7 @@ After this traversal is validated and the old methods are removed:
 | `drawSurfaceWithSpliting` (topdown+split) | new traversal |
 | `drawSurfaceFit` (fit) | fallback cadence < ∞ |
 | `drawSurfaceFitOnly` (fitonly) | fallback cadence = ∞ |
+| `drawSurfaceDownTop` (downtop) | fallback cadence < ∞ |
 | `processBuffer`, `newProcessBuffer` arrays | JS call stack |
 | `drawBuffer`, `processDrawBuffer` | direct `rig.draw()` call |
 | `tile.splitMask` field | mask texture uniform |
@@ -1002,9 +1023,11 @@ equivalent screenshots before the legacy path is removed.
 
 ### Code expected to shrink substantially
 
-- `src/core/map/surface-tree.js` — loses all four draw methods and
-  both draw buffers; retains only utility traversals (height tracing,
-  area tiles, `findSurfaceTile`).
+- `src/core/map/surface-tree.js` — terrain rendering stops using the
+  five draw methods and both draw buffers. Geodata keeps only the
+  fitted-frontier traversal until it has a dedicated replacement. The
+  file retains utility traversals (height tracing, area tiles,
+  `findSurfaceTile`).
 - `src/core/map/surface-tile.js` — loses `splitMask`, `drawGrid`
   fallback path, `createVirtualMetanode`, alien flag handling.
 - `src/core/map/draw-tiles.js` — `drawSurfaceTile` orchestration
@@ -1024,21 +1047,24 @@ The old `drawSurface*` methods remain untouched during validation.
 
 Validation sequence:
 
-1. Implement the depth program for `TileRenderRig` (backlog §1).
-2. Allocate the mask texture pool: 16 R8 256×256 `node_mask`
+1. Allocate the mask texture pool: 16 R8 256×256 `node_mask`
    textures, 1 R8 256×256 `scratch` texture, and the FBO set.
-3. Implement the footprint program and OR/blit program (§5.6).
-4. Add `footprint()` and mask-aware `draw()` to `TileRenderRig`
+2. Implement the footprint program and OR/blit program (§5.6).
+3. Add `footprint()` and mask-aware `draw()` to `TileRenderRig`
    (§5.5). Mask sampled at `aTexCoords2`, not `gl_FragCoord`.
-5. Implement the recursive traversal as a new method on
+4. Implement the recursive traversal as a new method on
    `MapSurfaceTree`, replacing only the `drawSurfaceFitOnly`
    mode first. Validate against screenshot regression tests.
-6. Extend to fallback cadence. Validate progressive loading.
-7. Compare against old topdown mode for equivalent loaded data.
-8. Validate multi-surface compositing at a surface boundary with
+5. Extend to fallback cadence. Validate progressive loading.
+6. Compare against old topdown and downtop modes for equivalent loaded
+   data.
+7. Validate multi-surface compositing at a surface boundary with
    erosion enabled. Tune the erosion margin against visible
    cracks on real multi-surface data.
-9. Delete the old methods.
+8. Delete the old terrain traversal methods after the geodata caller has
+   kept a fitted-frontier traversal or moved to a geodata-specific
+   replacement. Do not preserve the old topdown, downtop, splitting, or
+   fitonly modes only for geodata.
 
 ---
 
@@ -1681,3 +1707,29 @@ fallback in a narrow fringe. These are acceptable if they are transient
 or visually unobtrusive for elevation surfaces. The validation work
 should include a progressive-loading multi-surface case and a seam case
 before the legacy draw path is removed.
+
+## Review round 6 — requested
+
+The accepted design now states that geodata rendering is out of scope.
+The previous text treated `MapSurfaceTree.draw()` as if every caller
+could move to the mask-based terrain traversal. That is false for
+geodata free layers: they use the tree to select fitted tiles, load
+geodata resources, and collect label/icon jobs into `renderer.jobZBuffer`.
+
+The review text now distinguishes the five legacy terrain traversal
+methods from the single geodata behavior that must remain. Terrain
+rendering still replaces `drawSurface`, `drawSurfaceWithSpliting`,
+`drawSurfaceFit`, `drawSurfaceFitOnly`, and `drawSurfaceDownTop`.
+Geodata keeps only fitted-frontier traversal: select fitted tiles,
+collect jobs there, and use parent fallback while fitted tiles load.
+
+The rollout section now says the old terrain traversal methods can be
+deleted after geodata keeps a fitted-frontier traversal or moves to a
+geodata-specific replacement. The mask-compositing traversal remains a
+terrain `TileRenderRig` design.
+
+This review also verified the RFC against the current codebase. The
+problem statement now includes `drawSurfaceDownTop`; the rollout no
+longer lists the completed `TileRenderRig` depth program as future work;
+and the proposed `TileRenderRig` signatures now match the current
+`draw(cameraPos)` and `GpuDevice` render-target model.

@@ -11,7 +11,6 @@ var MapDrawTiles = function(map, draw) {
     this.isProjected = this.map.getNavigationSrs().isProjected();
     this.stats = map.stats;
     this.draw = draw;
-    this.debug = draw.debug;
     this.core = map.core;
     this.camera = map.camera;
 
@@ -36,13 +35,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
     if (tile.surface) {
         if (node.hasGeometry()) {
 
-            if (this.debug.drawBBoxes && !preventRedener) {
-                if (tile.surface.geodata || !this.debug.drawGeodataOnly) {
+            if (this.map.overrides.drawBBoxes && !preventRedener) {
+                if (tile.surface.geodata || !this.map.overrides.drawGeodataOnly) {
                     this.drawTileInfo(tile, node, cameraPos, tile.surfaceMesh, pixelSize);
                 }
             }
 
-            if (this.debug.heightmapOnly && !preventRedener) {
+            if (this.map.overrides.heightmapOnly && !preventRedener) {
                 if (!tile.surface.geodata) {
                     tile.drawGrid(cameraPos);
                 }
@@ -315,7 +314,8 @@ MapDrawTiles.prototype.getTileTextureTransform = function(sourceTile, targetTile
 
 
 MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
-    var debug = this.debug, pos;
+    var debug = this.map.overrides;
+    var pos;
 
     if (!debug.drawMeshBBox) {
 

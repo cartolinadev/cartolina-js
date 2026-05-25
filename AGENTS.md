@@ -144,7 +144,9 @@ The status line tracks the current state:
   An accepted RFC is a signed-off design record; any change to it
   invalidates the sign-off. When a change is needed, edit the body,
   change the status back to `In review`, and add a new
-  `## Review round N` section describing what changed and why.
+  `## Review round N — requested` section describing what changed and
+  why. This marks the section as an author request for renewed review,
+  not as reviewer feedback.
   The RFC stays in `In review` until the reviewer signs off again.
 
 

@@ -44,7 +44,7 @@ export default class InspectorInput {
      * the current one and clears rendering state owned by that command mode.
      *
      * Command modes and affected rendering state:
-     *   'renderFlags' — map.renderer.debug.flagX overrides
+     *   'renderFlags' — map.overrides.flagX overrides
      *   'tileBBox'    — debug.drawBBoxes
      *   'radar'       — inspector.drawRadar
      *   'freeze'      — controls persistent map freeze state
@@ -57,7 +57,7 @@ export default class InspectorInput {
         const map = this.core.getMap();
         const inspector = this.inspector;
         if (!map) return;
-        const debug = map.draw.debug;
+        const debug = map.overrides;
 
         if (this.subMode === 'tileBBox') {
 
@@ -112,7 +112,7 @@ export default class InspectorInput {
 
         if (!map || !event) return;
 
-        const debug = map.draw.debug;
+        const debug = map.overrides;
 
         this.altDown   = event.altKey;
         this.ctrlDown  = event.ctrlKey;
@@ -166,104 +166,103 @@ export default class InspectorInput {
 
                 if (this.subMode === 'renderFlags') {
 
-                    const rfRenderer = map.renderer;
                     switch (keyCode) {
 
                     case 70: case 102: {  // f — lighting
 
-                        const rfF = !(rfRenderer.debug.flagLighting
+                        const rfF = !(debug.flagLighting
                             ?? map.config.mapFlagLighting);
-                        rfRenderer.debug.flagLighting = rfF;
+                        debug.flagLighting = rfF;
                         inspector.showNotification(
                             'Lighting ' + (rfF ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 78: case 110: {  // n — normal maps
 
-                        const rfN = !(rfRenderer.debug.flagNormalMaps
+                        const rfN = !(debug.flagNormalMaps
                             ?? map.config.mapFlagNormalMaps);
-                        rfRenderer.debug.flagNormalMaps = rfN;
+                        debug.flagNormalMaps = rfN;
                         inspector.showNotification(
                             'Normal maps ' + (rfN ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 68: case 100: {  // d — diffuse maps
 
-                        const rfD = !(rfRenderer.debug.flagDiffuseMaps
+                        const rfD = !(debug.flagDiffuseMaps
                             ?? map.config.mapFlagDiffuseMaps);
-                        rfRenderer.debug.flagDiffuseMaps = rfD;
+                        debug.flagDiffuseMaps = rfD;
                         inspector.showNotification(
                             'Diffuse maps ' + (rfD ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 83: case 115: {  // s — specular maps
 
-                        const rfS = !(rfRenderer.debug.flagSpecularMaps
+                        const rfS = !(debug.flagSpecularMaps
                             ?? map.config.mapFlagSpecularMaps);
-                        rfRenderer.debug.flagSpecularMaps = rfS;
+                        debug.flagSpecularMaps = rfS;
                         inspector.showNotification(
                             'Specular maps ' + (rfS ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 66: case 98: {   // b — bump maps
 
-                        const rfB = !(rfRenderer.debug.flagBumpMaps
+                        const rfB = !(debug.flagBumpMaps
                             ?? map.config.mapFlagBumpMaps);
-                        rfRenderer.debug.flagBumpMaps = rfB;
+                        debug.flagBumpMaps = rfB;
                         inspector.showNotification(
                             'Bump maps ' + (rfB ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 65: case 97: {   // a — atmosphere
 
-                        const rfA = !(rfRenderer.debug.flagAtmosphere
+                        const rfA = !(debug.flagAtmosphere
                             ?? map.config.mapFlagAtmosphere);
-                        rfRenderer.debug.flagAtmosphere = rfA;
+                        debug.flagAtmosphere = rfA;
                         inspector.showNotification(
                             'Atmosphere ' + (rfA ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 72: case 104: {  // h — shadows
 
-                        const rfH = !(rfRenderer.debug.flagShadows
+                        const rfH = !(debug.flagShadows
                             ?? map.config.mapFlagShadows);
-                        rfRenderer.debug.flagShadows = rfH;
+                        debug.flagShadows = rfH;
                         inspector.showNotification(
                             'Shadows ' + (rfH ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 75: case 107: {  // k — labels
 
-                        const rfK = !(rfRenderer.debug.flagLabels
+                        const rfK = !(debug.flagLabels
                             ?? map.config.mapFlagLabels);
-                        rfRenderer.debug.flagLabels = rfK;
+                        debug.flagLabels = rfK;
                         inspector.showNotification(
                             'Labels ' + (rfK ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 76: case 108: {  // l — Lambertian shading
 
-                        const rfL = !(rfRenderer.debug.flagShadingLambertian
+                        const rfL = !(debug.flagShadingLambertian
                             ?? map.config.mapShadingLambertian);
-                        rfRenderer.debug.flagShadingLambertian = rfL;
+                        debug.flagShadingLambertian = rfL;
                         inspector.showNotification(
                             'Lambertian shading ' + (rfL ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 80: case 112: {  // p — slope shading
 
-                        const rfP = !(rfRenderer.debug.flagShadingSlope
+                        const rfP = !(debug.flagShadingSlope
                             ?? map.config.mapShadingSlope);
-                        rfRenderer.debug.flagShadingSlope = rfP;
+                        debug.flagShadingSlope = rfP;
                         inspector.showNotification(
                             'Slope shading ' + (rfP ? 'on' : 'off'));
                         hit = true; break;
                     }
                     case 88: case 120: {  // x — aspect shading
 
-                        const rfX = !(rfRenderer.debug.flagShadingAspect
+                        const rfX = !(debug.flagShadingAspect
                             ?? map.config.mapShadingAspect);
-                        rfRenderer.debug.flagShadingAspect = rfX;
+                        debug.flagShadingAspect = rfX;
                         inspector.showNotification(
                             'Aspect shading ' + (rfX ? 'on' : 'off'));
                         hit = true; break;
@@ -520,7 +519,7 @@ export default class InspectorInput {
 
         if (!map) return;
 
-        const debug = map.draw.debug;
+        const debug = map.overrides;
         const getBool = () => (value === true || value == 'true' || value == '1');
 
         switch (key) {

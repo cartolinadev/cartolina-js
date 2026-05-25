@@ -15,6 +15,7 @@ import RendererRMap from './rmap';
 import * as IlluminationMath from '../map/illumination';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
+import { defaultOverrides, type Overrides } from '../map/overrides';
 import type { CoreConfig } from '../types';
 import { TextureBlend } from './textureblend';
 
@@ -133,7 +134,10 @@ export class Renderer {
     hitmapCounter = 0;
     hitmapData: Optional<Uint8Array> = null;
 
-    debug: Renderer.Debug = {}
+    overrides: Overrides = { ...defaultOverrides }
+
+    /** @deprecated Legacy alias for `overrides`. */
+    get debug(): Overrides { return this.overrides; }
 
     geometries = {} // no clue, see MapInterface.getGeodataGeometry
 
@@ -655,10 +659,10 @@ initFrame(): void {
 
     const map = this.core.map;
     const config = map.config;
-    const debug = map.draw.debug;
+    const overrides = map.overrides;
 
     this.debugStr = `AsyncImageDecode: ${config.mapAsyncImageDecode}`;
-    this.debug = debug;
+    this.overrides = overrides;
     this.benevolentMargins = !!config.mapBenevolentMargins;
 
     const forcedFrameTime = config.mapForceFrameTime;
@@ -682,10 +686,10 @@ initFrame(): void {
     this.hoverFeatureList = map.hoverFeatureList;
     this.hoverFeature = map.hoverFeature;
 
-    this.drawLabelBoxes = !!debug.drawLabelBoxes;
-    this.drawGridCells = !!debug.drawGridCells;
-    this.drawAllLabels = !!debug.drawAllLabels;
-    this.drawHiddenLabels = !!debug.drawHiddenLabels;
+    this.drawLabelBoxes = !!overrides.drawLabelBoxes;
+    this.drawGridCells = !!overrides.drawGridCells;
+    this.drawAllLabels = !!overrides.drawAllLabels;
+    this.drawHiddenLabels = !!overrides.drawHiddenLabels;
     this.fmaxDist = Number.NEGATIVE_INFINITY;
     this.fminDist = Number.POSITIVE_INFINITY;
 
@@ -851,7 +855,7 @@ updateBuffers(
     // obtain the data: render flags
     // debug fields override config defaults (undefined = use config);
     // flags start at FlagNone so any flag not explicitly set remains 0.
-    const d = this.debug;
+    const d = this.overrides;
     const cfg = map.config;
 
     // FlagLighting requires both the debug/config flag AND active illumination.
@@ -1258,7 +1262,7 @@ getIllumination(): Renderer.IlluminationDef | null {
 
 setRenderingOptions(options: Renderer.RenderingOptions) {
 
-    const d = this.debug;
+    const d = this.overrides;
 
     if (options.useNormalMaps !== undefined)
         d.flagNormalMaps = options.useNormalMaps;
@@ -1297,7 +1301,7 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
 
 getRenderingOptions(): Renderer.RenderingOptions {
 
-    const d = this.debug;
+    const d = this.overrides;
     const cfg = this.core.map?.config ?? this.config;
 
     return {
@@ -2535,34 +2539,6 @@ export function encodeRenderFlags(flags: RenderFlags): [number, number, number, 
     return [flags & 0xff, (flags >> 8) & 0xff, 0, 0];
 }
 
-/** Per-frame debug overrides for the renderer. Exported from the namespace
- *  only so the Renderer class can use it as a member type; treat as internal.
- *  Flag fields are optional: undefined means "fall back to the config default". */
-export type Debug = {
-    // render flag overrides (undefined = use config default)
-    flagLighting?: boolean;
-    flagNormalMaps?: boolean;
-    flagDiffuseMaps?: boolean;
-    flagSpecularMaps?: boolean;
-    flagBumpMaps?: boolean;
-    flagAtmosphere?: boolean;
-    flagShadows?: boolean;
-    flagLabels?: boolean;
-    flagShadingLambertian?: boolean;
-    flagShadingSlope?: boolean;
-    flagShadingAspect?: boolean;
-    // fields from MapDraw.debug read by the renderer
-    heightmapOnly?: boolean;
-    drawBBoxes?: boolean;
-    drawEarth?: boolean;
-    drawLabelBoxes?: boolean;
-    drawGridCells?: boolean;
-    drawAllLabels?: boolean;
-    drawHiddenLabels?: boolean;
-    meshStats?: boolean;
-    maxZoom?: boolean;
-    [key: string]: boolean | number | undefined;
-}
 
 
 

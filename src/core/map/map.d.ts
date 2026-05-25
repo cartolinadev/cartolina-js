@@ -11,6 +11,7 @@ import type MapSurface from './surface';
 import type MapUrl from './url';
 import type FreezeCameraState from './freeze-camera-state';
 import type Renderer from '../renderer/renderer';
+import type { Overrides } from './overrides';
 import type { CoreConfig, NodeInformation } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
@@ -96,11 +97,12 @@ export default class Map {
         surfaceOnlySequence: SurfaceSequenceItem[];
     };
 
+    overrides: Overrides;
+
     freeze: FreezeCameraState;
 
     draw: {
         drawChannel: number;
-        debug: Renderer.Debug;
     };
 
     hoverFeature: unknown;
@@ -119,11 +121,8 @@ export default class Map {
     getPosition(): MapPosition;
     /**
      * Reset map-owned state at the start of a render pass.
-     *
-     * @param drawChannel Active draw channel. Channel 1 is the depth pass and
-     *   keeps the current visible-credit accumulator.
      */
-    initFrame(drawChannel: number): void;
+    initFrame(): void;
     getNavigationPosition(): MapPosition;
     getSelectionPosition(): MapPosition;
     markDirty(): void;

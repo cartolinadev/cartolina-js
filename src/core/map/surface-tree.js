@@ -1583,7 +1583,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
                             tile, tile.metanode, drawCameraPos,
                             tile.texelSize, 0, false, false);
                     } else {
-                        if (drawTiles.debug.drawBBoxes) {
+                        if (drawTiles.map.overrides.drawBBoxes) {
                             drawTiles.drawTileInfo(
                                 tile, tile.metanode, drawCameraPos);
                         }
@@ -1594,7 +1594,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
                     if ((drawGrid && item[1])
                         || stats.gpuRenderUsed >= draw.maxGpuUsed) {
 
-                        if (drawTiles.debug.drawBBoxes) {
+                        if (drawTiles.map.overrides.drawBBoxes) {
                             drawTiles.drawTileInfo(
                                 tile, tile.metanode, drawCameraPos);
                         }

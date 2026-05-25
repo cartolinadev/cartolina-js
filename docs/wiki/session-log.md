@@ -1,5 +1,58 @@
 # Session log
 
+## 2026-05-25 — geodata render path documented
+
+Started `geodata-rendering.md` to record how geodata is drawn today.
+`MapDraw.drawMap()` first traverses free-layer trees and calls
+`MapGeodataView.draw()` to collect label and icon jobs into
+`renderer.jobZBuffer`. A later `RendererDraw.drawGpuJobs()` call draws
+the queued jobs. Tiled `geodata-tiles` layers and monolithic `geodata`
+layers both use this job-buffer handoff.
+
+Reopened `rfc-draw-traversal.md` to mark geodata rendering out of
+scope. The mask-based unified traversal applies to terrain rendering
+through `TileRenderRig`; geodata still needs tree traversal for fitted
+tile selection, resource loading, and job collection until it has a
+dedicated replacement.
+
+Checked the reopened draw-traversal RFC against current code. The RFC
+now includes the existing `drawSurfaceDownTop` mode, removes the
+already-completed `TileRenderRig` depth program from future rollout
+steps, and updates proposed rig/FBO signatures to match
+`draw(cameraPos)` and `GpuDevice` render targets.
+
+## 2026-05-25 — debug → overrides consolidation
+
+`MapDraw.debug` and `Renderer.debug` were the same runtime object but
+were defined in two independent places with no static link: a 20-field
+object literal in `MapDraw`'s constructor and a separate `Renderer.Debug`
+namespace type in `renderer.ts`.
+
+A new module `src/core/map/overrides.ts` now holds the single canonical
+`defaultOverrides` constant and the `Overrides` type derived from it
+with `typeof`. This follows the same pattern as `TileRenderRig`
+defaults and `EmptyAtmosphereTextureSpec` in `atmosphere.ts`.
+
+`Map` (map.js) owns the live object (`this.overrides = { ...defaultOverrides }`)
+and exposes it through the `map.d.ts` declaration. `Renderer.initFrame()`
+installs the shared reference. A `get debug()` accessor on `Renderer`
+covers legacy JS files that still read `renderer.debug.X` without
+touching them.
+
+`MapDraw` no longer stores an overrides field. Draw code reads
+`this.map.overrides` directly. `MapDrawTiles` likewise uses
+`this.map.overrides`. Inspector and input code already had local
+`const debug = map.draw.debug` bindings; these are now
+`const debug = map.overrides`. `Renderer.Debug` was removed from
+the `namespace Renderer` block entirely.
+
+Fields added in this consolidation that were missing from the old
+`MapDraw.debug` literal: `drawIndices`, `drawResources`,
+`drawSurfaces2`, `meshStats`, and all `flag*` overrides.
+
+Verification: `npx tsc --noEmit` clean. Screenshot tests passed for
+`simple-terrain`, `complex-terrain`, and `full-terrain`.
+
 ## 2026-05-24 — Map and draw frame initialization split
 
 Split the remaining `MapDraw.drawMap()` setup into owner-specific frame

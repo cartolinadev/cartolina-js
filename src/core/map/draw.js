@@ -19,28 +19,6 @@ var MapDraw = function(map) {
 
     this.ndcToScreenPixel = 1.0;
 
-    this.debug = {
-        heightmapOnly : false,
-        drawBBoxes : false,
-        drawMeshBBox : false,
-        drawLods : false,
-        drawPositions : false,
-        drawFaceCount : false,
-        drawDistance : false,
-        drawGeodataOnly : false,
-        drawTextureSize : false,
-        drawNodeInfo : false,
-        drawSurfaces : false,
-        drawCredits : false,
-        drawLabelBoxes : false,
-        drawAllLabels : false,
-        drawHiddenLabels : false,
-        drawEarth : true,
-        drawGridCells : false,
-        drawGPixelSize : false,
-        debugTextSize : 2.0,
-        maxZoom : false
-    };
 
     this.gridFlat = false;
     this.gridGlues = false;
@@ -121,40 +99,48 @@ MapDraw.prototype.initFrame = function() {
 
 
 MapDraw.prototype.drawMap = function() {
+    
     var map = this.map;
     var renderer = this.renderer;
-    var camera = this.camera;
     var gpu = renderer.gpu;
-    var debug = this.debug;
 
-    map.initFrame(this.drawChannel);
-
+    // Reset owner-specific frame state before issuing draw work.
+    map.initFrame();
     renderer.initFrame();
     this.initFrame();
 
+    /*
+     * Channel 1 color was cleared to the white "no hit" sentinel in
+     * `switchToFramebuffer('depth')`; only depth is reset here.
+     */
     if (this.drawChannel != 1) 
-        gpu.clearColorAndDepth([0,0,0,255]);
+        gpu.clearColorAndDepth();
     else 
         gpu.clearDepth();
-
-    var cameraPos = camera.position;
-    var i, li, layer;
-    var labelsEnabled = renderer.debug.flagLabels
-        ?? map.config.mapFlagLabels;
-
-    if (map.freeLayersHaveGeodata && this.drawChannel == 0) {
-        renderer.draw.clearJobBuffer();
-    }
 
     // draw background (skydome)
     if (this.drawChannel === 0 && map.isAtmospheric())
         this.renderer.drawBackground();
 
-    // draw surfaces
+    // runtime label override falls back to the map configuration.
+    var labelsEnabled = map.overrides.flagLabels
+        ?? map.config.mapFlagLabels;
+
+    // clear queued geodata jobs 
+    if (labelsEnabled
+        && map.freeLayersHaveGeodata
+        && this.drawChannel == 0) {
+
+        renderer.draw.clearJobBuffer();
+    }
+
+    // draw surfaces and free layers
     gpu.setState(this.drawTileState);
 
-    if (this.debug.drawEarth) {
+    if (map.overrides.drawEarth) {
 
+        var i, li, layer;
+        
         map.withSelectionCamera(function() {
 
             //todo remove this
@@ -189,11 +175,14 @@ MapDraw.prototype.drawMap = function() {
                     }
 
                     if (layer.type == 'geodata') {
-                        // monolitic geodata hot path
+                        // monolithic geodata job collection
                         this.drawMonoliticGeodata(layer);
+
                     } else {
-                        // geodata-tiles hot path
-                        //console.log('geodata layer tree draw');
+                        /*
+                         * Tiled free-layer traversal. Surface tiles draw
+                         * directly; geodata-tiles merely collect jobs.
+                         */
                         layer.tree.draw();
                     }
 
@@ -202,7 +191,7 @@ MapDraw.prototype.drawMap = function() {
             }
         }.bind(this));
 
-    } // if (debug.drawEarth)
+    } // if (map.overrides.drawEarth)
 
     // draw freeze frustum, if applicable
     if (this.drawChannel == 0
@@ -214,8 +203,8 @@ MapDraw.prototype.drawMap = function() {
         });
     }
 
-    // draw geodata
-    if (debug.drawEarth) {
+    // draw queued geodata labels and icons
+    if (map.overrides.drawEarth) {
         if (labelsEnabled
             && map.freeLayersHaveGeodata
             && this.drawChannel == 0) {

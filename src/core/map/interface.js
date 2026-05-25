@@ -430,7 +430,7 @@ MapInterface.prototype.getScreenRay = function(screenX, screenY) {
 MapInterface.prototype.getStats = function(switches) {
     if (switches) {
         return {
-            'maxZoom' : this.map.draw.debug.maxZoom
+            'maxZoom' : this.map.overrides.maxZoom
         };
     }
 
