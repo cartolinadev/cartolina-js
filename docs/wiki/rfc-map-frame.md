@@ -13,30 +13,45 @@ order.
 
 ## 1. Problem
 
-The per-frame entry point lives in `LegacyMap.update`
-([map.js:1484](../../src/core/map/map.js#L1484)). It owns dirty
-tracking, position-change events, canvas-target sync, the draw call,
-overlay dispatch, deferred geodata hover/click processing, and the
-loader/worker tick work. Anything that needs to happen "once per
-frame" lands on `LegacyMap` because that is what is in scope when
-the loop runs.
+`Map` in `src/core/map.ts` is the destination class for map data
+model and logic. `LegacyMap` is the unfinished JS version of the
+same object; absorption goes straight from one into the other.
+There is no separate engine to relegate frame state to.
 
-`Map` in `src/core/map.ts` is the destination class for that work.
-There is no separate engine to relegate frame state to: `Map` is the
-typed map data model and logic, `LegacyMap` is the unfinished JS
-version of the same object, and the absorption goal is straight from
-the latter into the former. As long as the frame entry point stays
-in `LegacyMap`, every new per-frame feature lands on `LegacyMap`
-even when it conceptually belongs on `Map`.
+Two structural facts pull new per-frame state onto `LegacyMap`
+instead:
 
-Two recent additions illustrate the gravity. The typed `drawChannel`
-state (`'color' | 'depth'`) and the overlay registry
-(`addOverlay` / `removeOverlay` / `setOverlayEnabled`) both landed on
-`LegacyMap` in commit `ff70938e` because their dispatchers had to be
-called from `Map.update`. Neither is conceptually tied to
-`LegacyMap`'s residual JS-only state; both should be on typed `Map`.
+1. **The auxiliary legacy classes inherit `LegacyMap`, not typed
+   `Map`.** `MapDraw`, `MapDrawTiles`, `MapSurfaceTree`, `Renderer`,
+   and the others under `src/core/` all hold a `this.map`
+   reference to `LegacyMap`. None of them has a reference to typed
+   `Map`. Any state they need to read or write must live somewhere
+   reachable through `LegacyMap`.
 
-This RFC moves the frame entry point.
+2. **The frame loop entry point lives in `LegacyMap.update`**
+   ([map.js:1484](../../src/core/map/map.js#L1484)). It owns dirty
+   tracking, position-change events, canvas-target sync, the draw
+   call, overlay dispatch, deferred geodata hover/click processing,
+   and the loader/worker tick work. Anything that needs to happen
+   "once per frame" lands on `LegacyMap` because that is what is in
+   scope at the loop entry.
+
+The first source is the dominant one. The second amplifies it for
+state that the loop itself needs.
+
+Two recent additions illustrate. The typed `drawChannel` state
+(`'color' | 'depth'`) is read from `MapDraw`, `MapDrawTiles`,
+`MapSurfaceTree`, and `Renderer` — none of them with a path to
+typed `Map`. It had to land on `LegacyMap`. The overlay registry
+hit both pulls at once: its state needed to be reachable from the
+auxiliary classes, and its dispatcher had to be called from the
+frame loop. Both landed on `LegacyMap` in commit `ff70938e` despite
+conceptually belonging on `Map`.
+
+This RFC addresses both sources: an `outerMap` back-pointer adds
+the missing edge in the object graph (auxiliary classes can reach
+typed `Map`), and `Map.tick` replaces `LegacyMap.update` as the
+frame entry point.
 
 ## 2. Scope
 
@@ -88,32 +103,59 @@ This RFC moves the frame entry point.
 ### 3.1 The two-tier frame entry
 
 ```text
-animationFrame
-  → Map.tick                  (TypeScript, src/core/map.ts)
-      → position-change events
-      → canvas render-target sync
-      → stats.begin
-      → LegacyMap.tick        (JS residual, src/core/map/map.js)
-          → loader.update
-          → processProcessingTasks
-          → srsReady gate
-          → deferred geodata hover/click events
-      → if dirty:
-          → Map.draw
-          → Map.runOverlays_
-          → core.callListener('map-update')
-      → stats.end
+Core.onUpdate                 (JS, src/core/core.js — minimal shim)
+  → if killed | contextLost: return
+  → map.outerMap.tick()       ← single call into typed Map
+  → requestAnimationFrame(onUpdate)
+
+Map.tick                      (TypeScript, src/core/map.ts)
+  → first-load completion (one-time, when reference frame becomes ready):
+      → set legacyMap.srsReady = true
+      → emit 'map-loaded'
+      → resolve Map.ready
+  → position-change events
+  → canvas render-target sync
+  → stats.begin
+  → LegacyMap.tickBefore      (JS, pre-draw residual)
+      → loader.update
+      → processProcessingTasks
+      → srsReady early-return gate (returns false if still loading)
+  → if dirty:
+      → Map.draw
+      → Map.runOverlays_
+      → legacyMap.loader.update()   ← post-draw promotion of
+                                      requests queued during draw
+      → emit 'map-update'
+  → LegacyMap.tickDeferredEvents()  (JS, every frame; no-op if no
+                                     hover/click queued)
+  → emit public 'tick' event
+  → stats.end
 ```
 
 The split is by topic, not by visibility. `Map.tick` owns frame
-state and orchestration; `LegacyMap.tick` owns the residual JS-only
-tick work that has not been rewritten yet. The line is "is this map
-data model state and logic" (typed `Map`) versus "is this JS code
-that hasn't been promoted yet" (legacy). The line will move as
-absorption continues.
+state and orchestration; `LegacyMap` exposes two narrow callbacks
+(`tickBefore`, `tickDeferredEvents`) for the residual JS work that
+has not been rewritten yet. The line is "is this map data model
+state and logic" (typed `Map`) versus "is this JS code that hasn't
+been promoted yet" (legacy). The line will move as absorption
+continues.
 
-`Core`'s animation frame callback calls `Map.tick` directly. The
-existing `Core.start` / `Core.frameCallback` flow stays.
+`Core.onUpdate` shrinks to a `requestAnimationFrame` shim that
+calls `map.outerMap.tick()` — note 1 of round 1. The first-load
+completion (`map-loaded`, `Map.ready` resolution) and the public
+`tick` event move to typed `Map.tick` so `Core` does not accrete
+new logic — note 2 of round 1. `Map.ready` continues to resolve
+through `Core.ready`; the trigger is `core_.markReady_(payload)`,
+a thin setter that owns the Promise plumbing without owning the
+gate decision.
+
+The `tickDeferredEvents` placement after the dirty block (note 3
+of round 1) preserves the current ordering: hover/click handlers
+see hit-test results from the canvas that was just drawn, not from
+the previous frame. The post-draw `loader.update()` (note 4) stays
+inside the dirty block immediately after `runOverlays_` to promote
+requests discovered during traversal and draw, matching the
+existing two-call pattern in `LegacyMap.update`.
 
 ### 3.2 `Map.draw` — the canvas frame draw
 
@@ -150,7 +192,7 @@ inspector residue.
 | `addOverlay` / `removeOverlay` / `setOverlayEnabled` | `LegacyMap.prototype` | `Map` (public methods) |
 | `runOverlays_` / `findOverlayIndex_` / `overlayContext_` | `LegacyMap.prototype` | `Map` (private methods) |
 | `initFrame` (frame-state reset) | `LegacyMap.prototype` | `Map` (private, called by `Map.draw`) |
-| `getNavigationPosition` / `getSelectionPosition` | `LegacyMap.prototype` | `Map` (private; freeze-mode diagnostic internals — not promoted to `Viewer`. `Viewer.getPosition()` already returns the navigation position via `this.position.clone()`). |
+| `getNavigationPosition` / `getSelectionPosition` | `LegacyMap.prototype` | `Map` (internal methods, not promoted to `Viewer`). Current callers — `Renderer.initFrame`, `Renderer.updateBuffers`, inspector stats, `MapDraw.drawMap`, `MapDraw.drawGeodataHitmap`, and `Viewer.getViewExtent` — keep working; the methods reach them through the typed `Map` reference (note 5 of round 1). `Viewer.getPosition()` already returns the navigation position via `this.position.clone()`; the freeze-mode-aware accessors stay internal. |
 
 `Viewer.addOverlay` / `removeOverlay` / `setOverlayEnabled` delegate
 directly to `Map` after the move, not to `LegacyMap`. The
@@ -226,10 +268,39 @@ runs after each.
    `MapDraw.drawHitmap` to call `this.map.outerMap.draw()`. Delete
    `MapDraw.drawMap`.
 
-5. **Implement `Map.tick` and `LegacyMap.tick`.** Split the body of
-   `LegacyMap.update` between the two. `Core.frameCallback` calls
-   `map.tick()` instead of `legacyMap.update()`. Delete
-   `LegacyMap.update`.
+5. **Implement `Map.tick` and the `LegacyMap` residual hooks.**
+   Split `LegacyMap.update` into:
+
+   - `LegacyMap.tickBefore()` — pre-draw work: `loader.update`,
+     `processProcessingTasks`, `srsReady` early-return gate
+     (returns whether to proceed with the dirty block).
+   - `LegacyMap.tickDeferredEvents()` — every-frame post-draw work:
+     hit-test the queued click / hover, fire geo-feature events
+     (no-op if no event is queued).
+
+   The second `loader.update()` (post-draw promotion of requests
+   queued during traversal) stays inline in `Map.tick`'s dirty
+   block: `this.core_.map.loader.update()`. It is one line and does
+   not warrant a wrapper.
+
+   Typed `Map.tick` orchestrates per §3.1: first-load completion
+   (one-time, when `LegacyMap.isReferenceFrameReady()` first holds —
+   sets `srsReady`, emits `map-loaded`, calls
+   `core_.markReady_(payload)` to resolve `Map.ready`), then
+   position-change events, canvas sync, `stats.begin`,
+   `legacyMap.tickBefore()`, the dirty block (draw, overlays,
+   second loader update, `map-update` listener), then
+   `legacyMap.tickDeferredEvents()`, then emit `'tick'`,
+   `stats.end`.
+
+   `Core.onUpdate` shrinks to a `requestAnimationFrame` shim:
+   `if (killed) return; map.outerMap.tick(); rAF(onUpdate);`.
+   `Core._resolveReady` / `_readyResolved` move into a thin
+   `Core.markReady_(payload)` internal method that owns only the
+   Promise plumbing.
+
+   Delete `LegacyMap.update`. `MapDraw.drawHitmap` already calls
+   `Map.draw` after step 4, so no further changes there.
 
 6. **Audit pass.** Two checks:
 
@@ -310,6 +381,12 @@ last structural reason for that rule to be violated.
    migration steps named that exact call site. Do not add typed-owner
    state to `Core`; `core.js` is legacy code scheduled for deletion.
 
+   *Implemented.* §3.1 now shows the `Core.onUpdate` shim explicitly:
+   `if (killed) return; map.outerMap.tick(); rAF(onUpdate);`. The
+   migration step 5 names the same call site. `Core` does not accrete
+   new state — `Core.markReady_(payload)` (note 2) is a thin Promise-
+   resolution wrapper around fields already on `Core`, not new state.
+
 2. The first-load gate and the public `tick` event need an owner.
 
    `Core.onUpdate` currently checks `map.isReferenceFrameReady()`,
@@ -324,6 +401,16 @@ last structural reason for that rule to be violated.
    `Map.tick` and emitting `tick` after it. If typed `Map` becomes the
    owner, the RFC should move ready resolution and `tick` dispatch into
    `Map.tick` and explain how `Core.ready` is still resolved.
+
+   *Implemented.* Typed `Map` becomes the owner. `Map.tick` does the
+   first-load completion (`isReferenceFrameReady` check, set
+   `legacyMap.srsReady`, emit `'map-loaded'`) and emits the public
+   `'tick'` event at the end. `Map.ready` continues to resolve through
+   `Core.ready`; the trigger is `core_.markReady_(payload)`, a thin
+   internal method on `Core` that owns only the Promise plumbing
+   (`_readyResolved`, `_resolveReady`) without owning the gate
+   decision. `Core.onUpdate` no longer touches readiness or events —
+   it is the `requestAnimationFrame` shim from note 1.
 
 3. `LegacyMap.tick` is placed before drawing, but deferred geodata
    events currently run after drawing.
@@ -341,6 +428,14 @@ last structural reason for that rule to be violated.
    diagram show `LegacyMap.tick` running after the canvas draw for the
    deferred event portion.
 
+   *Implemented.* Split into two `LegacyMap` hooks:
+   `LegacyMap.tickBefore()` for pre-draw work (loader, workers,
+   `srsReady` gate) and `LegacyMap.tickDeferredEvents()` for the
+   post-draw deferred geodata events. §3.1 places
+   `tickDeferredEvents` after the dirty block and before `'tick'` /
+   `stats.end`, matching the original ordering: hit-test sees the
+   freshly drawn canvas, and the work stays inside the stats window.
+
 4. The post-draw loader update is missing from the new frame order.
 
    `LegacyMap.update` calls `loader.update()` before
@@ -353,6 +448,13 @@ last structural reason for that rule to be violated.
    post-draw step on `Map.tick`, or part of the post-draw residual hook
    from note 3. Without it, tile requests discovered during a drawn
    frame wait an extra animation frame before entering the loader.
+
+   *Implemented.* The second `loader.update()` stays inline in
+   `Map.tick`'s dirty block immediately after `runOverlays_`:
+   `this.core_.map.loader.update()`. Kept inline rather than wrapped
+   because it is a single line and bundling it into
+   `tickDeferredEvents` would conflate the dirty-gated loader
+   promotion with the every-frame deferred-event check.
 
 5. The proposed private position methods are still called from other
    objects.
@@ -369,3 +471,14 @@ last structural reason for that rule to be violated.
    removes all external calls. A narrower option is to keep them as
    internal typed `Map` methods and document that they are not promoted
    to `Viewer`.
+
+   *Implemented.* The §3.3 table cell for these methods now reads
+   "internal methods, not promoted to `Viewer`" (instead of
+   "private"). External callers — `Renderer.initFrame`,
+   `Renderer.updateBuffers`, inspector stats, `MapDraw.drawMap`,
+   `MapDraw.drawGeodataHitmap`, `Viewer.getViewExtent` — continue to
+   reach them through the typed `Map` reference (`map.outerMap.*`
+   from JS, direct `map_.*` from `Viewer`). The "private" wording was
+   wrong about the surface that exists; "internal" captures the right
+   intent (not part of the public `Viewer` API, but callable from
+   inside the implementation).

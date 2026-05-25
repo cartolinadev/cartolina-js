@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-05-25 — rfc-map-frame review round 1 responses
+
+Processed five reviewer notes on
+[rfc-map-frame.md](rfc-map-frame.md):
+
+1. Named the `Core.onUpdate` call route as a `rAF` shim that calls
+   `map.outerMap.tick()`. No new state on `Core`.
+2. Typed `Map` becomes the owner of first-load completion,
+   `map-loaded`, `Map.ready` resolution, and the public `tick`
+   event. `Core` retains a thin `markReady_(payload)` for the
+   Promise plumbing.
+3. Split `LegacyMap` residual into `tickBefore` (pre-draw: loader,
+   workers, srsReady gate) and `tickDeferredEvents` (post-draw,
+   every-frame: queued hover/click processing). Preserves the
+   original ordering so hit-test sees the freshly drawn canvas.
+4. Second `loader.update()` stays inline in `Map.tick`'s dirty
+   block, immediately after `runOverlays_`. Promotes requests
+   queued during draw without waiting an extra frame.
+5. `getNavigationPosition` / `getSelectionPosition` are internal
+   (not private) on typed `Map`. External callers — `Renderer`,
+   `MapDraw`, inspector stats, `Viewer.getViewExtent` — reach them
+   through the typed `Map` reference.
+
+Also folded an author-side correction into §1: the dominant pull on
+`LegacyMap` is not the frame loop entry but the auxiliary classes
+inheriting `LegacyMap` (`MapDraw`, `MapDrawTiles`, `MapSurfaceTree`,
+`Renderer`) without a path to typed `Map`. The frame loop is the
+secondary pull. The `outerMap` back-pointer addresses both.
+
+RFC status remains `In review` until the reviewer signs off.
+
 ## 2026-05-25 — submit rfc-map-frame; correct API-surface framing
 
 Wrote [rfc-map-frame.md](rfc-map-frame.md) promoting step 2 of the
