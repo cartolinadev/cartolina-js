@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-25 — rfc-map-frame review round 2 responses
+
+Processed three reviewer notes on
+[rfc-map-frame.md](rfc-map-frame.md):
+
+1. No-map branch preserved through a `Core.outerMap` back-pointer.
+   `Core.onUpdate` calls `this.outerMap.tick()` (not through
+   `Core.map`), so the call works during async style loading and
+   after `destroyMap()`. `Map.tick` owns the null-`LegacyMap`
+   branch — emits public `'tick'`, returns. Single owner for the
+   public `'tick'` event.
+2. `srsReady` gate moved back to the top of `Map.tick`, after the
+   first-load completion check, matching the original
+   `LegacyMap.update` ordering. Position-change events, canvas
+   sync, `stats.begin`, `tickBefore`, draw, and
+   `tickDeferredEvents` only run on the ready path.
+3. Swapped the order so `stats.end` runs before the public `'tick'`
+   event. Listeners now read stats describing the frame that just
+   completed.
+
+§3.5 rewritten to cover both back-pointers (`Core.outerMap` for
+async-load reach, `LegacyMap.outerMap` for auxiliary-class reach);
+step 1 of §4 installs both.
+
+RFC status remains `In review` until the reviewer signs off.
+
 ## 2026-05-25 — rfc-map-frame review round 1 responses
 
 Processed five reviewer notes on

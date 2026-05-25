@@ -105,21 +105,30 @@ frame entry point.
 ```text
 Core.onUpdate                 (JS, src/core/core.js — minimal shim)
   → if killed | contextLost: return
-  → map.outerMap.tick()       ← single call into typed Map
+  → this.outerMap.tick()      ← Core's typed-Map back-pointer,
+                                set by Map ctor; non-null from
+                                the first frame onwards (rAF runs
+                                after Map ctor returns)
   → requestAnimationFrame(onUpdate)
 
 Map.tick                      (TypeScript, src/core/map.ts)
+  → if legacyMap is null (async style load or post destroyMap):
+      → emit public 'tick' event
+      → return
   → first-load completion (one-time, when reference frame becomes ready):
       → set legacyMap.srsReady = true
       → emit 'map-loaded'
-      → resolve Map.ready
+      → resolve Map.ready (via core_.markReady_)
+  → if !legacyMap.srsReady (still loading reference frame / geoid):
+      → legacyMap.loader.update()
+      → emit public 'tick' event
+      → return
   → position-change events
   → canvas render-target sync
   → stats.begin
   → LegacyMap.tickBefore      (JS, pre-draw residual)
       → loader.update
       → processProcessingTasks
-      → srsReady early-return gate (returns false if still loading)
   → if dirty:
       → Map.draw
       → Map.runOverlays_
@@ -128,8 +137,10 @@ Map.tick                      (TypeScript, src/core/map.ts)
       → emit 'map-update'
   → LegacyMap.tickDeferredEvents()  (JS, every frame; no-op if no
                                      hover/click queued)
+  → stats.end                  ← runs before 'tick' so listeners
+                                  read stats for the just-completed
+                                  frame
   → emit public 'tick' event
-  → stats.end
 ```
 
 The split is by topic, not by visibility. `Map.tick` owns frame
@@ -141,21 +152,43 @@ been promoted yet" (legacy). The line will move as absorption
 continues.
 
 `Core.onUpdate` shrinks to a `requestAnimationFrame` shim that
-calls `map.outerMap.tick()` — note 1 of round 1. The first-load
-completion (`map-loaded`, `Map.ready` resolution) and the public
-`tick` event move to typed `Map.tick` so `Core` does not accrete
-new logic — note 2 of round 1. `Map.ready` continues to resolve
-through `Core.ready`; the trigger is `core_.markReady_(payload)`,
-a thin setter that owns the Promise plumbing without owning the
-gate decision.
+calls `this.outerMap.tick()` through `Core`'s own back-pointer to
+typed `Map` (round 2 note 1). The reason `Core` has its own
+back-pointer rather than reaching through `core.map.outerMap` is
+that `Core.map` is null during async style loading and after
+`destroyMap()`; the `Core` shim must still call into typed `Map`
+in those states so the public `tick` event keeps firing. `Map.tick`
+owns the null-`LegacyMap` branch and returns early after emitting
+`tick`. The first-load completion (`map-loaded`, `Map.ready`
+resolution) and the regular public `tick` event both live in
+`Map.tick`, so `Core` does not accrete new logic (round 1 note 2).
+`Map.ready` continues to resolve through `Core.ready`; the trigger
+is `core_.markReady_(payload)`, a thin setter that owns the Promise
+plumbing without owning the gate decision.
 
-The `tickDeferredEvents` placement after the dirty block (note 3
-of round 1) preserves the current ordering: hover/click handlers
-see hit-test results from the canvas that was just drawn, not from
-the previous frame. The post-draw `loader.update()` (note 4) stays
-inside the dirty block immediately after `runOverlays_` to promote
-requests discovered during traversal and draw, matching the
-existing two-call pattern in `LegacyMap.update`.
+The `srsReady` early-return gate sits at the top of `Map.tick`,
+after the first-load completion check (round 2 note 2). The
+not-ready branch matches the current `LegacyMap.update` behaviour:
+only `loader.update()` runs, then `tick` fires, then return. The
+position-change events, canvas sync, `stats.begin`,
+`tickBefore`, draw block, and `tickDeferredEvents` only run on the
+ready path. This preserves the invariant that position-change
+events and worker callbacks never fire before `map-loaded`, and
+that no `stats.begin` ever runs without a matching `stats.end`.
+
+The `tickDeferredEvents` placement after the dirty block (round 1
+note 3) preserves the current ordering: hover/click handlers see
+hit-test results from the canvas that was just drawn, not from the
+previous frame. The post-draw `loader.update()` (round 1 note 4)
+stays inside the dirty block immediately after `runOverlays_` to
+promote requests discovered during traversal and draw, matching
+the existing two-call pattern in `LegacyMap.update`.
+
+`stats.end` runs before the public `tick` event (round 2 note 3).
+This matches the current order: today `LegacyMap.update` closes
+the stats frame before returning, and `Core.onUpdate` emits `tick`
+afterwards. Listeners can read `map.getStats()` and have it
+describe the frame that just completed.
 
 ### 3.2 `Map.draw` — the canvas frame draw
 
@@ -219,33 +252,63 @@ These are all map data model and logic. They will move into typed
 separate subsystem; the name "LegacyMap" refers to "the JS half of
 `Map` that hasn't been rewritten yet," nothing more.
 
-### 3.5 `outerMap` back-pointer
+### 3.5 `outerMap` back-pointers
+
+The typed `Map` constructor installs a back-pointer on the two JS
+classes that need to call into typed-`Map` state during normal
+operation: `LegacyMap` and `Core`.
+
+```ts
+// src/core/map.ts — Map constructor (sketch)
+this.core_ = new Core(element, config);
+this.core_.outerMap = this;
+// LegacyMap is created later by Core during loadMap / loadMapFromStyle;
+// Core installs `legacyMap.outerMap = this.outerMap` at that point.
+```
 
 ```js
-// src/core/map/map.js
-var Map = function(outerMap, core, path, config, configStorage) {
+// src/core/map/map.js — LegacyMap constructor
+var LegacyMap = function(outerMap, core, path, config, configStorage) {
     this.outerMap = outerMap;
     // ... existing init
 };
 ```
 
-The typed `Map` constructor passes itself to the `LegacyMap`
-constructor. JS code that needs to read or write typed-`Map` state
-does so via `this.outerMap.<field>` (for example, `MapDraw` calling
-`this.map.outerMap.drawChannel`). This is the minimum scaffold the
-RFC requires.
+Two reasons two back-pointers, not one:
 
-The back-pointer goes away with `LegacyMap` itself; it is not a
-permanent piece of architecture.
+- `LegacyMap.outerMap` lets the auxiliary classes (`MapDraw`,
+  `MapDrawTiles`, `MapSurfaceTree`, `Renderer`, ...) reach typed
+  `Map` via `this.map.outerMap.<field>`. This is the dominant
+  gravity fix from §1: those classes hold `this.map = LegacyMap`
+  references and otherwise cannot see typed `Map`.
+- `Core.outerMap` lets `Core.onUpdate` call `Map.tick` even when
+  `Core.map` (the `LegacyMap` instance) is still null. That happens
+  on the style path (`loadMapFromStyle` is async, the first few
+  animation frames have no `LegacyMap`) and after `destroyMap()`.
+  Without a back-pointer on `Core`, the shim would either have to
+  reintroduce a no-map branch or risk dropping public `tick`
+  events during async loading.
+
+The `Core.outerMap` field is non-null from the first animation
+frame onwards: `Map.constructor` runs synchronously and finishes
+setting `core_.outerMap = this` before any `rAF` callback fires.
+
+Both back-pointers go away with their host classes; they are not
+permanent architecture.
 
 ## 4. Migration steps
 
 Each step compiles and renders independently. Screenshot regression
 runs after each.
 
-1. **Add `outerMap` back-pointer.** One-line constructor change on
-   `LegacyMap` plus the call site in typed `Map`. No behaviour
-   change. Independent prep; can land first.
+1. **Add `outerMap` back-pointers.** Install on both `Core` (so
+   `Core.onUpdate` can call into typed `Map` even when `Core.map`
+   is null) and `LegacyMap` (so auxiliary classes can reach typed
+   `Map` state). The typed `Map` constructor sets `core_.outerMap`
+   immediately after `new Core(...)`; `Core` installs
+   `legacyMap.outerMap` when it creates the `LegacyMap` instance
+   during `loadMap` / `loadMapFromStyle`. No behaviour change.
+   Independent prep; can land first.
 
 2. **Move `drawChannel` to typed `Map`.** Update the 26 read sites in
    `draw.js`, `draw-tiles.js`, `surface-tree.js`, `renderer.ts`,
@@ -271,9 +334,9 @@ runs after each.
 5. **Implement `Map.tick` and the `LegacyMap` residual hooks.**
    Split `LegacyMap.update` into:
 
-   - `LegacyMap.tickBefore()` — pre-draw work: `loader.update`,
-     `processProcessingTasks`, `srsReady` early-return gate
-     (returns whether to proceed with the dirty block).
+   - `LegacyMap.tickBefore()` — ready-path pre-draw work:
+     `loader.update`, `processProcessingTasks`. (The `srsReady`
+     gate is upstream in `Map.tick`, not in this hook.)
    - `LegacyMap.tickDeferredEvents()` — every-frame post-draw work:
      hit-test the queued click / hover, fire geo-feature events
      (no-op if no event is queued).
@@ -283,21 +346,33 @@ runs after each.
    block: `this.core_.map.loader.update()`. It is one line and does
    not warrant a wrapper.
 
-   Typed `Map.tick` orchestrates per §3.1: first-load completion
-   (one-time, when `LegacyMap.isReferenceFrameReady()` first holds —
-   sets `srsReady`, emits `map-loaded`, calls
-   `core_.markReady_(payload)` to resolve `Map.ready`), then
-   position-change events, canvas sync, `stats.begin`,
-   `legacyMap.tickBefore()`, the dirty block (draw, overlays,
-   second loader update, `map-update` listener), then
-   `legacyMap.tickDeferredEvents()`, then emit `'tick'`,
-   `stats.end`.
+   Typed `Map.tick` orchestrates per §3.1 in this order:
+
+   - No-map branch (round 2 note 1): if `core_.map` is null (async
+     style load or post-`destroyMap`), emit public `'tick'` and
+     return.
+   - First-load completion (one-time, when
+     `LegacyMap.isReferenceFrameReady()` first holds): set
+     `srsReady`, emit `'map-loaded'`, call
+     `core_.markReady_(payload)` to resolve `Map.ready`.
+   - Not-ready early-return (round 2 note 2): if
+     `legacyMap.srsReady` is still false, call
+     `legacyMap.loader.update()`, emit `'tick'`, return. Matches
+     the current `LegacyMap.update` not-ready branch.
+   - Ready path: position-change events, canvas sync,
+     `stats.begin`, `legacyMap.tickBefore()`, the dirty block
+     (draw, overlays, second loader update, `map-update`
+     listener), then `legacyMap.tickDeferredEvents()`, then
+     `stats.end`, then emit `'tick'` (round 2 note 3 — `stats.end`
+     before `tick`).
 
    `Core.onUpdate` shrinks to a `requestAnimationFrame` shim:
-   `if (killed) return; map.outerMap.tick(); rAF(onUpdate);`.
-   `Core._resolveReady` / `_readyResolved` move into a thin
-   `Core.markReady_(payload)` internal method that owns only the
-   Promise plumbing.
+   `if (killed || contextLost) return; this.outerMap.tick();
+   rAF(onUpdate);`. It calls through `Core.outerMap`, not
+   `Core.map.outerMap`, so the call works during async loading and
+   after `destroyMap()`. `Core._resolveReady` / `_readyResolved`
+   move into a thin `Core.markReady_(payload)` internal method
+   that owns only the Promise plumbing.
 
    Delete `LegacyMap.update`. `MapDraw.drawHitmap` already calls
    `Map.draw` after step 4, so no further changes there.
@@ -482,3 +557,85 @@ last structural reason for that rule to be violated.
    wrong about the surface that exists; "internal" captures the right
    intent (not part of the public `Viewer` API, but callable from
    inside the implementation).
+
+## Review round 2
+
+1. `Core.onUpdate` still needs a no-map branch.
+
+   `Core` schedules `onUpdate` in its constructor. On the style path,
+   `loadMapFromStyle` is async, so `Core.map` can be null for one or
+   more animation frames. The current code handles that by skipping
+   `map.update()`, still emitting the public `tick` event, and
+   scheduling the next frame.
+
+   The RFC's shim calls `map.outerMap.tick()` unconditionally. That
+   throws before the first `LegacyMap` exists, and it also leaves no
+   owner for the public `tick` event during async loading or after
+   `destroyMap()`. Preserve the null branch explicitly. Either
+   `Core.onUpdate` emits `tick` itself when `this.map` is null, or
+   the RFC must choose a different route that lets `Core` call typed
+   `Map.tick` without going through `Core.map`.
+
+   *Implemented.* Took the "different route" option. `Core` gets its
+   own `outerMap` back-pointer to typed `Map`, set by the typed
+   `Map` constructor immediately after `new Core(...)`.
+   `Core.onUpdate` calls `this.outerMap.tick()` directly. `Map.tick`
+   owns the null-`LegacyMap` branch — it emits public `'tick'` and
+   returns. Single owner for the public `'tick'` event, no
+   reintroduced null branch in `Core`, and the call works during
+   async loading and after `destroyMap()`. §3.5 explains why two
+   back-pointers (one on `LegacyMap`, one on `Core`) address two
+   different reachability gaps. Step 1 of §4 covers installing both.
+
+2. The `srsReady` early-return gate moved too late.
+
+   Today `LegacyMap.update` checks `!srsReady` before position-change
+   events, canvas-target sync, `stats.begin`, and
+   `processProcessingTasks`. The not-ready branch only calls
+   `loader.update()` and returns.
+
+   The RFC puts position-change events, canvas sync, `stats.begin`,
+   `loader.update`, and `processProcessingTasks` before the
+   `srsReady` gate in `LegacyMap.tickBefore`. That can emit
+   position-change events before `map-loaded`, process worker
+   callbacks before the reference frame is ready, and start a stats
+   frame that has no defined close path when `tickBefore` returns
+   false.
+
+   Keep the first-load check at the top of `Map.tick`, then preserve
+   the old not-ready branch: if `legacyMap.srsReady` is still false,
+   call `legacyMap.loader.update()`, emit the public `tick` event if
+   that remains part of the public contract before map load, and skip
+   the rest of the map-frame work.
+
+   *Implemented.* The `srsReady` gate is now at the top of `Map.tick`
+   (after the first-load completion check and after the null-map
+   branch from note 1), exactly mirroring the current
+   `LegacyMap.update` ordering. Not-ready branch calls
+   `legacyMap.loader.update()`, emits the public `'tick'` event,
+   returns. Position-change events, canvas sync, `stats.begin`,
+   `tickBefore`, the dirty block, and `tickDeferredEvents` only run
+   on the ready path. `LegacyMap.tickBefore` no longer owns the gate
+   — its description in step 5 is updated. This restores the
+   invariants that position-change events and worker callbacks
+   cannot fire before `map-loaded`, and that no `stats.begin` runs
+   without a matching `stats.end`.
+
+3. `stats.end` must run before the public `tick` event.
+
+   In the current code, `LegacyMap.update` calls `stats.end(dirty)`
+   before it returns, and `Core.onUpdate` emits the public `tick`
+   event only after `map.update()` returns. The RFC diagram reverses
+   that order: public `tick` fires before `stats.end`.
+
+   Preserve the current order. Tick listeners can read stats through
+   `map.getStats()`, and control code can use `frameTime` for
+   time-normalized input handling. The stats object should describe
+   the frame that just completed when public `tick` listeners run.
+
+   *Implemented.* Swapped the order in §3.1 and §4 step 5: the
+   ready path now does `stats.end` and then emits public `'tick'`.
+   The not-ready and no-map branches do not open a stats frame, so
+   they emit `'tick'` without a matching `stats.end`, matching the
+   current behaviour (today's `LegacyMap.update` not-ready branch
+   never calls `stats.begin` either).

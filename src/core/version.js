@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.414-feature_draw_surfaces.77704cb9';
+  return '2.49.415-feature_draw_surfaces.dfa0728e';
 }
