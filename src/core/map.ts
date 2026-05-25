@@ -123,6 +123,7 @@ class Map {
     loadMap(path: string): void {
 
         this.assertAlive_();
+        this.mapLoadedFired_ = false;
         this.core_.loadMap(path);
     }
 
@@ -133,6 +134,7 @@ class Map {
     unloadMap(): void {
 
         this.assertAlive_();
+        this.mapLoadedFired_ = false;
         this.core_.destroyMap();
     }
 

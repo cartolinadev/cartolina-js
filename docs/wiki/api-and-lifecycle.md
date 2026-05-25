@@ -153,21 +153,28 @@ mapConfig is fetched and parsed:
 1. `Core` starts `loadMapFromStyle` or `loadMap`.
 2. On success, `Core.map` is assigned and `Core.mapInterface` is
    created.
-3. `Core` emits `map-loaded` and resolves the `ready` Promise after the
-   reference frame is ready.
+3. `Map.tick` emits `map-loaded` after the reference frame is ready and
+   calls `Core.markReady_()` to resolve the one-shot `ready` Promise.
 
 Viewer methods that reach into `_map` guard with optional chaining, so
 they are no-ops before `ready` resolves.
 
 ## Render Loop
 
-`Core.onUpdate` is the `requestAnimationFrame` callback. Each frame it:
+`Core.onUpdate` is a thin `requestAnimationFrame` callback. Each frame
+it calls `Map.tick()` through `Core.outerMap`; `Map.tick()` then:
 
-1. checks `Core.map.srsReady` and resolves first-load state when the
-   reference frame is ready
-2. calls `Core.map.update()`, which drives tile loading, LOD selection,
-   geodata processing, and rendering
-3. emits the `tick` event, which `Browser` uses for navigation updates
+1. emits public `tick` and returns if no `LegacyMap` is loaded
+2. emits `map-loaded` once per loaded `LegacyMap` after the reference
+   frame is ready
+3. runs the not-ready loader branch until `LegacyMap.srsReady` is true
+4. runs the ready path: position events, canvas sync, stats, residual
+   legacy loader / worker work, draw, overlays, deferred geodata events,
+   then public `tick`
+
+`Map.loadMap()` and `Map.unloadMap()` reset the per-loaded-map
+`map-loaded` gate. The `ready` Promise remains one-shot for the typed
+`Map` wrapper.
 
 ## Event Bus
 
@@ -211,6 +218,11 @@ Engine objects such as `Core`, `LegacyMap`, `Browser`, and `Viewer`
 hold a `killed` flag. After `destroy()` or `kill()`, the animation
 frame callback and pending async callbacks check that flag before
 touching the object.
+
+`LegacyMap.kill()` releases map-owned resources but does not destroy the
+shared `Renderer`. `Core.destroyMap()` may unload one map and later load
+another through the same `Renderer`; `Core.destroy()` owns final renderer
+teardown.
 
 The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing

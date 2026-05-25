@@ -214,10 +214,7 @@ Map.prototype.kill = function() {
         this.atmosphere = null;
     }
 
-    if (this.renderer != null) {
-        this.renderer.kill();
-        this.renderer = null;
-    }
+    this.renderer = null;
 };
 
 

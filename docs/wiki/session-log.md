@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-05-25 — restore map reload lifecycle after Map.tick move
+
+Follow-up to the `rfc-map-frame` implementation. Code review found
+that typed `Map` kept `mapLoadedFired_` for the wrapper lifetime after
+`map-loaded` moved out of `LegacyMap.update`. `LegacyMap.srsReady`
+starts false for each loaded map, so `destroyMap()` followed by
+`loadMap()` could leave the replacement map forever in the not-ready
+branch.
+
+Fixes:
+
+- `Map.loadMap()` and `Map.unloadMap()` reset `mapLoadedFired_`, so
+  `Map.tick()` can emit `map-loaded` once for the next `LegacyMap` and
+  set its `srsReady` flag.
+- `LegacyMap.kill()` no longer destroys the shared `Renderer`.
+  `Core.destroyMap()` unloads map resources while keeping the renderer
+  alive for a later map; `Core.destroy()` remains the final renderer
+  teardown owner.
+- `Renderer` disposes legacy `GpuBBox` meshes through `kill()` and now
+  includes both `bboxMesh` and `bboxMesh2`.
+
+Verification: `npx tsc --noEmit` clean. A Playwright lifecycle probe
+against the dev server observed `loaded -> unloaded -> loaded ->
+unloaded`, with the second `map-loaded` firing and no page errors.
+
 ## 2026-05-25 — clean up Map: real Core typing, ordering, namespace
 
 Polish pass on [src/core/map.ts](../../src/core/map.ts) after

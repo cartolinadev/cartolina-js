@@ -5,7 +5,6 @@ import * as utils from '../utils/utils';
 import GpuDevice from './gpu/device';
 import GpuProgram from './gpu/program';
 import GpuTexture from './gpu/texture';
-import GpuMesh from './gpu/mesh';
 import GpuFont from './gpu/font';
 import Camera from './camera';
 import RenderInit from './init';
@@ -233,7 +232,8 @@ export class Renderer {
     textTexture2: Optional<GpuTexture> = null;
 
     // meshes
-    bboxMesh: Optional<GpuMesh> = null;
+    bboxMesh: Optional<LegacyGpuBBox> = null;
+    bboxMesh2: Optional<LegacyGpuBBox> = null;
 
     // GpuPixelLine3
     plines: any = null;
@@ -2416,7 +2416,8 @@ drawLineString(options: any): void {
     this.whiteTexture?.[Symbol.dispose]();
     this.blackTexture?.[Symbol.dispose]();
     this.textTexture2?.[Symbol.dispose]();
-    this.bboxMesh?.[Symbol.dispose]();
+    this.bboxMesh?.kill();
+    this.bboxMesh2?.kill();
     this.plines?.kill();
     this.plineJoints?.kill();
     this.nmblender?.destroy();
@@ -2433,6 +2434,11 @@ kill() { this[Symbol.dispose](); }
 type Optional<T> = T | null;
 
 type Size2 = [ number, number ];
+
+type LegacyGpuBBox = {
+    kill(): void;
+    draw(program: GpuProgram, attrPosition: string): void;
+};
 
 type VeScaleRamp = {
 
