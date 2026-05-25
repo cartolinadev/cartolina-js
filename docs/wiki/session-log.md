@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-25 — accept rfc-map-frame
+
+Signed off [rfc-map-frame.md](rfc-map-frame.md) after review round 3
+and changed its status to `Accepted`.
+
+The accepted design moves the frame owner to typed `Map.tick`, keeps
+`Core.onUpdate` as a thin animation-frame shim through
+`Core.outerMap`, and keeps `LegacyMap.outerMap` as the route old draw
+helpers use to reach typed `Map` state. The final review checked that
+the design preserves async-load `tick` events, the not-ready
+`srsReady` branch, `stats.end` before public `tick`, post-draw loader
+promotion, and deferred geodata event ordering.
+
 ## 2026-05-25 — rfc-map-frame review round 2 responses
 
 Processed three reviewer notes on

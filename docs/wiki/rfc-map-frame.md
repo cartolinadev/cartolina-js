@@ -1,6 +1,6 @@
 # RFC: Map owns the frame loop
 
-**Status:** In review
+**Status:** Accepted
 **Context:** Promotes step 2 of
 [REFACTOR: replace legacy map draw path with `TileRenderRig`](backlog.md)
 to a full design. Complementary to
@@ -639,3 +639,26 @@ last structural reason for that rule to be violated.
    they emit `'tick'` without a matching `stats.end`, matching the
    current behaviour (today's `LegacyMap.update` not-ready branch
    never calls `stats.begin` either).
+
+## Review round 3 — sign-off
+
+Accepted.
+
+The design now preserves the current frame-loop lifecycle:
+
+- async style loading and post-`destroyMap()` states keep emitting
+  public `tick`;
+- not-ready maps only dispatch loader work before returning;
+- ready frames close stats before public `tick`;
+- deferred geodata events and the post-draw loader update keep their
+  current order relative to the canvas draw.
+
+The two temporary back-pointers are acceptable migration scaffolding.
+`LegacyMap.outerMap` gives old helper objects a route to typed `Map`,
+and `Core.outerMap` keeps `Core.onUpdate` as a thin animation-frame
+shim even when no `LegacyMap` exists. Both disappear with their host
+legacy classes.
+
+Editorial note, not a blocker: the round 1 response to note 1 still
+says `Core` does not gain new state. Round 2 supersedes that with the
+explicit `Core.outerMap` design.
