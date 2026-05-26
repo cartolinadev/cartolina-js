@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-05-26 — clarify GPU device initialization state
+
+Follow-up to the freeze frustum depth fix. `GpuDevice` initialization
+still duplicated renderer baseline state: the constructor cached a
+state object while a separate startup block applied equivalent raw GL
+calls. That made cache correctness depend on keeping two blocks in
+sync.
+
+`GpuDevice` now creates the WebGL context directly in the constructor,
+sets `currentState` immediately before startup state application, and
+calls `setState(currentState, true)`. The forced call keeps
+`setState()` as the single translator from cached fixed-function state
+to raw GL calls. Startup clearing now uses `clearColorAndDepth()`
+instead of the deprecated `clear()` wrapper.
+
+Verification: `git diff --check`, `npx tsc --noEmit`, and the
+`complex-terrain` screenshot script completed cleanly.
+
 ## 2026-05-26 — stabilize freeze frustum depth captures
 
 Freeze-mode frustum depth sometimes fell back to the full reference

@@ -36,6 +36,10 @@ The cached `currentState` must match actual GL state after context
 initialization and after every direct GL state call. A direct
 `gl.depthMask`, `gl.enable`, or `gl.disable` that does not keep the
 cache aligned can make later `setState()` calls skip required GL work.
+Context initialization sets `currentState` to the renderer baseline,
+then calls `setState(currentState, true)` so the state cache remains the
+single source of truth and `setState()` remains the only translator from
+state fields to raw GL calls.
 
 ### Current Contract
 

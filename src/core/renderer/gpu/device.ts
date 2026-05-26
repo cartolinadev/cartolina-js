@@ -24,7 +24,6 @@ import * as utils from '../../utils/utils';
  *     framebuffer binding as a public rendering operation
  */
 
-
 export class GpuDevice {
 
     /**
@@ -133,57 +132,45 @@ constructor(
 
     this.renderer = renderer;
     this.div = div;
-
-    this.currentState = {
-        blend: false,
-        stencil: false,
-        zwrite: false,
-        ztest: true,
-        zequal: false,
-        culling: false,
-    };
-
     this.keepFrameBuffer = keepFrameBuffer;
     this.antialias = antialias;
     this.anisoLevel = aniso;
 
-    this.init();
-};
-
-
-/**
- * Returns true when the browser can create a WebGL2 context.
- * Call this before constructing a map to detect unsupported
- * environments without inserting any DOM nodes.
- */
-static checkSupport(): boolean {
-
+    // canvas ownership.
     const canvas = document.createElement('canvas');
-    return !!canvas.getContext('webgl2');
-}
-
-
-private init() {
-
-    var canvas = document.createElement('canvas');
     this.canvas = canvas;
     canvas.style.display = 'block';
     this.div.appendChild(canvas);
 
-    canvas.addEventListener("webglcontextlost", this.contextLost.bind(this), false);
-    canvas.addEventListener("webglcontextrestored", this.contextRestored.bind(this), false);
+    canvas.addEventListener(
+        "webglcontextlost",
+        this.contextLost.bind(this),
+        false,
+    );
+    canvas.addEventListener(
+        "webglcontextrestored",
+        this.contextRestored.bind(this),
+        false,
+    );
 
-    const context = canvas.getContext('webgl2', 
-        {preserveDrawingBuffer: this.keepFrameBuffer, antialias: this.antialias, stencil: true});
+    // WebGL context.
+    const context = canvas.getContext('webgl2', {
+        preserveDrawingBuffer: this.keepFrameBuffer,
+        antialias: this.antialias,
+        stencil: true,
+    });
 
     if (!context) throw new Error('cartolina-js requires WebGL2.');
 
-    let gl = this.gl = context;
+    const gl = this.gl = context;
 
+    // device capabilities.
     this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
 
     if (this.anisoExt) {
-        this.maxAniso = gl.getParameter(this.anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+        this.maxAniso = gl.getParameter(
+            this.anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
+        );
 
         if (this.anisoLevel) {
             if (this.anisoLevel == -1) {
@@ -197,27 +184,41 @@ private init() {
         this.anisoLevel = 0;
     }
 
+    // initial render target.
     this.renderTarget_ = {
         kind: 'canvas',
         viewportSize: [canvas.width, canvas.height],
         apparentSize: [canvas.width, canvas.height],
     };
     this.canvasTarget_ = this.renderTarget_;
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-    // initial state
-    gl.disable(gl.BLEND);
+    // initial renderer state.
+    this.currentState = {
+        blend: false,
+        stencil: false,
+        zwrite: false,
+        ztest: true,
+        zequal: false,
+        culling: false,
+    };
+    this.setState(this.currentState, true);
 
-    gl.disable(gl.STENCIL_TEST);
-    gl.depthMask(false);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LESS);
-    gl.disable(gl.CULL_FACE);
-
-    //clear screen
+    // Initial clear.
     this.applyViewport();
-    this.clear(true, true);
+    this.clearColorAndDepth();
 };
+
+
+/**
+ * Returns true when the browser can create a WebGL2 context.
+ * Call this before constructing a map to detect unsupported
+ * environments without inserting any DOM nodes.
+ */
+static checkSupport(): boolean {
+
+    const canvas = document.createElement('canvas');
+    return !!canvas.getContext('webgl2');
+}
 
 
 
@@ -669,10 +670,11 @@ createState(options: Partial<GpuDevice.State>): GpuDevice.State {
 /**
  * Apply WebGL fixed-function state changes.
  *
- * @param state Desired fixed-function state. Missing/null state is ignored for
- * legacy callers.
+ * @param state Desired fixed-function state. Missing/null state is ignored
+ * for legacy callers.
+ * @param force Apply every field even when the cache already matches.
  */
-setState(state: GpuDevice.State) {
+setState(state: GpuDevice.State, force = false) {
 
     if (!state) {
         return;
@@ -681,7 +683,7 @@ setState(state: GpuDevice.State) {
     var gl = this.gl;
     var currentState = this.currentState;
 
-    if (currentState.blend != state.blend) {
+    if (force || currentState.blend != state.blend) {
         if (state.blend) {
             gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
             gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -691,7 +693,7 @@ setState(state: GpuDevice.State) {
         }
     }
 
-    if (currentState.stencil != state.stencil) {
+    if (force || currentState.stencil != state.stencil) {
         if (state.stencil) {
             gl.enable(gl.STENCIL_TEST);
         } else {
@@ -699,7 +701,7 @@ setState(state: GpuDevice.State) {
         }
     }
 
-    if (currentState.zwrite != state.zwrite) {
+    if (force || currentState.zwrite != state.zwrite) {
         if (state.zwrite) {
             gl.depthMask(true);
         } else {
@@ -707,7 +709,7 @@ setState(state: GpuDevice.State) {
         }
     }
 
-    if (currentState.ztest != state.ztest) {
+    if (force || currentState.ztest != state.ztest) {
         if (state.ztest) {
             gl.enable(gl.DEPTH_TEST);
         } else {
@@ -715,7 +717,7 @@ setState(state: GpuDevice.State) {
         }
     }
 
-    if (currentState.zequal != state.zequal) {
+    if (force || currentState.zequal != state.zequal) {
         if (state.zequal) {
             gl.depthFunc(gl.LEQUAL);
         } else {
@@ -723,7 +725,7 @@ setState(state: GpuDevice.State) {
         }
     }
 
-    if (currentState.culling != state.culling) {
+    if (force || currentState.culling != state.culling) {
         if (state.culling) {
             gl.enable(gl.CULL_FACE);
         } else {
