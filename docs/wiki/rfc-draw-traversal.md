@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** Accepted
+**Status:** In review
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -1834,3 +1834,193 @@ Two editorial notes, neither a blocker:
    60 fps an unthrottled warning fires every frame the layer is visible.
    Specify the throttle: once per unique free layer name per session, or
    move the definition to an implementation note in §8.
+
+## Review round 8
+
+1. The virtual-surface handling is too conservative and contradicts the
+   removal plan.
+
+   Virtual surfaces are a server-side optimization that replace several
+   metatile trees with one metatile tree. They are not renderable
+   surfaces. The new traversal can ignore them, but only if the client
+   does not replace the whole surface sequence with the virtual surface.
+   If that replacement happens, the traversal loses the drawable
+   constituent surfaces.
+
+   The RFC should not say that virtual-surface maps keep using the
+   legacy traversal. Instead, mapConfig loading should bypass the
+   virtual-surface replacement, keep the real constituent surfaces, and
+   emit a one-off warning when a virtual surface is encountered.
+
+2. The algorithm still reads as if it loops independently over surfaces.
+
+   Phrases such as "for each surface" are misleading. The descent should
+   be a single traversal of a combined tree, similar in role to the old
+   `virtualMetanode` mechanism, but without selecting one winning
+   surface.
+
+   The RFC should define "surface active at this node." A surface is
+   active only if it was not culled at a higher level, did not stop
+   descent at a higher level, and is not culled at the current node.
+   Surfaces that fail a hierarchical condition should not be tested,
+   drawn, or used for resource loading in the subtree.
+
+3. The traversal should propagate surface deactivation, not watertight
+   state.
+
+   Watertight coverage is one reason to deactivate lower-priority
+   surfaces for a subtree. Frustum culling and SSE decisions are other
+   reasons. Carrying the active-surface set downward is necessary
+   traversal state, not an optional watertight optimization.
+
+4. The watertight optimization should skip lower-surface metatile
+   fetches for the affected subtree.
+
+   The current text says lower-surface metatiles are still fetched below
+   a watertight higher surface. That defeats the optimization. If a
+   geometric condition applies to the entire node, such as full coverage
+   by a higher-priority watertight surface or full frustum exclusion, it
+   applies to the subtree. Lower inactive surfaces should not have their
+   descendant metatiles fetched for that subtree.
+
+5. The leaf-rendering mask wording needs a small clarification.
+
+   "The current accumulated mask" should mean the input mask for the
+   current surface. For the first surface at the node, that input mask is
+   empty.
+
+6. Readiness should be described as a backtrack operation.
+
+   It makes more sense to call `rig.isReady()` after returning from the
+   subtree, immediately before drawing natural leaves or fallback
+   coverage. The text currently reads as if every descent-path node calls
+   readiness on the way down.
+
+   There are also cases where readiness should not be called: if child
+   results prove a watertight subtree for the same or a higher-priority
+   surface, the parent fallback will not render.
+
+7. Fallback readiness needs both minimum and desired levels.
+
+   `minimum: 'fallback'` is the floor before any readiness call. On the
+   backtrack fallback path, `fallback` should also be the desired
+   readiness. Otherwise coarse fallback tiles may request optional
+   resources, such as bump maps, and slow loading of natural leaf tiles.
+
+   The RFC should also specify readiness priority. The existing LOD-based
+   priority is a reasonable starting point unless implementation testing
+   finds a better signal.
+
+8. The screen-space mask path is out of scope for this milestone.
+
+   The screen-space discussion can remain in the RFC as useful design
+   context, but it should not be framed as an open design question for
+   this implementation. The screen-space fallback threshold is also out
+   of scope.
+
+9. The watertight definition is too weak.
+
+   A tile is watertight if it fully covers the geographic space allocated
+   to the node by the spatial division. Boundary-edge coverage alone is
+   insufficient: a tile can have covered edges and still contain interior
+   holes. Watertightness is determined by the tileserver, but the RFC
+   should not introduce a boundary-only definition.
+
+10. The backend change needs an explicit rollout sequence.
+
+   Implement the client traversal first. Initial testing will use old
+   metatiles without the watertight flag, so the optimized path will not
+   run; that is useful because it tests the non-optimized path first.
+
+   Then implement and build the tileserver and `vts-vtsd` changes,
+   deploy them in the local test environment, and test the optimized
+   watertight pipeline. Production rollout should follow the same order:
+   client first, server later. Treating old or unknown metatiles as
+   non-watertight remains conservative and correct.
+
+11. The mask render-target architecture needs a deliberate home.
+
+   The footprint and mask programs should be GLSL ES 3.00 shaders owned
+   by the renderer. The RFC should decide whether their render targets
+   are `GpuDevice` auxiliary targets, no-projection targets, or a new
+   category. The current auxiliary-target terminology may imply a target
+   that shares the canvas projection machinery, which is not true for a
+   UV-space footprint pass.
+
+12. The mask pool and resolution should not be hardcoded.
+
+   The design needs at least one mask texture per active recursion level
+   plus a scratch texture. It is unclear whether OR/composition needs an
+   additional temporary texture, or whether a child mask can be blitted
+   directly into the parent accumulation mask.
+
+   The mask resolution should be configurable as a power of two.
+   `256x256` is a reasonable default, not the only supported size.
+
+13. Erosion must not be applied blindly on every OR or blit.
+
+   Blind erosion would break watertight seams between same-surface,
+   same-LOD tiles. Coarser tiles or lower-priority surfaces would then
+   show through cracks introduced by the mask algorithm.
+
+   For OR-into-node-mask erosion, pixels within `k` texels of the tile
+   edge must not be eroded. For child-to-parent blits, the parent should
+   first OR the accumulated child masks, then optionally erode the
+   combined parent mask with the same edge protection.
+
+14. Erosion should be deferred from the first implementation.
+
+   The first implementation should use `k = 0`. The architecture should
+   leave a place for erosion so adding it later does not require a major
+   refactor, but erosion itself can be a later implementation step. Base
+   traversal and watertight behavior should be tested before any erosion
+   tuning.
+
+15. The erosion shader and child-blit text must be revised.
+
+   The implementation text that applies a morphological min-filter to
+   `scratch` is directly affected by the previous note. The text that
+   says the same OR/blit program erodes each child blit and lets erosion
+   compound naturally is invalid. Child masks must be combined before
+   any optional parent-level erosion.
+
+16. The "fully rasterized" limitation is unclear.
+
+   The phrase "a tile's UV-space footprint is fully rasterized but the
+   mesh does not cover every UV position in screen space" is not clear
+   and may be self-contradictory. If this describes the known crack
+   problem, use that description instead. "Fully rasterized" should not
+   remain undefined.
+
+17. "Footprint rasterization at tile boundaries" may not be a separate
+   risk.
+
+   This appears to be the same crack and erosion problem already covered
+   elsewhere. Verify whether it is a distinct failure mode; if not, fold
+   it into the crack discussion or remove it as a separate open question.
+
+18. Several implementation-plan references appear stale.
+
+   The target method should be `drawSurface`, the current default, not
+   `drawSurfaceFitOnly`. The `src/core/renderer/gpu/shaders.js` item and
+   references to legacy shader behavior may already be stale and should
+   be verified against the current codebase. If the shader no longer
+   exists, use past tense when discussing it as prior art.
+
+19. The rollout section should be reworked into human-reviewed phases.
+
+   This should not be one large agent implementation followed only by
+   automatic tests. The plan should have clear implementation boundaries
+   and manual testing checkpoints between phases: base client traversal,
+   fallback behavior, non-optimized multi-surface behavior, server
+   metatile changes, optimized watertight behavior, and only then any
+   erosion experiments.
+
+20. Some open questions should be reframed.
+
+   Watertight bitplane field verification is a verification step, not an
+   open design question. The per-surface mask-pool discussion is useful,
+   but the model assumes coarser LODs do not contain finer data, even
+   across different surfaces. LOD can therefore be used as an ordering
+   relation. If data violates that assumption, treat it as a
+   data-modeling problem rather than an algorithmic problem.

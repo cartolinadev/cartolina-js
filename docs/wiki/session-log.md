@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-05-26 — preserve draw traversal RFC review round 8
+
+Reopened [rfc-draw-traversal.md](rfc-draw-traversal.md) by changing
+its status from `Accepted` to `In review` and appended
+`Review round 8`. The round preserves reviewer feedback before any
+author-side processing: virtual-surface handling, combined traversal
+state, active-surface propagation, watertight subtree skipping,
+readiness timing, rollout order, render-target ownership, configurable
+mask resources, deferred erosion, stale implementation references, and
+human-reviewed implementation phases.
+
 ## 2026-05-26 — rename Browser.core; update class docs and module headers
 
 Renamed `Browser.this.core` to `Browser.this.map`; renamed local
