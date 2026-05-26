@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-26 — process draw traversal RFC review round 8
+
+Processed [rfc-draw-traversal.md](rfc-draw-traversal.md) review round
+8 as author. Verified the notes against the current code and wiki.
+Accepted the active-surface propagation model, virtual-surface bypass
+for the new path, client-first/server-later watertight rollout,
+no-projection mask targets, configurable mask resources, and deferred
+erosion with initial `k = 0`. Pushed back on the claim that
+`src/core/renderer/gpu/shaders.js` is gone: the file still exists, and
+the modern `TileRenderRig` path also still carries `uClip` through
+`tile-clip.inc.glsl`.
+
 ## 2026-05-26 — preserve draw traversal RFC review round 8
 
 Reopened [rfc-draw-traversal.md](rfc-draw-traversal.md) by changing
