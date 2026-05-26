@@ -11,6 +11,8 @@ import type GpuDevice from '../renderer/gpu/device';
 
 export default class MapDraw {
 
+    constructor(map: unknown);
+
     drawTileState: GpuDevice.State;
     tileBuffer: unknown[];
     zbufferOffset: number | null;

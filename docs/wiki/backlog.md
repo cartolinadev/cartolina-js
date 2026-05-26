@@ -70,14 +70,16 @@ of a frozen scene gives you Traced Nodes for free.
 ### Implementation note
 
 `src/core/map/freeze-camera-state.ts` owns the captured camera state.
-Legacy draw code scopes ambient camera and position reads with
-`withSelectionCamera` and `withNavigationCamera`. Final terrain and
-geodata rendering use the navigation context for camera matrices while
-passing the selection position to `Renderer.updateBuffers()` or
-`drawGpuJobs()` so scale-dependent vertical exaggeration follows the
-selected tile set. `src/core/inspector/freeze.ts` owns mode state, DOM
-controls, and frustum capture. `Renderer` draws the frustum with the
-modern `useProgram2` shader path.
+The typed `Map` (`map.ts`) owns the `FreezeCameraState` instance
+(`map.freeze`) and the `withSelectionCamera` / `withNavigationCamera`
+methods. Legacy draw code reaches them via `legacyMap.outerMap.freeze`
+and `legacyMap.outerMap.withXxxCamera(...)`. Final terrain and geodata
+rendering use the navigation context for camera matrices while passing
+the selection position to `Renderer.updateBuffers()` or `drawGpuJobs()`
+so scale-dependent vertical exaggeration follows the selected tile set.
+`src/core/inspector/freeze.ts` owns mode state, DOM controls, and
+frustum capture. `Renderer` draws the frustum with the modern
+`useProgram2` shader path.
 
 ---
 

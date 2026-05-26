@@ -9,11 +9,9 @@ import type MapSrs from './srs';
 import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
-import type FreezeCameraState from './freeze-camera-state';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
-import type { Overrides } from './overrides';
 import type {
     CoreConfig,
     HeightMode,
@@ -68,6 +66,13 @@ type SurfaceSequenceItem = [MapSurface, boolean];
  * touches more of the legacy surface.
  */
 export default class Map {
+
+    constructor(
+        core: unknown,
+        path: string,
+        config: CoreConfig,
+        configStorage: unknown,
+    );
 
     /**
      * Back-pointer to the typed `Map` wrapper. Migration scaffolding so
@@ -159,10 +164,6 @@ export default class Map {
         draw(stopOnFinish: boolean): void;
     };
 
-    overrides: Overrides;
-
-    freeze: FreezeCameraState;
-
     draw: MapDraw;
 
     hoverFeature: unknown;
@@ -198,30 +199,28 @@ export default class Map {
      */
     tickDeferredEvents(): void;
 
-    /**
-     * Runs `callback` with the live navigation camera installed.
-     *
-     * Freeze mode separates the navigation context from the selection
-     * context. Call this for legacy draw code that must render from the
-     * live position while selected terrain still comes from the frozen
-     * position.
-     *
-     * @param callback Code to run under the live camera.
-     * @returns The value returned by `callback`.
-     */
-    withNavigationCamera<T>(callback: () => T): T;
+    setLoaderParams(mapConfig: unknown, configStorage: unknown): void;
 
-    /**
-     * Runs `callback` with the frozen selection camera installed.
-     *
-     * Use for legacy draw code that must operate in the selection
-     * context: culling, texel-size selection, and depth sampling.
-     * When freeze mode is inactive, runs `callback` without any swap.
-     *
-     * @param callback Code to run under the selection camera.
-     * @returns The value returned by `callback`.
-     */
-    withSelectionCamera<T>(callback: () => T): T;
+    /** True when the navigation SRS is geocentric (non-projected). */
+    isGeocent: boolean;
+
+    /** Set when the hitmap needs to be redrawn. */
+    hitMapDirty: boolean;
+
+    /** Set when the geodata hitmap needs to be redrawn. */
+    geoHitMapDirty: boolean;
+
+    /** Frame counter used by camera smoothing. Typo preserved from JS. */
+    updateCoutner: number;
+
+    /** The parsed mapConfig object. Shape is fully owned by map.js. */
+    mapConfig: unknown;
+
+    /** The coordinate-conversion helper attached after construction. */
+    convert: unknown;
+
+    /** Regenerates the free-layer and surface sequences from the view. */
+    refreshView(): void;
 
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;

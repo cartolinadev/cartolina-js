@@ -50,18 +50,18 @@ export type Lod = number;
 
 /** Result of `MapMeasure.getNodeInformation()` for one spatial division node. */
 export type NodeInformation = {
-    id: [number, number, number];
+    id: number[];
     height: number;
     srs: MapSrs;
     extents: {
-        ll: [number, number];
-        ur: [number, number];
+        ll: number[];
+        ur: number[];
     };
     physicalCorners: {
-        ul: [number, number, number];
-        ur: [number, number, number];
-        lr: [number, number, number];
-        ll: [number, number, number];
+        ul: number[];
+        ur: number[];
+        lr: number[];
+        ll: number[];
     };
     divisionNode: unknown;
     upVector: [number, number, number];

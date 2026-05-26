@@ -16,6 +16,16 @@ import type {
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
+import LegacyMap from './map/map';
+import FreezeCameraState from './map/freeze-camera-state';
+import { defaultOverrides, type Overrides } from './map/overrides';
+import MapStyle from './map/style';
+import MapDraw from './map/draw';
+import MapConvert from './map/convert';
+import MapMeasure from './map/measure';
+import MapSurfaceTree from './map/surface-tree';
+import MapConfig from './map/config';
+import MapView from './map/view';
 
 
 /**
@@ -48,6 +58,28 @@ class Map {
 
     private core_: Core;
     private disposed_ = false;
+
+    /**
+     * Runtime rendering overrides: diagnostic draw flags and per-frame
+     * render-flag overrides. `Renderer.initFrame` caches a reference to
+     * this object; all flag reads in a frame see the same snapshot.
+     *
+     * `draw*` fields default to `false`. `flag*` fields default to
+     * `undefined`, which defers to the corresponding `CoreConfig` value.
+     * See `Overrides` in `src/core/map/overrides.ts` for the full list.
+     */
+    overrides: Overrides = { ...defaultOverrides };
+
+    /**
+     * Camera-state swapper for diagnostic freeze mode. `null` while no
+     * map is loaded and between loads. Created by `createMapFromMapConfig`
+     * and `createMapFromStyle`. JS callers that still hold a `LegacyMap`
+     * reference access this through `legacyMap.outerMap.freeze`.
+     *
+     * See `FreezeCameraState` in
+     * `src/core/map/freeze-camera-state.ts`.
+     */
+    freeze: FreezeCameraState | null = null;
 
     /**
      * Active rendering channel for the current frame.
@@ -425,8 +457,8 @@ class Map {
 
         const legacyMap = this.core_.map;
         if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getNavigationPosition() ?? legacyMap.position)
+        return this.freeze
+            ? (this.freeze.getNavigationPosition() ?? legacyMap.position)
             : legacyMap.position;
     }
 
@@ -443,9 +475,48 @@ class Map {
 
         const legacyMap = this.core_.map;
         if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getSelectionPosition() ?? legacyMap.position)
+        return this.freeze
+            ? (this.freeze.getSelectionPosition() ?? legacyMap.position)
             : legacyMap.position;
+    }
+
+    // -----------------------------------------------------------------
+    // Camera scope
+    // -----------------------------------------------------------------
+
+    /**
+     * Runs `callback` with the live navigation camera installed.
+     *
+     * In freeze mode the selection context is frozen while navigation
+     * moves. Call this for draw code that must render from the live
+     * position while tile selection still uses the frozen position.
+     * When freeze mode is inactive, calls `callback` with no swap.
+     *
+     * @param callback  code to run under the live camera
+     * @returns the value returned by `callback`
+     */
+    withNavigationCamera<T>(callback: () => T): T {
+
+        return this.freeze
+            ? this.freeze.withNavigationCamera(callback)
+            : callback();
+    }
+
+    /**
+     * Runs `callback` with the frozen selection camera installed.
+     *
+     * Use for draw code that must operate in the selection context:
+     * culling, texel-size choice, and depth sampling. When freeze mode
+     * is inactive, calls `callback` with no swap.
+     *
+     * @param callback  code to run under the selection camera
+     * @returns the value returned by `callback`
+     */
+    withSelectionCamera<T>(callback: () => T): T {
+
+        return this.freeze
+            ? this.freeze.withSelectionCamera(callback)
+            : callback();
     }
 
     // -----------------------------------------------------------------
@@ -690,7 +761,7 @@ class Map {
             renderer.drawBackground();
 
         // runtime label override falls back to the map configuration.
-        const labelsEnabled = legacyMap.overrides.flagLabels
+        const labelsEnabled = this.overrides.flagLabels
             ?? legacyMap.config.mapFlagLabels;
 
         // clear queued geodata jobs
@@ -704,9 +775,9 @@ class Map {
         // draw surfaces and free layers
         gpu.setState(mapDraw.drawTileState);
 
-        if (legacyMap.overrides.drawEarth) {
+        if (this.overrides.drawEarth) {
 
-            legacyMap.withSelectionCamera(() => {
+            this.withSelectionCamera(() => {
 
                 // todo: remove this
                 for (let i = 0; i < mapDraw.tileBuffer.length; i++) {
@@ -754,7 +825,7 @@ class Map {
                 }
             });
 
-        } // if (legacyMap.overrides.drawEarth)
+        } // if (this.overrides.drawEarth)
 
         // draw freeze frustum, if applicable
         const inspector = this.core_.inspector;
@@ -762,13 +833,13 @@ class Map {
                 && inspector
                 && inspector.hasFreezeFrustum()) {
 
-            legacyMap.withNavigationCamera(() => {
+            this.withNavigationCamera(() => {
                 inspector.drawFreezeFrustum();
             });
         }
 
         // draw queued geodata labels and icons
-        if (legacyMap.overrides.drawEarth
+        if (this.overrides.drawEarth
                 && labelsEnabled
                 && legacyMap.freeLayersHaveGeodata
                 && channel === 'color') {
@@ -778,12 +849,116 @@ class Map {
             renderer.drawnGeodataTilesFactor =
                 legacyMap.stats.drawnGeodataTilesFactor;
 
-            legacyMap.withNavigationCamera(() => {
+            this.withNavigationCamera(() => {
                 renderer.draw.drawGpuJobs(this.getSelectionPosition()!);
             });
         }
 
         // done
+    }
+
+    // -----------------------------------------------------------------
+    // LegacyMap factories
+    // -----------------------------------------------------------------
+
+    private async createMapFromStyle(
+        style: unknown,
+        path: string,
+    ): Promise<void> {
+
+        const configStorage = (this.core_ as any).configStorage;
+        const legacyMap = new LegacyMap(
+            this.core_, path, this.core_.config, configStorage);
+        legacyMap.outerMap = this;
+
+        legacyMap.setLoaderParams(null, configStorage);
+
+        // load style
+        await MapStyle.loadStyle(legacyMap,
+            style as MapStyle.StyleSpecification);
+
+        // no clue what these are
+        const conv = new MapConvert(legacyMap);
+        legacyMap.convert = conv;
+        const meas = new MapMeasure(legacyMap);
+        legacyMap.measure = meas;
+        conv.measure = meas;
+
+        legacyMap.isGeocent =
+            !legacyMap.getNavigationSrs().isProjected();
+
+        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
+
+        // generate sequences
+        legacyMap.refreshView();
+
+        // force update
+        legacyMap.dirty = true;
+        legacyMap.hitMapDirty = true;
+        legacyMap.geoHitMapDirty = true;
+
+        legacyMap.draw = new MapDraw(legacyMap);
+        this.freeze = new FreezeCameraState(legacyMap);
+        legacyMap.draw.setupDetailDegradation();  // probably not needed
+
+        this.core_.map = legacyMap;
+    }
+
+    private createMapFromMapConfig(
+        mapConfig: unknown,
+        path: string,
+    ): void {
+
+        const configStorage = (this.core_ as any).configStorage;
+        const legacyMap = new LegacyMap(
+            this.core_, path, this.core_.config, configStorage);
+        legacyMap.outerMap = this;
+
+        legacyMap.setLoaderParams(mapConfig, configStorage);
+
+        // most of initialization happens here
+        const mapCfg = new MapConfig(legacyMap, mapConfig);
+        legacyMap.mapConfig = mapCfg;
+
+        const conv = new MapConvert(legacyMap);
+        legacyMap.convert = conv;
+        const meas = new MapMeasure(legacyMap);
+        legacyMap.measure = meas;
+        conv.measure = meas;
+
+        legacyMap.isGeocent =
+            !legacyMap.getNavigationSrs().isProjected();
+
+        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
+        legacyMap.currentView_ = new MapView(legacyMap, {});
+
+        mapCfg.afterConfigParsed();
+
+        legacyMap.updateCoutner = 0;
+
+        legacyMap.dirty = true;
+        legacyMap.dirtyCountdown = 0;
+        legacyMap.hitMapDirty = true;
+        legacyMap.geoHitMapDirty = true;
+
+        legacyMap.draw = new MapDraw(legacyMap);
+        this.freeze = new FreezeCameraState(legacyMap);
+        legacyMap.draw.setupDetailDegradation();
+
+        const body = legacyMap.referenceFrame?.body;
+        const services = legacyMap.services;
+
+        // atmosphere
+        if (body && body.atmosphere && services && services.atmdensity) {
+
+            legacyMap.atmosphere = new Atmosphere(
+                body.atmosphere,
+                legacyMap.getPhysicalSrs(),
+                legacyMap.url.makeUrl(services.atmdensity.url, {}),
+                legacyMap);
+        }
+
+        this.core_.map = legacyMap;
     }
 
     // -----------------------------------------------------------------

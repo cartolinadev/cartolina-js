@@ -1,4 +1,3 @@
-import Map from './map/map';
 import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
 
@@ -198,12 +197,16 @@ Core.prototype.loadMapFromStyle = async function(style) {
 
         path = utilsUrl.getProcessUrl(style, path);
         style_ = await utils.loadJson(path);
+
+    } else {
+
+        // style is already a parsed object; yield so the Core constructor
+        // finishes and outerMap is set before we call createMapFromStyle
+        await Promise.resolve();
     }
 
     // create map
-    this.map = await Map.createMapFromStyle(this, style_, path,
-                    this.config, this.configStorage);
-    this.map.outerMap = this.outerMap;
+    await this.outerMap.createMapFromStyle(style_, path);
 
     this.setConfigParams(this.configStorage);
 
@@ -245,9 +248,7 @@ Core.prototype.loadMap = function(path) {
 
         this.callListener('map-mapconfig-loaded', data);
 
-        //this.map = new Map(this, data, path, this.config, this.configStorage);
-        this.map = Map.createMapFromMapConfig(this, data, path, this.config, this.configStorage);
-        this.map.outerMap = this.outerMap;
+        this.outerMap.createMapFromMapConfig(data, path);
         this.setConfigParams(this.map.browserOptions, true);
         this.setConfigParams(this.configStorage);
 

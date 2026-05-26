@@ -3761,6 +3761,109 @@ The tile fragment shader already computes an `aspectCoef`, so the
 plumbing work only needed a no-op reference to the new flag/weight to
 keep them live without changing shading behavior.
 
+## 2026-05-26 — Move overrides/freeze/factories to typed Map
+
+**Branch:** feature/draw-surfaces
+**HEAD:** ea4b8b2e
+
+### Spec
+
+Move ownership of `overrides`, `freeze`, `withNavigationCamera`,
+`withSelectionCamera`, and the two map-construction factory functions
+(`createMapFromMapConfig`, `createMapFromStyle`) from `LegacyMap`
+(`map.js`) to the typed `Map` class (`map.ts`). Update all call sites
+directly; no delegation getters or stubs.
+
+### Files changed
+
+**New type surfaces**
+
+- `src/core/map/camera.d.ts` — explicit declaration for `MapCamera`;
+  overrides allowJs inference so `distanceFactor` is `number`, not
+  `number | undefined`.
+- `src/core/renderer/camera.d.ts` — explicit declaration for the
+  renderer `Camera`; overrides allowJs so `position` and `orientation`
+  are `[number, number, number]` tuples, satisfying the
+  `MutableRendererCamera` constraint in `freeze-camera-state.ts`.
+
+**Updated declarations**
+
+- `src/core/map/map.d.ts` — removed `overrides`, `freeze`,
+  `withNavigationCamera`, `withSelectionCamera`; added constructor,
+  `setLoaderParams`, `isGeocent`, `hitMapDirty`, `geoHitMapDirty`,
+  `updateCoutner`, `mapConfig`, `convert`, `refreshView`.
+- `src/core/map/draw.d.ts` — added constructor.
+- `src/core/types.ts` — widened `NodeInformation` tuple fields (`id`,
+  `extents.ll/ur`, `physicalCorners`) to `number[]`; allowJs inference
+  returns `any[]` which is not assignable to tuples.
+
+**Typed Map (`map.ts`)**
+
+- Added `overrides: Overrides` and `freeze: FreezeCameraState | null`
+  as owned fields with JSDoc.
+- Added `withNavigationCamera<T>` and `withSelectionCamera<T>`.
+- Added private `createMapFromMapConfig` and `createMapFromStyle` with
+  full factory bodies (ported verbatim from `map.js` including all
+  original inline comments).
+- Updated `getNavigationPosition`, `getSelectionPosition`, and `draw()`
+  to read `this.freeze` and `this.overrides` directly.
+
+**Legacy map (`map.js`)**
+
+- Removed imports of `FreezeCameraState` and `{ defaultOverrides }`.
+- Removed `this.overrides = { ...defaultOverrides }` from constructor.
+- Removed `Map.createMapFromStyle` and `Map.createMapFromMapConfig`
+  static methods.
+- Removed `Map.prototype.withNavigationCamera` and
+  `Map.prototype.withSelectionCamera`.
+- Updated the two remaining `this.overrides` reads to
+  `this.outerMap.overrides`.
+
+**Core (`core.js`)**
+
+- Removed `import Map from './map/map'` (no longer needed).
+- Replaced static factory calls with `this.outerMap.createMapFromStyle`
+  / `this.outerMap.createMapFromMapConfig`.
+- Added `await Promise.resolve()` in `loadMapFromStyle` for the
+  already-parsed-object path (see below).
+
+**Call sites** — 21 in JS/TS files:
+
+- `renderer.ts` (2): `map.overrides`, `map.withSelectionCamera`
+- `inspector/freeze.ts` (5): `map.freeze`, `map.withSelectionCamera`
+- `inspector/input.js` (3): `map.overrides`
+- `inspector/stats.js` (1): `map.overrides`
+- `draw-tiles.js` (4): `this.map.overrides`
+- `surface-tree.js` (3): `drawTiles.map.overrides`, `map.withNavigationCamera`
+- `draw.js` (2): `this.map.withSelectionCamera`,
+  `this.map.withNavigationCamera`
+
+All updated to `<ref>.outerMap.<member>`.
+
+### Non-obvious finding: outerMap timing in loadMapFromStyle
+
+`Core` calls `loadMapFromStyle` from inside its own constructor. When
+the style is a URL string, the first `await utils.loadJson(path)` is an
+implicit yield that lets the constructor return, after which `map.ts`
+sets `this.core_.outerMap = this`. By the time the JSON resolves and
+`createMapFromStyle` is called, `outerMap` is set.
+
+When the style is already a parsed object (the demo fetches the JSON
+itself and passes the object), the `if (typeof style === 'string')`
+block is skipped, leaving no `await` before
+`this.outerMap.createMapFromStyle(...)`. The call would execute
+synchronously while `outerMap` is still null.
+
+Fix: `await Promise.resolve()` in the else branch. This is an
+unconditional yield to the microtask queue — it suspends
+`loadMapFromStyle`, lets the synchronous call stack unwind completely
+(including `this.core_.outerMap = this` in the Map constructor), and
+resumes only after. This is migration scaffolding; the clean fix is to
+have `Core` not fire any loads from its constructor and instead have the
+typed `Map` trigger them after setting `outerMap`.
+
+---
+
 ## 2026-04-10 — Scale-denominator vertical exaggeration
 
 **Branch:** main

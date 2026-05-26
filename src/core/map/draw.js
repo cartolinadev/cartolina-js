@@ -129,7 +129,7 @@ MapDraw.prototype.drawHitmap = function() {
 
 
 MapDraw.prototype.drawGeodataHitmap = function() {
-    this.map.withSelectionCamera(function() {
+    this.map.outerMap.withSelectionCamera(function() {
 
         this.renderer.gpu.setState(this.drawTileState);
         this.renderer.switchToFramebuffer('geo');
@@ -237,7 +237,7 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
                 }
             }
 
-            this.map.withNavigationCamera(function() {
+            this.map.outerMap.withNavigationCamera(function() {
                 surface.monoGeodataView.draw(this.camera.position);
             }.bind(this));
         }

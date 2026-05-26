@@ -162,22 +162,22 @@ those cases to avoid visible artifacts.
 
 ## Runtime Overrides
 
-`Map.overrides` is a single runtime object holding all per-frame
-rendering overrides. Its type, `Overrides`, and its defaults,
-`defaultOverrides`, are defined in `src/core/map/overrides.ts` and
-derived with `typeof` so the type and the defaults cannot drift.
+`overrides` is a single runtime object holding all per-frame rendering
+overrides. Its type, `Overrides`, and its defaults, `defaultOverrides`,
+are defined in `src/core/map/overrides.ts` and derived with `typeof` so
+the type and the defaults cannot drift.
 
-`Map` (map.js) owns the object. The constructor spreads the defaults:
+The typed `Map` (`map.ts`) owns the object as a class field:
 
-```js
-this.overrides = { ...defaultOverrides };
+```ts
+overrides: Overrides = { ...defaultOverrides };
 ```
 
 `Renderer` shares the same reference, installed in
 `Renderer.initFrame()`:
 
 ```ts
-this.overrides = map.overrides;
+this.overrides = map.outerMap.overrides;
 ```
 
 `draw.*` fields are explicit booleans (`false` by default). They
@@ -187,9 +187,9 @@ toggle debug visualizations.
 corresponding `config` value". Any explicit `boolean` overrides the
 config for that frame.
 
-Inspector and input code write `map.overrides.flagX` directly. Legacy
-JS files that still read `renderer.debug.X` reach the same object
-through a `get debug()` accessor on `Renderer`.
+Inspector and input code reach the object via `map.outerMap.overrides`.
+Legacy JS files that still read `renderer.debug.X` reach the same
+object through a `get debug()` accessor on `Renderer`.
 
 ## Colour Encoding
 

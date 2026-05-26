@@ -35,13 +35,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
     if (tile.surface) {
         if (node.hasGeometry()) {
 
-            if (this.map.overrides.drawBBoxes && !preventRedener) {
-                if (tile.surface.geodata || !this.map.overrides.drawGeodataOnly) {
+            if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
+                if (tile.surface.geodata || !this.map.outerMap.overrides.drawGeodataOnly) {
                     this.drawTileInfo(tile, node, cameraPos, tile.surfaceMesh, pixelSize);
                 }
             }
 
-            if (this.map.overrides.heightmapOnly && !preventRedener) {
+            if (this.map.outerMap.overrides.heightmapOnly && !preventRedener) {
                 if (!tile.surface.geodata) {
                     tile.drawGrid(cameraPos);
                 }
@@ -316,7 +316,7 @@ MapDrawTiles.prototype.getTileTextureTransform = function(sourceTile, targetTile
 
 
 MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
-    var debug = this.map.overrides;
+    var debug = this.map.outerMap.overrides;
     var pos;
 
     if (!debug.drawMeshBBox) {

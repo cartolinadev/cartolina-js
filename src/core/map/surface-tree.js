@@ -1583,7 +1583,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
                             tile, tile.metanode, drawCameraPos,
                             tile.texelSize, 0, false, false);
                     } else {
-                        if (drawTiles.map.overrides.drawBBoxes) {
+                        if (drawTiles.map.outerMap.overrides.drawBBoxes) {
                             drawTiles.drawTileInfo(
                                 tile, tile.metanode, drawCameraPos);
                         }
@@ -1594,7 +1594,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
                     if ((drawGrid && item[1])
                         || stats.gpuRenderUsed >= draw.maxGpuUsed) {
 
-                        if (drawTiles.map.overrides.drawBBoxes) {
+                        if (drawTiles.map.outerMap.overrides.drawBBoxes) {
                             drawTiles.drawTileInfo(
                                 tile, tile.metanode, drawCameraPos);
                         }
@@ -1616,7 +1616,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
     if (map.outerMap.drawChannel === 'color') {
 
-        map.withNavigationCamera(function() {
+        map.outerMap.withNavigationCamera(function() {
 
             drawSelectedBuffer(map.camera.position);
         });

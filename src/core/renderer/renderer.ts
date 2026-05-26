@@ -669,7 +669,7 @@ initFrame(): void {
 
     const map = this.core.map;
     const config = map.config;
-    const overrides = map.overrides;
+    const overrides = map.outerMap.overrides;
 
     this.debugStr = `AsyncImageDecode: ${config.mapAsyncImageDecode}`;
     this.overrides = overrides;
@@ -722,7 +722,7 @@ initFrame(): void {
 
     } else {
 
-        map.withSelectionCamera(updateFrameBuffers);
+        map.outerMap.withSelectionCamera(updateFrameBuffers);
     }
 }
 

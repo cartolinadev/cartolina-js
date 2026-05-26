@@ -23,14 +23,11 @@ import MapStyle from './style';
 import MapTrajectory from './trajectory';
 import MapSurface from './surface';
 import MapGeodataBuilder from './geodata-builder';
-import FreezeCameraState from './freeze-camera-state';
-import { defaultOverrides } from './overrides';
 
 
 var Map = function(core, path, config, configStorage) {
 
     this.config = config || {};
-    this.overrides = { ...defaultOverrides };
     this.setConfigParams(config);
     this.core = core;
     this.coreConfig = core.coreConfig;
@@ -113,86 +110,6 @@ var Map = function(core, path, config, configStorage) {
 
     this.measure = null;
 }
-
-Map.createMapFromStyle = async function(core, style, path, config, configStorage) {
-
-    let map = new Map(core, path, config, configStorage);
-
-    map.setLoaderParams(null, configStorage);
-
-    // load style
-    await MapStyle.loadStyle(map, style);
-
-    // no clue what these are
-    map.convert = new MapConvert(map);
-    map.measure = new MapMeasure(map);
-    map.convert.measure = map.measure;
-
-    map.isGeocent = !map.getNavigationSrs().isProjected();
-
-    map.tree = new MapSurfaceTree(map, false);
-
-    // generate sequences
-    map.refreshView();
-
-    // force update
-    map.dirty = true;
-    map.hitMapDirty = true; map.geoHitMapDirty = true;
-
-    map.draw = new MapDraw(map);
-    map.freeze = new FreezeCameraState(map);
-    map.draw.setupDetailDegradation();  // probably not needed
-
-    let body = map.referenceFrame.body;
-    let services = map.services;
-
-    return map;
-}
-
-Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStorage) {
-
-    let map = new Map(core, path, config, configStorage);
-
-    map.setLoaderParams(mapConfig, configStorage);
-
-    // most of initialization happens here
-    map.mapConfig = new MapConfig(map, mapConfig);
-
-
-    map.convert = new MapConvert(map);
-    map.measure = new MapMeasure(map);
-    map.convert.measure = map.measure;
-
-    map.isGeocent = !map.getNavigationSrs().isProjected();
-
-    map.tree = new MapSurfaceTree(map, false);
-    map.currentView_ =  new MapView(this, {});
-
-    map.mapConfig.afterConfigParsed();
-
-    map.updateCoutner = 0;
-
-    map.dirty = true;
-    map.dirtyCountdown = 0;
-    map.hitMapDirty = true;
-    map.geoHitMapDirty = true;
-
-    map.draw = new MapDraw(map);
-    map.freeze = new FreezeCameraState(map);
-    map.draw.setupDetailDegradation();
-
-    var body = map.referenceFrame.body;
-    let services = map.services;
-
-    // atmosphere
-    if (body && body.atmosphere && services && services.atmdensity)
-        map.atmosphere = new Atmosphere(
-            body.atmosphere, map.getPhysicalSrs(),
-            map.url.makeUrl(services.atmdensity.url, {}), map);
-
-    return map;
-};
-
 
 Map.prototype.kill = function() {
     this.killed = true;
@@ -1148,7 +1065,7 @@ Map.prototype.getStats = function(switches) {
     if (switches) {
 
         return {
-            'maxZoom' : this.overrides.maxZoom
+            'maxZoom' : this.outerMap.overrides.maxZoom
         };
     }
 
@@ -1596,7 +1513,7 @@ Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
 
 
 Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
-    var labelsEnabled = this.overrides.flagLabels
+    var labelsEnabled = this.outerMap.overrides.flagLabels
         ?? this.config.mapFlagLabels;
 
     if (!labelsEnabled) {
@@ -1739,21 +1656,6 @@ Map.prototype.applyCredits = function(tile) {
             this.visibleCredits.mapdata[key] = value;
         }
     }    
-};
-
-
-Map.prototype.withNavigationCamera = function(callback) {
-
-    return this.freeze
-        ? this.freeze.withNavigationCamera(callback)
-        : callback();
-};
-
-Map.prototype.withSelectionCamera = function(callback) {
-
-    return this.freeze
-        ? this.freeze.withSelectionCamera(callback)
-        : callback();
 };
 
 
