@@ -108,10 +108,10 @@ export class FreezeMode {
      */
     toggleFrustum(map: LegacyMap | null, renderer: Renderer): void {
 
-        if (!this.active) return;
+        if (!this.active || !map) return;
 
         this.drawFrustum = !this.drawFrustum;
-        if (this.drawFrustum && map) {
+        if (this.drawFrustum) {
 
             this.captureFrustum(map, renderer);
         } else {
@@ -121,6 +121,7 @@ export class FreezeMode {
         }
 
         this.updateControls_();
+        map.markDirty();
     }
 
     /**

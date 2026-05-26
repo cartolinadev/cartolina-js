@@ -346,6 +346,11 @@ After this refactor reaches the deletion pass, continue with:
 **Opened:** 2026-05-18
 **Status:** deferred
 
+This is a possible renderer redesign, not the current coding rule.
+The current rule is documented in
+[gpu-subsystem.md](gpu-subsystem.md): draw sites may leave GL state active,
+while pass setup and clear helpers establish the state they require.
+
 Each draw method would save the GL flags it needs on entry, apply them
 with direct `gl.*` calls, and restore on exit. No shared state objects,
 no caller/callee coordination, no implicit assumptions about prior

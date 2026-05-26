@@ -67,11 +67,6 @@ export class GpuDevice {
     currentState!: GpuDevice.State;
 
     /**
-     * Initial fixed-function state used as the renderer baseline.
-     */
-    defaultState!: GpuDevice.State;
-
-    /**
      * Currently bound GPU program, used to skip redundant gl.useProgram calls.
      */
     currentProgram?: GpuProgram;
@@ -139,10 +134,14 @@ constructor(
     this.renderer = renderer;
     this.div = div;
 
-    //state of device when first initialized
-    this.defaultState = this.createState({blend:false, stencil:false,
-        zequal: false, ztest:false, zwrite: false, culling:false});
-    this.currentState = this.defaultState;
+    this.currentState = {
+        blend: false,
+        stencil: false,
+        zwrite: false,
+        ztest: true,
+        zequal: false,
+        culling: false,
+    };
 
     this.keepFrameBuffer = keepFrameBuffer;
     this.antialias = antialias;
@@ -217,7 +216,7 @@ private init() {
 
     //clear screen
     this.applyViewport();
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    this.clear(true, true);
 };
 
 
@@ -437,7 +436,9 @@ setAuxiliaryRenderTarget(
  */
 clearDepth(): void {
 
+    this.gl.depthMask(true);
     this.gl.clear(this.gl.DEPTH_BUFFER_BIT);
+    if (!this.currentState.zwrite) this.gl.depthMask(false);
 }
 
 /**
@@ -467,12 +468,16 @@ clearColorAndDepth(color: GpuDevice.Color = GpuDevice.Black): void {
     if (isIntegerTarget) {
 
         gl.clearBufferuiv(gl.COLOR, 0, new Uint32Array(color));
+        gl.depthMask(true);
         gl.clearBufferfv(gl.DEPTH, 0, new Float32Array([1.0]));
+        if (!this.currentState.zwrite) gl.depthMask(false);
 
     } else {
 
         this.setClearColor(color);
+        gl.depthMask(true);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        if (!this.currentState.zwrite) gl.depthMask(false);
     }
 }
 
@@ -493,8 +498,19 @@ clear(
         this.setClearColor(color);
     }
 
-    this.gl.clear((clearColor ? this.gl.COLOR_BUFFER_BIT : 0) |
-                  (clearDepth ? this.gl.DEPTH_BUFFER_BIT : 0) );
+    const clearMask = (clearColor ? this.gl.COLOR_BUFFER_BIT : 0)
+        | (clearDepth ? this.gl.DEPTH_BUFFER_BIT : 0);
+
+    if (clearDepth) {
+
+        this.gl.depthMask(true);
+        this.gl.clear(clearMask);
+        if (!this.currentState.zwrite) this.gl.depthMask(false);
+
+    } else {
+
+        this.gl.clear(clearMask);
+    }
 };
 
 private setClearColor(color: GpuDevice.Color): void {

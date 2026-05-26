@@ -51,9 +51,6 @@ var MapDraw = function(map) {
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
-    this.drawStardomeState = gpu.createState({zwrite:false, ztest:false});
-    this.drawAuraState = gpu.createState({zwrite:false, blend:true});
-
     this.drawBlendedTileState = gpu.createState({zequal:true, blend:true});
 
     this.degradeHorizonFactor = 0;

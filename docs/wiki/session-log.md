@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-05-26 — stabilize freeze frustum depth captures
+
+Freeze-mode frustum depth sometimes fell back to the full reference
+frame extent on the first capture in `complex-terrain`. Manual console
+diagnostics at `FreezeMode.captureFrustum()` showed that bad captures
+coincided with a fresh hitmap copy: `maxDepth` was null after
+`getScreenDepth()` redrew the depth target. Reusing the throttled
+hitmap buffer usually produced a finite depth.
+
+The regression first appeared at `ff70938e`, which removed the old
+render-slot wrapper around map drawing. That wrapper used to restore
+the tile draw GL state before the depth pass. The durable fix is in
+the GPU clear helpers: clears that touch the depth buffer now force
+`depthMask(true)` for the clear and restore the cached write-mask
+state afterwards. This keeps depth-target clears valid even when the
+previous pass left depth writes disabled.
+
+Follow-up cleanup removed unused `MapDraw` stardome/aura state objects
+and removed `GpuDevice.defaultState`. `GpuDevice.currentState` now
+starts as the same fixed-function state applied during WebGL context
+initialization, so the cache is not stale before the first frame.
+
+Freeze frustum toggling now marks the map dirty after changing
+`drawFrustum`, so hiding the frustum redraws the canvas immediately
+instead of waiting for the next navigation interaction.
+
+Verification: `npx tsc --noEmit` clean. A Playwright real-page probe
+against `demos/map/?style=complex` ran repeated `Shift+Z`, `F`, `C`
+captures with a post-freeze delay; captured frustum depth stayed
+finite and the second `C` cleared `drawFrustum` and frustum geometry.
+Screenshots for `simple-terrain`, `complex-terrain`, and
+`full-terrain` completed without console or network errors.
+
 ## 2026-05-25 — restore map reload lifecycle after Map.tick move
 
 Follow-up to the `rfc-map-frame` implementation. Code review found

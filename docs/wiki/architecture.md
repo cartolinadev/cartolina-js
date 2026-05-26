@@ -174,7 +174,8 @@ custom drawing from inside overlay callbacks (`drawImage`,
 `drawLineString`, `createTexture`, `getCanvasSize`). Map code decides
 what to draw; renderer code issues the GPU work. See
 `rendering-architecture.md`, `render-targets.md`, and
-`renderer-coordinate-spaces.md`.
+`renderer-coordinate-spaces.md`. Low-level fixed-function GL state is
+covered in `gpu-subsystem.md`.
 
 ## Terrain Data Flow
 

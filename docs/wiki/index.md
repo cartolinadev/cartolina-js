@@ -5,6 +5,23 @@ This is the landing page for the shared cartolina-js wiki.
 Use it as the starting point when orienting yourself in the codebase,
 then branch into more specific documents as needed.
 
+## Structure
+
+Use a three-level structure:
+
+1. `index.md` and `architecture.md` provide broad orientation and
+   ownership.
+2. Subsystem pages describe ownership, invariants, and links for one
+   area of the runtime, such as `gpu-subsystem.md` or
+   `geodata-rendering.md`.
+3. Topic pages describe focused mechanics, formats, diagnostics, or
+   gotchas, such as `render-targets.md`, `normal-encoding.md`, or
+   `label-regression-diagnostics.md`.
+
+Keep broad architecture notes out of topic pages, and keep low-level
+mechanics out of `architecture.md` unless they affect ownership across
+subsystems.
+
 ## Table of contents
 
 ### Overview
@@ -91,6 +108,8 @@ then branch into more specific documents as needed.
   workflow for empirical label-pipeline regression tracing
 - [render-targets.md](render-targets.md) — render-target ownership,
   auxiliary framebuffer policy, and camera/logical-size rules
+- [gpu-subsystem.md](gpu-subsystem.md) — WebGL/GPU subsystem ownership,
+  `GpuDevice` fixed-function state, and pass-boundary responsibilities
 - [rendering-sizes.md](rendering-sizes.md) — canvas, framebuffer,
   logical, physical, and visual-scale size relationships in the renderer
 - [renderer-coordinate-spaces.md](renderer-coordinate-spaces.md) —
