@@ -204,7 +204,7 @@ constructor(
     this.setState(this.currentState, true);
 
     // Initial clear.
-    this.applyViewport();
+    this.resetViewport();
     this.clearColorAndDepth();
 };
 
@@ -302,7 +302,7 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
     this.renderTarget_ = target;
 
     this.bindRenderTargetFramebuffer(target);
-    this.applyViewport();
+    this.resetViewport();
 }
 
 
@@ -660,7 +660,7 @@ private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
     );
 }
 
-private applyViewport() {
+private resetViewport() {
 
     this.gl.viewport(
         0,

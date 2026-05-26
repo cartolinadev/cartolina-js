@@ -1105,16 +1105,17 @@ shape is a private method on the typed `Map`, because terrain traversal
 is core frame orchestration. If implementation state grows enough to
 make that method unwieldy, extract a focused auxiliary TypeScript class
 in `src/core/map/` owned by `Map`. During validation, `Map.draw()` uses
-a temporary terrain-only dispatch switch. The switch is a runtime
-diagnostic override on `Map.overrides`, not a `CoreConfig` parameter or
-URL-configurable public option. Suggested shape:
-`terrainTraversal: 'legacy' | 'recursive'`, defaulting to `'legacy'`
-until the new path is the default. When set to `'recursive'`, terrain
-calls the TypeScript recursive traversal with the legacy tree as its
-data source; otherwise terrain continues through `legacyMap.tree.draw()`
-and the existing `mapLoadMode` / `drawSurface*` methods. Geodata free
-layers do not use this switch. After validation, the temporary switch
-and old terrain modes are removed.
+a terrain-only dispatch switch in two layers: a per-frame runtime
+override on `Map.overrides.terrainTraversal` (`'recursive' | 'legacy'
+| undefined`) and a session-level `mapTerrainTraversal` key on
+`CoreConfig` (URL-configurable). The override wins when set; otherwise
+the config value is used; the default is `'recursive'`. When the
+resolved mode is `'recursive'`, terrain calls the TypeScript recursive
+traversal with the legacy tree as its data source; otherwise terrain
+continues through `legacyMap.tree.draw()` and the existing
+`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not
+use this switch. After validation, the switch and old terrain modes
+are removed.
 
 `TileRenderRig` is the terrain tile drawing backend used by the new
 traversal, not the gate that selects the traversal.
@@ -1126,8 +1127,14 @@ are not routed through the terrain traversal as one-surface sequences.
 
 Implementation phases:
 
-1. **Implemented, client-selected terrain surface.** Bring up the base
-   client traversal with no watertight metadata and no erosion:
+1. **Implemented, concept proof and validation scaffold.**
+   Bring up the mask machinery end to end against the legacy surface
+   selection so the design's core claims can be validated on real
+   data before the combined descent lands. The driver walks the
+   legacy `MapSurfaceTile` tree and uses `tile.metanode` at each
+   position; it does not yet implement the combined descent of §2.1.
+   This phase exercises mask compositing on the fallback-LOD axis
+   only, not the surface-stacking axis.
 
    - add configurable mask resources: one R8 `node_mask` texture per
      active recursion depth, one R8 `scratch` texture, and no-projection
@@ -1136,46 +1143,130 @@ Implementation phases:
      (§5.6), with `k = 0`;
    - add `footprint()` and mask-aware `draw()` to `TileRenderRig`
      (§5.5), sampling the mask at `aTexCoords2`;
-   - implement the recursive terrain traversal in TypeScript,
-     targeting `drawSurface`, the current default terrain path.
+   - implement the recursive driver as a private method on the typed
+     `Map` (`Map.drawTerrainRecursive_`), targeting the default
+     terrain path (`drawSurface`). The descent body lives in
+     `src/core/map/draw-traversal.ts`; the mask pool is owned by the
+     typed `Map`. Dispatch is the override + config resolution
+     described above.
 
    Manual checkpoint completed for the dev side of `simple-terrain`,
    `complex-terrain`, and `full-terrain` on a fresh webpack server.
    Production comparison requests had transient upstream tile failures.
 
-2. Extend fallback cadence.
+   Validated by this phase:
 
-   Manual checkpoint: validate progressive loading and confirm that
-   fallback readiness uses desired fallback resources and does not
-   starve natural leaf loading.
+   - **§4.2** — UV-space masks are precise enough on real terrain at
+     `k = 0`. Seam cracks appear as expected for the accepted `k = 0`
+     design choice; their visibility matches the prediction in §4.2
+     and does not indicate a mask precision problem.
+   - **§4.2** — mask compositing reduces fragment overdraw. The
+     legacy topdown path draws every visible ancestor; the mask
+     turns this into "fill the gaps only," a measurable GPU win on
+     the single-surface case.
+   - **§2.4** — the natural-leaf / fallback readiness split
+     de-pollutes the loader queue. Coarse stand-in tiles call
+     `isReady` with `desired: 'fallback'` so they no longer pull
+     optional resources that would slow leaf loads. Visible as
+     consistently lower data transfers and faster tile loading than
+     the legacy path on complex terrain.
+   - **Phase tradeoff** — without the watertight fast path (phase
+     6) the mask pass issues one footprint draw and one blit per
+     tile per recursion depth. This produces more FBO switches and
+     draw calls than the legacy path, which is visible as lower FPS
+     and slightly reduced map responsiveness. The tradeoff is
+     expected and resolves in phase 6.
 
-3. Validate non-optimized multi-surface compositing with old metatiles.
+2. Combined descent over plain surfaces.
 
-   Manual checkpoint: include a progressive-loading case and a
-   surface-boundary case.
+   Replace the single-surface driver with the §2.1 algorithm: query
+   each active plain surface's metatile tree independently via
+   `getMetatile()` + `getNode()` at each `(lod, x, y)` position,
+   compute child active sets per quadrant, propagate active status
+   into recursion, and iterate the surface sequence front-to-back at
+   the leaf and fallback render steps. Still no watertight metadata;
+   v5 metatiles only.
 
-4. Implement the cartolina-tileserver and vts-vtsd v6 metatile changes.
-   Deploy them in the local test environment.
+   Manual checkpoint: a single-surface map renders identically to
+   phase 1; a two-plain-surface map, or a virtual-surface map
+   rerouted to its constituent plain surfaces per §7, renders the
+   seam through mask compositing rather than glues, and no visible
+   regressions appear under progressive load.
 
-   Manual checkpoint: verify the watertight bitplane mapping and
-   old-format fallback behavior.
+3. Extend fallback cadence.
 
-5. Validate the optimized watertight path against v6 metatiles.
+   Add the `mapFallbackLodCadence` integer config (§2.4). Combined
+   descent already distinguishes natural-leaf and fallback rendering,
+   so cadence wiring is the gating decision on step 5 only.
 
-   Manual checkpoint: confirm lower-surface deactivation and metatile
-   request skipping in watertight subtrees.
+   Manual checkpoint: cadence 1 reproduces topdown behavior; cadence
+   ∞ reproduces fitonly; cadence 3–5 shows progressive loading where
+   coarser fallback tiles appear first and are then replaced by finer
+   tiles. Confirm that fallback readiness uses `desired: 'fallback'`
+   and does not starve natural-leaf loads.
 
-6. Consider edge-preserving erosion only after the base traversal and
-   watertight path are correct. Keep `k = 0` unless visible cracks
-   require the deferred erosion step.
+4. Client v6 metatile parsing.
 
-   Manual checkpoint: tune against real multi-surface data only if this
-   step is implemented.
+   In `src/core/map/metatile.js`, raise the supported version cap
+   from 5 to 6 and extend `applyMetatanodeBitplanes` to read bitplane
+   1 as `metanode.watertight`. For v5 metatiles `metanode.watertight`
+   stays false. The traversal does not yet consult the flag; this
+   phase is a parser capability bump, sized so a v6-emitting server
+   does not break v5 clients in the field.
 
-7. Delete the old terrain traversal methods after the geodata caller has
-   kept a fitted-frontier traversal or moved to a geodata-specific
-   replacement. Do not preserve the old topdown, downtop, splitting, or
-   fitonly modes only for geodata.
+   Manual checkpoint: every existing test URL still renders against
+   the unchanged v5 servers; where a v6 fixture exists, the bitplane
+   is parsed without throwing and the flag is set on the expected
+   nodes.
+
+5. Server v6 metatile emission.
+
+   Apply the `vts-libs` and mapproxy changes in §4.5: bump VERSION
+   from 5 to 6, add `watertightPlane = 0x02` to `MetaTileFlag`,
+   extend `flagPlanes` and `flagMapping`, add
+   `MetaNode::Flag::watertight` with accessor and setter, patch
+   `ti2metaFlags()`. Apply the same vts-libs changes to vts-vtsd's
+   vendored copy in lockstep. Deploy to the local test environment.
+
+   Manual checkpoint: a regenerated v6 dataset loads in the phase-4
+   client without traversal changes; nodes from watertight source
+   data carry `metanode.watertight = true`; nodes from partial source
+   data carry `false`.
+
+6. Watertight fast path.
+
+   Wire `metanode.watertight` into the active-set logic from phase 2.
+   A watertight active surface at a node performs its normal screen
+   draw, then clears the node mask to 1.0 and deactivates
+   lower-priority surfaces for the subtree, including their metatile
+   fetches (§2.2, §4.2 round-8 update).
+
+   Manual checkpoint: a multi-surface map whose front surface is
+   watertight on most interior tiles shows the expected reduction in
+   draw calls and lower-surface mesh requests, with no visible
+   artefacts at boundary tiles where partial coverage falls back to
+   depth testing.
+
+7. Edge-preserving erosion.
+
+   Consider erosion only after the combined descent and watertight
+   fast path are correct. Keep `k = 0` unless visible cracks require
+   the deferred erosion step in §4.2.
+
+   Manual checkpoint: tune against real multi-surface data only if
+   this step is implemented; verify that watertight seams between
+   same-surface siblings are preserved.
+
+8. Delete the legacy terrain traversal.
+
+   Remove the five legacy methods (`drawSurface`,
+   `drawSurfaceWithSpliting`, `drawSurfaceFit`, `drawSurfaceFitOnly`,
+   `drawSurfaceDownTop`), the `mapLoadMode` and `mapGeodataLoadMode`
+   config keys, the `splitMask` and `uClip` plumbing,
+   `createVirtualMetanode`, and the alien-flag path. Wait until the
+   geodata caller keeps a fitted-frontier traversal of its own, or
+   moves to a dedicated geodata replacement. Do not retain the old
+   topdown, downtop, splitting, or fitonly modes only for geodata.
 
 ---
 

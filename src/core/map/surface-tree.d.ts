@@ -1,13 +1,17 @@
+/*
+ * surface-tree.d.ts - typed surface for the legacy `MapSurfaceTree`
+ * helper (`surface-tree.js`).
+ *
+ * Phase-1 validation contract introduced by rfc-draw-traversal so the
+ * typed recursive traversal and `Map.draw()` can drive the tree.
+ * Removal target in phase 8 once the legacy tree is gone.
+ */
+
 import type LegacyMap from './map';
 import type MapSurface from './surface';
 import type MapSurfaceTile from './surface-tile';
-import type DrawTraversalMaskPool from './draw-traversal-mask';
 import type { LegacyMetanode } from './surface-tile';
 
-/**
- * Type surface for the legacy `MapSurfaceTree` helper
- * (`surface-tree.js`).
- */
 export default class MapSurfaceTree {
 
     constructor(
@@ -17,10 +21,7 @@ export default class MapSurfaceTree {
     );
 
     map: LegacyMap;
-    freeLayer: boolean;
-    freeLayerSurface?: MapSurface;
     surfaceTree: MapSurfaceTile;
-    terrainMaskPool: DrawTraversalMaskPool | null;
     surfaceSequence: [MapSurface, boolean][];
     surfaceOnlySequence: [MapSurface, boolean][];
 
@@ -29,7 +30,5 @@ export default class MapSurfaceTree {
         node: LegacyMetanode,
     ): void;
 
-    drawSurface(shift: [number, number, number]): void;
-    drawSurfaceFit(shift: [number, number, number]): void;
     draw(stopOnFinish?: boolean): void;
 }

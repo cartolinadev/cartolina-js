@@ -1,15 +1,14 @@
 /*
- * drawtraversal.ts - recursively select and render terrain tiles
+ * draw-traversal.ts - recursively select and render terrain tiles
  */
 
+import type Map from '../map';
 import type MapSurfaceTree from './surface-tree';
 import type MapSurfaceTile from './surface-tile';
 import type { LegacyMetanode } from './surface-tile';
-import DrawTraversalMaskPool from './draw-traversal-mask';
+import type DrawTraversalMaskPool from './draw-traversal-mask';
 import type { TileRenderRig } from './tile-render-rig';
-import type { SurfaceTileReadiness } from './draw-tiles';
 import type { GpuDevice } from '../renderer/gpu/device';
-import type { vec3 } from '../utils/math';
 
 
 /**
@@ -19,30 +18,32 @@ import type { vec3 } from '../utils/math';
  * backtracking traversal and UV-space coverage masks. It still uses the
  * legacy single selected surface stored on `MapSurfaceTile`; the RFC's
  * multi-surface active-set traversal builds on this path in the next
- * validation phase.
+ * phase. The caller (typed `Map.drawTerrainRecursive_`) already wraps
+ * the descent in `withNavigationCamera`, so render calls here can use
+ * `map.camera.position` directly for both color and depth channels.
  *
+ * @param map Typed `Map` owning the frame.
  * @param tree Terrain surface tree to draw.
- * @param shift Periodic-world shift from the legacy call site. The current
- *     legacy `drawSurface` path does not use it; this traversal preserves
- *     that behavior.
+ * @param maskPool Mask pool owned by the typed `Map`.
  */
+
 export function drawTerrainTraversal(
+    map: Map,
     tree: MapSurfaceTree,
-    _shift: [number, number, number],
+    maskPool: DrawTraversalMaskPool,
 ): void {
 
-    const map = tree.map;
-    const draw = map.draw;
-    const stats = map.stats;
-    const renderer = map.renderer;
-    const screenTarget =
-        renderer.gpu.currentRenderTarget as GpuDevice.RenderTarget;
+    const legacyMap = tree.map;
+    const draw = legacyMap.draw;
+    const stats = legacyMap.stats;
+    const renderer = legacyMap.renderer;
+    const screenTarget = renderer.gpu.currentRenderTarget;
     const root = tree.surfaceTree;
 
     if (!root.isMetanodeReady(tree, 0)) return;
     if (!root.metanode) return;
 
-    const cameraPos = map.camera.position;
+    const cameraPos = legacyMap.camera.position;
     if (!root.bboxVisible(root.id, root.metanode.bbox, cameraPos,
             root.metanode)) {
         return;
@@ -57,41 +58,58 @@ export function drawTerrainTraversal(
         usedNodes: 0,
     };
 
-    const maskPool = getMaskPool(tree);
-
-    map.gpuCache.skipCostCheck = true;
+    legacyMap.gpuCache.skipCostCheck = true;
 
     traverseNode({
         tree,
         tile: root,
         depth: 0,
-        cameraPos,
         screenTarget,
         maskPool,
         counters,
     });
 
     renderer.gpu.setRenderTarget(screenTarget);
-    map.gpuCache.skipCostCheck = false;
-    map.gpuCache.checkCost();
+    legacyMap.gpuCache.skipCostCheck = false;
+    legacyMap.gpuCache.checkCost();
 
     stats.usedNodes = counters.usedNodes;
     stats.processedNodes = counters.processedNodes;
     stats.processedMetatiles = counters.processedMetatiles;
+
+    // map parameter is reserved for the phase-2 typed call sites
+    // (combined descent over plain surfaces). Keep the reference here
+    // so the dispatch signature does not need to change again.
+    void map;
 }
 
 
+/**
+ * Perform one step of the recursive terrain descent for a single tile
+ * node. Recurses into child quadrants whose metatiles are ready, then
+ * renders the node itself as a natural leaf (all children covered) or
+ * as a fallback (at least one child is not yet available).
+ *
+ * @param context - State bundle for this node: tile, depth, render
+ *   targets, mask pool, and per-frame counters.
+ * @returns `true` if this subtree produced any rendered coverage.
+ *   The caller uses this to decide whether to blit this node's mask
+ *   slice into the parent's mask slice via `blitChildToParent`.
+ *   Returning `false` means nothing was drawn here and no blit is
+ *   needed.
+ */
 function traverseNode(context: NodeContext): boolean {
 
-    const { tree, tile, depth, cameraPos, maskPool } = context;
-    const map = tree.map;
-    const draw = map.draw;
+    const { tree, tile, depth, maskPool } = context;
+    const legacyMap = tree.map;
+    const draw = legacyMap.draw;
     const node = tile.metanode;
 
     if (!node) return false;
 
     recordNode(context, node);
 
+    const cameraPos = legacyMap.camera.position;
     if (!tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) return false;
 
     context.counters.usedNodes++;
@@ -119,21 +137,21 @@ function traverseNode(context: NodeContext): boolean {
 
             if (!childCovered) continue;
 
+            // collect accumulated mask from the child (if any)
             maskPool.blitChildToParent(depth + 1, depth, quadrant);
             hasChildCoverage = true;
         }
     }
 
     const naturalLeaf = !needsFiner;
-    const fallback = needsFiner;
     let hasCoverage = hasChildCoverage;
 
+    // Natural leaves render with full-readiness; inner-node fallbacks
+    // render with fallback-readiness so they do not pull optional
+    // resources that would slow down leaf loads (RFC §2.4).
     if (naturalLeaf) {
-
         hasCoverage = renderTile(context, ReadinessFull) || hasCoverage;
-
-    } else if (fallback) {
-
+    } else {
         hasCoverage = renderTile(context, ReadinessFallback) || hasCoverage;
     }
 
@@ -143,11 +161,11 @@ function traverseNode(context: NodeContext): boolean {
 
 function renderTile(
     context: NodeContext,
-    readiness: SurfaceTileReadiness,
+    readiness: TileRenderRig.ReadinessLevels,
 ): boolean {
 
     const { tree, tile, depth, screenTarget, maskPool } = context;
-    const map = tree.map;
+    const legacyMap = tree.map;
     const node = tile.metanode;
 
     if (!node || !node.hasGeometry()) return false;
@@ -155,47 +173,26 @@ function renderTile(
     const priority = tile.id[0] * tile.distance;
     const maskTexture = maskPool.nodeMask(depth);
 
-    let rig: TileRenderRig | boolean | null;
-
-    if (map.outerMap.drawChannel === 'color') {
-
-        rig = map.outerMap.withNavigationCamera(() => {
-
-            map.renderer.gpu.setRenderTarget(screenTarget);
-            return map.draw.drawTiles.drawSurfaceTile(
-                tile,
-                node,
-                map.camera.position,
-                tile.texelSize,
-                priority,
-                false,
-                false,
-                false,
-                readiness,
-                maskTexture,
-            );
-        });
-
-    } else {
-
-        map.renderer.gpu.setRenderTarget(screenTarget);
-        rig = map.draw.drawTiles.drawSurfaceTile(
-            tile,
-            node,
-            context.cameraPos,
-            tile.texelSize,
-            priority,
-            false,
-            false,
-            false,
-            readiness,
-            maskTexture,
-        );
-    }
+    // The outer `withNavigationCamera` wrap is installed by the typed
+    // `Map.drawTerrainRecursive_` caller. Both color and depth channels
+    // read `map.camera.position` directly from the legacy map.
+    legacyMap.renderer.gpu.setRenderTarget(screenTarget);
+    const rig = legacyMap.draw.drawTiles.drawSurfaceTile(
+        tile,
+        node,
+        legacyMap.camera.position,
+        tile.texelSize,
+        priority,
+        false,
+        false,
+        false,
+        readiness,
+        maskTexture,
+    );
 
     if (!isRig(rig)) return false;
 
-    tile.drawCounter = map.draw.drawCounter;
+    tile.drawCounter = legacyMap.draw.drawCounter;
     maskPool.addFootprint(rig, depth);
     return true;
 }
@@ -232,41 +229,6 @@ function recordNode(context: NodeContext, node: LegacyMetanode): void {
 }
 
 
-function getMaskPool(tree: MapSurfaceTree): DrawTraversalMaskPool {
-
-    const resolution = normalizedMaskResolution(
-        tree.map.config.mapTraversalMaskResolution,
-    );
-
-    if (tree.terrainMaskPool
-            && tree.terrainMaskPool.resolution === resolution) {
-        return tree.terrainMaskPool;
-    }
-
-    if (tree.terrainMaskPool) tree.terrainMaskPool.dispose();
-
-    tree.terrainMaskPool = new DrawTraversalMaskPool(
-        tree.map.renderer,
-        resolution,
-    );
-    return tree.terrainMaskPool;
-}
-
-
-function normalizedMaskResolution(
-    value: boolean | number | string | number[] | undefined,
-): number {
-
-    if (typeof value !== 'number') return DefaultMaskResolution;
-
-    const rounded = Math.round(value);
-    if (rounded < 16) return DefaultMaskResolution;
-    if ((rounded & (rounded - 1)) !== 0) return DefaultMaskResolution;
-
-    return rounded;
-}
-
-
 function isRig(value: TileRenderRig | boolean | null): value is TileRenderRig {
 
     return typeof value === 'object' && value !== null;
@@ -283,20 +245,17 @@ type NodeContext = {
     tree: MapSurfaceTree;
     tile: MapSurfaceTile;
     depth: number;
-    cameraPos: vec3;
     screenTarget: GpuDevice.RenderTarget;
     maskPool: DrawTraversalMaskPool;
     counters: Counters;
 };
 
-const DefaultMaskResolution = 256;
-
-const ReadinessFull: SurfaceTileReadiness = {
+const ReadinessFull: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',
     desired: 'full',
 };
 
-const ReadinessFallback: SurfaceTileReadiness = {
+const ReadinessFallback: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',
     desired: 'fallback',
 };

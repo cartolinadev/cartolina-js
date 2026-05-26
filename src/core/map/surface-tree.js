@@ -1,7 +1,6 @@
 
 import {vec3 as vec3_} from '../utils/matrix';
 import MapSurfaceTile_ from './surface-tile';
-import { drawTerrainTraversal } from './draw-traversal';
 
 //get rid of compiler mess
 var vec3 = vec3_;
@@ -32,17 +31,10 @@ var MapSurfaceTree = function(map, freeLayer, freeLayerSurface) {
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];
     this.counter = 0;
-    this.terrainMaskPool = null;
 };
 
 
 MapSurfaceTree.prototype.kill = function() {
-    if (this.terrainMaskPool) {
-
-        this.terrainMaskPool.dispose();
-        this.terrainMaskPool = null;
-    }
-
     this.surfaceTree = null;
     this.metastorageTree = null;
     this.surfaceTracer = null;
@@ -179,9 +171,7 @@ MapSurfaceTree.prototype.draw = function() {
         switch(mode) {
         case 'topdown':
 
-            if (!this.freeLayerSurface) {
-                drawTerrainTraversal(this, [0,0,0]);
-            } else if (map.config.mapSplitMeshes) {
+            if (map.config.mapSplitMeshes) {
                 //console.log("Here 2-3");
                 this.drawSurfaceWithSpliting([0,0,0]);
             } else {

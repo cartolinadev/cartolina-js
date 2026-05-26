@@ -23,6 +23,8 @@ class DrawTraversalMaskPool {
     private readonly size_: GpuDevice.NumberPair;
     private readonly nodeMasks_: GpuTexture[] = [];
     private readonly scratch_: GpuTexture;
+    private readonly footprintState_: GpuDevice.State;
+    private readonly blitState_: GpuDevice.State;
     private quadVao_: WebGLVertexArrayObject | null = null;
     private quadBuffer_: WebGLBuffer | null = null;
 
@@ -35,7 +37,23 @@ class DrawTraversalMaskPool {
         this.renderer_ = renderer;
         this.resolution = resolution;
         this.size_ = [resolution, resolution];
-        this.scratch_ = this.createMask_();
+        this.scratch_ = this.createMask();
+
+        // Pre-allocate the two GPU states. The footprint pass runs once
+        // per non-watertight surface, the blit pass once per child and
+        // once per surface; recreating these every call would allocate
+        // on the hot traversal path.
+        this.footprintState_ = renderer.gpu.createState({
+            culling: false,
+            ztest: false,
+            zwrite: false,
+        });
+        this.blitState_ = renderer.gpu.createState({
+            blend: true,
+            culling: false,
+            ztest: false,
+            zwrite: false,
+        });
     }
 
     /** Releases GPU resources owned by this pool. */
@@ -66,7 +84,7 @@ class DrawTraversalMaskPool {
 
         while (this.nodeMasks_.length <= depth) {
 
-            this.nodeMasks_.push(this.createMask_());
+            this.nodeMasks_.push(this.createMask());
         }
 
         return this.nodeMasks_[depth];
@@ -81,7 +99,7 @@ class DrawTraversalMaskPool {
 
         const gpu = this.renderer_.gpu;
         gpu.setTextureSpaceRenderTarget(this.nodeMask(depth), this.size_);
-        gpu.clearColor([0, 0, 0, 255]);
+        gpu.clearColor(MaskClearUncovered);
     }
 
     /**
@@ -94,15 +112,10 @@ class DrawTraversalMaskPool {
 
         const gpu = this.renderer_.gpu;
         const previousState = gpu.currentState;
-        const footprintState = gpu.createState({
-            culling: false,
-            ztest: false,
-            zwrite: false,
-        });
 
         gpu.setTextureSpaceRenderTarget(this.scratch_, this.size_);
-        gpu.setState(footprintState);
-        gpu.clearColor([0, 0, 0, 255]);
+        gpu.setState(this.footprintState_);
+        gpu.clearColor(MaskClearUncovered);
         rig.footprint();
         gpu.setState(previousState, true);
 
@@ -130,6 +143,10 @@ class DrawTraversalMaskPool {
 
         gpu.setTextureSpaceRenderTarget(this.nodeMask(parentDepth), this.size_);
         gpu.setViewport(x, y, half, half);
+        // TODO: the destination quadrant is always empty here (the node
+        // mask is cleared in traverseNode before any blit runs, and each
+        // quadrant is written at most once). A plain copy draw call would
+        // suffice; the OR blend is inherited from drawOrQuad_ unnecessarily.
         this.drawOrQuad_(this.nodeMask(childDepth));
         gpu.setViewport(0, 0, this.resolution, this.resolution);
     }
@@ -151,14 +168,8 @@ class DrawTraversalMaskPool {
         renderer.gpu.bindTexture(texture, renderer.textureIdxs.maskBlit);
 
         const previousState = renderer.gpu.currentState;
-        const state = renderer.gpu.createState({
-            blend: true,
-            culling: false,
-            ztest: false,
-            zwrite: false,
-        });
 
-        renderer.gpu.setState(state);
+        renderer.gpu.setState(this.blitState_);
         gl.blendEquation(gl.MAX);
         gl.blendFunc(gl.ONE, gl.ONE);
 
@@ -199,7 +210,7 @@ class DrawTraversalMaskPool {
         }
     }
 
-    private createMask_(): GpuTexture {
+    private createMask(): GpuTexture {
 
         const texture = new GpuTexture(
             this.renderer_.gpu,
@@ -218,5 +229,11 @@ class DrawTraversalMaskPool {
         return texture;
     }
 }
+
+// R8 mask "uncovered" value. Red channel zero is the meaningful bit;
+// `clearColor` normalises the alpha component to 1.0, which the
+// single-channel attachment then ignores.
+const MaskClearUncovered: GpuDevice.Color = [0, 0, 0, 255];
+
 
 export default DrawTraversalMaskPool;

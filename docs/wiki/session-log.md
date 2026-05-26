@@ -1,5 +1,87 @@
 # Session log
 
+## 2026-05-27 — phase 1 follow-up: docs, naming, and code notes
+
+Added JSDoc to `traverseNode` in `draw-traversal.ts`, documenting the
+boolean return value: `true` means this subtree produced coverage and
+the parent should blit; `false` means nothing was drawn and no blit is
+needed.
+
+Corrected RFC §8 "Validated by this phase": the crack wording now
+reads "appear as expected for the accepted `k = 0` design choice"
+rather than the previous version that incorrectly implied cracks did
+not appear. Added an explicit tradeoff bullet noting that the mask
+pass issues one footprint draw and one blit per tile per depth without
+the watertight fast path (phase 6), producing more FBO switches than
+the legacy path.
+
+Renamed `applyViewport` to `resetViewport` in `gpu/device.ts`. The
+old name was misleading: the method overwrites any custom viewport set
+via `setViewport` by restoring the render target's full size. Three
+call sites, all internal.
+
+Added a TODO to `blitChildToParent` in `draw-traversal-mask.ts`: the
+OR (MAX) blend from `drawOrQuad_` is unnecessary there because the
+destination quadrant is always empty when the blit runs (the node mask
+is cleared by `traverseNode` before any blit, and each quadrant is
+written at most once). The OR is required only in `addFootprint`, which
+runs after child blits have already populated the mask.
+
+## 2026-05-26 — phase 1 cleanup: typed-Map ownership
+
+Aligned the recursive terrain draw with the structural rules in
+[rfc-draw-traversal.md](rfc-draw-traversal.md) §8. The dispatch is no
+longer in `MapSurfaceTree.draw()`; it lives in `Map.draw()` as
+`drawTerrainRecursive_`, a private method on the typed `Map` that
+wraps the descent in one `withNavigationCamera` call. The mask pool
+moved from `MapSurfaceTree.terrainMaskPool` to a typed `Map` field;
+the legacy tree no longer knows about the new path.
+
+Added the diagnostic switch in two layers: a per-frame override on
+`Map.overrides.terrainTraversal` (`'recursive' | 'legacy' |
+undefined`) and a session-level `mapTerrainTraversal` key on
+`CoreConfig` (URL-configurable). Default is `'recursive'`. §8
+preamble updated to document the config layer; the previous wording
+ruled out a `CoreConfig` parameter and was reversed here.
+
+Stopped promoting legacy fields to typed contracts:
+
+- deleted `SurfaceTileReadiness` from `draw-tiles.d.ts`; the typed
+  traversal now imports `TileRenderRig.ReadinessLevels` directly;
+- removed `maxGpuUsed`, `terrainMaskPool`, `freeLayer`,
+  `freeLayerSurface`, `surfaceOnlySequence` from the typed surfaces
+  where they had no typed reader, and tagged the remaining additions
+  as phase-1 / phase-8 removal targets;
+- replaced the inline anonymous `tree: { ... }` type in `map.d.ts`
+  with `tree: MapSurfaceTree` so the typed surface is named once.
+
+Hot-path cleanup in `draw-traversal-mask.ts`: pre-allocated the
+footprint and blit states once in the constructor instead of
+`gpu.createState({...})` on every call, and hoisted the
+`[0, 0, 0, 255]` clear color to a named `MaskClearUncovered`
+constant with the reason recorded next to it.
+
+Other review-note items:
+
+- power-of-two validation for `mapTraversalMaskResolution` now lives
+  in `setConfigParam`; non-PoT values fall back to 256 with no
+  silent rounding inside the traversal;
+- the footprint vertex shader's `aPosition.x * 0.0` line is now
+  commented in `tile-mask-footprint.vert.glsl`;
+- folded the color/depth branches in `renderTile` into one path now
+  that the outer `withNavigationCamera` wrap is installed once at
+  the typed-Map call site.
+
+Stats: `bestMeshTexelSize` and `gpuNeeded` were never effectively
+populated by the legacy `drawSurface` either (`best2` is initialised
+to 0 and never reassigned, and the per-frame reset in
+`Map.tick` zeroes the texel-size field before each draw), so no
+restoration is needed. The loading-screen check on
+`bestMeshTexelSize` dismisses through the OR-branches in
+`loading.js:122-126`.
+
+Verified with `npx tsc --noEmit` (clean).
+
 ## 2026-05-26 — implement draw traversal phase 1
 
 Implemented phase 1 of [rfc-draw-traversal.md](rfc-draw-traversal.md)

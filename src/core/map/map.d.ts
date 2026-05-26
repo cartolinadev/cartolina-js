@@ -10,6 +10,7 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type MapDraw from './draw';
+import type MapSurfaceTree from './surface-tree';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
 import type {
@@ -55,8 +56,6 @@ type FreeLayer = MapSurface & {
     type?: string;
     zFactor?: number | null;
 };
-
-type SurfaceSequenceItem = [MapSurface, boolean];
 
 /**
  * Legacy map data model — the JavaScript half of `Map` being absorbed
@@ -158,11 +157,7 @@ export default class Map {
 
     style: MapStyle | null;
 
-    tree: {
-        surfaceSequence: SurfaceSequenceItem[];
-        surfaceOnlySequence: SurfaceSequenceItem[];
-        draw(stopOnFinish: boolean): void;
-    };
+    tree: MapSurfaceTree;
 
     draw: MapDraw;
 
@@ -312,10 +307,12 @@ export default class Map {
     isAtmospheric(): boolean;
 
     gpuCache: {
+        /** phase-1: traversal toggles this around the descent. */
         skipCostCheck: boolean;
         insert(destructor: () => void, cost: number): object;
         remove(item: object): void;
         updateItem(item: object): void;
+        /** phase-1 */
         checkCost(): void;
     };
 }

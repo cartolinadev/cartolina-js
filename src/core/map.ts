@@ -26,6 +26,8 @@ import MapMeasure from './map/measure';
 import MapSurfaceTree from './map/surface-tree';
 import MapConfig from './map/config';
 import MapView from './map/view';
+import DrawTraversalMaskPool from './map/draw-traversal-mask';
+import { drawTerrainTraversal } from './map/draw-traversal';
 
 
 /**
@@ -100,6 +102,14 @@ class Map {
      * map already? Reset implicitly by replacing the typed `Map`. */
     private mapLoadedFired_ = false;
 
+    /**
+     * UV-space mask pool used by the recursive terrain traversal.
+     * Lazily allocated on first use by `drawTerrainRecursive` and
+     * disposed on map unload and `[Symbol.dispose]()`. Removal
+     * target in phase 8 alongside the legacy traversal.
+     */
+    private terrainMaskPool_: DrawTraversalMaskPool | null = null;
+
     // -----------------------------------------------------------------
     // Lifecycle
     // -----------------------------------------------------------------
@@ -126,6 +136,7 @@ class Map {
 
         if (this.disposed_) return;
         this.disposeOverlays_();
+        this.disposeTerrainMaskPool();
         this.core_.destroy();
         this.disposed_ = true;
     }
@@ -167,6 +178,7 @@ class Map {
 
         this.assertAlive_();
         this.mapLoadedFired_ = false;
+        this.disposeTerrainMaskPool();
         this.core_.destroyMap();
     }
 
@@ -786,7 +798,19 @@ class Map {
 
                 // draw mesh tiles
                 if (legacyMap.tree.surfaceSequence.length > 0) {
-                    legacyMap.tree.draw(false);
+
+                    // The new recursive terrain draw lives on `Map`;
+                    // `terrainTraversal` chooses between it and the
+                    // legacy iterative path while both coexist.
+                    const traversal = this.overrides.terrainTraversal
+                        ?? legacyMap.config.mapTerrainTraversal
+                        ?? 'recursive';
+
+                    if (traversal === 'recursive') 
+                        this.drawTerrainRecursive(legacyMap.tree);
+                    else 
+                        legacyMap.tree.draw(false);
+                    
                 }
 
                 // draw free layers
@@ -1046,6 +1070,54 @@ class Map {
         this.overlays_.length = 0;
     }
 
+    /**
+     * Releases the recursive terrain traversal mask pool. Safe to call
+     * when no pool has been allocated. Invoked on map unload and from
+     * `[Symbol.dispose]()`; the renderer's GL context stays alive
+     * across unloads, so the pool's textures are valid to release.
+     */
+    private disposeTerrainMaskPool(): void {
+
+        if (!this.terrainMaskPool_) return;
+
+        this.terrainMaskPool_.dispose();
+        this.terrainMaskPool_ = null;
+    }
+
+    /**
+     * Recursive terrain draw selected by `mapTerrainTraversal`.
+     *
+     * Wraps the whole descent in one `withNavigationCamera` call. The
+     * descent function reads tile state in the selection camera (its
+     * outer `withSelectionCamera` caller in `Map.draw()`) and issues
+     * draw calls under the navigation camera installed here.
+     *
+     * @param tree Terrain surface tree to draw.
+     */
+    private drawTerrainRecursive(tree: MapSurfaceTree): void {
+
+        const resolution = resolveMaskResolution(
+            this.core_.map?.config.mapTraversalMaskResolution);
+
+        if (this.terrainMaskPool_
+                && this.terrainMaskPool_.resolution !== resolution) {
+
+            // Config changed at runtime; rebuild for the new size.
+            this.terrainMaskPool_.dispose();
+            this.terrainMaskPool_ = null;
+        }
+
+        if (!this.terrainMaskPool_) {
+            this.terrainMaskPool_ = new DrawTraversalMaskPool(
+                this.core_.renderer, resolution);
+        }
+
+        this.withNavigationCamera(() => {
+
+            drawTerrainTraversal(this, tree, this.terrainMaskPool_!);
+        });
+    }
+
     // -----------------------------------------------------------------
     // Migration shim
     // -----------------------------------------------------------------
@@ -1079,6 +1151,16 @@ type OverlayEntry = {
     enabled: boolean;
     added: boolean;
 };
+
+
+/**
+ * Resolves the configured mask resolution. The config setter enforces
+ * power-of-two and bounds; this only guards startup-race / undefined.
+ */
+function resolveMaskResolution(value: CoreConfig[string]): number {
+
+    return typeof value === 'number' ? value : 256;
+}
 
 
 /* Declaration merging: re-export public types under `Map.*`. Consumers

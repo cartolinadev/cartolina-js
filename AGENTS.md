@@ -654,8 +654,10 @@ used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
 shim, remove the shim for the imports you touch.
 
 **Private TypeScript backing members** should use a trailing underscore.
-This is the preferred pattern when exposing read-only state through a
-same-name getter:
+The convention applies to **fields only**, not to private methods.
+Private methods do not get a trailing underscore. The trailing
+underscore on a field marks it as the backing slot whose public
+identity is the same-name getter:
 
 ```ts
 private renderTarget_!: GpuDevice.RenderTarget;
@@ -663,6 +665,11 @@ private renderTarget_!: GpuDevice.RenderTarget;
 get renderTarget(): Readonly<GpuDevice.RenderTarget> {
 
     return this.renderTarget_;
+}
+
+private rebuildRenderTarget(): void {
+
+    // ...
 }
 ```
 
