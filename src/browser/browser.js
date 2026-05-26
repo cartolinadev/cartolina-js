@@ -76,8 +76,9 @@ Browser.prototype.getCore = function() {
 };
 
 
+/** @returns {import('../core/map/map').default | null} */
 Browser.prototype.getMap = function() {
-    return this.core.core.mapInterface;
+    return this.core.core.map;
 };
 
 

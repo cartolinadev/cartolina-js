@@ -1,5 +1,21 @@
 # Session log
 
+## 2026-05-26 — delete MapInterface
+
+Deleted `src/core/map/interface.js` and removed `Core.mapInterface`
+plus `Core.getMapInterface()`. `Browser.getMap()` now returns the
+loaded `LegacyMap` directly. Wrapper-only methods still used by
+browser UI, autopilot, measure controls, and inspector radar moved to
+`LegacyMap`; `Viewer` geodata methods now route through typed `Map`.
+Typed `Map` coordinate conversion and hit-testing methods call the
+loaded `LegacyMap` directly.
+
+This removes the final live dependency on the map interface wrapper.
+The remaining legacy map surface is still migration debt, but there is
+one fewer object between `Viewer`, `Map`, and `LegacyMap`.
+
+Verification: `npx tsc --noEmit` completed cleanly.
+
 ## 2026-05-26 — wiki cross-reference and structure cleanup
 
 Moved rfc-map-frame to implemented; marked backlog step 2 done.

@@ -22,7 +22,6 @@ import type { MapRuntimeOptionValue } from './index';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
-import type LegacyMapInterface from '../core/map/interface';
 import * as utils from '../core/utils/utils';
 
 import type { vec3 } from '../core/utils/math';
@@ -47,10 +46,6 @@ class Viewer {
 
     private get legacyMap_(): LegacyMap | null {
         return this.map_.core.map;
-    }
-
-    private get legacyMapInterface_(): LegacyMapInterface | null {
-        return this.map_.core.mapInterface;
     }
 
     private get _renderer(): Renderer {
@@ -585,7 +580,7 @@ class Viewer {
     createGeodata(): unknown {
 
         this.assertAlive_();
-        return this.legacyMapInterface_?.createGeodata() ?? null;
+        return this.map_.createGeodata();
     }
 
     /**
@@ -597,7 +592,7 @@ class Viewer {
     addFreeLayer(id: string, layer: unknown): this {
 
         this.assertAlive_();
-        this.legacyMapInterface_?.addFreeLayer(id, layer);
+        this.map_.addFreeLayer(id, layer);
         return this;
     }
 
@@ -609,7 +604,7 @@ class Viewer {
     removeFreeLayer(id: string): this {
 
         this.assertAlive_();
-        this.legacyMapInterface_?.removeFreeLayer(id);
+        this.map_.removeFreeLayer(id);
         return this;
     }
 

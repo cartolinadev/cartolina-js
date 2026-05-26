@@ -57,7 +57,7 @@ by mapy.com.
 ## Legacy map object
 
 Calls on the `.map` property of the legacy factory result. In the
-current code this is `MapInterface` / `LegacyMap`.
+current code this is `LegacyMap`.
 
 Methods already promoted to `Viewer`:
 
@@ -66,7 +66,7 @@ Methods already promoted to `Viewer`:
 | `.getHitCoords(x, y, mode)` | `Viewer` ✓ |
 | `.convertCoordsFromNavToCanvas(pos, mode)` | `Viewer` ✓ |
 
-Methods that currently exist on `MapInterface` only:
+Methods that currently exist on the legacy map object only:
 
 | Method | Notes |
 |---|---|

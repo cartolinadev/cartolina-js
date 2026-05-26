@@ -5,7 +5,7 @@
 import { Core } from './core';
 import Atmosphere from './map/atmosphere';
 import type Renderer from './renderer/renderer';
-import type MapPosition from './map/position';
+import MapPosition from './map/position';
 import type {
     CoreConfig,
     CoreEventMap,
@@ -277,7 +277,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromPublicToNav(
+        return this.core_.map?.convertCoordsFromPublicToNav(
             pos, mode, lod) ?? null;
     }
 
@@ -298,7 +298,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToCanvas(
+        return this.core_.map?.convertCoordsFromNavToCanvas(
             pos, mode, lod) ?? null;
     }
 
@@ -317,7 +317,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToPublic(
+        return this.core_.map?.convertCoordsFromNavToPublic(
             pos, mode, lod) ?? null;
     }
 
@@ -337,7 +337,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToPhys(
+        return this.core_.map?.convertCoordsFromNavToPhys(
             pos, mode, lod, includeSE) ?? null;
     }
 
@@ -349,8 +349,7 @@ class Map {
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
         this.assertAlive_();
-        return (this.core_.mapInterface?.convertCoordsFromPhysToCameraSpace(
-            pos) ?? null) as vec3 | null;
+        return this.core_.map?.convertCoordsFromPhysToCameraSpace(pos) ?? null;
     }
 
     /**
@@ -369,7 +368,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive_();
-        return this.core_.mapInterface?.getHitCoords(
+        return this.core_.map?.getHitCoords(
             screenX, screenY, mode, lod) ?? null;
     }
 
@@ -447,6 +446,45 @@ class Map {
         return legacyMap.freeze
             ? (legacyMap.freeze.getSelectionPosition() ?? legacyMap.position)
             : legacyMap.position;
+    }
+
+    // -----------------------------------------------------------------
+    // Geodata free layers
+    // -----------------------------------------------------------------
+
+    /**
+     * Creates a legacy geodata builder for constructing vector free layers.
+     *
+     * Return type is `unknown` pending promotion of the full geodata
+     * builder type surface.
+     */
+    createGeodata(): unknown {
+
+        this.assertAlive_();
+        return this.core_.map?.createGeodata() ?? null;
+    }
+
+    /**
+     * Adds a free layer to the map under the given id.
+     *
+     * @param id layer identifier
+     * @param layer free-layer specification or existing legacy surface
+     */
+    addFreeLayer(id: string, layer: unknown): void {
+
+        this.assertAlive_();
+        this.core_.map?.addFreeLayer(id, layer);
+    }
+
+    /**
+     * Removes the free layer registered under the given id.
+     *
+     * @param id layer identifier
+     */
+    removeFreeLayer(id: string): void {
+
+        this.assertAlive_();
+        this.core_.map?.removeFreeLayer(id);
     }
 
     // -----------------------------------------------------------------

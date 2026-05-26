@@ -50,8 +50,7 @@ work belongs on `Renderer`.
 Several other classes exist as residual or transitional structures:
 `Browser` holds legacy UI helpers being absorbed into `Viewer`;
 `Core` is residual JS scheduled to dissolve into `Map`; `LegacyMap`
-is the JS half of `Map` being absorbed; `MapInterface` is a thin
-delegation wrapper scheduled for removal. None of these is a separate
+is the JS half of `Map` being absorbed. None of these is a separate
 subsystem of the architecture; they are work-in-progress on the way to
 the three-class shape.
 
@@ -127,17 +126,16 @@ The current ownership chain is:
 
 ```text
 Viewer                         public API
-  Browser                      legacy UI helpers
-    UI                         DOM controls
-    Autopilot                  camera animation
-    Presenter                  tour playback
-    ControlMode                input handling
-    Map                        typed map data model and logic
-      Core                     legacy startup / animation-frame shell
-        LegacyMap              JS half of Map (being absorbed)
-        MapInterface           thin legacy delegation wrapper
-        Renderer               WebGL2 renderer
-          GpuDevice            GL context and render targets
+    Browser                      legacy UI helpers
+      UI                         DOM controls
+      Autopilot                  camera animation
+      Presenter                  tour playback
+      ControlMode                input handling
+      Map                        typed map data model and logic
+        Core                     legacy startup / animation-frame shell
+          LegacyMap              JS half of Map (being absorbed)
+          Renderer               WebGL2 renderer
+            GpuDevice            GL context and render targets
 ```
 
 `Viewer` is the public API. It exposes a flat MapLibre-like method

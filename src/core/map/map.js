@@ -20,6 +20,9 @@ import MapUrl from './url';
 import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
+import MapTrajectory from './trajectory';
+import MapSurface from './surface';
+import MapGeodataBuilder from './geodata-builder';
 import FreezeCameraState from './freeze-camera-state';
 import { defaultOverrides } from './overrides';
 
@@ -473,6 +476,11 @@ Map.prototype.getBoundLayers = function() {
 
 
 Map.prototype.addFreeLayer = function(id, layer) {
+
+    if (layer == null) return;
+    if (!(layer instanceof MapSurface))
+        layer = new MapSurface(this, layer, 'free');
+
     this.freeLayers[id] = layer;
     //this.setView(this.getView());
     this.markDirty();
@@ -839,6 +847,349 @@ Map.prototype.getNavigationSrs = function() {
 
 Map.prototype.getPosition = function() {
     return this.position.clone();
+};
+
+
+Map.prototype.getCurrentCredits = function() {
+
+    return this.getVisibleCredits();
+};
+
+
+Map.prototype.getCreditInfo = function(creditId) {
+
+    var credit = this.getCreditById(creditId);
+    return credit ? credit.getInfo() : {};
+};
+
+
+Map.prototype.convertPositionViewMode = function(position, mode) {
+
+    return this.convert.convertPositionViewMode(
+        new MapPosition(position), mode);
+};
+
+
+Map.prototype.convertPositionHeightMode = function(
+    position, mode, noPrecisionCheck) {
+
+    return this.convert.convertPositionHeightMode(
+        new MapPosition(position), mode, noPrecisionCheck);
+};
+
+
+Map.prototype.convertCoords = function(sourceSrs, destinationSrs, coords) {
+
+    var srs = this.getSrs(sourceSrs);
+    var srs2 = this.getSrs(destinationSrs);
+    if (!srs || !srs2) return null;
+
+    return srs2.convertCoordsFrom(coords, srs);
+};
+
+
+Map.prototype.convertCoordsFromNavToPublic = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionPublicCoords(new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPublicToNav = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionNavCoordsFromPublic(
+        new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToPublic = function(pos, containsSE) {
+
+    if (containsSE && this.renderer.useSuperElevation) {
+
+        var p = this.renderer.transformPointBySE(pos);
+        return this.convert.convertCoords(p, 'physical', 'public');
+    }
+
+    return this.convert.convertCoords(pos, 'physical', 'public');
+};
+
+
+Map.prototype.convertCoordsFromNavToPhys = function(
+    pos, mode, lod, includeSE) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionPhysCoords(
+        new MapPosition(p), lod, includeSE);
+};
+
+
+Map.prototype.convertCoordsFromPhysToNav = function(
+    pos, mode, lod, containsSE) {
+
+    return this.convert.convertCoordsFromPhysToNav(
+        pos, mode, lod, containsSE);
+};
+
+
+Map.prototype.convertCoordsFromNavToCanvas = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCanvasCoords(new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToCanvas = function(pos, containsSE) {
+
+    var p = ['obj', pos[0], pos[1], 'fix', pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCanvasCoords(
+        new MapPosition(p), null, true, containsSE);
+};
+
+
+Map.prototype.convertCoordsFromNavToCameraSpace = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCameraSpaceCoords(
+        new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToCameraSpace = function(pos) {
+
+    var p = this.camera.position;
+    return [pos[0] - p[0], pos[1] - p[1], pos[2] - p[2]];
+};
+
+
+Map.prototype.transformPhysCoordsBySE = function(pos) {
+
+    return this.convert.transformPhysCoordsBySE(pos);
+};
+
+
+Map.prototype.getPositionCanvasCoords = function(position, lod) {
+
+    return this.convert.getPositionCanvasCoords(
+        new MapPosition(position), lod);
+};
+
+
+Map.prototype.getPositionCameraCoords = function(position, mode) {
+
+    return this.convert.getPositionCameraCoords(
+        new MapPosition(position), mode);
+};
+
+
+Map.prototype.movePositionCoordsTo = function(
+    position, azimuth, distance, skipOrientation) {
+
+    return this.convert.movePositionCoordsTo(
+        new MapPosition(position), azimuth, distance, skipOrientation);
+};
+
+
+Map.prototype.getGeodesicLinePoints = function(
+    coords, coords2, height, density) {
+
+    return this.convert.getGeodesicLinePoints(
+        coords, coords2, height, density);
+};
+
+
+Map.prototype.getSurfaceHeight = function(coords, precision) {
+
+    return this.measure.getSurfaceHeight(
+        coords,
+        this.measure.getOptimalHeightLodBySampleSize(coords, precision));
+};
+
+
+Map.prototype.getSurfaceAreaGeometry = function(
+    coords, radius, mode, limit, callback, loadTextures) {
+
+    var res = this.measure.getSurfaceAreaGeometry(
+        coords, radius, mode, limit, true, loadTextures);
+
+    if (!res[0]) {
+
+        return this.core.once(
+            'map-update',
+            this.getSurfaceAreaGeometry.bind(
+                this, coords, radius, mode, limit, callback, loadTextures),
+            1);
+    }
+
+    var buffer = res[1], ret = [];
+
+    if (this.tree) {
+
+        this.storedTilesRes = [];
+        this.tree.storeGeometry(buffer, buffer.length);
+        ret = this.storedTilesRes;
+        this.storedTilesRes = [];
+    }
+
+    callback(ret);
+    return function() {};
+};
+
+
+Map.prototype.getDistance = function(
+    coords, coords2, includingHeights, usePublic) {
+
+    return this.measure.getDistance(
+        coords, coords2, includingHeights, usePublic);
+};
+
+
+Map.prototype.getAzimuthCorrection = function(coords, coords2) {
+
+    return this.measure.getAzimuthCorrection(coords, coords2);
+};
+
+
+Map.prototype.getNED = function(coords, onlyMatrix) {
+
+    return this.measure.getNewNED(
+        coords, (onlyMatrix === false) ? false : true);
+};
+
+
+Map.prototype.getCameraInfo = function() {
+
+    var camera = this.camera;
+    return {
+        'projectionMatrix' : camera.camera.projection.slice(),
+        'viewMatrix' : camera.camera.modelview.slice(),
+        'viewProjectionMatrix' : camera.camera.mvp.slice(),
+        'rotationMatrix' : camera.camera.rotationview.slice(),
+        'position' : this.camera.position.slice(),
+        'vector' : this.camera.vector.slice(),
+        'distance' : this.camera.distance,
+        'height' : this.camera.height
+    };
+};
+
+
+Map.prototype.isPointInsideCameraFrustum = function(point) {
+
+    return this.camera.camera.pointVisible(point, this.camera.position);
+};
+
+
+Map.prototype.isBBoxInsideCameraFrustum = function(bbox) {
+
+    return this.camera.camera.bboxVisible(
+        { min:bbox[0], max:bbox[1] }, this.camera.position);
+};
+
+
+Map.prototype.generateTrajectory = function(p1, p2, options) {
+
+    p1 = new MapPosition(p1);
+    p2 = new MapPosition(p2);
+    return (new MapTrajectory(this, p1, p2, options)).generate();
+};
+
+
+Map.prototype.generatePIHTrajectory = function(
+    position, azimuth, distance, options) {
+
+    options = options || {};
+    var p = new MapPosition(position);
+    options['distance'] = distance;
+    options['azimuth'] = azimuth;
+    options['distanceAzimuth'] = true;
+    return (new MapTrajectory(this, p, p, options)).generate();
+};
+
+
+Map.prototype.redraw = function() {
+
+    this.markDirty();
+    return this;
+};
+
+
+Map.prototype.setLoaderSuspended = function(state) {
+
+    this.loaderSuspended = state;
+    return this;
+};
+
+
+Map.prototype.getLoaderSuspended = function() {
+
+    return this.loaderSuspended;
+};
+
+
+Map.prototype.getGpuCache = function() {
+
+    return this.gpuCache;
+};
+
+
+Map.prototype.getStats = function(switches) {
+
+    if (switches) {
+
+        return {
+            'maxZoom' : this.overrides.maxZoom
+        };
+    }
+
+    var busyWorkers = 0;
+    for (var i = 0, li = this.geodataProcessors.length; i < li; i++) {
+
+        if (this.geodataProcessors[i].busy) busyWorkers++;
+    }
+
+    return {
+        'bestMeshTexelSize' : this.bestMeshTexelSize,
+        'bestGeodataTexelSize' : this.bestGeodataTexelSize,
+        'downloading' : this.loader.downloading.length,
+        'lastDownload' : this.loader.lastDownloadTime,
+        'surfaces' : this.tree.surfaceSequence.length,
+        'freeLayers' : this.freeLayerSequence.length,
+        'texelSizeFit' : this.texelSizeFit,
+        'loadMode' : this.config.mapLoadMode,
+        'processingTasks' : this.processingTasks.length,
+        'busyWorkers' : busyWorkers,
+        'dirty' : this.dirty,
+        'drawnTiles' : this.stats.drawnTiles,
+        'drawnGeodataTiles' : this.stats.drawnGeodataTiles,
+        'renderTime' : this.stats.rendererTime,
+        'frameTime' : this.stats.frameTime
+    };
+};
+
+
+Map.prototype.createGeodata = function() {
+
+    return new MapGeodataBuilder(this);
+};
+
+
+Map.prototype.getGeodataGeometry = function(id) {
+
+    return this.renderer.geometries[id];
+};
+
+
+Map.prototype.setGeodataSelection = function(selection) {
+
+    this.renderer.geodataSelection = selection;
+    this.markDirty();
+    return this;
+};
+
+
+Map.prototype.getGeodataSelection = function() {
+
+    return this.renderer.geodataSelection;
 };
 
 

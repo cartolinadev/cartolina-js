@@ -14,7 +14,13 @@ import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
 import type { Overrides } from './overrides';
-import type { CoreConfig, NodeInformation } from '../types';
+import type {
+    CoreConfig,
+    HeightMode,
+    Lod,
+    NodeInformation,
+} from '../types';
+import type { vec3 } from '../utils/math';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -222,7 +228,7 @@ export default class Map {
     addCredit(id: string, credit: MapCredit): void;
     addSurface(id: string, surface: MapSurface): void;
     addBoundLayer(id: string, layer: MapBoundLayer): void;
-    addFreeLayer(id: string, layer: MapSurface): void;
+    addFreeLayer(id: string, layer: unknown): void;
     removeFreeLayer(id: string): void;
 
     /**
@@ -231,6 +237,40 @@ export default class Map {
      * the geodata builder surface.
      */
     createGeodata(): unknown;
+
+    convertPositionHeightMode(
+        position: MapPosition | number[],
+        mode: HeightMode,
+        noPrecisionCheck?: boolean,
+    ): MapPosition;
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+        includeSE?: boolean,
+    ): vec3 | null;
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3;
+    getHitCoords(
+        screenX: number,
+        screenY: number,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
 
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;

@@ -102,7 +102,7 @@ Inspector.prototype.preventDefault = function(e) {
 
 
 Inspector.prototype.onMapUpdate = function() {
-    var map = this.core.getMapInterface();
+    var map = this.core.getMap();
     if (!map) {
         return;
     }

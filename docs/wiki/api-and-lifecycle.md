@@ -45,7 +45,7 @@ That pattern is partly gone:
 | `Browser` | Legacy UI helpers | Moves into `Viewer` |
 | `Map` | Typed map data model and logic | Stays; absorbs JS halves below |
 | `CoreInterface` | Legacy public wrapper | Deleted |
-| `MapInterface` | Thin legacy delegation wrapper | Moves into `Map` |
+| `MapInterface` | Thin legacy delegation wrapper | Deleted |
 | `RendererInterface` | Legacy renderer wrapper | Deleted |
 | `Core` | Legacy startup / animation-frame shell | Dissolves into `Map` |
 | `LegacyMap` | JS half of `Map` (unfinished) | Moves into `Map` |
@@ -85,7 +85,7 @@ Deprecated entry points and concepts:
 - `browser()` and the `map` config key for mapConfig loading
 - tileserver-injected `browserOptions`
 - views from vts-browser-js
-- `setView`, `getView`, `getViews`, and related `MapInterface` methods
+- `setView`, `getView`, `getViews`, and related legacy map methods
 - `addBoundLayer` promotion to `Viewer`
 
 Layer visibility in new code belongs in the style specification. Avoid
@@ -153,8 +153,7 @@ array:
 mapConfig is fetched and parsed:
 
 1. `Core` starts `loadMapFromStyle` or `loadMap`.
-2. On success, `Core.map` is assigned and `Core.mapInterface` is
-   created.
+2. On success, `Core.map` is assigned.
 3. `Map.tick` emits `map-loaded` after the reference frame is ready and
    calls `Core.markReady_()` to resolve the one-shot `ready` Promise.
 

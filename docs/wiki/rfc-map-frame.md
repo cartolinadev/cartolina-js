@@ -87,9 +87,9 @@ frame entry point.
 - Per-frame `tokenExpiration` polling — slated for removal by
   "REFACTOR: replace per-frame token expiry polling with a
   `transformRequest`-style auth hook" in [backlog.md](backlog.md).
-- `MapInterface` deletion — independent track, see
+- `MapInterface` deletion — completed independent track, see
   "REFACTOR: delete `MapInterface`" in [backlog.md](backlog.md).
-  Can run in parallel with this RFC's work; no design overlap.
+  No design overlap with this RFC.
 - The large surface-of-getters on `LegacyMap` (`addSurface`,
   `addGlue`, `addBoundLayer`, `addFreeLayer`, named views, credits,
   body/SRS/reference-frame registries). These are part of the map
@@ -398,10 +398,9 @@ runs after each.
 
 Steps 1, 2, 3 can land as separate small PRs before steps 4–5.
 Steps 4 and 5 are paired (single PR or back-to-back) because they
-touch the same draw / update flow. The independent
-`MapInterface` deletion track (see [backlog.md](backlog.md)) can
-land in
-parallel.
+touch the same draw / update flow. The independent `MapInterface`
+deletion track is already complete; no frame-loop design changed with
+that deletion.
 
 ## 5. Verification
 

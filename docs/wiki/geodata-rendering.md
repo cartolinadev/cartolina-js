@@ -501,7 +501,7 @@ declaration at line 485 can be removed.
 **`export-geometry` / `WORKER_TYPE_POINT_GEOMETRY` /
 `WORKER_TYPE_LINE_GEOMETRY`.**
 The geometry-export feature stores raw world-space vertex data in
-`renderer.geometries` for retrieval via `interface.js`. No test style
+`renderer.geometries` for retrieval via legacy map methods. No test style
 uses `export-geometry: true`, and no demo application queries the
 result. It may be retained for external API callers but has no tests
 and no style-level usage.

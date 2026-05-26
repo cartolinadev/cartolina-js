@@ -138,7 +138,7 @@ export class Renderer {
     /** @deprecated Legacy alias for `overrides`. */
     get debug(): Overrides { return this.overrides; }
 
-    geometries = {} // no clue, see MapInterface.getGeodataGeometry
+    geometries = {} // no clue, see legacy geodata geometry lookup
 
     stencilLineState: Optional<GpuDevice.State> = null;
     backgroundState: Optional<GpuDevice.State> = null;

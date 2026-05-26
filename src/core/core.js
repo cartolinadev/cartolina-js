@@ -3,7 +3,6 @@ import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
 
 import MapPosition from './map/position';
-import MapInterface from './map/interface';
 import * as utils from './utils/utils';
 import {utilsUrl} from './utils/url';
 import {platform} from './utils/platform';
@@ -152,7 +151,6 @@ var Core = function(element, config) {
     this.config.style = config.style;
 
     this.map = null;
-    this.mapInterface = null;
     this.renderer = new Renderer(this, this.element, this.config);
     this.contextLost = false;
 
@@ -207,7 +205,6 @@ Core.prototype.loadMapFromStyle = async function(style) {
                     this.config, this.configStorage);
     this.map.outerMap = this.outerMap;
 
-    this.mapInterface = new MapInterface(this.map);
     this.setConfigParams(this.configStorage);
 
     if (this.config.position) {
@@ -251,7 +248,6 @@ Core.prototype.loadMap = function(path) {
         //this.map = new Map(this, data, path, this.config, this.configStorage);
         this.map = Map.createMapFromMapConfig(this, data, path, this.config, this.configStorage);
         this.map.outerMap = this.outerMap;
-        this.mapInterface = new MapInterface(this.map);
         this.setConfigParams(this.map.browserOptions, true);
         this.setConfigParams(this.configStorage);
 
@@ -387,7 +383,6 @@ Core.prototype.destroyMap = function() {
     if (this.map) {
         this.map.kill();
         this.map = null;
-        this.mapInterface = null;
         this.callListener('map-unloaded', {});
     }
 };
@@ -395,11 +390,6 @@ Core.prototype.destroyMap = function() {
 
 Core.prototype.getMap = function() {
     return this.map;
-};
-
-
-Core.prototype.getMapInterface = function() {
-    return this.mapInterface;
 };
 
 

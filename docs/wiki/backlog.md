@@ -312,7 +312,7 @@ scheduled for deletion.
    `LegacyMap.tick` for the loader / worker / deferred-event work
    not yet promoted. Audited and relocated post-`55a34f27`
    additions on `LegacyMap` (`drawChannel`, overlay registry,
-   `initFrame`, position accessors). `MapInterface` deletion runs
+   `initFrame`, position accessors). `MapInterface` deletion completed
    as an independent track — see the dedicated entry below.
 
 3. Implement the new unified traversal per [rfc-draw-traversal.md](rfc-draw-traversal.md).
@@ -382,53 +382,32 @@ Background on the legacy stack:
 ## REFACTOR: delete `MapInterface`
 
 **Opened:** 2026-05-25
-**Status:** open — independent track, no design overlap with
+**Status:** done — 2026-05-26, no design overlap with
 [rfc-map-frame.md](rfc-map-frame.md)
 
 ### Goal
 
-Delete `src/core/map/interface.js`. Today it is a thin layer that
-delegates 69 methods to `LegacyMap` (after the render-slot removal in
-commit `ff70938e`). `Viewer` reaches it via the `legacyMapInterface_`
-getter.
+Delete `src/core/map/interface.js`. It was a thin layer that delegated
+69 methods to `LegacyMap` after the render-slot removal in commit
+`ff70938e`. `Viewer` reached it via the `legacyMapInterface_` getter.
 
-### Plan
+### Result
 
-For each method `Viewer` calls via `legacyMapInterface_`:
-
-- If the same capability is already on `Map`, route the call through
-  `map_` instead.
-- If not, either promote it to a typed `Map` (or `Viewer`) method, or
-  route directly to `legacyMap_.method()` if the promotion is not
-  trivial yet.
-
-Once no `Viewer` caller remains, delete `interface.js` and the
-`legacyMapInterface_` getter on `Viewer`.
-
-The 69 methods break down into clear groups and can land as one PR
-per group:
-
-- `get*Info` queries (`getCreditInfo`, `getViewInfo`,
-  `getBoundLayerInfo`, `getFreeLayerInfo`, `getSurfaceInfo`,
-  `getSrsInfo`).
-- Coordinate conversion (`convertCoords`,
-  `convertCoordsFromNavToPublic`, `convertPositionHeightMode`,
-  `convertPositionViewMode`).
-- Registry add / remove (`addFreeLayer`, `removeFreeLayer`,
-  `addBoundLayer`, `removeBoundLayer`, with their option pairs).
-- Position / view (`setPosition`, `getPosition`, `setView`,
-  `getView`, `getViews`).
-- Reference frame / SRS (`getReferenceFrame`, `getSrses`).
-- Loader and miscellaneous (`setLoaderSuspended`, `redraw`,
-  `getConfigParam`).
+`Core.mapInterface` and `Core.getMapInterface()` were removed.
+`Browser.getMap()` now returns `Core.map` (`LegacyMap`) directly.
+Wrapper-only conveniences still used by browser UI, autopilot,
+measure controls, and inspector radar moved onto `LegacyMap`.
+`Viewer.createGeodata()`, `Viewer.addFreeLayer()`, and
+`Viewer.removeFreeLayer()` now route through typed `Map` methods.
+Coordinate conversion and hit-testing methods on typed `Map` call the
+loaded `LegacyMap` directly.
 
 ### Why a separate item
 
-The deletion is mechanical but not small. It targets `interface.js`
-exclusively and does not interact with the frame-loop relocation
-covered by [rfc-map-frame.md](rfc-map-frame.md). Keeping it as an
-independent track avoids inflating the RFC's scope and lets the two
-streams run in parallel.
+The deletion was mechanical but not small. It targeted `interface.js`
+exclusively and did not interact with the frame-loop relocation covered
+by [rfc-map-frame.md](rfc-map-frame.md). Keeping it as an independent
+track avoided inflating the RFC's scope.
 
 ---
 
@@ -454,15 +433,13 @@ instead, allowing the `core` shim to be deleted.
 |---|---|
 | `CoreInterface` | **Deleted** — replaced by `Map` |
 | `Core` | Private in `Map.core_`; pending absorption |
-| `MapInterface` | Pending — first methods to promote onto `Map` |
+| `MapInterface` | **Deleted** — wrapper methods moved to `Map` / `LegacyMap` |
 | `RendererInterface` | Pending — second set |
 | `LegacyMap` (JS half of `Map`) | Pending — long-term absorption |
 | `Renderer` | Pending — private implementation of `Map` |
 
 ### Next steps
 
-- Promote `MapInterface` hit-testing and coordinate-conversion methods
-  onto `Map`; update `Viewer` callers; shrink `_mapInterface` usage.
 - Once all `Viewer` callers go through `Map`, delete the `core` getter.
 
 ---
@@ -503,8 +480,8 @@ The first audit found no remaining path where a public constructor can
 return an object without its construction-owned engine object. Remaining
 nullable returns mostly describe runtime states:
 
-- `Core.map` and `Core.mapInterface` are `null` before async style or
-  mapConfig load finishes, and after `destroyMap()` / `unloadMap()`.
+- `Core.map` is `null` before async style or mapConfig load finishes,
+  and after `destroyMap()` / `unloadMap()`.
 - `Map` and `Viewer` coordinate conversion and hit/depth methods return
   `null` when the loaded map cannot answer the query.
 - Atmosphere access returns `null` when the loaded style has no
@@ -520,7 +497,7 @@ has already been returned.
 
 ### Next audit targets
 
-- `src/core/map.ts`: document which `core_.mapInterface?.` calls mean
+- `src/core/map.ts`: document which `core_.map?.` calls mean
   unloaded-map state.
 - `src/core/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
   that allow renderer settings before a map has loaded.
@@ -614,9 +591,9 @@ created, but the route is not visible.
 
 Style-based maps do not use the legacy `view.freeLayers` activation path.
 `MapStyle.refreshSequences()` builds `map.freeLayerSequence` from
-`style.layers`. A runtime call to `MapInterface.addFreeLayer()` only adds the
-free layer object to `map.freeLayers`; it does not add a style layer entry, so
-the renderer never sees it in `map.freeLayerSequence`.
+`style.layers`. A runtime call to `LegacyMap.addFreeLayer()` only adds
+the free layer object to `map.freeLayers`; it does not add a style layer
+entry, so the renderer never sees it in `map.freeLayerSequence`.
 
 Legacy demos add a free layer in two steps:
 
@@ -644,7 +621,7 @@ side effect of `Viewer.addFreeLayer()`.
 | `demos/core/index.html` | Demonstrates the missing runtime overlay path |
 | `src/browser/viewer.ts` | `createGeodata` / `addFreeLayer` public methods |
 | `src/core/map/style.ts` | Builds `freeLayerSequence` from `style.layers` |
-| `src/core/map/interface.js` | Legacy `addFreeLayer` registers only the object |
+| `src/core/map/map.js` | Legacy `addFreeLayer` registers only the object |
 
 ---
 
@@ -1144,7 +1121,7 @@ incorrect: `map.camera.position` is the correct reference, and
 | File | Note |
 |---|---|
 | `src/browser/viewer.ts` | `checkVisibility()` — the broken method |
-| `src/core/map/interface.js:232` | `convertCoordsFromPhysToCameraSpace` |
+| `src/core/map/map.js` | `convertCoordsFromPhysToCameraSpace` |
 | `src/core/map/convert.js:258` | `getPositionCameraSpaceCoords` (flagged comment) |
 | `src/core/map/camera.js` | `MapCamera.update()` — shows GL eye is at `[0,0,0]` |
 | `src/core/renderer/gpu/shaders.js:850` | shader writes `camDist = length(camSpacePos.xyz)` |
