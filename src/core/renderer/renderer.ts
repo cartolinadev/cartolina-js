@@ -30,6 +30,13 @@ import backgroundTileFrag from './shaders/background.frag.glsl';
 import shaderTileDepthVert from './shaders/tile-depth.vert.glsl';
 import shaderTileDepthFrag from './shaders/tile-depth.frag.glsl';
 
+import shaderTileMaskFootprintVert from
+    './shaders/tile-mask-footprint.vert.glsl';
+import shaderTileMaskFootprintFrag from
+    './shaders/tile-mask-footprint.frag.glsl';
+import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
+import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
+
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 
@@ -179,6 +186,8 @@ export class Renderer {
         tile?: GpuProgram,
         background?: GpuProgram
         tileDepth?: GpuProgram
+        tileMaskFootprint?: GpuProgram
+        tileMaskBlit?: GpuProgram
         frustum?: GpuProgram
     }
 
@@ -188,6 +197,8 @@ export class Renderer {
     // texture unit indices
     textureIdxs!: {
         atmosphere: GLenum
+        tileMask: GLenum
+        maskBlit: GLenum
     }
 
     // legacy programs
@@ -529,6 +540,50 @@ programTileDepth() : GpuProgram {
     return this.programs.tileDepth;
 }
 
+
+/**
+ * Tile UV-footprint mask program, lazy initialization.
+ */
+programTileMaskFootprint(): GpuProgram {
+
+    if (this.programs.tileMaskFootprint)
+        return this.programs.tileMaskFootprint;
+
+    __DEV__ && console.log('Initializing programs.tileMaskFootprint');
+
+    this.programs.tileMaskFootprint = new GpuProgram(
+        this.gpu,
+        shaderTileMaskFootprintVert,
+        shaderTileMaskFootprintFrag,
+        'shader-tile-mask-footprint',
+        {},
+        {});
+
+    return this.programs.tileMaskFootprint;
+}
+
+
+/**
+ * Tile mask OR/blit program, lazy initialization.
+ */
+programTileMaskBlit(): GpuProgram {
+
+    if (this.programs.tileMaskBlit) return this.programs.tileMaskBlit;
+
+    __DEV__ && console.log('Initializing programs.tileMaskBlit');
+
+    this.programs.tileMaskBlit = new GpuProgram(
+        this.gpu,
+        shaderTileMaskBlitVert,
+        shaderTileMaskBlitFrag,
+        'shader-tile-mask-blit',
+        {},
+        { uSource: this.textureIdxs.maskBlit });
+
+    return this.programs.tileMaskBlit;
+}
+
+
 /**
  * Frustum overlay program, lazy initialization.
  */
@@ -619,11 +674,16 @@ initTextureIdxs() {
     this.textureIdxs = {
 
         atmosphere: maxFragTextures - TextureIdxOffsets.Atmosphere,
+        tileMask: maxFragTextures - TextureIdxOffsets.TileMask,
+        maskBlit: maxFragTextures - TextureIdxOffsets.MaskBlit,
     };
 
     // diagnostics
     __DEV__ && utils.logOnce(
         `Atmosphere uses texture unit ${this.textureIdxs.atmosphere}.`);
+    __DEV__ && utils.logOnce(
+        `Tile masks use texture units ${this.textureIdxs.tileMask} `
+        + `and ${this.textureIdxs.maskBlit}.`);
 }
 
 /**
@@ -2521,7 +2581,9 @@ type Core = {
 
 enum TextureIdxOffsets {
 
-    Atmosphere = -1
+    Atmosphere = -1,
+    TileMask = 2,
+    MaskBlit = 3,
 }
 
 const UboFrameSize = 320;

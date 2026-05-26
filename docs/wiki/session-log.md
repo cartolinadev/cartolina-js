@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-26 — implement draw traversal phase 1
+
+Implemented phase 1 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+for the default terrain path. `MapSurfaceTree.draw()` now routes
+topdown terrain rendering through `src/core/map/draw-traversal.ts`,
+which recursively descends the legacy-selected terrain surface and
+renders fallback tiles on backtrack.
+
+Added UV-space R8 mask infrastructure in
+`src/core/map/draw-traversal-mask.ts`: one node mask per recursion
+depth, one scratch mask, texture-space render-target binding through
+`GpuDevice`, a footprint shader, and a non-eroding OR/blit shader.
+`TileRenderRig` color and depth draws accept an optional mask texture,
+and `footprint()` renders tile coverage from `aTexCoords2`.
+
+The first visual run showed coarse fallback tiles overdrawing fine
+children. The cause was the footprint pass inheriting terrain draw
+state: culling and depth testing left incomplete mask coverage. The
+footprint pass now disables culling, depth test, and depth writes.
+
+Current state: no watertight metadata, no erosion, and no combined
+multi-surface active set yet. Phase 1 was verified with
+`npx tsc --noEmit` and fresh webpack screenshots on port 8088 for the
+dev side of `simple-terrain`, `complex-terrain`, and `full-terrain`.
+Production comparison requests had transient upstream tile failures.
+
 ## 2026-05-26 — process draw traversal RFC review round 8
 
 Processed [rfc-draw-traversal.md](rfc-draw-traversal.md) review round

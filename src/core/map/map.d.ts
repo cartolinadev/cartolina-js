@@ -312,8 +312,10 @@ export default class Map {
     isAtmospheric(): boolean;
 
     gpuCache: {
+        skipCostCheck: boolean;
         insert(destructor: () => void, cost: number): object;
         remove(item: object): void;
         updateItem(item: object): void;
+        checkCost(): void;
     };
 }

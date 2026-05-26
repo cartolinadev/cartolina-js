@@ -58,6 +58,15 @@ One `TileRenderRig` resolves tile resources, tracks readiness, builds
 the style layer stack, collapses bump maps into the normal map when
 possible, and renders color and depth passes for one terrain tile.
 
+The default terrain draw path now enters
+`src/core/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.
+It performs recursive backtracking over the legacy-selected terrain
+surface and uses UV-space R8 masks from
+`src/core/map/draw-traversal-mask.ts` to stop fallback tiles from
+overdrawing finer child coverage. The mask path is the phase-1 client
+implementation from [rfc-draw-traversal.md](rfc-draw-traversal.md):
+no watertight metadata, no erosion, and no multi-surface active set yet.
+
 This replaced the old terrain draw-command path that was split across:
 
 - `MapDrawTiles.drawMeshTile`

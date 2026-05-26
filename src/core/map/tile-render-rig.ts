@@ -257,8 +257,9 @@ export class TileRenderRig {
      * Process layer stack into an actual draw call, using the tile shader
      * program.
      * @cameraPos camera position in world coordinates
+     * @maskTexture optional UV-space coverage mask to discard fragments
      */
-    draw(cameraPos: math.vec3) {
+    draw(cameraPos: math.vec3, maskTexture?: GpuTexture) {
 
         if (!this.uboLayers) {
             console.warn(
@@ -295,6 +296,9 @@ export class TileRenderRig {
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
+        // uMask
+        this.bindMask(program, maskTexture);
+
         //program.setSampler(
         //    'material.normalMap', this.normalMap.getGpuTexture());
 
@@ -316,8 +320,9 @@ export class TileRenderRig {
     /**
      * Draw the tile into an auxiliary depth buffer.
      * @cameraPos camera position in world coordinates
+     * @maskTexture optional UV-space coverage mask to discard fragments
      */
-    drawDepth(cameraPos: math.vec3) {
+    drawDepth(cameraPos: math.vec3, maskTexture?: GpuTexture) {
 
         const program = this.renderer.programTileDepth();
         this.renderer.gpu.useProgram2(program);
@@ -329,12 +334,45 @@ export class TileRenderRig {
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
         program.setFloatArray('uClip', splitMask);
 
+        // uMask
+        this.bindMask(program, maskTexture);
+
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
         if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
+    }
+
+    /**
+     * Render this tile's geographic footprint into the active mask target.
+     */
+    footprint() {
+
+        const program = this.renderer.programTileMaskFootprint();
+        this.renderer.gpu.useProgram2(program);
+
+        let attrNames: GpuMesh.AttrNames = {
+            position: 'aPosition',
+            uvs2: 'aTexCoords2'
+        };
+
+        const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
+        gpuSubmesh.draw2(program, attrNames);
+    }
+
+
+    private bindMask(program: GpuProgram, maskTexture?: GpuTexture) {
+
+        const maskEnabled = !!maskTexture;
+        program.setBool('uMaskEnabled', maskEnabled);
+
+        if (!maskTexture) return;
+
+        const unit = this.renderer.textureIdxs.tileMask;
+        this.renderer.gpu.bindTexture(maskTexture, unit);
+        program.setSampler('uMask', unit);
     }
 
     /**

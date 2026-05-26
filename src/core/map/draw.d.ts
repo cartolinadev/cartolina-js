@@ -8,6 +8,7 @@
  */
 
 import type GpuDevice from '../renderer/gpu/device';
+import type MapDrawTiles from './draw-tiles';
 
 export default class MapDraw {
 
@@ -16,6 +17,10 @@ export default class MapDraw {
     drawTileState: GpuDevice.State;
     tileBuffer: unknown[];
     zbufferOffset: number | null;
+    drawCounter: number;
+    texelSizeFit: number;
+    maxGpuUsed: number;
+    drawTiles: MapDrawTiles;
 
     initFrame(): void;
     drawMonoliticGeodata(layer: unknown): void;

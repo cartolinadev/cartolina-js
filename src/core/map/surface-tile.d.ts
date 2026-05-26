@@ -5,6 +5,21 @@ import type MapTexture from './texture';
 import type MapBoundLayer from './bound-layer';
 import type Map from './map';
 
+export type LegacyMetatile = {
+    drawCounter: number;
+    useVersion: number;
+};
+
+export type LegacyMetanode = {
+    metatile: LegacyMetatile;
+    bbox: unknown;
+    bbox2: number[];
+    pixelSize: number;
+    hasChild(index: number): boolean;
+    hasChildren(): boolean;
+    hasGeometry(): boolean;
+};
+
 /**
  * A node in the terrain tile tree.
  *
@@ -25,6 +40,11 @@ export class MapSurfaceTile {
     /** The surface that owns the mesh and texture resources. */
     resourceSurface: MapSurface;
 
+    /** Surface selected by the legacy metanode lookup. */
+    surface: MapSurface | null;
+
+    metanode: LegacyMetanode | null;
+
     surfaceMesh: MapMesh;
 
     splitMask: [number, number, number, number] | null;
@@ -33,7 +53,22 @@ export class MapSurfaceTile {
 
     boundLayers: { [key: string]: MapBoundLayer };
 
+    children: [MapSurfaceTile | null, MapSurfaceTile | null,
+        MapSurfaceTile | null, MapSurfaceTile | null];
+
+    texelSize: number;
+    distance: number;
+    drawCounter: number;
+
     kill(): void;
+    isMetanodeReady(tree: unknown, priority: number): boolean;
+    bboxVisible(
+        id: [number, number, number],
+        bbox: unknown,
+        cameraPos: [number, number, number],
+        node: LegacyMetanode,
+    ): boolean;
+    updateTexelSize(): void;
 }
 
 export default MapSurfaceTile;

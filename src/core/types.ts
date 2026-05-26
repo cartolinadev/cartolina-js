@@ -35,6 +35,7 @@ export interface CoreConfig {
     mapBenevolentMargins?: boolean;
     mapForceFrameTime?: number;
     mapSplitMargin?: number;
+    mapTraversalMaskResolution?: number;
     mapLabelFreeMargins?: [number, number, number, number];
     mapRefreshCycles?: number;
 }

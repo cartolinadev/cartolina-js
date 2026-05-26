@@ -69,3 +69,6 @@ correction commit.
 - Surround multi-line statements with a blank line before and after.
   This applies to imports, function calls, declarations — any statement
   that spans more than one line.
+- In-block and beginning-of-block single-line comments (`//`) describing
+  non-obvious logic are good practice and actively encouraged. Use them
+  freely. Write in plain engineering prose with no jargon.

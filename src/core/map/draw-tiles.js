@@ -27,7 +27,10 @@ var MapDrawTiles = function(map, draw) {
 };
 
 
-MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu) {
+MapDrawTiles.prototype.drawSurfaceTile = function(
+    tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad,
+    doNotCheckGpu, readiness, maskTexture) {
+
     if (this.stats.gpuRenderUsed >= this.draw.maxGpuUsed) {
         return false;
     }
@@ -141,9 +144,11 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     let curRigReady = false;
 
                     // is the tile rig ready? Draw it. If not, try the last rig
+                    readiness = readiness || this.readinessFull;
+
                     if (this.map.outerMap.drawChannel === 'color')
                         curRigReady = curRig.isReady(
-                            this.readinessFull,
+                            readiness,
                             priority_, readyOptions);
 
                     if (this.map.outerMap.drawChannel === 'depth')
@@ -176,7 +181,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         if (this.map.outerMap.drawChannel === 'color') {
 
                             // draw something
-                            rigToDraw.draw(cameraPos);
+                            rigToDraw.draw(cameraPos, maskTexture);
 
                             // process layer credits (only active layers)
                             let activeLayerIds = rigToDraw.activeLayerIds();
@@ -198,7 +203,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         }
 
                         if (this.map.outerMap.drawChannel === 'depth')
-                            rigToDraw.drawDepth(cameraPos);
+                            rigToDraw.drawDepth(cameraPos, maskTexture);
                     }
 
                     ret = rigToDraw;

@@ -1185,6 +1185,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapXhrImageLoad':               this.config.mapXhrImageLoad = utils.validateBool(value, false); break;
     case 'mapLoadMode':                   this.config.mapLoadMode = utils.validateString(value, 'topdown'); break;
     case 'mapGeodataLoadMode':            this.config.mapGeodataLoadMode = utils.validateString(value, 'fit'); break;
+    case 'mapTraversalMaskResolution':    this.config.mapTraversalMaskResolution = utils.validateNumber(value, 16, 4096, 256); break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
     case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
     case 'mapGridUnderSurface':           this.config.mapGridUnderSurface = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
@@ -1284,6 +1285,7 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapXhrImageLoad':               return this.config.mapXhrImageLoad;
     case 'mapLoadMode':                   return this.config.mapLoadMode;
     case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
+    case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
     case 'mapGridMode':                   return this.config.mapGridMode;
     case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
     case 'mapGridUnderSurface':           return this.config.mapGridUnderSurface;

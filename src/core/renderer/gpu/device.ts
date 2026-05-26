@@ -433,6 +433,51 @@ setAuxiliaryRenderTarget(
 
 
 /**
+ * Build and install an independent framebuffer render target.
+ *
+ * Texture-space passes use this for draw targets that do not share the
+ * canvas projection or logical size. The target's apparent size is the
+ * texture storage size.
+ *
+ * @param texture Framebuffer-backed texture to draw into.
+ * @param viewportSize Texture storage size in physical pixels.
+ * @returns The newly installed texture-space render target.
+ */
+setTextureSpaceRenderTarget(
+    texture: GpuTexture,
+    viewportSize: Readonly<GpuDevice.NumberPair>,
+): GpuDevice.RenderTarget {
+
+    const target: GpuDevice.RenderTarget = {
+        kind: 'texture-space',
+        texture,
+        viewportSize: [...viewportSize],
+        apparentSize: [...viewportSize],
+    };
+
+    this.setRenderTarget(target);
+    return target;
+}
+
+
+/**
+ * Restrict drawing inside the current render target.
+ *
+ * This is used by texture-space blit passes that render into a known
+ * sub-rectangle of the already bound target.
+ *
+ * @param x Left edge in target pixels.
+ * @param y Bottom edge in target pixels.
+ * @param width Width in target pixels.
+ * @param height Height in target pixels.
+ */
+setViewport(x: number, y: number, width: number, height: number): void {
+
+    this.gl.viewport(x, y, width, height);
+}
+
+
+/**
  * Clear only the active render target's depth buffer.
  */
 clearDepth(): void {
@@ -463,7 +508,8 @@ clearColorAndDepth(color: GpuDevice.Color = GpuDevice.Black): void {
     const gl = this.gl;
 
     const isIntegerTarget =
-        this.renderTarget_.kind === 'framebuffer' &&
+        (this.renderTarget_.kind === 'framebuffer'
+            || this.renderTarget_.kind === 'texture-space') &&
         this.renderTarget_.texture.usesIntegerColorAttachment();
 
     if (isIntegerTarget) {
@@ -900,9 +946,22 @@ export type FramebufferTarget = RenderTargetBase & {
 }
 
 /**
+ * Drawing destination backed by an independent texture framebuffer.
+ */
+export type TextureSpaceTarget = RenderTargetBase & {
+
+    /**
+     * Texture whose framebuffer is bound when this target is active.
+     */
+    texture: GpuTexture,
+
+    kind: 'texture-space'
+}
+
+/**
  * Active drawing destination tracked by `GpuDevice`.
  */
-export type RenderTarget = CanvasTarget | FramebufferTarget
+export type RenderTarget = CanvasTarget | FramebufferTarget | TextureSpaceTarget
 
 } // export namespace GpuDevice
 

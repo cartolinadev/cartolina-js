@@ -783,6 +783,14 @@ Private methods usually do not need JSDoc unless their functionality is
 non-obvious. But if they do, it must be kept up to date; stale
 documentation is worse than none.
 
+**In-block and beginning-of-block inline comments** (single-line `//`)
+are good practice and actively encouraged. Use them to describe
+non-obvious logic: a subtle invariant, a hidden constraint, a
+workaround for a specific behaviour, or a step whose purpose is not
+plain from the identifiers alone. Write in plain engineering prose
+with no jargon (see [No jargon](#no-jargon)). One line is almost
+always enough; if more is needed, use a `/* ... */` block comment.
+
 **Adding JSDoc to existing code is encouraged** when you encounter a
 function or method whose behaviour is non-trivial or not obvious from
 its name and signature, and where a JSDoc comment is absent. This

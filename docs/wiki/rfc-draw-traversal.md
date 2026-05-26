@@ -1126,8 +1126,8 @@ are not routed through the terrain traversal as one-surface sequences.
 
 Implementation phases:
 
-1. Bring up the base client traversal with no watertight metadata and
-   no erosion:
+1. **Implemented, client-selected terrain surface.** Bring up the base
+   client traversal with no watertight metadata and no erosion:
 
    - add configurable mask resources: one R8 `node_mask` texture per
      active recursion depth, one R8 `scratch` texture, and no-projection
@@ -1139,8 +1139,9 @@ Implementation phases:
    - implement the recursive terrain traversal in TypeScript,
      targeting `drawSurface`, the current default terrain path.
 
-   Manual checkpoint: run the standard screenshot checks and inspect
-   `simple-terrain`, `complex-terrain`, and `full-terrain`.
+   Manual checkpoint completed for the dev side of `simple-terrain`,
+   `complex-terrain`, and `full-terrain` on a fresh webpack server.
+   Production comparison requests had transient upstream tile failures.
 
 2. Extend fallback cadence.
 
@@ -2215,3 +2216,4 @@ implementation unit with manual inspection after bring-up, and later
 capabilities have separate manual checkpoints. The old traversal may
 coexist only as validation scaffolding and is removed after the new path
 and geodata fitted-frontier path are settled.
+
