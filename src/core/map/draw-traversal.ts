@@ -18,9 +18,7 @@ import type { GpuDevice } from '../renderer/gpu/device';
  * backtracking traversal and UV-space coverage masks. It still uses the
  * legacy single selected surface stored on `MapSurfaceTile`; the RFC's
  * multi-surface active-set traversal builds on this path in the next
- * phase. The caller (typed `Map.drawTerrainRecursive_`) already wraps
- * the descent in `withNavigationCamera`, so render calls here can use
- * `map.camera.position` directly for both color and depth channels.
+ * phase.
  *
  * @param map Typed `Map` owning the frame.
  * @param tree Terrain surface tree to draw.
@@ -61,6 +59,7 @@ export function drawTerrainTraversal(
     legacyMap.gpuCache.skipCostCheck = true;
 
     traverseNode({
+        map,
         tree,
         tile: root,
         depth: 0,
@@ -76,11 +75,6 @@ export function drawTerrainTraversal(
     stats.usedNodes = counters.usedNodes;
     stats.processedNodes = counters.processedNodes;
     stats.processedMetatiles = counters.processedMetatiles;
-
-    // map parameter is reserved for the phase-2 typed call sites
-    // (combined descent over plain surfaces). Keep the reference here
-    // so the dispatch signature does not need to change again.
-    void map;
 }
 
 
@@ -173,22 +167,23 @@ function renderTile(
     const priority = tile.id[0] * tile.distance;
     const maskTexture = maskPool.nodeMask(depth);
 
-    // The outer `withNavigationCamera` wrap is installed by the typed
-    // `Map.drawTerrainRecursive_` caller. Both color and depth channels
-    // read `map.camera.position` directly from the legacy map.
     legacyMap.renderer.gpu.setRenderTarget(screenTarget);
-    const rig = legacyMap.draw.drawTiles.drawSurfaceTile(
-        tile,
-        node,
-        legacyMap.camera.position,
-        tile.texelSize,
-        priority,
-        false,
-        false,
-        false,
-        readiness,
-        maskTexture,
-    );
+
+    // SSE and culling ran under the selection camera; only the draw
+    // call needs the live camera position.
+    const rig = context.map.withNavigationCamera(() =>
+        legacyMap.draw.drawTiles.drawSurfaceTile(
+            tile,
+            node,
+            legacyMap.camera.position,
+            tile.texelSize,
+            priority,
+            false,
+            false,
+            false,
+            readiness,
+            maskTexture,
+        ));
 
     if (!isRig(rig)) return false;
 
@@ -242,6 +237,7 @@ type Counters = {
 };
 
 type NodeContext = {
+    map: Map;
     tree: MapSurfaceTree;
     tile: MapSurfaceTile;
     depth: number;

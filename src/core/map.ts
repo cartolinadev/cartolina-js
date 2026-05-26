@@ -1087,11 +1087,6 @@ class Map {
     /**
      * Recursive terrain draw selected by `mapTerrainTraversal`.
      *
-     * Wraps the whole descent in one `withNavigationCamera` call. The
-     * descent function reads tile state in the selection camera (its
-     * outer `withSelectionCamera` caller in `Map.draw()`) and issues
-     * draw calls under the navigation camera installed here.
-     *
      * @param tree Terrain surface tree to draw.
      */
     private drawTerrainRecursive(tree: MapSurfaceTree): void {
@@ -1112,10 +1107,7 @@ class Map {
                 this.core_.renderer, resolution);
         }
 
-        this.withNavigationCamera(() => {
-
-            drawTerrainTraversal(this, tree, this.terrainMaskPool_!);
-        });
+        drawTerrainTraversal(this, tree, this.terrainMaskPool_!);
     }
 
     // -----------------------------------------------------------------

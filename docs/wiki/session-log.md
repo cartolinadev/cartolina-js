@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-05-27 — fix: withNavigationCamera scope in draw traversal
+
+`withNavigationCamera` was wrapping the entire tile descent in
+`drawTerrainRecursive`, causing SSE evaluation and bbox culling to run
+with the live (navigation) camera. When freeze mode is active the
+selection camera holds the frozen view; running SSE under the
+navigation camera meant freeze had no effect on tile selection.
+
+Fixed by removing the wrap from `drawTerrainRecursive` (the outer
+`withSelectionCamera` in `Map.draw()` already covers the descent) and
+adding a per-call `withNavigationCamera` wrap inside `renderTile`,
+around `drawSurfaceTile` only. SSE and culling now use the selection
+camera; draw calls use the live camera position.
+
 ## 2026-05-27 — phase 1 follow-up: docs, naming, and code notes
 
 Added JSDoc to `traverseNode` in `draw-traversal.ts`, documenting the
