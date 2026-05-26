@@ -1177,21 +1177,31 @@ Implementation phases:
      and slightly reduced map responsiveness. The tradeoff is
      expected and resolves in phase 6.
 
-2. Combined descent over plain surfaces.
+2. **Implemented.** Combined descent over plain surfaces.
 
-   Replace the single-surface driver with the §2.1 algorithm: query
-   each active plain surface's metatile tree independently via
-   `getMetatile()` + `getNode()` at each `(lod, x, y)` position,
-   compute child active sets per quadrant, propagate active status
-   into recursion, and iterate the surface sequence front-to-back at
-   the leaf and fallback render steps. Still no watertight metadata;
-   v5 metatiles only.
+   The single-surface driver is replaced by the §2.1 algorithm.
+   `Map.resolvePlainSurfaceTrees` constructs a per-plain-surface
+   helper `MapSurfaceTree` (each tile auto-selects its surface via
+   `freeLayerSurface`, bypassing the legacy multi-surface merge in
+   `MapSurfaceTile.checkSurface`); the cache is refreshed on every
+   draw from `tree.plainSurfaceList`. `drawTerrainTraversal` walks
+   those trees in lockstep over one combined sequence of tile
+   positions, computes child active sets per quadrant, propagates
+   active status into recursion, and iterates the surface sequence
+   front-to-back at the leaf and fallback render steps. Glues and
+   virtual surfaces are ignored; `tree.hasVirtualSurfaces` triggers
+   a one-off console warning, and non-geodata free layers under a
+   mapConfig view trigger a one-off warning per layer name. No
+   watertight metadata yet; v5 metatiles only.
 
-   Manual checkpoint: a single-surface map renders identically to
-   phase 1; a two-plain-surface map, or a virtual-surface map
-   rerouted to its constituent plain surfaces per §7, renders the
-   seam through mask compositing rather than glues, and no visible
-   regressions appear under progressive load.
+   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
+   and `full-terrain` render with no visible regression on a fresh
+   webpack server. `legacy-benatky` (two plain surfaces plus a glue
+   in the legacy path) renders the available plain surfaces through
+   mask compositing rather than glues; transient upstream 500 errors
+   on the second surface's root metatile demonstrated graceful
+   degradation — the working surface fills the visible area where
+   the unready surface would have contributed.
 
 3. Extend fallback cadence.
 

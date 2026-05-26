@@ -1,5 +1,46 @@
 # Session log
 
+## 2026-05-27 — implement draw traversal phase 2 (combined descent)
+
+Implemented phase 2 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+combined recursive descent over plain surfaces.
+
+- `surface-sequence.ts` now also produces `tree.plainSurfaceList`
+  (alphabetically sorted, front surface at the last index) and
+  `tree.hasVirtualSurfaces`. These two fields are populated for
+  mapConfig maps before the virtual-surface collapse, and again in
+  `style.ts:refreshSequences` for style-based maps (where the field
+  set is the same as `surfaceOnlySequence` because style maps have
+  no glues or virtual surfaces).
+- The typed `Map` owns `plainSurfaceTrees_`, a cache of single-surface
+  helper `MapSurfaceTree`s keyed by surface id. Each helper tree is
+  constructed with the plain surface as `freeLayerSurface` to make
+  every tile auto-select that surface and avoid the legacy
+  multi-surface merge in `MapSurfaceTile.checkSurface`. The cache
+  refreshes against `tree.plainSurfaceList` on every draw; entries
+  for surfaces that have left the view are killed and dropped.
+- `draw-traversal.ts` is rewritten to walk the helper trees in
+  lockstep. At each `(lod, x, y)` the active set is the surfaces
+  whose metanode is ready and not culled. Descent fires when any
+  active surface still needs finer detail and has a child; child
+  active sets are built per quadrant. On backtrack each surface
+  renders against the depth-local node mask in front-to-back order
+  (`active[last]` first). Natural leaves use full readiness; surfaces
+  that could descend deeper render as fallback (per RFC §2.1 steps
+  4–5; phase 2 keeps cadence=1, matching phase 1).
+- One-off console warnings: when `hasVirtualSurfaces` is true the new
+  path emits a single notice that the constituents render via mask
+  compositing rather than the matched virtual surface. Non-geodata
+  free layers under a mapConfig view warn once per layer name; the
+  style.ts code path cannot author such layers and is skipped.
+
+Manual checkpoint: `simple-terrain`, `complex-terrain`, and
+`full-terrain` render with no visible regression. `legacy-benatky`
+exercises the multi-surface path; transient upstream 500s on the
+benatky surface's root metatile showed the new traversal degrading
+to the available surface, while the production legacy renderer
+shows a black canvas under the same outage.
+
 ## 2026-05-27 — fix: withNavigationCamera scope in draw traversal
 
 `withNavigationCamera` was wrapping the entire tile descent in

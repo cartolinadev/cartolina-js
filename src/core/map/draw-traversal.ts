@@ -12,42 +12,69 @@ import type { GpuDevice } from '../renderer/gpu/device';
 
 
 /**
- * Runs the first RFC draw-traversal implementation for terrain.
+ * Runs the multi-surface RFC draw-traversal for terrain.
  *
- * This phase replaces the default top-down terrain draw with a recursive
- * backtracking traversal and UV-space coverage masks. It still uses the
- * legacy single selected surface stored on `MapSurfaceTile`; the RFC's
- * multi-surface active-set traversal builds on this path in the next
- * phase.
+ * Each plain surface in `plainTrees` owns a private single-surface
+ * helper tree (see `Map.resolvePlainSurfaceTrees`). The descent walks
+ * those trees in lockstep over one combined sequence of tile positions:
+ * at each `(lod, x, y)` it asks every still-active surface what it
+ * knows about the position, decides whether at least one of them needs
+ * a finer LOD, and recurses into quadrants only the active set can
+ * still contribute to.
+ *
+ * On backtrack each surface that is at its natural leaf at the current
+ * node draws against the accumulated mask; surfaces that still have
+ * finer children render too, supplying fallback coverage. The mask
+ * propagates back to the parent through `maskPool.blitChildToParent`.
+ * Surfaces render front-to-back (last index first) so the front
+ * surface claims pixels before the back ones can.
+ *
+ * Glues and virtual surfaces are never consulted. Watertight metadata
+ * is not yet honoured — those phases come in step 4 and 6 of the RFC
+ * rollout.
  *
  * @param map Typed `Map` owning the frame.
- * @param tree Terrain surface tree to draw.
+ * @param plainTrees Per-plain-surface helper trees, ordered
+ *     back-to-front (front surface at the last index).
  * @param maskPool Mask pool owned by the typed `Map`.
  */
 
 export function drawTerrainTraversal(
     map: Map,
-    tree: MapSurfaceTree,
+    plainTrees: MapSurfaceTree[],
     maskPool: DrawTraversalMaskPool,
 ): void {
 
-    const legacyMap = tree.map;
+    if (plainTrees.length === 0) return;
+
+    const legacyMap = plainTrees[0].map;
     const draw = legacyMap.draw;
     const stats = legacyMap.stats;
     const renderer = legacyMap.renderer;
     const screenTarget = renderer.gpu.currentRenderTarget;
-    const root = tree.surfaceTree;
-
-    if (!root.isMetanodeReady(tree, 0)) return;
-    if (!root.metanode) return;
-
     const cameraPos = legacyMap.camera.position;
-    if (!root.bboxVisible(root.id, root.metanode.bbox, cameraPos,
-            root.metanode)) {
-        return;
+
+    // Activate every surface whose root metanode is ready, in view,
+    // and not culled. The order in `plainTrees` is back-to-front; we
+    // preserve it in the active set and reverse on render.
+    const rootActive: ActiveSurface[] = [];
+
+    for (const tree of plainTrees) {
+
+        const tile = tree.surfaceTree;
+        if (!tile.isMetanodeReady(tree, 0)) continue;
+        if (!tile.metanode) continue;
+        if (!tile.bboxVisible(tile.id, tile.metanode.bbox, cameraPos,
+                tile.metanode)) {
+            continue;
+        }
+
+        tile.updateTexelSize();
+        rootActive.push({ tree, tile });
     }
 
-    root.updateTexelSize();
+    if (rootActive.length === 0) return;
+
     draw.drawCounter++;
 
     const counters: Counters = {
@@ -60,12 +87,13 @@ export function drawTerrainTraversal(
 
     traverseNode({
         map,
-        tree,
-        tile: root,
+        active: rootActive,
         depth: 0,
         screenTarget,
         maskPool,
         counters,
+        texelSizeFit: draw.texelSizeFit,
+        cameraPos,
     });
 
     renderer.gpu.setRenderTarget(screenTarget);
@@ -79,86 +107,150 @@ export function drawTerrainTraversal(
 
 
 /**
- * Perform one step of the recursive terrain descent for a single tile
- * node. Recurses into child quadrants whose metatiles are ready, then
- * renders the node itself as a natural leaf (all children covered) or
- * as a fallback (at least one child is not yet available).
+ * Recurses into one tile position and returns whether the subtree
+ * produced any rendered coverage.
  *
- * @param context - State bundle for this node: tile, depth, render
- *   targets, mask pool, and per-frame counters.
- * @returns `true` if this subtree produced any rendered coverage.
- *   The caller uses this to decide whether to blit this node's mask
- *   slice into the parent's mask slice via `blitChildToParent`.
- *   Returning `false` means nothing was drawn here and no blit is
- *   needed.
+ * `active` carries the surfaces that are still candidates at this
+ * node: each one has a ready, visible metanode at this `(lod, x, y)`.
+ * Surfaces drop out of the active set as they fail visibility, lose
+ * their metanode, or reach a position their tree no longer has a
+ * child for.
+ *
+ * The returned boolean tells the caller whether to blit this node's
+ * mask slice into the parent's mask slice. Returning `false` means
+ * nothing was drawn here and no blit is needed.
+ *
+ * @param context Frame-wide state plus the active surface set and the
+ *     current recursion depth.
+ * @returns `true` if any surface drew at or below this node.
  */
 function traverseNode(context: NodeContext): boolean {
 
-    const { tree, tile, depth, maskPool } = context;
-    const legacyMap = tree.map;
-    const draw = legacyMap.draw;
-    const node = tile.metanode;
+    const { active, depth, maskPool, texelSizeFit } = context;
 
-    if (!node) return false;
+    if (active.length === 0) return false;
 
-    recordNode(context, node);
-
-    const cameraPos = legacyMap.camera.position;
-    if (!tile.bboxVisible(tile.id, node.bbox, cameraPos, node)) return false;
-
-    context.counters.usedNodes++;
-    tile.updateTexelSize();
+    // The bbox-visibility check has already been applied to every
+    // entry of `active` by the caller (root setup or the child loop
+    // below); we only record stats and clear the local mask here.
+    recordSurfaces(context);
     maskPool.clearNode(depth);
 
-    const needsFiner = node.hasChildren()
-        && tile.texelSize > draw.texelSizeFit;
+    // Combined descent decision: any active surface that still has a
+    // child and would benefit from finer detail forces descent. We
+    // descend into quadrants whose child set is non-empty.
+    let canDescend = false;
+    for (const entry of active) {
+
+        if (entry.tile.metanode!.hasChildren()
+                && entry.tile.texelSize > texelSizeFit) {
+
+            canDescend = true;
+            break;
+        }
+    }
+
     let hasChildCoverage = false;
 
-    if (needsFiner) {
+    if (canDescend) {
 
         for (let quadrant = 0; quadrant < 4; quadrant++) {
 
-            if (!node.hasChild(quadrant)) continue;
+            const childActive = collectChildActive(context, quadrant);
+            if (childActive.length === 0) continue;
 
-            const child = getReadyChild(tree, tile, quadrant);
-            if (!child || !child.metanode) continue;
-
-            const childCovered = traverseNode({
+            const childContext: NodeContext = {
                 ...context,
-                tile: child,
+                active: childActive,
                 depth: depth + 1,
-            });
+            };
 
+            const childCovered = traverseNode(childContext);
             if (!childCovered) continue;
 
-            // collect accumulated mask from the child (if any)
             maskPool.blitChildToParent(depth + 1, depth, quadrant);
             hasChildCoverage = true;
         }
     }
 
-    const naturalLeaf = !needsFiner;
+    // Render the surfaces front-to-back. The last entry is the front
+    // surface (lowest `viewSurfaceIndex`), so iterate in reverse.
+    // A surface at its natural leaf at this node renders
+    // unconditionally (RFC §2.1 step 4). Surfaces that could still go
+    // deeper render as fallback coverage (RFC §2.1 step 5; phase 2
+    // treats every inner node as a fallback LOD, matching phase 1
+    // behaviour — the fallback cadence config arrives in phase 3).
     let hasCoverage = hasChildCoverage;
 
-    // Natural leaves render with full-readiness; inner-node fallbacks
-    // render with fallback-readiness so they do not pull optional
-    // resources that would slow down leaf loads (RFC §2.4).
-    if (naturalLeaf) {
-        hasCoverage = renderTile(context, ReadinessFull) || hasCoverage;
-    } else {
-        hasCoverage = renderTile(context, ReadinessFallback) || hasCoverage;
+    for (let i = active.length - 1; i >= 0; i--) {
+
+        const entry = active[i];
+        const node = entry.tile.metanode!;
+        const naturalLeaf = !(node.hasChildren()
+            && entry.tile.texelSize > texelSizeFit);
+        const readiness = naturalLeaf ? ReadinessFull : ReadinessFallback;
+
+        if (renderSurface(context, entry, readiness)) {
+            hasCoverage = true;
+        }
     }
 
     return hasCoverage;
 }
 
 
-function renderTile(
+/**
+ * Builds the active surface set for one child quadrant of the current
+ * node. For each currently-active surface that knows it has a child
+ * at this quadrant, this fetches the child tile, runs the metanode
+ * readiness check, and applies frustum culling. Surfaces with no
+ * child at this quadrant simply drop out — their parent-level
+ * coverage already includes this quadrant geographically and they
+ * will be drawn at the current node, not pushed further down.
+ */
+function collectChildActive(
     context: NodeContext,
+    quadrant: number,
+): ActiveSurface[] {
+
+    const { active, cameraPos } = context;
+    const childActive: ActiveSurface[] = [];
+
+    for (const entry of active) {
+
+        if (!entry.tile.metanode!.hasChild(quadrant)) continue;
+
+        const childTile = getReadyChild(entry.tree, entry.tile, quadrant);
+        if (!childTile || !childTile.metanode) continue;
+
+        if (!childTile.bboxVisible(childTile.id, childTile.metanode.bbox,
+                cameraPos, childTile.metanode)) {
+
+            continue;
+        }
+
+        childTile.updateTexelSize();
+        childActive.push({ tree: entry.tree, tile: childTile });
+    }
+
+    return childActive;
+}
+
+
+/**
+ * Draws one surface at the current node using the depth-local node
+ * mask as the read-and-write coverage. Returns whether anything was
+ * actually drawn; the caller uses this to track whether the subtree
+ * produced coverage.
+ */
+function renderSurface(
+    context: NodeContext,
+    entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
 ): boolean {
 
-    const { tree, tile, depth, screenTarget, maskPool } = context;
+    const { tree, tile } = entry;
+    const { depth, screenTarget, maskPool } = context;
     const legacyMap = tree.map;
     const node = tile.metanode;
 
@@ -193,6 +285,12 @@ function renderTile(
 }
 
 
+/**
+ * Returns the child tile at `quadrant` if it is allocated and its
+ * metanode for this position is ready; otherwise null. Also pulls the
+ * height extents forward from the parent metanode when the child's
+ * metatile pre-dates the v4 navtile-free encoding.
+ */
 function getReadyChild(
     tree: MapSurfaceTree,
     tile: MapSurfaceTile,
@@ -210,17 +308,28 @@ function getReadyChild(
 }
 
 
-function recordNode(context: NodeContext, node: LegacyMetanode): void {
+/**
+ * Counts each active surface's node and the first appearance of each
+ * metatile this frame. The first-appearance check is per-metatile, not
+ * per-surface, because the same metatile binary backs all nodes in a
+ * metatile-aligned block.
+ */
+function recordSurfaces(context: NodeContext): void {
 
-    const drawCounter = context.tree.map.draw.drawCounter;
     const counters = context.counters;
+    const drawCounter = context.active[0].tree.map.draw.drawCounter;
 
-    counters.processedNodes++;
+    for (const entry of context.active) {
 
-    if (node.metatile.drawCounter === drawCounter) return;
+        counters.processedNodes++;
+        counters.usedNodes++;
 
-    node.metatile.drawCounter = drawCounter;
-    counters.processedMetatiles++;
+        const metatile = entry.tile.metanode!.metatile;
+        if (metatile.drawCounter === drawCounter) continue;
+
+        metatile.drawCounter = drawCounter;
+        counters.processedMetatiles++;
+    }
 }
 
 
@@ -230,21 +339,31 @@ function isRig(value: TileRenderRig | boolean | null): value is TileRenderRig {
 }
 
 
+/** One participating surface at a tile position during traversal. */
+type ActiveSurface = {
+    tree: MapSurfaceTree;
+    tile: MapSurfaceTile;
+};
+
+
 type Counters = {
     processedNodes: number;
     processedMetatiles: number;
     usedNodes: number;
 };
 
+
 type NodeContext = {
     map: Map;
-    tree: MapSurfaceTree;
-    tile: MapSurfaceTile;
+    active: ActiveSurface[];
     depth: number;
     screenTarget: GpuDevice.RenderTarget;
     maskPool: DrawTraversalMaskPool;
     counters: Counters;
+    texelSizeFit: number;
+    cameraPos: [number, number, number];
 };
+
 
 const ReadinessFull: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',
@@ -255,3 +374,9 @@ const ReadinessFallback: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',
     desired: 'fallback',
 };
+
+
+// LegacyMetanode is re-exported only to keep this module's imports
+// aligned with the surface-tile contract; the local helpers above use
+// the metanode through `MapSurfaceTile.metanode` only.
+export type { LegacyMetanode };

@@ -217,6 +217,12 @@ export default class Map {
     /** Regenerates the free-layer and surface sequences from the view. */
     refreshView(): void;
 
+    /** Returns the current `MapView`. Shape owned by `view.js`. */
+    getCurrentView(): {
+        surfaces: Record<string, unknown>;
+        freeLayers: Record<string, unknown>;
+    };
+
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;
     addCredit(id: string, credit: MapCredit): void;

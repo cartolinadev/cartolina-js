@@ -20,32 +20,52 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
     tree.surfaceSequenceIndices = []; //probably not used
     tree.surfaceOnlySequence = [];
 
+    // plainSurfaceList and hasVirtualSurfaces feed the new draw
+    // traversal (rfc-draw-traversal.md §7). The plain list contains
+    // the non-glue, non-virtual surfaces in the same alphabetical
+    // sort order used by surfaceSequence below (back-to-front: front
+    // surface at the last index). hasVirtualSurfaces records that a
+    // mapConfig.virtualSurfaces entry matched the active surface set
+    // so the new traversal can emit a one-off warning while still
+    // rendering against the real constituent surfaces.
+    tree.plainSurfaceList = [];
+    tree.hasVirtualSurfaces = false;
+
     var vsurfaces: Record<string, any> = {}, surface, glue;
     var vsurfaceCount = 0;
     var list = [], listId, i, li, j , lj, key;
     var strId = [];
-        
+
     //add surfaces to the list
     for (key in view.surfaces) {
         surface = this.map.getSurface(key);
-        
+
         if (surface) {
             strId.push(surface.id);
             vsurfaceCount++;
-            vsurfaces[key] = surface.index + 1; //add one to avoid zero 
-            //list.push(["" + (surface.index + 1), surface, true]);    
-            list.push([ [(surface.index + 1)], surface, true, false]); //[surfaceId, surface, isSurface, isAlien]    
+            vsurfaces[key] = surface.index + 1; //add one to avoid zero
+            //list.push(["" + (surface.index + 1), surface, true]);
+            list.push([ [(surface.index + 1)], surface, true, false]); //[surfaceId, surface, isSurface, isAlien]
         }
     }
 
+    // Collect the plain surfaces before the virtual-surface collapse
+    // below can replace the list with a single MapVirtualSurface entry.
+    // Sort alphabetically by id; the surfaceSequence sort below uses
+    // the same comparison key, so the relative order of plain surfaces
+    // matches between the two outputs.
+    var plainSurfaces: any[] = list.map(item => item[1]);
+    plainSurfaces.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    tree.plainSurfaceList = plainSurfaces;
 
     if (vsurfaceCount >= 1) { //do we have virtual surface?
-        strId.sort(); 
+        strId.sort();
         let strId_ = strId.join(';');
 
         surface = this.map.virtualSurfaces[strId_];
         if (surface) {
-            list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]    
+            tree.hasVirtualSurfaces = true;
+            list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]
             vsurfaceCount = 1;
         }
     }

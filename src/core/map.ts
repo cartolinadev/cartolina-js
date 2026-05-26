@@ -110,6 +110,23 @@ class Map {
      */
     private terrainMaskPool_: DrawTraversalMaskPool | null = null;
 
+    /**
+     * Per-plain-surface helper trees used by the new combined draw
+     * traversal (rfc-draw-traversal.md §2.1). Keyed by surface id.
+     * Each tree is a single-surface `MapSurfaceTree` constructed with
+     * the plain surface as its `freeLayerSurface`, which makes every
+     * tile in the tree auto-select that surface and avoids the legacy
+     * multi-surface merge in `MapSurfaceTile.checkSurface`. The cache
+     * is refreshed against `tree.plainSurfaceList` on every draw;
+     * entries for surfaces that have left the view are dropped.
+     */
+    private plainSurfaceTrees_: globalThis.Map<string, MapSurfaceTree>
+        = new globalThis.Map();
+
+    /** One-off warning state for the new draw traversal. */
+    private virtualSurfaceWarned_ = false;
+    private freeLayerWarned_ = new Set<string>();
+
     // -----------------------------------------------------------------
     // Lifecycle
     // -----------------------------------------------------------------
@@ -1087,7 +1104,16 @@ class Map {
     /**
      * Recursive terrain draw selected by `mapTerrainTraversal`.
      *
-     * @param tree Terrain surface tree to draw.
+     * Maintains a per-plain-surface helper tree cache and feeds the
+     * combined-descent traversal in `draw-traversal.ts`. Glues and
+     * virtual surfaces are excluded — see `rfc-draw-traversal.md` §7.
+     * Emits one-off console warnings when the active view contains a
+     * matching virtual-surface entry or a non-geodata free layer that
+     * the new path does not render.
+     *
+     * @param tree Legacy terrain surface tree. Used as the source of
+     *     `plainSurfaceList` and `hasVirtualSurfaces`; the new path
+     *     does not descend it.
      */
     private drawTerrainRecursive(tree: MapSurfaceTree): void {
 
@@ -1107,7 +1133,113 @@ class Map {
                 this.core_.renderer, resolution);
         }
 
-        drawTerrainTraversal(this, tree, this.terrainMaskPool_!);
+        const plainTrees = this.resolvePlainSurfaceTrees(tree);
+        if (plainTrees.length === 0) return;
+
+        this.warnOnUnsupportedConfig(tree);
+
+        drawTerrainTraversal(this, plainTrees, this.terrainMaskPool_!);
+    }
+
+    /**
+     * Resolves `tree.plainSurfaceList` to a list of per-surface helper
+     * trees, allocating new ones on demand and dropping cache entries
+     * whose surface has left the view. Returns the trees in
+     * `plainSurfaceList` order (front surface at the last index).
+     */
+    private resolvePlainSurfaceTrees(
+        tree: MapSurfaceTree,
+    ): MapSurfaceTree[] {
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return [];
+
+        const cache = this.plainSurfaceTrees_;
+        const surfaces = tree.plainSurfaceList ?? [];
+        const result: MapSurfaceTree[] = [];
+        const live = new Set<string>();
+
+        for (const surface of surfaces) {
+
+            const id = surface.id;
+            live.add(id);
+
+            let surfaceTree = cache.get(id);
+            if (!surfaceTree) {
+
+                // Construct a single-surface tree by passing the plain
+                // surface as `freeLayerSurface`. This short-circuits
+                // the multi-surface logic in `checkSurface` and gives
+                // each tile in the tree direct, per-surface metatile
+                // lookups.
+                surfaceTree = new MapSurfaceTree(legacyMap, true, surface);
+                cache.set(id, surfaceTree);
+            }
+
+            result.push(surfaceTree);
+        }
+
+        // Drop helper trees for surfaces that are no longer in view.
+        for (const id of cache.keys()) {
+
+            if (!live.has(id)) {
+
+                cache.get(id)!.surfaceTree?.kill();
+                cache.delete(id);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * One-off console warnings for view configurations the new
+     * traversal does not fully support. The warning fires once per
+     * unique offender per session.
+     */
+    private warnOnUnsupportedConfig(tree: MapSurfaceTree): void {
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return;
+
+        // Virtual surfaces (`mapConfig.virtualSurfaces`) cannot route
+        // through mask compositing yet. The plain constituent surfaces
+        // still render; this notice flags the skipped glue logic.
+        if (tree.hasVirtualSurfaces && !this.virtualSurfaceWarned_) {
+
+            this.virtualSurfaceWarned_ = true;
+            console.warn(
+                '[draw-traversal] mapConfig.virtualSurfaces entry'
+                + ' matched the active view. The recursive traversal'
+                + ' ignores virtual surfaces and glues; the plain'
+                + ' constituent surfaces render via mask compositing.');
+        }
+
+        // Non-geodata free layers behave like independent tiled
+        // surfaces in the legacy path. The legacy `getCurrentView()`
+        // is only meaningful for map-config maps; for style-based
+        // maps it forwards to a non-existent `style.legacyView()`.
+        // Style-based maps cannot author non-geodata free layers, so
+        // the warning is mapConfig-only.
+        if (legacyMap.style) return;
+
+        const view = legacyMap.getCurrentView?.();
+        if (!view || !view.freeLayers) return;
+
+        for (const key in view.freeLayers) {
+
+            const layer = legacyMap.getFreeLayer(key);
+            if (!layer) continue;
+            if (layer.geodata) continue;
+            if (this.freeLayerWarned_.has(key)) continue;
+
+            this.freeLayerWarned_.add(key);
+            console.warn(
+                '[draw-traversal] free layer "%s" is not a geodata'
+                + ' layer; the recursive terrain traversal does not'
+                + ' render non-geodata free layers.',
+                key);
+        }
     }
 
     // -----------------------------------------------------------------
