@@ -5,23 +5,6 @@ This is the landing page for the shared cartolina-js wiki.
 Use it as the starting point when orienting yourself in the codebase,
 then branch into more specific documents as needed.
 
-## Structure
-
-Use a three-level structure:
-
-1. `index.md` and `architecture.md` provide broad orientation and
-   ownership.
-2. Subsystem pages describe ownership, invariants, and links for one
-   area of the runtime, such as `gpu-subsystem.md` or
-   `geodata-rendering.md`.
-3. Topic pages describe focused mechanics, formats, diagnostics, or
-   gotchas, such as `render-targets.md`, `normal-encoding.md`, or
-   `label-regression-diagnostics.md`.
-
-Keep broad architecture notes out of topic pages, and keep low-level
-mechanics out of `architecture.md` unless they affect ownership across
-subsystems.
-
 ## Table of contents
 
 ### Overview
@@ -45,12 +28,6 @@ subsystems.
 
 ### RFCs — active
 
-- [rfc-map-frame.md](rfc-map-frame.md) — move the per-frame entry
-  point onto typed `Map`: `MapDraw.drawMap` becomes `Map.draw`,
-  `LegacyMap.update` becomes `Map.tick` with a residual
-  `LegacyMap.tick`. Promotes step 2 of the
-  "replace legacy map draw path" backlog item; audits the recent
-  additions on `LegacyMap` for promotion
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design
@@ -62,30 +39,8 @@ subsystems.
   `core.js` to a typed `EventBus<EventMap>` class as part of the
   `core.js` suppression track; `EventTarget` evaluated and rejected
 
-### RFCs — implemented
+### Data model
 
-- [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md) — removed the OGC
-  3D Tiles / VTS octree pipeline and the removable legacy tile shader
-  family (`drawSubmesh`, `progTile*`); implemented 2026-05-23
-- [rfc-bump-bake.md](rfc-bump-bake.md) — collapse bump layers into the
-  normal map inside `TileRenderRig`, eliminating per-frame texture
-  units, UBO slots, and shader iterations for each collapsed bump layer;
-  implemented 2026-05-21
-
-### Subsystem and feature notes
-
-- [api-and-lifecycle.md](api-and-lifecycle.md) — public API direction,
-  construction, async readiness, configuration routing, events, teardown,
-  and CSS runtime dependency
-- [rendering-architecture.md](rendering-architecture.md) — map/renderer
-  ownership boundary, `TileRenderRig`, legacy draw code, and
-  illumination notes
-- [testing-notes.md](testing-notes.md) — non-obvious regression-test
-  behaviour, including transient upstream tile-source failures
-- [normal-encoding.md](normal-encoding.md) — octahedral RG normal
-  encoding: why it is kept for full-sphere coverage and uniform precision,
-  the nonlinearity problem when blending encoded values, and how
-  `TextureBlend` oct-normal mode fixes it for bump-layer collapse
 - [reference-frames.md](reference-frames.md) — reference frame concepts,
   the melown2015 and QSC families, client loading path, and tileserver
   production
@@ -99,22 +54,39 @@ subsystems.
 - [tileserver-metatile-production.md](tileserver-metatile-production.md) —
   how the tileserver generates metatiles on demand (VRTWO, tile index,
   serve-time GDAL warp), where the cost lies, and the structural problem
+
+### Geodata and labels
+
+- [geodata-rendering.md](geodata-rendering.md) — current geodata
+  render path: tile traversal, job collection, and queued job drawing
 - [label-styling-engine.md](label-styling-engine.md) — reference notes
   about the shared lettering style engine, expression domains, and
   textured line patterns
-- [geodata-rendering.md](geodata-rendering.md) — current geodata
-  render path: tile traversal, job collection, and queued job drawing
-- [label-regression-diagnostics.md](label-regression-diagnostics.md) —
-  workflow for empirical label-pipeline regression tracing
-- [render-targets.md](render-targets.md) — render-target ownership,
-  auxiliary framebuffer policy, and camera/logical-size rules
+
+### Rendering
+
+- [rendering-architecture.md](rendering-architecture.md) — map/renderer
+  ownership boundary, `TileRenderRig`, legacy draw code, and
+  illumination notes
 - [gpu-subsystem.md](gpu-subsystem.md) — WebGL/GPU subsystem ownership,
   `GpuDevice` fixed-function state, and pass-boundary responsibilities
+- [render-targets.md](render-targets.md) — render-target ownership,
+  auxiliary framebuffer policy, and camera/logical-size rules
 - [rendering-sizes.md](rendering-sizes.md) — canvas, framebuffer,
   logical, physical, and visual-scale size relationships in the renderer
 - [renderer-coordinate-spaces.md](renderer-coordinate-spaces.md) —
   renderer projection, target-local 2D coordinates, and legacy
   screen-space draw helper terminology
+- [normal-encoding.md](normal-encoding.md) — octahedral RG normal
+  encoding: why it is kept for full-sphere coverage and uniform precision,
+  the nonlinearity problem when blending encoded values, and how
+  `TextureBlend` oct-normal mode fixes it for bump-layer collapse
+
+### API, navigation, demos, and testing
+
+- [api-and-lifecycle.md](api-and-lifecycle.md) — public API direction,
+  construction, async readiness, configuration routing, events, teardown,
+  and CSS runtime dependency
 - [trajectory-behavior.md](trajectory-behavior.md) — flight duration and
   phase structure in `MapTrajectory`: base rules, nadir-departure patch,
   and extent-proximity short-flight patch
@@ -122,17 +94,25 @@ subsystems.
   the waypoint demo
 - [relief-lab-spec.md](relief-lab-spec.md) — design and behavior notes
   for the relief-lab demo
+- [label-regression-diagnostics.md](label-regression-diagnostics.md) —
+  workflow for empirical label-pipeline regression tracing
+- [testing-notes.md](testing-notes.md) — non-obvious regression-test
+  behaviour, including transient upstream tile-source failures
+
+### Legacy VTS concepts
+
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept
-- [archaeology-replay-inspector.md](archaeology-replay-inspector.md) —
-  the VTS-era replay inspector tool: purpose, architecture, five-file
-  touchpoint map, the 2019 bug that silently broke it, and the freeze
-  mode concept that supersedes it
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
   VTS storage layout, the aggregated tileset driver, how virtual surfaces
   are built and served, and the two-generation history of the alien flag
 - [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
   `surfaceSequence` and why it is currently vestigial
+
+### RFC archive
+
+- [rfcs-implemented.md](rfcs-implemented.md) — completed RFCs,
+  newest first
 
 ## Other documentation sources
 
@@ -167,15 +147,20 @@ For frontend/backend interface work, consult the backend repository:
   This is the authoritative resource-definition documentation for the
   tileserver-served resource types consumed by `cartolina-js`.
 
-## Navigation note
+## Writing guidelines
 
-The wiki is still evolving from a small set of long-form notes into a
-more hierarchical reference manual.
+The intended structure is three levels:
 
-For now:
+1. `index.md` and `architecture.md` — broad orientation and ownership.
+2. Subsystem pages — ownership, invariants, and links for one area of
+   the runtime, such as `gpu-subsystem.md` or `geodata-rendering.md`.
+3. Topic pages — focused mechanics, formats, diagnostics, or gotchas,
+   such as `render-targets.md`, `normal-encoding.md`, or
+   `label-regression-diagnostics.md`.
 
-- start here for navigation
-- use [architecture.md](architecture.md) for system-level understanding
-- use narrow pages for feature- or subsystem-specific findings
-- use [session-log.md](session-log.md) when you need historical
-  implementation context
+Keep broad architecture notes out of topic pages, and keep low-level
+mechanics out of `architecture.md` unless they affect ownership across
+subsystems.
+
+The current structure mixes levels 2 and 3. The split into separate subsystem 
+and topic sections has not happened yet.

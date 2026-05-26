@@ -1226,9 +1226,7 @@ whose free layers are geodata-type (they go through `drawMonoliticGeodata`,
 not `processDrawBuffer`).
 
 The tool will not be carried into the rewritten draw pipeline (see
-backlog). Full archaeology notes in
-[archaeology-replay-inspector.md](archaeology-replay-inspector.md).
-Freeze mode added to backlog as the intended replacement.
+backlog). Freeze mode added to backlog as the intended replacement.
 
 ## 2026-05-18 — Mark dead stardome/atmo draw path; fix background GL state
 

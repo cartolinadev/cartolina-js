@@ -54,9 +54,7 @@ map draws at a given position.
 
 ### Why this replaces the replay inspector
 
-The replay inspector (see
-[archaeology-replay-inspector.md](archaeology-replay-inspector.md))
-required a snapshot step followed by a separate display step, with five
+The replay inspector required a snapshot step followed by a separate display step, with five
 different S buttons capturing different slices of data. The freeze
 approach is simpler: the tile descent runs normally against a fixed
 viewpoint, so Drawn Tiles and Traced Nodes fall out naturally without any
@@ -306,20 +304,16 @@ scheduled for deletion.
    `TileRenderRig` is wired into the depth pass with dedicated shaders
    and a typed clear/readback API.
 
-2. Move the map draw function and the frame loop onto typed `Map`.
-   **Promoted to [rfc-map-frame.md](rfc-map-frame.md).**
+2. ~~Move the map draw function and the frame loop onto typed `Map`.~~
+   **Done** (2026-05-26) — see [rfc-map-frame.md](rfc-map-frame.md).
 
-   The RFC moves `MapDraw.drawMap` into `Map.draw` and
-   `LegacyMap.update` into `Map.tick`, with a residual
+   `MapDraw.drawMap` moved into `Map.draw`;
+   `LegacyMap.update` moved into `Map.tick`, with a residual
    `LegacyMap.tick` for the loader / worker / deferred-event work
-   that has not been promoted yet. The "simplified draw function"
-   wording of the original brief is satisfied by earlier shrink
-   refactors; the remaining win is the relocation and TypeScript
-   rewrite, not further size reduction. Also covers the audit and
-   relocation of post-`55a34f27` additions on `LegacyMap`
-   (`drawChannel`, overlay registry, `initFrame`, position
-   accessors). `MapInterface` deletion runs as an independent
-   track — see the dedicated entry below.
+   not yet promoted. Audited and relocated post-`55a34f27`
+   additions on `LegacyMap` (`drawChannel`, overlay registry,
+   `initFrame`, position accessors). `MapInterface` deletion runs
+   as an independent track — see the dedicated entry below.
 
 3. Implement the new unified traversal per [rfc-draw-traversal.md](rfc-draw-traversal.md).
 
