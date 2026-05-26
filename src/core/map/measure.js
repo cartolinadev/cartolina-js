@@ -496,6 +496,11 @@ MapMeasure.prototype.getSpatialDivisionNodeAndExtents2 = function(id, res, divis
 };
 
 
+/**
+ * @param {[number, number, number]} id tile id as [lod, x, y]
+ * @param {number=} height physical-corner sampling height
+ * @returns {import('../types').NodeInformation | null}
+ */
 MapMeasure.prototype.getNodeInformation = function(id, height) {
     if (!id || id.length < 3) {
         return null;

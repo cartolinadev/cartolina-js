@@ -48,23 +48,26 @@ export type HeightMode = 'fix' | 'float';
  */
 export type Lod = number;
 
+export type Vec2 = [number, number];
+export type Vec3 = [number, number, number];
+
 /** Result of `MapMeasure.getNodeInformation()` for one spatial division node. */
 export type NodeInformation = {
-    id: number[];
+    id: Vec3;
     height: number;
     srs: MapSrs;
     extents: {
-        ll: number[];
-        ur: number[];
+        ll: Vec2;
+        ur: Vec2;
     };
     physicalCorners: {
-        ul: number[];
-        ur: number[];
-        lr: number[];
-        ll: number[];
+        ul: Vec3;
+        ur: Vec3;
+        lr: Vec3;
+        ll: Vec3;
     };
     divisionNode: unknown;
-    upVector: [number, number, number];
+    upVector: Vec3;
 };
 
 /**

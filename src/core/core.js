@@ -384,6 +384,7 @@ Core.prototype.destroyMap = function() {
     if (this.map) {
         this.map.kill();
         this.map = null;
+        if (this.outerMap) this.outerMap.freeze = null;
         this.callListener('map-unloaded', {});
     }
 };
