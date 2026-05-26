@@ -279,6 +279,12 @@ Map.prototype.getSrses = function() {
 };
 
 
+Map.prototype.getSrsInfo = function(srsId) {
+    var srs = this.getSrs(srsId);
+    return srs ? srs.getInfo() : {};
+};
+
+
 Map.prototype.addBody = function(id, body) {
     this.bodies[id] = body;
 };
@@ -296,6 +302,11 @@ Map.prototype.getBodies = function() {
 
 Map.prototype.setReferenceFrame = function(referenceFrame) {
     this.referenceFrame = referenceFrame;
+};
+
+
+Map.prototype.getReferenceFrame = function() {
+    return this.referenceFrame.getInfo();
 };
 
 

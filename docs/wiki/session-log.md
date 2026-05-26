@@ -2,17 +2,19 @@
 
 ## 2026-05-26 — delete MapInterface
 
-Deleted `src/core/map/interface.js` and removed `Core.mapInterface`
-plus `Core.getMapInterface()`. `Browser.getMap()` now returns the
-loaded `LegacyMap` directly. Wrapper-only methods still used by
-browser UI, autopilot, measure controls, and inspector radar moved to
-`LegacyMap`; `Viewer` geodata methods now route through typed `Map`.
-Typed `Map` coordinate conversion and hit-testing methods call the
-loaded `LegacyMap` directly.
+Deleted [src/core/map/interface.js](../../src/core/map/interface.js)
+and removed `Core.mapInterface` plus `Core.getMapInterface()`.
+`Browser.getMap()` now returns the loaded `LegacyMap` directly.
+Wrapper-only methods still used by browser UI, autopilot, measure
+controls, and inspector radar moved to `LegacyMap`; `Viewer` geodata
+methods now route through typed `Map`. Typed `Map` coordinate
+conversion and hit-testing methods call the loaded `LegacyMap`
+directly.
 
-This removes the final live dependency on the map interface wrapper.
-The remaining legacy map surface is still migration debt, but there is
-one fewer object between `Viewer`, `Map`, and `LegacyMap`.
+Follow-up: review found that `getReferenceFrame()` and `getSrsInfo()`
+were not ported. Both are called at runtime by `map-observer.js`,
+`search.js`, and `loading.js`. Added to `LegacyMap` and declared in
+[src/core/map/map.d.ts](../../src/core/map/map.d.ts).
 
 Verification: `npx tsc --noEmit` completed cleanly.
 

@@ -402,6 +402,10 @@ measure controls, and inspector radar moved onto `LegacyMap`.
 Coordinate conversion and hit-testing methods on typed `Map` call the
 loaded `LegacyMap` directly.
 
+Post-commit review found two methods not ported from
+`interface.js`: `getReferenceFrame()` and `getSrsInfo()`, both called
+at runtime by the browser UI. Added in a follow-up commit.
+
 ### Why a separate item
 
 The deletion was mechanical but not small. It targeted `interface.js`

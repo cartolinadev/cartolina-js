@@ -276,6 +276,13 @@ export default class Map {
     getBoundLayerById(id: string): MapBoundLayer | undefined;
     getNavigationSrs(): MapSrs;
     getPhysicalSrs(): MapSrs;
+    getSrsInfo(srsId: string): Record<string, unknown>;
+    getReferenceFrame(): {
+        id: string;
+        physicalSrs: string;
+        navigationSrs: string;
+        publicSrs: string;
+    };
     /**
      * Returns terrain distance at a 2D position in the current screen view.
      *
