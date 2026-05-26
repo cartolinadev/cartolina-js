@@ -1,5 +1,11 @@
 # Session log
 
+## 2026-05-26 — list overlay demo in demos index
+
+Added a `Custom overlay` entry to `demos/index.html` between Depth test
+and Waypoint so the existing `demos/overlay/` demo is reachable from
+the demo index page.
+
 ## 2026-05-26 — clarify GPU device initialization state
 
 Follow-up to the freeze frustum depth fix. `GpuDevice` initialization
