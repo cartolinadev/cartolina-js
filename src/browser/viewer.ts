@@ -1,17 +1,5 @@
-/**
- * The primary public API entry point for cartolina-js.
- *
- * `Viewer` is the single object that new applications interact with. It
- * provides a flat, typed method surface for all map operations: lifecycle,
- * camera, rendering controls, coordinate conversion, and hit-testing.
- *
- * It is constructed indirectly through the `map()` or `browser()`
- * factory functions exported from this package. The public type alias for
- * this class is `Map`.
- *
- * Sub-objects from the legacy API (`.map`, `.renderer`) are not part of this
- * class's public interface. Methods are promoted to flat accessors on this
- * class on a case-by-case basis as new applications require them.
+/*
+ * viewer.ts — the public API object for cartolina-js
  */
 
 import Browser from './browser';
@@ -28,14 +16,19 @@ import type { vec3 } from '../core/utils/math';
 
 
 /**
- * The primary public API object returned by the `map()` factory.
- *
+ * The public API object returned by the `map()` factory.
  * Exported as the type alias `Map` from the package index.
  *
- * `legacyMap_` and `_renderer` are temporary bypass points — Viewer
- * reaching past the Map public surface into legacy internals via the
- * `Map.core` migration shim. They disappear as their methods are promoted
- * onto `Map`.
+ * `Viewer` is the single object new applications interact with.
+ * It provides a flat, typed method surface for all map operations:
+ * lifecycle, camera, rendering controls, coordinate conversion, and
+ * hit-testing.
+ *
+ * Do not construct directly — use the `map()` or `browser()`
+ * factory functions. Sub-objects from the legacy API (`.map`,
+ * `.renderer`) are not part of this public interface; methods are
+ * promoted to flat accessors on `Viewer` as applications require
+ * them.
  */
 class Viewer {
 

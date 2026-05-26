@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-26 — rename Browser.core; update class docs and module headers
+
+Renamed `Browser.this.core` to `Browser.this.map`; renamed local
+variable `map` → `legacyMap` in `setConfigParam` to avoid collision.
+
+Updated module-level comments and class JSDoc in `viewer.ts` and
+`renderer.ts`: replaced multi-line module preambles with one-line
+comments; rewrote class descriptions to state architectural role,
+owned-state inventory, and (for `Renderer`) honest note on legacy
+field access patterns from sub-objects. Updated `AGENTS.md` to add
+the module one-liner as item 1 in the class-module ordering rule.
+
 ## 2026-05-26 — delete MapInterface
 
 Deleted [src/core/map/interface.js](../../src/core/map/interface.js)

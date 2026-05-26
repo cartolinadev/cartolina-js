@@ -702,13 +702,15 @@ regular named exports, as in
 For modules that export a class as their default export, lay the file
 out in this order:
 
-1. Imports.
-2. The class (with its JSDoc).
-3. Local, non-exported types used by the class — keep them out of
-   the way at the top so the class is what the reader sees first.
-4. The same-name namespace re-exporting public types (see next
+1. A one-line block comment naming the file and its job (see the
+   **Documentation** section below for the required format).
+2. Imports.
+3. The class (with its JSDoc).
+4. Local, non-exported types used by the class — keep them out of
+   the way so the class is what the reader sees first.
+5. The same-name namespace re-exporting public types (see next
    section).
-5. `export default`.
+6. `export default`.
 
 [atmosphere.ts](src/core/map/atmosphere.ts) and
 [tile-render-rig.ts](src/core/map/tile-render-rig.ts) follow this

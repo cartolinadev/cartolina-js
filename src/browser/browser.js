@@ -39,7 +39,7 @@ var Browser = function(element, config) {
 
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
-    this.core = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
+    this.map = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
     
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
@@ -72,18 +72,18 @@ Browser.prototype.kill = function() {
 
 /** @returns {import('../core/map').default} */
 Browser.prototype.getCore = function() {
-    return this.core;
+    return this.map;
 };
 
 
 /** @returns {import('../core/map/map').default | null} */
 Browser.prototype.getMap = function() {
-    return this.core.core.map;
+    return this.map.core.map;
 };
 
 
 Browser.prototype.getRenderer = function() {
-    return this.core.core.renderer;
+    return this.map.core.renderer;
 };
 
 
@@ -104,12 +104,12 @@ Browser.prototype.getControlMode = function() {
 
 
 Browser.prototype.on = function(name, listener) {
-    return this.core.on(name, listener);
+    return this.map.on(name, listener);
 };
 
 
 Browser.prototype.callListener = function(name, event) {
-    this.core.core.callListener(name, event);
+    this.map.core.callListener(name, event);
 };
 
 
@@ -358,23 +358,23 @@ Browser.prototype.updateUI = function(key) {
 
 
 Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
-    var core = this.core;
-    var map = core ? this.getMap() : null;
-    var renderer = core ? this.getRenderer() : null;
+    var map = this.map;
+    var legacyMap = map ? this.getMap() : null;
+    var renderer = map ? this.getRenderer() : null;
 
     switch (key) {
     case 'pos':                
     case 'position':
         this.config.position = value;
-        if (map) {
-            map.setPosition(this.config.position);
+        if (legacyMap) {
+            legacyMap.setPosition(this.config.position);
         }
         break;
             
     case 'view':
         this.config.view = value;
-        if (map) {
-            map.setView(this.config.view);
+        if (legacyMap) {
+            legacyMap.setView(this.config.view);
         }
         break;
 
@@ -422,7 +422,7 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
     case 'geojsonStyle':           this.config.geojsonStyle =  JSON.parse(value); break;
     case 'rotate':             
         this.config.autoRotate = utils.validateNumber(value, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, 0);
-        if (map && this.autopilot) {
+        if (legacyMap && this.autopilot) {
             this.autopilot.setAutorotate(this.config.autoRotate);
         }
         break;
@@ -434,23 +434,23 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
             ];
         }
 
-        if (map && this.autopilot) {
+        if (legacyMap && this.autopilot) {
             this.autopilot.setAutorotate(this.config.autoRotate);
         }
         break;
     }
 
     if (ignoreCore) {
-        if ((key.indexOf('map') == 0 || key.indexOf('mario') == 0 || key.indexOf('authorization') == 0) && map) {
-            map.setConfigParam(key, value);
+        if ((key.indexOf('map') == 0 || key.indexOf('mario') == 0 || key.indexOf('authorization') == 0) && legacyMap) {
+            legacyMap.setConfigParam(key, value);
         }
 
         if (key.indexOf('renderer') == 0 && renderer) {
             renderer.setConfigParam(key, value);
         }
 
-        if (key.indexOf('debug') == 0 && core) {
-            core.core.setConfigParam(key, value);
+        if (key.indexOf('debug') == 0 && map) {
+            map.core.setConfigParam(key, value);
         }
 
     }
