@@ -1,6 +1,6 @@
 # Non-interactive usage
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 Applications that provide their own navigation UI — input handling,
 camera control, autopilot — can suppress cartolina's built-in mouse,

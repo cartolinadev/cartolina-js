@@ -1,6 +1,6 @@
 # Architecture
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page is the first technical read after `README.md`. It describes the
 main runtime objects, where authored map state comes from, and which older
@@ -25,8 +25,8 @@ The client consumes these resource kinds:
 | Geodata free layers | 3D vector data used for lettering and overlays |
 
 Terrain normal maps are discovered from tileserver metadata. Style files
-do not configure them directly. See `normal-encoding.md` for the stored
-normal format and the bump-map collapse path.
+do not configure them directly. See [normal-encoding.md](normal-encoding.md) for the stored normal
+format and the bump-map collapse path.
 
 ## Principal Classes
 
@@ -87,12 +87,13 @@ The main replacement is the client-side style specification. A
 layers, illumination, atmosphere, and vertical exaggeration. This is the
 composition contract for new applications. The inherited mapConfig path
 still loads legacy maps, but no new authored feature should be added to
-it. See `api-and-lifecycle.md` for the compatibility rules.
+it. See [api-and-lifecycle.md](api-and-lifecycle.md) for the
+compatibility rules.
 
 Reference frames still come from the VTS model, but they are embedded in
 each surface `mapConfig.json` served by the tileserver. The client takes
 the reference frame from the first loaded surface. See
-`reference-frames.md`.
+[reference-frames.md](reference-frames.md).
 
 ## Build And Entry Point
 
@@ -113,7 +114,7 @@ the runtime and are not application entry points.
 Until 2026-05, the repo also built `vts-core.js` from
 `src/core/index.ts`. That headless build was removed; applications that
 need their own input handling now use `interactive: false` on `map()`.
-See `non-interactive.md`.
+See [non-interactive.md](non-interactive.md).
 
 The browser entry imports CSS for runtime behaviour. The styles define
 the full-size map layout and hide the fallback overlay until the engine
@@ -172,10 +173,11 @@ the name describes implementation status, not a logical boundary.
 shader programs, and draw calls. It is also the public surface for
 custom drawing from inside overlay callbacks (`drawImage`,
 `drawLineString`, `createTexture`, `getCanvasSize`). Map code decides
-what to draw; renderer code issues the GPU work. See
-`rendering-architecture.md`, `render-targets.md`, and
-`renderer-coordinate-spaces.md`. Low-level fixed-function GL state is
-covered in `gpu-subsystem.md`.
+what to draw; renderer code issues the GPU work. See [rendering-architecture.md](rendering-architecture.md),
+[render-targets.md](render-targets.md), and
+[renderer-coordinate-spaces.md](renderer-coordinate-spaces.md).
+Low-level fixed-function GL state is covered in
+[gpu-subsystem.md](gpu-subsystem.md).
 
 ## Terrain Data Flow
 
@@ -187,14 +189,16 @@ The client loads metatiles before mesh tiles. Metatiles carry compact
 metanodes that describe tile existence, extents, height range, child
 availability, and screen-space error data. The tile tree uses those
 values for culling, LOD selection, and scheduling. See
-`surface-metatile.md` and `lod-selection.md`.
+[surface-metatile.md](surface-metatile.md) and
+[lod-selection.md](lod-selection.md).
 
 `TileRenderRig` is the current terrain tile renderer. It resolves the
 mesh and layer resources for one tile, tracks readiness, builds the
 style layer stack, and renders terrain color and depth passes. The old
 multi-command mesh draw path has been partly deleted; remaining draw
 modules still serve mapConfig-era paths and geodata. See
-`rendering-architecture.md` and `rfc-draw-traversal.md`.
+[rendering-architecture.md](rendering-architecture.md) and
+[rfc-draw-traversal.md](rfc-draw-traversal.md).
 
 ## Public API Direction
 
@@ -212,8 +216,8 @@ The remaining migration direction is:
   already touches that area
 - keep `Renderer` as the owner of GPU state
 
-See `api-and-lifecycle.md` for construction, async readiness, events,
-configuration routing, and teardown rules.
+See [api-and-lifecycle.md](api-and-lifecycle.md) for construction,
+async readiness, events, configuration routing, and teardown rules.
 
 ## Design References
 

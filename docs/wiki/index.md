@@ -159,8 +159,12 @@ The intended structure is three levels:
    `label-regression-diagnostics.md`.
 
 Keep broad architecture notes out of topic pages, and keep low-level
-mechanics out of `architecture.md` unless they affect ownership across
-subsystems.
+mechanics out of [architecture.md](architecture.md) unless they
+affect ownership across subsystems.
+
+Always use link syntax for cross-references to other wiki pages:
+`[filename.md](filename.md)`. Do not use backtick code format for
+file names that are navigation references.
 
 The current structure mixes levels 2 and 3. The split into separate subsystem 
 and topic sections has not happened yet.

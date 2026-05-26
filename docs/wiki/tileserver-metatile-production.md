@@ -1,6 +1,6 @@
 # Tileserver metatile production
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This document describes how the cartolina-tileserver generates
 metatiles, where the computational cost lies, and the structural

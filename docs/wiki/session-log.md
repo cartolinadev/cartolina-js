@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-05-26 — wiki cross-reference and structure cleanup
+
+Moved rfc-map-frame to implemented; marked backlog step 2 done.
+Deleted archaeology-replay-inspector.md (code is gone; rationale
+preserved in backlog and session-log). Split the flat "Subsystem and
+feature notes" section into five named sections: Data model, Geodata
+and labels, Rendering, API/navigation/demos/testing, Legacy VTS
+concepts. Moved implemented RFCs to a new rfcs-implemented.md archive
+page. Moved the Structure author guide to a Writing guidelines section
+at the bottom of index.md. Converted all backtick file references
+across the wiki to proper markdown links; added a linking rule to
+Writing guidelines.
+
 ## 2026-05-26 — remove defunct surface/bound-layer inspector panel
 
 Deleted `src/core/inspector/layers.js` (939 lines) and removed all

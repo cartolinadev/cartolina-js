@@ -1,11 +1,14 @@
 # Rendering architecture
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page records the current renderer boundary and terrain draw
-direction. Format details live in `surface-metatile.md`,
-`lod-selection.md`, `normal-encoding.md`, `render-targets.md`, and
-`renderer-coordinate-spaces.md`.
+direction. Format details live in
+[surface-metatile.md](surface-metatile.md),
+[lod-selection.md](lod-selection.md),
+[normal-encoding.md](normal-encoding.md),
+[render-targets.md](render-targets.md), and
+[renderer-coordinate-spaces.md](renderer-coordinate-spaces.md).
 
 ## Map And Renderer Boundary
 
@@ -86,8 +89,10 @@ The next design target is:
 - `Viewer` remains the flat public API
 - legacy sub-objects remain private until they are deleted
 
-`rfc-draw-traversal.md` describes the accepted traversal replacement.
-`rfc-bump-bake.md` records the implemented bump-layer collapse.
+[rfc-draw-traversal.md](rfc-draw-traversal.md) describes the accepted
+traversal replacement.
+[rfc-bump-bake.md](rfc-bump-bake.md) records the implemented
+bump-layer collapse.
 
 ## Renderer Responsibilities
 
@@ -96,8 +101,10 @@ owned by the active `GpuDevice.RenderTarget` and read through
 `gpu.currentRenderTarget.apparentSize`. `renderer.apparentSize` is a
 convenience accessor for the same value.
 
-Render-target policy is documented in `render-targets.md`. Coordinate
-space terminology is documented in `renderer-coordinate-spaces.md`.
+Render-target policy is documented in
+[render-targets.md](render-targets.md). Coordinate space terminology
+is documented in
+[renderer-coordinate-spaces.md](renderer-coordinate-spaces.md).
 
 ## Illumination
 

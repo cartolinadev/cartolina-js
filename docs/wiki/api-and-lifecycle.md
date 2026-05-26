@@ -1,10 +1,11 @@
 # API and lifecycle
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page records public API direction, construction, initialization,
-configuration, events, and teardown rules. `architecture.md` keeps only
-the high-level ownership map.
+configuration, events, and teardown rules.
+[architecture.md](architecture.md) keeps only the high-level
+ownership map.
 
 ## Public API Surface
 
@@ -105,7 +106,8 @@ routes by key prefix:
 
 `Viewer.setParam(key, value)` still passes through
 `Browser.setConfigParam` and reaches `Core.setConfigParam`.
-`rfc-config-store.md` describes the accepted replacement.
+[rfc-config-store.md](rfc-config-store.md) describes the accepted
+replacement.
 
 ### Style Config Block
 
@@ -187,7 +189,7 @@ The accepted replacement is a typed `EventBus<EventMap>` owned by `Map`
 and passed to engine objects that emit events. `EventTarget` was
 rejected because it does not match the MapLibre-style `on()` / `once()`
 API, allocates `CustomEvent` objects for frequent events, and still
-needs an adapter. See `rfc-event-bus.md`.
+needs an adapter. See [rfc-event-bus.md](rfc-event-bus.md).
 
 `once` accepts an optional `wait` parameter that skips the first N
 firings. `getSurfaceAreaGeometry` uses this to defer a callback past a

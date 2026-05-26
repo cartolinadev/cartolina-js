@@ -1,6 +1,6 @@
 # Reference frames
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 A reference frame answers the foundational questions that any 3D mapping
 engine must resolve before it can render a single tile:

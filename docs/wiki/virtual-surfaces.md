@@ -1,6 +1,6 @@
 # Virtual surfaces
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 The word "virtual" appears in two distinct, unrelated contexts inside
 the surface-rendering code. Both are explained here. The first requires

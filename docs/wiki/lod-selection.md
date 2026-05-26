@@ -1,6 +1,6 @@
 # LOD selection and screen-space error
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page documents the legacy terrain tile selection algorithm used by
 `MapSurfaceTree` and `MapSurfaceTile`. The algorithm is inherited from

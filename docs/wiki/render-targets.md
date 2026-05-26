@@ -104,6 +104,7 @@ offscreen pass itself, not inherited from the canvas view. This covers
 shadow maps, environment maps, SSAA passes, and similar. See the
 backlog entry "FEATURE: explicit offscreen render-pass API".
 
-See `rendering-sizes.md` for the complete size vocabulary and the
+See [rendering-sizes.md](rendering-sizes.md) for the complete size
+vocabulary and the
 distinction between `apparentSize`, `viewportSize`, and
 `cssLayoutSize`.

@@ -1,6 +1,6 @@
 # Surface metatile format
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 A **metatile** is a binary resource that carries a compact grid of
 **metanodes**, one per tile cell in a fixed-size block of the tile
@@ -74,7 +74,7 @@ order with each row byte-padded.
 Currently only **bitplane 0** is used. It carries the **alien
 flag** for each tile: a tile is alien when its content was
 sourced from a foreign (non-primary) surface during glue
-generation. See `glue-alien-flag.md` for context.
+generation. See [glue-alien-flag.md](glue-alien-flag.md) for context.
 
 Bitplanes for bits 1–5 are reserved and not produced by the
 current tileserver.
@@ -286,8 +286,8 @@ computes `tile.texelSize` from the metanode:
 `updateTexelSize()` projects the length to physical viewport pixels
 for the current camera. The normal descent test is
 `tile.texelSize > draw.texelSizeFit`; `mapTexelSizeFit` defaults to
-`1.1`. See `lod-selection.md` for the full calculation and traversal
-rules.
+`1.1`. See [lod-selection.md](lod-selection.md) for the full calculation
+and traversal rules.
 
 ### Frustum culling and disk distance
 

@@ -1,6 +1,6 @@
 # Lettering and vector overlay rendering
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 ---
 
@@ -107,7 +107,7 @@ file. Each layer entry specifies:
 - `source` — which free layer to draw from
 - `filter` — which features to include
 - `type` — `labels` or `lines` (both share the same property family
-  internally; see `label-styling-engine.md`)
+  internally; see [label-styling-engine.md](label-styling-engine.md))
 - styling properties — `label`, `line`, `icon`, colors, sizes,
   expressions, and so on
 

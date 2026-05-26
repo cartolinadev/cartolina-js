@@ -901,8 +901,10 @@ screen-space matrices are separate decisions.
 
 ### Related notes
 
-See `render-targets.md` for the current auxiliary-buffer policy and
-`rendering-sizes.md` for the size vocabulary used by render targets.
+See [render-targets.md](render-targets.md) for the current
+auxiliary-buffer policy and
+[rendering-sizes.md](rendering-sizes.md) for the size vocabulary
+used by render targets.
 
 ---
 
@@ -928,8 +930,9 @@ Restructure the wiki into a clearer hierarchy, for example:
 - feature-specific notes
 - session log
 
-Keep `architecture.md` as a high-level entry point, then move narrow
-topics into dedicated pages linked from that overview.
+Keep [architecture.md](architecture.md) as a high-level entry point,
+then move narrow topics into dedicated pages linked from that
+overview.
 
 ## FEATURE: pitch / horizon-based line dissipation
 
