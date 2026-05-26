@@ -1,5 +1,13 @@
 # Session log
 
+## 2026-05-26 — remove defunct surface/bound-layer inspector panel
+
+Deleted `src/core/inspector/layers.js` (939 lines) and removed all
+references from `inspector.js` and `input.js`. The panel was opened by
+Shift+V and displayed named views, surface sequences, and bound-layer
+sequences, but no longer matched the map data model. The style-editing
+panel (Shift+E, `stylesheets.js`) is unchanged.
+
 ## 2026-05-26 — list overlay demo in demos index
 
 Added a `Custom overlay` entry to `demos/index.html` between Depth test

@@ -4,7 +4,6 @@ import * as utils from '../utils/utils';
 import InspectorInput from './input';
 import InspectorStats from './stats';
 import InspectorGraphs from './graphs';
-import InspectorLayers from './layers';
 import InspectorStylesheets from './stylesheets';
 import {FreezeMode} from './freeze';
 
@@ -15,7 +14,6 @@ var Inspector = function(core) {
     this.input = new InspectorInput(this);
     this.stats = new InspectorStats(this);
     this.graphs = new InspectorGraphs(this);
-    this.layers = new InspectorLayers(this);
     this.stylesheets = new InspectorStylesheets(this);
     this.freeze = new FreezeMode();
 
@@ -41,7 +39,6 @@ Inspector.prototype.enableInspector = function() {
     if (!this.enabled) {
         this.stats.init();
         this.graphs.init();
-        this.layers.init();
         this.stylesheets.init();
 
         //load image    

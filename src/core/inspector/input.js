@@ -452,9 +452,6 @@ export default class InspectorInput {
                 case 83: case 115:  // Shift+S — stats panel
                     inspector.stats.switchPanel(); hit = true; break;
 
-                case 86: case 118:  // Shift+V — layers panel
-                    inspector.layers.switchPanel(); hit = true; break;
-
                 case 69: case 101:  // Shift+E — stylesheets panel
                     inspector.stylesheets.switchPanel(); hit = true; break;
 
