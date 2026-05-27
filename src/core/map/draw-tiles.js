@@ -231,24 +231,9 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
     }
 
     if (tile.surfaceGeodata == null) {
-        var path;
-
-        if (tile.surface.geodataNavtileInfo) {  //remove this code??? no longer used
-            var navtile = this.tree.findNavTile(tile.id);
-
-            if (navtile && navtile.surface) {
-                var navtileStr = navtile.surface.getNavUrl(navtile.id) + ';'
-                                  + navtile.id[0] + '-' + navtile.id[1] + '-' + navtile.id[2] + ';'
-                                  + navtile.metanode.minHeight + ';' + navtile.metanode.maxHeight;
-                path = tile.surface.getGeodataUrl(tile.id, encodeURIComponent(navtileStr));
-            }
-        }
-
-        if (!path) {
-            path = tile.resourceSurface.getGeodataUrl(tile.id, '');
-        }
-
-        tile.surfaceGeodata = tile.resources.getGeodata(path, {tile:tile, surface:tile.surface});
+        var path = tile.resourceSurface.getGeodataUrl(tile.id, '');
+        tile.surfaceGeodata = tile.resources.getGeodata(
+            path, {tile:tile, surface:tile.surface});
     }
 
     // tile.drawCommands is a numeric-indexed array of per-channel

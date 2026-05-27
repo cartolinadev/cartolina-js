@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-05-27 — draw traversal: delete dead geodataNavtileInfo branch
+
+`draw-tiles.js` contained an `if (tile.surface.geodataNavtileInfo)` block
+that built a geodata URL from a nav-tile lookup on the legacy tree. The
+flag is always `false` in `surface.js`, so the block was dead code. It was
+also the last reader of `this.tree.findNavTile` in the draw path.
+
+Deleted the entire branch; the surrounding `if (tile.surfaceGeodata == null)`
+block now unconditionally calls `tile.resourceSurface.getGeodataUrl`.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass unchanged.
+
 ## 2026-05-27 — draw traversal phase 2: route height queries off legacy tree
 
 Replaces the interim warm-up of `legacyMap.tree` (committed in
