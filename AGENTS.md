@@ -233,6 +233,12 @@ source ~/.nvm/nvm.sh && nvm use
 - Text-analysis commands (`grep`, `awk`, `sed`, `wc`) may be run
   against files in this repository without asking for permission.
 
+- Files ending in `~` (e.g. `shaders.js~`) are editor backup copies.
+  They are `.gitignored` and untracked. Ignore them entirely during
+  analysis, code reading, and search. Never cite them as evidence of
+  current behaviour or use their contents to draw conclusions about
+  the live codebase.
+
 - `npx tsc` (any flags) may be run without asking for permission.
 
 - `curl` to local dev services such as `http://localhost:8080` may be

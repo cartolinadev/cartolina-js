@@ -117,7 +117,7 @@ for a given tile.
 flags          uint8    — content and child flags (see below)
 ```
 
-**v1–v3 only — quantized physical extents:**
+**v1–v4 — quantized physical extents:**
 
 ```
 geomExtents    variable — packed bit array of 6 × (lod+2) bits:
@@ -129,6 +129,11 @@ geomExtents    variable — packed bit array of 6 × (lod+2) bits:
 
 All-zero extents signal an empty tile (no geometry). The client
 maps these to ±Infinity so they are culled immediately.
+
+v4 tiles carry these bytes at the same position as v1–v3. The client
+parser reads them for all `version < 5` and uses them for the
+horizontal bounding box. They are superseded in v5 by explicit SDS
+horizontal extents.
 
 **v4+ — explicit SDS height:**
 
@@ -232,8 +237,8 @@ of the metatile header and is written into `metanode.alien` by
 | 1 | Initial format. `nodeSize` in header; quantized physical extents per metanode; credits preceded by `creditCount` and `creditSize` fields. |
 | 2 | `flags` and `creditCount` moved to header; `creditSize` dropped; flag bitplanes added; alien bitplane (plane 0) introduced. |
 | 3 | `sourceReference` field added to each metanode; header flag bits 6/7 control whether it is uint8 or uint16. |
-| 4 | Quantized physical extents removed; `minZ`, `maxZ`, `surrogate` (float32 each) added. Precise bbox computation enabled. |
-| 5 | SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added. These give the actual mesh bounds within the tile cell, which can be tighter than the full cell when geometry does not cover it completely. cartolina-js skips them and uses full-cell bounds derived from the division node, which is sufficient for frustum culling. |
+| 4 | `minZ`, `maxZ`, `surrogate` (float32 each) added after the existing quantized extents. Quantized extents remain in the stream and are still read by the client for the horizontal bbox. |
+| 5 | Quantized physical extents removed; SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added in their place. cartolina-js skips the SDS horizontal extents and continues to use full-cell bounds derived from the division node, which is sufficient for frustum culling. |
 
 
 ## Client usage

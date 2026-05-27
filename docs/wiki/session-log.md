@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-27 — nav-tile analysis and wiki documentation
+
+Investigated all active and dead uses of navtile textures and the
+`navtilePresent` metanode flag across the codebase. Findings:
+
+- The navtile texture (fetched via `getNavUrl`) is used exclusively
+  for terrain height queries in `MapMeasure.getSurfaceHeight` — camera
+  height, coordinate conversion, public API, and geodata draping.
+- The `version < 4` path in `parseMetanode` aliases `minZ`/`maxZ` to
+  navSRS int16 `minHeight`/`maxHeight`; `updateNodeHeightExtents`
+  propagates that range for culling. Both are dead against all known
+  v4 data.
+- The legacy grid-fallback `drawGrid` uses `minZ` from the metanode,
+  not the navtile texture. The heightmap vertex shader that would have
+  used the navtile texture for mesh displacement was deleted in
+  2026-05-21.
+- Confirmed by live HTTP inspection: the mapy.com production tileserver
+  serves metatile version 4.
+- Corrected a factual error in the wiki: quantized `geomExtents` bytes
+  are present in the stream through v4 (the `version < 5` client guard
+  is correct); v5 is what removes them. The version history table
+  previously attributed that removal to v4.
+
+Outputs: `docs/wiki/nav-tiles.md` (new), updates to `surface-metatile.md`,
+`compat-mapy-integration.md`, `index.md`, `backlog.md`, and `AGENTS.md`.
+
 ## 2026-05-27 — draw traversal: delete MapSurfaceTree.prototype.findNavTile
 
 `findNavTile` had a single call site in `draw-tiles.js`, which was

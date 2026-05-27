@@ -101,6 +101,10 @@ then branch into more specific documents as needed.
 
 ### Legacy VTS concepts
 
+- [nav-tiles.md](nav-tiles.md) — what navtile textures are, how the
+  client uses them for terrain height queries (camera, coordinate
+  conversion, geodata draping), the v1–v3 height-range propagation
+  path, the legacy grid-fallback relationship, and dead code
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
