@@ -83,48 +83,6 @@ MapSurfaceTree.prototype.findSurfaceTile = function(id) {
 };
 
 
-MapSurfaceTree.prototype.findNavTile = function(id) {
-    var tile = this.surfaceTree;
-    
-    if (id[0] == 0) {
-        if (tile.metanode && tile.metanode.hasNavtile()) {
-            return tile;
-        } else {
-            return null;
-        }
-    }
-    
-    var navtile = null;
-
-//    for (var lod = 1; lod <= id[0]; lod++) {
-//        var mask = 1 << (id[0] - lod);
-//        var index = 0;
-    for (var lod = id[0]; lod > 0; lod--) {
-        var mask = 1 << (lod-1);
-        var index = 0;
-
-        if ((id[1] & mask) != 0) {
-            index += 1;
-        }
-
-        if ((id[2] & mask) != 0) {
-            index += 2;
-        }
-        
-        tile = tile.children[index];
-
-        if (!tile) {
-            return navtile;
-        } else {
-            if (tile.metanode && tile.metanode.hasNavtile()) {
-                navtile = tile;
-            }
-        }
-    }
-    
-    return navtile;
-};
-
 
 MapSurfaceTree.prototype.draw = function() {
     this.cameraPos = [0,0,0];

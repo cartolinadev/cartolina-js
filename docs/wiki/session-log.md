@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-05-27 — draw traversal: delete MapSurfaceTree.prototype.findNavTile
+
+`findNavTile` had a single call site in `draw-tiles.js`, which was
+removed in the previous commit. No remaining caller exists in the
+draw path or any other live code path.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass
+unchanged.
+
 ## 2026-05-27 — draw traversal: delete dead geodataNavtileInfo branch
 
 `draw-tiles.js` contained an `if (tile.surface.geodataNavtileInfo)` block
