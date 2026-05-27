@@ -146,6 +146,13 @@ benatky surface's root metatile showed the new traversal degrading
 to the available surface, while the production legacy renderer
 shows a black canvas under the same outage.
 
+## 2026-05-28 — backlog: remove stale analysis from resolved bugs
+
+Removed the `### Available analysis` sections from the black-flashes
+and aborted-descents entries. Both contained untested hypotheses about
+helper-tree cold start and cache eviction that are now moot — the root
+cause was the mask failure fixed in the previous commit.
+
 ## 2026-05-28 — fix: mask fails for internal-texture surfaces
 
 Root-cause diagnosis and fix for three related draw-traversal bugs:

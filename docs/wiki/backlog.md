@@ -150,30 +150,6 @@ Steps: load the URL, then zoom in/out quickly over the city center.
 Brief black frames appear where the city tileset overlaps the global
 DEM (`topoearth-copernicus-dem-glo30` + `benatky-nad-jizerou2015`).
 
-### Available analysis
-
-The new traversal renders every visited node (natural leaf at full
-readiness, inner nodes as fallback at fallback readiness — phase 2
-cadence = 1, matching phase 1). `renderSurface` returns `false` when
-`rig.isReady` fails. If the leaf and all ancestor fallback renders fail
-in the same frame, nothing draws for that surface.
-
-Hypotheses (untested):
-
-- Per-surface helper-tree cold start during fast navigation: helper
-  trees only populate as the traversal descends. On a fast camera move,
-  intermediate-LOD tiles may not have been loaded yet.
-- Resource-cache eviction of the back surface's coarser tiles when the
-  front surface is fully ready (mask fully covers, back surface's mesh
-  is technically still drawn but discarded — readiness check still
-  marks "used" though, so eviction is unlikely).
-- Some path where `renderSurface` short-circuits before the back
-  surface's readiness check, leaving its mesh marked "unused" and
-  evictable.
-
-Phase 1 (single-surface, walked the legacy tree directly) does not
-exhibit this symptom against the same data.
-
 ---
 
 ## BUG: draw-traversal — aborted descents at very high LODs
@@ -199,22 +175,6 @@ URL:
 
 Enable diagnostics with `Shift+B L I` (bbox / LOD / id overlay) and
 inspect high-LOD tiles over the city.
-
-### Available analysis
-
-`collectChildActive` drops a surface from the descent into a quadrant
-when its `getReadyChild → isMetanodeReady` returns false (child
-metatile not yet loaded). If all 4 quadrants' child active sets are
-empty for every active surface, descent aborts and the parent renders
-as fallback.
-
-Possible interaction with issue 1 (black flashes): both can be
-manifestations of helper-tree cold-start during navigation.
-
-Cross-reference: phase 1 behaviour matches in principle but reportedly
-did not show this symptom — investigate whether the legacy main tree's
-pre-population (it descends through all surfaces' metatiles every
-frame via the legacy `MapSurfaceTree.draw`) is the differentiator.
 
 ---
 
