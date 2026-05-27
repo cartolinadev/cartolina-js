@@ -121,6 +121,16 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                     // has been switched
                     if (!tile.tileRenderRig[i] || tile.updateBounds) {
 
+                        // mesh CPU data may have been evicted by the resource
+                        // cache (killSubmeshes nulls per-submesh fields but
+                        // leaves the submeshes array length intact). Building
+                        // a rig now would latch internalUVs/externalUVs to
+                        // false and the rig would never bind the internal
+                        // texture. Wait for the in-flight reload.
+                        if (tile.surfaceMesh.submeshesKilled
+                                || tile.surfaceMesh.loadState !== 2) continue;
+
+
                         //if (tile.tileRenderRig[i])
                         //    console.log('Replacing rig for %s.',
                         //        [...tile.id, i].join('-'));

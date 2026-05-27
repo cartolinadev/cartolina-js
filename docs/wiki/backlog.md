@@ -214,6 +214,84 @@ To investigate:
 
 ---
 
+## BUG: TileRenderRig — internal texture missing from layer stack
+
+**Opened:** 2026-05-28
+**Status:** resolved 2026-05-28 — `draw-tiles.js` now refuses to build a
+new rig while `surfaceMesh.submeshesKilled` or `loadState !== 2`
+**Related:** [rendering-architecture.md](rendering-architecture.md)
+
+### Diagnosis
+
+`MapMesh.killSubmeshes` (CPU resource-cache eviction) nulls every
+submesh's per-vertex data (`internalUVs`, `externalUVs`, `vertices`,
+…) via `MapSubmesh.kill`, but leaves the `submeshes` array length
+intact (the `this.submeshes = []` line is commented out). If the
+resource cache evicted the mesh before any `TileRenderRig` had been
+built for the tile, the next draw pass found `submeshes.length > 0`
+and constructed a rig whose constructor read
+`!!this.submesh.internalUVs` as `false`. The internal-texture
+overlay in `buildLayerStack` was then skipped, and the rig — which
+is cached on `tile.tileRenderRig[i]` for the lifetime of the tile —
+permanently rendered only the drab constant background layer.
+
+This matched every reported symptom: non-determinism (depends on
+whether eviction landed between mesh load and first draw),
+clustering (cache evictions are bulk and proximity-correlated), no
+internal-texture request in the network panel, persistence until
+the rig was rebuilt, and presence in both `legacy` and `recursive`
+traversal modes (the bug was in rig construction, not traversal).
+
+### Fix
+
+In `draw-tiles.js`, before constructing a new `TileRenderRig`, skip
+the submesh iteration when the mesh's CPU data is not resident
+(`submeshesKilled === true` or `loadState !== 2`). The in-flight
+reload will repopulate the submesh fields and the rig will be built
+correctly on a later frame.
+
+### User report (verbatim)
+
+> There is an interesting bug on the legacy benatky dataset (that
+> dataset has a single tileset with an internal texture).
+>
+> The bug is non-deterministic: it does not appear on the same tile
+> upon reload of the map, but it can happen on others. When it happens
+> on a tile, the tile always displays this way until a new rig is
+> created for it.
+>
+> The drab color is the tell-tale sign — it is the base constant color
+> layer at the bottom of the layer stack, telling us that the texture
+> was never applied to the tile. Moreover, when this happens, the
+> inspector tells us that the internal texture was never requested:
+> there are only two requests for the mesh itself. It seems that under
+> some race condition the rig simply fails to create the internal
+> texture entry in the stack, but that is just my assumption.
+>
+> The erroneous tiles seem to appear in clusters (proximity), but that
+> is more a hint than a reliable observation.
+>
+> The problem manifests in both recursive and legacy modes and may
+> have existed for a long time, possibly since the `TileRenderRig`
+> implementation.
+
+### Reproduction
+
+URL (legacy benatky, single tileset with internal texture):
+```
+http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822484,50.290321,fix,278.36,-327.77,-90.00,0.00,145.78,30.00&mapTerrainTraversal=legacy
+```
+
+Move around the map until a drab-colored tile appears. Enable
+`Shift+B L I` (bbox / LOD / id overlay) to identify the affected
+tile. Inspect the network panel filtered by the tile id: only the
+mesh `.bin` requests are present, no internal texture request.
+
+Affected tiles keep rendering in the drab base color until their
+rig is recreated.
+
+---
+
 ## BUG: depth hitmap dead zone near geometric horizon
 
 **Opened:** 2026-05-20

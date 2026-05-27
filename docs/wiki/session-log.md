@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-05-28 — TileRenderRig drab-tile race (interim fix)
+
+Diagnosed the long-standing benatky drab-tile bug: `MapMesh.killSubmeshes`
+nulls every `submesh.internalUVs`/`externalUVs` on CPU-cache eviction but
+leaves the `submeshes` array length intact (the `this.submeshes = []`
+line was commented out). A frame that constructed a new `TileRenderRig`
+between eviction and reload would read `!!submesh.internalUVs` as false,
+permanently latch `rt.internalUVs` to false in the rig's layer stack,
+and skip the internal-texture overlay. The rig is cached on the tile
+forever, so the tile stayed drab until the rig was replaced.
+
+Interim fix in `draw-tiles.js`: gate rig construction on
+`!surfaceMesh.submeshesKilled && surfaceMesh.loadState === 2`. The
+proper structural fix (restore the `submeshes = []` invariant in
+`killSubmeshes`, switch `draw-tiles.js` to an early-return on
+`!isReady`, drop the defensive guard) is the next step.
+
+Backlog entry: `BUG: TileRenderRig — internal texture missing from
+layer stack`, marked resolved with the interim fix.
+
 ## 2026-05-27 — nav-tile analysis and wiki documentation
 
 Investigated all active and dead uses of navtile textures and the
