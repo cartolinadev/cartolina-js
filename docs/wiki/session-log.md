@@ -146,6 +146,15 @@ benatky surface's root metatile showed the new traversal degrading
 to the available surface, while the production legacy renderer
 shows a black canvas under the same outage.
 
+## 2026-05-28 — backlog: restore surface-specifics paragraph in mask-fails entry
+
+Restored the user-report paragraph describing benatky surface
+characteristics (internal textures, no normal maps, external UVs
+present) that was incorrectly removed during backlog hygiene. The
+paragraph contains confirmed diagnostic context, not a failed
+hypothesis — the initial guess was self-corrected in the same breath
+and subsequently confirmed by empirical analysis.
+
 ## 2026-05-28 — backlog: remove stale issue-3 paragraph from overlap entry
 
 Removed a verbatim paragraph from the +x/+y overlap bug report that

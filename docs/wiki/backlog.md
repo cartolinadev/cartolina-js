@@ -103,7 +103,12 @@ are confirmed manifestations of the same root cause
 > The problem was not caught during regression testing of the commit
 > because it does not manifest itself on the tileserver-based surfaces.
 > The legacy benatky surface, served by vts-vtsd, is well formed and
-> needs to be supported, however.
+> needs to be supported, however. The problem has its root in some of
+> its specifics: the surface carries internal textures, does not carry
+> normal maps. My first guess was that it did not carry external
+> textures, which would effectively prevent the recursive traversal
+> mask algorithm from functioning. But that should not be the case, to
+> my knowledge: the surface does have external textures in its meshes.
 
 ### Reproduction
 
