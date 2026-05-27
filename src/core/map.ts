@@ -1138,7 +1138,7 @@ class Map {
 
         this.warnOnUnsupportedConfig(tree);
 
-        drawTerrainTraversal(this, plainTrees, this.terrainMaskPool_!);
+        drawTerrainTraversal(this, plainTrees, tree, this.terrainMaskPool_!);
     }
 
     /**

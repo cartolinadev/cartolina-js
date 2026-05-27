@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-27 — draw traversal phase 2: warm legacy tree (interim)
+
+Phase 2 broke `MapMeasure.getSurfaceHeight` — the trace walks
+`map.tree` looking for navtiles, and the new path stopped populating
+that tree. Symptom: the camera orbit center elevation collapsed to
+zero over high-detail tilesets (legacy-benatky city area).
+
+Interim fix: `drawTerrainTraversal` calls `isMetanodeReady` on the
+legacy main tree root and on each child legacy tile in lockstep with
+the helper-tree descent. That side effect routes through the legacy
+multi-surface merge (`virtualSurfaces`, `createVirtualMetanode`),
+which still requires glue and virtual-surface metatiles to load — a
+plumbing dependency the RFC's phase 8 is meant to delete.
+
+Intended follow-up: route the height query through the new path
+instead of `map.tree.traceHeight`. A compat getter on the typed Map
+iterates plain surface helper trees front-to-back and returns the
+first hit; `MapMeasure.getSurfaceHeight` (and the `convert.js`
+callers) dispatch into it when the recursive traversal is active.
+The legacy tree's `traceHeight` and `findSurfaceTile` keep working
+for the legacy path.
+
 ## 2026-05-27 — implement draw traversal phase 2 (combined descent)
 
 Implemented phase 2 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
