@@ -150,6 +150,16 @@ The status line tracks the current state:
   The RFC stays in `In review` until the reviewer signs off again.
 
 
+### Backlog hygiene
+
+When closing a backlog entry, remove any working hypotheses that were
+not confirmed as the root cause. Keep only what remains true and
+useful: the reproduction steps, the confirmed root cause in the status
+line, and any forward-looking open questions that warrant their own
+entry. Failed hypotheses are context baggage — a future reader has no
+way to know they were wrong without re-reading an investigation that no
+longer exists.
+
 ## Commits
 
 Do not commit trivial changes automatically. Leave typo fixes, link

@@ -146,6 +146,20 @@ benatky surface's root metatile showed the new traversal degrading
 to the available surface, while the production legacy renderer
 shows a black canvas under the same outage.
 
+## 2026-05-28 — backlog hygiene rule and full backlog clean
+
+Added a "Backlog hygiene" rule to AGENTS.md: remove failed hypotheses
+when closing entries; keep only confirmed root causes, reproduction
+steps, and forward-looking open questions in their own entries.
+
+Applied the rule across the full backlog:
+- Removed the failed "first guess" (no external UVs) and the
+  "independent task" paragraph from the resolved mask-fails entry;
+  updated "likely manifestations" to "confirmed" in the related field.
+- Removed the failed blit-math analysis from the open +x/+y overlap
+  entry (the math predicted the wrong direction; corrected mesh-overlap
+  note and "To investigate" items kept).
+
 ## 2026-05-28 — backlog: remove stale analysis from resolved bugs
 
 Removed the `### Available analysis` sections from the black-flashes

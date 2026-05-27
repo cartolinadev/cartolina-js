@@ -78,7 +78,7 @@ made data-based in `TileRenderRig`; benatky regression confirmed clean
 [BUG: draw-traversal — black flashes when zooming into city surface](#bug-draw-traversal--black-flashes-when-zooming-into-city-surface)
 and
 [BUG: draw-traversal — aborted descents at very high LODs](#bug-draw-traversal--aborted-descents-at-very-high-lods)
-are likely manifestations of the same root cause
+are confirmed manifestations of the same root cause
 
 ### User report (verbatim)
 
@@ -103,17 +103,7 @@ are likely manifestations of the same root cause
 > The problem was not caught during regression testing of the commit
 > because it does not manifest itself on the tileserver-based surfaces.
 > The legacy benatky surface, served by vts-vtsd, is well formed and
-> needs to be supported, however. The problem has its root in some of
-> its specifics: the surface carries internal textures, does not carry
-> normal maps. My first guess was that it did not carry external
-> textures, which would effectively prevent the recursive traversal
-> mask algorithm from functioning. But that should not be the case, to
-> my knowledge: the surface does have external textures in its meshes.
->
-> This, however, raises another interesting problem: how do we deal with
-> cases when the surface does not have external textures? We need an
-> algorithmic answer to this. This should come after we diagnose the
-> problem, it's a related, but independent task.
+> needs to be supported, however.
 
 ### Reproduction
 
@@ -213,16 +203,6 @@ its rectangle on the +x and +y sides only; -x and -y sides look clean.
 - VTS meshes do not have inherent overlap geometry (corrected by user).
 - The asymmetry (+x/+y only, not -x/-y) rules out a uniform error like
   bilinear filtering of the mask.
-- Mask blit math: `drawOrQuad_` renders a fullscreen quad into a
-  half-resolution viewport. Dest pixel `(i, j)` samples source UV
-  `(i+0.5)/half = (2i+1)/W`, hitting source pixel `2i+1`. Source pixel
-  `0` (the −x / −y edge in mask texture coords) is never read; source
-  pixel `W-1` (the +x / +y edge) is hit by dest pixel `half-1`.
-- That predicts data loss on −x/−y, opposite to the reported symptom.
-  Either the analysis above is wrong, or the symptom comes from a
-  different mechanism (write-side, footprint shader, or
-  surface-stacking order at the tile boundary).
-
 To investigate:
 
 - Render the mask textures to screen as a diagnostic overlay and
