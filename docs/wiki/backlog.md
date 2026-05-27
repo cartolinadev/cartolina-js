@@ -69,11 +69,70 @@ The metatile version is readable from the first two bytes after the
 
 ---
 
-## BUG: draw-traversal phase 2 — black flashes when zooming into city surface
+## BUG: draw-traversal — mask fails for internal-texture surfaces
 
 **Opened:** 2026-05-27
-**Status:** open — observed against `legacy-benatky`; not yet diagnosed
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+**Status:** resolved 2026-05-28 — `rt.externalUVs` and `rt.internalUVs`
+made data-based in `TileRenderRig`; benatky regression confirmed clean
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md);
+[BUG: draw-traversal — black flashes when zooming into city surface](#bug-draw-traversal--black-flashes-when-zooming-into-city-surface)
+and
+[BUG: draw-traversal — aborted descents at very high LODs](#bug-draw-traversal--aborted-descents-at-very-high-lods)
+are likely manifestations of the same root cause
+
+### User report (verbatim)
+
+> The 2 bugs (which are possibly a manifestation of a single bug) have
+> nothing to do with the combined traversal of multiple surfaces. They
+> are well manifested even for a single surface scene, and they were
+> introduced by the very first — single surface — recursive traversal
+> implementation, 60e825aa (the previous commit, using the legacy path,
+> does not demonstrate either problem).
+>
+> [URL] clearly shows issues with coarser loads seeping into the finer
+> lods, which should cause all of their pixels to be discarded (Shift+B
+> L I will show you lods and indices of the tiles where this problem
+> happens). This is what the bug report described as "aborted descent",
+> the problem is different — the coarser load pixels are clearly not
+> prevented from rendering.
+>
+> The black flash problem is real but more difficult to reproduce, it
+> requires moving the map around and you will not likely capture it
+> empirically.
+>
+> The problem was not caught during regression testing of the commit
+> because it does not manifest itself on the tileserver-based surfaces.
+> The legacy benatky surface, served by vts-vtsd, is well formed and
+> needs to be supported, however. The problem has its root in some of
+> its specifics: the surface carries internal textures, does not carry
+> normal maps. My first guess was that it did not carry external
+> textures, which would effectively prevent the recursive traversal
+> mask algorithm from functioning. But that should not be the case, to
+> my knowledge: the surface does have external textures in its meshes.
+>
+> This, however, raises another interesting problem: how do we deal with
+> cases when the surface does not have external textures? We need an
+> algorithmic answer to this. This should come after we diagnose the
+> problem, it's a related, but independent task.
+
+### Reproduction
+
+URL:
+```
+http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822899,50.291139,fix,284.04,-264.65,-90.00,0.00,29.63,30.00
+```
+
+Enable `Shift+B L I` (bbox / LOD / id overlay) to see the LODs and
+tile indices where coarser tiles seep into finer-LOD areas.
+
+---
+
+## BUG: draw-traversal — black flashes when zooming into city surface
+
+**Opened:** 2026-05-27
+**Status:** resolved 2026-05-28 — confirmed manifestation of mask bug;
+resolved by same fix
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
 ### User report (verbatim)
 
@@ -117,11 +176,12 @@ exhibit this symptom against the same data.
 
 ---
 
-## BUG: draw-traversal phase 2 — aborted descents at very high LODs
+## BUG: draw-traversal — aborted descents at very high LODs
 
 **Opened:** 2026-05-27
-**Status:** open — observed against `legacy-benatky`; not yet diagnosed
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+**Status:** resolved 2026-05-28 — confirmed manifestation of mask bug;
+resolved by same fix
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
 ### User report (verbatim)
 

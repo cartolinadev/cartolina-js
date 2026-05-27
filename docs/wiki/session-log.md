@@ -146,6 +146,29 @@ benatky surface's root metatile showed the new traversal degrading
 to the available surface, while the production legacy renderer
 shows a black canvas under the same outage.
 
+## 2026-05-28 — fix: mask fails for internal-texture surfaces
+
+Root-cause diagnosis and fix for three related draw-traversal bugs:
+seep of coarser tiles into finer-LOD areas, black flashes on the
+benatky surface, and aborted-descent appearances. All three were
+caused by `rt.externalUVs` being config-based (requiring a normal-map
+or diffuse-layer URL) instead of data-based. The benatky surface has
+no external layer stack, so `rt.externalUVs` was false; the tile color
+draw did not bind `aTexCoords2`, causing the mask to be sampled at an
+undefined position instead of the tile's geographic UV.
+
+Fix: `rt.externalUVs` and `rt.internalUVs` in `TileRenderRig` are now
+derived from `this.submesh.externalUVs` and `this.submesh.internalUVs`
+(mesh data). The internal texture overlay guard in `buildLayerStack`
+retains the `textureUrl` check as the config gate. `submesh.d.ts`
+gained the missing `externalUVs` declaration.
+
+Confirmed by fetching a benatky mesh binary and verifying the submesh
+flags byte (`0x03`): both internal and external UVs are present.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass
+unchanged. All three bugs closed.
+
 ## 2026-05-27 — fix: withNavigationCamera scope in draw traversal
 
 `withNavigationCamera` was wrapping the entire tile descent in

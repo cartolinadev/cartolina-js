@@ -18,6 +18,11 @@ export default class MapSubmesh {
     internalUVs: MeshArray | null;
 
     /**
+     * External texture coordinates parsed from the mesh, when present.
+     */
+    externalUVs: MeshArray | null;
+
+    /**
      * Build the model matrix that places this submesh relative to the camera.
      *
      * @param geoPos Current camera geographic position in world coordinates.

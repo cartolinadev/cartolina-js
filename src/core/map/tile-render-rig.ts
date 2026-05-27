@@ -112,14 +112,12 @@ export class TileRenderRig {
            is lost even when the original surface carried it. */
         this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
 
-        // if the surface publishes texture URLs its meshes are expected to
-        // carry internal UVs and the surface is expected to provide internal
-        // textures.
-        this.rt.internalUVs = !! surface.textureUrl;
-        this.rt.externalUVs = !! surface.normalsUrl
-            || surface.diffuseSequence.length > 0
-            || surface.specularSequence.length > 0
-            || surface.bumpSequence.length > 0;
+        // these flags control shader attributes. They are based purely on 
+        // submesh content. Note that external UVs are needed for correctly 
+        // applying mask textures supplied to draw(), even if no layers are 
+        // provided that would need them.
+        this.rt.internalUVs = !! this.submesh.internalUVs;
+        this.rt.externalUVs = !! this.submesh.externalUVs;
 
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
@@ -841,7 +839,7 @@ export class TileRenderRig {
         });
 
         // if internal textures exist, overlay an internal texture
-        if (rt.internalUVs && this.submesh.internalUVs)  {
+        if (rt.internalUVs && tile.resourceSurface.textureUrl) {
 
             let path = tile.resourceSurface.getTextureUrl(
                 tile.id, this.submeshIndex);
