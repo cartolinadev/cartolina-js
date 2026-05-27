@@ -42,7 +42,6 @@ import type { GpuDevice } from '../renderer/gpu/device';
 export function drawTerrainTraversal(
     map: Map,
     plainTrees: MapSurfaceTree[],
-    legacyTree: MapSurfaceTree,
     maskPool: DrawTraversalMaskPool,
 ): void {
 
@@ -54,16 +53,6 @@ export function drawTerrainTraversal(
     const renderer = legacyMap.renderer;
     const screenTarget = renderer.gpu.currentRenderTarget;
     const cameraPos = legacyMap.camera.position;
-
-    // Keep the legacy main tree's root warm so consumers that read
-    // from `map.tree` (height tracing in `MapMeasure.getSurfaceHeight`,
-    // hit testing, label collision) find a populated tile structure.
-    // The legacy tree's `isMetanodeReady` loads glue and virtual-
-    // surface metatiles too; without this side call those caches
-    // never warm in the new path, and the multi-surface
-    // `virtualSurfacesUncomplete` check stalls every descendant.
-    const legacyRoot = legacyTree.surfaceTree;
-    legacyRoot.isMetanodeReady(legacyTree, 0);
 
     // Activate every surface whose root metanode is ready, in view,
     // and not culled. The order in `plainTrees` is back-to-front; we
@@ -105,8 +94,6 @@ export function drawTerrainTraversal(
         counters,
         texelSizeFit: draw.texelSizeFit,
         cameraPos,
-        legacyTree,
-        legacyTile: legacyRoot,
     });
 
     renderer.gpu.setRenderTarget(screenTarget);
@@ -167,29 +154,15 @@ function traverseNode(context: NodeContext): boolean {
 
     if (canDescend) {
 
-        // Keep the legacy main tree's children in step so its
-        // metanodes load along the descent path. `isMetanodeReady`
-        // already ran on the parent legacy tile; that call allocates
-        // children in `checkMetanode` whenever the metatile is ready.
-        const legacyChildren = context.legacyTile?.children;
-
         for (let quadrant = 0; quadrant < 4; quadrant++) {
 
             const childActive = collectChildActive(context, quadrant);
             if (childActive.length === 0) continue;
 
-            const legacyChild = legacyChildren?.[quadrant] ?? null;
-            if (legacyChild) {
-
-                legacyChild.isMetanodeReady(context.legacyTree,
-                    legacyChild.id[0]);
-            }
-
             const childContext: NodeContext = {
                 ...context,
                 active: childActive,
                 depth: depth + 1,
-                legacyTile: legacyChild,
             };
 
             const childCovered = traverseNode(childContext);
@@ -389,21 +362,6 @@ type NodeContext = {
     counters: Counters;
     texelSizeFit: number;
     cameraPos: [number, number, number];
-
-    /**
-     * Legacy main tree carried through the descent so its tiles get
-     * `isMetanodeReady` called at every visited position. Consumers
-     * such as `MapMeasure.getSurfaceHeight` walk `map.tree` and
-     * depend on its metanodes being populated.
-     */
-    legacyTree: MapSurfaceTree;
-
-    /**
-     * Legacy main tree tile matching the current `(lod, x, y)`.
-     * `null` when the legacy tile is not yet allocated; the new path
-     * proceeds without keeping the legacy tree warm at this position.
-     */
-    legacyTile: MapSurfaceTile | null;
 };
 
 

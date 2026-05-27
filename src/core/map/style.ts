@@ -630,19 +630,12 @@ export class MapStyle {
         map.tree.surfaceSequence = [];
         map.tree.surfaceOnlySequence = [];
 
-        // Style-based maps have no glues or virtual surfaces, so the
-        // plain surface list (consumed by the new draw traversal) is
-        // the same set, in the same order.
-        map.tree.plainSurfaceList = [];
-        map.tree.hasVirtualSurfaces = false;
-
         map.surfaces.forEach((surface: MapSurface) => {
 
             if (!this.styleSpec.terrain.sources.includes(surface.styleSourceId)) return;
 
             map.tree.surfaceSequence.push([surface, false]);
             map.tree.surfaceOnlySequence.push([surface, false]);
-            map.tree.plainSurfaceList.push(surface);
 
             // surface layer sequence is the style spec itself
             surface.style = this.style();

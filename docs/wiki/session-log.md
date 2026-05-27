@@ -1,5 +1,41 @@
 # Session log
 
+## 2026-05-27 — draw traversal phase 2: route height queries off legacy tree
+
+Replaces the interim warm-up of `legacyMap.tree` (committed in
+`3992e60c`, reverted here) with a cleaner architectural direction
+agreed during review: terrain queries route through the recursive
+path's per-surface helper trees instead of depending on the legacy
+multi-surface merge plumbing being kept hot.
+
+Concrete changes:
+
+- `MapSurfaceTree.plainSurfaceList` and `hasVirtualSurfaces` removed.
+  The typed `Map` owns `surfaceList()`, which derives the surface set
+  directly from `view.surfaces` (map-config) or `styleSpec.terrain.sources`
+  (style-based), sorted alphabetically with the front surface at the
+  last index. The "plain" qualifier is dropped — in the recursive
+  path there are no glues or virtual surfaces to contrast against.
+- `Map.plainSurfaceTrees_` renamed to `surfaceTrees_`,
+  `resolvePlainSurfaceTrees` to `resolveSurfaceTrees`. A new
+  `Map.surfaceTreesForQuery()` exposes the helper trees to
+  query-side code when the recursive path is active.
+- Virtual-surface-match and non-geodata-free-layer warnings inlined
+  at their detection sites in `surface-sequence.ts`, deduped via
+  module-local sets. The typed Map's warning method and dedup state
+  are gone.
+- `MapMeasure.getSurfaceHeight` and `getSurfaceHeightNodeOnly` walk a
+  `queryTrees_()` array front-to-back, breaking on the first tree
+  whose trace yields data. In legacy mode the array contains
+  `[map.tree]` and the loop runs once, preserving prior behaviour
+  byte-for-byte. In recursive mode the array contains the helper
+  trees; multi-surface maps pick the front surface where it has
+  data and fall back to back surfaces where it doesn't.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain`
+render unchanged; the benatky regression URL shows correct orbit
+elevation under the city.
+
 ## 2026-05-27 — draw traversal phase 2: warm legacy tree (interim)
 
 Phase 2 broke `MapMeasure.getSurfaceHeight` — the trace walks

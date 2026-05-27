@@ -24,6 +24,7 @@ import MapDraw from './map/draw';
 import MapConvert from './map/convert';
 import MapMeasure from './map/measure';
 import MapSurfaceTree from './map/surface-tree';
+import type MapSurface from './map/surface';
 import MapConfig from './map/config';
 import MapView from './map/view';
 import DrawTraversalMaskPool from './map/draw-traversal-mask';
@@ -111,21 +112,17 @@ class Map {
     private terrainMaskPool_: DrawTraversalMaskPool | null = null;
 
     /**
-     * Per-plain-surface helper trees used by the new combined draw
-     * traversal (rfc-draw-traversal.md §2.1). Keyed by surface id.
-     * Each tree is a single-surface `MapSurfaceTree` constructed with
-     * the plain surface as its `freeLayerSurface`, which makes every
-     * tile in the tree auto-select that surface and avoids the legacy
-     * multi-surface merge in `MapSurfaceTile.checkSurface`. The cache
-     * is refreshed against `tree.plainSurfaceList` on every draw;
-     * entries for surfaces that have left the view are dropped.
+     * Per-surface helper trees used by the recursive draw traversal
+     * (rfc-draw-traversal.md §2.1). Keyed by surface id. Each tree is
+     * a single-surface `MapSurfaceTree` constructed with the surface
+     * as its `freeLayerSurface`, which makes every tile auto-select
+     * that surface and avoids the legacy multi-surface merge in
+     * `MapSurfaceTile.checkSurface`. The cache is refreshed against
+     * the current `surfaceList()` on every draw; entries for surfaces
+     * that have left the view are dropped.
      */
-    private plainSurfaceTrees_: globalThis.Map<string, MapSurfaceTree>
+    private surfaceTrees_: globalThis.Map<string, MapSurfaceTree>
         = new globalThis.Map();
-
-    /** One-off warning state for the new draw traversal. */
-    private virtualSurfaceWarned_ = false;
-    private freeLayerWarned_ = new Set<string>();
 
     // -----------------------------------------------------------------
     // Lifecycle
@@ -823,9 +820,9 @@ class Map {
                         ?? legacyMap.config.mapTerrainTraversal
                         ?? 'recursive';
 
-                    if (traversal === 'recursive') 
-                        this.drawTerrainRecursive(legacyMap.tree);
-                    else 
+                    if (traversal === 'recursive')
+                        this.drawTerrainRecursive();
+                    else
                         legacyMap.tree.draw(false);
                     
                 }
@@ -1102,20 +1099,13 @@ class Map {
     }
 
     /**
-     * Recursive terrain draw selected by `mapTerrainTraversal`.
-     *
-     * Maintains a per-plain-surface helper tree cache and feeds the
-     * combined-descent traversal in `draw-traversal.ts`. Glues and
-     * virtual surfaces are excluded — see `rfc-draw-traversal.md` §7.
-     * Emits one-off console warnings when the active view contains a
-     * matching virtual-surface entry or a non-geodata free layer that
-     * the new path does not render.
-     *
-     * @param tree Legacy terrain surface tree. Used as the source of
-     *     `plainSurfaceList` and `hasVirtualSurfaces`; the new path
-     *     does not descend it.
+     * Recursive terrain draw selected by `mapTerrainTraversal`. Feeds
+     * the combined-descent traversal in `draw-traversal.ts` with the
+     * current `surfaceList()` and the cached per-surface helper trees.
+     * Glues and virtual surfaces are excluded — see
+     * `rfc-draw-traversal.md` §7.
      */
-    private drawTerrainRecursive(tree: MapSurfaceTree): void {
+    private drawTerrainRecursive(): void {
 
         const resolution = resolveMaskResolution(
             this.core_.map?.config.mapTraversalMaskResolution);
@@ -1133,29 +1123,97 @@ class Map {
                 this.core_.renderer, resolution);
         }
 
-        const plainTrees = this.resolvePlainSurfaceTrees(tree);
-        if (plainTrees.length === 0) return;
+        const trees = this.resolveSurfaceTrees();
+        if (trees.length === 0) return;
 
-        this.warnOnUnsupportedConfig(tree);
-
-        drawTerrainTraversal(this, plainTrees, tree, this.terrainMaskPool_!);
+        drawTerrainTraversal(this, trees, this.terrainMaskPool_!);
     }
 
     /**
-     * Resolves `tree.plainSurfaceList` to a list of per-surface helper
-     * trees, allocating new ones on demand and dropping cache entries
-     * whose surface has left the view. Returns the trees in
-     * `plainSurfaceList` order (front surface at the last index).
+     * Returns the per-surface helper trees the recursive draw
+     * traversal will descend this frame, in `surfaceList()` order.
+     * Allocates the trees on demand and drops stale cache entries.
+     *
+     * Intended for terrain queries that previously walked
+     * `legacyMap.tree` (e.g. `MapMeasure.getSurfaceHeight`): they
+     * should iterate this list front-to-back (last index first) and
+     * return the first tree whose trace yields data.
+     *
+     * Returns an empty array when the recursive path is not active or
+     * when no surface is in view.
      */
-    private resolvePlainSurfaceTrees(
-        tree: MapSurfaceTree,
-    ): MapSurfaceTree[] {
+    surfaceTreesForQuery(): MapSurfaceTree[] {
+
+        const mode = this.overrides.terrainTraversal
+            ?? this.core_.map?.config.mapTerrainTraversal
+            ?? 'recursive';
+
+        if (mode !== 'recursive') return [];
+        return this.resolveSurfaceTrees();
+    }
+
+    /**
+     * Returns the surfaces the recursive draw traversal should render,
+     * in back-to-front order (front surface at the last index). Plain
+     * surfaces only — glues and virtual surfaces are skipped. For
+     * map-config maps the set comes from the active view's surface
+     * keys; for style-based maps it comes from the style spec's
+     * terrain sources.
+     */
+    surfaceList(): MapSurface[] {
 
         const legacyMap = this.core_.map;
         if (!legacyMap) return [];
 
-        const cache = this.plainSurfaceTrees_;
-        const surfaces = tree.plainSurfaceList ?? [];
+        let surfaces: MapSurface[];
+
+        if (legacyMap.style) {
+
+            // Style-based maps: the active terrain sources name the
+            // surfaces. `getCurrentView()` forwards to
+            // `style.legacyView()` which does not exist on
+            // style-based maps, so we cannot read `view.surfaces`
+            // here.
+            const sources = legacyMap.style.style().terrain?.sources
+                ?? [];
+
+            surfaces = legacyMap.surfaces.filter((s: MapSurface) =>
+                sources.includes(s.styleSourceId));
+
+        } else {
+
+            // Map-config maps: the active view names plain surfaces by
+            // id. `legacyMap.virtualSurfaces` and `legacyMap.glues`
+            // are kept out of the recursive path entirely.
+            const view = legacyMap.getCurrentView();
+            const byId = (key: string): MapSurface | undefined =>
+                legacyMap.surfaces.find(
+                    (s: MapSurface) => s.id === key);
+
+            surfaces = Object.keys(view.surfaces ?? {})
+                .map(byId)
+                .filter((s: MapSurface | undefined): s is MapSurface =>
+                    s != null);
+        }
+
+        // Stable order: alphabetical by id, front surface at the last
+        // index (matches the convention in `MapSurfaceSequence`).
+        return surfaces.sort((a, b) =>
+            a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    }
+
+    /**
+     * Resolves `surfaceList()` to per-surface helper trees, allocating
+     * new ones on demand and dropping cache entries whose surface has
+     * left the view. Returns the trees in `surfaceList()` order.
+     */
+    private resolveSurfaceTrees(): MapSurfaceTree[] {
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return [];
+
+        const cache = this.surfaceTrees_;
+        const surfaces = this.surfaceList();
         const result: MapSurfaceTree[] = [];
         const live = new Set<string>();
 
@@ -1167,7 +1225,7 @@ class Map {
             let surfaceTree = cache.get(id);
             if (!surfaceTree) {
 
-                // Construct a single-surface tree by passing the plain
+                // Construct a single-surface tree by passing the
                 // surface as `freeLayerSurface`. This short-circuits
                 // the multi-surface logic in `checkSurface` and gives
                 // each tile in the tree direct, per-surface metatile
@@ -1190,56 +1248,6 @@ class Map {
         }
 
         return result;
-    }
-
-    /**
-     * One-off console warnings for view configurations the new
-     * traversal does not fully support. The warning fires once per
-     * unique offender per session.
-     */
-    private warnOnUnsupportedConfig(tree: MapSurfaceTree): void {
-
-        const legacyMap = this.core_.map;
-        if (!legacyMap) return;
-
-        // Virtual surfaces (`mapConfig.virtualSurfaces`) cannot route
-        // through mask compositing yet. The plain constituent surfaces
-        // still render; this notice flags the skipped glue logic.
-        if (tree.hasVirtualSurfaces && !this.virtualSurfaceWarned_) {
-
-            this.virtualSurfaceWarned_ = true;
-            console.warn(
-                '[draw-traversal] mapConfig.virtualSurfaces entry'
-                + ' matched the active view. The recursive traversal'
-                + ' ignores virtual surfaces and glues; the plain'
-                + ' constituent surfaces render via mask compositing.');
-        }
-
-        // Non-geodata free layers behave like independent tiled
-        // surfaces in the legacy path. The legacy `getCurrentView()`
-        // is only meaningful for map-config maps; for style-based
-        // maps it forwards to a non-existent `style.legacyView()`.
-        // Style-based maps cannot author non-geodata free layers, so
-        // the warning is mapConfig-only.
-        if (legacyMap.style) return;
-
-        const view = legacyMap.getCurrentView?.();
-        if (!view || !view.freeLayers) return;
-
-        for (const key in view.freeLayers) {
-
-            const layer = legacyMap.getFreeLayer(key);
-            if (!layer) continue;
-            if (layer.geodata) continue;
-            if (this.freeLayerWarned_.has(key)) continue;
-
-            this.freeLayerWarned_.add(key);
-            console.warn(
-                '[draw-traversal] free layer "%s" is not a geodata'
-                + ' layer; the recursive terrain traversal does not'
-                + ' render non-geodata free layers.',
-                key);
-        }
     }
 
     // -----------------------------------------------------------------

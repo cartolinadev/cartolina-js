@@ -26,23 +26,6 @@ export default class MapSurfaceTree {
     surfaceOnlySequence: [MapSurface, boolean][];
 
     /**
-     * Plain (non-glue, non-virtual) surfaces visible in the current
-     * view, sorted alphabetically by id. Front surface at the last
-     * index, matching `surfaceSequence` ordering. Written by
-     * `surface-sequence.ts`; read by the new draw traversal.
-     */
-    plainSurfaceList: MapSurface[];
-
-    /**
-     * True when the surface sequence generator found a matching
-     * `mapConfig.virtualSurfaces` entry. The legacy path collapses
-     * `surfaceSequence` to a single `MapVirtualSurface`; the new
-     * traversal keeps `plainSurfaceList` populated and emits a
-     * one-off warning when this flag is set.
-     */
-    hasVirtualSurfaces: boolean;
-
-    /**
      * If set, every tile in this tree auto-selects this single
      * surface. Used by free layers and by the new draw traversal's
      * per-surface helper trees.

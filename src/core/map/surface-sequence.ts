@@ -20,17 +20,6 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
     tree.surfaceSequenceIndices = []; //probably not used
     tree.surfaceOnlySequence = [];
 
-    // plainSurfaceList and hasVirtualSurfaces feed the new draw
-    // traversal (rfc-draw-traversal.md §7). The plain list contains
-    // the non-glue, non-virtual surfaces in the same alphabetical
-    // sort order used by surfaceSequence below (back-to-front: front
-    // surface at the last index). hasVirtualSurfaces records that a
-    // mapConfig.virtualSurfaces entry matched the active surface set
-    // so the new traversal can emit a one-off warning while still
-    // rendering against the real constituent surfaces.
-    tree.plainSurfaceList = [];
-    tree.hasVirtualSurfaces = false;
-
     var vsurfaces: Record<string, any> = {}, surface, glue;
     var vsurfaceCount = 0;
     var list = [], listId, i, li, j , lj, key;
@@ -49,22 +38,13 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
         }
     }
 
-    // Collect the plain surfaces before the virtual-surface collapse
-    // below can replace the list with a single MapVirtualSurface entry.
-    // Sort alphabetically by id; the surfaceSequence sort below uses
-    // the same comparison key, so the relative order of plain surfaces
-    // matches between the two outputs.
-    var plainSurfaces: any[] = list.map(item => item[1]);
-    plainSurfaces.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    tree.plainSurfaceList = plainSurfaces;
-
     if (vsurfaceCount >= 1) { //do we have virtual surface?
         strId.sort();
         let strId_ = strId.join(';');
 
         surface = this.map.virtualSurfaces[strId_];
         if (surface) {
-            tree.hasVirtualSurfaces = true;
+            warnVirtualSurfaceCollapse(strId_);
             list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]
             vsurfaceCount = 1;
         }
@@ -188,12 +168,14 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
         if (freeLayer) {
             freeLayer.surfaceSequence = [freeLayer];
             freeLayer.surfaceOnlySequence = [freeLayer];
-            
+
             if (freeLayer.geodata) {
                 this.map.freeLayersHaveGeodata = true;
+            } else {
+                warnNonGeodataFreeLayer(key);
             }
         }
-    }    
+    }
 
     //console.log('map.glues: ', this.map.glues);
     //console.log('map virtual surfaces: ', this.map.virtualSurfaces);
@@ -475,6 +457,48 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         }
     }
 };
+
+
+/*
+ * One-off console warnings for view configurations the new recursive
+ * draw traversal does not fully support. The warning fires once per
+ * unique offender per session, deduped via these module-local sets.
+ *
+ * Both classes of configuration still render correctly through the
+ * new path: the virtual-surface case renders the real constituent
+ * surfaces (the new path ignores the virtual-surface collapse); the
+ * non-geodata free-layer case is simply not rendered as terrain. The
+ * warnings flag intent, not user-visible failures.
+ */
+
+const virtualSurfaceWarned: Set<string> = new Set();
+const freeLayerWarned: Set<string> = new Set();
+
+function warnVirtualSurfaceCollapse(joinedSurfaceIds: string): void {
+
+    if (virtualSurfaceWarned.has(joinedSurfaceIds)) return;
+
+    virtualSurfaceWarned.add(joinedSurfaceIds);
+    console.warn(
+        '[draw-traversal] mapConfig.virtualSurfaces entry "%s"'
+        + ' matched the active view. The recursive traversal ignores'
+        + ' virtual surfaces and glues; the constituent surfaces'
+        + ' render via mask compositing instead.',
+        joinedSurfaceIds);
+}
+
+
+function warnNonGeodataFreeLayer(layerId: string): void {
+
+    if (freeLayerWarned.has(layerId)) return;
+
+    freeLayerWarned.add(layerId);
+    console.warn(
+        '[draw-traversal] free layer "%s" is not a geodata layer;'
+        + ' the recursive terrain traversal does not render'
+        + ' non-geodata free layers.',
+        layerId);
+}
 
 
 export default MapSurfaceSequence;

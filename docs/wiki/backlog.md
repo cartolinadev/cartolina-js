@@ -1,5 +1,151 @@
 # Task backlog
 
+## BUG: draw-traversal phase 2 — black flashes when zooming into city surface
+
+**Opened:** 2026-05-27
+**Status:** open — observed against `legacy-benatky`; not yet diagnosed
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+
+### User report (verbatim)
+
+> Black flashes when zooming quickly into the city (benatky) surface.
+> This should not be happening, because there is always a fallback tile
+> ready — if nothing else, then the back large back surface tile which
+> should show when backtracking.
+
+### Reproduction
+
+URL:
+`http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
+
+Steps: load the URL, then zoom in/out quickly over the city center.
+Brief black frames appear where the city tileset overlaps the global
+DEM (`topoearth-copernicus-dem-glo30` + `benatky-nad-jizerou2015`).
+
+### Available analysis
+
+The new traversal renders every visited node (natural leaf at full
+readiness, inner nodes as fallback at fallback readiness — phase 2
+cadence = 1, matching phase 1). `renderSurface` returns `false` when
+`rig.isReady` fails. If the leaf and all ancestor fallback renders fail
+in the same frame, nothing draws for that surface.
+
+Hypotheses (untested):
+
+- Per-surface helper-tree cold start during fast navigation: helper
+  trees only populate as the traversal descends. On a fast camera move,
+  intermediate-LOD tiles may not have been loaded yet.
+- Resource-cache eviction of the back surface's coarser tiles when the
+  front surface is fully ready (mask fully covers, back surface's mesh
+  is technically still drawn but discarded — readiness check still
+  marks "used" though, so eviction is unlikely).
+- Some path where `renderSurface` short-circuits before the back
+  surface's readiness check, leaving its mesh marked "unused" and
+  evictable.
+
+Phase 1 (single-surface, walked the legacy tree directly) does not
+exhibit this symptom against the same data.
+
+---
+
+## BUG: draw-traversal phase 2 — aborted descents at very high LODs
+
+**Opened:** 2026-05-27
+**Status:** open — observed against `legacy-benatky`; not yet diagnosed
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+
+### User report (verbatim)
+
+> Aborted descents, SSE evaluation failures, or other reasons why
+> coarser tiles display, this happens on very high LODs. Here is an
+> URL and a partial screenshot (with Shift+B L I)
+
+Screenshot in the original report shows tile boundaries at LOD 19–21
+with patches of coarser tiles where finer tiles should be present.
+
+### Reproduction
+
+URL:
+`http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
+
+Enable diagnostics with `Shift+B L I` (bbox / LOD / id overlay) and
+inspect high-LOD tiles over the city.
+
+### Available analysis
+
+`collectChildActive` drops a surface from the descent into a quadrant
+when its `getReadyChild → isMetanodeReady` returns false (child
+metatile not yet loaded). If all 4 quadrants' child active sets are
+empty for every active surface, descent aborts and the parent renders
+as fallback.
+
+Possible interaction with issue 1 (black flashes): both can be
+manifestations of helper-tree cold-start during navigation.
+
+Cross-reference: phase 1 behaviour matches in principle but reportedly
+did not show this symptom — investigate whether the legacy main tree's
+pre-population (it descends through all surfaces' metatiles every
+frame via the legacy `MapSurfaceTree.draw`) is the differentiator.
+
+---
+
+## BUG: draw-traversal phase 2 — front surface overlaps back surface on +x/+y edges
+
+**Opened:** 2026-05-27
+**Status:** open — observed against `legacy-benatky`; not yet diagnosed
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+
+### User report (verbatim)
+
+> An interesting UI issue - the browser somehow determines where the
+> surface is so, that the user moves along it when panning, and so that
+> rotation moves around the point in the center of the image on the
+> surface. (NOTE: this was issue 3 in the report, fixed separately.
+> The overlap report follows.)
+
+> There seems to be some off-by-one or some other mask registration
+> error - the city surface visibly overlaps over the back surface on
+> the east (positive x) and south (positive y) sides of the rectangle
+> it covers. Perhaps masks are shifted or not treated fully.
+
+> There is not mesh overlap inherent to VTS file format, that is total
+> BS, please do not optimize around this faulty assumption. Additionally,
+> issue 4 is clearly asymmetric.
+
+### Reproduction
+
+Same URL as issues 1 and 2. Observe the boundary where the city
+(`benatky-nad-jizerou2015`) tileset meets the global DEM
+(`topoearth-copernicus-dem-glo30`). The city's coverage extends past
+its rectangle on the +x and +y sides only; -x and -y sides look clean.
+
+### Available analysis
+
+- VTS meshes do not have inherent overlap geometry (corrected by user).
+- The asymmetry (+x/+y only, not -x/-y) rules out a uniform error like
+  bilinear filtering of the mask.
+- Mask blit math: `drawOrQuad_` renders a fullscreen quad into a
+  half-resolution viewport. Dest pixel `(i, j)` samples source UV
+  `(i+0.5)/half = (2i+1)/W`, hitting source pixel `2i+1`. Source pixel
+  `0` (the −x / −y edge in mask texture coords) is never read; source
+  pixel `W-1` (the +x / +y edge) is hit by dest pixel `half-1`.
+- That predicts data loss on −x/−y, opposite to the reported symptom.
+  Either the analysis above is wrong, or the symptom comes from a
+  different mechanism (write-side, footprint shader, or
+  surface-stacking order at the tile boundary).
+
+To investigate:
+
+- Render the mask textures to screen as a diagnostic overlay and
+  inspect coverage at the boundary.
+- Verify the convention of `aTexCoords2` (`y=0` → tile's north or
+  south edge?) against the mesh data.
+- Confirm whether the overlap is geographic (mesh extends past UV
+  `[0,1]`) or screen-space (depth-test win between two surfaces at
+  similar z).
+
+---
+
 ## BUG: depth hitmap dead zone near geometric horizon
 
 **Opened:** 2026-05-20

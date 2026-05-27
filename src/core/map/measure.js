@@ -20,6 +20,37 @@ var MapMeasure = function(map) {
     this.maxDivisionNodeDepth = res[1];
 };
 
+
+/**
+ * Returns the surface trees terrain queries should walk for this
+ * frame, ordered back-to-front (front tree at the last index).
+ *
+ * In the recursive draw path the answer is the typed Map's
+ * per-surface helper trees, which are populated by the same descent
+ * that renders the frame. The query iterates this list front-to-back
+ * and stops on the first tree whose trace yields data.
+ *
+ * In the legacy draw path the answer is a single-element array
+ * containing the legacy main tree, so the query behaves exactly as
+ * it did before the recursive path existed.
+ *
+ * Returns an empty array only when no surface is in view; callers
+ * use that to return their not-found result.
+ */
+MapMeasure.prototype.queryTrees_ = function() {
+
+    var trees = this.map.outerMap.surfaceTreesForQuery();
+    if (trees && trees.length > 0) return trees;
+
+    var legacy = this.map.tree;
+    if (legacy && legacy.surfaceSequence
+            && legacy.surfaceSequence.length > 0) {
+        return [legacy];
+    }
+
+    return [];
+};
+
 MapMeasure.prototype.getSurfaceAreaGeometry = function(coords, radius, mode, limit, loadMeshes, loadTextures) {
     var tree = this.map.tree;
 
@@ -53,9 +84,14 @@ MapMeasure.prototype.getSurfaceAreaGeometry = function(coords, radius, mode, lim
 };
 
 MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, nodeCoords, coordsArray, useNodeOnly) {
-    var tree = this.map.tree;
+    // Front-to-back query order: helper trees from the recursive path
+    // when active, fall back to the legacy main tree otherwise. The
+    // first tree whose `traceHeight` finds a heightMap or a metanode
+    // wins; only when every tree comes up empty do we return the
+    // not-found result.
+    var trees = this.queryTrees_();
 
-    if (tree.surfaceSequence.length == 0) {
+    if (trees.length === 0) {
         return [0, true, true, null, null, null];
     }
 
@@ -64,38 +100,50 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
         node = result[0];
         nodeCoords = result[1];
     }
-    
+
     if (!this.config.mapHeightLodBlend) {
         lod = Math.floor(lod);
     }
 
     if (useNodeOnly || this.config.mapIgnoreNavtiles) {
-        return this.getSurfaceHeightNodeOnly(null, lod + 8, storeStats, lod, null, node, nodeCoords, coordsArray);        
+        return this.getSurfaceHeightNodeOnly(null, lod + 8, storeStats, lod, null, node, nodeCoords, coordsArray);
     }
 
     if (node != null && lod !== null) {
-        var root = tree.findSurfaceTile(node.id);
 
-        var extents = {
-            ll : node.extents.ll.slice(),
-            ur : node.extents.ur.slice()
-        };
-        var params = {
-            coords : nodeCoords,
-            desiredLod : Math.ceil(lod),
-            extents : extents,
-            metanode : null,
-            heightMap : null,
-            heightMapExtents : null,
-            traceHeight : true,
-            waitingForNode : false,
-            finalNode : false,
-            bestHeightMap : 999
-        };
+        var params, metanode = null, i, li, height;
 
-        tree.traceHeight(root, params, false);
+        // Iterate trees front-to-back (last index = front surface).
+        for (var t = trees.length - 1; t >= 0; t--) {
 
-        var metanode = params.metanode, i, li, height;
+            var tree = trees[t];
+            var root = tree.findSurfaceTile(node.id);
+
+            var extents = {
+                ll : node.extents.ll.slice(),
+                ur : node.extents.ur.slice()
+            };
+            params = {
+                coords : nodeCoords,
+                desiredLod : Math.ceil(lod),
+                extents : extents,
+                metanode : null,
+                heightMap : null,
+                heightMapExtents : null,
+                traceHeight : true,
+                waitingForNode : false,
+                finalNode : false,
+                bestHeightMap : 999
+            };
+
+            tree.traceHeight(root, params, false);
+
+            metanode = params.metanode;
+
+            // Stop on the first tree that produced a navtile or a
+            // metanode — that surface owns the answer for this coord.
+            if (params.heightMap || metanode) break;
+        }
 
         if (params.heightMap) {
             if (storeStats) {
@@ -165,11 +213,11 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
 
 
 MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats, statsLod, deltaSample, node, nodeCoords, coordsArray) {
-    var arrayRes, height, stats = this.map.stats; 
+    var arrayRes, height, stats = this.map.stats;
 
-    var tree = this.map.tree;
+    var trees = this.queryTrees_();
 
-    if (tree.surfaceSequence.length == 0) {
+    if (trees.length === 0) {
         return [0, true, true, null, null, null];
     }
     
@@ -240,28 +288,39 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
     }
 
     if (node != null && lod !== null) {
-        var root = tree.findSurfaceTile(node.id);
 
-        var extents = {
-            ll : node.extents.ll.slice(),
-            ur : node.extents.ur.slice()
-        };
-        var params = {
-            coords : nodeCoords,
-            desiredLod : Math.ceil(lod),
-            extents : extents,
-            metanode : null,
-            heightMap : null,
-            heightMapExtents : null,
-            traceHeight : true,
-            waitingForNode : false,
-            finalNode : false,
-            bestHeightMap : 999
-        };
+        var params, metanode = null, center, center2;
 
-        tree.traceHeight(root, params, true);
+        // Iterate trees front-to-back; the first tree whose trace
+        // produces a metanode wins. For single-surface maps this is a
+        // single iteration, matching the original behaviour exactly.
+        for (var t = trees.length - 1; t >= 0; t--) {
 
-        var metanode = params.metanode, center, center2;
+            var tree = trees[t];
+            var root = tree.findSurfaceTile(node.id);
+
+            var extents = {
+                ll : node.extents.ll.slice(),
+                ur : node.extents.ur.slice()
+            };
+            params = {
+                coords : nodeCoords,
+                desiredLod : Math.ceil(lod),
+                extents : extents,
+                metanode : null,
+                heightMap : null,
+                heightMapExtents : null,
+                traceHeight : true,
+                waitingForNode : false,
+                finalNode : false,
+                bestHeightMap : 999
+            };
+
+            tree.traceHeight(root, params, true);
+
+            metanode = params.metanode;
+            if (metanode != null) break;
+        }
 
         if (metanode != null) { // && metanode.id[0] == lod){
 
