@@ -176,12 +176,6 @@ inspect high-LOD tiles over the city.
 
 ### User report (verbatim)
 
-> An interesting UI issue - the browser somehow determines where the
-> surface is so, that the user moves along it when panning, and so that
-> rotation moves around the point in the center of the image on the
-> surface. (NOTE: this was issue 3 in the report, fixed separately.
-> The overlap report follows.)
-
 > There seems to be some off-by-one or some other mask registration
 > error - the city surface visibly overlaps over the back surface on
 > the east (positive x) and south (positive y) sides of the rectangle

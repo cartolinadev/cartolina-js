@@ -146,6 +146,12 @@ benatky surface's root metatile showed the new traversal degrading
 to the available surface, while the production legacy renderer
 shows a black canvas under the same outage.
 
+## 2026-05-28 — backlog: remove stale issue-3 paragraph from overlap entry
+
+Removed a verbatim paragraph from the +x/+y overlap bug report that
+described a separate navigation regression (issue 3 from the original
+report), already fixed. Only the overlap symptom belongs in that entry.
+
 ## 2026-05-28 — backlog hygiene rule and full backlog clean
 
 Added a "Backlog hygiene" rule to AGENTS.md: remove failed hypotheses
