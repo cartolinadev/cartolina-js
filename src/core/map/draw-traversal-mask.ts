@@ -218,12 +218,21 @@ class DrawTraversalMaskPool {
             this.renderer_.core,
         );
         const data = new Uint8Array(this.resolution * this.resolution);
+
+        // Linear filtering preserves coverage information across the
+        // repeated half-quadrant downscales performed during backtrack.
+        // A consumer surface several LODs above the producer reads the
+        // mask after many parent blits; with NEAREST the original
+        // boundary collapses to half-tile alignment error, with LINEAR
+        // it survives as a gradient that the tile shader thresholds at
+        // 0.5 to recover the original edge. See phase 2 post-impl notes
+        // in docs/wiki/rfc-draw-traversal.md.
         texture.createFromData(
             this.resolution,
             this.resolution,
             data,
             GpuTexture.Type.Mask,
-            'nearest',
+            'linear',
         );
         texture.createFramebuffer(this.resolution, this.resolution);
         return texture;

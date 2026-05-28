@@ -169,8 +169,6 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
         case GpuTexture.Type.AtmosphereDensity:
 
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI, lx, ly, 0, gl.RGB_INTEGER,
@@ -179,16 +177,12 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
 
         case GpuTexture.Type.DepthUint:
 
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI, lx, ly, 0,
                           gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, data);
             break;
 
         case GpuTexture.Type.Mask:
 
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, lx, ly, 0,

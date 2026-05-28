@@ -1,5 +1,41 @@
 # Session log
 
+## 2026-05-28 — draw-traversal mask filter switched to LINEAR
+
+Resolved the phase 2 "+x/+y overlap" bug on `legacy-benatky`. The
+reported off-by-one was not a registration error but a downscale
+precision problem: the mask is produced at the natural-leaf LOD of
+the front surface (city, LOD 22) and read by the back surface at its
+natural leaf (LOD 15). Each backtrack step copies the child mask
+into a half-quadrant of the parent, so after seven steps the original
+256-wide producer information occupies roughly two texels at the
+read scale — a boundary uncertainty of up to half a tile. With
+`NEAREST` sampling the binary boundary snapped to consumer-scale
+texel centres, producing the observed +x/+y overlaps and matching
+-x/-y gaps.
+
+Switching the mask textures to `LINEAR` turns the boundary into a
+coverage gradient; the tile shader's existing `covered > 0.5`
+discard threshold then recovers the original edge to within half a
+texel at the read scale, regardless of producer/consumer LOD
+distance. The threshold is also a tuning knob (lower → less overlap
+/ more gap, higher → more overlap).
+
+Two code sites: `DrawTraversalMaskPool.createMask` now passes
+`'linear'` to `createFromData`, and the `GpuTexture.Type.Mask` branch
+in `texture.ts` no longer force-overrides the caller's filter
+argument with `NEAREST`. The override removal is scoped to Mask only;
+the other texture types still carry their per-type filter defaults
+pending a separate audit.
+
+Phase 2 post-implementation notes in
+[rfc-draw-traversal.md](rfc-draw-traversal.md) carry the full
+explanation; the RFC body is unchanged (the RFC is signed off, so
+findings land in the rollout notes).
+
+Backlog entry `BUG: draw-traversal phase 2 — front surface overlaps
+back surface on +x/+y edges` marked resolved.
+
 ## 2026-05-28 — TileRenderRig drab-tile race (interim fix)
 
 Diagnosed the long-standing benatky drab-tile bug: `MapMesh.killSubmeshes`

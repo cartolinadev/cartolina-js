@@ -1203,6 +1203,39 @@ Implementation phases:
    degradation — the working surface fills the visible area where
    the unready surface would have contributed.
 
+   **Post-implementation note — mask filter and downscale precision.**
+   The mask textures are sampled with `LINEAR` rather than `NEAREST`.
+   The reason is a resolution mismatch between the surface that writes
+   the mask and the surface that reads it on backtrack. A producer at
+   LOD P writes coverage at the mask's native resolution (256). A
+   consumer at a coarser LOD C < P reads the producer's coverage after
+   it has been blit-downscaled (P − C) times into successive parent
+   quadrants, so the producer's original information occupies only
+   256 / 2^(P − C) texels of the read. On `legacy-benatky` the gap
+   reaches seven LOD steps (city tileset reaches LOD 22, back surface
+   reaches its natural leaf at LOD 15), leaving two texels of producer
+   information — a boundary uncertainty of up to half a tile. With
+   `NEAREST` this manifested as the +x/+y overlaps and matching gaps
+   reported during phase 2.
+
+   Linear sampling turns the binary boundary into a coverage gradient.
+   The tile shader's existing `covered > 0.5` discard threshold then
+   recovers the original boundary to within half a texel at the read
+   scale, independent of how many downscale steps separate producer
+   and consumer. The threshold is a tuning knob: values below 0.5 bias
+   toward more discard (less overlap, more gap), values above 0.5
+   toward less discard (more overlap). The mask write path is
+   unchanged; the OR/blit program already produces values in [0, 1]
+   under the MAX blend, and box-equivalent linear sampling at the read
+   end preserves that range without further bookkeeping.
+
+   The `GpuTexture.Type.Mask` branch in
+   `src/core/renderer/gpu/texture.ts` previously forced `NEAREST` on
+   mask textures regardless of the `filter` argument passed to
+   `createFromData`. That override has been removed for the Mask type
+   only; the other texture types still carry their own per-type filter
+   defaults pending a separate audit.
+
 3. Extend fallback cadence.
 
    Add the `mapFallbackLodCadence` integer config (§2.4). Combined

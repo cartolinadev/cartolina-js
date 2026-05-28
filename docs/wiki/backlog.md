@@ -176,7 +176,7 @@ inspect high-LOD tiles over the city.
 ## BUG: draw-traversal phase 2 — front surface overlaps back surface on +x/+y edges
 
 **Opened:** 2026-05-27
-**Status:** open — observed against `legacy-benatky`; not yet diagnosed
+**Status:** resolved 2026-05-28 — mask filter switched to LINEAR
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
 
 ### User report (verbatim)
@@ -190,27 +190,31 @@ inspect high-LOD tiles over the city.
 > BS, please do not optimize around this faulty assumption. Additionally,
 > issue 4 is clearly asymmetric.
 
-### Reproduction
+### Diagnosis
 
-Same URL as issues 1 and 2. Observe the boundary where the city
-(`benatky-nad-jizerou2015`) tileset meets the global DEM
-(`topoearth-copernicus-dem-glo30`). The city's coverage extends past
-its rectangle on the +x and +y sides only; -x and -y sides look clean.
+Not an off-by-one error in mask registration. The cause is a producer
+/ consumer LOD distance combined with `NEAREST` mask sampling. On
+`legacy-benatky` the city tileset reaches LOD 22 while the back
+surface reaches its natural leaf at LOD 15. The mask is written by
+the city tile at its native 256-wide resolution and read by the back
+surface after seven half-quadrant blit-downscales, leaving roughly
+two texels of original information — a boundary uncertainty of up to
+half a tile. With `NEAREST` sampling the binary boundary snaps to
+texel centres of the consumer-scale mask, producing the observed
+overlaps on +x/+y and matching gaps on -x/-y. The +x/+y bias is the
+sampling direction of the corresponding texel-centre rounding under
+the blit; -x/-y land the other way.
 
-### Available analysis
+### Fix
 
-- VTS meshes do not have inherent overlap geometry (corrected by user).
-- The asymmetry (+x/+y only, not -x/-y) rules out a uniform error like
-  bilinear filtering of the mask.
-To investigate:
-
-- Render the mask textures to screen as a diagnostic overlay and
-  inspect coverage at the boundary.
-- Verify the convention of `aTexCoords2` (`y=0` → tile's north or
-  south edge?) against the mesh data.
-- Confirm whether the overlap is geographic (mesh extends past UV
-  `[0,1]`) or screen-space (depth-test win between two surfaces at
-  similar z).
+Mask textures now use `LINEAR` filtering
+(`DrawTraversalMaskPool.createMask`); the per-type filter override in
+`GpuTexture.Type.Mask` was removed so the caller's `'linear'`
+argument is honoured. The tile shader's existing `covered > 0.5`
+discard threshold recovers the original boundary to within half a
+texel at the read scale. See phase 2 post-implementation notes in
+[rfc-draw-traversal.md](rfc-draw-traversal.md) for the full
+explanation and the discard-threshold tuning knob.
 
 ---
 
