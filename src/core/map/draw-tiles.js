@@ -79,7 +79,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 tile.resetDrawCommands = false;
             }
 
-            var ret;
+            let ret = false;
 
             if (!tile.surface.geodata) {
 
@@ -94,10 +94,33 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                     tile.surfaceMesh = tile.resources.getMesh(path, tile);
                 }
 
-                // submesh info need not exist until mesh is ready
-                // this serialization results from meshes with embedded
-                // texture information (internal or external)
-                tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu);
+                let surfaceMesh = tile.surfaceMesh;
+
+                // Trigger the mesh load (side effect of isReady) and capture
+                // whether the mesh is currently usable for drawing. The
+                // return value reflects GPU residence — an existing rig can
+                // still be drawn from gpuSubmeshes even after a CPU resource
+                // cache eviction, as long as the GPU copy survives.
+                let meshReady = surfaceMesh.isReady(
+                    preventLoad, priority, doNotCheckGpu);
+
+                // If the mesh has never finished its first parse, there are
+                // no submeshes to iterate. Return early so callers see the
+                // tile as not-ready and try children. (The submeshes array
+                // is also non-empty after CPU eviction — see cpuReady below
+                // for that case.)
+                if (!surfaceMesh.submeshes.length) return false;
+
+                // CPU residence is a stricter condition than meshReady.
+                // killSubmeshes nulls per-submesh CPU fields (vertices,
+                // internalUVs, externalUVs, indices) but leaves the
+                // submeshes array length intact so existing rigs can keep
+                // drawing from gpuSubmeshes. Rig CONSTRUCTION needs the CPU
+                // fields, so we must check this explicitly before building
+                // a new rig — otherwise rt.internalUVs/externalUVs would
+                // latch to false and the rig would render only the constant
+                // background layer (drab-tile bug).
+                let cpuReady = meshReady && !surfaceMesh.submeshesKilled;
 
                 let priority_ = this.readyPriority;
                 priority_.essential = priority;
@@ -108,32 +131,21 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 readyOptions.doNotCheckGpu = doNotCheckGpu;
 
                 // iterate through submeshes
-                for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
+                for (let i = 0; i < surfaceMesh.submeshes.length; i++) {
 
                     var submeshSurface = tile.resourceSurface;
 
                     if (tile.resourceSurface.glue)
                         submeshSurface = tile.resourceSurface.getSurfaceReference(
-                            tile.surfaceMesh.submeshes[i].surfaceReference);
+                            surfaceMesh.submeshes[i].surfaceReference);
 
                     // we are either drawing the tile for the first time, or
                     // there has been a boundlayer fallback, or a view
                     // has been switched
                     if (!tile.tileRenderRig[i] || tile.updateBounds) {
 
-                        // mesh CPU data may have been evicted by the resource
-                        // cache (killSubmeshes nulls per-submesh fields but
-                        // leaves the submeshes array length intact). Building
-                        // a rig now would latch internalUVs/externalUVs to
-                        // false and the rig would never bind the internal
-                        // texture. Wait for the in-flight reload.
-                        if (tile.surfaceMesh.submeshesKilled
-                                || tile.surfaceMesh.loadState !== 2) continue;
-
-
-                        //if (tile.tileRenderRig[i])
-                        //    console.log('Replacing rig for %s.',
-                        //        [...tile.id, i].join('-'));
+                        // wait for CPU data before constructing a new rig
+                        if (!cpuReady) continue;
 
                         if (tile.lastRenderRig[i]) tile.lastRenderRig[i].dispose();
 
@@ -145,7 +157,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                             i, submeshSurface.style, tile, this.renderer,
                             this.config);
 
-                        // WARN comment out this line if you want the old call below to work
                         tile.updateBounds = false;
                     }
 

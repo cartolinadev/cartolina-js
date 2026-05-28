@@ -12,13 +12,25 @@ and skip the internal-texture overlay. The rig is cached on the tile
 forever, so the tile stayed drab until the rig was replaced.
 
 Interim fix in `draw-tiles.js`: gate rig construction on
-`!surfaceMesh.submeshesKilled && surfaceMesh.loadState === 2`. The
-proper structural fix (restore the `submeshes = []` invariant in
-`killSubmeshes`, switch `draw-tiles.js` to an early-return on
-`!isReady`, drop the defensive guard) is the next step.
+`!surfaceMesh.submeshesKilled && surfaceMesh.loadState === 2`.
+
+Follow-up cleanup (same day): audited all `submeshes.length` and
+`submeshes[i]` consumers and confirmed that the husk pattern in
+`killSubmeshes` (array length preserved, fields nulled) is
+intentional — without it, GPU-only-residence draws of existing rigs
+during a CPU eviction window would stop working. The structural
+"uncomment `submeshes = []`" route would have regressed that case.
+
+Instead, made the call site explicit: hoisted a `cpuReady` local
+(`meshReady && !submeshesKilled`), gated rig construction on it,
+added an explicit `return false;` for the never-parsed case (where
+`submeshes.length === 0`), and changed `var ret;` to `let ret =
+false;`. The implicit self-gating-via-empty-array idiom and the
+unintialized return are gone; the CPU-vs-GPU residency distinction
+is now visible in the code.
 
 Backlog entry: `BUG: TileRenderRig — internal texture missing from
-layer stack`, marked resolved with the interim fix.
+layer stack`, marked resolved.
 
 ## 2026-05-27 — nav-tile analysis and wiki documentation
 

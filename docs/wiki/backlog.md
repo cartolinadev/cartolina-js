@@ -244,11 +244,16 @@ traversal modes (the bug was in rig construction, not traversal).
 
 ### Fix
 
-In `draw-tiles.js`, before constructing a new `TileRenderRig`, skip
-the submesh iteration when the mesh's CPU data is not resident
-(`submeshesKilled === true` or `loadState !== 2`). The in-flight
-reload will repopulate the submesh fields and the rig will be built
-correctly on a later frame.
+In `draw-tiles.js`, hoist a `cpuReady` local (`meshReady &&
+!submeshesKilled`) and gate rig CONSTRUCTION on it. The existing
+husk pattern in `killSubmeshes` (array length preserved, per-submesh
+fields nulled) is intentional — it lets existing rigs keep drawing
+from `gpuSubmeshes` during a CPU-only eviction window. Rig
+DRAWING continues to use whatever residency the rig's `isReady`
+verifies; only rig construction, which needs CPU fields, waits for
+the reload. While there, made the function's early-exit and return
+value explicit (`return false;` when the mesh has never parsed;
+`let ret = false;` instead of `var ret;`).
 
 ### User report (verbatim)
 
