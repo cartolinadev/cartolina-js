@@ -54,6 +54,10 @@ then branch into more specific documents as needed.
 - [tileserver-metatile-production.md](tileserver-metatile-production.md) —
   how the tileserver generates metatiles on demand (VRTWO, tile index,
   serve-time GDAL warp), where the cost lies, and the structural problem
+- [tile-index.md](tile-index.md) — what a VTS tile index carries (flag
+  bits, quadtree structure, serialisation), how `mapproxy-tiling`
+  produces one, how the served index is assembled, and LOD-range
+  broadening behaviour
 
 ### Geodata and labels
 

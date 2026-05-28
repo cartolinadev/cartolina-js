@@ -1362,6 +1362,180 @@ naturally.
 
 ---
 
+## PERF/REDESIGN: coverage-mask `mapproxy-tiling`
+
+**Opened:** 2026-05-29
+**Status:** early design — contains untested assumptions; elevate to
+RFC before implementation
+
+### Goal
+
+Replace the per-tile, per-LOD GDAL warp in `mapproxy-tiling` with a
+single native-resolution coverage pass plus a bottom-up reduction.
+The tile index produced must be identical in meaning to today's
+output (existence, watertight, navtile flags).
+
+### Background
+
+See [tile-index.md](tile-index.md) for what the tile index carries and
+how `mapproxy-tiling` produces it today, and
+[tileserver-metatile-production.md](tileserver-metatile-production.md)
+for the pipeline cost.
+
+The current tool (`mapproxy/src/tiling/tiling.cpp`) warps a 129 × 129
+sample grid per tile and descends the whole tree, classifying each tile
+as whole / some / none. Its watertight seal engages only once the warp
+reaches native resolution, so a fully-covered but downsampled region is
+warped at every LOD down to the resolution floor. On a planet-scale
+dataset this runs for days to weeks. The only output is a per-tile
+flag bitmask; the warped raster is discarded.
+
+This redesign also retires the watertight-under-broadening limitation
+documented in [tile-index.md](tile-index.md): because truth is computed
+at native resolution and reduced upward, there is no coarse watertight
+value to over-trust.
+
+### Basis: the GDAL mask band (RFC 15)
+
+The mechanism rests on GDAL's per-band/per-dataset mask band, defined in
+GDAL RFC 15 — "RFC 15: Band masks"
+(<https://gdal.org/en/stable/development/rfc/rfc15_nodatabitmask.html>).
+`GetMaskBand()` always returns a `UInt8` band where **0 means nodata and
+255 means valid**, and GDAL **synthesizes** it when no explicit `.msk`
+file exists:
+
+- `GMF_NODATA` — generated on the fly from the source's nodata value;
+- `GMF_ALPHA` — the alpha band, which may hold values other than 0/255;
+- `GMF_ALL_VALID` — an all-255 fallback when the source declares no
+  nodata.
+
+So the data-availability layer is not something this tool derives — it
+is the mask band GDAL already produces. This is the entire basis of the
+existence / watertight test: warp the **mask band** (not the elevation),
+reduce min/max per output cell, and
+
+- `max > 0` ⇒ at least one valid source pixel ⇒ the tile **exists**;
+- `min > 0` ⇒ every source pixel valid ⇒ the tile is **watertight**.
+
+For a binary mask (`GMF_NODATA` or `GMF_ALL_VALID`) the values are
+strictly 0 or 255, so `min > 0` is identical to `min == 255` — exactly
+"fully covered." A gap-free source yields `GMF_ALL_VALID`, i.e. 255
+everywhere, so existence and watertight fall out with no scan of data
+values at all.
+
+**Design rule — warp the mask band with no nodata.** Do not pass
+`-srcnodata` and do not set a nodata value on the mask band being
+warped. A mask band has no *invalid* pixels — 0 and 255 are both valid
+mask *values* — so by default the warper excludes nothing and min/max
+see every pixel, including the 0s that signal holes. GDAL only excludes
+source pixels when told to, via `-srcnodata`, a band nodata value, or
+the band's own mask (which for a mask band is all-valid). Declaring 0 as
+nodata would make the warper drop exactly the hole pixels and report
+false watertight. The rule is simply not to do that.
+
+### Proposed algorithm
+
+1. Take the source **mask band** (`GetMaskBand`, RFC 15). No manual
+   0/1 derivation, no nodata bookkeeping — the mask band is the dense
+   availability raster by construction.
+2. Per reference-frame division node, warp that band into the node grid
+   at the resolution floor (the native-resolution LOD, which calipers
+   already computes from source GSD).
+3. Reduce two statistics per output cell during the warp, using GDAL's
+   min/max resampling (`GRA_Min` / `GRA_Max`):
+   - `max` over the cell → existence (any source pixel present);
+   - `min` over the cell → watertight (all source pixels present).
+   This can be one warp at sub-tile sampling reduced in code, or two
+   warps (one extra source read, still far cheaper than the current
+   tool). The destination is initialised to 0 so cells outside the
+   source extent reduce to not-existing / not-watertight.
+4. Build coarser LODs bottom-up with pure bit operations, no further
+   sampling:
+   - existence: `parent = OR(children)`;
+   - watertight: `parent = AND(children)`.
+   up to the root.
+5. AND in reference-frame node validity separately (the deliberate
+   fake-watertight in invalid areas). Positional flags — `navtile` at
+   the analysis minimum, `atlas` rules — are set by position, not by
+   sampling.
+
+### Why it is faster
+
+Every source pixel is read and resampled **once**, instead of being
+re-resampled at each pyramid level plus overview construction. That is
+the `O(levels × area)` → `O(area)` collapse where the current runtime
+goes. The coarser-LOD reduction touches no source data at all.
+
+### Parallelism
+
+Use CPU parallelism wherever available; the work is well suited to it.
+
+- **GDAL multi-threaded warping.** The native-resolution warp is the
+  dominant cost and GDAL can multi-thread a single warp across blocks
+  (`gdalwarp -multi`, warp option `NUM_THREADS=ALL_CPUS`, or the
+  equivalent `GDALWarpOptions`). Enable it.
+- **Across reference-frame nodes.** The per-node warps are independent
+  and can run concurrently.
+- **Block reduction.** The streamed blocks of the native-resolution
+  mask, and the bottom-up OR/AND reduction over quadrants, are
+  embarrassingly parallel; a parallel block pipeline overlaps warp I/O
+  with reduction.
+
+The current tool already parallelises its per-tile descent with OpenMP
+(`mapproxy/src/tiling/tiling.cpp` lines 178-183); the redesign should
+keep at least that level of CPU utilisation while removing the redundant
+work. If GDAL's own threading covers the warp, additional task
+parallelism need only cover the reduction and the per-node fan-out —
+confirm the two layers do not oversubscribe cores.
+
+### Assumptions to test before committing
+
+These are the load-bearing claims; the RFC should verify each
+empirically (e.g. `gdalwarp -r min` / `-r max` on a small DEM tile,
+diffed against the current tool's flags for the same extent):
+
+- **GDAL min/max resampling aggregates over the full destination
+  footprint** for a downsampling warp, not a subsample. Needs
+  confirmation at extreme downsample ratios.
+- **Boundary / straddle semantics**: whether a source pixel straddling
+  a tile edge is counted by overlap or by centre. This affects
+  watertight exactly at tile edges. Verify against a hand-reduced
+  reference.
+- **Alpha masks**: for `GMF_ALPHA` sources the mask may hold values
+  between 0 and 255, so `min > 0` no longer equals "fully valid." Such
+  sources need a threshold (e.g. `min == 255`) or explicit handling.
+  DEMs are typically `GMF_NODATA` / `GMF_ALL_VALID`, where this does not
+  arise.
+- **Read-once floor**: 1 px/tile output does not reduce source reads
+  (the warper still scans every source pixel); the saving over a
+  high-resolution mask is intermediate size and memory, not source I/O.
+  The saving over the current tool — reading the source once instead of
+  per level — is the real win and is unaffected.
+- **Empty-region pruning**: the current descent skips empty areas
+  (ocean) cheaply. A full-extent native pass must recover this, e.g.
+  bound by the source footprint and/or a coarse existence pre-pass, or
+  it will process empty area it does not need to.
+
+### Relation to other items
+
+This shares the data dependency and output format of **PERF: pre-built
+metatile index** (this file). The bottom-up reduction can carry per-node
+height-range min/max in the same pass — the VRTWO min/max pyramids are
+the input either way — producing the extended index that item needs.
+Sequencing of the two is open.
+
+### Open questions
+
+- Whether GDAL's stock min/max resampling is trustworthy enough or a
+  custom warp kernel (emitting both stats in one pass) is warranted.
+- Streaming strategy: the native-resolution coverage band for a planet
+  cannot be materialised whole; it must be processed in blocks reduced
+  into the pyramid, as overview construction already does.
+- Output format: whether to keep the current QTree format or move to
+  the extended per-node format from the pre-built metatile index item.
+
+---
+
 ## BUG: `Viewer.checkVisibility()` depth comparison is broken
 
 **Opened:** 2026-04-14

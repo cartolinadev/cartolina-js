@@ -1,5 +1,39 @@
 # Session log
 
+## 2026-05-29 — tile-index documentation and tiling redesign backlog
+
+Documentation-only session, no code changes. Traced the tileserver
+tile-index code (`vts-libs` `tileindex.hpp` / `qtree.cpp`,
+`mapproxy` `tiling.cpp` and `support/tileindex.cpp`) to answer
+questions about LOD-range broadening and tile-index contents.
+
+New topic page [tile-index.md](tile-index.md): what the index carries
+(flag bits, per-LOD quadtree, `0xff` `GrayNode` serialisation and the
+7-bit cap), how `mapproxy-tiling` produces it (per-tile warp, the two
+`whole` sub-cases split on source resolution), how `prepareTileIndex`
+assembles the served index, and both LOD-range broadening directions.
+Recorded the known watertight-under-broadening limitation:
+`completeDownFromBottom` copies the `watertight` bit downward without
+re-sampling, and a watertight tile at the tiling's max LOD may still
+have finer source data.
+
+New backlog item **PERF/REDESIGN: coverage-mask `mapproxy-tiling`**:
+replace the per-tile, per-LOD warp with a native-resolution warp of the
+GDAL **mask band** (RFC 15 — `GetMaskBand`, 0 = nodata / 255 = valid,
+synthesized from nodata/alpha/all-valid) reduced bottom-up by
+`max > 0 ⇒ exists`, `min > 0 ⇒ watertight`. Settled the nodata handling
+as a design rule (do not pass `-srcnodata` on the mask-band warp; a mask
+band has no invalid pixels). Added a parallelism section (GDAL `-multi`,
+per-node fan-out, block reduction). The entry is tagged for elevation to
+RFC and lists the remaining empirical assumptions (alpha masks,
+boundary/straddle counting, read-once floor, empty-region pruning).
+
+Also corrected [tileserver-metatile-production.md](tileserver-metatile-production.md):
+the "subtrees below a watertight tile are promoted without further
+warping" sentence oversimplified the seal, which fires only in the
+native-resolution `whole` sub-case. Now states the resolution condition
+and links to the new page.
+
 ## 2026-05-28 — surface sequence order follows terrain.sources
 
 Style-based maps were picking the wrong front surface. Two
