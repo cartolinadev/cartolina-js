@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-05-28 — surface sequence order follows terrain.sources
+
+Style-based maps were picking the wrong front surface. Two
+independent places ignored the explicit `terrain.sources` array:
+
+- `MapStyle.refreshSequences` (style.ts) iterated `map.surfaces`,
+  whose order is inherited from the unordered `sources` dict.
+- `Map.surfaceList` (map.ts), the input to the recursive
+  draw-traversal, sorted surfaces alphabetically by id.
+
+For `viewfinder13.json` (`terrain.sources: [dem3, dem1]`,
+front-at-last-index) the alphabetical sort put `dem3` at the last
+index instead of `dem1`, so `dem3` was rendered as the front
+surface and dem1 was masked out.
+
+Both call sites now iterate `terrain.sources` directly and look up
+each surface by `styleSourceId`. A missing surface throws instead of
+silently dropping the entry.
+
+Also: `Map.surfaces` was initialized as `{}` in the constructor even
+though every code path treats it as an array. Changed to `[]`.
+
+### Style guideline
+
+Added an inline-comment style block to `AGENTS.md`:
+
+- Default to one-line comments; multi-line only for genuinely
+  non-obvious concepts.
+- State the rule the code follows; don't argue against alternatives
+  the code is not taking.
+
 ## 2026-05-28 — draw-traversal mask filter switched to LINEAR
 
 Resolved the phase 2 "+x/+y overlap" bug on `legacy-benatky`. The

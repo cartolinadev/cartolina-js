@@ -738,7 +738,10 @@ class Map {
             legacyMap.bestMeshTexelSize = 0;
             legacyMap.bestGeodataTexelSize = 0;
 
+            // draw
             this.draw();
+
+            // overlays
             this.runOverlays_();
 
             /* Post-draw loader promotion: requests discovered during
@@ -1169,16 +1172,23 @@ class Map {
 
         if (legacyMap.style) {
 
-            // Style-based maps: the active terrain sources name the
-            // surfaces. `getCurrentView()` forwards to
-            // `style.legacyView()` which does not exist on
-            // style-based maps, so we cannot read `view.surfaces`
-            // here.
+            // terrain.sources order: back-to-front, front at last index
             const sources = legacyMap.style.style().terrain?.sources
                 ?? [];
 
-            surfaces = legacyMap.surfaces.filter((s: MapSurface) =>
-                sources.includes(s.styleSourceId));
+            surfaces = sources.map(sourceId => {
+
+                const surface = legacyMap.surfaces.find(
+                    s => s.styleSourceId === sourceId);
+
+                if (!surface) {
+                    throw new Error(`terrain.sources references `
+                        + `"${sourceId}" but no surface was loaded `
+                        + `for that source`);
+                }
+
+                return surface;
+            });
 
         } else {
 
@@ -1196,10 +1206,7 @@ class Map {
                     s != null);
         }
 
-        // Stable order: alphabetical by id, front surface at the last
-        // index (matches the convention in `MapSurfaceSequence`).
-        return surfaces.sort((a, b) =>
-            a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        return surfaces;
     }
 
     /**

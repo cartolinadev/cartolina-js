@@ -814,6 +814,16 @@ plain from the identifiers alone. Write in plain engineering prose
 with no jargon (see [No jargon](#no-jargon)). One line is almost
 always enough; if more is needed, use a `/* ... */` block comment.
 
+Keep inline comments concise and to the point:
+
+- **One line is the default.** Wrap to a second line only when the
+  concept is genuinely non-obvious and needs more than one sentence.
+  Don't expand a simple idea into a multi-line block.
+- **Say what the code does, not why it doesn't do something else.**
+  Don't argue against alternatives ("iterating X instead would..."),
+  don't justify the choice by ruling out other paths. State the rule
+  the code follows; the reader doesn't need the rejected options.
+
 **Adding JSDoc to existing code is encouraged** when you encounter a
 function or method whose behaviour is non-trivial or not obvious from
 its name and signature, and where a JSDoc comment is absent. This
