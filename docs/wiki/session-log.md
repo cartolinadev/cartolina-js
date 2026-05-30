@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-30 — preallocate the layers UBO backing buffer
+
+`TileRenderRig.updateBuffer` allocated a fresh `ArrayBuffer`
+(`UboLayersSize`), two typed views (`Float32Array`/`Int32Array`) and the
+`Int32Array(MaxTextures)` sampler array on every draw, churning the GC
+once per tile per frame. Preallocated all four as `readonly` instance
+fields (`uboBuf`, `uboF32`, `uboI32`, `uboSamplers`) and reused them.
+
+The backing buffer needs no clearing: every active word is overwritten
+before upload and the shader reads only `layerCount` layers. The sampler
+array does get a `fill(0)` each draw so stale unit indices from a
+previous draw are not uploaded — preserving the old fresh-array
+behaviour. Only the two small `bufacc`/`samplers` cursor objects are
+still allocated per draw.
+
+Also tidied agent config: removed an untracked `gdal.org` WebFetch
+permission and a `/tmp` `additionalDirectories` entry from the tracked
+`.claude/settings.json`. The `gdal.org` grant moved to the gitignored
+`.claude/settings.local.json`; `/tmp` was dropped. AGENTS.md now states
+diagnostic output uses the gitignored repo-root `tmp/`, not system
+`/tmp`.
+
 ## 2026-05-29 — tile-index documentation and tiling redesign backlog
 
 Documentation-only session, no code changes. Traced the tileserver
