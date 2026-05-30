@@ -1196,6 +1196,7 @@ Map.prototype.setConfigParam = function(key, value) {
         break;
     }
     case 'mapTerrainTraversal':           this.config.mapTerrainTraversal = (value === 'legacy' ? 'legacy' : 'recursive'); break;
+    case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
     case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
     case 'mapGridUnderSurface':           this.config.mapGridUnderSurface = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
@@ -1297,6 +1298,7 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
     case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
     case 'mapTerrainTraversal':           return this.config.mapTerrainTraversal;
+    case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
     case 'mapGridMode':                   return this.config.mapGridMode;
     case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
     case 'mapGridUnderSurface':           return this.config.mapGridUnderSurface;

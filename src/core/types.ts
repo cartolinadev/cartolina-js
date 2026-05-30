@@ -37,6 +37,7 @@ export interface CoreConfig {
     mapSplitMargin?: number;
     mapTraversalMaskResolution?: number;
     mapTerrainTraversal?: 'recursive' | 'legacy';
+    mapFallbackCadence?: number;
     mapLabelFreeMargins?: [number, number, number, number];
     mapRefreshCycles?: number;
 }

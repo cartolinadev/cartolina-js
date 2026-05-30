@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.455-feature_draw_traversal_v1.9b133359';
+  return '2.49.456-feature_draw_traversal_v1.ce36d7d1';
 }

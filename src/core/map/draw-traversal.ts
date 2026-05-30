@@ -53,6 +53,7 @@ export function drawTerrainTraversal(
     const renderer = legacyMap.renderer;
     const screenTarget = renderer.gpu.currentRenderTarget;
     const cameraPos = legacyMap.camera.position;
+    const fallbackCadence = Number(legacyMap.config.mapFallbackCadence ?? 3);
 
     // Activate every surface whose root metanode is ready, in view,
     // and not culled. The order in `plainTrees` is back-to-front; we
@@ -94,6 +95,7 @@ export function drawTerrainTraversal(
         counters,
         texelSizeFit: draw.texelSizeFit,
         cameraPos,
+        fallbackCadence,
     });
 
     renderer.gpu.setRenderTarget(screenTarget);
@@ -126,7 +128,8 @@ export function drawTerrainTraversal(
  */
 function traverseNode(context: NodeContext): boolean {
 
-    const { active, depth, maskPool, texelSizeFit } = context;
+    const { active, depth, maskPool, texelSizeFit, fallbackCadence } =
+        context;
 
     if (active.length === 0) return false;
 
@@ -175,12 +178,15 @@ function traverseNode(context: NodeContext): boolean {
 
     // Render the surfaces front-to-back. The last entry is the front
     // surface (lowest `viewSurfaceIndex`), so iterate in reverse.
-    // A surface at its natural leaf at this node renders
-    // unconditionally (RFC §2.1 step 4). Surfaces that could still go
-    // deeper render as fallback coverage (RFC §2.1 step 5; phase 2
-    // treats every inner node as a fallback LOD, matching phase 1
-    // behaviour — the fallback cadence config arrives in phase 3).
+    // A surface at its natural leaf at this node renders unconditionally
+    // (RFC §2.1 step 4). A surface that could still go deeper renders
+    // coarse fallback coverage (RFC §2.1 step 5) only on a fallback LOD,
+    // chosen by the cadence: this node's LOD modulo `fallbackCadence`.
+    // Cadence 1 makes every inner node a fallback LOD (topdown); a large
+    // cadence makes none (fitonly, only leaves render).
     let hasCoverage = hasChildCoverage;
+
+    const fallbackLod = active[0].tile.id[0] % fallbackCadence === 0;
 
     for (let i = active.length - 1; i >= 0; i--) {
 
@@ -188,6 +194,12 @@ function traverseNode(context: NodeContext): boolean {
         const node = entry.tile.metanode!;
         const naturalLeaf = !(node.hasChildren()
             && entry.tile.texelSize > texelSizeFit);
+
+        // A non-natural-leaf surface only draws on a fallback LOD; off
+        // the cadence it contributes nothing and the gap is filled by an
+        // ancestor fallback LOD or by its own finer descendants.
+        if (!naturalLeaf && !fallbackLod) continue;
+
         const readiness = naturalLeaf ? ReadinessFull : ReadinessFallback;
 
         if (renderSurface(context, entry, readiness)) {
@@ -362,6 +374,7 @@ type NodeContext = {
     counters: Counters;
     texelSizeFit: number;
     cameraPos: [number, number, number];
+    fallbackCadence: number;
 };
 
 

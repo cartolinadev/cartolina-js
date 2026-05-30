@@ -1236,17 +1236,29 @@ Implementation phases:
    only; the other texture types still carry their own per-type filter
    defaults pending a separate audit.
 
-3. Extend fallback cadence.
+3. **Implemented.** Extend fallback cadence.
 
-   Add the `mapFallbackLodCadence` integer config (§2.4). Combined
-   descent already distinguishes natural-leaf and fallback rendering,
-   so cadence wiring is the gating decision on step 5 only.
+   Added the `mapFallbackCadence` integer config (§2.4), default 3.
+   Combined descent already distinguishes natural-leaf and fallback
+   rendering, so the cadence is the gating decision on step 5 only: a
+   non-natural-leaf surface draws coarse coverage only when this node's
+   LOD satisfies `tile.id[0] % cadence === 0`. The anchor is the
+   absolute LOD, so the chosen fallback LODs are frame-stable as the
+   camera moves. Cadence 1 makes every inner node a fallback LOD
+   (topdown); a large cadence makes none (fitonly). Descent and mask
+   propagation are not gated — only whether a non-leaf node draws.
+   The param is reachable through `setConfigParam`, the default config
+   in `core.js`, and the `?mapFallbackCadence=N` URL parameter.
 
-   Manual checkpoint: cadence 1 reproduces topdown behavior; cadence
-   ∞ reproduces fitonly; cadence 3–5 shows progressive loading where
-   coarser fallback tiles appear first and are then replaced by finer
-   tiles. Confirm that fallback readiness uses `desired: 'fallback'`
-   and does not starve natural-leaf loads.
+   Manual checkpoint completed: at cadences 1, 3 (default), and a large
+   value (fitonly) the `full-terrain` scene converges to the same
+   complete image with no coverage gaps, confirming the gate drops no
+   coverage at the settled state; the cadence only changes the loading
+   trajectory and inner-node overdraw. `simple-terrain`,
+   `complex-terrain`, and `full-terrain` render with no regression on a
+   fresh webpack server. Fallback readiness still uses the
+   `desired: 'fallback'` path, so coarse stand-ins do not starve
+   natural-leaf loads.
 
 4. Client v6 metatile parsing.
 

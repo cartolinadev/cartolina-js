@@ -63,6 +63,7 @@ var Core = function(element, config) {
         mapSplitMargin : 0.0025, // used for topdown load mode
         mapTraversalMaskResolution : 256,
         mapTerrainTraversal : 'recursive', // 'recursive', 'legacy'
+        mapFallbackCadence : 3, // 1 = topdown, large = fitonly
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,

@@ -1,5 +1,37 @@
 # Session log
 
+## 2026-05-30 — draw-traversal phase 3: fallback LOD cadence
+
+Implemented phase 3 of the draw-traversal rollout (RFC §2.4). Added the
+`mapFallbackCadence` integer config (default 3) that controls how often
+inner nodes draw coarse fallback coverage during the combined descent.
+
+Phase 2 rendered every inner node as a fallback LOD (the topdown
+profile: maximum overdraw and data requests). The cadence now gates the
+fallback render step in `draw-traversal.ts`: a non-natural-leaf surface
+draws only when `tile.id[0] % cadence === 0`. The anchor is the absolute
+LOD, so the chosen fallback LODs stay fixed as the camera moves (no
+flicker). Cadence 1 reproduces topdown; a large cadence reproduces
+fitonly (only leaves render). Descent and mask propagation are not gated
+— only whether a non-leaf node draws. Natural leaves always render.
+
+Config plumbing: default in `core.js`, type in `types.ts`, setter/getter
+in `map.js` (`validateNumber(value, 1, MAXINTEGER, 3)`), and
+`mapFallbackCadence` added to `NUMBER_KEYS` in `browser/url-config.ts`
+so `?mapFallbackCadence=N` is parsed to a number before the setter.
+
+Note: `npx tsc --noEmit` passed but the webpack ts-loader rejected the
+config read — `legacyMap.config`'s value type is a broad union there, so
+`?? 3` left a `string | number | boolean | number[]`. Wrapped the read
+in `Number(...)`. The screenshot test caught the stale-server compile
+error that bare tsc missed.
+
+Verification: `simple-terrain`, `complex-terrain`, `full-terrain` render
+clean. Cadence sweep (1 / 3 / 999) on `full-terrain` converges to the
+same complete image with no gaps, confirming the gate drops no coverage
+at the settled state. Confirmed via `runtimeOptionsFromUrl` that the URL
+param arrives as a number.
+
 ## 2026-05-30 — preallocate the layers UBO backing buffer
 
 `TileRenderRig.updateBuffer` allocated a fresh `ArrayBuffer`
