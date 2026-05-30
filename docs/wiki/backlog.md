@@ -41,6 +41,72 @@ After the legacy traversal is removed:
 
 ---
 
+## BUG: superelevation — debug bbox heights baked at stale zoom
+
+**Opened:** 2026-05-31
+**Status:** open
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+
+### Symptom
+
+With vertical exaggeration active, `Shift+B` debug boxes for high-LOD
+tiles (e.g. LOD 15 on `simple.json` over the Himalayas) levitate above
+the terrain: correct geographic position, height too high. Reproduced
+on `mapTerrainTraversal=recursive` with `mapFallbackCadence=3`.
+`mapFallbackCadence=1` and `mapTerrainTraversal=legacy` do not show it.
+Reloading at the same camera position renders the same tiles' boxes
+correctly.
+
+### Reproduction
+
+URL:
+`http://localhost:8080/demos/map/?style=styles/simple.json&pos=obj,88.146972,27.703191,fix,8433.73,-205.24,2.81,0.00,13252.77,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive&mapFallbackCadence=3`
+
+Enable `Shift+B`, zoom all the way in, tilt to a high oblique angle.
+LOD-15 boxes float. Ctrl-R at the same position, `Shift+B` again: boxes
+are correct.
+
+### Root cause
+
+The vertical-exaggeration scale factor depends on camera view extent
+(zoom): `getVeScaleFactor` reads `position.pos[8]` and runs it through
+`currentScaleDenominator` —
+[src/core/renderer/renderer.ts:1657](../../src/core/renderer/renderer.ts).
+
+The terrain surface applies exaggeration on the GPU every frame at the
+live position, so it always matches the current zoom. The debug box uses
+CPU-cached `bbox2`, whose exaggerated `minZ`/`maxZ` are recomputed only
+when `tile.seCounter != renderer.seCounter` —
+[src/core/map/surface-tile.js:341](../../src/core/map/surface-tile.js).
+`seCounter` bumps only when exaggeration settings change, never on
+camera move. So each tile's box height is frozen at the exaggeration of
+whatever zoom it was first baked at. Box and surface agree only if the
+tile was baked near the current zoom.
+
+Recursive + `cadence=3` off-cadence residence-only probing keeps tiles
+drawn that were first baked earlier in the zoom-in (farther out, larger
+factor), so their boxes float. `cadence=1` refreshes near the final
+zoom; legacy bakes at the final state; reload bakes everything at the
+final zoom. The inconsistency is pre-existing and latent; the new
+traversal's off-cadence persistence exposes it.
+
+### Wider risk
+
+`bbox2` also feeds culling —
+[src/core/map/surface-tile.js:646](../../src/core/map/surface-tile.js),
+`pointsVisible(node.bbox2, …)`. A stale-baked `bbox2` can make frustum
+culling decide against an exaggeration that no longer matches the live
+surface, so this is not only a debug-overlay artifact.
+
+### Fix fork (undecided)
+
+1. Invalidate and recompute `bbox2` exaggeration when `getVeScaleFactor`
+   would change with zoom. Fixes culling too; costs a per-zoom rebuild.
+2. Apply exaggeration to the overlay box live at draw time, like the
+   GPU. Overlay-only; leaves the culling question open.
+
+---
+
 ## REFACTOR: drop metatile format versions 1–3
 
 **Opened:** 2026-05-27

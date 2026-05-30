@@ -44,12 +44,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 !tile.surface.geodata && preventLoad && !tile.surfaceMesh;
             if (probingUnloadedTerrain) return false;
 
-            if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
-                if (tile.surface.geodata || !this.map.outerMap.overrides.drawGeodataOnly) {
-                    this.drawTileInfo(tile, node, cameraPos, tile.surfaceMesh, pixelSize);
-                }
-            }
-
             if (this.map.outerMap.overrides.heightmapOnly && !preventRedener) {
                 if (!tile.surface.geodata) {
                     tile.drawGrid(cameraPos);
@@ -86,6 +80,10 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
             }
 
             let ret = false;
+
+            // set once any submesh of this tile paints color content; the
+            // terrain debug overlay below is keyed off this
+            let tileDidDraw = false;
 
             if (!tile.surface.geodata) {
 
@@ -209,6 +207,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
 
                             // draw something
                             rigToDraw.draw(cameraPos, maskTexture);
+                            tileDidDraw = true;
 
                             // process layer credits (only active layers)
                             let activeLayerIds = rigToDraw.activeLayerIds();
@@ -236,9 +235,29 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                     ret = rigToDraw;
                 } // end iterate through submeshes
 
+                // draw the overlay once per tile, on the color pass, when the
+                // tile painted color content this frame
+                if (tileDidDraw
+                    && this.map.outerMap.overrides.drawBBoxes
+                    && !this.map.outerMap.overrides.drawGeodataOnly
+                    && this.map.outerMap.drawChannel === 'color') {
+
+                    this.drawTileInfo(
+                        tile, node, cameraPos, tile.surfaceMesh, pixelSize);
+                }
+
                 // -- tile-render-rig integration - end
 
             } else {
+
+                // debug bbox/label overlay for geodata-surface tiles, drawn
+                // on tile selection. This call has no drawChannel guard, so
+                // on the depth pass it writes overlay geometry into the
+                // depth/hitmap target and locally corrupts it.
+                if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
+                    this.drawTileInfo(
+                        tile, node, cameraPos, tile.surfaceMesh, pixelSize);
+                }
 
                 ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize,
                     priority, preventRedener, preventLoad, doNotCheckGpu);

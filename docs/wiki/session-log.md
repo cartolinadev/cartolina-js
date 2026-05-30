@@ -1,5 +1,33 @@
 # Session log
 
+## 2026-05-31 — tile-info overlay follows actual draws
+
+Moved the debug bbox/label overlay in `drawSurfaceTile` so it reflects
+what painted, not what traversal selected. For terrain it now draws once
+per tile, on the color pass, after the submesh loop, gated on a
+`tileDidDraw` flag set when a rig actually paints color content. The
+geodata overlay moved into the geodata branch unchanged in behaviour; it
+fires on tile selection and still lacks a `drawChannel` guard, so on the
+depth pass it writes overlay geometry into the depth/hitmap target — a
+pre-existing leak, now commented at the call site.
+
+Recorded a comment rule in `AGENTS.md`: comments state what the code
+does, not what it does not — no contrast with rejected alternatives,
+prior behaviour, or sibling paths.
+
+Investigation, logged as a backlog bug (no fix yet): with a vertical
+exaggeration scale ramp, `bbox2` heights are baked once per metanode and
+gated on `seCounter`, which never bumps on camera move. The scale factor
+depends on zoom (`getVeScaleFactor` → `position.pos[8]`), so a tile's
+cull box and debug box keep the exaggeration of whatever zoom they were
+baked at. The terrain surface re-applies exaggeration live on the GPU,
+so box and surface diverge until reload re-bakes at the final zoom.
+`bbox2` is the v4+ frustum cull volume, so this also mis-sizes culling,
+not only the overlay. Exposed by recursive traversal with
+`mapFallbackCadence>1`, which keeps stale-baked tiles drawn.
+
+Verification: `npx tsc --noEmit` clean.
+
 ## 2026-05-30 — draw-traversal off-cadence fallback probe
 
 Adjusted the recursive terrain traversal so fallback cadence gates

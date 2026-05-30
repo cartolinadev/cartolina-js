@@ -822,10 +822,14 @@ Keep inline comments concise and to the point:
 - **One line is the default.** Wrap to a second line only when the
   concept is genuinely non-obvious and needs more than one sentence.
   Don't expand a simple idea into a multi-line block.
-- **Say what the code does, not why it doesn't do something else.**
-  Don't argue against alternatives ("iterating X instead would..."),
-  don't justify the choice by ruling out other paths. State the rule
-  the code follows; the reader doesn't need the rejected options.
+- **Say what the code does, not what it does not.** Comment on the
+  behaviour present in the code. Do not contrast it with rejected
+  alternatives ("iterating X instead would..."), with how it used to
+  work, or with how a sibling path differs. A reader who lacks the
+  history and the planned direction cannot tell such asides from live
+  behaviour, so they read as noise. State the rule this code follows;
+  leave history and future plans to commit messages, the wiki, and
+  the backlog.
 
 **Adding JSDoc to existing code is encouraged** when you encounter a
 function or method whose behaviour is non-trivial or not obvious from
