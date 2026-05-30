@@ -1,5 +1,46 @@
 # Task backlog
 
+## REFACTOR: audit draw-readiness policy flags after traversal rollout
+
+**Opened:** 2026-05-30
+**Status:** open
+
+### Goal
+
+Audit the legacy negative readiness flags from their resource-layer
+roots upward, then replace them with a clearer policy abstraction if the
+inventory supports it.
+
+### Rationale
+
+Flags such as `preventRedener`, `preventLoad`, and `doNotCheckGpu` are
+used by surface rendering, geodata free-layer rendering, legacy draw
+traversal, recursive draw traversal, and resource classes such as mesh
+and texture. Their names are negative and partly misleading.
+`doNotCheckGpu`, for example, can mean "do not require or create GPU
+residency" rather than "verify that GPU resources are ready". The
+off-cadence fallback probe added during the draw-traversal rollout uses
+these flags because that is the smallest compatible change, not because
+the abstraction is good.
+
+### Suggested direction
+
+After the legacy traversal is removed:
+
+1. Start at resource classes such as mesh, texture, subtexture, geodata,
+   and geodata view. Record what each readiness flag controls: network
+   fetch, retry scheduling, cache warming, CPU decode, GPU upload, and
+   GPU-cache accounting.
+2. Trace those meanings upward through `drawSurfaceTile`, geodata
+   callers, legacy traversal, recursive traversal, and `TileRenderRig`.
+3. Decide the replacement level only after the inventory. The fix may
+   belong in resource readiness, draw orchestration, traversal callers,
+   or a small policy object shared across those boundaries.
+4. Prefer positive policy terms if the inventory supports them, such as
+   `render`, `fetch`, `upload`, and `construct`.
+
+---
+
 ## REFACTOR: drop metatile format versions 1–3
 
 **Opened:** 2026-05-27

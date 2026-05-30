@@ -38,6 +38,12 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
     if (tile.surface) {
         if (node.hasGeometry()) {
 
+            // escape hatch for no-load probing
+            // motivation: off-cadence residence-only draws in tree traversal
+            let probingUnloadedTerrain =
+                !tile.surface.geodata && preventLoad && !tile.surfaceMesh;
+            if (probingUnloadedTerrain) return false;
+
             if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
                 if (tile.surface.geodata || !this.map.outerMap.overrides.drawGeodataOnly) {
                     this.drawTileInfo(tile, node, cameraPos, tile.surfaceMesh, pixelSize);

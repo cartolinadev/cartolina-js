@@ -176,14 +176,18 @@ function traverseNode(context: NodeContext): boolean {
         }
     }
 
-    // Render the surfaces front-to-back. The last entry is the front
-    // surface (lowest `viewSurfaceIndex`), so iterate in reverse.
-    // A surface at its natural leaf at this node renders unconditionally
-    // (RFC §2.1 step 4). A surface that could still go deeper renders
-    // coarse fallback coverage (RFC §2.1 step 5) only on a fallback LOD,
-    // chosen by the cadence: this node's LOD modulo `fallbackCadence`.
-    // Cadence 1 makes every inner node a fallback LOD (topdown); a large
-    // cadence makes none (fitonly, only leaves render).
+    // Render surfaces front-to-back. The last entry is the front surface
+    // (lowest `viewSurfaceIndex`), so iterate in reverse.
+    //
+    // There are three backtrack render cases:
+    //
+    // 1. Natural leaf: render unconditionally with full desired readiness.
+    // 2. Cadence fallback: render a non-leaf fallback LOD and allow missing
+    //    fallback resources to be requested.
+    // 3. Off-cadence probe: try a non-leaf fallback draw with loading
+    //    disabled. This keeps an already available intermediate LOD visible
+    //    while the deeper natural leaf loads, without making every traversed
+    //    LOD a proactive fallback request.
     let hasCoverage = hasChildCoverage;
 
     const fallbackLod = active[0].tile.id[0] % fallbackCadence === 0;
@@ -195,14 +199,12 @@ function traverseNode(context: NodeContext): boolean {
         const naturalLeaf = !(node.hasChildren()
             && entry.tile.texelSize > texelSizeFit);
 
-        // A non-natural-leaf surface only draws on a fallback LOD; off
-        // the cadence it contributes nothing and the gap is filled by an
-        // ancestor fallback LOD or by its own finer descendants.
-        if (!naturalLeaf && !fallbackLod) continue;
-
         const readiness = naturalLeaf ? ReadinessFull : ReadinessFallback;
 
-        if (renderSurface(context, entry, readiness)) {
+        // off-cadence residence-only probe, see above
+        const preventLoad = !naturalLeaf && !fallbackLod;
+
+        if (renderSurface(context, entry, readiness, preventLoad)) {
             hasCoverage = true;
         }
     }
@@ -259,6 +261,7 @@ function renderSurface(
     context: NodeContext,
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
+    preventLoad = false,
 ): boolean {
 
     const { tree, tile } = entry;
@@ -283,7 +286,7 @@ function renderSurface(
             tile.texelSize,
             priority,
             false,
-            false,
+            preventLoad,
             false,
             readiness,
             maskTexture,

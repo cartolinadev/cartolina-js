@@ -1260,6 +1260,16 @@ Implementation phases:
    `desired: 'fallback'` path, so coarse stand-ins do not starve
    natural-leaf loads.
 
+   Follow-up correction: cadence now gates proactive fallback loading,
+   not every possible fallback draw. Off-cadence non-leaf nodes perform
+   a legacy no-load fallback draw attempt with fallback readiness. If an
+   intermediate tile is already usable, it can keep rendering while the
+   new natural-leaf LOD loads. This avoids the visible drop from, for
+   example, LOD 7 to LOD 6 when LOD 8 becomes the natural leaf but has
+   not loaded yet. The stricter resident-only policy is deferred unless
+   diagnostics show that local setup or GPU upload during no-load probes
+   is a measured problem.
+
 4. Client v6 metatile parsing.
 
    In `src/core/map/metatile.js`, raise the supported version cap
@@ -2362,4 +2372,3 @@ implementation unit with manual inspection after bring-up, and later
 capabilities have separate manual checkpoints. The old traversal may
 coexist only as validation scaffolding and is removed after the new path
 and geodata fitted-frontier path are settled.
-

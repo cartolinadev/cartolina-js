@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-05-30 — draw-traversal off-cadence fallback probe
+
+Adjusted the recursive terrain traversal so fallback cadence gates
+proactive fallback loading, not every possible fallback draw. A
+non-natural-leaf node on a cadence LOD still uses fallback readiness and
+may request fallback resources. A non-natural-leaf node off cadence now
+tries the same fallback draw with `preventLoad = true`, so an already
+available intermediate LOD can remain visible while the deeper natural
+leaf loads.
+
+This fixes the zoom-in artifact where an area could move from natural
+leaf LOD 7 to natural leaf LOD 8, fail to draw LOD 8 because it was not
+ready yet, then fall all the way back to the nearest cadence LOD such as
+LOD 6. `draw-tiles.js` now returns before creating a mesh resource when
+the no-load probe reaches terrain that has no `surfaceMesh` object yet.
+
+Updated `rfc-draw-traversal.md` step 3 with the corrected cadence
+semantics, added a backlog item for a post-rollout audit of the legacy
+negative readiness flags, and recorded in `AGENTS.md` that in-block
+comments use `//` lines.
+
+Verification: `npx tsc --noEmit`, `test/screenshot.js simple-terrain`,
+`test/screenshot.js complex-terrain`, `test/screenshot.js full-terrain`,
+`git diff --check`, and a static diagnostic confirming the no-load
+probe reaches `drawSurfaceTile` before mesh-resource creation.
+
 ## 2026-05-30 — retire demos/legacy/map in favour of demos/map
 
 The `demos/legacy/map/` demo was the old vts-browser-js entry point:

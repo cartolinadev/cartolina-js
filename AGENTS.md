@@ -662,8 +662,10 @@ conditioned independent blocks when the cases are separate. Reach for
 `else if` only when there is a strong reason not to express the control
 flow in one of those clearer forms.
 
-**Multi-line comments** use block comment syntax (`/* ... */`) rather
-than a stack of `//` lines. Single-line comments may use `//`.
+**In-block comments** use `//` lines, even when they span multiple
+lines. Reserve block comments (`/* ... */`) for module headers,
+JSDoc, and other file- or declaration-level comments outside executable
+blocks.
 
 **Do not use underscore import shims.** Import symbols under the name
 used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
