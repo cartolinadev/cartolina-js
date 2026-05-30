@@ -1,5 +1,26 @@
 # Session log
 
+## 2026-05-30 — retire demos/legacy/map in favour of demos/map
+
+The `demos/legacy/map/` demo was the old vts-browser-js entry point:
+`browser('map-canvas', ...)` driven by a `?map=mapConfig.json` URL. The
+modern `demos/map/` demo already grew a `?mapConfig=<url>` path that
+falls back to `cartolina.browser()`, so the legacy demo was redundant
+except that the `legacy-benatky` screenshot test still loaded it.
+
+Migrated the `legacy` template's dev URL in `test/urls.json` from
+`demos/legacy/map/index.html?map=` to `demos/map/?mapConfig=`. Ran
+`node test/screenshot.js legacy-benatky`: the dev variant renders the
+Benatky terrain correctly through the new loader. (Both dev and prod hit
+the known upstream CDN 500s on the `stage.melown2015` glue/tileset
+metatiles; the prod variant uses a separate remote URL unaffected by
+this change.)
+
+Deleted `demos/legacy/map/` and repointed the four `backlog.md` URLs
+that referenced it. The prod-only `legacy` uses (`a-3d-mountain-map`,
+`tacoma-fitonly`, `nacis-2023`) point at remote CDN URLs and are
+untouched.
+
 ## 2026-05-30 — draw-traversal phase 3: fallback LOD cadence
 
 Implemented phase 3 of the draw-traversal rollout (RFC §2.4). Added the

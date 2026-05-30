@@ -114,7 +114,7 @@ are confirmed manifestations of the same root cause
 
 URL:
 ```
-http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822899,50.291139,fix,284.04,-264.65,-90.00,0.00,29.63,30.00
+http://localhost:8080/demos/map/?mapConfig=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822899,50.291139,fix,284.04,-264.65,-90.00,0.00,29.63,30.00
 ```
 
 Enable `Shift+B L I` (bbox / LOD / id overlay) to see the LODs and
@@ -139,7 +139,7 @@ resolved by same fix
 ### Reproduction
 
 URL:
-`http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
+`http://localhost:8080/demos/map/?mapConfig=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
 
 Steps: load the URL, then zoom in/out quickly over the city center.
 Brief black frames appear where the city tileset overlaps the global
@@ -166,7 +166,7 @@ with patches of coarser tiles where finer tiles should be present.
 ### Reproduction
 
 URL:
-`http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
+`http://localhost:8080/demos/map/?mapConfig=https://cdn.tspl.re/store/tests/benatky/mapConfig.json&pos=obj,14.825888,50.288190,fix,0.00,-275.37,-90.00,0.00,395.06,30.00&mapExposeFpsToWindow=1&mapTerrainTraversal=recursive`
 
 Enable diagnostics with `Shift+B L I` (bbox / LOD / id overlay) and
 inspect high-LOD tiles over the city.
@@ -288,7 +288,7 @@ value explicit (`return false;` when the mesh has never parsed;
 
 URL (legacy benatky, single tileset with internal texture):
 ```
-http://localhost:8080/demos/legacy/map/index.html?map=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822484,50.290321,fix,278.36,-327.77,-90.00,0.00,145.78,30.00&mapTerrainTraversal=legacy
+http://localhost:8080/demos/map/?mapConfig=https://cdn.tspl.re/store/stage.melown2015/tilesets/benatky-nad-jizerou2015/mapConfig.json&pos=obj,14.822484,50.290321,fix,278.36,-327.77,-90.00,0.00,145.78,30.00&mapTerrainTraversal=legacy
 ```
 
 Move around the map until a drab-colored tile appears. Enable
