@@ -41,6 +41,45 @@ After the legacy traversal is removed:
 
 ---
 
+## PERF/UX: screen-space terrain-error map
+
+**Opened:** 2026-05-31
+**Status:** deferred
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+
+### Goal
+
+Build a screen-space map of terrain error or uncertainty during terrain
+rendering, then use it as shared frame state.
+
+### Rationale
+
+The current loading state is judged from resource readiness and coarse
+distance-based priority. That answers whether data exists, but it does
+not say how much the current frame would improve if a pending tile
+loaded. A screen-space terrain-error map can measure where rendered
+fallback geometry contributes most to visible map inaccuracy.
+
+The same map can support three uses:
+
+- loading polish: drive a small terrain-only blur around high-error
+  regions, hiding coarse fallback artifacts and spilling over cracks
+  between tiles of different coarseness;
+- loaded-state reporting: aggregate the map to decide when the visible
+  terrain is accurate enough for the splash screen or loading indicator
+  to disappear;
+- resource priority: prioritize pending resources by their contribution
+  to visible frame error, replacing the current crude closest-first
+  heuristic with a view-dependent accuracy signal.
+
+### Suggested direction
+
+Keep this separate from the traversal mask. The traversal mask remains
+the coverage/occlusion mechanism; the terrain-error map is a
+screen-space estimate of visual inaccuracy and loading quality.
+
+---
+
 ## BUG: superelevation — debug bbox heights baked at stale zoom
 
 **Opened:** 2026-05-31

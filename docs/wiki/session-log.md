@@ -1,5 +1,12 @@
 # Session log
 
+## 2026-06-01 — deferred terrain-error map backlog item
+
+Added a deferred backlog entry for a screen-space terrain-error map.
+The entry frames the map as shared loading infrastructure: a source for
+terrain-only loading polish, loaded-state aggregation, and
+view-dependent resource priority based on visible frame inaccuracy.
+
 ## 2026-05-31 — configurable fallback-coverage discard threshold
 
 The terrain traversal mask is consumed by the tile color and depth
