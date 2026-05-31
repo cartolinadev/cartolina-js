@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-05-31 — warnOnce/logOnce report the calling site
+
+`utils.warnOnce`/`logOnce` previously logged from inside `utils.ts`, so
+the console stack and the dedup key both pointed at the helper, not at
+the code that called it. They now read the caller's frame from the
+stack, append it to the message, and dedupe per `message + site` (once
+per distinct call site rather than once per message). An optional
+`callerDepth` skips forwarding wrappers; `Map.destroy()` and the
+`Map.core` migration-shim getter pass `1` so their deprecation warnings
+report the API user, not the wrapper. Verified in browser: the `.core`
+warning now points at `Browser.getMap` / `getRenderer` / `callListener`.
+
+A stack is captured on every call (before the dedup check), so these
+stay cold-path diagnostics; the JSDoc says so.
+
+Side note: a dev warning on direct `legacyMap.position` access was
+prototyped and reverted. Freeze mode swaps `legacyMap.position` to the
+active scope (`withSelectionCamera`/`withNavigationCamera` →
+`freeze-camera-state` restore), so direct reads are already
+scope-correct and the warning was mostly false-positive; not worth
+converting a hot field to an accessor.
+
 ## 2026-05-31 — superelevation bbox2 stale-bake fix
 
 Fixed the superelevation bug logged earlier this day: with a vertical

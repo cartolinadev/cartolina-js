@@ -161,7 +161,7 @@ class Map {
     destroy(): void {
 
         __DEV__ && utils.warnOnce(
-            '[Map] destroy() is deprecated. Use Symbol.dispose instead.');
+            '[Map] destroy() is deprecated. Use Symbol.dispose instead.', 1);
         this[Symbol.dispose]();
     }
 
@@ -1275,6 +1275,7 @@ class Map {
         __DEV__ && utils.warnOnce(
             '[Map] .core is a migration shim and will be removed. '
             + 'Access internals through Map public methods instead.',
+            1,
         );
         this.assertAlive_();
         return this.core_;
