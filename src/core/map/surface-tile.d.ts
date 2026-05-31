@@ -20,6 +20,7 @@ export type LegacyMetanode = {
     bbox: unknown;
     bbox2: number[];
     pixelSize: number;
+    watertight: boolean;
     hasChild(index: number): boolean;
     hasChildren(): boolean;
     hasGeometry(): boolean;

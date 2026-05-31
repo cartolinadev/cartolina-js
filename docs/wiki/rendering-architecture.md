@@ -65,7 +65,9 @@ surface and uses UV-space R8 masks from
 `src/core/map/draw-traversal-mask.ts` to stop fallback tiles from
 overdrawing finer child coverage. The mask path is the phase-1 client
 implementation from [rfc-draw-traversal.md](rfc-draw-traversal.md):
-no watertight metadata, no erosion, and no multi-surface active set yet.
+v6 metatiles can now populate `metanode.watertight`, but the traversal
+does not yet consult the flag; there is no erosion or multi-surface
+active-set optimization yet.
 
 This replaced the old terrain draw-command path that was split across:
 

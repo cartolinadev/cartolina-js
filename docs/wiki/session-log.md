@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-06-01 — client metatile v6 watertight parsing
+
+Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+the client now accepts metatile version 6 and maps header bitplane 1 to
+`metanode.watertight`. Version 5 and older metatiles keep the default
+`false` value, so existing servers stay on the conservative
+non-watertight path.
+
+The traversal does not use the flag yet. The parser change only
+prepares the client for a v6-emitting server and for the later
+watertight fast path. `surface-tile.d.ts` now exposes the field on the
+legacy metanode shape so TypeScript traversal work can refer to it in a
+later phase.
+
+Verified with `npx tsc --noEmit`, a synthetic v6 bitplane smoke probe,
+and the canonical `simple-terrain`, `complex-terrain`, and
+`full-terrain` screenshot captures against the unchanged v5 services.
+
 ## 2026-06-01 — deferred terrain-error map backlog item
 
 Added a deferred backlog entry for a screen-space terrain-error map.

@@ -243,9 +243,9 @@ MapMetatile.prototype.parseMetatatile = function(stream) {
 
     this.version = streamData.getUint16(stream.index, true); stream.index += 2;
 
-    if (this.version > 5) {
-        return;
-    }
+    if (this.version > 6) throw new Error(
+        'Unsupported metatile version ' + this.version + '.'
+    );
 
     this.lod = streamData.getUint8(stream.index, true); stream.index += 1;
 
@@ -339,23 +339,33 @@ MapMetatile.prototype.parseMetatatileCredits = function(stream) {
 
 
 MapMetatile.prototype.applyMetatatileBitplanes = function() {
-    for (var i = 0; i < 1; i++) {
+
+    var planes = (this.version >= 6) ? 2 : 1;
+
+    for (var i = 0; i < planes; i++) {
+
         if (this.flagPlanes[i]) {
             
             var bitplane = this.flagPlanes[i]; 
     
             for (var y = 0; y < this.sizey; y++) {
+
                 for (var x = 0; x < this.sizex; x++) {
+
                     var byteIndex = this.sizex * y + x;
                     var bitIndex = byteIndex & 7;
                     var bitMask = 1 << bitIndex;
                     byteIndex >>= 3;
                     
                     if (bitplane[byteIndex] & bitMask) {
+
                         switch(i) {
                         case 0:
                             this.nodes[y*this.sizex+x].alien = true;
                             break;       
+                        case 1:
+                            this.nodes[y*this.sizex+x].watertight = true;
+                            break;
                         }
                     }
                 }
@@ -366,8 +376,13 @@ MapMetatile.prototype.applyMetatatileBitplanes = function() {
 
 
 MapMetatile.prototype.applyMetatanodeBitplanes = function(x, y) {
-    for (var i = 0; i < 1; i++) {
+
+    var planes = (this.version >= 6) ? 2 : 1;
+
+    for (var i = 0; i < planes; i++) {
+
         if (this.flagPlanes[i]) {
+
             var bitplane = this.flagPlanes[i]; 
             var byteIndex = this.sizex * y + x;
             var bitIndex = byteIndex & 7;
@@ -375,10 +390,14 @@ MapMetatile.prototype.applyMetatanodeBitplanes = function(x, y) {
             byteIndex >>= 3;
             
             if (bitplane[byteIndex] & bitMask) {
+
                 switch(i) {
                 case 0:
                     this.nodes[y*this.sizex+x].alien = true;
                     break;       
+                case 1:
+                    this.nodes[y*this.sizex+x].watertight = true;
+                    break;
                 }
             }
         }

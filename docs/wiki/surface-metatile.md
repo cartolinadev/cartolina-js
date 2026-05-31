@@ -10,8 +10,8 @@ their height range, which children exist, and how large the tile
 would appear on screen. All LOD selection, frustum culling, and
 resource-loading decisions are driven by metatile data.
 
-The current format version is **5**. Versions 1–4 are still parsed
-by the client.
+The client supports format versions **1–6**. Current production
+servers emit v5 until the v6 watertight-bitplane rollout is deployed.
 
 The server-side format is defined in
 `externals/vts-libs/vts-libs/vts/metatile.hpp` in the
@@ -28,7 +28,7 @@ All multi-byte integers are little-endian.
 
 ```
 magic[2]       char     — always "MT"
-version        uint16   — format version (1–5)
+version        uint16   — format version (1–6)
 lod            uint8    — LOD of this metatile
 metatileIdx    uint32   — tile X of the upper-left corner
 metatileIdy    uint32   — tile Y of the upper-left corner
@@ -71,13 +71,19 @@ follows in the stream. A bitplane is a byte array of size
 `ceil(sizeX * sizeY / 8)`, one bit per tile cell, in row-major
 order with each row byte-padded.
 
-Currently only **bitplane 0** is used. It carries the **alien
-flag** for each tile: a tile is alien when its content was
-sourced from a foreign (non-primary) surface during glue
-generation. See [glue-alien-flag.md](glue-alien-flag.md) for context.
+**Bitplane 0** carries the **alien flag** for each tile: a tile is
+alien when its content was sourced from a foreign (non-primary) surface
+during glue generation. See [glue-alien-flag.md](glue-alien-flag.md)
+for context.
 
-Bitplanes for bits 1–5 are reserved and not produced by the
-current tileserver.
+**Bitplane 1** is valid for v6+ metatiles and carries the
+**watertight flag**. A watertight tile fully covers the geographic cell
+allocated to the tile by the spatial division. The client writes it to
+`metanode.watertight` when parsing a v6 metatile. For v1–v5 metatiles
+`metanode.watertight` stays `false`, even if bitplane 1 appears in the
+header.
+
+Bitplanes for bits 2–5 are reserved.
 
 ### Credit blocks
 
@@ -144,7 +150,7 @@ surrogate      float32  — representative tile height used for disk
                           position computation; −∞ when not set
 ```
 
-**v5 only — SDS horizontal extents:**
+**v5+ — SDS horizontal extents:**
 
 ```
 llX            float32  — lower-left X of tile in SDS
@@ -225,9 +231,10 @@ See "Glue surface resolution" in the client usage section below.
 | 6 | `llChild` | lower-left child tile exists |
 | 7 | `lrChild` | lower-right child tile exists |
 
-The alien flag is **not** in this byte. It lives in bitplane 0
-of the metatile header and is written into `metanode.alien` by
-`applyMetatanodeBitplanes()`.
+The alien and watertight flags are **not** in this byte. Alien lives in
+header bitplane 0. Watertight lives in header bitplane 1 for v6+
+metatiles. `applyMetatanodeBitplanes()` writes them to
+`metanode.alien` and `metanode.watertight`.
 
 
 ## Version history
@@ -239,6 +246,7 @@ of the metatile header and is written into `metanode.alien` by
 | 3 | `sourceReference` field added to each metanode; header flag bits 6/7 control whether it is uint8 or uint16. |
 | 4 | `minZ`, `maxZ`, `surrogate` (float32 each) added after the existing quantized extents. Quantized extents remain in the stream and are still read by the client for the horizontal bbox. |
 | 5 | Quantized physical extents removed; SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added in their place. cartolina-js skips the SDS horizontal extents and continues to use full-cell bounds derived from the division node, which is sufficient for frustum culling. |
+| 6 | Header bitplane 1 added for the watertight tile flag. The per-node byte layout is unchanged from v5. |
 
 
 ## Client usage

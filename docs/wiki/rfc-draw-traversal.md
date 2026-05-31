@@ -1276,19 +1276,19 @@ Implementation phases:
    diagnostics show that local setup or GPU upload during no-load probes
    is a measured problem.
 
-4. Client v6 metatile parsing.
+4. **Implemented.** Client v6 metatile parsing.
 
-   In `src/core/map/metatile.js`, raise the supported version cap
-   from 5 to 6 and extend `applyMetatanodeBitplanes` to read bitplane
-   1 as `metanode.watertight`. For v5 metatiles `metanode.watertight`
-   stays false. The traversal does not yet consult the flag; this
-   phase is a parser capability bump, sized so a v6-emitting server
-   does not break v5 clients in the field.
+   `src/core/map/metatile.js` now accepts version 6 and reads bitplane
+   1 as `metanode.watertight` only for v6+ metatiles. For v5 metatiles
+   `metanode.watertight` stays false. The traversal does not yet
+   consult the flag; this phase is a parser capability bump, sized so a
+   v6-emitting server does not break v5 clients in the field.
 
-   Manual checkpoint: every existing test URL still renders against
-   the unchanged v5 servers; where a v6 fixture exists, the bitplane
-   is parsed without throwing and the flag is set on the expected
-   nodes.
+   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
+   and `full-terrain` still render against unchanged v5 servers. A
+   synthetic v6 fixture parses without throwing, sets
+   `metanode.watertight` on the expected nodes, and confirms v5 ignores
+   bitplane 1.
 
 5. Server v6 metatile emission.
 

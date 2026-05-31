@@ -15,6 +15,7 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     this.id = id;
     this.credits = [];
     this.alien = false;
+    this.watertight = false;
     this.ready = false;
     this.heightReady = false;
     this.divisionNode = divisionNode;
@@ -234,6 +235,7 @@ struct Metanode {
     this.heightReady = this.hasNavtile();
     
     this.alien = false;
+    this.watertight = false;
 
     //var nodeSize2 = stream.index - lastIndex;
 
@@ -263,6 +265,7 @@ MapMetanode.prototype.clone = function() {
     node.ready = this.ready;
     node.stream = this.stream;
     node.heightReady = this.heightReady;
+    node.watertight = this.watertight;
     
     //copy credits
     node.credits = new Array(this.credits.length);
@@ -806,4 +809,3 @@ MapMetanode.prototype.getGridHeight = function(coords, data, dataWidth) {
 };
 
 export default MapMetanode;
-
