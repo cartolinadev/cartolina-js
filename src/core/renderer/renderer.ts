@@ -955,8 +955,13 @@ updateBuffers(
 
     data.renderFlags = Renderer.encodeRenderFlags(renderFlags);
 
-    // clip params
-    data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
+    // clip params; y carries the fallback-coverage discard threshold
+    data.clipParams = [
+        this.core.map.config.mapSplitMargin,
+        this.core.map.config.mapTraversalMaskThreshold,
+        0,
+        0,
+    ];
 
     // virtualEeye, virtualEyeToCenter
     const center_ = map.camera.getCenter();

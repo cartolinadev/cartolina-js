@@ -36,7 +36,7 @@ layout(std140) uniform uboFrame {
     highp vec4 virtualEye; // xyz: virtualEyePos, w: virtualEyeToCenter
 
     // clip margin
-    highp vec4 clipParams; // x = clipMargin, yzw reserved
+    highp vec4 clipParams; // x = clipMargin, y = maskThreshold, zw reserved
 } uFrame;
 
 
@@ -98,6 +98,14 @@ Light frameLight() {
 
 int frameRenderFlags() {
     return decodeRenderFlags(uFrame.renderFlags);
+}
+
+
+// coverage value above which a fallback fragment is discarded because a
+// finer surface already covers it; read from the frame ubo
+
+float frameMaskThreshold() {
+    return uFrame.clipParams.y;
 }
 
 

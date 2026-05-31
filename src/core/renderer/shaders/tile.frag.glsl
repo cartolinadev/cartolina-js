@@ -202,7 +202,7 @@ void main() {
     if (uMaskEnabled) {
 
         float covered = texture(uMask, vTexCoords2).r;
-        if (covered > 0.5) discard;
+        if (covered > frameMaskThreshold()) discard;
     }
 
     // light

@@ -340,11 +340,11 @@ the blit; -x/-y land the other way.
 Mask textures now use `LINEAR` filtering
 (`DrawTraversalMaskPool.createMask`); the per-type filter override in
 `GpuTexture.Type.Mask` was removed so the caller's `'linear'`
-argument is honoured. The tile shader's existing `covered > 0.5`
-discard threshold recovers the original boundary to within half a
-texel at the read scale. See phase 2 post-implementation notes in
-[rfc-draw-traversal.md](rfc-draw-traversal.md) for the full
-explanation and the discard-threshold tuning knob.
+argument is honoured. The tile shader compares the sampled coverage
+against configurable `mapTraversalMaskThreshold`, default `0.65`, to
+keep a narrow fallback overlap band at mask edges. See phase 2
+post-implementation notes in [rfc-draw-traversal.md](rfc-draw-traversal.md)
+for the full explanation and the discard-threshold tuning knob.
 
 ---
 

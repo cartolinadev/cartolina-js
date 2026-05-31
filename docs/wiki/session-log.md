@@ -1,5 +1,45 @@
 # Session log
 
+## 2026-05-31 — configurable fallback-coverage discard threshold
+
+The terrain traversal mask is consumed by the tile color and depth
+shaders, which discard a fallback fragment where the mask coverage
+exceeds a cutoff. The cutoff was the literal `0.5`. This makes it a
+per-frame uniform driven by a new config option.
+
+Background: the stored mask is provably binary for full watertight
+coverage — power-of-two resolution makes every quadrant blit an exact
+aligned 2x box downscale, so quadrant seams and corners sit at even
+texel positions and are never straddled. No fractional value is written.
+The fractional values appear only at read time: the consumer samples the
+mask with `LINEAR` at its own UVs, so across any 0->1 coverage step it
+reads the bilinear ramp and thresholds it. On a straight edge the `0.5`
+isoline lands on the texel boundary, but at a corner the bilinear `0.5`
+contour is a hyperbola, not a right angle, so the coarse surface's
+discard boundary does not meet the finer surface's square edge — gap on
+one side, overlap on the other. That is the crack.
+
+Raising the cutoff biases the discard isoline inward, so the fallback is
+kept across the narrow boundary band instead of discarded: the crack
+becomes transient seepage (overlap), which is the better failure. This
+is a mitigation, not a representation fix — the constant is resolution-
+and zoom-dependent, and it adds a small overdraw band on straight edges
+too; the depth shader's wider kept band is the place to watch for seam
+z-fighting. The principled cures (signed-distance mask channel, or a
+screen-space stencil written by the finer surface) are noted but not
+taken.
+
+Implementation: the threshold rides the frame UBO's reserved
+`clipParams.y` lane (no std140 layout change), written at frame init in
+`renderer.ts` from `config.mapTraversalMaskThreshold`. A
+`frameMaskThreshold()` accessor in `frame.inc.glsl` hides the slot; both
+`tile.frag` and `tile-depth.frag` read it. New config option
+`mapTraversalMaskThreshold` (default 0.65, clamped `[0,1]`): default in
+`core.js`, type in `types.ts`, setter/getter in `map.js`, and
+`NUMBER_KEYS` in `url-config.ts` so `?mapTraversalMaskThreshold=` parses
+as a number. Verified: `tsc` clean, and `simple-`, `complex-`,
+`full-terrain` screenshots compile and render with no errors.
+
 ## 2026-05-31 — narrow legacyMap accessor for browser scaffolding
 
 Added a `get legacyMap(): LegacyMap | null` to typed `Map` and routed

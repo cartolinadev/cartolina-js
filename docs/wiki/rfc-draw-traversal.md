@@ -1177,6 +1177,12 @@ Implementation phases:
      and slightly reduced map responsiveness. The tradeoff is
      expected and resolves in phase 6.
 
+   Follow-up implementation note: `mapTraversalMaskThreshold` makes the
+   mask discard cutoff configurable and defaults it to `0.65`. This is a
+   read-time conservative-overlap bias for linearly sampled mask edges,
+   not mask-space erosion. Revisit the default after phase 6 can fill
+   masks directly for watertight tiles.
+
 2. **Implemented.** Combined descent over plain surfaces.
 
    The single-surface driver is replaced by the §2.1 algorithm.

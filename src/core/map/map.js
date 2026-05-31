@@ -1195,6 +1195,7 @@ Map.prototype.setConfigParam = function(key, value) {
             isPowerOfTwo ? resolution : 256;
         break;
     }
+    case 'mapTraversalMaskThreshold':     this.config.mapTraversalMaskThreshold = utils.validateNumber(value, 0, 1, 0.65); this.markDirty(); break;
     case 'mapTerrainTraversal':           this.config.mapTerrainTraversal = (value === 'legacy' ? 'legacy' : 'recursive'); break;
     case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
@@ -1297,6 +1298,7 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapLoadMode':                   return this.config.mapLoadMode;
     case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
     case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
+    case 'mapTraversalMaskThreshold':     return this.config.mapTraversalMaskThreshold;
     case 'mapTerrainTraversal':           return this.config.mapTerrainTraversal;
     case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
     case 'mapGridMode':                   return this.config.mapGridMode;
