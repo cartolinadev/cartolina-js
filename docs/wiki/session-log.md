@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-05-31 — narrow legacyMap accessor for browser scaffolding
+
+Added a `get legacyMap(): LegacyMap | null` to typed `Map` and routed
+`Browser.getMap` through it instead of `this.map.core.map`. This narrows
+the inspector/control-mode dependency from the whole `Core` to just
+`LegacyMap`, and gives the access an intent-named, greppable door for
+the eventual legacy-map absorption.
+
+Unlike `.core`, the new getter does not warn: these call sites are
+first-party migration scaffolding with no typed replacement yet, so the
+warning would be unactionable noise. `.core` stays loud (wide door);
+`legacyMap` is quiet but narrow (`@internal`, returns `LegacyMap` only),
+so it cannot be used to widen a dependency. Warning loudness scales with
+how much surface the door exposes.
+
+Internal `core_.map` reads inside `Map` were left as-is. Converting them
+to a direct member is deferred until `Core` is dismantled and `Map` owns
+the `LegacyMap` reference directly — at which point the getter's backing
+flips from `core_.map` to a field and the call sites survive untouched.
+
 ## 2026-05-31 — warnOnce/logOnce report the calling site
 
 `utils.warnOnce`/`logOnce` previously logged from inside `utils.ts`, so

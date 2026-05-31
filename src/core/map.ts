@@ -1280,6 +1280,21 @@ class Map {
         this.assertAlive_();
         return this.core_;
     }
+
+    /**
+     * The underlying legacy map, or `null` before a map has loaded.
+     *
+     * @internal Internal browser infrastructure (inspector, control
+     *   modes) still drives the full legacy map surface. Unlike `.core`,
+     *   this does not warn, because these call sites are migration
+     *   scaffolding rather than external consumers. Goes away with the
+     *   legacy map.
+     */
+    get legacyMap(): LegacyMap | null {
+
+        this.assertAlive_();
+        return this.core_.map;
+    }
 }
 
 
