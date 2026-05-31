@@ -28,6 +28,11 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     //this.bboxHeight = 1;
     this.bbox2 = new Array(24);
 
+    // vertical-exaggeration scale factor last baked into minZ/maxZ and
+    // bbox2; compared against the live factor to detect a stale bake as
+    // the camera zooms (see MapSurfaceTile.isMetanodeReady)
+    this.veBakedFactor = undefined;
+
     //this.flagsGeometryPresent =  1;
     //this.flagsNavtilePresent =  3;
     //this.flagsInternalTexturePresent =  7;

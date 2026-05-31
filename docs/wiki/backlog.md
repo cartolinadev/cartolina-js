@@ -44,7 +44,8 @@ After the legacy traversal is removed:
 ## BUG: superelevation — debug bbox heights baked at stale zoom
 
 **Opened:** 2026-05-31
-**Status:** open
+**Status:** fixed 2026-05-31 (per-node factor invalidation); verified in
+browser — all drawn LOD-15 tiles match the reload bake after a zoom-in
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
 ### Symptom
@@ -68,42 +69,64 @@ are correct.
 
 ### Root cause
 
-The vertical-exaggeration scale factor depends on camera view extent
-(zoom): `getVeScaleFactor` reads `position.pos[8]` and runs it through
-`currentScaleDenominator` —
+The vertical-exaggeration scale factor depends on the camera view
+extent (zoom): `getVeScaleFactor` reads `position.pos[8]` and runs it
+through `currentScaleDenominator` —
 [src/core/renderer/renderer.ts:1657](../../src/core/renderer/renderer.ts).
 
 The terrain surface applies exaggeration on the GPU every frame at the
-live position, so it always matches the current zoom. The debug box uses
-CPU-cached `bbox2`, whose exaggerated `minZ`/`maxZ` are recomputed only
-when `tile.seCounter != renderer.seCounter` —
+live position, so it always matches the current zoom. The cull box and
+debug box use `bbox2`, whose exaggerated `minZ`/`maxZ` are baked in
+`MapSurfaceTile.isMetanodeReady` only when
+`tile.seCounter != renderer.seCounter` —
 [src/core/map/surface-tile.js:341](../../src/core/map/surface-tile.js).
-`seCounter` bumps only when exaggeration settings change, never on
-camera move. So each tile's box height is frozen at the exaggeration of
-whatever zoom it was first baked at. Box and surface agree only if the
-tile was baked near the current zoom.
+`seCounter` advances only on exaggeration *configuration* changes
+(enable/disable, ramp setup), never on zoom. So once a node syncs to the
+current `seCounter` generation, its baked SE height is not refreshed as
+the zoom-dependent factor changes.
 
-Recursive + `cadence=3` off-cadence residence-only probing keeps tiles
-drawn that were first baked earlier in the zoom-in (farther out, larger
-factor), so their boxes float. `cadence=1` refreshes near the final
-zoom; legacy bakes at the final state; reload bakes everything at the
-final zoom. The inconsistency is pre-existing and latent; the new
-traversal's off-cadence persistence exposes it.
+Measured on `15/12202/6878` after a zoom-in vs. a fresh reload at the
+same position: navigated bake `minZ/maxZ = 6400/8343 × 1.407`, reload
+`× 1.30`. Both carry the height ramp (×1.3); the navigated one carries
+an extra ×1.082 scale factor. In ECEF every corner is shifted ~686 m
+radially (along the disk normal) — a uniform height exaggeration, not a
+different box.
+
+The specific traversal/cadence conditions under which it is observed are
+in **Symptom**; the reason that axis matters was not established and is
+not needed for the fix.
 
 ### Wider risk
 
-`bbox2` also feeds culling —
+`bbox2` is the v4+ frustum cull volume —
 [src/core/map/surface-tile.js:646](../../src/core/map/surface-tile.js),
-`pointsVisible(node.bbox2, …)`. A stale-baked `bbox2` can make frustum
-culling decide against an exaggeration that no longer matches the live
-surface, so this is not only a debug-overlay artifact.
+`pointsVisible(node.bbox2, …)`. A stale-baked `bbox2` mis-sizes culling
+against an exaggeration that no longer matches the live surface, so this
+is not only a debug-overlay artifact.
 
-### Fix fork (undecided)
+### Fix (implemented, verified)
 
-1. Invalidate and recompute `bbox2` exaggeration when `getVeScaleFactor`
-   would change with zoom. Fixes culling too; costs a per-zoom rebuild.
-2. Apply exaggeration to the overlay box live at draw time, like the
-   GPU. Overlay-only; leaves the culling question open.
+Per-node factor invalidation in `MapSurfaceTile.isMetanodeReady`
+([surface-tile.js:341](../../src/core/map/surface-tile.js)): each
+metanode records the scale factor it was baked at (`veBakedFactor`); the
+gate now also fires when `getVeScaleFactor(this.map.position)` differs
+from it, rebaking `minZ`/`maxZ` and `bbox2` at the current factor. The
+comparison uses the same position the bake uses, so there is no desync.
+A still camera produces an identical factor (zero rebakes); during a
+zoom each traversed node rebakes, which is the behaviour we want. With
+no scale ramp the factor stays 1.0 and nothing fires.
+
+An earlier attempt drove this from `MapDraw.initFrame`, bumping
+`seCounter` when the per-frame factor changed. It was reverted in favour
+of the per-node check, which is correct by construction: it samples the
+factor at the bake site and re-checks on every traversal, with no
+dependence on a global counter staying in step. The reason the
+`initFrame` approach did not hold up was not pinned down and is not
+needed now.
+
+Verified in browser: after a zoom-in on `recursive` + `cadence=3`, all
+86 drawn LOD-15 tiles match their reload bake (`veBakedFactor = 1`,
+deviation 0), and the boxes sit on the terrain.
 
 ---
 

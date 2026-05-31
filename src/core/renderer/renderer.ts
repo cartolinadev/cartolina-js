@@ -342,6 +342,16 @@ export class Renderer {
 
     gridHmax = 0;
     gridHmin = 0;
+
+    /**
+     * Version stamp of the superelevation configuration. Consumers cache
+     * the value they last baked against (`tile.seCounter`,
+     * `job.seCounter`) and re-derive their SE-dependent data when this
+     * has moved past their copy. It advances when the exaggeration
+     * settings change (enable/disable, ramp setup), not on camera
+     * movement. The zoom-dependent scale factor is tracked separately,
+     * per node, by `MapSurfaceTile.isMetanodeReady`.
+     */
     seCounter = 0;
 
     // temporary objects hoisted as class members to reduce garbage collection

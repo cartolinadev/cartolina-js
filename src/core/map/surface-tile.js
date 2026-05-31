@@ -338,10 +338,23 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
         }
     }
 
-    if (this.seCounter != this.map.renderer.seCounter) {
-        var renderer = this.map.renderer;
+    var renderer = this.map.renderer;
+    var node = this.metanode;
+
+    // The vertical-exaggeration scale factor depends on the view extent
+    // (zoom), so the superelevated height baked into the node goes stale
+    // as the camera zooms even when the configuration has not changed.
+    // seCounter only tracks configuration changes, not zoom, so on its
+    // own it bakes a node once and never refreshes it. Compare the factor
+    // at the current bake position against the one last baked into this
+    // node and rebake when it differs.
+    var seFactor = renderer.useSuperElevation
+        ? renderer.getVeScaleFactor(this.map.position) : 1;
+
+    if (this.seCounter != renderer.seCounter
+            || node.veBakedFactor !== seFactor) {
+
         this.seCounter = renderer.seCounter;
-        var node = this.metanode;
 
         if (renderer.useSuperElevation) {
             node.minZ = renderer.getSuperElevatedHeight(node.minZ2,
@@ -352,6 +365,8 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
             node.minZ = node.minZ2;
             node.maxZ = node.maxZ2;
         }
+
+        node.veBakedFactor = seFactor;
 
         if (renderer.seCounter > 0) {
             this.gridPoints = null;

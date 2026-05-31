@@ -411,6 +411,28 @@ run the relevant check, then either turn it into the minimal confirmed
 fix or discard it. Do not stack new hypotheses on top of failed trial
 code.
 
+### No hand-waving
+
+Hand-waving is prohibited, in code comments and in the wiki
+(session log, backlog, RFCs) alike. A causal claim — "this happens
+because…", "X fails because…", "this is caused by…" — may be written
+down only when it has been verified, either by a measurement or by
+source analysis that names the exact mechanism. Do not present a
+plausible-sounding guess as established fact, and do not explain away a
+result you have not actually traced.
+
+A claim that is the basis for further work must be verified before that
+work proceeds; an unverified premise is not an acceptable foundation.
+For reasons of problem-solving economy a hypothesis may occasionally
+remain unverified — when it does, say so plainly. Mark it as
+unverified, or state what was observed and that the reason was not
+established. "The reason was not pinned down" is acceptable; a confident
+fabricated mechanism is not.
+
+This applies to commit messages and review notes as well. When you
+discover that a previously written explanation was wrong, correct it at
+the source rather than layering a new guess on top.
+
 ### Regression bug diagnostics and fixing
 
 When the user says "this is a regression bug", "use the regression

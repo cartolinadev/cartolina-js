@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-05-31 — superelevation bbox2 stale-bake fix
+
+Fixed the superelevation bug logged earlier this day: with a vertical
+exaggeration scale ramp, a node's superelevated `minZ`/`maxZ` and
+`bbox2` are not refreshed as the camera zooms, because the bake gate in
+`MapSurfaceTile.isMetanodeReady` keys only on `seCounter`, which tracks
+configuration changes, not zoom (verified: `seCounter` is bumped only in
+the exaggeration setters in `renderer.ts`). The box and cull volume keep
+the scale factor baked at the generation they last synced to, while the
+GPU surface uses the live factor — so the box floats. Observed on
+`recursive` + `mapFallbackCadence>1`; not on legacy or `cadence=1`. The
+reason that axis matters was not established and is not needed for the
+fix.
+
+Fix: each metanode records `veBakedFactor`, the scale factor it was
+baked at; the gate now also rebakes when
+`getVeScaleFactor(this.map.position)` differs from it. It samples the
+factor at the bake site and re-checks every traversal, so it
+self-corrects at the settled zoom.
+
+Investigated with a browser session (temporary `window.__vtsMap`
+exposure, since removed). Diffed `15/12202/6878` navigated vs reload:
+every `bbox2` corner shifted ~686 m radially — a uniform ×1.082 scale
+factor, not a different box. An earlier attempt bumped `seCounter` from
+`MapDraw.initFrame` on per-frame factor change; reverted in favour of
+the per-node check. Why that approach did not hold up was not pinned
+down and is not needed now.
+
+Verification: `npx tsc --noEmit` clean; `simple-terrain`,
+`complex-terrain`, `full-terrain` screenshots clean; browser repro on
+`recursive` + `cadence=3` shows all 86 drawn LOD-15 tiles matching the
+reload bake (`veBakedFactor = 1`, zero deviation), boxes on terrain.
+
 ## 2026-05-31 — tile-info overlay follows actual draws
 
 Moved the debug bbox/label overlay in `drawSurfaceTile` so it reflects
