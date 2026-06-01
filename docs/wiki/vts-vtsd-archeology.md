@@ -86,6 +86,25 @@ vts --dump-metatile    <tileset> --tileId 18-70912-44256   # per-node flags
 
 ## Upgrading a legacy v5 tileset to v6 with watertight
 
+**What path to pass.** `vts --reencode` detects the dataset type of the
+path (`vts::datasetType`) and acts accordingly:
+
+- a **storage** — the reference-frame directory holding `storage.conf`,
+  `tilesets/` and `glues/` (e.g. `<store>/earth.melown2015`) — is
+  re-encoded **recursively**: every member tileset and glue. A remote
+  member (no local tiles) is not cloned — `RemoteDriver::reencode` only
+  bumps its revision. This is the store-level usage.
+- a single **tileset** or **glue** directory (e.g.
+  `<store>/earth.melown2015/tilesets/benatky-nad-jizerou2015`) re-encodes
+  only that one.
+
+The top-level serving root (vtsd's `root`) may hold several storages
+side by side (`earth.melown2015`, `mars`, …) and is **not** itself a
+storage; point `--reencode` at a specific storage directory or a tileset
+directory, not at that parent. Already-re-encoded datasets carry a
+`<tag>.marker` and are skipped on a repeat run, so a storage-level pass
+is safe after individual ones.
+
 `vts --reencode` rewrites a stored tileset's metatiles at the current
 `vts-libs` `VERSION`. The mechanism (in
 `externals/vts-libs/vts-libs/vts/tileset/tileset.cpp`,
@@ -109,12 +128,16 @@ in the clone loop). The introspection flag table
 (`vts-libs/vts/metaflags.cpp`) also gained `watertight` so
 `vts --dump-metatile` reports it.
 
-Commands (run with the v6-built `vts`; leaves a `.v6` rollback backup):
+Commands (run with the v6-built `vts`; leaves a `.v6` rollback backup
+per tileset):
 
 ```
-vts --reencode <tileset> --encode meta --tag v6
-# verify, then optionally:
-vts --reencode-cleanup <tileset> --tag v6
+# whole storage, recursive (remote members: revision bump, no clone):
+vts --reencode <store>/earth.melown2015 --encode meta --tag v6
+# or one tileset / glue:
+vts --reencode <store>/earth.melown2015/tilesets/<id> --encode meta --tag v6
+# verify, then optionally drop the backup(s):
+vts --reencode-cleanup <store>/earth.melown2015 --tag v6
 ```
 
 Verify non-destructively before touching the store by cloning to a
@@ -157,6 +180,31 @@ suffix renders the revision twice, `?<rev><rev>`:
 So a reencode changes every tile URL in the regenerated mapConfig,
 which busts any URL-keyed downstream cache (CDN, reverse proxy) on
 deploy. Each further reencode increments the revision again.
+
+### Remote surfaces are versioned by vtsd, not by their source
+
+vtsd writes the URL templates for **every** surface in a storage
+mapConfig, including remote ones, and stamps them with its **own** local
+revision. A remote member's served template is the remote URL plus
+vtsd's suffix — e.g. the live storage mapConfig shows
+
+```
+topoearth-viewfinder-dem3  //…/mapproxy/…/viewfinder-dem3/{lod}-{x}-{y}.meta?0gr=<storeGr>&r=0
+benatky-nad-jizerou2015    tilesets/benatky-nad-jizerou2015/{lod}-{x}-{y}.meta?1gr=<storeGr>&r=1
+```
+
+where `r=` is vtsd's local stub `revision` (from the remote tileset's
+`tileset.conf`) and `gr=` is a storage-side generatorRevision shared by
+all surfaces — neither is the backend's own `gr`. Consequences:
+
+- A data/revision change at the **source** (mapproxy regenerating the
+  remote surface) has no effect on what the client fetches or caches:
+  the client only uses vtsd's templates, and vtsd does not refresh its
+  stub revision from the remote.
+- To bust caches for a remote surface you must bump the revision **at
+  vtsd** (its local stub). A storage-level `vts --reencode` does this —
+  `RemoteDriver::reencode` clones nothing but bumps the stub revision,
+  which is the only cache-bust lever vtsd has for a remote surface.
 
 ## Running the dev server
 

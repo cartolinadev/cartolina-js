@@ -85,6 +85,17 @@ vtsd parses metatiles on the credits (`loadCreditsFromMetaTile`) and
 rejects `version > VERSION`; an old v5 binary would refuse v6 tilesets
 there.
 
+Reencode path / remote-surface finding: `vts --reencode` auto-detects
+the dataset type, so it takes either a storage (recurses members) or a
+single tileset/glue path; `Storage::reencode` is just a loop of the same
+`TileSet::reencode`, which clones to a sibling `<id>.<tag>` and atomically
+swaps, so the storage is never left half-built. Confirmed on the live
+storage mapConfig that vtsd writes the URL templates for every surface —
+remote ones included — with its own local stub revision (and a
+storage-side `gr`), not the backend's. So a source-side revision bump is
+invisible to the client; remote surfaces must be revision-bumped at vtsd.
+Documented in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
 ## 2026-06-01 — client metatile v6 watertight parsing
 
 Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
