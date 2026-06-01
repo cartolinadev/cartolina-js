@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** Accepted
+**Status:** In review
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -1147,8 +1147,9 @@ Implementation phases:
      `Map` (`Map.drawTerrainRecursive_`), targeting the default
      terrain path (`drawSurface`). The descent body lives in
      `src/core/map/draw-traversal.ts`; the mask pool is owned by the
-     typed `Map`. Dispatch is the override + config resolution
-     described above.
+     typed `Map`. Dispatch is through `mapTerrainTraversal`
+     (`recursive` by default, `legacy` for validation fallback), with
+     `Map.overrides.terrainTraversal` as the per-frame override.
 
    Manual checkpoint completed for the dev side of `simple-terrain`,
    `complex-terrain`, and `full-terrain` on a fresh webpack server.
@@ -2389,3 +2390,9 @@ implementation unit with manual inspection after bring-up, and later
 capabilities have separate manual checkpoints. The old traversal may
 coexist only as validation scaffolding and is removed after the new path
 and geodata fitted-frontier path are settled.
+
+## Review round 10 — requested
+
+Post-acceptance rollout notes were added after completing phases 4 and
+5. The edits name the `mapTerrainTraversal` rollout switch in the phase
+list.

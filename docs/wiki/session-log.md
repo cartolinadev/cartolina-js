@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-06-01 — draw traversal rollout notes
+
+Updated [rfc-draw-traversal.md](rfc-draw-traversal.md) after completing
+rollout stages 4 and 5. The rollout now names `mapTerrainTraversal` as
+the URL/config switch between `recursive` and `legacy`, with
+`Map.overrides.terrainTraversal` as the per-frame override.
+
+Because the accepted RFC body changed, its status was moved back to
+`In review` and a review-round request was added for the post-acceptance
+documentation change.
+
 ## 2026-06-01 — server v6 metatile emission (RFC stage 5)
 
 Implemented stage 5 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
