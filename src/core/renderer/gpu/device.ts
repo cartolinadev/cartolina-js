@@ -288,6 +288,16 @@ get currentRenderTarget(): Readonly<GpuDevice.RenderTarget> {
 
 
 /**
+ * Last configured canvas target. This describes the visible map viewport
+ * even while an auxiliary framebuffer or texture-space pass is bound.
+ */
+get canvasRenderTarget(): Readonly<GpuDevice.RenderTarget> {
+
+    return this.canvasTarget_;
+}
+
+
+/**
  * Bind a render target as the active drawing destination.
  *
  * This is the public draw-target switch. It updates `currentRenderTarget`,

@@ -1629,7 +1629,8 @@ getConfigParam(key: string) {
 private currentScaleDenominator(extent: number): number {
 
     const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    return extent / (this.gpu.currentRenderTarget.apparentSize[1] / cssDpi * 0.0254);
+    const height = this.gpu.canvasRenderTarget.apparentSize[1];
+    return extent / (height / cssDpi * 0.0254);
 }
 
 /** Build a VeScaleRamp from two pivot pairs, precomputing the exponent. */

@@ -1,5 +1,47 @@
 # Session log
 
+## 2026-06-01 — recursive bbox vertical-range fix
+
+Investigated a regression where `Shift+B` tile bboxes were vertically
+shifted on:
+
+```text
+demos/map/?style=styles/simple.json&backend=prod&pos=obj,-121.752477,46.838906,fix,2582.98,-5.04,-90.00,0.00,18161.93,30.00&mapTerrainTraversal=recursive
+```
+
+The same position rendered correct bboxes with
+`mapTerrainTraversal=legacy`. The diagnostic viewport was 1200x800.
+
+Runtime instrumentation wrapped `drawTileInfo()` and
+`MapSurfaceTile.isMetanodeReady()` in both modes. Before the fix,
+legacy called every metanode readiness check with the canvas target
+bound (`1200x800`) and baked `veBakedFactor = 1`. Recursive called most
+child readiness checks after the traversal mask pass had bound a
+texture-space target (`256x256`), so `getVeScaleFactor()` returned
+`1.148036626536` and `bbox2` was baked at that factor. At draw time the
+live factor was `1`, so the surface and bbox overlay disagreed.
+
+Root cause: `Renderer.currentScaleDenominator()` used
+`gpu.currentRenderTarget.apparentSize[1]`. That value is the active
+draw target, not the visible map viewport. Recursive traversal changes
+the active target while clearing and blitting mask textures before
+later child metanode readiness checks.
+
+Severity: this was not limited to the debug overlay. The same stale
+`bbox2` is used for v4+ frustum culling, and the wrong scale denominator
+could affect any traversal decision that depends on VE-adjusted tile
+height, projected size, or culling state.
+
+Fix: `GpuDevice` now exposes the cached canvas render target, and
+`Renderer.currentScaleDenominator()` uses its apparent height. After the
+change, recursive readiness checks still run with `texture-space
+256x256` bound, but the recorded factor is `1` and every recursive
+overlay record has `veBakedFactor = liveVeFactor = 1`.
+
+Verification: `npx tsc --noEmit`; the recursive/legacy bbox probe on
+the URL above; `test/screenshot.js simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
 ## 2026-06-01 — draw traversal rollout notes
 
 Updated [rfc-draw-traversal.md](rfc-draw-traversal.md) after completing
