@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-06-01 — server v6 metatile emission (RFC stage 5)
+
+Implemented stage 5 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+across `cartolina-tileserver` and `vts-vtsd` (shared `vts-libs`):
+metatile VERSION 5→6, `MetaTileFlag::watertightPlane`, `flagMapping`,
+`MetaNode::Flag::watertight`, and `ti2metaFlags()` in the DEM and
+spheroid generators. Bumped both surface `GeneratorRevision`s for
+production cache-busting.
+
+Key finding: vts-vtsd is delivery-only — it streams stored metatile
+bytes verbatim, so rebuilding it does not change the served version. A
+legacy stored tileset stays v5 until re-encoded. The watertight data
+was already present in the tileset tile index (used for glue
+generation) but absent from v5 metanodes. Extended the `vts-libs`
+reencode/clone path to copy the tile index watertight flag into the v6
+metanode, and added `watertight` to the dump flag table. `vts
+--reencode --encode meta` then upgrades a stored tileset in place,
+keeping a `.tag` rollback backup; the revision bump flips the mapConfig
+URL suffix (`?00`→`?11`) and busts caches.
+
+Verified: mapproxy emits v6 + watertight (user-confirmed); benatky and
+its glue reencoded to v6 (9320 and 1086 watertight tiles) and served by
+vtsd with the watertight bitplane set. The full mechanism and commands
+are written up in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
 ## 2026-06-01 — client metatile v6 watertight parsing
 
 Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):

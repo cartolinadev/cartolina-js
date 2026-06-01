@@ -1290,19 +1290,30 @@ Implementation phases:
    `metanode.watertight` on the expected nodes, and confirms v5 ignores
    bitplane 1.
 
-5. Server v6 metatile emission.
+5. **Implemented.** Server v6 metatile emission.
 
-   Apply the `vts-libs` and mapproxy changes in §4.5: bump VERSION
-   from 5 to 6, add `watertightPlane = 0x02` to `MetaTileFlag`,
-   extend `flagPlanes` and `flagMapping`, add
-   `MetaNode::Flag::watertight` with accessor and setter, patch
-   `ti2metaFlags()`. Apply the same vts-libs changes to vts-vtsd's
-   vendored copy in lockstep. Deploy to the local test environment.
+   Applied the §4.5 `vts-libs` and mapproxy changes: VERSION 5→6,
+   `MetaTileFlag::watertightPlane = 0x02`, extended `flagPlanes` and
+   `flagMapping`, `MetaNode::Flag::watertight` with accessor/setter,
+   and `ti2metaFlags()` in both the DEM and spheroid generators. Bumped
+   both surface generators' `GeneratorRevision` so the format change
+   busts production caches. One `vts-libs` commit is shared by
+   cartolina-tileserver and vts-vtsd.
 
-   Manual checkpoint: a regenerated v6 dataset loads in the phase-4
-   client without traversal changes; nodes from watertight source
-   data carry `metanode.watertight = true`; nodes from partial source
-   data carry `false`.
+   mapproxy generates metatiles per request, so it emits v6 with
+   watertight immediately after deploy. vts-vtsd is delivery-only — it
+   streams stored tiles verbatim — so legacy v5 tilesets stay v5 until
+   re-encoded. `vts-libs` reencode/clone was extended to copy the tile
+   index watertight flag into the v6 metanode, so `vts --reencode
+   --encode meta` upgrades a stored tileset in place (the revision bump
+   busts caches). See
+   [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
+   Manual checkpoint met: local mapproxy serves v6 with sensible
+   watertight values; the benatky legacy tileset and its glue were
+   reencoded to v6 and vtsd serves them with the watertight bitplane
+   set (9320/9992 and 1086 watertight tiles); the phase-4 client loads
+   them without traversal changes.
 
 6. Watertight fast path.
 

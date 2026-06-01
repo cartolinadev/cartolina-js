@@ -45,8 +45,9 @@ then branch into more specific documents as needed.
   the melown2015 and QSC families, client loading path, and tileserver
   production
 - [surface-metatile.md](surface-metatile.md) — surface metatile binary
-  format (v1–v5), metanode fields, version history, and how the client
-  uses metatiles for LOD selection, culling, and resource loading
+  format (v1–v6, incl. the v6 watertight bitplane), metanode fields,
+  version history, and how the client uses metatiles for LOD selection,
+  culling, and resource loading
 - [lod-selection.md](lod-selection.md) — how metatile texel length is
   generated, stored, and projected to screen-space error in
   `updateTexelSize`; distance functions, degrade-horizon logic, tree
@@ -116,6 +117,11 @@ then branch into more specific documents as needed.
   are built and served, and the two-generation history of the alien flag
 - [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
   `surfaceSequence` and why it is currently vestigial
+- [vts-vtsd-archeology.md](vts-vtsd-archeology.md) — how vts-vtsd serves
+  stored tilesets (delivery only, no transcoding), where the watertight
+  information lives, and the `vts --reencode` process that upgrades a
+  legacy v5 tileset to v6 with correct watertight flags and a
+  cache-busting revision bump
 
 ### RFC archive
 

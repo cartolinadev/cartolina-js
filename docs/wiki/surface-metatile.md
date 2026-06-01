@@ -10,8 +10,12 @@ their height range, which children exist, and how large the tile
 would appear on screen. All LOD selection, frustum culling, and
 resource-loading decisions are driven by metatile data.
 
-The client supports format versions **1–6**. Current production
-servers emit v5 until the v6 watertight-bitplane rollout is deployed.
+The client supports format versions **1–6**. cartolina-tileserver
+(mapproxy) emits v6 with the watertight bitplane, generated fresh on
+each request. vts-vtsd serves stored tilesets byte-for-byte, so a
+stored v5 tileset stays v5 until it is re-encoded to v6; see
+[vts-vtsd-archeology.md](vts-vtsd-archeology.md) for how vtsd delivers
+metatiles and the re-encode process and commands.
 
 The server-side format is defined in
 `externals/vts-libs/vts-libs/vts/metatile.hpp` in the
