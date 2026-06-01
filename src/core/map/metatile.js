@@ -243,7 +243,7 @@ MapMetatile.prototype.parseMetatatile = function(stream) {
 
     this.version = streamData.getUint16(stream.index, true); stream.index += 2;
 
-    if (this.version > 5) {
+    if (this.version > 6) {
         return;
     }
 
