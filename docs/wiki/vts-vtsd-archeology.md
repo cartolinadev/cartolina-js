@@ -40,6 +40,25 @@ metatiles fresh per request and therefore emits the new version
 immediately after rebuild. See
 [tileserver-metatile-production.md](tileserver-metatile-production.md).
 
+### Deploy a vtsd built against the v6 vts-libs
+
+"Delivery only" holds for the plain tile paths (meta/mesh/atlas/navtile
+stream raw), but vtsd **does parse** metatiles on two endpoints: credit
+collection (`creditsFromMetatiles` → `loadCreditsFromMetaTile` in
+`vts-libs .../tileset/driver/delivery.cpp`) and 3D-Tiles conversion
+(`MetaBuilder` → `loadMetaTile` in
+`vtsd/src/vtsd/delivery/vts/tdt2vts/metabuilder.cpp`). The metatile
+loader rejects `version > VERSION` (`metatile.cpp`), so a vtsd binary
+linked against the old v5 `vts-libs` throws "unsupported version" on
+those endpoints for a v6 tileset — raw tile delivery would still work,
+credits / 2D / 3D-Tiles would not.
+
+vtsd needs no source change, but it links `vts-libs` statically (the
+`VERSION` constant and the metatile parser live there). So the binary
+must be **rebuilt against the v6 `vts-libs` and deployed** in lockstep
+with v6 tilesets. This is the §4.5 requirement that vtsd "must be able
+to parse the v6 metatile binary or it will refuse to serve it".
+
 ## Where the watertight information lives
 
 A tile is watertight when its mesh has no holes (fully covers its

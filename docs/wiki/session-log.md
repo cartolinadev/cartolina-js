@@ -78,6 +78,13 @@ its glue reencoded to v6 (9320 and 1086 watertight tiles) and served by
 vtsd with the watertight bitplane set. The full mechanism and commands
 are written up in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
 
+Deploy note: vtsd still needs rebuilding against the v6 `vts-libs` and
+shipping in lockstep. Although plain tile delivery streams raw bytes,
+vtsd parses metatiles on the credits (`loadCreditsFromMetaTile`) and
+3D-Tiles (`MetaBuilder`/`loadMetaTile`) endpoints, and the loader
+rejects `version > VERSION`; an old v5 binary would refuse v6 tilesets
+there.
+
 ## 2026-06-01 — client metatile v6 watertight parsing
 
 Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
