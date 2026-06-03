@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-06-04 — freeze-frustum depth pass LOD basis
+
+The freeze-frustum capture (`Shift+Z`, freeze, then show frustum) drew an
+unbounded "infinite frustum" on the first try after reload at larger
+canvas sizes. `FreezeMode.captureFrustum()` scans the depth hitmap for
+the farthest finite depth; when every pixel is the white clear value it
+falls back to the whole reference-frame extent, which projects a
+planet-scale pyramid.
+
+The depth/hitmap pass wrote an empty buffer because tile LOD selection
+read the render target's `viewportSize`. The auxiliary hitmap target has
+a fixed 512 storage size, so the depth pass computed
+`ndcToScreenPixel = 256` while the color pass used the canvas width
+(`724` at this view). The depth pass then selected a coarser LOD than the
+color pass; those coarser tiles were not resident, so nothing drew.
+Confirmed across paths with Playwright plus temporary logging: recursive
+traversal with `mapFallbackCadence=100`, and legacy `fitonly`, both
+produced an all-infinite hitmap; legacy `topdown` survived only because
+its fallback rendering keeps coarse meshes resident.
+
+`MapDraw.initFrame()` now derives `ndcToScreenPixel` from the target's
+`apparentSize`, which the auxiliary target inherits from the canvas, and
+`setupDetailDegradation()` drops the device-pixel-ratio factor from
+`texelSizeFit`. Both quantities become DPI-independent and identical
+across passes, so the depth pass selects the same tiles the color pass
+drew and reuses their resident meshes. After the change the depth hitmap
+fills for recursive any-cadence, legacy `topdown`, and legacy `fitonly`,
+and the frustum is bounded.
+
+Verification: `npx tsc --noEmit`; `test/screenshot.js simple-terrain`,
+`complex-terrain`, and `full-terrain` rendered without console or network
+errors. `docs/wiki/lod-selection.md` updated to match.
+
 ## 2026-06-03 — draw traversal watertight fast path
 
 Implemented step 6 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
