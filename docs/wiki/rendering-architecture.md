@@ -63,11 +63,11 @@ The default terrain draw path now enters
 It performs recursive backtracking over the legacy-selected terrain
 surface and uses UV-space R8 masks from
 `src/core/map/draw-traversal-mask.ts` to stop fallback tiles from
-overdrawing finer child coverage. The mask path is the phase-1 client
-implementation from [rfc-draw-traversal.md](rfc-draw-traversal.md):
-v6 metatiles can now populate `metanode.watertight`, but the traversal
-does not yet consult the flag; there is no erosion or multi-surface
-active-set optimization yet.
+overdrawing finer child coverage. The traversal uses v6
+`metanode.watertight` flags as a post-draw fast path: a drawn
+watertight tile skips footprint rasterization and returns analytic full
+coverage on backtrack. The check is repeated per node; a watertight
+ancestor does not deactivate descendants. There is no erosion yet.
 
 This replaced the old terrain draw-command path that was split across:
 

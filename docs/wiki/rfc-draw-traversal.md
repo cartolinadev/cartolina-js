@@ -1316,19 +1316,26 @@ Implementation phases:
    set (9320/9992 and 1086 watertight tiles); the phase-4 client loads
    them without traversal changes.
 
-6. Watertight fast path.
+6. **Implemented.** Watertight fast path.
 
-   Wire `metanode.watertight` into the active-set logic from phase 2.
-   A watertight active surface at a node performs its normal screen
-   draw, then clears the node mask to 1.0 and deactivates
-   lower-priority surfaces for the subtree, including their metatile
-   fetches (§2.2, §4.2 round-8 update).
+   **Post-implementation note — corrected watertight propagation.**
+   The implemented semantics intentionally differ from the reviewed
+   body text in §2.2 and §4.2. A watertight metanode does not
+   deactivate lower-priority surfaces for descendants, because
+   watertight flags can aggregate upward and do not propagate downward.
+   Descendants repeat the check from their own metanodes.
 
-   Manual checkpoint: a multi-surface map whose front surface is
-   watertight on most interior tiles shows the expected reduction in
-   draw calls and lower-surface mesh requests, with no visible
-   artefacts at boundary tiles where partial coverage falls back to
-   depth testing.
+   Only a tile that actually draws can produce watertight coverage. A
+   drawn watertight tile skips footprint rasterization, stops
+   lower-priority surfaces at the same node, and returns analytic
+   watertight coverage on backtrack. Watertight children are recorded
+   as quadrant bits instead of being blitted; a parent with all four
+   children drawn watertight passes watertight upward without drawing
+   or blitting. A parent with some watertight children initializes those
+   quadrants by fill pass and blits only partial child masks.
+
+   Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
+   `full-terrain`, and `legacy-benatky`.
 
 7. Edge-preserving erosion.
 

@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.470-feature_draw_traversal_v1.8418c488",
+  "version": "2.49.471-feature_draw_traversal_v1.e89fc499",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {

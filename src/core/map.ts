@@ -149,7 +149,7 @@ class Map {
     [Symbol.dispose](): void {
 
         if (this.disposed_) return;
-        this.disposeOverlays_();
+        this.disposeOverlays();
         this.disposeTerrainMaskPool();
         this.core_.destroy();
         this.disposed_ = true;
@@ -168,7 +168,7 @@ class Map {
     /** Resolves once the map is fully loaded and ready to render. */
     get ready(): Promise<void> {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.ready;
     }
 
@@ -179,7 +179,7 @@ class Map {
      */
     loadMap(path: string): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.mapLoadedFired_ = false;
         this.core_.loadMap(path);
     }
@@ -190,7 +190,7 @@ class Map {
      */
     unloadMap(): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.mapLoadedFired_ = false;
         this.disposeTerrainMaskPool();
         this.core_.destroyMap();
@@ -212,7 +212,7 @@ class Map {
         callback: (event: CoreEventMap[K]) => void,
     ): (() => void) {
 
-        this.assertAlive_();
+        this.assertAlive();
         const unsubscribe = this.core_.on(eventName, callback);
         if (unsubscribe == null) {
             throw new Error('Map event subscription failed.');
@@ -234,7 +234,7 @@ class Map {
         wait?: number,
     ): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.once(eventName, callback, wait);
     }
 
@@ -249,14 +249,14 @@ class Map {
      */
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setRenderingOptions(options);
     }
 
     /** Returns the current renderer feature flags. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getRenderingOptions();
     }
 
@@ -267,14 +267,14 @@ class Map {
      */
     setIllumination(spec: Renderer.IlluminationDef): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setIllumination(spec);
     }
 
     /** Returns the current renderer illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getIllumination();
     }
 
@@ -287,14 +287,14 @@ class Map {
         spec: Renderer.VerticalExaggerationSpec,
     ): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration ramps. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getVerticalExaggeration();
     }
 
@@ -305,14 +305,14 @@ class Map {
      */
     setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.map?.atmosphere?.setRuntimeParameters(spec);
     }
 
     /** Returns live atmosphere parameters from the loaded map. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
@@ -334,7 +334,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.convertCoordsFromPublicToNav(
             pos, mode, lod) ?? null;
     }
@@ -355,7 +355,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.convertCoordsFromNavToCanvas(
             pos, mode, lod) ?? null;
     }
@@ -374,7 +374,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.convertCoordsFromNavToPublic(
             pos, mode, lod) ?? null;
     }
@@ -394,7 +394,7 @@ class Map {
         includeSE?: boolean,
     ): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.convertCoordsFromNavToPhys(
             pos, mode, lod, includeSE) ?? null;
     }
@@ -406,7 +406,7 @@ class Map {
      */
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.convertCoordsFromPhysToCameraSpace(pos) ?? null;
     }
 
@@ -425,7 +425,7 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.getHitCoords(
             screenX, screenY, mode, lod) ?? null;
     }
@@ -456,7 +456,7 @@ class Map {
         coordinateSpace: Renderer.CoordinateSpace = 'layout',
     ): [boolean, number] | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.getScreenDepth(
             screenX,
             screenY,
@@ -557,7 +557,7 @@ class Map {
      */
     createGeodata(): unknown {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.createGeodata() ?? null;
     }
 
@@ -569,7 +569,7 @@ class Map {
      */
     addFreeLayer(id: string, layer: unknown): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.map?.addFreeLayer(id, layer);
     }
 
@@ -580,7 +580,7 @@ class Map {
      */
     removeFreeLayer(id: string): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.map?.removeFreeLayer(id);
     }
 
@@ -599,8 +599,8 @@ class Map {
      */
     addOverlay(name: string, spec: OverlaySpec): void {
 
-        this.assertAlive_();
-        if (this.findOverlayIndex_(name) !== -1) return;
+        this.assertAlive();
+        if (this.findOverlayIndex(name) !== -1) return;
 
         this.overlays_.push({
             name, spec, enabled: true, added: false,
@@ -613,15 +613,15 @@ class Map {
      */
     removeOverlay(name: string): void {
 
-        this.assertAlive_();
-        const index = this.findOverlayIndex_(name);
+        this.assertAlive();
+        const index = this.findOverlayIndex(name);
         if (index === -1) return;
 
         const entry = this.overlays_[index];
         this.overlays_.splice(index, 1);
 
         if (entry.added && entry.spec.onRemove)
-            entry.spec.onRemove(this.overlayContext_());
+            entry.spec.onRemove(this.overlayContext());
     }
 
     /**
@@ -630,8 +630,8 @@ class Map {
      */
     setOverlayEnabled(name: string, enabled: boolean): void {
 
-        this.assertAlive_();
-        const index = this.findOverlayIndex_(name);
+        this.assertAlive();
+        const index = this.findOverlayIndex(name);
         if (index === -1) return;
 
         this.overlays_[index].enabled = enabled;
@@ -742,7 +742,7 @@ class Map {
             this.draw();
 
             // overlays
-            this.runOverlays_();
+            this.runOverlays();
 
             /* Post-draw loader promotion: requests discovered during
              * traversal enter the loader the same frame instead of
@@ -774,7 +774,7 @@ class Map {
         const channel = this.drawChannel;
 
         // Reset owner-specific frame state before issuing draw work.
-        this.initFrame_();
+        this.initFrame();
         renderer.initFrame();
         mapDraw.initFrame();
 
@@ -1007,7 +1007,7 @@ class Map {
     // -----------------------------------------------------------------
 
     /** Throws if the map has been disposed. */
-    private assertAlive_(): void {
+    private assertAlive(): void {
 
         if (this.disposed_) {
             throw new Error('Map has been destroyed.');
@@ -1015,7 +1015,7 @@ class Map {
     }
 
     /** Resets map-owned per-frame state. Called at the top of `draw`. */
-    private initFrame_(): void {
+    private initFrame(): void {
 
         const legacyMap = this.core_.map!;
 
@@ -1030,7 +1030,7 @@ class Map {
         legacyMap.stats.renderBuild = 0;
     }
 
-    private findOverlayIndex_(name: string): number {
+    private findOverlayIndex(name: string): number {
 
         for (let i = 0; i < this.overlays_.length; i++) {
 
@@ -1039,7 +1039,7 @@ class Map {
         return -1;
     }
 
-    private overlayContext_(): OverlayContext {
+    private overlayContext(): OverlayContext {
 
         return { renderer: this.core_.renderer };
     }
@@ -1049,11 +1049,11 @@ class Map {
      * explicit last step of the canvas-target frame; must not be
      * called for any auxiliary pass.
      */
-    private runOverlays_(): void {
+    private runOverlays(): void {
 
         if (this.overlays_.length === 0) return;
 
-        const ctx = this.overlayContext_();
+        const ctx = this.overlayContext();
 
         for (let i = 0; i < this.overlays_.length; i++) {
 
@@ -1075,9 +1075,9 @@ class Map {
      * order. Called from `[Symbol.dispose]` before tearing down `Core`
      * so overlays can still draw through the live renderer.
      */
-    private disposeOverlays_(): void {
+    private disposeOverlays(): void {
 
-        const ctx = this.overlayContext_();
+        const ctx = this.overlayContext();
         for (let i = this.overlays_.length - 1; i >= 0; i--) {
 
             const entry = this.overlays_[i];
@@ -1277,7 +1277,7 @@ class Map {
             + 'Access internals through Map public methods instead.',
             1,
         );
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_;
     }
 
@@ -1292,7 +1292,7 @@ class Map {
      */
     get legacyMap(): LegacyMap | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map;
     }
 }

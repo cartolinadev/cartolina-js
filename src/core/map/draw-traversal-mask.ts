@@ -4,6 +4,7 @@
 
 import type { TileRenderRig } from './tile-render-rig';
 import Renderer from '../renderer/renderer';
+import type GpuProgram from '../renderer/gpu/program';
 import GpuTexture from '../renderer/gpu/texture';
 import type { GpuDevice } from '../renderer/gpu/device';
 
@@ -40,9 +41,9 @@ class DrawTraversalMaskPool {
         this.scratch_ = this.createMask();
 
         // Pre-allocate the two GPU states. The footprint pass runs once
-        // per non-watertight surface, the blit pass once per child and
-        // once per surface; recreating these every call would allocate
-        // on the hot traversal path.
+        // per non-watertight surface; the blit/fill state handles child
+        // masks, surface footprints, and analytic watertight quadrants.
+        // Recreating these every call would allocate on the hot path.
         this.footprintState_ = renderer.gpu.createState({
             culling: false,
             ztest: false,
@@ -119,7 +120,22 @@ class DrawTraversalMaskPool {
         rig.footprint();
         gpu.setState(previousState, true);
 
-        this.orTextureIntoNode_(this.scratch_, depth);
+        this.orTextureIntoNode(this.scratch_, depth);
+    }
+
+    /**
+     * Mark watertight child quadrants as covered in a parent node mask.
+     *
+     * @param depth Recursion depth of the destination node mask.
+     * @param quadrantMask Four-bit mask in traversal quadrant order.
+     */
+    fillNodeQuadrants(depth: number, quadrantMask: number): void {
+
+        if (quadrantMask === 0) return;
+
+        const gpu = this.renderer_.gpu;
+        gpu.setTextureSpaceRenderTarget(this.nodeMask(depth), this.size_);
+        this.drawFillQuad(quadrantMask);
     }
 
     /**
@@ -146,19 +162,19 @@ class DrawTraversalMaskPool {
         // TODO: the destination quadrant is always empty here (the node
         // mask is cleared in traverseNode before any blit runs, and each
         // quadrant is written at most once). A plain copy draw call would
-        // suffice; the OR blend is inherited from drawOrQuad_ unnecessarily.
-        this.drawOrQuad_(this.nodeMask(childDepth));
+        // suffice; the OR blend is inherited from drawOrQuad unnecessarily.
+        this.drawOrQuad(this.nodeMask(childDepth));
         gpu.setViewport(0, 0, this.resolution, this.resolution);
     }
 
-    private orTextureIntoNode_(texture: GpuTexture, depth: number): void {
+    private orTextureIntoNode(texture: GpuTexture, depth: number): void {
 
         const gpu = this.renderer_.gpu;
         gpu.setTextureSpaceRenderTarget(this.nodeMask(depth), this.size_);
-        this.drawOrQuad_(texture);
+        this.drawOrQuad(texture);
     }
 
-    private drawOrQuad_(texture: GpuTexture): void {
+    private drawOrQuad(texture: GpuTexture): void {
 
         const renderer = this.renderer_;
         const gl = renderer.gpu.gl;
@@ -173,15 +189,36 @@ class DrawTraversalMaskPool {
         gl.blendEquation(gl.MAX);
         gl.blendFunc(gl.ONE, gl.ONE);
 
-        this.bindQuad_(program);
+        this.bindQuad(program);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
 
         renderer.gpu.setState(previousState, true);
     }
 
-    private bindQuad_(program: ReturnType<Renderer['programTileMaskBlit']>)
-        : void {
+    private drawFillQuad(quadrantMask: number): void {
+
+        const renderer = this.renderer_;
+        const gl = renderer.gpu.gl;
+        const program = renderer.programTileMaskFill();
+
+        renderer.gpu.useProgram2(program);
+        program.setInt('uQuadrantMask', quadrantMask);
+
+        const previousState = renderer.gpu.currentState;
+
+        renderer.gpu.setState(this.blitState_);
+        gl.blendEquation(gl.MAX);
+        gl.blendFunc(gl.ONE, gl.ONE);
+
+        this.bindQuad(program);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
+
+        renderer.gpu.setState(previousState, true);
+    }
+
+    private bindQuad(program: GpuProgram): void {
 
         const gl = this.renderer_.gpu.gl;
 

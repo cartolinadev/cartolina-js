@@ -24,14 +24,15 @@ import type { GpuDevice } from '../renderer/gpu/device';
  *
  * On backtrack each surface that is at its natural leaf at the current
  * node draws against the accumulated mask; surfaces that still have
- * finer children render too, supplying fallback coverage. The mask
- * propagates back to the parent through `maskPool.blitChildToParent`.
- * Surfaces render front-to-back (last index first) so the front
- * surface claims pixels before the back ones can.
+ * finer children render too, supplying fallback coverage. Partial masks
+ * propagate back to the parent through `maskPool.blitChildToParent`;
+ * watertight coverage propagates as state and fills only its parent
+ * quadrant when needed. Surfaces render front-to-back (last index
+ * first) so the front surface claims pixels before the back ones can.
  *
  * Glues and virtual surfaces are never consulted. Watertight metadata
- * is not yet honoured — those phases come in step 4 and 6 of the RFC
- * rollout.
+ * is honoured only after a tile actually draws; a watertight metanode
+ * never deactivates lower surfaces for descendant nodes.
  *
  * @param map Typed `Map` owning the frame.
  * @param plainTrees Per-plain-surface helper trees, ordered
@@ -109,8 +110,8 @@ export function drawTerrainTraversal(
 
 
 /**
- * Recurses into one tile position and returns whether the subtree
- * produced any rendered coverage.
+ * Recurses into one tile position and returns the coverage produced by
+ * the subtree.
  *
  * `active` carries the surfaces that are still candidates at this
  * node: each one has a ready, visible metanode at this `(lod, x, y)`.
@@ -118,20 +119,21 @@ export function drawTerrainTraversal(
  * their metanode, or reach a position their tree no longer has a
  * child for.
  *
- * The returned boolean tells the caller whether to blit this node's
- * mask slice into the parent's mask slice. Returning `false` means
- * nothing was drawn here and no blit is needed.
+ * A partial result means this depth's node mask holds coverage that
+ * the caller must blit into the parent. A watertight result means the
+ * subtree fully covers the node's geographic cell; the caller records
+ * that analytically and does not sample or blit a child mask.
  *
  * @param context Frame-wide state plus the active surface set and the
  *     current recursion depth.
- * @returns `true` if any surface drew at or below this node.
+ * @returns Coverage state for the subtree rooted at this node.
  */
-function traverseNode(context: NodeContext): boolean {
+function traverseNode(context: NodeContext): CoverageResult {
 
     const { active, depth, maskPool, texelSizeFit, fallbackCadence } =
         context;
 
-    if (active.length === 0) return false;
+    if (active.length === 0) return CoverageNone;
 
     // The bbox-visibility check has already been applied to every
     // entry of `active` by the caller (root setup or the child loop
@@ -153,7 +155,8 @@ function traverseNode(context: NodeContext): boolean {
         }
     }
 
-    let hasChildCoverage = false;
+    let coverage = CoverageNone;
+    let watertightChildMask = 0;
 
     if (canDescend) {
 
@@ -168,12 +171,27 @@ function traverseNode(context: NodeContext): boolean {
                 depth: depth + 1,
             };
 
-            const childCovered = traverseNode(childContext);
-            if (!childCovered) continue;
+            const childCoverage = traverseNode(childContext);
+            if (childCoverage.kind === 'none') continue;
+
+            if (childCoverage.kind === 'watertight') {
+
+                watertightChildMask |= 1 << quadrant;
+                coverage = CoveragePartial;
+                continue;
+            }
 
             maskPool.blitChildToParent(depth + 1, depth, quadrant);
-            hasChildCoverage = true;
+            coverage = CoveragePartial;
         }
+    }
+
+    if (watertightChildMask === AllQuadrantsMask) {
+        return CoverageWatertight;
+    }
+
+    if (watertightChildMask !== 0) {
+        maskPool.fillNodeQuadrants(depth, watertightChildMask);
     }
 
     // Render surfaces front-to-back. The last entry is the front surface
@@ -188,8 +206,6 @@ function traverseNode(context: NodeContext): boolean {
     //    disabled. This keeps an already available intermediate LOD visible
     //    while the deeper natural leaf loads, without making every traversed
     //    LOD a proactive fallback request.
-    let hasCoverage = hasChildCoverage;
-
     const fallbackLod = active[0].tile.id[0] % fallbackCadence === 0;
 
     for (let i = active.length - 1; i >= 0; i--) {
@@ -204,12 +220,19 @@ function traverseNode(context: NodeContext): boolean {
         // off-cadence residence-only probe, see above
         const preventLoad = !naturalLeaf && !fallbackLod;
 
-        if (renderSurface(context, entry, readiness, preventLoad)) {
-            hasCoverage = true;
+        const renderedCoverage =
+            renderSurface(context, entry, readiness, preventLoad);
+
+        if (renderedCoverage.kind === 'none') continue;
+
+        coverage = renderedCoverage;
+
+        if (renderedCoverage.kind === 'watertight') {
+            break;
         }
     }
 
-    return hasCoverage;
+    return coverage;
 }
 
 
@@ -253,23 +276,23 @@ function collectChildActive(
 
 /**
  * Draws one surface at the current node using the depth-local node
- * mask as the read-and-write coverage. Returns whether anything was
- * actually drawn; the caller uses this to track whether the subtree
- * produced coverage.
+ * mask as the read-and-write coverage. Only a drawn tile can produce
+ * watertight coverage: the metanode flag is ignored until the rig is
+ * ready and the screen draw has happened.
  */
 function renderSurface(
     context: NodeContext,
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
     preventLoad = false,
-): boolean {
+): CoverageResult {
 
     const { tree, tile } = entry;
     const { depth, screenTarget, maskPool } = context;
     const legacyMap = tree.map;
     const node = tile.metanode;
 
-    if (!node || !node.hasGeometry()) return false;
+    if (!node || !node.hasGeometry()) return CoverageNone;
 
     const priority = tile.id[0] * tile.distance;
     const maskTexture = maskPool.nodeMask(depth);
@@ -292,11 +315,16 @@ function renderSurface(
             maskTexture,
         ));
 
-    if (!isRig(rig)) return false;
+    if (!isRig(rig)) return CoverageNone;
 
     tile.drawCounter = legacyMap.draw.drawCounter;
+
+    if (node.watertight) {
+        return CoverageWatertight;
+    }
+
     maskPool.addFootprint(rig, depth);
-    return true;
+    return CoveragePartial;
 }
 
 
@@ -379,6 +407,19 @@ type NodeContext = {
     cameraPos: [number, number, number];
     fallbackCadence: number;
 };
+
+
+type CoverageResult =
+    | { kind: 'none' }
+    | { kind: 'partial' }
+    | { kind: 'watertight' };
+
+
+const CoverageNone: CoverageResult = { kind: 'none' };
+const CoveragePartial: CoverageResult = { kind: 'partial' };
+const CoverageWatertight: CoverageResult = { kind: 'watertight' };
+
+const AllQuadrantsMask = 0b1111;
 
 
 const ReadinessFull: TileRenderRig.ReadinessLevels = {

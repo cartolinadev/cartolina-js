@@ -253,22 +253,22 @@ class FreezeCameraState {
                 distance2: mapCamera.distance2,
                 distanceFactor: mapCamera.distanceFactor,
                 perceivedDistance: mapCamera.perceivedDistance,
-                position: this.vec3_(mapCamera.position),
-                vector: this.vec3_(mapCamera.vector),
-                vector2: this.vec4_(mapCamera.vector2),
-                center: this.vec3_(mapCamera.center),
+                position: this.vec3(mapCamera.position),
+                vector: this.vec3(mapCamera.vector),
+                vector2: this.vec4(mapCamera.vector2),
+                center: this.vec3(mapCamera.center),
                 height: mapCamera.height,
                 terrainHeight: mapCamera.terrainHeight,
                 lastTerrainHeight: mapCamera.lastTerrainHeight,
                 mapIsProjected: mapCamera.mapIsProjected,
                 geocentDistance: mapCamera.geocentDistance,
                 geocentNormal: mapCamera.geocentNormal
-                    ? this.vec3_(mapCamera.geocentNormal)
+                    ? this.vec3(mapCamera.geocentNormal)
                     : undefined,
             },
             renderer: {
-                position: this.vec3_(renderCamera.position),
-                orientation: this.vec3_(renderCamera.orientation),
+                position: this.vec3(renderCamera.position),
+                orientation: this.vec3(renderCamera.orientation),
                 aspect: renderCamera.aspect,
                 fov: renderCamera.fov,
                 fovTan: renderCamera.fovTan,
@@ -286,9 +286,9 @@ class FreezeCameraState {
                 mvpinverse: renderCamera.mvpinverse.slice(),
                 mvp: renderCamera.mvp.slice(),
                 frustumPlanes: renderCamera.frustumPlanes.map(
-                    (plane: Vec4) => this.vec4_(plane)),
+                    (plane: Vec4) => this.vec4(plane)),
                 bboxPoints: renderCamera.bboxPoints.map(
-                    (point: Vec4) => this.vec4_(point)),
+                    (point: Vec4) => this.vec4(point)),
                 dirty: renderCamera.dirty,
             },
         };
@@ -306,21 +306,21 @@ class FreezeCameraState {
         mapCamera.distance2 = mapState.distance2;
         mapCamera.distanceFactor = mapState.distanceFactor;
         mapCamera.perceivedDistance = mapState.perceivedDistance;
-        mapCamera.position = this.vec3_(mapState.position);
-        mapCamera.vector = this.vec3_(mapState.vector);
-        mapCamera.vector2 = this.vec4_(mapState.vector2);
-        mapCamera.center = this.vec3_(mapState.center);
+        mapCamera.position = this.vec3(mapState.position);
+        mapCamera.vector = this.vec3(mapState.vector);
+        mapCamera.vector2 = this.vec4(mapState.vector2);
+        mapCamera.center = this.vec3(mapState.center);
         mapCamera.height = mapState.height;
         mapCamera.terrainHeight = mapState.terrainHeight;
         mapCamera.lastTerrainHeight = mapState.lastTerrainHeight;
         mapCamera.mapIsProjected = mapState.mapIsProjected;
         mapCamera.geocentDistance = mapState.geocentDistance;
         mapCamera.geocentNormal = mapState.geocentNormal
-            ? this.vec3_(mapState.geocentNormal)
+            ? this.vec3(mapState.geocentNormal)
             : undefined;
 
-        renderCamera.position = this.vec3_(renderState.position);
-        renderCamera.orientation = this.vec3_(renderState.orientation);
+        renderCamera.position = this.vec3(renderState.position);
+        renderCamera.orientation = this.vec3(renderState.orientation);
         renderCamera.aspect = renderState.aspect;
         renderCamera.fov = renderState.fov;
         renderCamera.fovTan = renderState.fovTan;
@@ -338,9 +338,9 @@ class FreezeCameraState {
         renderCamera.mvpinverse = renderState.mvpinverse.slice();
         renderCamera.mvp = renderState.mvp.slice();
         renderCamera.frustumPlanes = renderState.frustumPlanes.map(
-            (plane) => this.vec4_(plane));
+            (plane) => this.vec4(plane));
         renderCamera.bboxPoints = renderState.bboxPoints.map(
-            (point) => this.vec4_(point));
+            (point) => this.vec4(point));
         renderCamera.mvp32.set(renderCamera.mvp);
         renderCamera.modelview32.set(renderCamera.modelview);
         renderCamera.rotationview32.set(renderCamera.rotationview);
@@ -350,12 +350,12 @@ class FreezeCameraState {
         this.map_.renderer.syncCameraState();
     }
 
-    private vec3_(value: ArrayLike<number>): Vec3 {
+    private vec3(value: ArrayLike<number>): Vec3 {
 
         return [value[0], value[1], value[2]];
     }
 
-    private vec4_(value: ArrayLike<number>): Vec4 {
+    private vec4(value: ArrayLike<number>): Vec4 {
 
         return [value[0], value[1], value[2], value[3]];
     }
