@@ -32,6 +32,17 @@ the recursive Benatky URL and counted fast-path hits before removal:
 all-children-watertight pass-throughs, 0 glue requests, 0 network
 errors, and 0 console errors.
 
+Follow-up performance probe on `simple-terrain` compared current
+recursive traversal against `HEAD~1` on the same URL. The watertight
+path removed footprint rasterization for the measured scene, but the
+first implementation still cleared a node mask for every visited node.
+Lazy node-mask initialization now clears only when partial child
+coverage, analytic quadrant fills, or a non-watertight footprint first
+need storage. On the probed load window, FBO clears dropped from about
+25k to about 4.1k after the lazy-mask change; screenshot checks still
+passed for `simple-terrain`, `complex-terrain`, `full-terrain`, and
+`legacy-benatky`.
+
 ## 2026-06-01 — recursive bbox vertical-range fix
 
 Investigated a regression where `Shift+B` tile bboxes were vertically

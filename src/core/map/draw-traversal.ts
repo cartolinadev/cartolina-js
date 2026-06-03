@@ -137,9 +137,9 @@ function traverseNode(context: NodeContext): CoverageResult {
 
     // The bbox-visibility check has already been applied to every
     // entry of `active` by the caller (root setup or the child loop
-    // below); we only record stats and clear the local mask here.
+    // below); we only record stats here. The depth-local mask is
+    // cleared lazily once partial coverage first needs storage.
     recordSurfaces(context);
-    maskPool.clearNode(depth);
 
     // Combined descent decision: any active surface that still has a
     // child and would benefit from finer detail forces descent. We
@@ -157,6 +157,7 @@ function traverseNode(context: NodeContext): CoverageResult {
 
     let coverage = CoverageNone;
     let watertightChildMask = 0;
+    let maskInitialized = false;
 
     if (canDescend) {
 
@@ -181,6 +182,12 @@ function traverseNode(context: NodeContext): CoverageResult {
                 continue;
             }
 
+            if (!maskInitialized) {
+
+                maskPool.clearNode(depth);
+                maskInitialized = true;
+            }
+
             maskPool.blitChildToParent(depth + 1, depth, quadrant);
             coverage = CoveragePartial;
         }
@@ -191,6 +198,13 @@ function traverseNode(context: NodeContext): CoverageResult {
     }
 
     if (watertightChildMask !== 0) {
+
+        if (!maskInitialized) {
+
+            maskPool.clearNode(depth);
+            maskInitialized = true;
+        }
+
         maskPool.fillNodeQuadrants(depth, watertightChildMask);
     }
 
@@ -221,11 +235,21 @@ function traverseNode(context: NodeContext): CoverageResult {
         const preventLoad = !naturalLeaf && !fallbackLod;
 
         const renderedCoverage =
-            renderSurface(context, entry, readiness, preventLoad);
+            renderSurface(
+                context,
+                entry,
+                readiness,
+                preventLoad,
+                maskInitialized,
+            );
 
         if (renderedCoverage.kind === 'none') continue;
 
         coverage = renderedCoverage;
+
+        if (renderedCoverage.kind === 'partial') {
+            maskInitialized = true;
+        }
 
         if (renderedCoverage.kind === 'watertight') {
             break;
@@ -285,6 +309,7 @@ function renderSurface(
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
     preventLoad = false,
+    maskInitialized = false,
 ): CoverageResult {
 
     const { tree, tile } = entry;
@@ -295,7 +320,7 @@ function renderSurface(
     if (!node || !node.hasGeometry()) return CoverageNone;
 
     const priority = tile.id[0] * tile.distance;
-    const maskTexture = maskPool.nodeMask(depth);
+    const maskTexture = maskInitialized ? maskPool.nodeMask(depth) : undefined;
 
     legacyMap.renderer.gpu.setRenderTarget(screenTarget);
 
@@ -321,6 +346,10 @@ function renderSurface(
 
     if (node.watertight) {
         return CoverageWatertight;
+    }
+
+    if (!maskInitialized) {
+        maskPool.clearNode(depth);
     }
 
     maskPool.addFootprint(rig, depth);

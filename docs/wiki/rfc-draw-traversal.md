@@ -1334,6 +1334,14 @@ Implementation phases:
    or blitting. A parent with some watertight children initializes those
    quadrants by fill pass and blits only partial child masks.
 
+   Follow-up performance probe on `simple-terrain` showed that eager
+   node-mask clears still bound and cleared one mask per visited node,
+   even on branches that later returned watertight. The implementation
+   now initializes a depth-local node mask lazily, only when partial
+   child coverage, analytic quadrant fills, or a non-watertight
+   footprint first need storage. Watertight-only branches return
+   without touching the mask pool.
+
    Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky`.
 
