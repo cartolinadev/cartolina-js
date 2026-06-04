@@ -1,5 +1,39 @@
 # Session log
 
+## 2026-06-04 — recursive vs legacy render-cost profiling
+
+Profiled the recursive draw traversal against the legacy path on
+`simple.json` (single watertight surface, settled, forced redraw per
+frame). Built a GL-command + GPU-timer harness under the gitignored
+`tmp/perf/` (`measure.js`, `probe_maskops.js`, `probe_watertight.js`):
+patches the WebGL2 context to count draws/binds/clears, reads per-frame
+GPU time from `EXT_disjoint_timer_query_webgl2`, and captures the Viewer
+by intercepting the `cartolina.map` getter through a patched
+`Object.defineProperty`.
+
+Finding: recursive costs ~12 ms GPU vs ~9 ms legacy (+~40%), entirely
+from mask render-target churn — per frame ~37 `fillNodeQuadrants`, ~34
+`blitChildToParent`, ~56 `clearNode`, ~128 framebuffer switches.
+`addFootprint` is already zero: every drawn tile is watertight (metatile
+v6; fit frontier L1-L14 all watertight), so the churn is fills, blits,
+and clears, not footprints. Root cause: a frustum-culled quadrant is the
+only way a watertight node returns fewer than four watertight children,
+which makes the node partial and poisons the ancestor chain to the root
+with a fill plus a blit at every level. Legacy topdown and fitonly
+converge to the same 170-tile frontier at rest, so the RFC's claimed
+topdown-overdraw saving does not exist there.
+
+Two optimizations identified and discussed: the **empty-quadrant fold**
+(culled quadrants stop poisoning the chain; backlog entry added) and
+**deferred-rectangle coverage** (carry coverage as UV rectangles
+transformed up the tree on the CPU, rasterize only when a draw samples
+the mask; rectangles and a footprint-only texture coexist with no
+promotion). Deferred-rectangle is the approved next implementation step;
+plan agreed. This commit lands the backlog entry only.
+
+Verification: profiling runs reproducible via `tmp/perf/` scripts;
+screenshots confirmed recursive and legacy are pixel-equivalent at rest.
+
 ## 2026-06-04 — fitted watertight traversal stops
 
 Updated recursive terrain traversal so watertight metanodes can affect

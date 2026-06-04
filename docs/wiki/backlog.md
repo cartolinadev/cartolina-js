@@ -1,5 +1,148 @@
 # Task backlog
 
+## PERF: draw-traversal — empty-quadrant fold
+
+**Opened:** 2026-06-04
+**Status:** open
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+
+### Goal
+
+Stop the recursive terrain traversal from materializing mask coverage
+for frustum-culled quadrants, so a fully-loaded frame issues no
+footprint, fill, blit, or node-mask clear, and the mask render-target
+churn drops to the legacy level at rest.
+
+### Measured cost
+
+Profiled on `simple.json` (single surface, no textures or labels,
+melown2015, prod v6 mapproxy backend, 1280x800, scene settled, one
+forced redraw per frame). Per-frame medians, GL commands counted by
+patching the WebGL2 context, GPU time from
+`EXT_disjoint_timer_query_webgl2`:
+
+| metric | recursive cad3 | recursive fitonly | legacy topdown | legacy fitonly |
+|---|---|---|---|---|
+| gpuMs | 12.1 | 12.5 | 9.0 | 8.7 |
+| drawCalls | 259 | 250 | 171 | 171 |
+| maskDraws | 65 | 79 | 0 | 0 |
+| fbSwitch | 128 | 150 | 0 | 0 |
+| clear | 52 | 55 | 1 | 1 |
+| drawnTiles | 193 | 170 | 170 | 170 |
+
+Recursive runs ~35-45% slower on the GPU than legacy at rest (+3.5 ms,
+well above the ~0.7-1.5 ms run-to-run spread). Both pipelines produce a
+pixel-equivalent image, so the gap is pure overhead. Legacy topdown and
+fitonly converge to the same 170-tile frontier once loaded, so the
+RFC's "mask turns topdown into fill-the-gaps" GPU saving does not exist
+at rest — topdown does not overdraw ancestors there.
+
+The mask operations were counted directly by wrapping the four
+`DrawTraversalMaskPool` methods. In fitonly: `addFootprint` 0,
+`fillNodeQuadrants` 28.6, `blitChildToParent` 58.3, `clearNode` 59.4
+per frame. Footprint rasterization is already zero — every drawn tile is
+watertight (metatile v6; the whole fit frontier L1-L14 reads watertight)
+and returns before `addFootprint` in
+[draw-traversal.ts](../../src/core/map/draw-traversal.ts). The residual
+cost is fill and blit quads plus their clears.
+
+### Root cause
+
+A node propagates watertight coverage with no mask only when all four
+child quadrants come back watertight
+([draw-traversal.ts:203](../../src/core/map/draw-traversal.ts)). Because
+every tile here is watertight and loaded, the only way a quadrant fails
+to return watertight is frustum culling: a culled quadrant is dropped in
+`collectChildActive` and never recursed, so its parent sees fewer than
+four watertight children and must materialize the coverage —
+`clearNode`, `fillNodeQuadrants` for the quadrants it does have — and
+then returns `partial`. That `partial` poisons the whole ancestor chain
+to the root: each parent of a partial node runs a `blitChildToParent`
+and a clear. One culled quadrant near the frontier creates a fill plus
+a blit at every level above it.
+
+The regions a coarse fallback tile would fill at those partial nodes are
+exactly the culled quadrants, which are off-screen. So in the
+fully-loaded state both the mask bookkeeping and any fallback draw it
+supports work on geometry that is not on screen.
+
+### Design
+
+Two parts. The data-model change is the **gap/empty split**; the
+optimization it enables is the **empty-quadrant fold**.
+
+The current `CoverageResult` kind `'none'` conflates two cases: a node
+with an on-screen region nothing covered (waiting for data), and a node
+whose descendants are all culled (no on-screen area at all). A node
+passing its own bbox visibility does not imply its descendants are
+visible, so a recursed subtree can legitimately have no on-screen area.
+Split `'none'` into:
+
+```ts
+type CoverageResult =
+    | { kind: 'watertight' }  // on-screen cell solid; analytic, no mask
+    | { kind: 'partial' }     // on-screen cell covered via a mask to blit
+    | { kind: 'gap' }         // on-screen area not covered — waiting for data
+    | { kind: 'empty' };      // no on-screen area — nothing to cover
+```
+
+`'gap'` means "waiting for data": an unready child metatile, a child
+whose metanode is loaded but whose rig is not ready, or a leaf that
+could not draw. It is transient and absent from a fully-loaded frame.
+`'empty'` means no on-screen area, produced both by a culled quadrant in
+`collectChildActive` and by a recursed subtree whose quadrants are all
+empty. `collectChildActive` reports the dropped-quadrant reason —
+culled child metanode present but off-screen gives `'empty'`; child
+present but unready, metatile unloaded, or `!hasChild` on-screen gives
+`'gap'` (an unready child has no metanode to bbox-test, so it is treated
+as `'gap'`, which keeps the win to the steady state where it belongs).
+
+The fold is then a one-line widening of the early-out: a node returns
+`'watertight'` when every quadrant is `'watertight'` or `'empty'` (none
+`'partial'`, none `'gap'`). Track the empty quadrants in a
+`notRequiredMask` next to the existing `watertightChildMask`:
+
+```ts
+if ((watertightChildMask | notRequiredMask) === AllQuadrantsMask)
+    return CoverageWatertight;
+```
+
+A node whose only missing quadrants are culled passes watertight up
+untouched — no clear, no fill, no blit. In a fully-loaded frame the
+whole visible tree collapses to watertight and the mask machinery goes
+silent. The cadence fallback draws also stop, because the early-out
+fires before the render loop. The mask still activates wherever a finer
+tile is genuinely loading, which is its purpose, so the progressive-load
+behavior and the multi-surface seam compositing are unchanged.
+
+`'partial'` deliberately covers both "fully covered, held in a mask" and
+"covered with holes": the mask itself carries the hole pattern, a
+consumer reads it and fills only the uncovered texels, and both are
+blitted identically. The traversal never needs a per-subtree
+"fully converged" signal, so the conflation costs nothing.
+
+### Verification plan
+
+The premise that every steady-state partial is culling-caused is forced
+by the verified facts (frontier 100% watertight, scene settled), but the
+payoff must be measured:
+
+1. Re-run the mask-op counter on settled `simple-terrain`; expect
+   `fillNodeQuadrants`, `blitChildToParent`, `clearNode` near zero and
+   `addFootprint` still zero.
+2. Re-run the GL/GPU profiler; expect `recursive-cadence3` GPU to fall
+   from ~12 ms toward the ~9 ms legacy floor.
+3. Screenshot mid-load to confirm the mask still fills genuine gaps (no
+   transient holes at partially-loaded boundaries) and at rest to
+   confirm pixel parity with today.
+4. Re-check `complex-terrain` and `full-terrain`, which have real
+   non-watertight boundary tiles, to confirm footprints still fire where
+   they should.
+
+The profiling harness and probes live under the gitignored `tmp/perf/`.
+
+---
+
 ## REFACTOR: audit draw-readiness policy flags after traversal rollout
 
 **Opened:** 2026-05-30
