@@ -26,9 +26,18 @@ switches 128→100, viewport calls 413→285, mask draws 65→50, draw calls
 259→244; GPU time fell from a stable ~12 ms toward the ~9 ms legacy
 floor (disjoint timer noisy, so GL-command counts are the reliable
 signal). A modest win on its own — the residual framebuffer churn is the
-`materialize` bind at each node drawing masked fallback coverage. The
-correctness side effect matters too: rectangle edges are exact at any
-scale, removing the producer/consumer-LOD downscale precision loss.
+`materialize` bind at each node drawing masked fallback coverage over an
+all-watertight-or-culled subtree, which the empty-quadrant fold removes
+(and which on this data subsumes this gain plus the cadence overdraw).
+
+Correction to an earlier claim in this entry: this change does not
+improve precision and does not remove the need for LINEAR sampling.
+LINEAR exists for non-rectangular footprint coverage, which still
+rasterizes and blit-downscales per level here as before; dyadic coverage
+was already exact via quadrant fills. The rectangle representation's
+lasting value is removing framebuffer switches at non-rendering
+propagation nodes during loading and genuine gaps (where the fold cannot
+help), and being the substrate for a future analytic in-shader test.
 
 Verification: `npx tsc --noEmit` clean; fresh webpack build (cleared
 `node_modules/.cache` to shed a stale fork-ts-checker error);

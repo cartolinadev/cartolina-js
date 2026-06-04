@@ -447,14 +447,15 @@ class DrawTraversalMaskPool {
         );
         const data = new Uint8Array(this.resolution * this.resolution);
 
-        // Linear filtering preserves coverage information across the
-        // repeated half-quadrant downscales performed during backtrack.
-        // A consumer surface several LODs above the producer reads the
-        // mask after many parent blits; with NEAREST the original
-        // boundary collapses to half-tile alignment error, with LINEAR
-        // it survives as a gradient that the tile shader thresholds at
-        // 0.5 to recover the original edge. See phase 2 post-impl notes
-        // in docs/wiki/rfc-draw-traversal.md.
+        // Linear filtering is for footprint coverage, which is the only
+        // part still carried as a texture and blit-downscaled per level
+        // during backtrack. A consumer several LODs above the producer
+        // reads it after many parent blits; with NEAREST the boundary
+        // collapses to half-tile alignment error, with LINEAR it survives
+        // as a gradient that the tile shader thresholds at 0.5 to recover
+        // the edge. Rectangular coverage does not rely on this — it is
+        // rasterized exactly at the consumer's resolution in `materialize`.
+        // See phase 2 post-impl notes in docs/wiki/rfc-draw-traversal.md.
         texture.createFromData(
             this.resolution,
             this.resolution,

@@ -7,15 +7,21 @@
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
 **Update 2026-06-04:** deferred-rectangle coverage has landed (see the
-session log and the §5.1 post-implementation note). It carries coverage
-as CPU rectangles and rasterizes only on consumption, which removed the
-per-level fill/blit churn and the producer/consumer precision loss.
-Measured residual on `simple.json` (cadence 3): framebuffer switches
-128→100, mask draws 65→50. The remaining churn is the `materialize`
-bind at each node drawing masked fallback coverage — exactly the
-culling-induced consumers this fold removes. The fold is now the next
-step on top of the rectangle representation; both still compose as
-described below.
+session log and the §5.1 post-implementation note). It carries the
+rectangular (watertight/LOD-hierarchy) coverage as a CPU rectangle list
+and rasterizes only on consumption, which moved the per-level fill/blit
+of that part off the GPU. Measured residual on `simple.json` (cadence
+3): framebuffer switches 128→100, mask draws 65→50 — a modest standalone
+win. (It does not improve precision and does not remove LINEAR sampling,
+which is for footprint coverage; an earlier note claimed otherwise and
+is corrected.) The remaining churn is the `materialize` bind at each
+node drawing masked fallback coverage over an all-watertight-or-culled
+subtree — exactly the culling-induced consumers this fold removes, which
+on this data subsumes the rectangle gain and also drops the cadence
+overdraw. The fold is the next step; the rectangle representation's own
+lasting value is the gap/loading case (framebuffer switches at
+non-rendering propagation nodes, which the fold cannot remove) and as
+the substrate for a later analytic in-shader test.
 
 ### Goal
 

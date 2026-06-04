@@ -742,18 +742,35 @@ there is anything to sample.
 Why: on a single watertight surface the eager scheme spent the whole
 per-frame mask cost on fills, blits, and clears at boundary nodes
 (culling makes a node partial, which propagates up the ancestor chain).
-The rectangle representation moves that propagation to the CPU and is
-exact at any scale, removing the producer/consumer-LOD downscale
-precision loss that motivated LINEAR mask sampling. Measured on
-`simple.json` (cadence 3, settled): framebuffer switches 128→100,
+The rectangle representation moves that propagation off the GPU — the
+fills and per-level blits of the rectangular part become CPU array
+work, leaving only the on-demand `materialize` rasterization. Measured
+on `simple.json` (cadence 3, settled): framebuffer switches 128→100,
 viewport calls 413→285, mask draws 65→50, total draw calls 259→244;
 GPU time fell from a stable ~12 ms toward the ~9 ms legacy floor (the
 disjoint timer is noisy run-to-run, so the GL-command counts are the
-reliable signal). The residual framebuffer churn is the `materialize`
-bind at each node that draws masked fallback coverage; cutting that
-further is the job of the empty-quadrant fold (see `backlog.md`), which
-removes culling-induced fallback consumers, or an analytic in-shader
-rectangle test, which removes the mask texture entirely.
+reliable signal). This is a modest standalone win. The residual
+framebuffer churn is the `materialize` bind at each node that draws
+masked fallback coverage over an all-watertight-or-culled subtree;
+removing those nodes is the job of the empty-quadrant fold (see
+`backlog.md`), which on this data subsumes the gain here and also drops
+the cadence fallback overdraw. The rectangle representation's own
+lasting value is elsewhere: it eliminates framebuffer switches at
+non-rendering propagation nodes during loading and at genuine gaps
+(which the fold cannot, since a gap is required coverage), and it is the
+representation an analytic in-shader rectangle test would consume to
+remove mask framebuffers entirely for watertight-or-empty data.
+
+This change does **not** improve mask precision and does not remove the
+need for LINEAR sampling. LINEAR (and the 0.65 discard threshold) exist
+for non-rectangular footprint coverage, which still rasterizes and
+blit-downscales per level in this scheme exactly as before, so LINEAR is
+retained. Dyadic/watertight coverage was already exact under the eager
+scheme (carried by quadrant fills at the consumer's own resolution, not
+a downscale chain). The one narrow precision gain is that watertight
+coverage sitting under a partial ancestor now stays an exact rectangle
+instead of riding the ancestor's downscaled blit; this only arises in
+scenes that have partial tiles and is not the motivation for the change.
 
 `programTileMaskFill` and `tile-mask-fill.frag.glsl` (the quadrant-fill
 program) are removed; quadrant fills are ordinary rectangles rasterized
