@@ -3,7 +3,10 @@
 ## PERF: draw-traversal — empty-quadrant fold
 
 **Opened:** 2026-06-04
-**Status:** open
+**Status:** resolved 2026-06-05 — implemented via the gap/empty coverage
+split; on `simple.json` `recursive` now matches `legacy` exactly (mask
+draws 50→0, framebuffer switches 100→0, drawn tiles 193→170, GPU
+parity). See the §2.1 post-implementation note and the session log.
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
 **Update 2026-06-04:** deferred-rectangle coverage has landed (see the

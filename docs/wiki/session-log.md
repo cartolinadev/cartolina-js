@@ -1,5 +1,36 @@
 # Session log
 
+## 2026-06-05 — empty-quadrant fold
+
+Split the recursive traversal's coverage result so a frustum-culled
+quadrant stops forcing a fallback draw. `CoverageResult`'s `none` becomes
+two kinds: `empty` (no on-screen area) and `gap` (on-screen, nothing
+rendered yet). `partial` keeps its name (partial *coverage*, distinct
+from a partial *tile* — a comment on the type says so).
+`collectChildActive` now also returns `culled` (the
+quadrant produced no active child only because its finer geometry is
+off-screen), derived from a single `required` flag — no flag soup. The
+descent classifies every quadrant into one kind, and a node early-outs as
+watertight when `(watertightMask | emptyMask) === all`, or returns `empty`
+when every quadrant is empty. All in `src/core/map/draw-traversal.ts`.
+
+Result on `simple.json` (cadence 3, settled): `recursive` now equals
+`legacy` on every cost metric — draw calls 244→171, mask draws 50→0,
+framebuffer switches 100→0, clears 51→1, drawn tiles 193→170, program
+switches 67→2 — at legacy GPU parity (8.74 vs 8.65 ms), CPU lower (2.7 vs
+3.9). The mask machinery is silent on watertight data and the cadence
+fallback overdraw is gone. The recursive pipeline now costs what legacy
+costs while keeping deferred rectangles, progressive loading, and
+multi-surface compositing. (One cosmetic leftover: 172 viewport calls
+from `renderSurface` re-setting the already-bound screen target per tile;
+no framebuffer switch, negligible.)
+
+Verification: `npx tsc --noEmit` clean; fresh build; no holes on
+`simple` (recursive vs legacy pixel-equivalent), `complex`, `full`,
+`legacy-benatky`, and `full` at cadence 1 and a large cadence (the fold
+drops only off-screen coverage). Closes the empty-quadrant fold backlog
+entry.
+
 ## 2026-06-04 — deferred-rectangle terrain coverage
 
 Replaced the recursive traversal's eager per-level mask fill/blit with a

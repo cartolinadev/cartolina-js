@@ -107,6 +107,32 @@ one-off console warning naming the unsupported free layer.
 
 ### 2.1 Traversal structure
 
+**Post-implementation note — empty-quadrant fold (2026-06-05).**
+`traverseNode` returns one of four coverage kinds, replacing the earlier
+`none` with two: `watertight` (on-screen cell solid, recorded as an
+analytic rectangle), `partial` (covered with an arbitrary shape held in
+the node mask, to blit up — partial *coverage*, not a partial *tile*),
+`gap` (on-screen but nothing rendered yet — waiting for data),
+and `empty` (no on-screen area). `collectChildActive` reports a quadrant
+as `culled` when it produced no active child purely because its finer
+geometry is off-screen (not because data is missing); the descent treats
+a culled quadrant as `empty`. A node then early-outs as watertight when
+every quadrant is `watertight` or `empty`
+(`(watertightMask | emptyMask) === all`), and returns `empty` when every
+quadrant is empty.
+
+The effect: on watertight data the only reason a node had fewer than four
+watertight children was frustum culling, which now folds in instead of
+forcing a fallback draw plus a mask. The visible tree collapses to
+watertight up to the root. Measured on `simple.json` (cadence 3,
+settled), `recursive` matches `legacy` exactly — draw calls 244→171, mask
+draws 50→0, framebuffer switches 100→0, clears 51→1, drawn tiles 193→170
+(the cadence fallback overdraw is gone) — at legacy GPU parity (~8.7 ms).
+Verified with no holes on `simple`, `complex`, `full`, `legacy-benatky`,
+and on `full` at cadence 1 and a large cadence (the fold drops only
+off-screen coverage, never on-screen). Culling is recomputed per frame,
+so a quadrant that becomes visible is reclassified the next frame.
+
 The new function is a depth-first recursive descent of the tile
 quadtree. Current terrain surfaces do not exceed LOD 15 in practice
 (ground resolution ~9.6 m at the equator in the melown2015 reference
