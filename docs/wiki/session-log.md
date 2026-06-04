@@ -1,5 +1,992 @@
 # Session log
 
+## 2026-06-04 — fitted watertight traversal stops
+
+Updated recursive terrain traversal so watertight metanodes can affect
+selection before a tile draws. If any active surface has a watertight
+node whose `texelSize` satisfies the SSE threshold, traversal stops at
+that node for the whole active set. This avoids descending only because
+another surface has geometry available first at finer-than-fit LODs.
+
+Same-node front-to-back pruning now stops the render loop after a
+surface claims full node coverage, either through `node.watertight` or
+through drawn watertight coverage. Coverage propagation is unchanged:
+only a tile that actually draws can return watertight coverage upward.
+
+Checked the `viewfinder13` two-surface case at a 2560x1353 viewport.
+The duplicate `3-1-1` labels are expected for that position because
+`viewfinder-dem1` is the front surface and its `3-1-1` metanode is not
+watertight, so the back `viewfinder-dem3` tile still needs to render.
+
+Verification: `npx tsc --noEmit`.
+
+## 2026-06-04 — freeze-frustum depth pass LOD basis
+
+The freeze-frustum capture (`Shift+Z`, freeze, then show frustum) drew an
+unbounded "infinite frustum" on the first try after reload at larger
+canvas sizes. `FreezeMode.captureFrustum()` scans the depth hitmap for
+the farthest finite depth; when every pixel is the white clear value it
+falls back to the whole reference-frame extent, which projects a
+planet-scale pyramid.
+
+The depth/hitmap pass wrote an empty buffer because tile LOD selection
+read the render target's `viewportSize`. The auxiliary hitmap target has
+a fixed 512 storage size, so the depth pass computed
+`ndcToScreenPixel = 256` while the color pass used the canvas width
+(`724` at this view). The depth pass then selected a coarser LOD than the
+color pass; those coarser tiles were not resident, so nothing drew.
+Confirmed across paths with Playwright plus temporary logging: recursive
+traversal with `mapFallbackCadence=100`, and legacy `fitonly`, both
+produced an all-infinite hitmap; legacy `topdown` survived only because
+its fallback rendering keeps coarse meshes resident.
+
+`MapDraw.initFrame()` now derives `ndcToScreenPixel` from the target's
+`apparentSize`, which the auxiliary target inherits from the canvas, and
+`setupDetailDegradation()` drops the device-pixel-ratio factor from
+`texelSizeFit`. Both quantities become DPI-independent and identical
+across passes, so the depth pass selects the same tiles the color pass
+drew and reuses their resident meshes. After the change the depth hitmap
+fills for recursive any-cadence, legacy `topdown`, and legacy `fitonly`,
+and the frustum is bounded.
+
+Verification: `npx tsc --noEmit`; `test/screenshot.js simple-terrain`,
+`complex-terrain`, and `full-terrain` rendered without console or network
+errors. `docs/wiki/lod-selection.md` updated to match.
+
+## 2026-06-03 — draw traversal watertight fast path
+
+Implemented step 6 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+with corrected watertight semantics. A watertight metanode no longer
+deactivates lower-priority surfaces for descendants; descendants repeat
+the check from their own metanodes.
+
+The traversal now returns coverage as none, partial, or watertight.
+Only a tile that draws can return watertight coverage. Drawn watertight
+tiles skip footprint rasterization, stop lower-priority surfaces at the
+same node, and pass analytic full coverage upward. Watertight children
+are tracked as quadrant bits; parents either pass through when all four
+quadrants are watertight or fill those quadrants before blitting only
+partial child masks.
+
+Verification: `npx tsc --noEmit`; `test/screenshot.js simple-terrain`,
+`complex-terrain`, and `full-terrain`. The screenshot harness now
+normalizes trailing slashes on `${url}` entries before applying
+templates. The first `legacy-benatky` attempt was invalid because the
+harness built `benatky//mapConfig.json`, which resolved relative
+metatile URLs to `store/tests/stage.melown2015/...` instead of
+`store/stage.melown2015/...`. The script's prod capture also exercises
+the remote legacy page, which can request glues and is not evidence
+about the recursive dev traversal.
+
+After rerunning `legacy-benatky` with the fixed harness, both dev and
+prod screenshot captures passed. A temporary dev-only diagnostic loaded
+the recursive Benatky URL and counted fast-path hits before removal:
+5580 drawn watertight tiles, 6417 watertight child returns, 837
+all-children-watertight pass-throughs, 0 glue requests, 0 network
+errors, and 0 console errors.
+
+Follow-up performance probe on `simple-terrain` compared current
+recursive traversal against `HEAD~1` on the same URL. The watertight
+path removed footprint rasterization for the measured scene, but the
+first implementation still cleared a node mask for every visited node.
+Lazy node-mask initialization now clears only when partial child
+coverage, analytic quadrant fills, or a non-watertight footprint first
+need storage. On the probed load window, FBO clears dropped from about
+25k to about 4.1k after the lazy-mask change; screenshot checks still
+passed for `simple-terrain`, `complex-terrain`, `full-terrain`, and
+`legacy-benatky`.
+
+## 2026-06-01 — recursive bbox vertical-range fix
+
+Investigated a regression where `Shift+B` tile bboxes were vertically
+shifted on:
+
+```text
+demos/map/?style=styles/simple.json&backend=prod&pos=obj,-121.752477,46.838906,fix,2582.98,-5.04,-90.00,0.00,18161.93,30.00&mapTerrainTraversal=recursive
+```
+
+The same position rendered correct bboxes with
+`mapTerrainTraversal=legacy`. The diagnostic viewport was 1200x800.
+
+Runtime instrumentation wrapped `drawTileInfo()` and
+`MapSurfaceTile.isMetanodeReady()` in both modes. Before the fix,
+legacy called every metanode readiness check with the canvas target
+bound (`1200x800`) and baked `veBakedFactor = 1`. Recursive called most
+child readiness checks after the traversal mask pass had bound a
+texture-space target (`256x256`), so `getVeScaleFactor()` returned
+`1.148036626536` and `bbox2` was baked at that factor. At draw time the
+live factor was `1`, so the surface and bbox overlay disagreed.
+
+Root cause: `Renderer.currentScaleDenominator()` used
+`gpu.currentRenderTarget.apparentSize[1]`. That value is the active
+draw target, not the visible map viewport. Recursive traversal changes
+the active target while clearing and blitting mask textures before
+later child metanode readiness checks.
+
+Severity: this was not limited to the debug overlay. The same stale
+`bbox2` is used for v4+ frustum culling, and the wrong scale denominator
+could affect any traversal decision that depends on VE-adjusted tile
+height, projected size, or culling state.
+
+Fix: `GpuDevice` now exposes the cached canvas render target, and
+`Renderer.currentScaleDenominator()` uses its apparent height. After the
+change, recursive readiness checks still run with `texture-space
+256x256` bound, but the recorded factor is `1` and every recursive
+overlay record has `veBakedFactor = liveVeFactor = 1`.
+
+Verification: `npx tsc --noEmit`; the recursive/legacy bbox probe on
+the URL above; `test/screenshot.js simple-terrain`,
+`complex-terrain`, and `full-terrain`.
+
+## 2026-06-01 — draw traversal rollout notes
+
+Updated [rfc-draw-traversal.md](rfc-draw-traversal.md) after completing
+rollout stages 4 and 5. The rollout now names `mapTerrainTraversal` as
+the URL/config switch between `recursive` and `legacy`, with
+`Map.overrides.terrainTraversal` as the per-frame override.
+
+Because the accepted RFC body changed, its status was moved back to
+`In review` and a review-round request was added for the post-acceptance
+documentation change.
+
+## 2026-06-01 — server v6 metatile emission (RFC stage 5)
+
+Implemented stage 5 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+across `cartolina-tileserver` and `vts-vtsd` (shared `vts-libs`):
+metatile VERSION 5→6, `MetaTileFlag::watertightPlane`, `flagMapping`,
+`MetaNode::Flag::watertight`, and `ti2metaFlags()` in the DEM and
+spheroid generators. Bumped both surface `GeneratorRevision`s for
+production cache-busting.
+
+Key finding: vts-vtsd is delivery-only — it streams stored metatile
+bytes verbatim, so rebuilding it does not change the served version. A
+legacy stored tileset stays v5 until re-encoded. The watertight data
+was already present in the tileset tile index (used for glue
+generation) but absent from v5 metanodes. Extended the `vts-libs`
+reencode/clone path to copy the tile index watertight flag into the v6
+metanode, and added `watertight` to the dump flag table. `vts
+--reencode --encode meta` then upgrades a stored tileset in place,
+keeping a `.tag` rollback backup; the revision bump flips the mapConfig
+URL suffix (`?00`→`?11`) and busts caches.
+
+Verified: mapproxy emits v6 + watertight (user-confirmed); benatky and
+its glue reencoded to v6 (9320 and 1086 watertight tiles) and served by
+vtsd with the watertight bitplane set. The full mechanism and commands
+are written up in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
+Deploy note: vtsd still needs rebuilding against the v6 `vts-libs` and
+shipping in lockstep. Although plain tile delivery streams raw bytes,
+vtsd parses metatiles on the credits (`loadCreditsFromMetaTile`) and
+3D-Tiles (`MetaBuilder`/`loadMetaTile`) endpoints, and the loader
+rejects `version > VERSION`; an old v5 binary would refuse v6 tilesets
+there.
+
+Reencode path / remote-surface finding: `vts --reencode` auto-detects
+the dataset type, so it takes either a storage (recurses members) or a
+single tileset/glue path; `Storage::reencode` is just a loop of the same
+`TileSet::reencode`, which clones to a sibling `<id>.<tag>` and atomically
+swaps, so the storage is never left half-built. Confirmed on the live
+storage mapConfig that vtsd writes the URL templates for every surface —
+remote ones included — with its own local stub revision (and a
+storage-side `gr`), not the backend's. So a source-side revision bump is
+invisible to the client; remote surfaces must be revision-bumped at vtsd.
+Documented in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
+## 2026-06-01 — client metatile v6 watertight parsing
+
+Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+the client now accepts metatile version 6 and maps header bitplane 1 to
+`metanode.watertight`. Version 5 and older metatiles keep the default
+`false` value, so existing servers stay on the conservative
+non-watertight path.
+
+The traversal does not use the flag yet. The parser change only
+prepares the client for a v6-emitting server and for the later
+watertight fast path. `surface-tile.d.ts` now exposes the field on the
+legacy metanode shape so TypeScript traversal work can refer to it in a
+later phase.
+
+Verified with `npx tsc --noEmit`, a synthetic v6 bitplane smoke probe,
+and the canonical `simple-terrain`, `complex-terrain`, and
+`full-terrain` screenshot captures against the unchanged v5 services.
+
+## 2026-06-01 — deferred terrain-error map backlog item
+
+Added a deferred backlog entry for a screen-space terrain-error map.
+The entry frames the map as shared loading infrastructure: a source for
+terrain-only loading polish, loaded-state aggregation, and
+view-dependent resource priority based on visible frame inaccuracy.
+
+## 2026-05-31 — configurable fallback-coverage discard threshold
+
+The terrain traversal mask is consumed by the tile color and depth
+shaders, which discard a fallback fragment where the mask coverage
+exceeds a cutoff. The cutoff was the literal `0.5`. This makes it a
+per-frame uniform driven by a new config option.
+
+Background: the stored mask is provably binary for full watertight
+coverage — power-of-two resolution makes every quadrant blit an exact
+aligned 2x box downscale, so quadrant seams and corners sit at even
+texel positions and are never straddled. No fractional value is written.
+The fractional values appear only at read time: the consumer samples the
+mask with `LINEAR` at its own UVs, so across any 0->1 coverage step it
+reads the bilinear ramp and thresholds it. On a straight edge the `0.5`
+isoline lands on the texel boundary, but at a corner the bilinear `0.5`
+contour is a hyperbola, not a right angle, so the coarse surface's
+discard boundary does not meet the finer surface's square edge — gap on
+one side, overlap on the other. That is the crack.
+
+Raising the cutoff biases the discard isoline inward, so the fallback is
+kept across the narrow boundary band instead of discarded: the crack
+becomes transient seepage (overlap), which is the better failure. This
+is a mitigation, not a representation fix — the constant is resolution-
+and zoom-dependent, and it adds a small overdraw band on straight edges
+too; the depth shader's wider kept band is the place to watch for seam
+z-fighting. The principled cures (signed-distance mask channel, or a
+screen-space stencil written by the finer surface) are noted but not
+taken.
+
+Implementation: the threshold rides the frame UBO's reserved
+`clipParams.y` lane (no std140 layout change), written at frame init in
+`renderer.ts` from `config.mapTraversalMaskThreshold`. A
+`frameMaskThreshold()` accessor in `frame.inc.glsl` hides the slot; both
+`tile.frag` and `tile-depth.frag` read it. New config option
+`mapTraversalMaskThreshold` (default 0.65, clamped `[0,1]`): default in
+`core.js`, type in `types.ts`, setter/getter in `map.js`, and
+`NUMBER_KEYS` in `url-config.ts` so `?mapTraversalMaskThreshold=` parses
+as a number. Verified: `tsc` clean, and `simple-`, `complex-`,
+`full-terrain` screenshots compile and render with no errors.
+
+## 2026-05-31 — narrow legacyMap accessor for browser scaffolding
+
+Added a `get legacyMap(): LegacyMap | null` to typed `Map` and routed
+`Browser.getMap` through it instead of `this.map.core.map`. This narrows
+the inspector/control-mode dependency from the whole `Core` to just
+`LegacyMap`, and gives the access an intent-named, greppable door for
+the eventual legacy-map absorption.
+
+Unlike `.core`, the new getter does not warn: these call sites are
+first-party migration scaffolding with no typed replacement yet, so the
+warning would be unactionable noise. `.core` stays loud (wide door);
+`legacyMap` is quiet but narrow (`@internal`, returns `LegacyMap` only),
+so it cannot be used to widen a dependency. Warning loudness scales with
+how much surface the door exposes.
+
+Internal `core_.map` reads inside `Map` were left as-is. Converting them
+to a direct member is deferred until `Core` is dismantled and `Map` owns
+the `LegacyMap` reference directly — at which point the getter's backing
+flips from `core_.map` to a field and the call sites survive untouched.
+
+## 2026-05-31 — warnOnce/logOnce report the calling site
+
+`utils.warnOnce`/`logOnce` previously logged from inside `utils.ts`, so
+the console stack and the dedup key both pointed at the helper, not at
+the code that called it. They now read the caller's frame from the
+stack, append it to the message, and dedupe per `message + site` (once
+per distinct call site rather than once per message). An optional
+`callerDepth` skips forwarding wrappers; `Map.destroy()` and the
+`Map.core` migration-shim getter pass `1` so their deprecation warnings
+report the API user, not the wrapper. Verified in browser: the `.core`
+warning now points at `Browser.getMap` / `getRenderer` / `callListener`.
+
+A stack is captured on every call (before the dedup check), so these
+stay cold-path diagnostics; the JSDoc says so.
+
+Side note: a dev warning on direct `legacyMap.position` access was
+prototyped and reverted. Freeze mode swaps `legacyMap.position` to the
+active scope (`withSelectionCamera`/`withNavigationCamera` →
+`freeze-camera-state` restore), so direct reads are already
+scope-correct and the warning was mostly false-positive; not worth
+converting a hot field to an accessor.
+
+## 2026-05-31 — superelevation bbox2 stale-bake fix
+
+Fixed the superelevation bug logged earlier this day: with a vertical
+exaggeration scale ramp, a node's superelevated `minZ`/`maxZ` and
+`bbox2` are not refreshed as the camera zooms, because the bake gate in
+`MapSurfaceTile.isMetanodeReady` keys only on `seCounter`, which tracks
+configuration changes, not zoom (verified: `seCounter` is bumped only in
+the exaggeration setters in `renderer.ts`). The box and cull volume keep
+the scale factor baked at the generation they last synced to, while the
+GPU surface uses the live factor — so the box floats. Observed on
+`recursive` + `mapFallbackCadence>1`; not on legacy or `cadence=1`. The
+reason that axis matters was not established and is not needed for the
+fix.
+
+Fix: each metanode records `veBakedFactor`, the scale factor it was
+baked at; the gate now also rebakes when
+`getVeScaleFactor(this.map.position)` differs from it. It samples the
+factor at the bake site and re-checks every traversal, so it
+self-corrects at the settled zoom.
+
+Investigated with a browser session (temporary `window.__vtsMap`
+exposure, since removed). Diffed `15/12202/6878` navigated vs reload:
+every `bbox2` corner shifted ~686 m radially — a uniform ×1.082 scale
+factor, not a different box. An earlier attempt bumped `seCounter` from
+`MapDraw.initFrame` on per-frame factor change; reverted in favour of
+the per-node check. Why that approach did not hold up was not pinned
+down and is not needed now.
+
+Verification: `npx tsc --noEmit` clean; `simple-terrain`,
+`complex-terrain`, `full-terrain` screenshots clean; browser repro on
+`recursive` + `cadence=3` shows all 86 drawn LOD-15 tiles matching the
+reload bake (`veBakedFactor = 1`, zero deviation), boxes on terrain.
+
+## 2026-05-31 — tile-info overlay follows actual draws
+
+Moved the debug bbox/label overlay in `drawSurfaceTile` so it reflects
+what painted, not what traversal selected. For terrain it now draws once
+per tile, on the color pass, after the submesh loop, gated on a
+`tileDidDraw` flag set when a rig actually paints color content. The
+geodata overlay moved into the geodata branch unchanged in behaviour; it
+fires on tile selection and still lacks a `drawChannel` guard, so on the
+depth pass it writes overlay geometry into the depth/hitmap target — a
+pre-existing leak, now commented at the call site.
+
+Recorded a comment rule in `AGENTS.md`: comments state what the code
+does, not what it does not — no contrast with rejected alternatives,
+prior behaviour, or sibling paths.
+
+Investigation, logged as a backlog bug (no fix yet): with a vertical
+exaggeration scale ramp, `bbox2` heights are baked once per metanode and
+gated on `seCounter`, which never bumps on camera move. The scale factor
+depends on zoom (`getVeScaleFactor` → `position.pos[8]`), so a tile's
+cull box and debug box keep the exaggeration of whatever zoom they were
+baked at. The terrain surface re-applies exaggeration live on the GPU,
+so box and surface diverge until reload re-bakes at the final zoom.
+`bbox2` is the v4+ frustum cull volume, so this also mis-sizes culling,
+not only the overlay. Exposed by recursive traversal with
+`mapFallbackCadence>1`, which keeps stale-baked tiles drawn.
+
+Verification: `npx tsc --noEmit` clean.
+
+## 2026-05-30 — draw-traversal off-cadence fallback probe
+
+Adjusted the recursive terrain traversal so fallback cadence gates
+proactive fallback loading, not every possible fallback draw. A
+non-natural-leaf node on a cadence LOD still uses fallback readiness and
+may request fallback resources. A non-natural-leaf node off cadence now
+tries the same fallback draw with `preventLoad = true`, so an already
+available intermediate LOD can remain visible while the deeper natural
+leaf loads.
+
+This fixes the zoom-in artifact where an area could move from natural
+leaf LOD 7 to natural leaf LOD 8, fail to draw LOD 8 because it was not
+ready yet, then fall all the way back to the nearest cadence LOD such as
+LOD 6. `draw-tiles.js` now returns before creating a mesh resource when
+the no-load probe reaches terrain that has no `surfaceMesh` object yet.
+
+Updated `rfc-draw-traversal.md` step 3 with the corrected cadence
+semantics, added a backlog item for a post-rollout audit of the legacy
+negative readiness flags, and recorded in `AGENTS.md` that in-block
+comments use `//` lines.
+
+Verification: `npx tsc --noEmit`, `test/screenshot.js simple-terrain`,
+`test/screenshot.js complex-terrain`, `test/screenshot.js full-terrain`,
+`git diff --check`, and a static diagnostic confirming the no-load
+probe reaches `drawSurfaceTile` before mesh-resource creation.
+
+## 2026-05-30 — retire demos/legacy/map in favour of demos/map
+
+The `demos/legacy/map/` demo was the old vts-browser-js entry point:
+`browser('map-canvas', ...)` driven by a `?map=mapConfig.json` URL. The
+modern `demos/map/` demo already grew a `?mapConfig=<url>` path that
+falls back to `cartolina.browser()`, so the legacy demo was redundant
+except that the `legacy-benatky` screenshot test still loaded it.
+
+Migrated the `legacy` template's dev URL in `test/urls.json` from
+`demos/legacy/map/index.html?map=` to `demos/map/?mapConfig=`. Ran
+`node test/screenshot.js legacy-benatky`: the dev variant renders the
+Benatky terrain correctly through the new loader. (Both dev and prod hit
+the known upstream CDN 500s on the `stage.melown2015` glue/tileset
+metatiles; the prod variant uses a separate remote URL unaffected by
+this change.)
+
+Deleted `demos/legacy/map/` and repointed the four `backlog.md` URLs
+that referenced it. The prod-only `legacy` uses (`a-3d-mountain-map`,
+`tacoma-fitonly`, `nacis-2023`) point at remote CDN URLs and are
+untouched.
+
+## 2026-05-30 — draw-traversal phase 3: fallback LOD cadence
+
+Implemented phase 3 of the draw-traversal rollout (RFC §2.4). Added the
+`mapFallbackCadence` integer config (default 3) that controls how often
+inner nodes draw coarse fallback coverage during the combined descent.
+
+Phase 2 rendered every inner node as a fallback LOD (the topdown
+profile: maximum overdraw and data requests). The cadence now gates the
+fallback render step in `draw-traversal.ts`: a non-natural-leaf surface
+draws only when `tile.id[0] % cadence === 0`. The anchor is the absolute
+LOD, so the chosen fallback LODs stay fixed as the camera moves (no
+flicker). Cadence 1 reproduces topdown; a large cadence reproduces
+fitonly (only leaves render). Descent and mask propagation are not gated
+— only whether a non-leaf node draws. Natural leaves always render.
+
+Config plumbing: default in `core.js`, type in `types.ts`, setter/getter
+in `map.js` (`validateNumber(value, 1, MAXINTEGER, 3)`), and
+`mapFallbackCadence` added to `NUMBER_KEYS` in `browser/url-config.ts`
+so `?mapFallbackCadence=N` is parsed to a number before the setter.
+
+Note: `npx tsc --noEmit` passed but the webpack ts-loader rejected the
+config read — `legacyMap.config`'s value type is a broad union there, so
+`?? 3` left a `string | number | boolean | number[]`. Wrapped the read
+in `Number(...)`. The screenshot test caught the stale-server compile
+error that bare tsc missed.
+
+Verification: `simple-terrain`, `complex-terrain`, `full-terrain` render
+clean. Cadence sweep (1 / 3 / 999) on `full-terrain` converges to the
+same complete image with no gaps, confirming the gate drops no coverage
+at the settled state. Confirmed via `runtimeOptionsFromUrl` that the URL
+param arrives as a number.
+
+## 2026-05-30 — preallocate the layers UBO backing buffer
+
+`TileRenderRig.updateBuffer` allocated a fresh `ArrayBuffer`
+(`UboLayersSize`), two typed views (`Float32Array`/`Int32Array`) and the
+`Int32Array(MaxTextures)` sampler array on every draw, churning the GC
+once per tile per frame. Preallocated all four as `readonly` instance
+fields (`uboBuf`, `uboF32`, `uboI32`, `uboSamplers`) and reused them.
+
+The backing buffer needs no clearing: every active word is overwritten
+before upload and the shader reads only `layerCount` layers. The sampler
+array does get a `fill(0)` each draw so stale unit indices from a
+previous draw are not uploaded — preserving the old fresh-array
+behaviour. Only the two small `bufacc`/`samplers` cursor objects are
+still allocated per draw.
+
+Also tidied agent config: removed an untracked `gdal.org` WebFetch
+permission and a `/tmp` `additionalDirectories` entry from the tracked
+`.claude/settings.json`. The `gdal.org` grant moved to the gitignored
+`.claude/settings.local.json`; `/tmp` was dropped. AGENTS.md now states
+diagnostic output uses the gitignored repo-root `tmp/`, not system
+`/tmp`.
+
+## 2026-05-29 — tile-index documentation and tiling redesign backlog
+
+Documentation-only session, no code changes. Traced the tileserver
+tile-index code (`vts-libs` `tileindex.hpp` / `qtree.cpp`,
+`mapproxy` `tiling.cpp` and `support/tileindex.cpp`) to answer
+questions about LOD-range broadening and tile-index contents.
+
+New topic page [tile-index.md](tile-index.md): what the index carries
+(flag bits, per-LOD quadtree, `0xff` `GrayNode` serialisation and the
+7-bit cap), how `mapproxy-tiling` produces it (per-tile warp, the two
+`whole` sub-cases split on source resolution), how `prepareTileIndex`
+assembles the served index, and both LOD-range broadening directions.
+Recorded the known watertight-under-broadening limitation:
+`completeDownFromBottom` copies the `watertight` bit downward without
+re-sampling, and a watertight tile at the tiling's max LOD may still
+have finer source data.
+
+New backlog item **PERF/REDESIGN: coverage-mask `mapproxy-tiling`**:
+replace the per-tile, per-LOD warp with a native-resolution warp of the
+GDAL **mask band** (RFC 15 — `GetMaskBand`, 0 = nodata / 255 = valid,
+synthesized from nodata/alpha/all-valid) reduced bottom-up by
+`max > 0 ⇒ exists`, `min > 0 ⇒ watertight`. Settled the nodata handling
+as a design rule (do not pass `-srcnodata` on the mask-band warp; a mask
+band has no invalid pixels). Added a parallelism section (GDAL `-multi`,
+per-node fan-out, block reduction). The entry is tagged for elevation to
+RFC and lists the remaining empirical assumptions (alpha masks,
+boundary/straddle counting, read-once floor, empty-region pruning).
+
+Also corrected [tileserver-metatile-production.md](tileserver-metatile-production.md):
+the "subtrees below a watertight tile are promoted without further
+warping" sentence oversimplified the seal, which fires only in the
+native-resolution `whole` sub-case. Now states the resolution condition
+and links to the new page.
+
+## 2026-05-28 — surface sequence order follows terrain.sources
+
+Style-based maps were picking the wrong front surface. Two
+independent places ignored the explicit `terrain.sources` array:
+
+- `MapStyle.refreshSequences` (style.ts) iterated `map.surfaces`,
+  whose order is inherited from the unordered `sources` dict.
+- `Map.surfaceList` (map.ts), the input to the recursive
+  draw-traversal, sorted surfaces alphabetically by id.
+
+For `viewfinder13.json` (`terrain.sources: [dem3, dem1]`,
+front-at-last-index) the alphabetical sort put `dem3` at the last
+index instead of `dem1`, so `dem3` was rendered as the front
+surface and dem1 was masked out.
+
+Both call sites now iterate `terrain.sources` directly and look up
+each surface by `styleSourceId`. A missing surface throws instead of
+silently dropping the entry.
+
+Also: `Map.surfaces` was initialized as `{}` in the constructor even
+though every code path treats it as an array. Changed to `[]`.
+
+### Style guideline
+
+Added an inline-comment style block to `AGENTS.md`:
+
+- Default to one-line comments; multi-line only for genuinely
+  non-obvious concepts.
+- State the rule the code follows; don't argue against alternatives
+  the code is not taking.
+
+## 2026-05-28 — draw-traversal mask filter switched to LINEAR
+
+Resolved the phase 2 "+x/+y overlap" bug on `legacy-benatky`. The
+reported off-by-one was not a registration error but a downscale
+precision problem: the mask is produced at the natural-leaf LOD of
+the front surface (city, LOD 22) and read by the back surface at its
+natural leaf (LOD 15). Each backtrack step copies the child mask
+into a half-quadrant of the parent, so after seven steps the original
+256-wide producer information occupies roughly two texels at the
+read scale — a boundary uncertainty of up to half a tile. With
+`NEAREST` sampling the binary boundary snapped to consumer-scale
+texel centres, producing the observed +x/+y overlaps and matching
+-x/-y gaps.
+
+Switching the mask textures to `LINEAR` turns the boundary into a
+coverage gradient; the tile shader's existing `covered > 0.5`
+discard threshold then recovers the original edge to within half a
+texel at the read scale, regardless of producer/consumer LOD
+distance. The threshold is also a tuning knob (lower → less overlap
+/ more gap, higher → more overlap).
+
+Two code sites: `DrawTraversalMaskPool.createMask` now passes
+`'linear'` to `createFromData`, and the `GpuTexture.Type.Mask` branch
+in `texture.ts` no longer force-overrides the caller's filter
+argument with `NEAREST`. The override removal is scoped to Mask only;
+the other texture types still carry their per-type filter defaults
+pending a separate audit.
+
+Phase 2 post-implementation notes in
+[rfc-draw-traversal.md](rfc-draw-traversal.md) carry the full
+explanation; the RFC body is unchanged (the RFC is signed off, so
+findings land in the rollout notes).
+
+Backlog entry `BUG: draw-traversal phase 2 — front surface overlaps
+back surface on +x/+y edges` marked resolved.
+
+## 2026-05-28 — TileRenderRig drab-tile race (interim fix)
+
+Diagnosed the long-standing benatky drab-tile bug: `MapMesh.killSubmeshes`
+nulls every `submesh.internalUVs`/`externalUVs` on CPU-cache eviction but
+leaves the `submeshes` array length intact (the `this.submeshes = []`
+line was commented out). A frame that constructed a new `TileRenderRig`
+between eviction and reload would read `!!submesh.internalUVs` as false,
+permanently latch `rt.internalUVs` to false in the rig's layer stack,
+and skip the internal-texture overlay. The rig is cached on the tile
+forever, so the tile stayed drab until the rig was replaced.
+
+Interim fix in `draw-tiles.js`: gate rig construction on
+`!surfaceMesh.submeshesKilled && surfaceMesh.loadState === 2`.
+
+Follow-up cleanup (same day): audited all `submeshes.length` and
+`submeshes[i]` consumers and confirmed that the husk pattern in
+`killSubmeshes` (array length preserved, fields nulled) is
+intentional — without it, GPU-only-residence draws of existing rigs
+during a CPU eviction window would stop working. The structural
+"uncomment `submeshes = []`" route would have regressed that case.
+
+Instead, made the call site explicit: hoisted a `cpuReady` local
+(`meshReady && !submeshesKilled`), gated rig construction on it,
+added an explicit `return false;` for the never-parsed case (where
+`submeshes.length === 0`), and changed `var ret;` to `let ret =
+false;`. The implicit self-gating-via-empty-array idiom and the
+unintialized return are gone; the CPU-vs-GPU residency distinction
+is now visible in the code.
+
+Backlog entry: `BUG: TileRenderRig — internal texture missing from
+layer stack`, marked resolved.
+
+## 2026-05-27 — nav-tile analysis and wiki documentation
+
+Investigated all active and dead uses of navtile textures and the
+`navtilePresent` metanode flag across the codebase. Findings:
+
+- The navtile texture (fetched via `getNavUrl`) is used exclusively
+  for terrain height queries in `MapMeasure.getSurfaceHeight` — camera
+  height, coordinate conversion, public API, and geodata draping.
+- The `version < 4` path in `parseMetanode` aliases `minZ`/`maxZ` to
+  navSRS int16 `minHeight`/`maxHeight`; `updateNodeHeightExtents`
+  propagates that range for culling. Both are dead against all known
+  v4 data.
+- The legacy grid-fallback `drawGrid` uses `minZ` from the metanode,
+  not the navtile texture. The heightmap vertex shader that would have
+  used the navtile texture for mesh displacement was deleted in
+  2026-05-21.
+- Confirmed by live HTTP inspection: the mapy.com production tileserver
+  serves metatile version 4.
+- Corrected a factual error in the wiki: quantized `geomExtents` bytes
+  are present in the stream through v4 (the `version < 5` client guard
+  is correct); v5 is what removes them. The version history table
+  previously attributed that removal to v4.
+
+Outputs: `docs/wiki/nav-tiles.md` (new), updates to `surface-metatile.md`,
+`compat-mapy-integration.md`, `index.md`, `backlog.md`, and `AGENTS.md`.
+
+## 2026-05-27 — draw traversal: delete MapSurfaceTree.prototype.findNavTile
+
+`findNavTile` had a single call site in `draw-tiles.js`, which was
+removed in the previous commit. No remaining caller exists in the
+draw path or any other live code path.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass
+unchanged.
+
+## 2026-05-27 — draw traversal: delete dead geodataNavtileInfo branch
+
+`draw-tiles.js` contained an `if (tile.surface.geodataNavtileInfo)` block
+that built a geodata URL from a nav-tile lookup on the legacy tree. The
+flag is always `false` in `surface.js`, so the block was dead code. It was
+also the last reader of `this.tree.findNavTile` in the draw path.
+
+Deleted the entire branch; the surrounding `if (tile.surfaceGeodata == null)`
+block now unconditionally calls `tile.resourceSurface.getGeodataUrl`.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass unchanged.
+
+## 2026-05-27 — draw traversal phase 2: route height queries off legacy tree
+
+Replaces the interim warm-up of `legacyMap.tree` (committed in
+`3992e60c`, reverted here) with a cleaner architectural direction
+agreed during review: terrain queries route through the recursive
+path's per-surface helper trees instead of depending on the legacy
+multi-surface merge plumbing being kept hot.
+
+Concrete changes:
+
+- `MapSurfaceTree.plainSurfaceList` and `hasVirtualSurfaces` removed.
+  The typed `Map` owns `surfaceList()`, which derives the surface set
+  directly from `view.surfaces` (map-config) or `styleSpec.terrain.sources`
+  (style-based), sorted alphabetically with the front surface at the
+  last index. The "plain" qualifier is dropped — in the recursive
+  path there are no glues or virtual surfaces to contrast against.
+- `Map.plainSurfaceTrees_` renamed to `surfaceTrees_`,
+  `resolvePlainSurfaceTrees` to `resolveSurfaceTrees`. A new
+  `Map.surfaceTreesForQuery()` exposes the helper trees to
+  query-side code when the recursive path is active.
+- Virtual-surface-match and non-geodata-free-layer warnings inlined
+  at their detection sites in `surface-sequence.ts`, deduped via
+  module-local sets. The typed Map's warning method and dedup state
+  are gone.
+- `MapMeasure.getSurfaceHeight` and `getSurfaceHeightNodeOnly` walk a
+  `queryTrees_()` array front-to-back, breaking on the first tree
+  whose trace yields data. In legacy mode the array contains
+  `[map.tree]` and the loop runs once, preserving prior behaviour
+  byte-for-byte. In recursive mode the array contains the helper
+  trees; multi-surface maps pick the front surface where it has
+  data and fall back to back surfaces where it doesn't.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain`
+render unchanged; the benatky regression URL shows correct orbit
+elevation under the city.
+
+## 2026-05-27 — draw traversal phase 2: warm legacy tree (interim)
+
+Phase 2 broke `MapMeasure.getSurfaceHeight` — the trace walks
+`map.tree` looking for navtiles, and the new path stopped populating
+that tree. Symptom: the camera orbit center elevation collapsed to
+zero over high-detail tilesets (legacy-benatky city area).
+
+Interim fix: `drawTerrainTraversal` calls `isMetanodeReady` on the
+legacy main tree root and on each child legacy tile in lockstep with
+the helper-tree descent. That side effect routes through the legacy
+multi-surface merge (`virtualSurfaces`, `createVirtualMetanode`),
+which still requires glue and virtual-surface metatiles to load — a
+plumbing dependency the RFC's phase 8 is meant to delete.
+
+Intended follow-up: route the height query through the new path
+instead of `map.tree.traceHeight`. A compat getter on the typed Map
+iterates plain surface helper trees front-to-back and returns the
+first hit; `MapMeasure.getSurfaceHeight` (and the `convert.js`
+callers) dispatch into it when the recursive traversal is active.
+The legacy tree's `traceHeight` and `findSurfaceTile` keep working
+for the legacy path.
+
+## 2026-05-27 — implement draw traversal phase 2 (combined descent)
+
+Implemented phase 2 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+combined recursive descent over plain surfaces.
+
+- `surface-sequence.ts` now also produces `tree.plainSurfaceList`
+  (alphabetically sorted, front surface at the last index) and
+  `tree.hasVirtualSurfaces`. These two fields are populated for
+  mapConfig maps before the virtual-surface collapse, and again in
+  `style.ts:refreshSequences` for style-based maps (where the field
+  set is the same as `surfaceOnlySequence` because style maps have
+  no glues or virtual surfaces).
+- The typed `Map` owns `plainSurfaceTrees_`, a cache of single-surface
+  helper `MapSurfaceTree`s keyed by surface id. Each helper tree is
+  constructed with the plain surface as `freeLayerSurface` to make
+  every tile auto-select that surface and avoid the legacy
+  multi-surface merge in `MapSurfaceTile.checkSurface`. The cache
+  refreshes against `tree.plainSurfaceList` on every draw; entries
+  for surfaces that have left the view are killed and dropped.
+- `draw-traversal.ts` is rewritten to walk the helper trees in
+  lockstep. At each `(lod, x, y)` the active set is the surfaces
+  whose metanode is ready and not culled. Descent fires when any
+  active surface still needs finer detail and has a child; child
+  active sets are built per quadrant. On backtrack each surface
+  renders against the depth-local node mask in front-to-back order
+  (`active[last]` first). Natural leaves use full readiness; surfaces
+  that could descend deeper render as fallback (per RFC §2.1 steps
+  4–5; phase 2 keeps cadence=1, matching phase 1).
+- One-off console warnings: when `hasVirtualSurfaces` is true the new
+  path emits a single notice that the constituents render via mask
+  compositing rather than the matched virtual surface. Non-geodata
+  free layers under a mapConfig view warn once per layer name; the
+  style.ts code path cannot author such layers and is skipped.
+
+Manual checkpoint: `simple-terrain`, `complex-terrain`, and
+`full-terrain` render with no visible regression. `legacy-benatky`
+exercises the multi-surface path; transient upstream 500s on the
+benatky surface's root metatile showed the new traversal degrading
+to the available surface, while the production legacy renderer
+shows a black canvas under the same outage.
+
+## 2026-05-28 — backlog: restore surface-specifics paragraph in mask-fails entry
+
+Restored the user-report paragraph describing benatky surface
+characteristics (internal textures, no normal maps, external UVs
+present) that was incorrectly removed during backlog hygiene. The
+paragraph contains confirmed diagnostic context, not a failed
+hypothesis — the initial guess was self-corrected in the same breath
+and subsequently confirmed by empirical analysis.
+
+## 2026-05-28 — backlog: remove stale issue-3 paragraph from overlap entry
+
+Removed a verbatim paragraph from the +x/+y overlap bug report that
+described a separate navigation regression (issue 3 from the original
+report), already fixed. Only the overlap symptom belongs in that entry.
+
+## 2026-05-28 — backlog hygiene rule and full backlog clean
+
+Added a "Backlog hygiene" rule to AGENTS.md: remove failed hypotheses
+when closing entries; keep only confirmed root causes, reproduction
+steps, and forward-looking open questions in their own entries.
+
+Applied the rule across the full backlog:
+- Removed the failed "first guess" (no external UVs) and the
+  "independent task" paragraph from the resolved mask-fails entry;
+  updated "likely manifestations" to "confirmed" in the related field.
+- Removed the failed blit-math analysis from the open +x/+y overlap
+  entry (the math predicted the wrong direction; corrected mesh-overlap
+  note and "To investigate" items kept).
+
+## 2026-05-28 — backlog: remove stale analysis from resolved bugs
+
+Removed the `### Available analysis` sections from the black-flashes
+and aborted-descents entries. Both contained untested hypotheses about
+helper-tree cold start and cache eviction that are now moot — the root
+cause was the mask failure fixed in the previous commit.
+
+## 2026-05-28 — fix: mask fails for internal-texture surfaces
+
+Root-cause diagnosis and fix for three related draw-traversal bugs:
+seep of coarser tiles into finer-LOD areas, black flashes on the
+benatky surface, and aborted-descent appearances. All three were
+caused by `rt.externalUVs` being config-based (requiring a normal-map
+or diffuse-layer URL) instead of data-based. The benatky surface has
+no external layer stack, so `rt.externalUVs` was false; the tile color
+draw did not bind `aTexCoords2`, causing the mask to be sampled at an
+undefined position instead of the tile's geographic UV.
+
+Fix: `rt.externalUVs` and `rt.internalUVs` in `TileRenderRig` are now
+derived from `this.submesh.externalUVs` and `this.submesh.internalUVs`
+(mesh data). The internal texture overlay guard in `buildLayerStack`
+retains the `textureUrl` check as the config gate. `submesh.d.ts`
+gained the missing `externalUVs` declaration.
+
+Confirmed by fetching a benatky mesh binary and verifying the submesh
+flags byte (`0x03`): both internal and external UVs are present.
+
+Verified: `simple-terrain`, `complex-terrain`, `full-terrain` pass
+unchanged. All three bugs closed.
+
+## 2026-05-27 — fix: withNavigationCamera scope in draw traversal
+
+`withNavigationCamera` was wrapping the entire tile descent in
+`drawTerrainRecursive`, causing SSE evaluation and bbox culling to run
+with the live (navigation) camera. When freeze mode is active the
+selection camera holds the frozen view; running SSE under the
+navigation camera meant freeze had no effect on tile selection.
+
+Fixed by removing the wrap from `drawTerrainRecursive` (the outer
+`withSelectionCamera` in `Map.draw()` already covers the descent) and
+adding a per-call `withNavigationCamera` wrap inside `renderTile`,
+around `drawSurfaceTile` only. SSE and culling now use the selection
+camera; draw calls use the live camera position.
+
+## 2026-05-27 — phase 1 follow-up: docs, naming, and code notes
+
+Added JSDoc to `traverseNode` in `draw-traversal.ts`, documenting the
+boolean return value: `true` means this subtree produced coverage and
+the parent should blit; `false` means nothing was drawn and no blit is
+needed.
+
+Corrected RFC §8 "Validated by this phase": the crack wording now
+reads "appear as expected for the accepted `k = 0` design choice"
+rather than the previous version that incorrectly implied cracks did
+not appear. Added an explicit tradeoff bullet noting that the mask
+pass issues one footprint draw and one blit per tile per depth without
+the watertight fast path (phase 6), producing more FBO switches than
+the legacy path.
+
+Renamed `applyViewport` to `resetViewport` in `gpu/device.ts`. The
+old name was misleading: the method overwrites any custom viewport set
+via `setViewport` by restoring the render target's full size. Three
+call sites, all internal.
+
+Added a TODO to `blitChildToParent` in `draw-traversal-mask.ts`: the
+OR (MAX) blend from `drawOrQuad_` is unnecessary there because the
+destination quadrant is always empty when the blit runs (the node mask
+is cleared by `traverseNode` before any blit, and each quadrant is
+written at most once). The OR is required only in `addFootprint`, which
+runs after child blits have already populated the mask.
+
+## 2026-05-26 — phase 1 cleanup: typed-Map ownership
+
+Aligned the recursive terrain draw with the structural rules in
+[rfc-draw-traversal.md](rfc-draw-traversal.md) §8. The dispatch is no
+longer in `MapSurfaceTree.draw()`; it lives in `Map.draw()` as
+`drawTerrainRecursive_`, a private method on the typed `Map` that
+wraps the descent in one `withNavigationCamera` call. The mask pool
+moved from `MapSurfaceTree.terrainMaskPool` to a typed `Map` field;
+the legacy tree no longer knows about the new path.
+
+Added the diagnostic switch in two layers: a per-frame override on
+`Map.overrides.terrainTraversal` (`'recursive' | 'legacy' |
+undefined`) and a session-level `mapTerrainTraversal` key on
+`CoreConfig` (URL-configurable). Default is `'recursive'`. §8
+preamble updated to document the config layer; the previous wording
+ruled out a `CoreConfig` parameter and was reversed here.
+
+Stopped promoting legacy fields to typed contracts:
+
+- deleted `SurfaceTileReadiness` from `draw-tiles.d.ts`; the typed
+  traversal now imports `TileRenderRig.ReadinessLevels` directly;
+- removed `maxGpuUsed`, `terrainMaskPool`, `freeLayer`,
+  `freeLayerSurface`, `surfaceOnlySequence` from the typed surfaces
+  where they had no typed reader, and tagged the remaining additions
+  as phase-1 / phase-8 removal targets;
+- replaced the inline anonymous `tree: { ... }` type in `map.d.ts`
+  with `tree: MapSurfaceTree` so the typed surface is named once.
+
+Hot-path cleanup in `draw-traversal-mask.ts`: pre-allocated the
+footprint and blit states once in the constructor instead of
+`gpu.createState({...})` on every call, and hoisted the
+`[0, 0, 0, 255]` clear color to a named `MaskClearUncovered`
+constant with the reason recorded next to it.
+
+Other review-note items:
+
+- power-of-two validation for `mapTraversalMaskResolution` now lives
+  in `setConfigParam`; non-PoT values fall back to 256 with no
+  silent rounding inside the traversal;
+- the footprint vertex shader's `aPosition.x * 0.0` line is now
+  commented in `tile-mask-footprint.vert.glsl`;
+- folded the color/depth branches in `renderTile` into one path now
+  that the outer `withNavigationCamera` wrap is installed once at
+  the typed-Map call site.
+
+Stats: `bestMeshTexelSize` and `gpuNeeded` were never effectively
+populated by the legacy `drawSurface` either (`best2` is initialised
+to 0 and never reassigned, and the per-frame reset in
+`Map.tick` zeroes the texel-size field before each draw), so no
+restoration is needed. The loading-screen check on
+`bestMeshTexelSize` dismisses through the OR-branches in
+`loading.js:122-126`.
+
+Verified with `npx tsc --noEmit` (clean).
+
+## 2026-05-26 — implement draw traversal phase 1
+
+Implemented phase 1 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+for the default terrain path. `MapSurfaceTree.draw()` now routes
+topdown terrain rendering through `src/core/map/draw-traversal.ts`,
+which recursively descends the legacy-selected terrain surface and
+renders fallback tiles on backtrack.
+
+Added UV-space R8 mask infrastructure in
+`src/core/map/draw-traversal-mask.ts`: one node mask per recursion
+depth, one scratch mask, texture-space render-target binding through
+`GpuDevice`, a footprint shader, and a non-eroding OR/blit shader.
+`TileRenderRig` color and depth draws accept an optional mask texture,
+and `footprint()` renders tile coverage from `aTexCoords2`.
+
+The first visual run showed coarse fallback tiles overdrawing fine
+children. The cause was the footprint pass inheriting terrain draw
+state: culling and depth testing left incomplete mask coverage. The
+footprint pass now disables culling, depth test, and depth writes.
+
+Current state: no watertight metadata, no erosion, and no combined
+multi-surface active set yet. Phase 1 was verified with
+`npx tsc --noEmit` and fresh webpack screenshots on port 8088 for the
+dev side of `simple-terrain`, `complex-terrain`, and `full-terrain`.
+Production comparison requests had transient upstream tile failures.
+
+## 2026-05-26 — process draw traversal RFC review round 8
+
+Processed [rfc-draw-traversal.md](rfc-draw-traversal.md) review round
+8 as author. Verified the notes against the current code and wiki.
+Accepted the active-surface propagation model, virtual-surface bypass
+for the new path, client-first/server-later watertight rollout,
+no-projection mask targets, configurable mask resources, and deferred
+erosion with initial `k = 0`. Pushed back on the claim that
+`src/core/renderer/gpu/shaders.js` is gone: the file still exists, and
+the modern `TileRenderRig` path also still carries `uClip` through
+`tile-clip.inc.glsl`.
+
+## 2026-05-26 — preserve draw traversal RFC review round 8
+
+Reopened [rfc-draw-traversal.md](rfc-draw-traversal.md) by changing
+its status from `Accepted` to `In review` and appended
+`Review round 8`. The round preserves reviewer feedback before any
+author-side processing: virtual-surface handling, combined traversal
+state, active-surface propagation, watertight subtree skipping,
+readiness timing, rollout order, render-target ownership, configurable
+mask resources, deferred erosion, stale implementation references, and
+human-reviewed implementation phases.
+
+## 2026-05-26 — rename Browser.core; update class docs and module headers
+
+Renamed `Browser.this.core` to `Browser.this.map`; renamed local
+variable `map` → `legacyMap` in `setConfigParam` to avoid collision.
+
+Updated module-level comments and class JSDoc in `viewer.ts` and
+`renderer.ts`: replaced multi-line module preambles with one-line
+comments; rewrote class descriptions to state architectural role,
+owned-state inventory, and (for `Renderer`) honest note on legacy
+field access patterns from sub-objects. Updated `AGENTS.md` to add
+the module one-liner as item 1 in the class-module ordering rule.
+
+## 2026-05-26 — delete MapInterface
+
+Deleted [src/core/map/interface.js](../../src/core/map/interface.js)
+and removed `Core.mapInterface` plus `Core.getMapInterface()`.
+`Browser.getMap()` now returns the loaded `LegacyMap` directly.
+Wrapper-only methods still used by browser UI, autopilot, measure
+controls, and inspector radar moved to `LegacyMap`; `Viewer` geodata
+methods now route through typed `Map`. Typed `Map` coordinate
+conversion and hit-testing methods call the loaded `LegacyMap`
+directly.
+
+Follow-up: review found that `getReferenceFrame()` and `getSrsInfo()`
+were not ported. Both are called at runtime by `map-observer.js`,
+`search.js`, and `loading.js`. Added to `LegacyMap` and declared in
+[src/core/map/map.d.ts](../../src/core/map/map.d.ts).
+
+Verification: `npx tsc --noEmit` completed cleanly.
+
+## 2026-05-26 — wiki cross-reference and structure cleanup
+
+Moved rfc-map-frame to implemented; marked backlog step 2 done.
+Deleted archaeology-replay-inspector.md (code is gone; rationale
+preserved in backlog and session-log). Split the flat "Subsystem and
+feature notes" section into five named sections: Data model, Geodata
+and labels, Rendering, API/navigation/demos/testing, Legacy VTS
+concepts. Moved implemented RFCs to a new rfcs-implemented.md archive
+page. Moved the Structure author guide to a Writing guidelines section
+at the bottom of index.md. Converted all backtick file references
+across the wiki to proper markdown links; added a linking rule to
+Writing guidelines.
+
 ## 2026-05-26 — remove defunct surface/bound-layer inspector panel
 
 Deleted `src/core/inspector/layers.js` (939 lines) and removed all
@@ -3717,6 +4704,109 @@ change rendered output yet.
 The tile fragment shader already computes an `aspectCoef`, so the
 plumbing work only needed a no-op reference to the new flag/weight to
 keep them live without changing shading behavior.
+
+## 2026-05-26 — Move overrides/freeze/factories to typed Map
+
+**Branch:** feature/draw-surfaces
+**HEAD:** ea4b8b2e
+
+### Spec
+
+Move ownership of `overrides`, `freeze`, `withNavigationCamera`,
+`withSelectionCamera`, and the two map-construction factory functions
+(`createMapFromMapConfig`, `createMapFromStyle`) from `LegacyMap`
+(`map.js`) to the typed `Map` class (`map.ts`). Update all call sites
+directly; no delegation getters or stubs.
+
+### Files changed
+
+**New type surfaces**
+
+- `src/core/map/camera.d.ts` — explicit declaration for `MapCamera`;
+  overrides allowJs inference so `distanceFactor` is `number`, not
+  `number | undefined`.
+- `src/core/renderer/camera.d.ts` — explicit declaration for the
+  renderer `Camera`; overrides allowJs so `position` and `orientation`
+  are `[number, number, number]` tuples, satisfying the
+  `MutableRendererCamera` constraint in `freeze-camera-state.ts`.
+
+**Updated declarations**
+
+- `src/core/map/map.d.ts` — removed `overrides`, `freeze`,
+  `withNavigationCamera`, `withSelectionCamera`; added constructor,
+  `setLoaderParams`, `isGeocent`, `hitMapDirty`, `geoHitMapDirty`,
+  `updateCoutner`, `mapConfig`, `convert`, `refreshView`.
+- `src/core/map/draw.d.ts` — added constructor.
+- `src/core/types.ts` — widened `NodeInformation` tuple fields (`id`,
+  `extents.ll/ur`, `physicalCorners`) to `number[]`; allowJs inference
+  returns `any[]` which is not assignable to tuples.
+
+**Typed Map (`map.ts`)**
+
+- Added `overrides: Overrides` and `freeze: FreezeCameraState | null`
+  as owned fields with JSDoc.
+- Added `withNavigationCamera<T>` and `withSelectionCamera<T>`.
+- Added private `createMapFromMapConfig` and `createMapFromStyle` with
+  full factory bodies (ported verbatim from `map.js` including all
+  original inline comments).
+- Updated `getNavigationPosition`, `getSelectionPosition`, and `draw()`
+  to read `this.freeze` and `this.overrides` directly.
+
+**Legacy map (`map.js`)**
+
+- Removed imports of `FreezeCameraState` and `{ defaultOverrides }`.
+- Removed `this.overrides = { ...defaultOverrides }` from constructor.
+- Removed `Map.createMapFromStyle` and `Map.createMapFromMapConfig`
+  static methods.
+- Removed `Map.prototype.withNavigationCamera` and
+  `Map.prototype.withSelectionCamera`.
+- Updated the two remaining `this.overrides` reads to
+  `this.outerMap.overrides`.
+
+**Core (`core.js`)**
+
+- Removed `import Map from './map/map'` (no longer needed).
+- Replaced static factory calls with `this.outerMap.createMapFromStyle`
+  / `this.outerMap.createMapFromMapConfig`.
+- Added `await Promise.resolve()` in `loadMapFromStyle` for the
+  already-parsed-object path (see below).
+
+**Call sites** — 21 in JS/TS files:
+
+- `renderer.ts` (2): `map.overrides`, `map.withSelectionCamera`
+- `inspector/freeze.ts` (5): `map.freeze`, `map.withSelectionCamera`
+- `inspector/input.js` (3): `map.overrides`
+- `inspector/stats.js` (1): `map.overrides`
+- `draw-tiles.js` (4): `this.map.overrides`
+- `surface-tree.js` (3): `drawTiles.map.overrides`, `map.withNavigationCamera`
+- `draw.js` (2): `this.map.withSelectionCamera`,
+  `this.map.withNavigationCamera`
+
+All updated to `<ref>.outerMap.<member>`.
+
+### Non-obvious finding: outerMap timing in loadMapFromStyle
+
+`Core` calls `loadMapFromStyle` from inside its own constructor. When
+the style is a URL string, the first `await utils.loadJson(path)` is an
+implicit yield that lets the constructor return, after which `map.ts`
+sets `this.core_.outerMap = this`. By the time the JSON resolves and
+`createMapFromStyle` is called, `outerMap` is set.
+
+When the style is already a parsed object (the demo fetches the JSON
+itself and passes the object), the `if (typeof style === 'string')`
+block is skipped, leaving no `await` before
+`this.outerMap.createMapFromStyle(...)`. The call would execute
+synchronously while `outerMap` is still null.
+
+Fix: `await Promise.resolve()` in the else branch. This is an
+unconditional yield to the microtask queue — it suspends
+`loadMapFromStyle`, lets the synchronous call stack unwind completely
+(including `this.core_.outerMap = this` in the Map constructor), and
+resumes only after. This is migration scaffolding; the clean fix is to
+have `Core` not fire any loads from its constructor and instead have the
+typed `Map` trigger them after setting `outerMap`.
+
+---
 
 ## 2026-04-10 — Scale-denominator vertical exaggeration
 

@@ -1,3 +1,6 @@
+/*
+ * renderer.ts — WebGL2 graphics class
+ */
 
 import {vec3, mat4} from '../utils/matrix';
 import * as math from '../utils/math';
@@ -27,39 +30,54 @@ import backgroundTileFrag from './shaders/background.frag.glsl';
 import shaderTileDepthVert from './shaders/tile-depth.vert.glsl';
 import shaderTileDepthFrag from './shaders/tile-depth.frag.glsl';
 
+import shaderTileMaskFootprintVert from
+    './shaders/tile-mask-footprint.vert.glsl';
+import shaderTileMaskFootprintFrag from
+    './shaders/tile-mask-footprint.frag.glsl';
+import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
+import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
+import shaderTileMaskFillFrag from './shaders/tile-mask-fill.frag.glsl';
+
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 
-
 /**
- * As with many classes in vts-browser-js, it is difficult to find any
- * meaningful abstraction behind this class. Despite its name, it's not a
- * renderer. Here is a non-exhaustive list of what id does.
+ * The WebGL2 renderer. It sits below `Map` in the ownership chain,
+ * owned by `Core`. It holds the GL context, render targets, and
+ * shader programs and issues all GPU draw calls. Map code decides
+ * what to draw; this class carries out the GPU work.
  *
- *  * It's a collection of compiled GPU programs and GPU texture objects.
+ * - It is the draw surface exposed to custom overlay callbacks:
+ *   `drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`.
  *
- *  * It keeps track of scene illumination vector and provides a public API
- *    to provide the vector in camera space.
+ * - It holds a collection of compiled GPU programs and GPU texture
+ *   objects.
  *
- *  * It keeps track of vertical exaggeration (superelevation) configuration and
- *    provides methods for applying superelevation.
+ * - It provides a per-frame uniform buffer object (`uboFrame`) with
+ *   view and projection matrices and a method for per-frame updates.
+ *   Indirectly, it does the same for the atmosphere UBO (`uboAtm`),
+ *   which passes parameters for physical atmosphere to the shaders.
  *
- *  * It keeps a 'debug' object which is in fact a set of rendering flags.
+ * - It keeps track of scene illumination and provides a public API
+ *   to deliver the illumination vector in camera space.
  *
- *  * It provides an object for creation a  per-frame uniform buffer object
- *    (uboFrame) with view and projection matrices and provides a method for
- *    per-frame updates. Indirectly, it does the same same for the uboAtm object,
- *    which passes parameters for physical atmosphere to the shader program.
+ * - It keeps track of vertical exaggeration (superelevation)
+ *   configuration and provides methods for applying superelevation.
  *
- *  * It holds a 'hitmap', a depth map of the scene. It's an offscreen framebuffer
- *    a map is rendered into in 'draw channel 1' when depth info is requested
+ * - It holds a depth map of the scene (`hitmapTexture`) — an
+ *   off-screen framebuffer rendered when depth info is requested.
  *
- *  * It maintains an image projection matrix used as the 2D projection
- *    in various shaders, rebuilt from the canvas logical size on each
- *    base pass via `setProjection()`.
+ * - It also holds geodata hitmaps (`geoHitmapTexture`,
+ *   `geoHitmapTexture2`) where each pixel records which geodata
+ *   feature is at that screen position.
  *
- *  * It probably does many other things and is accessed through numerous
- *     undocumented backdoors.
+ * - It maintains an image projection matrix used as the 2D
+ *   projection in various shaders, rebuilt from the canvas logical
+ *   size on each base pass via `setProjection()`.
+ *
+ * Many legacy auxiliary classes (`init`, `draw`, `rmap`) and legacy geodata
+ * drawing code reach directly into its fields. These are legacy
+ * access patterns, not part of the intended interface.
  */
 
 export class Renderer {
@@ -138,7 +156,7 @@ export class Renderer {
     /** @deprecated Legacy alias for `overrides`. */
     get debug(): Overrides { return this.overrides; }
 
-    geometries = {} // no clue, see MapInterface.getGeodataGeometry
+    geometries = {} // no clue, see legacy geodata geometry lookup
 
     stencilLineState: Optional<GpuDevice.State> = null;
     backgroundState: Optional<GpuDevice.State> = null;
@@ -169,6 +187,9 @@ export class Renderer {
         tile?: GpuProgram,
         background?: GpuProgram
         tileDepth?: GpuProgram
+        tileMaskFootprint?: GpuProgram
+        tileMaskBlit?: GpuProgram
+        tileMaskFill?: GpuProgram
         frustum?: GpuProgram
     }
 
@@ -178,6 +199,8 @@ export class Renderer {
     // texture unit indices
     textureIdxs!: {
         atmosphere: GLenum
+        tileMask: GLenum
+        maskBlit: GLenum
     }
 
     // legacy programs
@@ -321,6 +344,16 @@ export class Renderer {
 
     gridHmax = 0;
     gridHmin = 0;
+
+    /**
+     * Version stamp of the superelevation configuration. Consumers cache
+     * the value they last baked against (`tile.seCounter`,
+     * `job.seCounter`) and re-derive their SE-dependent data when this
+     * has moved past their copy. It advances when the exaggeration
+     * settings change (enable/disable, ramp setup), not on camera
+     * movement. The zoom-dependent scale factor is tracked separately,
+     * per node, by `MapSurfaceTile.isMetanodeReady`.
+     */
     seCounter = 0;
 
     // temporary objects hoisted as class members to reduce garbage collection
@@ -519,6 +552,71 @@ programTileDepth() : GpuProgram {
     return this.programs.tileDepth;
 }
 
+
+/**
+ * Tile UV-footprint mask program, lazy initialization.
+ */
+programTileMaskFootprint(): GpuProgram {
+
+    if (this.programs.tileMaskFootprint)
+        return this.programs.tileMaskFootprint;
+
+    __DEV__ && console.log('Initializing programs.tileMaskFootprint');
+
+    this.programs.tileMaskFootprint = new GpuProgram(
+        this.gpu,
+        shaderTileMaskFootprintVert,
+        shaderTileMaskFootprintFrag,
+        'shader-tile-mask-footprint',
+        {},
+        {});
+
+    return this.programs.tileMaskFootprint;
+}
+
+
+/**
+ * Tile mask OR/blit program, lazy initialization.
+ */
+programTileMaskBlit(): GpuProgram {
+
+    if (this.programs.tileMaskBlit) return this.programs.tileMaskBlit;
+
+    __DEV__ && console.log('Initializing programs.tileMaskBlit');
+
+    this.programs.tileMaskBlit = new GpuProgram(
+        this.gpu,
+        shaderTileMaskBlitVert,
+        shaderTileMaskBlitFrag,
+        'shader-tile-mask-blit',
+        {},
+        { uSource: this.textureIdxs.maskBlit });
+
+    return this.programs.tileMaskBlit;
+}
+
+
+/**
+ * Tile mask quadrant-fill program, lazy initialization.
+ */
+programTileMaskFill(): GpuProgram {
+
+    if (this.programs.tileMaskFill) return this.programs.tileMaskFill;
+
+    __DEV__ && console.log('Initializing programs.tileMaskFill');
+
+    this.programs.tileMaskFill = new GpuProgram(
+        this.gpu,
+        shaderTileMaskBlitVert,
+        shaderTileMaskFillFrag,
+        'shader-tile-mask-fill',
+        {},
+        {});
+
+    return this.programs.tileMaskFill;
+}
+
+
 /**
  * Frustum overlay program, lazy initialization.
  */
@@ -609,11 +707,16 @@ initTextureIdxs() {
     this.textureIdxs = {
 
         atmosphere: maxFragTextures - TextureIdxOffsets.Atmosphere,
+        tileMask: maxFragTextures - TextureIdxOffsets.TileMask,
+        maskBlit: maxFragTextures - TextureIdxOffsets.MaskBlit,
     };
 
     // diagnostics
     __DEV__ && utils.logOnce(
         `Atmosphere uses texture unit ${this.textureIdxs.atmosphere}.`);
+    __DEV__ && utils.logOnce(
+        `Tile masks use texture units ${this.textureIdxs.tileMask} `
+        + `and ${this.textureIdxs.maskBlit}.`);
 }
 
 /**
@@ -659,7 +762,7 @@ initFrame(): void {
 
     const map = this.core.map;
     const config = map.config;
-    const overrides = map.overrides;
+    const overrides = map.outerMap.overrides;
 
     this.debugStr = `AsyncImageDecode: ${config.mapAsyncImageDecode}`;
     this.overrides = overrides;
@@ -712,7 +815,7 @@ initFrame(): void {
 
     } else {
 
-        map.withSelectionCamera(updateFrameBuffers);
+        map.outerMap.withSelectionCamera(updateFrameBuffers);
     }
 }
 
@@ -875,8 +978,13 @@ updateBuffers(
 
     data.renderFlags = Renderer.encodeRenderFlags(renderFlags);
 
-    // clip params
-    data.clipParams = [this.core.map.config.mapSplitMargin, 0, 0, 0];
+    // clip params; y carries the fallback-coverage discard threshold
+    data.clipParams = [
+        this.core.map.config.mapSplitMargin,
+        this.core.map.config.mapTraversalMaskThreshold,
+        0,
+        0,
+    ];
 
     // virtualEeye, virtualEyeToCenter
     const center_ = map.camera.getCenter();
@@ -1544,7 +1652,8 @@ getConfigParam(key: string) {
 private currentScaleDenominator(extent: number): number {
 
     const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    return extent / (this.gpu.currentRenderTarget.apparentSize[1] / cssDpi * 0.0254);
+    const height = this.gpu.canvasRenderTarget.apparentSize[1];
+    return extent / (height / cssDpi * 0.0254);
 }
 
 /** Build a VeScaleRamp from two pivot pairs, precomputing the exponent. */
@@ -2511,7 +2620,9 @@ type Core = {
 
 enum TextureIdxOffsets {
 
-    Atmosphere = -1
+    Atmosphere = -1,
+    TileMask = 2,
+    MaskBlit = 3,
 }
 
 const UboFrameSize = 320;

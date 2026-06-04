@@ -27,7 +27,10 @@ var MapDrawTiles = function(map, draw) {
 };
 
 
-MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad, doNotCheckGpu) {
+MapDrawTiles.prototype.drawSurfaceTile = function(
+    tile, node, cameraPos, pixelSize, priority, preventRedener, preventLoad,
+    doNotCheckGpu, readiness, maskTexture) {
+
     if (this.stats.gpuRenderUsed >= this.draw.maxGpuUsed) {
         return false;
     }
@@ -35,13 +38,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
     if (tile.surface) {
         if (node.hasGeometry()) {
 
-            if (this.map.overrides.drawBBoxes && !preventRedener) {
-                if (tile.surface.geodata || !this.map.overrides.drawGeodataOnly) {
-                    this.drawTileInfo(tile, node, cameraPos, tile.surfaceMesh, pixelSize);
-                }
-            }
+            // escape hatch for no-load probing
+            // motivation: off-cadence residence-only draws in tree traversal
+            let probingUnloadedTerrain =
+                !tile.surface.geodata && preventLoad && !tile.surfaceMesh;
+            if (probingUnloadedTerrain) return false;
 
-            if (this.map.overrides.heightmapOnly && !preventRedener) {
+            if (this.map.outerMap.overrides.heightmapOnly && !preventRedener) {
                 if (!tile.surface.geodata) {
                     tile.drawGrid(cameraPos);
                 }
@@ -76,7 +79,11 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 tile.resetDrawCommands = false;
             }
 
-            var ret;
+            let ret = false;
+
+            // set once any submesh of this tile paints color content; the
+            // terrain debug overlay below is keyed off this
+            let tileDidDraw = false;
 
             if (!tile.surface.geodata) {
 
@@ -91,10 +98,33 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     tile.surfaceMesh = tile.resources.getMesh(path, tile);
                 }
 
-                // submesh info need not exist until mesh is ready
-                // this serialization results from meshes with embedded
-                // texture information (internal or external)
-                tile.surfaceMesh.isReady(preventLoad, priority, doNotCheckGpu);
+                let surfaceMesh = tile.surfaceMesh;
+
+                // Trigger the mesh load (side effect of isReady) and capture
+                // whether the mesh is currently usable for drawing. The
+                // return value reflects GPU residence — an existing rig can
+                // still be drawn from gpuSubmeshes even after a CPU resource
+                // cache eviction, as long as the GPU copy survives.
+                let meshReady = surfaceMesh.isReady(
+                    preventLoad, priority, doNotCheckGpu);
+
+                // If the mesh has never finished its first parse, there are
+                // no submeshes to iterate. Return early so callers see the
+                // tile as not-ready and try children. (The submeshes array
+                // is also non-empty after CPU eviction — see cpuReady below
+                // for that case.)
+                if (!surfaceMesh.submeshes.length) return false;
+
+                // CPU residence is a stricter condition than meshReady.
+                // killSubmeshes nulls per-submesh CPU fields (vertices,
+                // internalUVs, externalUVs, indices) but leaves the
+                // submeshes array length intact so existing rigs can keep
+                // drawing from gpuSubmeshes. Rig CONSTRUCTION needs the CPU
+                // fields, so we must check this explicitly before building
+                // a new rig — otherwise rt.internalUVs/externalUVs would
+                // latch to false and the rig would render only the constant
+                // background layer (drab-tile bug).
+                let cpuReady = meshReady && !surfaceMesh.submeshesKilled;
 
                 let priority_ = this.readyPriority;
                 priority_.essential = priority;
@@ -105,22 +135,21 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                 readyOptions.doNotCheckGpu = doNotCheckGpu;
 
                 // iterate through submeshes
-                for (let i = 0; i < tile.surfaceMesh.submeshes.length; i++) {
+                for (let i = 0; i < surfaceMesh.submeshes.length; i++) {
 
                     var submeshSurface = tile.resourceSurface;
 
                     if (tile.resourceSurface.glue)
                         submeshSurface = tile.resourceSurface.getSurfaceReference(
-                            tile.surfaceMesh.submeshes[i].surfaceReference);
+                            surfaceMesh.submeshes[i].surfaceReference);
 
                     // we are either drawing the tile for the first time, or
                     // there has been a boundlayer fallback, or a view
                     // has been switched
                     if (!tile.tileRenderRig[i] || tile.updateBounds) {
 
-                        //if (tile.tileRenderRig[i])
-                        //    console.log('Replacing rig for %s.',
-                        //        [...tile.id, i].join('-'));
+                        // wait for CPU data before constructing a new rig
+                        if (!cpuReady) continue;
 
                         if (tile.lastRenderRig[i]) tile.lastRenderRig[i].dispose();
 
@@ -132,7 +161,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                             i, submeshSurface.style, tile, this.renderer,
                             this.config);
 
-                        // WARN comment out this line if you want the old call below to work
                         tile.updateBounds = false;
                     }
 
@@ -141,9 +169,11 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                     let curRigReady = false;
 
                     // is the tile rig ready? Draw it. If not, try the last rig
+                    readiness = readiness || this.readinessFull;
+
                     if (this.map.outerMap.drawChannel === 'color')
                         curRigReady = curRig.isReady(
-                            this.readinessFull,
+                            readiness,
                             priority_, readyOptions);
 
                     if (this.map.outerMap.drawChannel === 'depth')
@@ -176,7 +206,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         if (this.map.outerMap.drawChannel === 'color') {
 
                             // draw something
-                            rigToDraw.draw(cameraPos);
+                            rigToDraw.draw(cameraPos, maskTexture);
+                            tileDidDraw = true;
 
                             // process layer credits (only active layers)
                             let activeLayerIds = rigToDraw.activeLayerIds();
@@ -198,15 +229,35 @@ MapDrawTiles.prototype.drawSurfaceTile = function(tile, node, cameraPos, pixelSi
                         }
 
                         if (this.map.outerMap.drawChannel === 'depth')
-                            rigToDraw.drawDepth(cameraPos);
+                            rigToDraw.drawDepth(cameraPos, maskTexture);
                     }
 
                     ret = rigToDraw;
                 } // end iterate through submeshes
 
+                // draw the overlay once per tile, on the color pass, when the
+                // tile painted color content this frame
+                if (tileDidDraw
+                    && this.map.outerMap.overrides.drawBBoxes
+                    && !this.map.outerMap.overrides.drawGeodataOnly
+                    && this.map.outerMap.drawChannel === 'color') {
+
+                    this.drawTileInfo(
+                        tile, node, cameraPos, tile.surfaceMesh, pixelSize);
+                }
+
                 // -- tile-render-rig integration - end
 
             } else {
+
+                // debug bbox/label overlay for geodata-surface tiles, drawn
+                // on tile selection. This call has no drawChannel guard, so
+                // on the depth pass it writes overlay geometry into the
+                // depth/hitmap target and locally corrupts it.
+                if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
+                    this.drawTileInfo(
+                        tile, node, cameraPos, tile.surfaceMesh, pixelSize);
+                }
 
                 ret = this.drawGeodataTile(tile, node, cameraPos, pixelSize,
                     priority, preventRedener, preventLoad, doNotCheckGpu);
@@ -226,24 +277,9 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
     }
 
     if (tile.surfaceGeodata == null) {
-        var path;
-
-        if (tile.surface.geodataNavtileInfo) {  //remove this code??? no longer used
-            var navtile = this.tree.findNavTile(tile.id);
-
-            if (navtile && navtile.surface) {
-                var navtileStr = navtile.surface.getNavUrl(navtile.id) + ';'
-                                  + navtile.id[0] + '-' + navtile.id[1] + '-' + navtile.id[2] + ';'
-                                  + navtile.metanode.minHeight + ';' + navtile.metanode.maxHeight;
-                path = tile.surface.getGeodataUrl(tile.id, encodeURIComponent(navtileStr));
-            }
-        }
-
-        if (!path) {
-            path = tile.resourceSurface.getGeodataUrl(tile.id, '');
-        }
-
-        tile.surfaceGeodata = tile.resources.getGeodata(path, {tile:tile, surface:tile.surface});
+        var path = tile.resourceSurface.getGeodataUrl(tile.id, '');
+        tile.surfaceGeodata = tile.resources.getGeodata(
+            path, {tile:tile, surface:tile.surface});
     }
 
     // tile.drawCommands is a numeric-indexed array of per-channel
@@ -316,7 +352,7 @@ MapDrawTiles.prototype.getTileTextureTransform = function(sourceTile, targetTile
 
 
 MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
-    var debug = this.map.overrides;
+    var debug = this.map.outerMap.overrides;
     var pos;
 
     if (!debug.drawMeshBBox) {

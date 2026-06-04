@@ -130,8 +130,8 @@ markers that are not relevant to the current waypoint.
 
 ### `src/browser/viewer.ts`
 
-Two coordinate-conversion methods promoted from `MapInterface` to
-`Viewer` (in the "Hit testing and coordinate conversion" section):
+Two coordinate-conversion methods promoted from the legacy map wrapper
+to `Viewer` (in the "Hit testing and coordinate conversion" section):
 
 ```typescript
 convertCoordsFromPublicToNav(pos: vec3, mode: HeightMode,

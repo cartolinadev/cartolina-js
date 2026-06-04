@@ -57,7 +57,7 @@ export default class InspectorInput {
         const map = this.core.getMap();
         const inspector = this.inspector;
         if (!map) return;
-        const debug = map.overrides;
+        const debug = map.outerMap.overrides;
 
         if (this.subMode === 'tileBBox') {
 
@@ -112,7 +112,7 @@ export default class InspectorInput {
 
         if (!map || !event) return;
 
-        const debug = map.overrides;
+        const debug = map.outerMap.overrides;
 
         this.altDown   = event.altKey;
         this.ctrlDown  = event.ctrlKey;
@@ -516,7 +516,7 @@ export default class InspectorInput {
 
         if (!map) return;
 
-        const debug = map.overrides;
+        const debug = map.outerMap.overrides;
         const getBool = () => (value === true || value == 'true' || value == '1');
 
         switch (key) {

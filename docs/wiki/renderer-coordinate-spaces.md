@@ -1,7 +1,8 @@
 # Renderer Coordinate Spaces
 
-This page defines renderer terms used by `rendering-sizes.md` and
-`render-targets.md`.
+This page defines renderer terms used by
+[rendering-sizes.md](rendering-sizes.md) and
+[render-targets.md](render-targets.md).
 
 ## Renderer-Local 3D Space
 

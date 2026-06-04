@@ -15,6 +15,7 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     this.id = id;
     this.credits = [];
     this.alien = false;
+    this.watertight = false;
     this.ready = false;
     this.heightReady = false;
     this.divisionNode = divisionNode;
@@ -27,6 +28,11 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     this.diskAngle2A = 1;
     //this.bboxHeight = 1;
     this.bbox2 = new Array(24);
+
+    // vertical-exaggeration scale factor last baked into minZ/maxZ and
+    // bbox2; compared against the live factor to detect a stale bake as
+    // the camera zooms (see MapSurfaceTile.isMetanodeReady)
+    this.veBakedFactor = undefined;
 
     //this.flagsGeometryPresent =  1;
     //this.flagsNavtilePresent =  3;
@@ -229,6 +235,7 @@ struct Metanode {
     this.heightReady = this.hasNavtile();
     
     this.alien = false;
+    this.watertight = false;
 
     //var nodeSize2 = stream.index - lastIndex;
 
@@ -258,6 +265,7 @@ MapMetanode.prototype.clone = function() {
     node.ready = this.ready;
     node.stream = this.stream;
     node.heightReady = this.heightReady;
+    node.watertight = this.watertight;
     
     //copy credits
     node.credits = new Array(this.credits.length);
@@ -801,4 +809,3 @@ MapMetanode.prototype.getGridHeight = function(coords, data, dataWidth) {
 };
 
 export default MapMetanode;
-

@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** Accepted
+**Status:** In review
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -126,14 +126,29 @@ a single GPU draw call (1–10 µs). Browser engines allocate larger
 default stacks than Node.js on most platforms, so browser limits are
 at least as generous.
 
-The traversal visits a single sequence of tile positions (lod, x, y)
-shared across all active surfaces. At each position it queries each
-plain surface's metatile tree independently via the existing
-`getMetatile()` + `getNode()` path. The descent decision (whether to
-go deeper or treat this position as a leaf) is taken over the combined
-view: descend if any surface's SSE test says the tile is too coarse,
-and if any surface reports child tiles exist. Glues and virtual surfaces
-are not consulted.
+The traversal visits one sequence of tile positions (lod, x, y) shared
+by the surfaces that remain active for that subtree. It is a combined
+tree traversal, not one traversal per surface. At each position it
+queries each active plain surface's metatile tree independently via the
+existing `getMetatile()` + `getNode()` path. The descent decision is
+taken over the combined active set: descend if at least one active
+surface needs finer detail and has a child that can contribute to that
+detail. Glues and virtual surfaces are not consulted.
+
+A surface is active at a node when all of these hold:
+
+- it was not deactivated by an ancestor;
+- its metatile and metanode are ready for this tile position;
+- the node is not frustum-culled for this surface;
+- no higher-priority watertight surface has already claimed the
+  whole node for this subtree.
+
+Active status is propagated downward. A surface is removed from the
+child active set when it reaches its natural leaf at the current node
+(SSE passes, or no children exist), when it is culled, when its metatile
+is not ready, or when a higher-priority watertight surface deactivates
+it. A removed surface is not tested, drawn, or used for resource
+loading in descendants of that node.
 
 At each node:
 
@@ -141,9 +156,11 @@ At each node:
    rendering and from the descent decision. If no surface remains,
    return a null mask.
 2. If the node is frustum-culled, return a null mask.
-3. For each surface, descend into children if the surface needs finer
-   detail (SSE does not pass and children exist). Collect the masks
-   returned by child calls and OR them together into a combined mask.
+3. Build child active sets per quadrant from surfaces that still need
+   finer detail and whose current metanode reports that child. Recurse
+   once into each quadrant whose child active set is non-empty. Collect
+   the masks returned by child calls and OR them together into a
+   combined mask.
 4. On backtrack: for each surface at its **natural leaf** at this node
    — SSE passes or it has no children at this LOD — render it using
    the combined child mask as input (see §2.2). OR the rendered
@@ -170,15 +187,14 @@ backtrack, gated by the fallback cadence.
 
 ### 2.2 Leaf rendering
 
-At a leaf node, the input mask is empty (no prior coverage). The
-function iterates the surface sequence — the ordered list of surfaces
-active at this node — and for each surface whose `TileRenderRig` is
-ready:
+At a leaf node, the input mask is empty before the first surface is
+processed. The function iterates the ordered list of surfaces active at
+this node, and for each surface whose `TileRenderRig` is ready:
 
-1. Call `rig.draw()` with the current accumulated mask as input. The
+1. Call `rig.draw()` with the current input mask. The
    fragment shader discards fragments where the mask indicates coverage,
    then writes the newly rendered fragments into the mask output.
-2. Pass the updated mask to the next surface.
+2. The updated mask becomes the input mask for the next surface.
 
 After all surfaces are processed, return the accumulated mask.
 
@@ -200,17 +216,13 @@ uses "front surface" to mean the primary surface at the last index of
 Depth testing still operates within each individual surface's own
 geometry; the mask handles ordering between surfaces at the same node.
 
-If a surface is watertight at this tile position (its geometry covers
-the full tile cell), it claims the entire UV area. All subsequent
-surfaces in the sequence can skip rendering and mesh/texture loading
-at this node. Metatile fetches for lower surfaces are not skipped:
-the traversal still needs per-surface metatile data to determine child
-structure and SSE at descendant nodes, where a lower surface may
-contribute coverage that the watertight surface's children do not reach.
-Skipping entire subtrees for lower surfaces below a watertight ancestor
-is a valid further optimisation but requires propagating the watertight
-state downward through the recursion and is deferred. See §4.0 for
-how each mask approach uses watertight status.
+If a higher-priority active surface is watertight at this tile
+position, it claims the entire UV area for this node and its subtree.
+All lower-priority surfaces are deactivated for descendants of this
+node: they do not fetch metatiles, request meshes or textures, or draw
+inside the covered subtree. This is not a separate watertight state; it
+is the same active-surface propagation used for culling and natural-leaf
+termination. See §4.0 for how watertight status is encoded.
 
 ### 2.3 Backtrack and mask propagation
 
@@ -229,11 +241,28 @@ is required.
 
 ### 2.4 Fallback LOD configuration
 
-Every node on the descent path calls `rig.isReady()` with the
-`minimum: 'fallback'` level only for nodes whose LOD satisfies a
-configured fallback cadence — for example, every third or fifth LOD.
-Nodes not on a fallback LOD do not request render readiness and do not
-render.
+Render-readiness checks happen on backtrack, after child recursion has
+returned and immediately before the traversal decides whether the tile
+will draw. Nodes not selected for natural-leaf rendering or fallback
+rendering do not call `rig.isReady()`.
+
+Natural leaves call `rig.isReady()` with
+`{ minimum: 'fallback', desired: 'full' }`: fallback-level resources are
+enough to draw something, but optional resources may be requested for
+the final leaf tile. Fallback tiles call `rig.isReady()` with
+`{ minimum: 'fallback', desired: 'fallback' }`: coarse fallback should
+not request optional resources that would compete with natural-leaf
+loads.
+
+If child results prove that this node is already covered by a
+watertight subtree from the same or a higher-priority surface, the
+parent fallback will not render and no readiness check is made for it.
+
+The resource priority follows the current draw path as the initial
+rule: metatile checks use LOD as priority, and mesh/texture readiness
+uses an inverse priority derived from LOD and distance. The exact
+formula may be adjusted during implementation if diagnostics show a
+better queueing signal.
 
 This directly replaces the topdown/fitonly distinction:
 
@@ -305,10 +334,12 @@ produced by surfaces above it. The complexity stays constant.
 
 ---
 
-## 4. Mask technology: open design question
+## 4. Mask technology
 
 The algorithm requires a mask that encodes which regions have been
-covered by finer tiles. Two implementations are candidates:
+covered by finer tiles. The implementation uses the geographic mask.
+The screen-space mask remains a documented fallback design, but it is
+out of scope for this milestone.
 
 - **Geographic mask (§4.2, accepted design):** a UV-space texture
   rasterized from the mesh geometry. Camera-independent; prone to
@@ -324,13 +355,12 @@ to eliminate its footprint pass for the majority of tiles.
 
 ### 4.0 Watertight tiles
 
-A tile is watertight if its mesh has no gaps along any of the four
-tile boundary edges. This is a topological property of the mesh
-geometry, not a bounding-box property: a tile whose bounding extents
-fill the cell can still be non-watertight if triangles are missing
-along an edge or diagonal. The v5 SDS horizontal extents (`llX, llY,
-urX, urY`) record the geographic coverage of valid DEM samples, not
-mesh edge continuity, and cannot substitute.
+A tile is watertight if its mesh fully covers the geographic cell
+allocated to the tile by the spatial division. Boundary edges are not
+enough: a tile can have covered edges and still contain interior holes.
+The v5 SDS horizontal extents (`llX, llY, urX, urY`) record the
+geographic coverage of valid DEM samples, not full-cell coverage, and
+cannot substitute.
 
 Most interior tiles in a well-formed surface are watertight. Partial
 tiles occur at dataset edges, coastlines, and surface boundaries.
@@ -513,9 +543,10 @@ pattern. Writing the child mask into the parent is a viewport-restricted
 blit of the child mask texture into the parent mask FBO. No resampling
 issues.
 
-**Mask texture pool:** one R8 texture per active recursion depth level.
-The tree depth in practice is bounded by the data (LOD 15 for current
-DTM surfaces). A pool of 16 textures at 256×256 = 1 MB total is ample.
+**Mask texture pool:** one R8 texture per active recursion depth level,
+plus one R8 scratch texture reused across footprint draws. The texture
+resolution is a configurable power of two. The default is 256×256; with
+16 active levels that is about 1 MB total.
 
 **Watertight optimization:** this approach benefits more strongly than
 the screen-space approach from watertight status.
@@ -538,59 +569,55 @@ gaps become cracks — pixels where neither the child tile nor the
 parent tile rendered a fragment. This is the same artifact that caused
 splitting to be disabled in cartolina today.
 
-**Mitigation — eroded mask:** shrink the covered region before writing
-it into the destination mask — either the parent's mask (child-to-
-parent blit) or the node mask read by the next surface (OR-into-node-
-mask). The margin forces the receiving tile or surface to render into
-a thin border zone around the covered region; depth testing resolves
-the overlap there. The depth-test failure mode (a later surface
-incorrectly occluding an earlier one at an oblique angle) can occur
-in the border zone, but the zone is narrow and the failure is
-imperceptible for surfaces with similar geometry.
+**Deferred mitigation — eroded mask:** shrink incomplete covered regions
+before another tile or surface samples them. The first implementation
+sets `k = 0`, so no erosion occurs. The architecture reserves a place
+for erosion, but the base traversal and watertight optimization must be
+validated before erosion is implemented or tuned.
 
-**Implementation:** the OR/blit shader applies a morphological
-min-filter of radius k texels on the source texture before writing
-into the destination. For each destination texel the shader samples a
-(2k+1)² neighborhood of the source and outputs the minimum — an image
-erosion that shrinks the covered region by k texels on each side. This
-operates in the destination texture's coordinate space. The same
-program handles both the OR-into-node-mask step (eroding a surface's
-footprint before back surfaces sample it) and the child-to-parent blit
-(eroding the child mask before the parent samples it). A single
-`uErosionRadius` uniform controls the radius in both contexts.
+Erosion must preserve tile-edge coverage. If erosion blindly shrinks
+every OR or child blit, it destroys watertight seams between children
+of the same surface and lets coarser tiles or lower-priority surfaces
+show through. When erosion is implemented:
 
-**Geometric growth in the LOD hierarchy:** each child-to-parent blit
-erodes by k texels in the destination (parent) UV space. The parent's
-UV space covers 4× the geographic area of the child, so each parent
-texel represents twice the geographic width of a child texel. Over
-multiple blit levels the erosion margin grows proportionally to the
-LOD difference — naturally providing more border zone where the
-geometry mismatch between a fallback ancestor and its descendants is
-larger.
+- OR-into-node-mask erosion must leave pixels within `k` texels of the
+  tile edge unchanged.
+- Child-to-parent composition must first OR the accumulated child masks
+  into the parent mask, then erode the combined parent mask with the
+  same edge protection.
 
-The erosion radius k is an empirical parameter. A reasonable starting
-value is 1–2 texels of the mask texture (1/256–1/128 UV units). It
-should be tuned against real multi-surface data with differing mesh
-density at the surface boundary.
+With those constraints, erosion only opens a narrow overlap zone around
+incomplete interior coverage, which is the crack case it is meant to
+cover. Depth testing resolves the overlap in that zone.
 
-**Remaining limitation:** if a tile's UV-space footprint is fully
-rasterized but the mesh does not cover every UV position in screen
-space at a given camera angle, the parent is blocked from rendering
-there. This can produce a dark region where neither tile contributes.
-For tileserver meshes this is rare because mesh density tracks UV
-coverage. It was not observed in the screenshots that prompted removal
-of splitting.
+**Deferred erosion implementation:** use a morphological min-filter of
+radius k texels on the source mask before writing into the destination.
+For each destination texel, sample a (2k+1)² neighborhood of the source
+and output the minimum. This shrinks covered regions by k texels in the
+destination texture's coordinate space. With `k = 0`, the operation is
+the identity and the shader reduces to a single texture sample.
+
+The deferred shader must implement the edge-preservation rules above.
+Samples outside the source mask or outside the child quadrant are
+treated as uncovered only for interior erosion. Pixels within `k`
+texels of the destination tile edge keep the un-eroded value, so the
+operation does not create cracks along tile boundaries. For
+child-to-parent composition, erosion runs after the parent has ORed the
+child masks into the parent mask.
+
+At coarser LODs the same k texels represent a larger geographic width.
+That growth is useful only after child masks are combined in the parent;
+per-child erosion would break watertight seams between siblings.
 
 **Summary of tradeoffs:**
 
 - Advantage: camera-independent correctness; no incorrect blocking at
   any LOD difference. Watertight optimization eliminates most footprint
   passes and most lower-surface data requests.
-- Risk: cracks at tile boundaries, mitigated by mask erosion with
-  depth-test fallback in the border zone.
-- Complexity: footprint program, OR/blit program with erosion
-  min-filter, mask texture pool — more infrastructure than
-  screen-space.
+- Risk: cracks at tile boundaries. The first implementation tests this
+  with `k = 0`; edge-preserving erosion is deferred.
+- Complexity: footprint program, OR/blit program, mask texture pool —
+  more infrastructure than screen-space.
 
 ### 4.3 Decision: geographic mask
 
@@ -605,24 +632,23 @@ watertight fast path is trivially implementable: clear the mask FBO to
 eliminates the footprint pass. §2 describes the traversal in terms of
 this design; no rewrite of the traversal algorithm is required.
 
-The crack problem is the accepted risk. The eroded-mask mitigation
-(§4.2) is empirical — the correct margin varies with mesh density and
-camera angle — but it is a bounded, tunable parameter. The prior
-artifact with `drawSurfaceWithSpliting` was caused by the one-level
-binary `splitMask`, which has no erosion and no depth-test fallback
-in the border zone. The geographic mask with erosion plus depth
-testing in the border zone is a materially different mechanism.
+The crack problem is the accepted risk. The first implementation tests
+the geographic mask with erosion disabled (`k = 0`). If visible cracks
+remain after the base traversal and watertight path are correct, add
+the edge-preserving erosion described in §4.2 as a separate step. The
+prior artifact with `drawSurfaceWithSpliting` was caused by the
+one-level binary `splitMask`; the geographic mask keeps the same
+coverage model across fallback LODs and surface stacking.
 
 **Screen-space mask: deferred alternative.**
 
-The screen-space approach is documented in §4.1. It is the correct
-fallback if the erosion margin proves insufficient for specific
-datasets. Two design questions identified in review — the correctness
-of a frame-global binary mask under arbitrary traversal order
-(comment 2, round 2), and the depth buffer lifecycle when each tile
-draw blits to the canvas (comment 3, round 2) — do not have
-clean closed-form solutions for the general case and are deferred
-with the screen-space design.
+The screen-space approach is documented in §4.1. It remains useful
+context, but it is outside this implementation milestone. Two design
+questions identified in review — the correctness of a frame-global
+binary mask under arbitrary traversal order (comment 2, round 2), and
+the depth buffer lifecycle when each tile draw blits to the canvas
+(comment 3, round 2) — do not have clean closed-form solutions for the
+general case and are deferred with the screen-space design.
 
 ### 4.5 Backend changes — cartolina-tileserver and vts-vtsd
 
@@ -667,6 +693,15 @@ the shared vts-libs copy, and the alternative — requiring all vtsd
 deployments to be replaced before v6 tilesets can be used — is a
 harder operational constraint.
 
+These backend changes belong to the server phase of the rollout, not
+to the first client implementation phase. The client is implemented and
+validated first against existing v5 metatiles, where every tile is
+treated as non-watertight. That exercises the non-optimized traversal
+path. After that path is stable, update cartolina-tileserver and
+vts-vtsd, deploy them in the local test environment, and validate the
+watertight optimized path against v6 metatiles. Production rollout uses
+the same order: client first, server later.
+
 **Client-side (cartolina-js) metatile parsing.** The client metatile
 parser in `src/core/map/metatile.js` calls
 `applyMetatanodeBitplanes()` to set per-node flags from bitplanes.
@@ -686,8 +721,12 @@ correctness requirement.
 
 ### 5.1 Per-surface mask sequence (geographic)
 
-The geographic mask uses one R8 texture per active recursion depth
-level. The pool holds 16 textures at 256×256 each (1 MB total).
+The geographic mask uses one R8 `node_mask` texture per active
+recursion depth level and one R8 `scratch` texture reused across
+footprint draws. The mask resolution is a configurable power of two;
+256×256 is the default. The pool size is derived from the maximum
+traversal depth for the loaded data, with 16 levels sufficient for
+current DTM surfaces.
 
 **Node mask lifecycle.** `node_mask[depth]` is cleared to 0 at node
 entry, before any surface or child is processed. The node accumulates
@@ -722,11 +761,9 @@ For each surface S at a node, in front-to-back order:
 
 3. **OR into node mask.** Bind `node_mask[depth]` FBO. Enable blending
    with `gl.blendEquation(gl.MAX)` and `gl.blendFunc(gl.ONE, gl.ONE)`.
-   Draw a full-screen quad. The shader applies a morphological
-   min-filter of radius k texels on `scratch` (§4.2 erosion): for
-   each texel it samples a (2k+1)² neighborhood of `scratch` and
-   outputs the minimum. Blending writes
-   `max(existing, eroded_scratch)` per texel.
+   Draw a full-screen quad sampling `scratch`. The first implementation
+   uses `k = 0`, so the shader writes `scratch` unchanged and blending
+   writes `max(existing, scratch)` per texel.
    Unbind `node_mask[depth]` FBO. Disable blending.
 
 Total per surface: 1 screen draw + 1 footprint draw + 1 OR pass =
@@ -734,15 +771,25 @@ Total per surface: 1 screen draw + 1 footprint draw + 1 OR pass =
 all remaining surfaces at this node are skipped.
 
 **Child-to-parent blit (backtrack, §2.3).** The same OR/blit program
-with the same `uErosionRadius` blits `node_mask[depth]` into the
-parent's `node_mask[depth-1]` at the child's quadrant position.
-Erosion compounds naturally up the hierarchy: each blit erodes by k
-texels in the parent's UV space, which represents increasingly larger
-geographic area at coarser LODs. See §4.2 for the growth property.
+blits `node_mask[depth]` into the parent's `node_mask[depth-1]` at the
+child's quadrant position. The first implementation uses `k = 0`. If
+erosion is added later, child masks must be combined in the parent
+before edge-preserving erosion is applied (§4.2).
 
-`GpuDevice.setAuxiliaryRenderTarget()` handles FBO binding. The pool
-is allocated once at init; no new `GpuDevice` API is required beyond
-a `clearFBO(texture, value)` helper.
+The mask pass needs a no-projection framebuffer target: the footprint
+shader writes clip coordinates directly from tile UVs and does not use
+the camera projection. Add an explicit texture-space/no-projection
+`GpuDevice.RenderTarget` kind and bind it through
+`GpuDevice.setRenderTarget()`. Do not bind FBOs outside the render-
+target mechanism. Do not use `setAuxiliaryRenderTarget()` unless its
+semantics are generalized so it no longer implies sharing the canvas
+projection. The pool is allocated once at init.
+
+`src/core/renderer/textureblend.ts` is an existing texture-space pass
+that predates this render-target policy and binds raw FBOs directly.
+Migrating it to the same texture-space `RenderTarget` kind is out of
+scope for this RFC, but it is the closest existing example of the pass
+class the mask pipeline needs.
 
 ### 5.2 Framebuffer ordering guarantee
 
@@ -780,9 +827,9 @@ offscreen blit to the canvas is introduced. Depth testing across
 separately drawn tiles works exactly as it does today.
 
 The mask FBOs are entirely separate from the screen render target.
-Switching between them requires only binding and unbinding
-`GpuDevice` auxiliary targets — no state save or restore is needed
-across recursion levels.
+Switching between them requires binding no-projection framebuffer
+targets and restoring the screen render target before the screen draw.
+No camera projection update is part of the mask pass.
 
 The recursive structure is safe: a child's draw calls complete before
 the parent renders. By the time the parent renders, all child coverage
@@ -817,11 +864,11 @@ footprint(maskTexture: GpuTexture): void
 ```
 
 A new method renders the tile mesh into a UV-space R8 texture with a
-framebuffer. `GpuDevice.setAuxiliaryRenderTarget()` binds that texture
-as the active draw target. The vertex shader uses
+framebuffer. A no-projection framebuffer target binds that texture as
+the active draw target. The vertex shader uses
 `aTexCoords2 * 2.0 - 1.0` as the clip-space position; the fragment
 shader outputs 1.0. Called once per non-watertight surface in the
-footprint pass (step 1 of §5.1).
+footprint pass (step 2 of §5.1).
 
 **Depth program:**
 
@@ -831,9 +878,12 @@ the original RFC text is implemented.
 
 ### 5.6 Tile shader changes
 
-The legacy tile shader in `shaders.js` uses `vClipCoord` (interpolated
-`aTexCoords2`) and `uClip[4]` or `uClip[8]` to discard fragments by
-quadrant. This mechanism is one level deep and binary per quadrant.
+The legacy tile shader in `src/core/renderer/gpu/shaders.js` uses
+`vClipCoord` and `uClip[4]` or `uClip[8]` to discard fragments by
+quadrant. The current `TileRenderRig` shader path also still carries
+the one-level clipping concept through `tile-clip.inc.glsl`,
+`splitMask`, and the `uClip[4]` uniform. This mechanism is one level
+deep and binary per quadrant.
 
 The new tile shader in the rig's program (`TileRenderRig`) replaces
 this with a UV-space mask read:
@@ -869,38 +919,23 @@ void main() { fragCoverage = 1.0; }
 
 The OR/blit program is a full-screen quad. It uses
 `gl.blendEquation(gl.MAX)` with `gl.blendFunc(gl.ONE, gl.ONE)`:
-blending writes `max(existing, eroded_scratch)` per texel without
-the shader reading the current FBO value, which WebGL2 does not
-permit. The shader applies the morphological min-filter (§4.2
-erosion) before output:
+blending writes `max(existing, scratch)` per texel without the shader
+reading the current FBO value, which WebGL2 does not permit. The first
+implementation has no erosion:
 
 ```glsl
 // fragment
 uniform sampler2D uScratch;
-uniform int       uErosionRadius; // k texels; 0 = no erosion
-uniform vec2      uTexelSize;     // 1.0 / textureSize(uScratch, 0)
 in  vec2 vUV;
 out float fragCoverage;
 void main() {
-    float v = 1.0;
-    for (int dy = -uErosionRadius; dy <= uErosionRadius; dy++) {
-        for (int dx = -uErosionRadius; dx <= uErosionRadius; dx++) {
-            vec2 uv = vUV + vec2(float(dx), float(dy)) * uTexelSize;
-            float s = (uv.x >= 0.0 && uv.x <= 1.0 &&
-                       uv.y >= 0.0 && uv.y <= 1.0)
-                      ? texture(uScratch, uv).r : 0.0;
-            v = min(v, s);
-        }
-    }
-    fragCoverage = v;
+    fragCoverage = texture(uScratch, vUV).r;
 }
 ```
 
-Setting `uErosionRadius = 0` disables erosion; the loop executes
-once and the output equals `texture(uScratch, vUV).r`. Samples
-outside `[0, 1]` are treated as uncovered (0.0): at the boundary
-of any tile or child quadrant the erosion shrinks the covered
-region inward rather than clamping at the edge.
+If erosion is later implemented, it is added around this program as the
+edge-preserving operation defined in §4.2, not as a per-child blind
+min-filter.
 
 ---
 
@@ -935,11 +970,13 @@ same 3-call sequence as above.
 
 ### 6.2 Mask texture bandwidth
 
-One R8 `scratch` texture plus 16 R8 `node_mask` textures, all at
-256×256: 17 × 64 KB = ~1 MB total. This is substantially less than
+One R8 `scratch` texture plus one R8 `node_mask` texture per active
+depth level are allocated at the configured mask resolution. At the
+default 256×256 resolution and 16 active levels, this is
+17 × 64 KB = ~1 MB total. This is substantially less than
 screen-resolution alternatives. Each node mask is written once per
 footprint OR pass and read once per screen draw at that depth level.
-Blit draws are 64 KB quad draws at most.
+Blit draws are 64 KB quad draws at most at the default resolution.
 
 ### 6.3 Data requests
 
@@ -979,7 +1016,7 @@ After this traversal is validated and the old methods are removed:
 | `processBuffer`, `newProcessBuffer` arrays | JS call stack |
 | `drawBuffer`, `processDrawBuffer` | direct `rig.draw()` call |
 | `tile.splitMask` field | mask texture uniform |
-| `uClip` uniform in legacy shader | `uMask` sampler in rig shader |
+| `uClip` / `splitMask` clipping | `uMask` sampler in rig shader |
 | `mapLoadMode` config value | `mapFallbackLodCadence` integer |
 | `mapGeodataLoadMode` config value | removed; geodata always uses fitted-frontier traversal until replaced |
 | `mapSplitMeshes` config flag | always-on in new traversal |
@@ -1014,28 +1051,25 @@ can be deleted once the old traversal methods are gone.
 path; after the legacy path is deleted, glue entry production can be
 removed there as well.
 
-Virtual surfaces are not plain renderable surfaces: their metatile
-carries `sourceReference` fields that redirect tile fetches to
+Virtual surfaces are not plain renderable surfaces. Their metatiles
+carry `sourceReference` fields that redirect tile fetches to
 constituent surfaces. Treating a virtual surface metatile as a plain
 surface would skip that redirect, removing the resource lookup that
-makes the map render. The new traversal must not be activated for
-maps that use `mapConfig.virtualSurfaces`.
+makes the legacy map render.
 
-The gate is `vsurfaceCount` in `generateSurfaceSequence`
-(`surface-sequence.ts`): when `vsurfaceCount > 0`, the virtual-surface
-path is active and the surface list has been replaced by a single
-virtual entry. `generateSurfaceSequence` stores this result as a
-boolean `hasVirtualSurfaces` on the `SurfaceSequence` object it
-returns. The new traversal reads `surfaceSequence.hasVirtualSurfaces`
-at its entry point and falls back to the legacy path when true. Maps
-with virtual surfaces continue to use the legacy traversal until they
-are either migrated to plain constituent surfaces or virtual-surface
-support is added to the new path as a later optimisation.
+The new traversal does not use the virtual-surface replacement. During
+mapConfig loading, if a `mapConfig.virtualSurfaces` entry matches the
+active surface set, the new path keeps the real constituent surfaces
+available for traversal and emits a one-off warning. In the current
+code this means bypassing the `generateSurfaceSequence` collapse that
+replaces the full surface list with one `MapVirtualSurface` entry. The
+new traversal then filters to plain surfaces and ignores glues and
+virtual surfaces.
 
-Test URLs in `test/urls.json` that exercise virtual-surface
-configurations must remain on the legacy path during the transition.
-Any URL migrated to plain surfaces must be verified to produce
-equivalent screenshots before the legacy path is removed.
+The legacy path can keep using `MapVirtualSurface` while both paths
+coexist. Once the old traversal is removed, the virtual-surface
+collapse and `sourceReference` rendering path can be deleted with the
+rest of the glue machinery.
 
 ### Code expected to shrink substantially
 
@@ -1049,82 +1083,313 @@ equivalent screenshots before the legacy path is removed.
 - `src/core/map/draw-tiles.js` — `drawSurfaceTile` orchestration
   becomes simpler; no more `preventRender` / `preventLoad` mode
   variations in the traversal hot path.
-- `src/core/renderer/gpu/shaders.js` — `uClip` / `vClipCoord` logic
-  and the split shader variants are removed.
+- `src/core/renderer/gpu/shaders.js` — legacy `uClip` /
+  `vClipCoord` logic and split shader variants are removed.
+- `src/core/renderer/shaders/includes/tile-clip.inc.glsl` and the
+  `TileRenderRig` `uClip` bindings are removed once mask sampling
+  replaces quadrant clipping in the modern shader path.
 
 ---
 
 ## 8. Compatibility and rollout
 
-The old traversal and new traversal can coexist behind the
-`TileRenderRig` gate already used in the color-pass draw path.
-The new traversal applies only when `TileRenderRig` is active.
-The old `drawSurface*` methods remain untouched during validation.
+The old traversal and new traversal coexist only as a validation
+scaffold. The motivation is to compare the new recursive path against
+the current terrain renderer on the same branch, keep screenshot
+regression checks meaningful, and keep a local fallback while the new
+path is being brought up.
+
+Execution: implement the recursive terrain traversal in TypeScript,
+outside the legacy `MapSurfaceTree` JavaScript module. The preferred
+shape is a private method on the typed `Map`, because terrain traversal
+is core frame orchestration. If implementation state grows enough to
+make that method unwieldy, extract a focused auxiliary TypeScript class
+in `src/core/map/` owned by `Map`. During validation, `Map.draw()` uses
+a terrain-only dispatch switch in two layers: a per-frame runtime
+override on `Map.overrides.terrainTraversal` (`'recursive' | 'legacy'
+| undefined`) and a session-level `mapTerrainTraversal` key on
+`CoreConfig` (URL-configurable). The override wins when set; otherwise
+the config value is used; the default is `'recursive'`. When the
+resolved mode is `'recursive'`, terrain calls the TypeScript recursive
+traversal with the legacy tree as its data source; otherwise terrain
+continues through `legacyMap.tree.draw()` and the existing
+`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not
+use this switch. After validation, the switch and old terrain modes
+are removed.
+
+`TileRenderRig` is the terrain tile drawing backend used by the new
+traversal, not the gate that selects the traversal.
 Geodata free layers keep calling the fitted-frontier traversal directly
 until the dedicated geodata path exists. `mapGeodataLoadMode` is removed
 because fitted-frontier traversal is the only retained geodata behavior.
 Non-geodata free layers are ignored with a one-off console warning; they
 are not routed through the terrain traversal as one-surface sequences.
 
-Validation sequence:
+Implementation phases:
 
-1. Allocate the mask texture pool: 16 R8 256×256 `node_mask`
-   textures, 1 R8 256×256 `scratch` texture, and the FBO set.
-2. Implement the footprint program and OR/blit program (§5.6).
-3. Add `footprint()` and mask-aware `draw()` to `TileRenderRig`
-   (§5.5). Mask sampled at `aTexCoords2`, not `gl_FragCoord`.
-4. Implement the recursive traversal as a new method on
-   `MapSurfaceTree`, replacing only the `drawSurfaceFitOnly`
-   mode first. Validate against screenshot regression tests.
-5. Extend to fallback cadence. Validate progressive loading.
-6. Compare against old topdown and downtop modes for equivalent loaded
-   data.
-7. Validate multi-surface compositing at a surface boundary with
-   erosion enabled. Tune the erosion margin against visible
-   cracks on real multi-surface data.
-8. Delete the old terrain traversal methods after the geodata caller has
-   kept a fitted-frontier traversal or moved to a geodata-specific
-   replacement. Do not preserve the old topdown, downtop, splitting, or
-   fitonly modes only for geodata.
+1. **Implemented, concept proof and validation scaffold.**
+   Bring up the mask machinery end to end against the legacy surface
+   selection so the design's core claims can be validated on real
+   data before the combined descent lands. The driver walks the
+   legacy `MapSurfaceTile` tree and uses `tile.metanode` at each
+   position; it does not yet implement the combined descent of §2.1.
+   This phase exercises mask compositing on the fallback-LOD axis
+   only, not the surface-stacking axis.
+
+   - add configurable mask resources: one R8 `node_mask` texture per
+     active recursion depth, one R8 `scratch` texture, and no-projection
+     framebuffer target binding. Default resolution is 256×256;
+   - implement the footprint program and non-eroding OR/blit program
+     (§5.6), with `k = 0`;
+   - add `footprint()` and mask-aware `draw()` to `TileRenderRig`
+     (§5.5), sampling the mask at `aTexCoords2`;
+   - implement the recursive driver as a private method on the typed
+     `Map` (`Map.drawTerrainRecursive_`), targeting the default
+     terrain path (`drawSurface`). The descent body lives in
+     `src/core/map/draw-traversal.ts`; the mask pool is owned by the
+     typed `Map`. Dispatch is through `mapTerrainTraversal`
+     (`recursive` by default, `legacy` for validation fallback), with
+     `Map.overrides.terrainTraversal` as the per-frame override.
+
+   Manual checkpoint completed for the dev side of `simple-terrain`,
+   `complex-terrain`, and `full-terrain` on a fresh webpack server.
+   Production comparison requests had transient upstream tile failures.
+
+   Validated by this phase:
+
+   - **§4.2** — UV-space masks are precise enough on real terrain at
+     `k = 0`. Seam cracks appear as expected for the accepted `k = 0`
+     design choice; their visibility matches the prediction in §4.2
+     and does not indicate a mask precision problem.
+   - **§4.2** — mask compositing reduces fragment overdraw. The
+     legacy topdown path draws every visible ancestor; the mask
+     turns this into "fill the gaps only," a measurable GPU win on
+     the single-surface case.
+   - **§2.4** — the natural-leaf / fallback readiness split
+     de-pollutes the loader queue. Coarse stand-in tiles call
+     `isReady` with `desired: 'fallback'` so they no longer pull
+     optional resources that would slow leaf loads. Visible as
+     consistently lower data transfers and faster tile loading than
+     the legacy path on complex terrain.
+   - **Phase tradeoff** — without the watertight fast path (phase
+     6) the mask pass issues one footprint draw and one blit per
+     tile per recursion depth. This produces more FBO switches and
+     draw calls than the legacy path, which is visible as lower FPS
+     and slightly reduced map responsiveness. The tradeoff is
+     expected and resolves in phase 6.
+
+   Follow-up implementation note: `mapTraversalMaskThreshold` makes the
+   mask discard cutoff configurable and defaults it to `0.65`. This is a
+   read-time conservative-overlap bias for linearly sampled mask edges,
+   not mask-space erosion. Revisit the default after phase 6 can fill
+   masks directly for watertight tiles.
+
+2. **Implemented.** Combined descent over plain surfaces.
+
+   The single-surface driver is replaced by the §2.1 algorithm.
+   `Map.resolvePlainSurfaceTrees` constructs a per-plain-surface
+   helper `MapSurfaceTree` (each tile auto-selects its surface via
+   `freeLayerSurface`, bypassing the legacy multi-surface merge in
+   `MapSurfaceTile.checkSurface`); the cache is refreshed on every
+   draw from `tree.plainSurfaceList`. `drawTerrainTraversal` walks
+   those trees in lockstep over one combined sequence of tile
+   positions, computes child active sets per quadrant, propagates
+   active status into recursion, and iterates the surface sequence
+   front-to-back at the leaf and fallback render steps. Glues and
+   virtual surfaces are ignored; `tree.hasVirtualSurfaces` triggers
+   a one-off console warning, and non-geodata free layers under a
+   mapConfig view trigger a one-off warning per layer name. No
+   watertight metadata yet; v5 metatiles only.
+
+   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
+   and `full-terrain` render with no visible regression on a fresh
+   webpack server. `legacy-benatky` (two plain surfaces plus a glue
+   in the legacy path) renders the available plain surfaces through
+   mask compositing rather than glues; transient upstream 500 errors
+   on the second surface's root metatile demonstrated graceful
+   degradation — the working surface fills the visible area where
+   the unready surface would have contributed.
+
+   **Post-implementation note — mask filter and downscale precision.**
+   The mask textures are sampled with `LINEAR` rather than `NEAREST`.
+   The reason is a resolution mismatch between the surface that writes
+   the mask and the surface that reads it on backtrack. A producer at
+   LOD P writes coverage at the mask's native resolution (256). A
+   consumer at a coarser LOD C < P reads the producer's coverage after
+   it has been blit-downscaled (P − C) times into successive parent
+   quadrants, so the producer's original information occupies only
+   256 / 2^(P − C) texels of the read. On `legacy-benatky` the gap
+   reaches seven LOD steps (city tileset reaches LOD 22, back surface
+   reaches its natural leaf at LOD 15), leaving two texels of producer
+   information — a boundary uncertainty of up to half a tile. With
+   `NEAREST` this manifested as the +x/+y overlaps and matching gaps
+   reported during phase 2.
+
+   Linear sampling turns the binary boundary into a coverage gradient.
+   The tile shader's existing `covered > 0.5` discard threshold then
+   recovers the original boundary to within half a texel at the read
+   scale, independent of how many downscale steps separate producer
+   and consumer. The threshold is a tuning knob: values below 0.5 bias
+   toward more discard (less overlap, more gap), values above 0.5
+   toward less discard (more overlap). The mask write path is
+   unchanged; the OR/blit program already produces values in [0, 1]
+   under the MAX blend, and box-equivalent linear sampling at the read
+   end preserves that range without further bookkeeping.
+
+   The `GpuTexture.Type.Mask` branch in
+   `src/core/renderer/gpu/texture.ts` previously forced `NEAREST` on
+   mask textures regardless of the `filter` argument passed to
+   `createFromData`. That override has been removed for the Mask type
+   only; the other texture types still carry their own per-type filter
+   defaults pending a separate audit.
+
+3. **Implemented.** Extend fallback cadence.
+
+   Added the `mapFallbackCadence` integer config (§2.4), default 3.
+   Combined descent already distinguishes natural-leaf and fallback
+   rendering, so the cadence is the gating decision on step 5 only: a
+   non-natural-leaf surface draws coarse coverage only when this node's
+   LOD satisfies `tile.id[0] % cadence === 0`. The anchor is the
+   absolute LOD, so the chosen fallback LODs are frame-stable as the
+   camera moves. Cadence 1 makes every inner node a fallback LOD
+   (topdown); a large cadence makes none (fitonly). Descent and mask
+   propagation are not gated — only whether a non-leaf node draws.
+   The param is reachable through `setConfigParam`, the default config
+   in `core.js`, and the `?mapFallbackCadence=N` URL parameter.
+
+   Manual checkpoint completed: at cadences 1, 3 (default), and a large
+   value (fitonly) the `full-terrain` scene converges to the same
+   complete image with no coverage gaps, confirming the gate drops no
+   coverage at the settled state; the cadence only changes the loading
+   trajectory and inner-node overdraw. `simple-terrain`,
+   `complex-terrain`, and `full-terrain` render with no regression on a
+   fresh webpack server. Fallback readiness still uses the
+   `desired: 'fallback'` path, so coarse stand-ins do not starve
+   natural-leaf loads.
+
+   Follow-up correction: cadence now gates proactive fallback loading,
+   not every possible fallback draw. Off-cadence non-leaf nodes perform
+   a legacy no-load fallback draw attempt with fallback readiness. If an
+   intermediate tile is already usable, it can keep rendering while the
+   new natural-leaf LOD loads. This avoids the visible drop from, for
+   example, LOD 7 to LOD 6 when LOD 8 becomes the natural leaf but has
+   not loaded yet. The stricter resident-only policy is deferred unless
+   diagnostics show that local setup or GPU upload during no-load probes
+   is a measured problem.
+
+4. **Implemented.** Client v6 metatile parsing.
+
+   `src/core/map/metatile.js` now accepts version 6 and reads bitplane
+   1 as `metanode.watertight` only for v6+ metatiles. For v5 metatiles
+   `metanode.watertight` stays false. The traversal does not yet
+   consult the flag; this phase is a parser capability bump, sized so a
+   v6-emitting server does not break v5 clients in the field.
+
+   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
+   and `full-terrain` still render against unchanged v5 servers. A
+   synthetic v6 fixture parses without throwing, sets
+   `metanode.watertight` on the expected nodes, and confirms v5 ignores
+   bitplane 1.
+
+5. **Implemented.** Server v6 metatile emission.
+
+   Applied the §4.5 `vts-libs` and mapproxy changes: VERSION 5→6,
+   `MetaTileFlag::watertightPlane = 0x02`, extended `flagPlanes` and
+   `flagMapping`, `MetaNode::Flag::watertight` with accessor/setter,
+   and `ti2metaFlags()` in both the DEM and spheroid generators. Bumped
+   both surface generators' `GeneratorRevision` so the format change
+   busts production caches. One `vts-libs` commit is shared by
+   cartolina-tileserver and vts-vtsd.
+
+   mapproxy generates metatiles per request, so it emits v6 with
+   watertight immediately after deploy. vts-vtsd is delivery-only — it
+   streams stored tiles verbatim — so legacy v5 tilesets stay v5 until
+   re-encoded. `vts-libs` reencode/clone was extended to copy the tile
+   index watertight flag into the v6 metanode, so `vts --reencode
+   --encode meta` upgrades a stored tileset in place (the revision bump
+   busts caches). See
+   [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
+
+   Manual checkpoint met: local mapproxy serves v6 with sensible
+   watertight values; the benatky legacy tileset and its glue were
+   reencoded to v6 and vtsd serves them with the watertight bitplane
+   set (9320/9992 and 1086 watertight tiles); the phase-4 client loads
+   them without traversal changes.
+
+6. **Implemented.** Watertight fast path.
+
+   **Post-implementation note — corrected watertight propagation.**
+   The implemented semantics intentionally differ from the reviewed
+   body text in §2.2 and §4.2. A watertight metanode does not
+   deactivate lower-priority surfaces for descendants, because
+   watertight flags can aggregate upward and do not propagate downward.
+   Descendants repeat the check from their own metanodes.
+
+   Only a tile that actually draws can produce watertight coverage. A
+   drawn watertight tile skips footprint rasterization, stops
+   lower-priority surfaces at the same node, and returns analytic
+   watertight coverage on backtrack. Watertight children are recorded
+   as quadrant bits instead of being blitted; a parent with all four
+   children drawn watertight passes watertight upward without drawing
+   or blitting. A parent with some watertight children initializes those
+   quadrants by fill pass and blits only partial child masks.
+
+   Follow-up performance probe on `simple-terrain` showed that eager
+   node-mask clears still bound and cleared one mask per visited node,
+   even on branches that later returned watertight. The implementation
+   now initializes a depth-local node mask lazily, only when partial
+   child coverage, analytic quadrant fills, or a non-watertight
+   footprint first need storage. Watertight-only branches return
+   without touching the mask pool.
+
+   The client also uses watertight metadata before drawing for the
+   combined descent decision. If any active surface has a watertight
+   node whose `texelSize` satisfies the SSE threshold, traversal stops
+   at that node for the whole active set. This prevents forced descent
+   to surfaces whose geometry is available only at finer LODs than the
+   first fitted watertight node.
+
+   Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
+   `full-terrain`, and `legacy-benatky`.
+
+7. Edge-preserving erosion.
+
+   Consider erosion only after the combined descent and watertight
+   fast path are correct. Keep `k = 0` unless visible cracks require
+   the deferred erosion step in §4.2.
+
+   Manual checkpoint: tune against real multi-surface data only if
+   this step is implemented; verify that watertight seams between
+   same-surface siblings are preserved.
+
+8. Delete the legacy terrain traversal.
+
+   Remove the five legacy methods (`drawSurface`,
+   `drawSurfaceWithSpliting`, `drawSurfaceFit`, `drawSurfaceFitOnly`,
+   `drawSurfaceDownTop`), the `mapLoadMode` and `mapGeodataLoadMode`
+   config keys, the `splitMask` and `uClip` plumbing,
+   `createVirtualMetanode`, and the alien-flag path. Wait until the
+   geodata caller keeps a fitted-frontier traversal of its own, or
+   moves to a dedicated geodata replacement. Do not retain the old
+   topdown, downtop, splitting, or fitonly modes only for geodata.
 
 ---
 
-## 9. Open questions
+## 9. Verification and deferred work
 
-**Erosion margin:** the radius k (in mask texels) used by the OR/blit
-shader's min-filter is an empirical constant. It prevents cracks while
-minimising the border zone where depth testing may produce incorrect
-results for stacked surfaces. The same k applies to both the OR-into-
-node-mask step and the child-to-parent blit; the geometric growth
-property (§4.2) means a small k provides increasing geographic margin
-at larger LOD differences. Tune against real multi-surface data,
-particularly at surface boundaries where mesh density differs.
+**Mask texture resolution:** 256×256 is the default. The value is a
+configurable power of two and should be profiled after the base
+implementation works.
 
-**Mask texture resolution:** 256×256 is a reasonable starting value.
-It may need to be larger for fine-grained surfaces or smaller for
-performance. Should be profiled.
+**Erosion margin:** the first implementation uses `k = 0`. If cracks
+remain visible, implement the edge-preserving erosion described in
+§4.2 and tune it against real multi-surface data.
 
-**Footprint rasterization at tile boundaries:** at coarse LODs a tile
-mesh has few vertices, and UV-space rasterization may not cover the
-tile's full UV extent if the mesh has concave boundaries. This is
-expected to be rare for tileserver-generated meshes, whose UV coverage
-is dense, but should be verified.
-
-**Watertight bitplane field verification:** before implementing, verify
-that `TileIndex::Flag::watertight` is correctly set for all surface
-types served by cartolina-tileserver — in particular for spheroid
-surfaces and any surface type that goes through a path not covered by
-the DEM-based `metatileFromDemImpl`. The `tiling.cpp` path sets the
-flag correctly, but confirm that other entry paths (`surface-spheroid`
-etc.) also produce correct watertight flags in the tile index before
-relying on them in the metatile.
-
-**Screen-space fallback threshold:** if the erosion margin proves
-insufficient for a specific dataset or camera configuration, the
-screen-space approach (§4.1) is the documented fallback. Before
-that decision is made, define the empirical test: what crack
-frequency or severity in specific multi-surface data warrants
-switching to screen-space for that dataset.
+**Watertight bitplane field verification:** during the server phase,
+verify that `TileIndex::Flag::watertight` is correctly set for all
+surface types served by cartolina-tileserver, including spheroid
+surfaces and any path not covered by the DEM-based
+`metatileFromDemImpl`.
 
 **Per-surface mask pool (deferred).** The current design uses one
 `node_mask[depth]` that combines coverage from all surfaces. This
@@ -1134,9 +1399,10 @@ The first is a steady-state geometry case: at a dataset boundary seam
 tile, a back surface may have finer LOD children than the front surface
 (because the front surface's data ends at that boundary). The back
 surface's fine child coverage enters the combined mask and can block
-the front surface's coarser fallback render. This requires an unusual
-data ordering — back surface finer than front at the same position —
-and the visual outcome is acceptable for elevation surfaces.
+the front surface's coarser fallback render. The design assumes that
+coarser LODs do not contain finer data, even across different surfaces,
+so LOD is a valid ordering relation. Data that violates this is a data
+modeling problem rather than a traversal problem.
 
 The second case is resource readiness during progressive loading. A
 front surface can have finer children in the metatile tree but fail to
@@ -1834,3 +2100,321 @@ Two editorial notes, neither a blocker:
    60 fps an unthrottled warning fires every frame the layer is visible.
    Specify the throttle: once per unique free layer name per session, or
    move the definition to an implementation note in §8.
+
+## Review round 8
+
+1. The virtual-surface handling is too conservative and contradicts the
+   removal plan.
+
+   Virtual surfaces are a server-side optimization that replace several
+   metatile trees with one metatile tree. They are not renderable
+   surfaces. The new traversal can ignore them, but only if the client
+   does not replace the whole surface sequence with the virtual surface.
+   If that replacement happens, the traversal loses the drawable
+   constituent surfaces.
+
+   The RFC should not say that virtual-surface maps keep using the
+   legacy traversal. Instead, mapConfig loading should bypass the
+   virtual-surface replacement, keep the real constituent surfaces, and
+   emit a one-off warning when a virtual surface is encountered.
+
+   *Implemented.* §7 now says the new path bypasses the
+   `generateSurfaceSequence` collapse to one `MapVirtualSurface`, keeps
+   the constituent surfaces, filters to plain surfaces, and emits a
+   one-off warning. The legacy path may keep using `MapVirtualSurface`
+   while both paths coexist.
+
+2. The algorithm still reads as if it loops independently over surfaces.
+
+   Phrases such as "for each surface" are misleading. The descent should
+   be a single traversal of a combined tree, similar in role to the old
+   `virtualMetanode` mechanism, but without selecting one winning
+   surface.
+
+   The RFC should define "surface active at this node." A surface is
+   active only if it was not culled at a higher level, did not stop
+   descent at a higher level, and is not culled at the current node.
+   Surfaces that fail a hierarchical condition should not be tested,
+   drawn, or used for resource loading in the subtree.
+
+   *Implemented.* §2.1 now defines one combined traversal and defines
+   active surfaces. Active status is carried into child calls; culling,
+   missing metatile data, natural-leaf termination, and watertight
+   coverage remove a surface from descendant work.
+
+3. The traversal should propagate surface deactivation, not watertight
+   state.
+
+   Watertight coverage is one reason to deactivate lower-priority
+   surfaces for a subtree. Frustum culling and SSE decisions are other
+   reasons. Carrying the active-surface set downward is necessary
+   traversal state, not an optional watertight optimization.
+
+   *Implemented.* §2.1 and §2.2 now describe active-surface
+   propagation. Watertight coverage is modeled as one deactivation
+   reason, using the same mechanism as culling and natural-leaf
+   termination.
+
+4. The watertight optimization should skip lower-surface metatile
+   fetches for the affected subtree.
+
+   The current text says lower-surface metatiles are still fetched below
+   a watertight higher surface. That defeats the optimization. If a
+   geometric condition applies to the entire node, such as full coverage
+   by a higher-priority watertight surface or full frustum exclusion, it
+   applies to the subtree. Lower inactive surfaces should not have their
+   descendant metatiles fetched for that subtree.
+
+   *Implemented.* §2.2 now states that a higher-priority watertight
+   surface deactivates lower-priority surfaces for the node's
+   descendants, including metatile fetches. This revises the round 1
+   response that kept lower-surface metatile fetches.
+
+5. The leaf-rendering mask wording needs a small clarification.
+
+   "The current accumulated mask" should mean the input mask for the
+   current surface. For the first surface at the node, that input mask is
+   empty.
+
+   *Implemented.* §2.2 now says the first surface receives an empty
+   input mask and each updated mask becomes the next surface's input
+   mask.
+
+6. Readiness should be described as a backtrack operation.
+
+   It makes more sense to call `rig.isReady()` after returning from the
+   subtree, immediately before drawing natural leaves or fallback
+   coverage. The text currently reads as if every descent-path node calls
+   readiness on the way down.
+
+   There are also cases where readiness should not be called: if child
+   results prove a watertight subtree for the same or a higher-priority
+   surface, the parent fallback will not render.
+
+   *Implemented.* §2.4 now places readiness checks on backtrack,
+   immediately before a natural-leaf or fallback draw. It also states
+   that covered parent fallback tiles skip readiness checks.
+
+7. Fallback readiness needs both minimum and desired levels.
+
+   `minimum: 'fallback'` is the floor before any readiness call. On the
+   backtrack fallback path, `fallback` should also be the desired
+   readiness. Otherwise coarse fallback tiles may request optional
+   resources, such as bump maps, and slow loading of natural leaf tiles.
+
+   The RFC should also specify readiness priority. The existing LOD-based
+   priority is a reasonable starting point unless implementation testing
+   finds a better signal.
+
+   *Implemented.* §2.4 now distinguishes natural-leaf readiness
+   (`minimum: 'fallback', desired: 'full'`) from fallback readiness
+   (`minimum: 'fallback', desired: 'fallback'`). Code inspection shows
+   `TileRenderRig` already has these readiness levels. The current draw
+   path uses LOD and distance for mesh/texture priority, so the RFC
+   records that as the starting rule rather than LOD alone.
+
+8. The screen-space mask path is out of scope for this milestone.
+
+   The screen-space discussion can remain in the RFC as useful design
+   context, but it should not be framed as an open design question for
+   this implementation. The screen-space fallback threshold is also out
+   of scope.
+
+   *Implemented.* §4 is no longer titled as an open design question,
+   §4.3 says the screen-space path is outside this milestone, and §9 no
+   longer carries a screen-space fallback threshold question.
+
+9. The watertight definition is too weak.
+
+   A tile is watertight if it fully covers the geographic space allocated
+   to the node by the spatial division. Boundary-edge coverage alone is
+   insufficient: a tile can have covered edges and still contain interior
+   holes. Watertightness is determined by the tileserver, but the RFC
+   should not introduce a boundary-only definition.
+
+   *Implemented.* §4.0 now defines watertightness as full coverage of
+   the geographic cell allocated by the spatial division. It explicitly
+   rejects boundary-edge coverage as sufficient.
+
+10. The backend change needs an explicit rollout sequence.
+
+   Implement the client traversal first. Initial testing will use old
+   metatiles without the watertight flag, so the optimized path will not
+   run; that is useful because it tests the non-optimized path first.
+
+   Then implement and build the tileserver and `vts-vtsd` changes,
+   deploy them in the local test environment, and test the optimized
+   watertight pipeline. Production rollout should follow the same order:
+   client first, server later. Treating old or unknown metatiles as
+   non-watertight remains conservative and correct.
+
+   *Implemented.* §4.5 now states the client-first/server-later rollout.
+   §8 splits validation into client v5 testing, server/vts-vtsd changes,
+   and v6 watertight validation.
+
+11. The mask render-target architecture needs a deliberate home.
+
+   The footprint and mask programs should be GLSL ES 3.00 shaders owned
+   by the renderer. The RFC should decide whether their render targets
+   are `GpuDevice` auxiliary targets, no-projection targets, or a new
+   category. The current auxiliary-target terminology may imply a target
+   that shares the canvas projection machinery, which is not true for a
+   UV-space footprint pass.
+
+   *Implemented.* §5.1 and §5.3 now require no-projection framebuffer
+   targets for mask passes. The text keeps `GpuDevice.RenderTarget` as
+   the mechanism, requires an explicit texture-space/no-projection
+   target kind, and no longer treats `setAuxiliaryRenderTarget()` as the
+   chosen API. It also records `textureblend.ts` as an existing
+   pre-policy texture-space pass whose migration is out of scope.
+
+12. The mask pool and resolution should not be hardcoded.
+
+   The design needs at least one mask texture per active recursion level
+   plus a scratch texture. It is unclear whether OR/composition needs an
+   additional temporary texture, or whether a child mask can be blitted
+   directly into the parent accumulation mask.
+
+   The mask resolution should be configurable as a power of two.
+   `256x256` is a reasonable default, not the only supported size.
+
+   *Implemented.* §5.1 now derives the mask pool from active traversal
+   depth and makes resolution a configurable power of two, with 256x256
+   as the default. §6.2 uses the default only for the memory estimate.
+
+13. Erosion must not be applied blindly on every OR or blit.
+
+   Blind erosion would break watertight seams between same-surface,
+   same-LOD tiles. Coarser tiles or lower-priority surfaces would then
+   show through cracks introduced by the mask algorithm.
+
+   For OR-into-node-mask erosion, pixels within `k` texels of the tile
+   edge must not be eroded. For child-to-parent blits, the parent should
+   first OR the accumulated child masks, then optionally erode the
+   combined parent mask with the same edge protection.
+
+   *Implemented.* §4.2 now defines erosion as deferred and
+   edge-preserving. It forbids blind per-OR and per-child erosion.
+
+14. Erosion should be deferred from the first implementation.
+
+   The first implementation should use `k = 0`. The architecture should
+   leave a place for erosion so adding it later does not require a major
+   refactor, but erosion itself can be a later implementation step. Base
+   traversal and watertight behavior should be tested before any erosion
+   tuning.
+
+   *Implemented.* §4.2, §5.1, §5.6, §8, and §9 now set the first
+   implementation to `k = 0` and move erosion to a later step.
+
+15. The erosion shader and child-blit text must be revised.
+
+   The implementation text that applies a morphological min-filter to
+   `scratch` is directly affected by the previous note. The text that
+   says the same OR/blit program erodes each child blit and lets erosion
+   compound naturally is invalid. Child masks must be combined before
+   any optional parent-level erosion.
+
+   *Implemented.* §5.1 and §5.6 now describe non-eroding OR/blit for the
+   first implementation. §4.2 preserves the deferred min-filter design,
+   with edge protection and parent-level erosion after child masks are
+   combined.
+
+16. The "fully rasterized" limitation is unclear.
+
+   The phrase "a tile's UV-space footprint is fully rasterized but the
+   mesh does not cover every UV position in screen space" is not clear
+   and may be self-contradictory. If this describes the known crack
+   problem, use that description instead. "Fully rasterized" should not
+   remain undefined.
+
+   *Implemented.* The unclear remaining-limitation paragraph was
+   removed. The RFC now relies on the explicit crack discussion in §4.2.
+
+17. "Footprint rasterization at tile boundaries" may not be a separate
+   risk.
+
+   This appears to be the same crack and erosion problem already covered
+   elsewhere. Verify whether it is a distinct failure mode; if not, fold
+   it into the crack discussion or remove it as a separate open question.
+
+   *Implemented.* The separate footprint-rasterization open question was
+   removed. The relevant risk is now covered by the crack and deferred
+   erosion discussion.
+
+18. Several implementation-plan references appear stale.
+
+   The target method should be `drawSurface`, the current default, not
+   `drawSurfaceFitOnly`. The `src/core/renderer/gpu/shaders.js` item and
+   references to legacy shader behavior may already be stale and should
+   be verified against the current codebase. If the shader no longer
+   exists, use past tense when discussing it as prior art.
+
+   *Partially implemented.* §8 now targets `drawSurface` behavior, which
+   code inspection confirms is the current default terrain mode, but the
+   recursive traversal is assigned to a private typed `Map` method, or a
+   focused auxiliary TypeScript class if implementation pressure
+   warrants it, rather than to `MapSurfaceTree`. The shader concern was
+   partly rejected:
+   `src/core/renderer/gpu/shaders.js` still exists and still contains
+   `uClip` / `vClipCoord`; the modern `TileRenderRig` path also still
+   binds `uClip` through `tile-clip.inc.glsl`. §5.6 and §7 now name both
+   removal sites.
+
+19. The rollout section should be reworked into human-reviewed phases.
+
+   This should not be one large agent implementation followed only by
+   automatic tests. The plan should have clear implementation boundaries
+   and manual testing checkpoints between phases: base client traversal,
+   fallback behavior, non-optimized multi-surface behavior, server
+   metatile changes, optimized watertight behavior, and only then any
+   erosion experiments.
+
+   *Implemented.* §8 now presents the rollout as ordered phases with
+   the base client traversal as one implementation unit and manual
+   checkpoints after each later capability: fallback behavior,
+   multi-surface testing, server rollout, watertight validation, and
+   deferred erosion if implemented.
+
+20. Some open questions should be reframed.
+
+   Watertight bitplane field verification is a verification step, not an
+   open design question. The per-surface mask-pool discussion is useful,
+   but the model assumes coarser LODs do not contain finer data, even
+   across different surfaces. LOD can therefore be used as an ordering
+   relation. If data violates that assumption, treat it as a
+   data-modeling problem rather than an algorithmic problem.
+
+   *Implemented.* §9 is now "Verification and deferred work." Watertight
+   bitplane field verification moved there as a rollout verification
+   step, and the per-surface mask-pool note records the LOD-ordering
+   data-model assumption.
+
+## Review round 9 — sign-off
+
+The design is accepted.
+
+Round 8 is resolved. The RFC now describes a combined traversal with
+active-surface propagation, watertight subtree deactivation, backtrack
+readiness checks, a client-first/server-later watertight rollout,
+texture-space render targets inside the `GpuDevice.RenderTarget`
+mechanism, configurable mask resources, and deferred erosion with
+initial `k = 0`.
+
+The implementation ownership is correct: the recursive traversal belongs
+in TypeScript, preferably as private typed `Map` orchestration, with a
+focused auxiliary class only if implementation state warrants it. The
+legacy `MapSurfaceTree` remains a compatibility/data source during
+validation rather than the home for the new code.
+
+The rollout is acceptable: the base client traversal is one
+implementation unit with manual inspection after bring-up, and later
+capabilities have separate manual checkpoints. The old traversal may
+coexist only as validation scaffolding and is removed after the new path
+and geodata fitted-frontier path are settled.
+
+## Review round 10 — requested
+
+Post-acceptance rollout notes were added after completing phases 4 and
+5. The edits name the `mapTerrainTraversal` rollout switch in the phase
+list.

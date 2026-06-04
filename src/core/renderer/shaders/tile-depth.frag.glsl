@@ -11,6 +11,9 @@ in vec2 vTexCoords2;
 // tile quadrant clipping
 #include "./includes/tile-clip.inc.glsl";
 
+uniform sampler2D uMask;
+uniform bool uMaskEnabled;
+
 // render target
 out uvec4 fragColor;
 
@@ -19,6 +22,12 @@ out uvec4 fragColor;
 void main() {
 
     applyTileClip(vTexCoords2, uFrame.clipParams.x);
+
+    if (uMaskEnabled) {
+
+        float covered = texture(uMask, vTexCoords2).r;
+        if (covered > frameMaskThreshold()) discard;
+    }
 
     /*
      * Store the raw IEEE 754 bit pattern of vDepth as four bytes in

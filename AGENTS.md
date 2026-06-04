@@ -150,6 +150,16 @@ The status line tracks the current state:
   The RFC stays in `In review` until the reviewer signs off again.
 
 
+### Backlog hygiene
+
+When closing a backlog entry, remove any working hypotheses that were
+not confirmed as the root cause. Keep only what remains true and
+useful: the reproduction steps, the confirmed root cause in the status
+line, and any forward-looking open questions that warrant their own
+entry. Failed hypotheses are context baggage — a future reader has no
+way to know they were wrong without re-reading an investigation that no
+longer exists.
+
 ## Commits
 
 Do not commit trivial changes automatically. Leave typo fixes, link
@@ -232,6 +242,12 @@ source ~/.nvm/nvm.sh && nvm use
 
 - Text-analysis commands (`grep`, `awk`, `sed`, `wc`) may be run
   against files in this repository without asking for permission.
+
+- Files ending in `~` (e.g. `shaders.js~`) are editor backup copies.
+  They are `.gitignored` and untracked. Ignore them entirely during
+  analysis, code reading, and search. Never cite them as evidence of
+  current behaviour or use their contents to draw conclusions about
+  the live codebase.
 
 - `npx tsc` (any flags) may be run without asking for permission.
 
@@ -352,11 +368,12 @@ before capturing (same quiet-window strategy as the perf runner) and
 prints any console or network errors it finds.
 
 All diagnostic output must go under gitignored paths, usually `tmp/` or
-`tmp/screenshots/`. Do not leave diagnostic screenshots, logs, probes,
-or other generated investigation artifacts as untracked files in the
-repository root or source directories. Temporary diagnostic scripts
-belong under `tmp/`; diagnostic scripts worth preserving belong under
-`scripts/`.
+`tmp/screenshots/`. Use the gitignored `tmp/` directory in the
+repository root, not the system `/tmp`. Do not leave diagnostic
+screenshots, logs, probes, or other generated investigation artifacts
+as untracked files in the repository root or source directories.
+Temporary diagnostic scripts belong under `tmp/`; diagnostic scripts
+worth preserving belong under `scripts/`.
 
 Do not write screenshot output under `sandbox/`; the dev server watches
 that directory and may rebuild or reload while the screenshot script is
@@ -393,6 +410,28 @@ When a trial is useful, keep it clearly temporary: record what it tests,
 run the relevant check, then either turn it into the minimal confirmed
 fix or discard it. Do not stack new hypotheses on top of failed trial
 code.
+
+### No hand-waving
+
+Hand-waving is prohibited, in code comments and in the wiki
+(session log, backlog, RFCs) alike. A causal claim — "this happens
+because…", "X fails because…", "this is caused by…" — may be written
+down only when it has been verified, either by a measurement or by
+source analysis that names the exact mechanism. Do not present a
+plausible-sounding guess as established fact, and do not explain away a
+result you have not actually traced.
+
+A claim that is the basis for further work must be verified before that
+work proceeds; an unverified premise is not an acceptable foundation.
+For reasons of problem-solving economy a hypothesis may occasionally
+remain unverified — when it does, say so plainly. Mark it as
+unverified, or state what was observed and that the reason was not
+established. "The reason was not pinned down" is acceptable; a confident
+fabricated mechanism is not.
+
+This applies to commit messages and review notes as well. When you
+discover that a previously written explanation was wrong, correct it at
+the source rather than layering a new guess on top.
 
 ### Regression bug diagnostics and fixing
 
@@ -645,8 +684,10 @@ conditioned independent blocks when the cases are separate. Reach for
 `else if` only when there is a strong reason not to express the control
 flow in one of those clearer forms.
 
-**Multi-line comments** use block comment syntax (`/* ... */`) rather
-than a stack of `//` lines. Single-line comments may use `//`.
+**In-block comments** use `//` lines, even when they span multiple
+lines. Reserve block comments (`/* ... */`) for module headers,
+JSDoc, and other file- or declaration-level comments outside executable
+blocks.
 
 **Do not use underscore import shims.** Import symbols under the name
 used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
@@ -654,8 +695,10 @@ used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
 shim, remove the shim for the imports you touch.
 
 **Private TypeScript backing members** should use a trailing underscore.
-This is the preferred pattern when exposing read-only state through a
-same-name getter:
+The convention applies to **fields only**, not to private methods.
+Private methods do not get a trailing underscore. The trailing
+underscore on a field marks it as the backing slot whose public
+identity is the same-name getter:
 
 ```ts
 private renderTarget_!: GpuDevice.RenderTarget;
@@ -663,6 +706,11 @@ private renderTarget_!: GpuDevice.RenderTarget;
 get renderTarget(): Readonly<GpuDevice.RenderTarget> {
 
     return this.renderTarget_;
+}
+
+private rebuildRenderTarget(): void {
+
+    // ...
 }
 ```
 
@@ -702,13 +750,15 @@ regular named exports, as in
 For modules that export a class as their default export, lay the file
 out in this order:
 
-1. Imports.
-2. The class (with its JSDoc).
-3. Local, non-exported types used by the class — keep them out of
-   the way at the top so the class is what the reader sees first.
-4. The same-name namespace re-exporting public types (see next
+1. A one-line block comment naming the file and its job (see the
+   **Documentation** section below for the required format).
+2. Imports.
+3. The class (with its JSDoc).
+4. Local, non-exported types used by the class — keep them out of
+   the way so the class is what the reader sees first.
+5. The same-name namespace re-exporting public types (see next
    section).
-5. `export default`.
+6. `export default`.
 
 [atmosphere.ts](src/core/map/atmosphere.ts) and
 [tile-render-rig.ts](src/core/map/tile-render-rig.ts) follow this
@@ -780,6 +830,28 @@ documentation style.
 Private methods usually do not need JSDoc unless their functionality is
 non-obvious. But if they do, it must be kept up to date; stale
 documentation is worse than none.
+
+**In-block and beginning-of-block inline comments** (single-line `//`)
+are good practice and actively encouraged. Use them to describe
+non-obvious logic: a subtle invariant, a hidden constraint, a
+workaround for a specific behaviour, or a step whose purpose is not
+plain from the identifiers alone. Write in plain engineering prose
+with no jargon (see [No jargon](#no-jargon)). One line is almost
+always enough; if more is needed, use a `/* ... */` block comment.
+
+Keep inline comments concise and to the point:
+
+- **One line is the default.** Wrap to a second line only when the
+  concept is genuinely non-obvious and needs more than one sentence.
+  Don't expand a simple idea into a multi-line block.
+- **Say what the code does, not what it does not.** Comment on the
+  behaviour present in the code. Do not contrast it with rejected
+  alternatives ("iterating X instead would..."), with how it used to
+  work, or with how a sibling path differs. A reader who lacks the
+  history and the planned direction cannot tell such asides from live
+  behaviour, so they read as noise. State the rule this code follows;
+  leave history and future plans to commit messages, the wiki, and
+  the backlog.
 
 **Adding JSDoc to existing code is encouraged** when you encounter a
 function or method whose behaviour is non-trivial or not obvious from

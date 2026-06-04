@@ -1,10 +1,11 @@
 # API and lifecycle
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page records public API direction, construction, initialization,
-configuration, events, and teardown rules. `architecture.md` keeps only
-the high-level ownership map.
+configuration, events, and teardown rules.
+[architecture.md](architecture.md) keeps only the high-level
+ownership map.
 
 ## Public API Surface
 
@@ -44,7 +45,7 @@ That pattern is partly gone:
 | `Browser` | Legacy UI helpers | Moves into `Viewer` |
 | `Map` | Typed map data model and logic | Stays; absorbs JS halves below |
 | `CoreInterface` | Legacy public wrapper | Deleted |
-| `MapInterface` | Thin legacy delegation wrapper | Moves into `Map` |
+| `MapInterface` | Thin legacy delegation wrapper | Deleted |
 | `RendererInterface` | Legacy renderer wrapper | Deleted |
 | `Core` | Legacy startup / animation-frame shell | Dissolves into `Map` |
 | `LegacyMap` | JS half of `Map` (unfinished) | Moves into `Map` |
@@ -84,7 +85,7 @@ Deprecated entry points and concepts:
 - `browser()` and the `map` config key for mapConfig loading
 - tileserver-injected `browserOptions`
 - views from vts-browser-js
-- `setView`, `getView`, `getViews`, and related `MapInterface` methods
+- `setView`, `getView`, `getViews`, and related legacy map methods
 - `addBoundLayer` promotion to `Viewer`
 
 Layer visibility in new code belongs in the style specification. Avoid
@@ -105,7 +106,8 @@ routes by key prefix:
 
 `Viewer.setParam(key, value)` still passes through
 `Browser.setConfigParam` and reaches `Core.setConfigParam`.
-`rfc-config-store.md` describes the accepted replacement.
+[rfc-config-store.md](rfc-config-store.md) describes the accepted
+replacement.
 
 ### Style Config Block
 
@@ -151,8 +153,7 @@ array:
 mapConfig is fetched and parsed:
 
 1. `Core` starts `loadMapFromStyle` or `loadMap`.
-2. On success, `Core.map` is assigned and `Core.mapInterface` is
-   created.
+2. On success, `Core.map` is assigned.
 3. `Map.tick` emits `map-loaded` after the reference frame is ready and
    calls `Core.markReady_()` to resolve the one-shot `ready` Promise.
 
@@ -187,7 +188,7 @@ The accepted replacement is a typed `EventBus<EventMap>` owned by `Map`
 and passed to engine objects that emit events. `EventTarget` was
 rejected because it does not match the MapLibre-style `on()` / `once()`
 API, allocates `CustomEvent` objects for frequent events, and still
-needs an adapter. See `rfc-event-bus.md`.
+needs an adapter. See [rfc-event-bus.md](rfc-event-bus.md).
 
 `once` accepts an optional `wait` parameter that skips the first N
 firings. `getSurfaceAreaGeometry` uses this to defer a callback past a

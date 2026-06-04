@@ -1,6 +1,6 @@
 # LOD selection and screen-space error
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page documents the legacy terrain tile selection algorithm used by
 `MapSurfaceTree` and `MapSurfaceTile`. The algorithm is inherited from
@@ -114,15 +114,20 @@ The hot path in `updateTexelSize()` begins:
 screenPixelSize = draw.ndcToScreenPixel * node.pixelSize;
 ```
 
-`draw.ndcToScreenPixel` is set once per `drawMap()` call:
+`draw.ndcToScreenPixel` is set once per `drawMap()` call from the render
+target's apparent (CSS) width:
 
 ```js
 this.ndcToScreenPixel =
-    this.renderer.gpu.currentRenderTarget.viewportSize[0] * 0.5;
+    this.renderer.gpu.currentRenderTarget.apparentSize[0] * 0.5;
 ```
 
 The projection maps clip-space X to NDC X in `[-1, 1]`, so one NDC unit
-corresponds to half the viewport width in pixels. At this point the
+corresponds to half the apparent width in CSS pixels. Apparent size also
+keeps the color pass and the auxiliary depth pass on the same LOD: the
+depth hitmap has a smaller storage `viewportSize` but inherits the canvas
+`apparentSize`, so both passes compute the same `ndcToScreenPixel` and
+select the same tiles. At this point the
 variable name `screenPixelSize` is premature: the value still needs the
 projection scale factor. Its units are:
 
@@ -235,11 +240,13 @@ ordering, horizon degradation, and statistics.
 
 ```js
 this.texelSizeFit =
-    mapTexelSizeFit * Math.pow(2, factor) * dpiRatio;
+    mapTexelSizeFit * Math.pow(2, factor);
 ```
 
-`mapTexelSizeFit` defaults to `1.1`. `dpiRatio` comes from the current
-render target's `devicePixelRatio`; targets without that field use `1`.
+`mapTexelSizeFit` defaults to `1.1`. `factor` comes from detail
+degradation. The threshold is DPI-independent, matching the apparent-size
+basis of `ndcToScreenPixel`, so the fit test gives the same result on the
+color pass and the auxiliary depth pass.
 
 A tile passes the LOD test when:
 

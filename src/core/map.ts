@@ -5,7 +5,7 @@
 import { Core } from './core';
 import Atmosphere from './map/atmosphere';
 import type Renderer from './renderer/renderer';
-import type MapPosition from './map/position';
+import MapPosition from './map/position';
 import type {
     CoreConfig,
     CoreEventMap,
@@ -16,6 +16,19 @@ import type {
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
+import LegacyMap from './map/map';
+import FreezeCameraState from './map/freeze-camera-state';
+import { defaultOverrides, type Overrides } from './map/overrides';
+import MapStyle from './map/style';
+import MapDraw from './map/draw';
+import MapConvert from './map/convert';
+import MapMeasure from './map/measure';
+import MapSurfaceTree from './map/surface-tree';
+import type MapSurface from './map/surface';
+import MapConfig from './map/config';
+import MapView from './map/view';
+import DrawTraversalMaskPool from './map/draw-traversal-mask';
+import { drawTerrainTraversal } from './map/draw-traversal';
 
 
 /**
@@ -50,6 +63,28 @@ class Map {
     private disposed_ = false;
 
     /**
+     * Runtime rendering overrides: diagnostic draw flags and per-frame
+     * render-flag overrides. `Renderer.initFrame` caches a reference to
+     * this object; all flag reads in a frame see the same snapshot.
+     *
+     * `draw*` fields default to `false`. `flag*` fields default to
+     * `undefined`, which defers to the corresponding `CoreConfig` value.
+     * See `Overrides` in `src/core/map/overrides.ts` for the full list.
+     */
+    overrides: Overrides = { ...defaultOverrides };
+
+    /**
+     * Camera-state swapper for diagnostic freeze mode. `null` while no
+     * map is loaded and between loads. Created by `createMapFromMapConfig`
+     * and `createMapFromStyle`. JS callers that still hold a `LegacyMap`
+     * reference access this through `legacyMap.outerMap.freeze`.
+     *
+     * See `FreezeCameraState` in
+     * `src/core/map/freeze-camera-state.ts`.
+     */
+    freeze: FreezeCameraState | null = null;
+
+    /**
      * Active rendering channel for the current frame.
      *
      * - `'color'`: visual canvas pass.
@@ -67,6 +102,27 @@ class Map {
     /** Did the one-time `map-loaded` completion fire for the loaded
      * map already? Reset implicitly by replacing the typed `Map`. */
     private mapLoadedFired_ = false;
+
+    /**
+     * UV-space mask pool used by the recursive terrain traversal.
+     * Lazily allocated on first use by `drawTerrainRecursive` and
+     * disposed on map unload and `[Symbol.dispose]()`. Removal
+     * target in phase 8 alongside the legacy traversal.
+     */
+    private terrainMaskPool_: DrawTraversalMaskPool | null = null;
+
+    /**
+     * Per-surface helper trees used by the recursive draw traversal
+     * (rfc-draw-traversal.md §2.1). Keyed by surface id. Each tree is
+     * a single-surface `MapSurfaceTree` constructed with the surface
+     * as its `freeLayerSurface`, which makes every tile auto-select
+     * that surface and avoids the legacy multi-surface merge in
+     * `MapSurfaceTile.checkSurface`. The cache is refreshed against
+     * the current `surfaceList()` on every draw; entries for surfaces
+     * that have left the view are dropped.
+     */
+    private surfaceTrees_: globalThis.Map<string, MapSurfaceTree>
+        = new globalThis.Map();
 
     // -----------------------------------------------------------------
     // Lifecycle
@@ -93,7 +149,8 @@ class Map {
     [Symbol.dispose](): void {
 
         if (this.disposed_) return;
-        this.disposeOverlays_();
+        this.disposeOverlays();
+        this.disposeTerrainMaskPool();
         this.core_.destroy();
         this.disposed_ = true;
     }
@@ -104,14 +161,14 @@ class Map {
     destroy(): void {
 
         __DEV__ && utils.warnOnce(
-            '[Map] destroy() is deprecated. Use Symbol.dispose instead.');
+            '[Map] destroy() is deprecated. Use Symbol.dispose instead.', 1);
         this[Symbol.dispose]();
     }
 
     /** Resolves once the map is fully loaded and ready to render. */
     get ready(): Promise<void> {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.ready;
     }
 
@@ -122,7 +179,7 @@ class Map {
      */
     loadMap(path: string): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.mapLoadedFired_ = false;
         this.core_.loadMap(path);
     }
@@ -133,8 +190,9 @@ class Map {
      */
     unloadMap(): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.mapLoadedFired_ = false;
+        this.disposeTerrainMaskPool();
         this.core_.destroyMap();
     }
 
@@ -154,7 +212,7 @@ class Map {
         callback: (event: CoreEventMap[K]) => void,
     ): (() => void) {
 
-        this.assertAlive_();
+        this.assertAlive();
         const unsubscribe = this.core_.on(eventName, callback);
         if (unsubscribe == null) {
             throw new Error('Map event subscription failed.');
@@ -176,7 +234,7 @@ class Map {
         wait?: number,
     ): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.once(eventName, callback, wait);
     }
 
@@ -191,14 +249,14 @@ class Map {
      */
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setRenderingOptions(options);
     }
 
     /** Returns the current renderer feature flags. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getRenderingOptions();
     }
 
@@ -209,14 +267,14 @@ class Map {
      */
     setIllumination(spec: Renderer.IlluminationDef): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setIllumination(spec);
     }
 
     /** Returns the current renderer illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getIllumination();
     }
 
@@ -229,14 +287,14 @@ class Map {
         spec: Renderer.VerticalExaggerationSpec,
     ): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration ramps. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.renderer.getVerticalExaggeration();
     }
 
@@ -247,14 +305,14 @@ class Map {
      */
     setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
-        this.assertAlive_();
+        this.assertAlive();
         this.core_.map?.atmosphere?.setRuntimeParameters(spec);
     }
 
     /** Returns live atmosphere parameters from the loaded map. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
@@ -276,8 +334,8 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromPublicToNav(
+        this.assertAlive();
+        return this.core_.map?.convertCoordsFromPublicToNav(
             pos, mode, lod) ?? null;
     }
 
@@ -297,8 +355,8 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToCanvas(
+        this.assertAlive();
+        return this.core_.map?.convertCoordsFromNavToCanvas(
             pos, mode, lod) ?? null;
     }
 
@@ -316,8 +374,8 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToPublic(
+        this.assertAlive();
+        return this.core_.map?.convertCoordsFromNavToPublic(
             pos, mode, lod) ?? null;
     }
 
@@ -336,8 +394,8 @@ class Map {
         includeSE?: boolean,
     ): vec3 | null {
 
-        this.assertAlive_();
-        return this.core_.mapInterface?.convertCoordsFromNavToPhys(
+        this.assertAlive();
+        return this.core_.map?.convertCoordsFromNavToPhys(
             pos, mode, lod, includeSE) ?? null;
     }
 
@@ -348,9 +406,8 @@ class Map {
      */
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
-        this.assertAlive_();
-        return (this.core_.mapInterface?.convertCoordsFromPhysToCameraSpace(
-            pos) ?? null) as vec3 | null;
+        this.assertAlive();
+        return this.core_.map?.convertCoordsFromPhysToCameraSpace(pos) ?? null;
     }
 
     /**
@@ -368,8 +425,8 @@ class Map {
         lod?: Lod,
     ): vec3 | null {
 
-        this.assertAlive_();
-        return this.core_.mapInterface?.getHitCoords(
+        this.assertAlive();
+        return this.core_.map?.getHitCoords(
             screenX, screenY, mode, lod) ?? null;
     }
 
@@ -399,7 +456,7 @@ class Map {
         coordinateSpace: Renderer.CoordinateSpace = 'layout',
     ): [boolean, number] | null {
 
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_.map?.getScreenDepth(
             screenX,
             screenY,
@@ -426,8 +483,8 @@ class Map {
 
         const legacyMap = this.core_.map;
         if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getNavigationPosition() ?? legacyMap.position)
+        return this.freeze
+            ? (this.freeze.getNavigationPosition() ?? legacyMap.position)
             : legacyMap.position;
     }
 
@@ -444,9 +501,87 @@ class Map {
 
         const legacyMap = this.core_.map;
         if (legacyMap == null) return null;
-        return legacyMap.freeze
-            ? (legacyMap.freeze.getSelectionPosition() ?? legacyMap.position)
+        return this.freeze
+            ? (this.freeze.getSelectionPosition() ?? legacyMap.position)
             : legacyMap.position;
+    }
+
+    // -----------------------------------------------------------------
+    // Camera scope
+    // -----------------------------------------------------------------
+
+    /**
+     * Runs `callback` with the live navigation camera installed.
+     *
+     * In freeze mode the selection context is frozen while navigation
+     * moves. Call this for draw code that must render from the live
+     * position while tile selection still uses the frozen position.
+     * When freeze mode is inactive, calls `callback` with no swap.
+     *
+     * @param callback  code to run under the live camera
+     * @returns the value returned by `callback`
+     */
+    withNavigationCamera<T>(callback: () => T): T {
+
+        return this.freeze
+            ? this.freeze.withNavigationCamera(callback)
+            : callback();
+    }
+
+    /**
+     * Runs `callback` with the frozen selection camera installed.
+     *
+     * Use for draw code that must operate in the selection context:
+     * culling, texel-size choice, and depth sampling. When freeze mode
+     * is inactive, calls `callback` with no swap.
+     *
+     * @param callback  code to run under the selection camera
+     * @returns the value returned by `callback`
+     */
+    withSelectionCamera<T>(callback: () => T): T {
+
+        return this.freeze
+            ? this.freeze.withSelectionCamera(callback)
+            : callback();
+    }
+
+    // -----------------------------------------------------------------
+    // Geodata free layers
+    // -----------------------------------------------------------------
+
+    /**
+     * Creates a legacy geodata builder for constructing vector free layers.
+     *
+     * Return type is `unknown` pending promotion of the full geodata
+     * builder type surface.
+     */
+    createGeodata(): unknown {
+
+        this.assertAlive();
+        return this.core_.map?.createGeodata() ?? null;
+    }
+
+    /**
+     * Adds a free layer to the map under the given id.
+     *
+     * @param id layer identifier
+     * @param layer free-layer specification or existing legacy surface
+     */
+    addFreeLayer(id: string, layer: unknown): void {
+
+        this.assertAlive();
+        this.core_.map?.addFreeLayer(id, layer);
+    }
+
+    /**
+     * Removes the free layer registered under the given id.
+     *
+     * @param id layer identifier
+     */
+    removeFreeLayer(id: string): void {
+
+        this.assertAlive();
+        this.core_.map?.removeFreeLayer(id);
     }
 
     // -----------------------------------------------------------------
@@ -464,8 +599,8 @@ class Map {
      */
     addOverlay(name: string, spec: OverlaySpec): void {
 
-        this.assertAlive_();
-        if (this.findOverlayIndex_(name) !== -1) return;
+        this.assertAlive();
+        if (this.findOverlayIndex(name) !== -1) return;
 
         this.overlays_.push({
             name, spec, enabled: true, added: false,
@@ -478,15 +613,15 @@ class Map {
      */
     removeOverlay(name: string): void {
 
-        this.assertAlive_();
-        const index = this.findOverlayIndex_(name);
+        this.assertAlive();
+        const index = this.findOverlayIndex(name);
         if (index === -1) return;
 
         const entry = this.overlays_[index];
         this.overlays_.splice(index, 1);
 
         if (entry.added && entry.spec.onRemove)
-            entry.spec.onRemove(this.overlayContext_());
+            entry.spec.onRemove(this.overlayContext());
     }
 
     /**
@@ -495,8 +630,8 @@ class Map {
      */
     setOverlayEnabled(name: string, enabled: boolean): void {
 
-        this.assertAlive_();
-        const index = this.findOverlayIndex_(name);
+        this.assertAlive();
+        const index = this.findOverlayIndex(name);
         if (index === -1) return;
 
         this.overlays_[index].enabled = enabled;
@@ -603,8 +738,11 @@ class Map {
             legacyMap.bestMeshTexelSize = 0;
             legacyMap.bestGeodataTexelSize = 0;
 
+            // draw
             this.draw();
-            this.runOverlays_();
+
+            // overlays
+            this.runOverlays();
 
             /* Post-draw loader promotion: requests discovered during
              * traversal enter the loader the same frame instead of
@@ -636,7 +774,7 @@ class Map {
         const channel = this.drawChannel;
 
         // Reset owner-specific frame state before issuing draw work.
-        this.initFrame_();
+        this.initFrame();
         renderer.initFrame();
         mapDraw.initFrame();
 
@@ -652,7 +790,7 @@ class Map {
             renderer.drawBackground();
 
         // runtime label override falls back to the map configuration.
-        const labelsEnabled = legacyMap.overrides.flagLabels
+        const labelsEnabled = this.overrides.flagLabels
             ?? legacyMap.config.mapFlagLabels;
 
         // clear queued geodata jobs
@@ -666,9 +804,9 @@ class Map {
         // draw surfaces and free layers
         gpu.setState(mapDraw.drawTileState);
 
-        if (legacyMap.overrides.drawEarth) {
+        if (this.overrides.drawEarth) {
 
-            legacyMap.withSelectionCamera(() => {
+            this.withSelectionCamera(() => {
 
                 // todo: remove this
                 for (let i = 0; i < mapDraw.tileBuffer.length; i++) {
@@ -677,7 +815,19 @@ class Map {
 
                 // draw mesh tiles
                 if (legacyMap.tree.surfaceSequence.length > 0) {
-                    legacyMap.tree.draw(false);
+
+                    // The new recursive terrain draw lives on `Map`;
+                    // `terrainTraversal` chooses between it and the
+                    // legacy iterative path while both coexist.
+                    const traversal = this.overrides.terrainTraversal
+                        ?? legacyMap.config.mapTerrainTraversal
+                        ?? 'recursive';
+
+                    if (traversal === 'recursive')
+                        this.drawTerrainRecursive();
+                    else
+                        legacyMap.tree.draw(false);
+                    
                 }
 
                 // draw free layers
@@ -716,7 +866,7 @@ class Map {
                 }
             });
 
-        } // if (legacyMap.overrides.drawEarth)
+        } // if (this.overrides.drawEarth)
 
         // draw freeze frustum, if applicable
         const inspector = this.core_.inspector;
@@ -724,13 +874,13 @@ class Map {
                 && inspector
                 && inspector.hasFreezeFrustum()) {
 
-            legacyMap.withNavigationCamera(() => {
+            this.withNavigationCamera(() => {
                 inspector.drawFreezeFrustum();
             });
         }
 
         // draw queued geodata labels and icons
-        if (legacyMap.overrides.drawEarth
+        if (this.overrides.drawEarth
                 && labelsEnabled
                 && legacyMap.freeLayersHaveGeodata
                 && channel === 'color') {
@@ -740,7 +890,7 @@ class Map {
             renderer.drawnGeodataTilesFactor =
                 legacyMap.stats.drawnGeodataTilesFactor;
 
-            legacyMap.withNavigationCamera(() => {
+            this.withNavigationCamera(() => {
                 renderer.draw.drawGpuJobs(this.getSelectionPosition()!);
             });
         }
@@ -749,11 +899,115 @@ class Map {
     }
 
     // -----------------------------------------------------------------
+    // LegacyMap factories
+    // -----------------------------------------------------------------
+
+    private async createMapFromStyle(
+        style: unknown,
+        path: string,
+    ): Promise<void> {
+
+        const configStorage = (this.core_ as any).configStorage;
+        const legacyMap = new LegacyMap(
+            this.core_, path, this.core_.config, configStorage);
+        legacyMap.outerMap = this;
+
+        legacyMap.setLoaderParams(null, configStorage);
+
+        // load style
+        await MapStyle.loadStyle(legacyMap,
+            style as MapStyle.StyleSpecification);
+
+        // no clue what these are
+        const conv = new MapConvert(legacyMap);
+        legacyMap.convert = conv;
+        const meas = new MapMeasure(legacyMap);
+        legacyMap.measure = meas;
+        conv.measure = meas;
+
+        legacyMap.isGeocent =
+            !legacyMap.getNavigationSrs().isProjected();
+
+        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
+
+        // generate sequences
+        legacyMap.refreshView();
+
+        // force update
+        legacyMap.dirty = true;
+        legacyMap.hitMapDirty = true;
+        legacyMap.geoHitMapDirty = true;
+
+        legacyMap.draw = new MapDraw(legacyMap);
+        this.freeze = new FreezeCameraState(legacyMap);
+        legacyMap.draw.setupDetailDegradation();  // probably not needed
+
+        this.core_.map = legacyMap;
+    }
+
+    private createMapFromMapConfig(
+        mapConfig: unknown,
+        path: string,
+    ): void {
+
+        const configStorage = (this.core_ as any).configStorage;
+        const legacyMap = new LegacyMap(
+            this.core_, path, this.core_.config, configStorage);
+        legacyMap.outerMap = this;
+
+        legacyMap.setLoaderParams(mapConfig, configStorage);
+
+        // most of initialization happens here
+        const mapCfg = new MapConfig(legacyMap, mapConfig);
+        legacyMap.mapConfig = mapCfg;
+
+        const conv = new MapConvert(legacyMap);
+        legacyMap.convert = conv;
+        const meas = new MapMeasure(legacyMap);
+        legacyMap.measure = meas;
+        conv.measure = meas;
+
+        legacyMap.isGeocent =
+            !legacyMap.getNavigationSrs().isProjected();
+
+        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
+        legacyMap.currentView_ = new MapView(legacyMap, {});
+
+        mapCfg.afterConfigParsed();
+
+        legacyMap.updateCoutner = 0;
+
+        legacyMap.dirty = true;
+        legacyMap.dirtyCountdown = 0;
+        legacyMap.hitMapDirty = true;
+        legacyMap.geoHitMapDirty = true;
+
+        legacyMap.draw = new MapDraw(legacyMap);
+        this.freeze = new FreezeCameraState(legacyMap);
+        legacyMap.draw.setupDetailDegradation();
+
+        const body = legacyMap.referenceFrame?.body;
+        const services = legacyMap.services;
+
+        // atmosphere
+        if (body && body.atmosphere && services && services.atmdensity) {
+
+            legacyMap.atmosphere = new Atmosphere(
+                body.atmosphere,
+                legacyMap.getPhysicalSrs(),
+                legacyMap.url.makeUrl(services.atmdensity.url, {}),
+                legacyMap);
+        }
+
+        this.core_.map = legacyMap;
+    }
+
+    // -----------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------
 
     /** Throws if the map has been disposed. */
-    private assertAlive_(): void {
+    private assertAlive(): void {
 
         if (this.disposed_) {
             throw new Error('Map has been destroyed.');
@@ -761,7 +1015,7 @@ class Map {
     }
 
     /** Resets map-owned per-frame state. Called at the top of `draw`. */
-    private initFrame_(): void {
+    private initFrame(): void {
 
         const legacyMap = this.core_.map!;
 
@@ -776,7 +1030,7 @@ class Map {
         legacyMap.stats.renderBuild = 0;
     }
 
-    private findOverlayIndex_(name: string): number {
+    private findOverlayIndex(name: string): number {
 
         for (let i = 0; i < this.overlays_.length; i++) {
 
@@ -785,7 +1039,7 @@ class Map {
         return -1;
     }
 
-    private overlayContext_(): OverlayContext {
+    private overlayContext(): OverlayContext {
 
         return { renderer: this.core_.renderer };
     }
@@ -795,11 +1049,11 @@ class Map {
      * explicit last step of the canvas-target frame; must not be
      * called for any auxiliary pass.
      */
-    private runOverlays_(): void {
+    private runOverlays(): void {
 
         if (this.overlays_.length === 0) return;
 
-        const ctx = this.overlayContext_();
+        const ctx = this.overlayContext();
 
         for (let i = 0; i < this.overlays_.length; i++) {
 
@@ -821,9 +1075,9 @@ class Map {
      * order. Called from `[Symbol.dispose]` before tearing down `Core`
      * so overlays can still draw through the live renderer.
      */
-    private disposeOverlays_(): void {
+    private disposeOverlays(): void {
 
-        const ctx = this.overlayContext_();
+        const ctx = this.overlayContext();
         for (let i = this.overlays_.length - 1; i >= 0; i--) {
 
             const entry = this.overlays_[i];
@@ -831,6 +1085,176 @@ class Map {
                 entry.spec.onRemove(ctx);
         }
         this.overlays_.length = 0;
+    }
+
+    /**
+     * Releases the recursive terrain traversal mask pool. Safe to call
+     * when no pool has been allocated. Invoked on map unload and from
+     * `[Symbol.dispose]()`; the renderer's GL context stays alive
+     * across unloads, so the pool's textures are valid to release.
+     */
+    private disposeTerrainMaskPool(): void {
+
+        if (!this.terrainMaskPool_) return;
+
+        this.terrainMaskPool_.dispose();
+        this.terrainMaskPool_ = null;
+    }
+
+    /**
+     * Recursive terrain draw selected by `mapTerrainTraversal`. Feeds
+     * the combined-descent traversal in `draw-traversal.ts` with the
+     * current `surfaceList()` and the cached per-surface helper trees.
+     * Glues and virtual surfaces are excluded — see
+     * `rfc-draw-traversal.md` §7.
+     */
+    private drawTerrainRecursive(): void {
+
+        const resolution = resolveMaskResolution(
+            this.core_.map?.config.mapTraversalMaskResolution);
+
+        if (this.terrainMaskPool_
+                && this.terrainMaskPool_.resolution !== resolution) {
+
+            // Config changed at runtime; rebuild for the new size.
+            this.terrainMaskPool_.dispose();
+            this.terrainMaskPool_ = null;
+        }
+
+        if (!this.terrainMaskPool_) {
+            this.terrainMaskPool_ = new DrawTraversalMaskPool(
+                this.core_.renderer, resolution);
+        }
+
+        const trees = this.resolveSurfaceTrees();
+        if (trees.length === 0) return;
+
+        drawTerrainTraversal(this, trees, this.terrainMaskPool_!);
+    }
+
+    /**
+     * Returns the per-surface helper trees the recursive draw
+     * traversal will descend this frame, in `surfaceList()` order.
+     * Allocates the trees on demand and drops stale cache entries.
+     *
+     * Intended for terrain queries that previously walked
+     * `legacyMap.tree` (e.g. `MapMeasure.getSurfaceHeight`): they
+     * should iterate this list front-to-back (last index first) and
+     * return the first tree whose trace yields data.
+     *
+     * Returns an empty array when the recursive path is not active or
+     * when no surface is in view.
+     */
+    surfaceTreesForQuery(): MapSurfaceTree[] {
+
+        const mode = this.overrides.terrainTraversal
+            ?? this.core_.map?.config.mapTerrainTraversal
+            ?? 'recursive';
+
+        if (mode !== 'recursive') return [];
+        return this.resolveSurfaceTrees();
+    }
+
+    /**
+     * Returns the surfaces the recursive draw traversal should render,
+     * in back-to-front order (front surface at the last index). Plain
+     * surfaces only — glues and virtual surfaces are skipped. For
+     * map-config maps the set comes from the active view's surface
+     * keys; for style-based maps it comes from the style spec's
+     * terrain sources.
+     */
+    surfaceList(): MapSurface[] {
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return [];
+
+        let surfaces: MapSurface[];
+
+        if (legacyMap.style) {
+
+            // terrain.sources order: back-to-front, front at last index
+            const sources = legacyMap.style.style().terrain?.sources
+                ?? [];
+
+            surfaces = sources.map(sourceId => {
+
+                const surface = legacyMap.surfaces.find(
+                    s => s.styleSourceId === sourceId);
+
+                if (!surface) {
+                    throw new Error(`terrain.sources references `
+                        + `"${sourceId}" but no surface was loaded `
+                        + `for that source`);
+                }
+
+                return surface;
+            });
+
+        } else {
+
+            // Map-config maps: the active view names plain surfaces by
+            // id. `legacyMap.virtualSurfaces` and `legacyMap.glues`
+            // are kept out of the recursive path entirely.
+            const view = legacyMap.getCurrentView();
+            const byId = (key: string): MapSurface | undefined =>
+                legacyMap.surfaces.find(
+                    (s: MapSurface) => s.id === key);
+
+            surfaces = Object.keys(view.surfaces ?? {})
+                .map(byId)
+                .filter((s: MapSurface | undefined): s is MapSurface =>
+                    s != null);
+        }
+
+        return surfaces;
+    }
+
+    /**
+     * Resolves `surfaceList()` to per-surface helper trees, allocating
+     * new ones on demand and dropping cache entries whose surface has
+     * left the view. Returns the trees in `surfaceList()` order.
+     */
+    private resolveSurfaceTrees(): MapSurfaceTree[] {
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return [];
+
+        const cache = this.surfaceTrees_;
+        const surfaces = this.surfaceList();
+        const result: MapSurfaceTree[] = [];
+        const live = new Set<string>();
+
+        for (const surface of surfaces) {
+
+            const id = surface.id;
+            live.add(id);
+
+            let surfaceTree = cache.get(id);
+            if (!surfaceTree) {
+
+                // Construct a single-surface tree by passing the
+                // surface as `freeLayerSurface`. This short-circuits
+                // the multi-surface logic in `checkSurface` and gives
+                // each tile in the tree direct, per-surface metatile
+                // lookups.
+                surfaceTree = new MapSurfaceTree(legacyMap, true, surface);
+                cache.set(id, surfaceTree);
+            }
+
+            result.push(surfaceTree);
+        }
+
+        // Drop helper trees for surfaces that are no longer in view.
+        for (const id of cache.keys()) {
+
+            if (!live.has(id)) {
+
+                cache.get(id)!.surfaceTree?.kill();
+                cache.delete(id);
+            }
+        }
+
+        return result;
     }
 
     // -----------------------------------------------------------------
@@ -851,9 +1275,25 @@ class Map {
         __DEV__ && utils.warnOnce(
             '[Map] .core is a migration shim and will be removed. '
             + 'Access internals through Map public methods instead.',
+            1,
         );
-        this.assertAlive_();
+        this.assertAlive();
         return this.core_;
+    }
+
+    /**
+     * The underlying legacy map, or `null` before a map has loaded.
+     *
+     * @internal Internal browser infrastructure (inspector, control
+     *   modes) still drives the full legacy map surface. Unlike `.core`,
+     *   this does not warn, because these call sites are migration
+     *   scaffolding rather than external consumers. Goes away with the
+     *   legacy map.
+     */
+    get legacyMap(): LegacyMap | null {
+
+        this.assertAlive();
+        return this.core_.map;
     }
 }
 
@@ -866,6 +1306,16 @@ type OverlayEntry = {
     enabled: boolean;
     added: boolean;
 };
+
+
+/**
+ * Resolves the configured mask resolution. The config setter enforces
+ * power-of-two and bounds; this only guards startup-race / undefined.
+ */
+function resolveMaskResolution(value: CoreConfig[string]): number {
+
+    return typeof value === 'number' ? value : 256;
+}
 
 
 /* Declaration merging: re-export public types under `Map.*`. Consumers

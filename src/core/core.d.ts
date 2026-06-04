@@ -4,7 +4,6 @@
  */
 
 import type LegacyMap from './map/map';
-import type LegacyMapInterface from './map/interface';
 import type Inspector from './inspector/inspector';
 import type Renderer from './renderer/renderer';
 import type Map from './map';
@@ -13,8 +12,8 @@ import type { CoreConfig, CoreEventMap } from './types';
 
 /**
  * Legacy initialisation and animation-frame plumbing. Holds the
- * renderer, the loaded map (`LegacyMap | null`) and its interface,
- * the optional inspector, the event-listener table, and the
+ * renderer, the loaded map (`LegacyMap | null`), the optional
+ * inspector, the event-listener table, and the
  * `requestAnimationFrame` entry point (`onUpdate`), which delegates
  * to typed `Map.tick` through `outerMap`.
  *
@@ -41,7 +40,6 @@ export class Core {
 
     renderer: Renderer;
     map: LegacyMap | null;
-    mapInterface: LegacyMapInterface | null;
     inspector: Inspector | null;
 
     /**

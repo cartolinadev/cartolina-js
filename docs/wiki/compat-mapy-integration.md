@@ -9,6 +9,22 @@ Only calls on the three named objects below were recorded. Calls on
 mapy.com's own objects are excluded. Last verified: **2026-05-23**,
 integration version **2.81.7**.
 
+### Active metatile version
+
+Metatile responses from the mapy.com production tileserver
+(`mapserver-3d.mapy.cz`) use **version 4** of the binary metatile
+format, confirmed by inspecting live responses in 2026-05. Version 4
+stores `minZ`, `maxZ`, and `surrogatez` as explicit float32 values in
+the spatial division node coordinate system (SDS), independent of the
+int16 navSRS `minHeight`/`maxHeight` fields that older versions aliased
+to `minZ`/`maxZ`.
+
+Practical consequence: the v1–v3 bounding-box height-range propagation
+path in
+`MapSurfaceTree.prototype.updateNodeHeightExtents()` (guarded by
+`useVersion < 4`) is never reached against any live mapy.com data.
+See [nav-tiles.md](nav-tiles.md) for the full navtile analysis.
+
 Current cartolina-js applications do not access a `cartolina.core()`
 factory object. They call `cartolina.map(options)` for style-based maps
 or `cartolina.browser(element, config)` for legacy mapConfig maps. Both
@@ -57,7 +73,7 @@ by mapy.com.
 ## Legacy map object
 
 Calls on the `.map` property of the legacy factory result. In the
-current code this is `MapInterface` / `LegacyMap`.
+current code this is `LegacyMap`.
 
 Methods already promoted to `Viewer`:
 
@@ -66,7 +82,7 @@ Methods already promoted to `Viewer`:
 | `.getHitCoords(x, y, mode)` | `Viewer` ✓ |
 | `.convertCoordsFromNavToCanvas(pos, mode)` | `Viewer` ✓ |
 
-Methods that currently exist on `MapInterface` only:
+Methods that currently exist on the legacy map object only:
 
 | Method | Notes |
 |---|---|

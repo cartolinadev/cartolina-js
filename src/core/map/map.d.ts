@@ -9,12 +9,17 @@ import type MapSrs from './srs';
 import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
-import type FreezeCameraState from './freeze-camera-state';
 import type MapDraw from './draw';
+import type MapSurfaceTree from './surface-tree';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
-import type { Overrides } from './overrides';
-import type { CoreConfig, NodeInformation } from '../types';
+import type {
+    CoreConfig,
+    HeightMode,
+    Lod,
+    NodeInformation,
+} from '../types';
+import type { vec3 } from '../utils/math';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -52,8 +57,6 @@ type FreeLayer = MapSurface & {
     zFactor?: number | null;
 };
 
-type SurfaceSequenceItem = [MapSurface, boolean];
-
 /**
  * Legacy map data model — the JavaScript half of `Map` being absorbed
  * into the typed class in `src/core/map.ts`. Runtime implementation
@@ -62,6 +65,13 @@ type SurfaceSequenceItem = [MapSurface, boolean];
  * touches more of the legacy surface.
  */
 export default class Map {
+
+    constructor(
+        core: unknown,
+        path: string,
+        config: CoreConfig,
+        configStorage: unknown,
+    );
 
     /**
      * Back-pointer to the typed `Map` wrapper. Migration scaffolding so
@@ -147,15 +157,7 @@ export default class Map {
 
     style: MapStyle | null;
 
-    tree: {
-        surfaceSequence: SurfaceSequenceItem[];
-        surfaceOnlySequence: SurfaceSequenceItem[];
-        draw(stopOnFinish: boolean): void;
-    };
-
-    overrides: Overrides;
-
-    freeze: FreezeCameraState;
+    tree: MapSurfaceTree;
 
     draw: MapDraw;
 
@@ -192,37 +194,41 @@ export default class Map {
      */
     tickDeferredEvents(): void;
 
-    /**
-     * Runs `callback` with the live navigation camera installed.
-     *
-     * Freeze mode separates the navigation context from the selection
-     * context. Call this for legacy draw code that must render from the
-     * live position while selected terrain still comes from the frozen
-     * position.
-     *
-     * @param callback Code to run under the live camera.
-     * @returns The value returned by `callback`.
-     */
-    withNavigationCamera<T>(callback: () => T): T;
+    setLoaderParams(mapConfig: unknown, configStorage: unknown): void;
 
-    /**
-     * Runs `callback` with the frozen selection camera installed.
-     *
-     * Use for legacy draw code that must operate in the selection
-     * context: culling, texel-size selection, and depth sampling.
-     * When freeze mode is inactive, runs `callback` without any swap.
-     *
-     * @param callback Code to run under the selection camera.
-     * @returns The value returned by `callback`.
-     */
-    withSelectionCamera<T>(callback: () => T): T;
+    /** True when the navigation SRS is geocentric (non-projected). */
+    isGeocent: boolean;
+
+    /** Set when the hitmap needs to be redrawn. */
+    hitMapDirty: boolean;
+
+    /** Set when the geodata hitmap needs to be redrawn. */
+    geoHitMapDirty: boolean;
+
+    /** Frame counter used by camera smoothing. Typo preserved from JS. */
+    updateCoutner: number;
+
+    /** The parsed mapConfig object. Shape is fully owned by map.js. */
+    mapConfig: unknown;
+
+    /** The coordinate-conversion helper attached after construction. */
+    convert: unknown;
+
+    /** Regenerates the free-layer and surface sequences from the view. */
+    refreshView(): void;
+
+    /** Returns the current `MapView`. Shape owned by `view.js`. */
+    getCurrentView(): {
+        surfaces: Record<string, unknown>;
+        freeLayers: Record<string, unknown>;
+    };
 
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;
     addCredit(id: string, credit: MapCredit): void;
     addSurface(id: string, surface: MapSurface): void;
     addBoundLayer(id: string, layer: MapBoundLayer): void;
-    addFreeLayer(id: string, layer: MapSurface): void;
+    addFreeLayer(id: string, layer: unknown): void;
     removeFreeLayer(id: string): void;
 
     /**
@@ -232,10 +238,51 @@ export default class Map {
      */
     createGeodata(): unknown;
 
+    convertPositionHeightMode(
+        position: MapPosition | number[],
+        mode: HeightMode,
+        noPrecisionCheck?: boolean,
+    ): MapPosition;
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: HeightMode,
+        lod?: Lod,
+        includeSE?: boolean,
+    ): vec3 | null;
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3;
+    getHitCoords(
+        screenX: number,
+        screenY: number,
+        mode: HeightMode,
+        lod?: Lod,
+    ): vec3 | null;
+
     getFreeLayer(id: string): FreeLayer | undefined;
     getBoundLayerById(id: string): MapBoundLayer | undefined;
     getNavigationSrs(): MapSrs;
     getPhysicalSrs(): MapSrs;
+    getSrsInfo(srsId: string): Record<string, unknown>;
+    getReferenceFrame(): {
+        id: string;
+        physicalSrs: string;
+        navigationSrs: string;
+        publicSrs: string;
+    };
     /**
      * Returns terrain distance at a 2D position in the current screen view.
      *
@@ -266,8 +313,12 @@ export default class Map {
     isAtmospheric(): boolean;
 
     gpuCache: {
+        /** phase-1: traversal toggles this around the descent. */
+        skipCostCheck: boolean;
         insert(destructor: () => void, cost: number): object;
         remove(item: object): void;
         updateItem(item: object): void;
+        /** phase-1 */
+        checkCost(): void;
     };
 }

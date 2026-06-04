@@ -618,32 +618,93 @@ export function compareTuples<T>(a: T[], b: T[]) {
 }
 
 
-// Simple global log once utility
-export const warnOnce = (() => {
+/**
+ * Returns the source location of the caller `depth` frames above the
+ * once-logger, read from a stack trace. `depth` 0 is the logger's
+ * immediate caller; pass a higher value from a forwarding wrapper such as
+ * a getter or a deprecated method, so the reported site is the code that
+ * invoked the wrapper rather than the wrapper itself. Best-effort and
+ * oriented at the V8 stack format; returns '' when the stack is missing
+ * or in an unexpected layout, in which case the loggers fall back to
+ * deduping by message alone.
+ *
+ * @param stack a raw `Error.stack` string, or `undefined`
+ * @param depth frames to skip above the logger's immediate caller
+ * @returns the trimmed caller frame, or '' if it cannot be determined
+ */
+function callSite(stack: string | undefined, depth: number): string {
 
-    const logged = new Set();  // Each call creates new closure
+    if (!stack) return '';
 
-    return (message: string): void => {
+    const lines = stack.split('\n');
 
-        if (!logged.has(message)) {
-            console.warn(message); logged.add(message);
-        }
+    // [0] is the "Error" header, [1] is the once-logger frame itself, so
+    // [2] is its immediate caller; `depth` skips forwarding wrappers
+    // above that.
+    const line = lines[2 + depth];
+
+    return line ? line.trim().replace(/^at /, '') : '';
+}
+
+/**
+ * Builds a logger that emits a message at most once per distinct call
+ * site. The call site is read from the stack and appended to the output,
+ * so the console points at the code that called the logger rather than
+ * at this module. When the site cannot be read, dedup falls back to the
+ * message alone, matching the previous message-only behaviour.
+ *
+ * A stack is captured on every call, before the dedup check, so the
+ * loggers are diagnostics for cold paths only — do not call them on a
+ * hot path (per-frame, per-tile, and so on).
+ *
+ * The returned logger takes an optional `callerDepth`: pass a positive
+ * value from a forwarding wrapper (a getter, a deprecated method) so the
+ * reported site is the wrapper's caller rather than the wrapper itself.
+ *
+ * @param sink receives the formatted text, such as `console.warn`
+ * @returns a logger `(message: string, callerDepth?: number) => void`
+ */
+const makeOnce = (sink: (text: string) => void) => {
+
+    const seen = new Set<string>();
+
+    return (message: string, callerDepth: number = 0): void => {
+
+        const site = callSite(new Error().stack, callerDepth);
+        const key = site ? message + '\n' + site : message;
+
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        sink(site ? message + '\n    at ' + site : message);
     };
+};
 
-})();
+/**
+ * Logs a warning to the console at most once per distinct call site, with
+ * the caller's source location appended so the message points at the
+ * caller rather than at this module. Repeated calls from the same site
+ * are suppressed. Captures a stack on every call — cold-path diagnostics
+ * only, never on a per-frame or per-tile path.
+ *
+ * @param message the warning text
+ * @param callerDepth frames to skip when the call is forwarded from a
+ *   wrapper (getter, deprecated method); 0 for a direct call
+ */
+export const warnOnce = makeOnce(text => console.warn(text));
 
-export const logOnce = (() => {
-
-    const logged = new Set();  // Each call creates new closure
-
-    return (message: string): void => {
-
-        if (!logged.has(message)) {
-            console.log(message); logged.add(message);
-        }
-    };
-
-})();
+/**
+ * Logs a message to the console at most once per distinct call site, with
+ * the caller's source location appended so the message points at the
+ * caller rather than at this module. Repeated calls from the same site
+ * are suppressed. Captures a stack on every call — cold-path diagnostics
+ * only, never on a per-frame or per-tile path.
+ *
+ * @param message the text to log
+ * @param callerDepth frames to skip when the call is forwarded from a
+ *   wrapper (getter, deprecated method); 0 for a direct call
+ */
+export const logOnce = makeOnce(text => console.log(text));
 
 
 export function isIos(): boolean {

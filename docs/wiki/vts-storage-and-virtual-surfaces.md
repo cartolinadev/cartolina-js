@@ -1,6 +1,6 @@
 # VTS storage, aggregated driver, and virtual surfaces
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This document is VTS archaeology: it explains the server-side machinery
 behind glues and virtual surfaces so that the concepts can be correctly

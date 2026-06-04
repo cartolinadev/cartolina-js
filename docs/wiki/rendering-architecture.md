@@ -1,11 +1,14 @@
 # Rendering architecture
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page records the current renderer boundary and terrain draw
-direction. Format details live in `surface-metatile.md`,
-`lod-selection.md`, `normal-encoding.md`, `render-targets.md`, and
-`renderer-coordinate-spaces.md`.
+direction. Format details live in
+[surface-metatile.md](surface-metatile.md),
+[lod-selection.md](lod-selection.md),
+[normal-encoding.md](normal-encoding.md),
+[render-targets.md](render-targets.md), and
+[renderer-coordinate-spaces.md](renderer-coordinate-spaces.md).
 
 ## Map And Renderer Boundary
 
@@ -55,6 +58,17 @@ One `TileRenderRig` resolves tile resources, tracks readiness, builds
 the style layer stack, collapses bump maps into the normal map when
 possible, and renders color and depth passes for one terrain tile.
 
+The default terrain draw path now enters
+`src/core/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.
+It performs recursive backtracking over the legacy-selected terrain
+surface and uses UV-space R8 masks from
+`src/core/map/draw-traversal-mask.ts` to stop fallback tiles from
+overdrawing finer child coverage. The traversal uses v6
+`metanode.watertight` flags as a post-draw fast path: a drawn
+watertight tile skips footprint rasterization and returns analytic full
+coverage on backtrack. The check is repeated per node; a watertight
+ancestor does not deactivate descendants. There is no erosion yet.
+
 This replaced the old terrain draw-command path that was split across:
 
 - `MapDrawTiles.drawMeshTile`
@@ -86,8 +100,10 @@ The next design target is:
 - `Viewer` remains the flat public API
 - legacy sub-objects remain private until they are deleted
 
-`rfc-draw-traversal.md` describes the accepted traversal replacement.
-`rfc-bump-bake.md` records the implemented bump-layer collapse.
+[rfc-draw-traversal.md](rfc-draw-traversal.md) describes the accepted
+traversal replacement.
+[rfc-bump-bake.md](rfc-bump-bake.md) records the implemented
+bump-layer collapse.
 
 ## Renderer Responsibilities
 
@@ -96,8 +112,10 @@ owned by the active `GpuDevice.RenderTarget` and read through
 `gpu.currentRenderTarget.apparentSize`. `renderer.apparentSize` is a
 convenience accessor for the same value.
 
-Render-target policy is documented in `render-targets.md`. Coordinate
-space terminology is documented in `renderer-coordinate-spaces.md`.
+Render-target policy is documented in
+[render-targets.md](render-targets.md). Coordinate space terminology
+is documented in
+[renderer-coordinate-spaces.md](renderer-coordinate-spaces.md).
 
 ## Illumination
 
@@ -155,22 +173,22 @@ those cases to avoid visible artifacts.
 
 ## Runtime Overrides
 
-`Map.overrides` is a single runtime object holding all per-frame
-rendering overrides. Its type, `Overrides`, and its defaults,
-`defaultOverrides`, are defined in `src/core/map/overrides.ts` and
-derived with `typeof` so the type and the defaults cannot drift.
+`overrides` is a single runtime object holding all per-frame rendering
+overrides. Its type, `Overrides`, and its defaults, `defaultOverrides`,
+are defined in `src/core/map/overrides.ts` and derived with `typeof` so
+the type and the defaults cannot drift.
 
-`Map` (map.js) owns the object. The constructor spreads the defaults:
+The typed `Map` (`map.ts`) owns the object as a class field:
 
-```js
-this.overrides = { ...defaultOverrides };
+```ts
+overrides: Overrides = { ...defaultOverrides };
 ```
 
 `Renderer` shares the same reference, installed in
 `Renderer.initFrame()`:
 
 ```ts
-this.overrides = map.overrides;
+this.overrides = map.outerMap.overrides;
 ```
 
 `draw.*` fields are explicit booleans (`false` by default). They
@@ -180,9 +198,9 @@ toggle debug visualizations.
 corresponding `config` value". Any explicit `boolean` overrides the
 config for that frame.
 
-Inspector and input code write `map.overrides.flagX` directly. Legacy
-JS files that still read `renderer.debug.X` reach the same object
-through a `get debug()` accessor on `Renderer`.
+Inspector and input code reach the object via `map.outerMap.overrides`.
+Legacy JS files that still read `renderer.debug.X` reach the same
+object through a `get debug()` accessor on `Renderer`.
 
 ## Colour Encoding
 

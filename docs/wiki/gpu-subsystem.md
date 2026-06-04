@@ -1,21 +1,22 @@
 # GPU subsystem
 
 This page records low-level WebGL/GPU subsystem rules. It is the entry
-point for details that are too specific for `architecture.md` but affect
-renderer correctness across features.
+point for details that are too specific for
+[architecture.md](architecture.md) but affect renderer correctness
+across features.
 
 Related pages cover focused parts of the subsystem:
 
-- `render-targets.md` — render-target ownership and auxiliary
-  framebuffer policy.
-- `rendering-sizes.md` — canvas, framebuffer, logical, physical, and
-  visual-scale size relationships.
-- `renderer-coordinate-spaces.md` — projection and target-local 2D
-  coordinate conventions.
-- `normal-encoding.md` — normal-map encoding and texture-space
-  filtering rules.
-- `rfc-bump-bake.md` — historical design notes for GPU texture
-  preprocessing and cache ownership.
+- [render-targets.md](render-targets.md) — render-target ownership
+  and auxiliary framebuffer policy.
+- [rendering-sizes.md](rendering-sizes.md) — canvas, framebuffer,
+  logical, physical, and visual-scale size relationships.
+- [renderer-coordinate-spaces.md](renderer-coordinate-spaces.md) —
+  projection and target-local 2D coordinate conventions.
+- [normal-encoding.md](normal-encoding.md) — normal-map encoding and
+  texture-space filtering rules.
+- [rfc-bump-bake.md](rfc-bump-bake.md) — historical design notes for
+  GPU texture preprocessing and cache ownership.
 
 ## Ownership
 

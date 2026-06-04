@@ -6,7 +6,8 @@
       "WebFetch(domain:cesium.com)",
       "WebFetch(domain:pixijs.download)",
       "WebFetch(domain:doc.babylonjs.com)",
-      "WebFetch(domain:pixijs.com)"
+      "WebFetch(domain:pixijs.com)",
+      "WebFetch(domain:cdn.tspl.re)"
     ]
   },
   "hooks": {
@@ -16,8 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git commit*)",
-            "command": "echo '{\"systemMessage\": \"Committing — make sure this was explicitly requested.\"}'"
+            "command": "echo '{\"systemMessage\": \"Committing — make sure this was explicitly requested.\"}'",
+            "if": "Bash(git commit*)"
           }
         ]
       }

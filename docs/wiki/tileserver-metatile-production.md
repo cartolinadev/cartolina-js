@@ -1,6 +1,6 @@
 # Tileserver metatile production
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This document describes how the cartolina-tileserver generates
 metatiles, where the computational cost lies, and the structural
@@ -66,8 +66,12 @@ fully covered (watertight), and which have navtile data. The
 For each tile in the analysis range it warps a small grid of
 `(tileSampling + 1)²` samples from the VRTWO (default: 129 × 129
 = 16 641 samples per tile), inspects the coverage mask, and sets
-the appropriate flags. Subtrees below a watertight tile are
-promoted without further warping.
+the appropriate flags. A fully-covered tile seals its whole subtree
+as watertight without further warping only when the warp reached
+native resolution (no overview, no downscaling); a fully-covered but
+downsampled tile is marked watertight per-tile and descent continues,
+because finer source data could still resolve holes. See
+[tile-index.md](tile-index.md) for the exact flag rules.
 
 The output is a compact binary QTree file saved alongside the
 resource definition.

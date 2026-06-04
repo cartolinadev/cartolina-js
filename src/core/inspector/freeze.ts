@@ -39,11 +39,11 @@ export class FreezeMode {
 
         map.camera.update();
         this.navPosition_ = map.position.clone();
-        map.freeze.activateFromCurrentCamera();
+        map.outerMap.freeze!.activateFromCurrentCamera();
 
         this.active = true;
-        this.ensureControls_(map);
-        this.updateControls_();
+        this.ensureControls(map);
+        this.updateControls();
         map.markDirty();
     }
 
@@ -55,7 +55,7 @@ export class FreezeMode {
     unfreeze(map: LegacyMap | null): void {
 
         if (map) {
-            map.freeze.deactivate();
+            map.outerMap.freeze?.deactivate();
             map.markDirty();
         }
 
@@ -64,8 +64,8 @@ export class FreezeMode {
         this.frustumApex = null;
         this.frustumBase = null;
         this.navPosition_ = null;
-        this.updateControls_();
-        this.removeControlsIfIdle_();
+        this.updateControls();
+        this.removeControlsIfIdle();
     }
 
     /**
@@ -120,7 +120,7 @@ export class FreezeMode {
             this.frustumBase = null;
         }
 
-        this.updateControls_();
+        this.updateControls();
         map.markDirty();
     }
 
@@ -135,12 +135,12 @@ export class FreezeMode {
 
         if (active && map) {
 
-            this.ensureControls_(map);
-            this.updateControls_();
+            this.ensureControls(map);
+            this.updateControls();
 
         } else {
 
-            this.removeControlsIfIdle_();
+            this.removeControlsIfIdle();
         }
     }
 
@@ -152,11 +152,12 @@ export class FreezeMode {
      */
     captureFrustum(map: LegacyMap, renderer: Renderer): void {
 
-        const selectionState = map?.freeze.selectionCameraState ?? null;
+        const selectionState =
+            map?.outerMap.freeze?.selectionCameraState ?? null;
         if (!map || !selectionState) return;
 
         const [w, h] = renderer.getCanvasSize();
-        const maxDepth = map.withSelectionCamera(() => {
+        const maxDepth = map.outerMap.withSelectionCamera(() => {
 
             map.markDirty();
             map.getScreenDepth(w * 0.5, h * 0.5, 0, false, 'layout');
@@ -164,9 +165,9 @@ export class FreezeMode {
         });
         const depth = maxDepth !== null
             ? maxDepth * 1.1
-            : this.referenceFrameExtent_(map);
+            : this.referenceFrameExtent(map);
 
-        const apex = this.cameraPosition_(selectionState);
+        const apex = this.cameraPosition(selectionState);
         const corners: [number, number][] = [
             [0, 0],
             [w, 0],
@@ -174,7 +175,7 @@ export class FreezeMode {
             [0, h],
         ];
 
-        const base = map.withSelectionCamera(() =>
+        const base = map.outerMap.withSelectionCamera(() =>
             corners.map(([x, y]) => {
 
                 const ray = renderer.getScreenRay(x, y, 'layout');
@@ -189,7 +190,7 @@ export class FreezeMode {
         this.frustumBase = base;
     }
 
-    private referenceFrameExtent_(map: LegacyMap): number {
+    private referenceFrameExtent(map: LegacyMap): number {
 
         const ext = map.referenceFrame?.division?.extents;
         if (!ext) return 0;
@@ -201,14 +202,14 @@ export class FreezeMode {
         return Math.max(dx, dy, dz);
     }
 
-    private cameraPosition_(
+    private cameraPosition(
         state: FreezeCameraState.CapturedCameraState,
     ): number[] {
 
         return state.map.position.slice();
     }
 
-    private ensureControls_(map: LegacyMap): void {
+    private ensureControls(map: LegacyMap): void {
 
         if (this.controlsEl_) return;
 
@@ -223,19 +224,19 @@ export class FreezeMode {
             event.stopPropagation();
         });
 
-        this.freezeBtn_ = this.createButton_('Freeze', () => {
+        this.freezeBtn_ = this.createButton('Freeze', () => {
 
             this.toggleFrozen(map);
         });
         controls.appendChild(this.freezeBtn_);
 
-        this.frustumBtn_ = this.createButton_('Show frustum', () => {
+        this.frustumBtn_ = this.createButton('Show frustum', () => {
 
             this.toggleFrustum(map, map.renderer);
         });
         controls.appendChild(this.frustumBtn_);
 
-        this.resetBtn_ = this.createButton_('Reset view', () => {
+        this.resetBtn_ = this.createButton('Reset view', () => {
 
             this.resetView(map);
         });
@@ -243,10 +244,10 @@ export class FreezeMode {
 
         document.body.appendChild(controls);
         this.controlsEl_ = controls;
-        this.updateControls_();
+        this.updateControls();
     }
 
-    private createButton_(
+    private createButton(
         label: string,
         onClick: () => void,
     ): HTMLButtonElement {
@@ -264,7 +265,7 @@ export class FreezeMode {
         return btn;
     }
 
-    private updateControls_(): void {
+    private updateControls(): void {
 
         if (!this.freezeBtn_ || !this.frustumBtn_ || !this.resetBtn_) return;
 
@@ -276,7 +277,7 @@ export class FreezeMode {
         this.resetBtn_.disabled = !this.active;
     }
 
-    private removeControlsIfIdle_(): void {
+    private removeControlsIfIdle(): void {
 
         if (this.active || this.controlsActive_) return;
 

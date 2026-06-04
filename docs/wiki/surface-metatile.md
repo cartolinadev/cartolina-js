@@ -1,6 +1,6 @@
 # Surface metatile format
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 A **metatile** is a binary resource that carries a compact grid of
 **metanodes**, one per tile cell in a fixed-size block of the tile
@@ -10,8 +10,12 @@ their height range, which children exist, and how large the tile
 would appear on screen. All LOD selection, frustum culling, and
 resource-loading decisions are driven by metatile data.
 
-The current format version is **5**. Versions 1–4 are still parsed
-by the client.
+The client supports format versions **1–6**. cartolina-tileserver
+(mapproxy) emits v6 with the watertight bitplane, generated fresh on
+each request. vts-vtsd serves stored tilesets byte-for-byte, so a
+stored v5 tileset stays v5 until it is re-encoded to v6; see
+[vts-vtsd-archeology.md](vts-vtsd-archeology.md) for how vtsd delivers
+metatiles and the re-encode process and commands.
 
 The server-side format is defined in
 `externals/vts-libs/vts-libs/vts/metatile.hpp` in the
@@ -28,7 +32,7 @@ All multi-byte integers are little-endian.
 
 ```
 magic[2]       char     — always "MT"
-version        uint16   — format version (1–5)
+version        uint16   — format version (1–6)
 lod            uint8    — LOD of this metatile
 metatileIdx    uint32   — tile X of the upper-left corner
 metatileIdy    uint32   — tile Y of the upper-left corner
@@ -71,13 +75,19 @@ follows in the stream. A bitplane is a byte array of size
 `ceil(sizeX * sizeY / 8)`, one bit per tile cell, in row-major
 order with each row byte-padded.
 
-Currently only **bitplane 0** is used. It carries the **alien
-flag** for each tile: a tile is alien when its content was
-sourced from a foreign (non-primary) surface during glue
-generation. See `glue-alien-flag.md` for context.
+**Bitplane 0** carries the **alien flag** for each tile: a tile is
+alien when its content was sourced from a foreign (non-primary) surface
+during glue generation. See [glue-alien-flag.md](glue-alien-flag.md)
+for context.
 
-Bitplanes for bits 1–5 are reserved and not produced by the
-current tileserver.
+**Bitplane 1** is valid for v6+ metatiles and carries the
+**watertight flag**. A watertight tile fully covers the geographic cell
+allocated to the tile by the spatial division. The client writes it to
+`metanode.watertight` when parsing a v6 metatile. For v1–v5 metatiles
+`metanode.watertight` stays `false`, even if bitplane 1 appears in the
+header.
+
+Bitplanes for bits 2–5 are reserved.
 
 ### Credit blocks
 
@@ -117,7 +127,7 @@ for a given tile.
 flags          uint8    — content and child flags (see below)
 ```
 
-**v1–v3 only — quantized physical extents:**
+**v1–v4 — quantized physical extents:**
 
 ```
 geomExtents    variable — packed bit array of 6 × (lod+2) bits:
@@ -130,6 +140,11 @@ geomExtents    variable — packed bit array of 6 × (lod+2) bits:
 All-zero extents signal an empty tile (no geometry). The client
 maps these to ±Infinity so they are culled immediately.
 
+v4 tiles carry these bytes at the same position as v1–v3. The client
+parser reads them for all `version < 5` and uses them for the
+horizontal bounding box. They are superseded in v5 by explicit SDS
+horizontal extents.
+
 **v4+ — explicit SDS height:**
 
 ```
@@ -139,7 +154,7 @@ surrogate      float32  — representative tile height used for disk
                           position computation; −∞ when not set
 ```
 
-**v5 only — SDS horizontal extents:**
+**v5+ — SDS horizontal extents:**
 
 ```
 llX            float32  — lower-left X of tile in SDS
@@ -220,9 +235,10 @@ See "Glue surface resolution" in the client usage section below.
 | 6 | `llChild` | lower-left child tile exists |
 | 7 | `lrChild` | lower-right child tile exists |
 
-The alien flag is **not** in this byte. It lives in bitplane 0
-of the metatile header and is written into `metanode.alien` by
-`applyMetatanodeBitplanes()`.
+The alien and watertight flags are **not** in this byte. Alien lives in
+header bitplane 0. Watertight lives in header bitplane 1 for v6+
+metatiles. `applyMetatanodeBitplanes()` writes them to
+`metanode.alien` and `metanode.watertight`.
 
 
 ## Version history
@@ -232,8 +248,9 @@ of the metatile header and is written into `metanode.alien` by
 | 1 | Initial format. `nodeSize` in header; quantized physical extents per metanode; credits preceded by `creditCount` and `creditSize` fields. |
 | 2 | `flags` and `creditCount` moved to header; `creditSize` dropped; flag bitplanes added; alien bitplane (plane 0) introduced. |
 | 3 | `sourceReference` field added to each metanode; header flag bits 6/7 control whether it is uint8 or uint16. |
-| 4 | Quantized physical extents removed; `minZ`, `maxZ`, `surrogate` (float32 each) added. Precise bbox computation enabled. |
-| 5 | SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added. These give the actual mesh bounds within the tile cell, which can be tighter than the full cell when geometry does not cover it completely. cartolina-js skips them and uses full-cell bounds derived from the division node, which is sufficient for frustum culling. |
+| 4 | `minZ`, `maxZ`, `surrogate` (float32 each) added after the existing quantized extents. Quantized extents remain in the stream and are still read by the client for the horizontal bbox. |
+| 5 | Quantized physical extents removed; SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added in their place. cartolina-js skips the SDS horizontal extents and continues to use full-cell bounds derived from the division node, which is sufficient for frustum culling. |
+| 6 | Header bitplane 1 added for the watertight tile flag. The per-node byte layout is unchanged from v5. |
 
 
 ## Client usage
@@ -286,8 +303,8 @@ computes `tile.texelSize` from the metanode:
 `updateTexelSize()` projects the length to physical viewport pixels
 for the current camera. The normal descent test is
 `tile.texelSize > draw.texelSizeFit`; `mapTexelSizeFit` defaults to
-`1.1`. See `lod-selection.md` for the full calculation and traversal
-rules.
+`1.1`. See [lod-selection.md](lod-selection.md) for the full calculation
+and traversal rules.
 
 ### Frustum culling and disk distance
 

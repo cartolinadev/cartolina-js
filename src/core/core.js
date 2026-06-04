@@ -1,9 +1,7 @@
-import Map from './map/map';
 import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
 
 import MapPosition from './map/position';
-import MapInterface from './map/interface';
 import * as utils from './utils/utils';
 import {utilsUrl} from './utils/url';
 import {platform} from './utils/platform';
@@ -63,6 +61,10 @@ var Core = function(element, config) {
         mapGeodataLoadMode : 'fit', // 'fitonly'
         mapSplitMeshes : false, // used for topdown load mode
         mapSplitMargin : 0.0025, // used for topdown load mode
+        mapTraversalMaskResolution : 256,
+        mapTraversalMaskThreshold : 0.65, // fallback-coverage discard cutoff
+        mapTerrainTraversal : 'recursive', // 'recursive', 'legacy'
+        mapFallbackCadence : 3, // 1 = topdown, large = fitonly
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,
@@ -152,7 +154,6 @@ var Core = function(element, config) {
     this.config.style = config.style;
 
     this.map = null;
-    this.mapInterface = null;
     this.renderer = new Renderer(this, this.element, this.config);
     this.contextLost = false;
 
@@ -200,14 +201,17 @@ Core.prototype.loadMapFromStyle = async function(style) {
 
         path = utilsUrl.getProcessUrl(style, path);
         style_ = await utils.loadJson(path);
+
+    } else {
+
+        // style is already a parsed object; yield so the Core constructor
+        // finishes and outerMap is set before we call createMapFromStyle
+        await Promise.resolve();
     }
 
     // create map
-    this.map = await Map.createMapFromStyle(this, style_, path,
-                    this.config, this.configStorage);
-    this.map.outerMap = this.outerMap;
+    await this.outerMap.createMapFromStyle(style_, path);
 
-    this.mapInterface = new MapInterface(this.map);
     this.setConfigParams(this.configStorage);
 
     if (this.config.position) {
@@ -248,10 +252,7 @@ Core.prototype.loadMap = function(path) {
 
         this.callListener('map-mapconfig-loaded', data);
 
-        //this.map = new Map(this, data, path, this.config, this.configStorage);
-        this.map = Map.createMapFromMapConfig(this, data, path, this.config, this.configStorage);
-        this.map.outerMap = this.outerMap;
-        this.mapInterface = new MapInterface(this.map);
+        this.outerMap.createMapFromMapConfig(data, path);
         this.setConfigParams(this.map.browserOptions, true);
         this.setConfigParams(this.configStorage);
 
@@ -387,7 +388,7 @@ Core.prototype.destroyMap = function() {
     if (this.map) {
         this.map.kill();
         this.map = null;
-        this.mapInterface = null;
+        if (this.outerMap) this.outerMap.freeze = null;
         this.callListener('map-unloaded', {});
     }
 };
@@ -395,11 +396,6 @@ Core.prototype.destroyMap = function() {
 
 Core.prototype.getMap = function() {
     return this.map;
-};
-
-
-Core.prototype.getMapInterface = function() {
-    return this.mapInterface;
 };
 
 

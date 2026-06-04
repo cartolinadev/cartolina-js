@@ -20,14 +20,14 @@ import MapUrl from './url';
 import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
-import FreezeCameraState from './freeze-camera-state';
-import { defaultOverrides } from './overrides';
+import MapTrajectory from './trajectory';
+import MapSurface from './surface';
+import MapGeodataBuilder from './geodata-builder';
 
 
 var Map = function(core, path, config, configStorage) {
 
     this.config = config || {};
-    this.overrides = { ...defaultOverrides };
     this.setConfigParams(config);
     this.core = core;
     this.coreConfig = core.coreConfig;
@@ -47,7 +47,7 @@ var Map = function(core, path, config, configStorage) {
     this.services = {};
     this.credits = {};
     this.creditsByNumber = {};
-    this.surfaces = {};
+    this.surfaces = [];
     this.virtualSurfaces = {};
     this.glues = {};
     this.freeLayers = {};
@@ -110,86 +110,6 @@ var Map = function(core, path, config, configStorage) {
 
     this.measure = null;
 }
-
-Map.createMapFromStyle = async function(core, style, path, config, configStorage) {
-
-    let map = new Map(core, path, config, configStorage);
-
-    map.setLoaderParams(null, configStorage);
-
-    // load style
-    await MapStyle.loadStyle(map, style);
-
-    // no clue what these are
-    map.convert = new MapConvert(map);
-    map.measure = new MapMeasure(map);
-    map.convert.measure = map.measure;
-
-    map.isGeocent = !map.getNavigationSrs().isProjected();
-
-    map.tree = new MapSurfaceTree(map, false);
-
-    // generate sequences
-    map.refreshView();
-
-    // force update
-    map.dirty = true;
-    map.hitMapDirty = true; map.geoHitMapDirty = true;
-
-    map.draw = new MapDraw(map);
-    map.freeze = new FreezeCameraState(map);
-    map.draw.setupDetailDegradation();  // probably not needed
-
-    let body = map.referenceFrame.body;
-    let services = map.services;
-
-    return map;
-}
-
-Map.createMapFromMapConfig = function(core, mapConfig, path, config, configStorage) {
-
-    let map = new Map(core, path, config, configStorage);
-
-    map.setLoaderParams(mapConfig, configStorage);
-
-    // most of initialization happens here
-    map.mapConfig = new MapConfig(map, mapConfig);
-
-
-    map.convert = new MapConvert(map);
-    map.measure = new MapMeasure(map);
-    map.convert.measure = map.measure;
-
-    map.isGeocent = !map.getNavigationSrs().isProjected();
-
-    map.tree = new MapSurfaceTree(map, false);
-    map.currentView_ =  new MapView(this, {});
-
-    map.mapConfig.afterConfigParsed();
-
-    map.updateCoutner = 0;
-
-    map.dirty = true;
-    map.dirtyCountdown = 0;
-    map.hitMapDirty = true;
-    map.geoHitMapDirty = true;
-
-    map.draw = new MapDraw(map);
-    map.freeze = new FreezeCameraState(map);
-    map.draw.setupDetailDegradation();
-
-    var body = map.referenceFrame.body;
-    let services = map.services;
-
-    // atmosphere
-    if (body && body.atmosphere && services && services.atmdensity)
-        map.atmosphere = new Atmosphere(
-            body.atmosphere, map.getPhysicalSrs(),
-            map.url.makeUrl(services.atmdensity.url, {}), map);
-
-    return map;
-};
-
 
 Map.prototype.kill = function() {
     this.killed = true;
@@ -276,6 +196,12 @@ Map.prototype.getSrses = function() {
 };
 
 
+Map.prototype.getSrsInfo = function(srsId) {
+    var srs = this.getSrs(srsId);
+    return srs ? srs.getInfo() : {};
+};
+
+
 Map.prototype.addBody = function(id, body) {
     this.bodies[id] = body;
 };
@@ -293,6 +219,11 @@ Map.prototype.getBodies = function() {
 
 Map.prototype.setReferenceFrame = function(referenceFrame) {
     this.referenceFrame = referenceFrame;
+};
+
+
+Map.prototype.getReferenceFrame = function() {
+    return this.referenceFrame.getInfo();
 };
 
 
@@ -473,6 +404,11 @@ Map.prototype.getBoundLayers = function() {
 
 
 Map.prototype.addFreeLayer = function(id, layer) {
+
+    if (layer == null) return;
+    if (!(layer instanceof MapSurface))
+        layer = new MapSurface(this, layer, 'free');
+
     this.freeLayers[id] = layer;
     //this.setView(this.getView());
     this.markDirty();
@@ -842,6 +778,349 @@ Map.prototype.getPosition = function() {
 };
 
 
+Map.prototype.getCurrentCredits = function() {
+
+    return this.getVisibleCredits();
+};
+
+
+Map.prototype.getCreditInfo = function(creditId) {
+
+    var credit = this.getCreditById(creditId);
+    return credit ? credit.getInfo() : {};
+};
+
+
+Map.prototype.convertPositionViewMode = function(position, mode) {
+
+    return this.convert.convertPositionViewMode(
+        new MapPosition(position), mode);
+};
+
+
+Map.prototype.convertPositionHeightMode = function(
+    position, mode, noPrecisionCheck) {
+
+    return this.convert.convertPositionHeightMode(
+        new MapPosition(position), mode, noPrecisionCheck);
+};
+
+
+Map.prototype.convertCoords = function(sourceSrs, destinationSrs, coords) {
+
+    var srs = this.getSrs(sourceSrs);
+    var srs2 = this.getSrs(destinationSrs);
+    if (!srs || !srs2) return null;
+
+    return srs2.convertCoordsFrom(coords, srs);
+};
+
+
+Map.prototype.convertCoordsFromNavToPublic = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionPublicCoords(new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPublicToNav = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionNavCoordsFromPublic(
+        new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToPublic = function(pos, containsSE) {
+
+    if (containsSE && this.renderer.useSuperElevation) {
+
+        var p = this.renderer.transformPointBySE(pos);
+        return this.convert.convertCoords(p, 'physical', 'public');
+    }
+
+    return this.convert.convertCoords(pos, 'physical', 'public');
+};
+
+
+Map.prototype.convertCoordsFromNavToPhys = function(
+    pos, mode, lod, includeSE) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionPhysCoords(
+        new MapPosition(p), lod, includeSE);
+};
+
+
+Map.prototype.convertCoordsFromPhysToNav = function(
+    pos, mode, lod, containsSE) {
+
+    return this.convert.convertCoordsFromPhysToNav(
+        pos, mode, lod, containsSE);
+};
+
+
+Map.prototype.convertCoordsFromNavToCanvas = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCanvasCoords(new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToCanvas = function(pos, containsSE) {
+
+    var p = ['obj', pos[0], pos[1], 'fix', pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCanvasCoords(
+        new MapPosition(p), null, true, containsSE);
+};
+
+
+Map.prototype.convertCoordsFromNavToCameraSpace = function(pos, mode, lod) {
+
+    var p = ['obj', pos[0], pos[1], mode, pos[2], 0, 0, 0, 10, 45];
+    return this.convert.getPositionCameraSpaceCoords(
+        new MapPosition(p), lod);
+};
+
+
+Map.prototype.convertCoordsFromPhysToCameraSpace = function(pos) {
+
+    var p = this.camera.position;
+    return [pos[0] - p[0], pos[1] - p[1], pos[2] - p[2]];
+};
+
+
+Map.prototype.transformPhysCoordsBySE = function(pos) {
+
+    return this.convert.transformPhysCoordsBySE(pos);
+};
+
+
+Map.prototype.getPositionCanvasCoords = function(position, lod) {
+
+    return this.convert.getPositionCanvasCoords(
+        new MapPosition(position), lod);
+};
+
+
+Map.prototype.getPositionCameraCoords = function(position, mode) {
+
+    return this.convert.getPositionCameraCoords(
+        new MapPosition(position), mode);
+};
+
+
+Map.prototype.movePositionCoordsTo = function(
+    position, azimuth, distance, skipOrientation) {
+
+    return this.convert.movePositionCoordsTo(
+        new MapPosition(position), azimuth, distance, skipOrientation);
+};
+
+
+Map.prototype.getGeodesicLinePoints = function(
+    coords, coords2, height, density) {
+
+    return this.convert.getGeodesicLinePoints(
+        coords, coords2, height, density);
+};
+
+
+Map.prototype.getSurfaceHeight = function(coords, precision) {
+
+    return this.measure.getSurfaceHeight(
+        coords,
+        this.measure.getOptimalHeightLodBySampleSize(coords, precision));
+};
+
+
+Map.prototype.getSurfaceAreaGeometry = function(
+    coords, radius, mode, limit, callback, loadTextures) {
+
+    var res = this.measure.getSurfaceAreaGeometry(
+        coords, radius, mode, limit, true, loadTextures);
+
+    if (!res[0]) {
+
+        return this.core.once(
+            'map-update',
+            this.getSurfaceAreaGeometry.bind(
+                this, coords, radius, mode, limit, callback, loadTextures),
+            1);
+    }
+
+    var buffer = res[1], ret = [];
+
+    if (this.tree) {
+
+        this.storedTilesRes = [];
+        this.tree.storeGeometry(buffer, buffer.length);
+        ret = this.storedTilesRes;
+        this.storedTilesRes = [];
+    }
+
+    callback(ret);
+    return function() {};
+};
+
+
+Map.prototype.getDistance = function(
+    coords, coords2, includingHeights, usePublic) {
+
+    return this.measure.getDistance(
+        coords, coords2, includingHeights, usePublic);
+};
+
+
+Map.prototype.getAzimuthCorrection = function(coords, coords2) {
+
+    return this.measure.getAzimuthCorrection(coords, coords2);
+};
+
+
+Map.prototype.getNED = function(coords, onlyMatrix) {
+
+    return this.measure.getNewNED(
+        coords, (onlyMatrix === false) ? false : true);
+};
+
+
+Map.prototype.getCameraInfo = function() {
+
+    var camera = this.camera;
+    return {
+        'projectionMatrix' : camera.camera.projection.slice(),
+        'viewMatrix' : camera.camera.modelview.slice(),
+        'viewProjectionMatrix' : camera.camera.mvp.slice(),
+        'rotationMatrix' : camera.camera.rotationview.slice(),
+        'position' : this.camera.position.slice(),
+        'vector' : this.camera.vector.slice(),
+        'distance' : this.camera.distance,
+        'height' : this.camera.height
+    };
+};
+
+
+Map.prototype.isPointInsideCameraFrustum = function(point) {
+
+    return this.camera.camera.pointVisible(point, this.camera.position);
+};
+
+
+Map.prototype.isBBoxInsideCameraFrustum = function(bbox) {
+
+    return this.camera.camera.bboxVisible(
+        { min:bbox[0], max:bbox[1] }, this.camera.position);
+};
+
+
+Map.prototype.generateTrajectory = function(p1, p2, options) {
+
+    p1 = new MapPosition(p1);
+    p2 = new MapPosition(p2);
+    return (new MapTrajectory(this, p1, p2, options)).generate();
+};
+
+
+Map.prototype.generatePIHTrajectory = function(
+    position, azimuth, distance, options) {
+
+    options = options || {};
+    var p = new MapPosition(position);
+    options['distance'] = distance;
+    options['azimuth'] = azimuth;
+    options['distanceAzimuth'] = true;
+    return (new MapTrajectory(this, p, p, options)).generate();
+};
+
+
+Map.prototype.redraw = function() {
+
+    this.markDirty();
+    return this;
+};
+
+
+Map.prototype.setLoaderSuspended = function(state) {
+
+    this.loaderSuspended = state;
+    return this;
+};
+
+
+Map.prototype.getLoaderSuspended = function() {
+
+    return this.loaderSuspended;
+};
+
+
+Map.prototype.getGpuCache = function() {
+
+    return this.gpuCache;
+};
+
+
+Map.prototype.getStats = function(switches) {
+
+    if (switches) {
+
+        return {
+            'maxZoom' : this.outerMap.overrides.maxZoom
+        };
+    }
+
+    var busyWorkers = 0;
+    for (var i = 0, li = this.geodataProcessors.length; i < li; i++) {
+
+        if (this.geodataProcessors[i].busy) busyWorkers++;
+    }
+
+    return {
+        'bestMeshTexelSize' : this.bestMeshTexelSize,
+        'bestGeodataTexelSize' : this.bestGeodataTexelSize,
+        'downloading' : this.loader.downloading.length,
+        'lastDownload' : this.loader.lastDownloadTime,
+        'surfaces' : this.tree.surfaceSequence.length,
+        'freeLayers' : this.freeLayerSequence.length,
+        'texelSizeFit' : this.texelSizeFit,
+        'loadMode' : this.config.mapLoadMode,
+        'processingTasks' : this.processingTasks.length,
+        'busyWorkers' : busyWorkers,
+        'dirty' : this.dirty,
+        'drawnTiles' : this.stats.drawnTiles,
+        'drawnGeodataTiles' : this.stats.drawnGeodataTiles,
+        'renderTime' : this.stats.rendererTime,
+        'frameTime' : this.stats.frameTime
+    };
+};
+
+
+Map.prototype.createGeodata = function() {
+
+    return new MapGeodataBuilder(this);
+};
+
+
+Map.prototype.getGeodataGeometry = function(id) {
+
+    return this.renderer.geometries[id];
+};
+
+
+Map.prototype.setGeodataSelection = function(selection) {
+
+    this.renderer.geodataSelection = selection;
+    this.markDirty();
+    return this;
+};
+
+
+Map.prototype.getGeodataSelection = function() {
+
+    return this.renderer.geodataSelection;
+};
+
+
 Map.prototype.setLoaderParams = function(mapConfig, configStorage) {
     var sources = [];
 
@@ -906,6 +1185,19 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapXhrImageLoad':               this.config.mapXhrImageLoad = utils.validateBool(value, false); break;
     case 'mapLoadMode':                   this.config.mapLoadMode = utils.validateString(value, 'topdown'); break;
     case 'mapGeodataLoadMode':            this.config.mapGeodataLoadMode = utils.validateString(value, 'fit'); break;
+    case 'mapTraversalMaskResolution': {
+
+        // Mask textures must be power-of-two; fall back to the default
+        // when the supplied value would otherwise need silent rounding.
+        var resolution = utils.validateNumber(value, 16, 4096, 256);
+        var isPowerOfTwo = (resolution & (resolution - 1)) === 0;
+        this.config.mapTraversalMaskResolution =
+            isPowerOfTwo ? resolution : 256;
+        break;
+    }
+    case 'mapTraversalMaskThreshold':     this.config.mapTraversalMaskThreshold = utils.validateNumber(value, 0, 1, 0.65); this.markDirty(); break;
+    case 'mapTerrainTraversal':           this.config.mapTerrainTraversal = (value === 'legacy' ? 'legacy' : 'recursive'); break;
+    case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
     case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
     case 'mapGridUnderSurface':           this.config.mapGridUnderSurface = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
@@ -1005,6 +1297,10 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapXhrImageLoad':               return this.config.mapXhrImageLoad;
     case 'mapLoadMode':                   return this.config.mapLoadMode;
     case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
+    case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
+    case 'mapTraversalMaskThreshold':     return this.config.mapTraversalMaskThreshold;
+    case 'mapTerrainTraversal':           return this.config.mapTerrainTraversal;
+    case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
     case 'mapGridMode':                   return this.config.mapGridMode;
     case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
     case 'mapGridUnderSurface':           return this.config.mapGridUnderSurface;
@@ -1234,7 +1530,7 @@ Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
 
 
 Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
-    var labelsEnabled = this.overrides.flagLabels
+    var labelsEnabled = this.outerMap.overrides.flagLabels
         ?? this.config.mapFlagLabels;
 
     if (!labelsEnabled) {
@@ -1377,21 +1673,6 @@ Map.prototype.applyCredits = function(tile) {
             this.visibleCredits.mapdata[key] = value;
         }
     }    
-};
-
-
-Map.prototype.withNavigationCamera = function(callback) {
-
-    return this.freeze
-        ? this.freeze.withNavigationCamera(callback)
-        : callback();
-};
-
-Map.prototype.withSelectionCamera = function(callback) {
-
-    return this.freeze
-        ? this.freeze.withSelectionCamera(callback)
-        : callback();
 };
 
 

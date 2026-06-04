@@ -626,13 +626,20 @@ export class MapStyle {
 
         let map = this.map;
 
-        // build  surface sequence
+        // terrain.sources order: back-to-front, front at last index
         map.tree.surfaceSequence = [];
         map.tree.surfaceOnlySequence = [];
 
-        map.surfaces.forEach((surface: MapSurface) => {
+        this.styleSpec.terrain.sources.forEach((sourceId: string) => {
 
-            if (!this.styleSpec.terrain.sources.includes(surface.styleSourceId)) return;
+            const surface = map.surfaces.find((s: MapSurface) =>
+                s.styleSourceId === sourceId);
+
+            if (!surface) {
+                throw new Error(`terrain.sources references `
+                    + `"${sourceId}" but no surface was loaded for `
+                    + `that source`);
+            }
 
             map.tree.surfaceSequence.push([surface, false]);
             map.tree.surfaceOnlySequence.push([surface, false]);

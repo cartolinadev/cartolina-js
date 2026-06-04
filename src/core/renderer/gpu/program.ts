@@ -268,6 +268,30 @@ setFloat(name: string, value: GLfloat): void {
 };
 
 
+setInt(name: string, value: GLint): void {
+    var gl = this.gl;
+    if (gl == null || this.program == null) return;
+
+    var key = this.getUniform(name);
+    if (key != null) {
+        gl.uniform1i(key, value);
+    }
+};
+
+
+setBool(name: string, value: boolean): void {
+
+    var gl = this.gl;
+    if (gl == null || this.program == null) return;
+
+    var key = this.getUniform(name);
+    if (key != null) {
+
+        gl.uniform1i(key, value ? 1 : 0);
+    }
+};
+
+
 setFloatArray(name: string, array: Float32List): void {
     var gl = this.gl;
     if (gl == null || this.program == null) return;

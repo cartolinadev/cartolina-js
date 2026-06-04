@@ -39,12 +39,17 @@ function buildUrl(entry, templates, side) {
   const tmpl = (templates[templateName] ?? {})[side] ?? null;
   if (tmpl == null) return null;
   const extras = entry.extras || '';
+  const url = normalizeTemplateUrl(entry.url || '');
   return tmpl
     .replace('${style}', encodeURIComponent(entry.style || ''))
     .replace('${pos}', encodeURIComponent(entry.pos || ''))
-    .replace('${url}', entry.url || '')
+    .replace('${url}', url)
     .replace('${config}', encodeURIComponent(entry.config || ''))
     .replace('${extras}', extras);
+}
+
+function normalizeTemplateUrl(url) {
+  return url.replace(/\/+$/, '');
 }
 
 // ---------------------------------------------------------------------------

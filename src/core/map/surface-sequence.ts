@@ -24,28 +24,28 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
     var vsurfaceCount = 0;
     var list = [], listId, i, li, j , lj, key;
     var strId = [];
-        
+
     //add surfaces to the list
     for (key in view.surfaces) {
         surface = this.map.getSurface(key);
-        
+
         if (surface) {
             strId.push(surface.id);
             vsurfaceCount++;
-            vsurfaces[key] = surface.index + 1; //add one to avoid zero 
-            //list.push(["" + (surface.index + 1), surface, true]);    
-            list.push([ [(surface.index + 1)], surface, true, false]); //[surfaceId, surface, isSurface, isAlien]    
+            vsurfaces[key] = surface.index + 1; //add one to avoid zero
+            //list.push(["" + (surface.index + 1), surface, true]);
+            list.push([ [(surface.index + 1)], surface, true, false]); //[surfaceId, surface, isSurface, isAlien]
         }
     }
 
-
     if (vsurfaceCount >= 1) { //do we have virtual surface?
-        strId.sort(); 
+        strId.sort();
         let strId_ = strId.join(';');
 
         surface = this.map.virtualSurfaces[strId_];
         if (surface) {
-            list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]    
+            warnVirtualSurfaceCollapse(strId_);
+            list = [ [ [(surface.index + 1)], surface, true, false] ]; //[surfaceId, surface, isSurface, isAlien]
             vsurfaceCount = 1;
         }
     }
@@ -168,12 +168,14 @@ MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
         if (freeLayer) {
             freeLayer.surfaceSequence = [freeLayer];
             freeLayer.surfaceOnlySequence = [freeLayer];
-            
+
             if (freeLayer.geodata) {
                 this.map.freeLayersHaveGeodata = true;
+            } else {
+                warnNonGeodataFreeLayer(key);
             }
         }
-    }    
+    }
 
     //console.log('map.glues: ', this.map.glues);
     //console.log('map virtual surfaces: ', this.map.virtualSurfaces);
@@ -455,6 +457,48 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         }
     }
 };
+
+
+/*
+ * One-off console warnings for view configurations the new recursive
+ * draw traversal does not fully support. The warning fires once per
+ * unique offender per session, deduped via these module-local sets.
+ *
+ * Both classes of configuration still render correctly through the
+ * new path: the virtual-surface case renders the real constituent
+ * surfaces (the new path ignores the virtual-surface collapse); the
+ * non-geodata free-layer case is simply not rendered as terrain. The
+ * warnings flag intent, not user-visible failures.
+ */
+
+const virtualSurfaceWarned: Set<string> = new Set();
+const freeLayerWarned: Set<string> = new Set();
+
+function warnVirtualSurfaceCollapse(joinedSurfaceIds: string): void {
+
+    if (virtualSurfaceWarned.has(joinedSurfaceIds)) return;
+
+    virtualSurfaceWarned.add(joinedSurfaceIds);
+    console.warn(
+        '[draw-traversal] mapConfig.virtualSurfaces entry "%s"'
+        + ' matched the active view. The recursive traversal ignores'
+        + ' virtual surfaces and glues; the constituent surfaces'
+        + ' render via mask compositing instead.',
+        joinedSurfaceIds);
+}
+
+
+function warnNonGeodataFreeLayer(layerId: string): void {
+
+    if (freeLayerWarned.has(layerId)) return;
+
+    freeLayerWarned.add(layerId);
+    console.warn(
+        '[draw-traversal] free layer "%s" is not a geodata layer;'
+        + ' the recursive terrain traversal does not render'
+        + ' non-geodata free layers.',
+        layerId);
+}
 
 
 export default MapSurfaceSequence;

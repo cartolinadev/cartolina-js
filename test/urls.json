@@ -8,7 +8,7 @@
 
 
     "legacy": {
-      "dev": "http://localhost:8080/demos/legacy/map/index.html?map=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
+      "dev": "http://localhost:8080/demos/map/?mapConfig=${url}/mapConfig.json&pos=${pos}&mapExposeFpsToWindow=1${extras}"
       , "prod": "${url}/?pos=${pos}&mapExposeFpsToWindow=1${extras}" 
     }
   },

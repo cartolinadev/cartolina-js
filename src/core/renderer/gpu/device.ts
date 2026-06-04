@@ -204,7 +204,7 @@ constructor(
     this.setState(this.currentState, true);
 
     // Initial clear.
-    this.applyViewport();
+    this.resetViewport();
     this.clearColorAndDepth();
 };
 
@@ -288,6 +288,16 @@ get currentRenderTarget(): Readonly<GpuDevice.RenderTarget> {
 
 
 /**
+ * Last configured canvas target. This describes the visible map viewport
+ * even while an auxiliary framebuffer or texture-space pass is bound.
+ */
+get canvasRenderTarget(): Readonly<GpuDevice.RenderTarget> {
+
+    return this.canvasTarget_;
+}
+
+
+/**
  * Bind a render target as the active drawing destination.
  *
  * This is the public draw-target switch. It updates `currentRenderTarget`,
@@ -302,7 +312,7 @@ setRenderTarget(target: GpuDevice.RenderTarget) {
     this.renderTarget_ = target;
 
     this.bindRenderTargetFramebuffer(target);
-    this.applyViewport();
+    this.resetViewport();
 }
 
 
@@ -433,6 +443,51 @@ setAuxiliaryRenderTarget(
 
 
 /**
+ * Build and install an independent framebuffer render target.
+ *
+ * Texture-space passes use this for draw targets that do not share the
+ * canvas projection or logical size. The target's apparent size is the
+ * texture storage size.
+ *
+ * @param texture Framebuffer-backed texture to draw into.
+ * @param viewportSize Texture storage size in physical pixels.
+ * @returns The newly installed texture-space render target.
+ */
+setTextureSpaceRenderTarget(
+    texture: GpuTexture,
+    viewportSize: Readonly<GpuDevice.NumberPair>,
+): GpuDevice.RenderTarget {
+
+    const target: GpuDevice.RenderTarget = {
+        kind: 'texture-space',
+        texture,
+        viewportSize: [...viewportSize],
+        apparentSize: [...viewportSize],
+    };
+
+    this.setRenderTarget(target);
+    return target;
+}
+
+
+/**
+ * Restrict drawing inside the current render target.
+ *
+ * This is used by texture-space blit passes that render into a known
+ * sub-rectangle of the already bound target.
+ *
+ * @param x Left edge in target pixels.
+ * @param y Bottom edge in target pixels.
+ * @param width Width in target pixels.
+ * @param height Height in target pixels.
+ */
+setViewport(x: number, y: number, width: number, height: number): void {
+
+    this.gl.viewport(x, y, width, height);
+}
+
+
+/**
  * Clear only the active render target's depth buffer.
  */
 clearDepth(): void {
@@ -463,7 +518,8 @@ clearColorAndDepth(color: GpuDevice.Color = GpuDevice.Black): void {
     const gl = this.gl;
 
     const isIntegerTarget =
-        this.renderTarget_.kind === 'framebuffer' &&
+        (this.renderTarget_.kind === 'framebuffer'
+            || this.renderTarget_.kind === 'texture-space') &&
         this.renderTarget_.texture.usesIntegerColorAttachment();
 
     if (isIntegerTarget) {
@@ -614,7 +670,7 @@ private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
     );
 }
 
-private applyViewport() {
+private resetViewport() {
 
     this.gl.viewport(
         0,
@@ -900,9 +956,22 @@ export type FramebufferTarget = RenderTargetBase & {
 }
 
 /**
+ * Drawing destination backed by an independent texture framebuffer.
+ */
+export type TextureSpaceTarget = RenderTargetBase & {
+
+    /**
+     * Texture whose framebuffer is bound when this target is active.
+     */
+    texture: GpuTexture,
+
+    kind: 'texture-space'
+}
+
+/**
  * Active drawing destination tracked by `GpuDevice`.
  */
-export type RenderTarget = CanvasTarget | FramebufferTarget
+export type RenderTarget = CanvasTarget | FramebufferTarget | TextureSpaceTarget
 
 } // export namespace GpuDevice
 

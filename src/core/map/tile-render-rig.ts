@@ -61,6 +61,15 @@ export class TileRenderRig {
 
     private uboLayers?: WebGLBuffer;
 
+    // Backing store for the layers uniform block, filled fresh on every
+    // draw. Preallocated once per rig so the draw path does not allocate
+    // (and later garbage-collect) a buffer, two typed views and the
+    // sampler array on every frame.
+    private readonly uboBuf = new ArrayBuffer(UboLayersSize);
+    private readonly uboF32 = new Float32Array(this.uboBuf); // for vec4
+    private readonly uboI32 = new Int32Array(this.uboBuf);   // for ivec4
+    private readonly uboSamplers = new Int32Array(MaxTextures);
+
     private collapsed: {
         normalGpu: GpuTexture;
         cacheItem: object;
@@ -112,14 +121,12 @@ export class TileRenderRig {
            is lost even when the original surface carried it. */
         this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
 
-        // if the surface publishes texture URLs its meshes are expected to
-        // carry internal UVs and the surface is expected to provide internal
-        // textures.
-        this.rt.internalUVs = !! surface.textureUrl;
-        this.rt.externalUVs = !! surface.normalsUrl
-            || surface.diffuseSequence.length > 0
-            || surface.specularSequence.length > 0
-            || surface.bumpSequence.length > 0;
+        // these flags control shader attributes. They are based purely on 
+        // submesh content. Note that external UVs are needed for correctly 
+        // applying mask textures supplied to draw(), even if no layers are 
+        // provided that would need them.
+        this.rt.internalUVs = !! this.submesh.internalUVs;
+        this.rt.externalUVs = !! this.submesh.externalUVs;
 
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
@@ -257,8 +264,9 @@ export class TileRenderRig {
      * Process layer stack into an actual draw call, using the tile shader
      * program.
      * @cameraPos camera position in world coordinates
+     * @maskTexture optional UV-space coverage mask to discard fragments
      */
-    draw(cameraPos: math.vec3) {
+    draw(cameraPos: math.vec3, maskTexture?: GpuTexture) {
 
         if (!this.uboLayers) {
             console.warn(
@@ -295,6 +303,9 @@ export class TileRenderRig {
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
+        // uMask
+        this.bindMask(program, maskTexture);
+
         //program.setSampler(
         //    'material.normalMap', this.normalMap.getGpuTexture());
 
@@ -316,8 +327,9 @@ export class TileRenderRig {
     /**
      * Draw the tile into an auxiliary depth buffer.
      * @cameraPos camera position in world coordinates
+     * @maskTexture optional UV-space coverage mask to discard fragments
      */
-    drawDepth(cameraPos: math.vec3) {
+    drawDepth(cameraPos: math.vec3, maskTexture?: GpuTexture) {
 
         const program = this.renderer.programTileDepth();
         this.renderer.gpu.useProgram2(program);
@@ -329,12 +341,45 @@ export class TileRenderRig {
         let splitMask = this.tile.splitMask || [1, 1, 1, 1];
         program.setFloatArray('uClip', splitMask);
 
+        // uMask
+        this.bindMask(program, maskTexture);
+
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
         if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
+    }
+
+    /**
+     * Render this tile's geographic footprint into the active mask target.
+     */
+    footprint() {
+
+        const program = this.renderer.programTileMaskFootprint();
+        this.renderer.gpu.useProgram2(program);
+
+        let attrNames: GpuMesh.AttrNames = {
+            position: 'aPosition',
+            uvs2: 'aTexCoords2'
+        };
+
+        const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
+        gpuSubmesh.draw2(program, attrNames);
+    }
+
+
+    private bindMask(program: GpuProgram, maskTexture?: GpuTexture) {
+
+        const maskEnabled = !!maskTexture;
+        program.setBool('uMaskEnabled', maskEnabled);
+
+        if (!maskTexture) return;
+
+        const unit = this.renderer.textureIdxs.tileMask;
+        this.renderer.gpu.bindTexture(maskTexture, unit);
+        program.setSampler('uMask', unit);
     }
 
     /**
@@ -366,20 +411,21 @@ export class TileRenderRig {
         // update hot alpha blending values, both static and dynamic
         this.updateAlphas();
 
-
-        // now the buffer - one backing buffer, two typed views
-        const buf = new ArrayBuffer(UboLayersSize);
-
+        // reuse the preallocated backing buffer and its two typed views;
+        // every active word is overwritten below, so no clearing is needed
         const bufacc = {
-            f32: new Float32Array(buf), // for vec4
-            i32: new Int32Array(buf),   // for ivec
+            f32: this.uboF32,
+            i32: this.uboI32,
             woffset: 0                   // word offset
         }
 
-        // samplers array
+        // reuse the preallocated samplers array; clear it so stale unit
+        // indices from a previous draw are not uploaded to the program
+        this.uboSamplers.fill(0);
+
         let samplers = {
 
-            samplers: new Int32Array(MaxTextures),
+            samplers: this.uboSamplers,
             nextIdx: 0,
             nextTextureUnit: FirstLayerTextureUnit,
             ub: FirstLayerTextureUnit + MaxTextures
@@ -427,7 +473,7 @@ export class TileRenderRig {
 
         // update buffer
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uboLayers ?? null);
-        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.uboBuf);
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
 
@@ -803,7 +849,7 @@ export class TileRenderRig {
         });
 
         // if internal textures exist, overlay an internal texture
-        if (rt.internalUVs && this.submesh.internalUVs)  {
+        if (rt.internalUVs && tile.resourceSurface.textureUrl) {
 
             let path = tile.resourceSurface.getTextureUrl(
                 tile.id, this.submeshIndex);

@@ -19,8 +19,8 @@ implementation:
 
 - `Core.once()` does not forward the unsubscribe function returned by
   `Core.on()`. Every call site expecting a cancellation token gets
-  `undefined`. `getSurfaceAreaGeometry` (`interface.js:273`) relies on
-  this return value and silently cannot cancel its retry listener.
+  `undefined`. `LegacyMap.getSurfaceAreaGeometry()` relies on this
+  return value and silently cannot cancel its retry listener.
 - `Browser.kill()` registers listeners at construction but stores no
   unsubscribe closures and removes none. After `kill()`, those listeners
   remain in the array and dispatch into dead callbacks until `Core` is
@@ -115,7 +115,7 @@ the counter reaches zero.
 
 There are two call sites.
 
-**`getSurfaceAreaGeometry` (`interface.js:273`)** registers
+**`LegacyMap.getSurfaceAreaGeometry()`** registers
 `once('map-update', retry, 1)` when tile meshes are not yet loaded.
 The `wait=1` skips one `map-update`. The reason: this call often
 originates from inside a `map-update` handler. The current
@@ -180,7 +180,7 @@ Internally, `Map.emit(name, payload)` calls
 
 *API shape mismatch.* `addEventListener` returns `void`. The
 unsubscribe-closure pattern used across `Viewer`, `Browser`, demos, and
-`interface.js` must all become either `{ signal }` or explicit
+legacy map methods must all become either `{ signal }` or explicit
 `removeEventListener` calls that require the caller to hold a stable
 function reference. This is a mechanical change at every call site.
 

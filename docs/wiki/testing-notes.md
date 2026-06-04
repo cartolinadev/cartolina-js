@@ -1,6 +1,6 @@
 # Testing notes
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 This page records non-obvious test behaviour that can affect local
 regression checks.

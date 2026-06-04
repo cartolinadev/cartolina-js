@@ -129,6 +129,8 @@ const NUMBER_KEYS = new Set([
     'mapFeatureGridCells',
     'mapFeaturesPerSquareInch',
     'mapHysteresisWait',
+    'mapFallbackCadence',
+    'mapTraversalMaskThreshold',
     'rendererAnisotropic'
 ]);
 

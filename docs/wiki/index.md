@@ -45,8 +45,9 @@ then branch into more specific documents as needed.
   the melown2015 and QSC families, client loading path, and tileserver
   production
 - [surface-metatile.md](surface-metatile.md) — surface metatile binary
-  format (v1–v5), metanode fields, version history, and how the client
-  uses metatiles for LOD selection, culling, and resource loading
+  format (v1–v6, incl. the v6 watertight bitplane), metanode fields,
+  version history, and how the client uses metatiles for LOD selection,
+  culling, and resource loading
 - [lod-selection.md](lod-selection.md) — how metatile texel length is
   generated, stored, and projected to screen-space error in
   `updateTexelSize`; distance functions, degrade-horizon logic, tree
@@ -54,6 +55,10 @@ then branch into more specific documents as needed.
 - [tileserver-metatile-production.md](tileserver-metatile-production.md) —
   how the tileserver generates metatiles on demand (VRTWO, tile index,
   serve-time GDAL warp), where the cost lies, and the structural problem
+- [tile-index.md](tile-index.md) — what a VTS tile index carries (flag
+  bits, quadtree structure, serialisation), how `mapproxy-tiling`
+  produces one, how the served index is assembled, and LOD-range
+  broadening behaviour
 
 ### Geodata and labels
 
@@ -101,6 +106,10 @@ then branch into more specific documents as needed.
 
 ### Legacy VTS concepts
 
+- [nav-tiles.md](nav-tiles.md) — what navtile textures are, how the
+  client uses them for terrain height queries (camera, coordinate
+  conversion, geodata draping), the v1–v3 height-range propagation
+  path, the legacy grid-fallback relationship, and dead code
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
@@ -108,6 +117,11 @@ then branch into more specific documents as needed.
   are built and served, and the two-generation history of the alien flag
 - [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
   `surfaceSequence` and why it is currently vestigial
+- [vts-vtsd-archeology.md](vts-vtsd-archeology.md) — how vts-vtsd serves
+  stored tilesets (delivery only, no transcoding), where the watertight
+  information lives, and the `vts --reencode` process that upgrades a
+  legacy v5 tileset to v6 with correct watertight flags and a
+  cache-busting revision bump
 
 ### RFC archive
 
@@ -159,8 +173,12 @@ The intended structure is three levels:
    `label-regression-diagnostics.md`.
 
 Keep broad architecture notes out of topic pages, and keep low-level
-mechanics out of `architecture.md` unless they affect ownership across
-subsystems.
+mechanics out of [architecture.md](architecture.md) unless they
+affect ownership across subsystems.
+
+Always use link syntax for cross-references to other wiki pages:
+`[filename.md](filename.md)`. Do not use backtick code format for
+file names that are navigation references.
 
 The current structure mixes levels 2 and 3. The split into separate subsystem 
 and topic sections has not happened yet.

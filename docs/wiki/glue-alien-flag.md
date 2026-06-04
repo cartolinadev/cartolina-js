@@ -1,6 +1,6 @@
 # Glue alien flag
 
-See `index.md` for the wiki table of contents.
+See [index.md](index.md) for the wiki table of contents.
 
 Background on VTS storage, the aggregated tileset driver, and how
 virtual surfaces are produced and served is in

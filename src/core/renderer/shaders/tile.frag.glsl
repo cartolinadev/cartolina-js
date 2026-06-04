@@ -27,6 +27,8 @@ in float vVerticalExaggeration;
 
 // other uniforms
 uniform vec3 uUpVector;
+uniform sampler2D uMask;
+uniform bool uMaskEnabled;
 
 // render target
 out vec4 fragColor;
@@ -196,6 +198,12 @@ void main() {
     int renderFlags = frameRenderFlags();
 
     applyTileClip(vTexCoords2, uFrame.clipParams.x);
+
+    if (uMaskEnabled) {
+
+        float covered = texture(uMask, vTexCoords2).r;
+        if (covered > frameMaskThreshold()) discard;
+    }
 
     // light
     Light light = frameLight();
