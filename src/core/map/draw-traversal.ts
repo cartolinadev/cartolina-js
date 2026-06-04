@@ -30,9 +30,7 @@ import type { GpuDevice } from '../renderer/gpu/device';
  * quadrant when needed. Surfaces render front-to-back (last index
  * first) so the front surface claims pixels before the back ones can.
  *
- * Glues and virtual surfaces are never consulted. Watertight metadata
- * is honoured only after a tile actually draws; a watertight metanode
- * never deactivates lower surfaces for descendant nodes.
+ * Glues and virtual surfaces are never consulted.
  *
  * @param map Typed `Map` owning the frame.
  * @param plainTrees Per-plain-surface helper trees, ordered
@@ -144,22 +142,30 @@ function traverseNode(context: NodeContext): CoverageResult {
     // Combined descent decision: any active surface that still has a
     // child and would benefit from finer detail forces descent. We
     // descend into quadrants whose child set is non-empty.
-    let canDescend = false;
+    let shouldDescend = false;
+    let hasWatertightFit = false;
+
     for (const entry of active) {
 
         if (entry.tile.metanode!.hasChildren()
-                && entry.tile.texelSize > texelSizeFit) {
+                && entry.tile.texelSize > texelSizeFit)
+            shouldDescend = true;
 
-            canDescend = true;
-            break;
-        }
+        if (entry.tile.metanode!.watertight
+                && entry.tile.texelSize <= texelSizeFit)
+            hasWatertightFit = true;
     }
+
+    // Process children if applicable. We descend if an active surface can
+    // benefit from finer LOD, but not if we already have a watertight fit
+    // from any active surface: this prevents forced descent to surfaces
+    // that have geometry available only on finer LODs.
 
     let coverage = CoverageNone;
     let watertightChildMask = 0;
     let maskInitialized = false;
 
-    if (canDescend) {
+    if (!hasWatertightFit && shouldDescend) {
 
         for (let quadrant = 0; quadrant < 4; quadrant++) {
 
@@ -193,10 +199,12 @@ function traverseNode(context: NodeContext): CoverageResult {
         }
     }
 
+    // fully covered by watertight children => pass through
     if (watertightChildMask === AllQuadrantsMask) {
         return CoverageWatertight;
     }
 
+    // fill watertight children quadrants in mask
     if (watertightChildMask !== 0) {
 
         if (!maskInitialized) {
@@ -243,17 +251,16 @@ function traverseNode(context: NodeContext): CoverageResult {
                 maskInitialized,
             );
 
-        if (renderedCoverage.kind === 'none') continue;
+        if (renderedCoverage.kind !== 'none') {
 
-        coverage = renderedCoverage;
+            coverage = renderedCoverage;
 
-        if (renderedCoverage.kind === 'partial') {
-            maskInitialized = true;
+            if (renderedCoverage.kind === 'partial')
+                maskInitialized = true;
         }
 
-        if (renderedCoverage.kind === 'watertight') {
-            break;
-        }
+        // Stop once a surface claims full node coverage or renders watertight.
+        if (node.watertight || renderedCoverage.kind === 'watertight') break;
     }
 
     return coverage;
@@ -300,9 +307,9 @@ function collectChildActive(
 
 /**
  * Draws one surface at the current node using the depth-local node
- * mask as the read-and-write coverage. Only a drawn tile can produce
- * watertight coverage: the metanode flag is ignored until the rig is
- * ready and the screen draw has happened.
+ * mask as the read-and-write coverage. Only a tile that actually draws
+ * can produce watertight coverage: a drawn watertight tile returns
+ * analytic coverage instead of rasterizing its footprint into the mask.
  */
 function renderSurface(
     context: NodeContext,

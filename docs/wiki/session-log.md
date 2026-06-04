@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-06-04 — fitted watertight traversal stops
+
+Updated recursive terrain traversal so watertight metanodes can affect
+selection before a tile draws. If any active surface has a watertight
+node whose `texelSize` satisfies the SSE threshold, traversal stops at
+that node for the whole active set. This avoids descending only because
+another surface has geometry available first at finer-than-fit LODs.
+
+Same-node front-to-back pruning now stops the render loop after a
+surface claims full node coverage, either through `node.watertight` or
+through drawn watertight coverage. Coverage propagation is unchanged:
+only a tile that actually draws can return watertight coverage upward.
+
+Checked the `viewfinder13` two-surface case at a 2560x1353 viewport.
+The duplicate `3-1-1` labels are expected for that position because
+`viewfinder-dem1` is the front surface and its `3-1-1` metanode is not
+watertight, so the back `viewfinder-dem3` tile still needs to render.
+
+Verification: `npx tsc --noEmit`.
+
 ## 2026-06-04 — freeze-frustum depth pass LOD basis
 
 The freeze-frustum capture (`Shift+Z`, freeze, then show frustum) drew an

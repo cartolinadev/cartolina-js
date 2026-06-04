@@ -1342,6 +1342,13 @@ Implementation phases:
    footprint first need storage. Watertight-only branches return
    without touching the mask pool.
 
+   The client also uses watertight metadata before drawing for the
+   combined descent decision. If any active surface has a watertight
+   node whose `texelSize` satisfies the SSE threshold, traversal stops
+   at that node for the whole active set. This prevents forced descent
+   to surfaces whose geometry is available only at finer LODs than the
+   first fitted watertight node.
+
    Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky`.
 
