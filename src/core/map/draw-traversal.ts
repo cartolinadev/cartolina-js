@@ -161,9 +161,12 @@ function traverseNode(context: NodeContext): CoverageResult {
     // from any active surface: this prevents forced descent to surfaces
     // that have geometry available only on finer LODs.
 
+    // Each node starts from empty coverage. Reset is CPU-cheap (it clears
+    // a rectangle list), so there is no lazy-init guard.
+    maskPool.resetCoverage(depth);
+
     let coverage = CoverageNone;
     let watertightChildMask = 0;
-    let maskInitialized = false;
 
     if (!hasWatertightFit && shouldDescend) {
 
@@ -188,13 +191,10 @@ function traverseNode(context: NodeContext): CoverageResult {
                 continue;
             }
 
-            if (!maskInitialized) {
-
-                maskPool.clearNode(depth);
-                maskInitialized = true;
-            }
-
-            maskPool.blitChildToParent(depth + 1, depth, quadrant);
+            // Fold the partial child into this node's quadrant: its
+            // rectangles map up on the CPU, footprint coverage blits up
+            // only if the child has any.
+            maskPool.appendChild(depth + 1, depth, quadrant);
             coverage = CoveragePartial;
         }
     }
@@ -204,16 +204,10 @@ function traverseNode(context: NodeContext): CoverageResult {
         return CoverageWatertight;
     }
 
-    // fill watertight children quadrants in mask
+    // Record watertight children as exact quadrant rectangles.
     if (watertightChildMask !== 0) {
 
-        if (!maskInitialized) {
-
-            maskPool.clearNode(depth);
-            maskInitialized = true;
-        }
-
-        maskPool.fillNodeQuadrants(depth, watertightChildMask);
+        maskPool.addQuadrantRects(depth, watertightChildMask);
     }
 
     // Render surfaces front-to-back. The last entry is the front surface
@@ -248,16 +242,10 @@ function traverseNode(context: NodeContext): CoverageResult {
                 entry,
                 readiness,
                 preventLoad,
-                maskInitialized,
             );
 
-        if (renderedCoverage.kind !== 'none') {
-
+        if (renderedCoverage.kind !== 'none')
             coverage = renderedCoverage;
-
-            if (renderedCoverage.kind === 'partial')
-                maskInitialized = true;
-        }
 
         // Stop once a surface claims full node coverage or renders watertight.
         if (node.watertight || renderedCoverage.kind === 'watertight') break;
@@ -316,7 +304,6 @@ function renderSurface(
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
     preventLoad = false,
-    maskInitialized = false,
 ): CoverageResult {
 
     const { tree, tile } = entry;
@@ -327,7 +314,13 @@ function renderSurface(
     if (!node || !node.hasGeometry()) return CoverageNone;
 
     const priority = tile.id[0] * tile.distance;
-    const maskTexture = maskInitialized ? maskPool.nodeMask(depth) : undefined;
+
+    // Sample prior coverage (finer descendants and higher-priority
+    // surfaces drawn before this one) only when some exists; materialize
+    // rasterizes the rectangle list and footprint texture on demand.
+    const maskTexture = maskPool.hasCoverage(depth)
+        ? maskPool.materialize(depth)
+        : undefined;
 
     legacyMap.renderer.gpu.setRenderTarget(screenTarget);
 
@@ -355,10 +348,8 @@ function renderSurface(
         return CoverageWatertight;
     }
 
-    if (!maskInitialized) {
-        maskPool.clearNode(depth);
-    }
-
+    // Non-watertight tile: its footprint joins this node's coverage so
+    // the next (back) surface and the parent see it.
     maskPool.addFootprint(rig, depth);
     return CoveragePartial;
 }

@@ -6,6 +6,17 @@
 **Status:** open
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
 
+**Update 2026-06-04:** deferred-rectangle coverage has landed (see the
+session log and the §5.1 post-implementation note). It carries coverage
+as CPU rectangles and rasterizes only on consumption, which removed the
+per-level fill/blit churn and the producer/consumer precision loss.
+Measured residual on `simple.json` (cadence 3): framebuffer switches
+128→100, mask draws 65→50. The remaining churn is the `materialize`
+bind at each node drawing masked fallback coverage — exactly the
+culling-induced consumers this fold removes. The fold is now the next
+step on top of the rectangle representation; both still compose as
+described below.
+
 ### Goal
 
 Stop the recursive terrain traversal from materializing mask coverage

@@ -36,7 +36,6 @@ import shaderTileMaskFootprintFrag from
     './shaders/tile-mask-footprint.frag.glsl';
 import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
 import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
-import shaderTileMaskFillFrag from './shaders/tile-mask-fill.frag.glsl';
 
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
@@ -189,7 +188,7 @@ export class Renderer {
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
         tileMaskBlit?: GpuProgram
-        tileMaskFill?: GpuProgram
+        tileMaskRect?: GpuProgram
         frustum?: GpuProgram
     }
 
@@ -597,23 +596,28 @@ programTileMaskBlit(): GpuProgram {
 
 
 /**
- * Tile mask quadrant-fill program, lazy initialization.
+ * Tile mask rectangle-rasterization program, lazy initialization.
+ *
+ * A fullscreen quad (the blit vertex shader) paired with the footprint
+ * fragment shader that writes full coverage. Callers restrict the draw
+ * to a rectangle with `gl.viewport`, so one program rasterizes any
+ * axis-aligned coverage rectangle into a mask target.
  */
-programTileMaskFill(): GpuProgram {
+programTileMaskRect(): GpuProgram {
 
-    if (this.programs.tileMaskFill) return this.programs.tileMaskFill;
+    if (this.programs.tileMaskRect) return this.programs.tileMaskRect;
 
-    __DEV__ && console.log('Initializing programs.tileMaskFill');
+    __DEV__ && console.log('Initializing programs.tileMaskRect');
 
-    this.programs.tileMaskFill = new GpuProgram(
+    this.programs.tileMaskRect = new GpuProgram(
         this.gpu,
         shaderTileMaskBlitVert,
-        shaderTileMaskFillFrag,
-        'shader-tile-mask-fill',
+        shaderTileMaskFootprintFrag,
+        'shader-tile-mask-rect',
         {},
         {});
 
-    return this.programs.tileMaskFill;
+    return this.programs.tileMaskRect;
 }
 
 

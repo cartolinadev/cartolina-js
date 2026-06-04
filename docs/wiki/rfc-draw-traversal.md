@@ -721,6 +721,46 @@ correctness requirement.
 
 ### 5.1 Per-surface mask sequence (geographic)
 
+**Post-implementation note — deferred-rectangle coverage (2026-06-04).**
+The eager per-level fill/blit scheme described in this section is
+replaced in `DrawTraversalMaskPool` by a deferred representation. A
+node's coverage is the union of two coexisting parts: a CPU list of
+axis-aligned rectangles in the node's UV [0,1] space (all dyadic
+coverage — watertight cells and the LOD hierarchy) and a per-depth
+footprint texture holding only the non-rectangular coverage of
+non-watertight tiles. Watertight quadrant fills become rectangle
+appends; child-to-parent composition transforms child rectangles up by
+a CPU scale-and-offset (`x→x*0.5+qx`), and blits the child footprint
+texture only when the child has one. No framebuffer is touched while
+coverage propagates. The rectangle list is rasterized into a transient
+texture (combined with the footprint texture when present) only when a
+surface actually samples the mask (`materialize`), in a single draw
+call. The old lazy-init guard (`maskInitialized`) is gone: reset is a
+CPU array clear at node entry, and `hasCoverage(depth)` answers whether
+there is anything to sample.
+
+Why: on a single watertight surface the eager scheme spent the whole
+per-frame mask cost on fills, blits, and clears at boundary nodes
+(culling makes a node partial, which propagates up the ancestor chain).
+The rectangle representation moves that propagation to the CPU and is
+exact at any scale, removing the producer/consumer-LOD downscale
+precision loss that motivated LINEAR mask sampling. Measured on
+`simple.json` (cadence 3, settled): framebuffer switches 128→100,
+viewport calls 413→285, mask draws 65→50, total draw calls 259→244;
+GPU time fell from a stable ~12 ms toward the ~9 ms legacy floor (the
+disjoint timer is noisy run-to-run, so the GL-command counts are the
+reliable signal). The residual framebuffer churn is the `materialize`
+bind at each node that draws masked fallback coverage; cutting that
+further is the job of the empty-quadrant fold (see `backlog.md`), which
+removes culling-induced fallback consumers, or an analytic in-shader
+rectangle test, which removes the mask texture entirely.
+
+`programTileMaskFill` and `tile-mask-fill.frag.glsl` (the quadrant-fill
+program) are removed; quadrant fills are ordinary rectangles rasterized
+by `programTileMaskRect` (the blit vertex shader plus the footprint
+fragment shader). The original eager scheme is described below for
+historical context.
+
 The geographic mask uses one R8 `node_mask` texture per active
 recursion depth level and one R8 `scratch` texture reused across
 footprint draws. The mask resolution is a configurable power of two;

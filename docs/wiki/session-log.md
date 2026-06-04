@@ -1,5 +1,43 @@
 # Session log
 
+## 2026-06-04 — deferred-rectangle terrain coverage
+
+Replaced the recursive traversal's eager per-level mask fill/blit with a
+deferred-rectangle representation in `DrawTraversalMaskPool`. Coverage is
+now a CPU rectangle list (dyadic/watertight coverage and the LOD
+hierarchy) plus a per-depth footprint texture for only the
+non-rectangular coverage of non-watertight tiles; the two coexist with
+no promotion. Rectangles propagate up the tree by a CPU scale-and-offset
+with no framebuffer touched, and are rasterized into a transient texture
+(combined with the footprint texture when present) in a single draw only
+when a surface samples the mask (`materialize`). `clearNode` /
+`fillNodeQuadrants` / `blitChildToParent` / the `maskInitialized` flag
+are gone; new pool API is `resetCoverage` / `hasCoverage` /
+`addQuadrantRects` / `appendChild` / `addFootprint` / `materialize`.
+`programTileMaskFill` and `tile-mask-fill.frag.glsl` are deleted;
+`programTileMaskRect` (blit vertex + footprint fragment) rasterizes the
+rectangle list.
+
+A first cut rasterized each rectangle with its own `gl.viewport` draw;
+that inflated draw counts (fitonly mask draws 79→463) because rectangles
+accumulate along the boundary chain. Switched to one buffered draw per
+`materialize`. Result on `simple.json` (cadence 3, settled): framebuffer
+switches 128→100, viewport calls 413→285, mask draws 65→50, draw calls
+259→244; GPU time fell from a stable ~12 ms toward the ~9 ms legacy
+floor (disjoint timer noisy, so GL-command counts are the reliable
+signal). A modest win on its own — the residual framebuffer churn is the
+`materialize` bind at each node drawing masked fallback coverage. The
+correctness side effect matters too: rectangle edges are exact at any
+scale, removing the producer/consumer-LOD downscale precision loss.
+
+Verification: `npx tsc --noEmit` clean; fresh webpack build (cleared
+`node_modules/.cache` to shed a stale fork-ts-checker error);
+`simple-terrain` recursive vs legacy pixel-equivalent; `legacy-benatky`
+(multi-surface internal-texture footprint path), `complex-terrain`, and
+`full-terrain` render with no console, network, or page errors. Next:
+the empty-quadrant fold removes culling-induced fallback consumers and
+should cut the residual `materialize` binds.
+
 ## 2026-06-04 — recursive vs legacy render-cost profiling
 
 Profiled the recursive draw traversal against the legacy path on
