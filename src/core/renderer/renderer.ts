@@ -598,10 +598,9 @@ programTileMaskBlit(): GpuProgram {
 /**
  * Tile mask rectangle-rasterization program, lazy initialization.
  *
- * A fullscreen quad (the blit vertex shader) paired with the footprint
- * fragment shader that writes full coverage. Callers restrict the draw
- * to a rectangle with `gl.viewport`, so one program rasterizes any
- * axis-aligned coverage rectangle into a mask target.
+ * Dynamic rectangle geometry (using the blit vertex shader) paired with
+ * the footprint fragment shader writes full coverage for exact UV-space
+ * rectangles into a mask target.
  */
 programTileMaskRect(): GpuProgram {
 

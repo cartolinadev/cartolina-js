@@ -24,11 +24,11 @@ import type { GpuDevice } from '../renderer/gpu/device';
  *
  * On backtrack each surface that is at its natural leaf at the current
  * node draws against the accumulated mask; surfaces that still have
- * finer children render too, supplying fallback coverage. Partial masks
- * propagate back to the parent through `maskPool.blitChildToParent`;
- * watertight coverage propagates as state and fills only its parent
- * quadrant when needed. Surfaces render front-to-back (last index
- * first) so the front surface claims pixels before the back ones can.
+ * finer children render too, supplying fallback coverage. Partial
+ * coverage propagates back to the parent through `maskPool.appendChild`;
+ * watertight coverage propagates as state and exact quadrant
+ * rectangles. Surfaces render front-to-back (last index first) so the
+ * front surface claims pixels before the back ones can.
  *
  * Glues and virtual surfaces are never consulted.
  *
@@ -314,7 +314,7 @@ function collectChildActive(
         }
 
         const childTile = getReadyChild(entry.tree, entry.tile, quadrant);
-        
+
         if (!childTile || !childTile.metanode) {
 
             culled = false;      // finer child not loaded; visibility unknown
