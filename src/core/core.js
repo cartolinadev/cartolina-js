@@ -102,6 +102,7 @@ var Core = function(element, config) {
         mapFeaturesReduceFactor2 : 1,
 
         mapExposeFpsToWindow: false,
+        mapProfileGpu: false, // opt-in GPU timer queries in FrameProfiler
 
         mapDMapSize : 512,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper

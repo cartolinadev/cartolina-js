@@ -112,6 +112,18 @@ export class GpuDevice {
 
     private disposed_ = false;
 
+    /**
+     * Cumulative GL draw calls and draw-framebuffer switches. `FrameProfiler`
+     * reads per-frame deltas of these; they are never reset here. The draw
+     * count is incremented by the wrappers installed in `installDrawCounters`;
+     * the switch count by `bindFramebuffer` when the bound framebuffer changes.
+     */
+    drawCallCount = 0;
+    fboSwitchCount = 0;
+
+    /** Last framebuffer bound per target, so only real switches are counted. */
+    private boundFramebuffer_ = new Map<GLenum, WebGLFramebuffer | null>();
+
 /**
  * Create the WebGL canvas/context wrapper for a renderer.
  *
@@ -163,6 +175,11 @@ constructor(
     if (!context) throw new Error('cartolina-js requires WebGL2.');
 
     const gl = this.gl = context;
+
+    // Count every draw call centrally. Wrapping the context's draw
+    // functions once catches terrain, mask, and geodata draws alike; the
+    // increment is trivial next to the GL work itself.
+    this.installDrawCounters(gl);
 
     // device capabilities.
     this.anisoExt = gl.getExtension('EXT_texture_filter_anisotropic');
@@ -690,17 +707,46 @@ private bindReadFramebufferForRenderTarget(target: GpuDevice.RenderTarget) {
 
 private bindFramebuffer(texture: GpuTexture | null, target: GLenum) {
 
-    if (texture) {
-
-        if (!texture.framebuffer) {
-            throw new Error('Cannot bind a texture without a framebuffer.');
-        }
-
-        this.gl.bindFramebuffer(target, texture.framebuffer);
-        return;
+    if (texture && !texture.framebuffer) {
+        throw new Error('Cannot bind a texture without a framebuffer.');
     }
 
-    this.gl.bindFramebuffer(target, null);
+    const framebuffer = texture ? texture.framebuffer : null;
+
+    // Count a switch only when the bound framebuffer for this target
+    // actually changes; redundant re-binds (e.g. per-tile screen target)
+    // do not count, matching the external harness.
+    if (this.boundFramebuffer_.get(target) !== framebuffer) {
+
+        this.fboSwitchCount++;
+        this.boundFramebuffer_.set(target, framebuffer);
+    }
+
+    this.gl.bindFramebuffer(target, framebuffer);
+};
+
+
+/**
+ * Wrap the context's draw entry points so each draw increments
+ * `drawCallCount`. The wrappers defer to the original methods; the cast
+ * is needed because native context methods are replaced dynamically.
+ */
+private installDrawCounters(gl: WebGL2RenderingContext): void {
+
+    const context = gl as unknown as Record<string, (...a: never[]) => unknown>;
+
+    const names = ['drawElements', 'drawArrays',
+        'drawElementsInstanced', 'drawArraysInstanced'];
+
+    for (const name of names) {
+
+        const original = context[name].bind(gl);
+        context[name] = (...args: never[]) => {
+
+            this.drawCallCount++;
+            return original(...args);
+        };
+    }
 };
 
 /**

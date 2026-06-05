@@ -19,6 +19,7 @@ import * as utils from './utils/utils';
 import LegacyMap from './map/map';
 import FreezeCameraState from './map/freeze-camera-state';
 import { defaultOverrides, type Overrides } from './map/overrides';
+import FrameProfiler from './map/frame-profiler';
 import MapStyle from './map/style';
 import MapDraw from './map/draw';
 import MapConvert from './map/convert';
@@ -110,6 +111,16 @@ class Map {
      * target in phase 8 alongside the legacy traversal.
      */
     private terrainMaskPool_: DrawTraversalMaskPool | null = null;
+
+    /**
+     * Per-drawn-frame timing (cpu, gpu, draw-call and FBO-switch counts),
+     * feeding the inspector panel and `window.__vtsPerf`. Lazily created
+     * on the first drawn frame once the GPU device exists.
+     */
+    private frameProfiler_: FrameProfiler | null = null;
+
+    /** Throttle for publishing profiler results (every Nth drawn frame). */
+    private profileWrite_ = 0;
 
     /**
      * Per-surface helper trees used by the recursive draw traversal
@@ -738,11 +749,21 @@ class Map {
             legacyMap.bestMeshTexelSize = 0;
             legacyMap.bestGeodataTexelSize = 0;
 
+            // Time only the rendering (draw + overlays); the loader and
+            // event work below is not part of the frame's GPU cost.
+            const profiler = this.frameProfiler();
+            profiler.setGpuEnabled(legacyMap.config.mapProfileGpu === true);
+
+            profiler.beginFrame();
+
             // draw
             this.draw();
 
             // overlays
             this.runOverlays();
+
+            profiler.endFrame();
+            this.publishFrameProfile();
 
             /* Post-draw loader promotion: requests discovered during
              * traversal enter the loader the same frame instead of
@@ -756,6 +777,47 @@ class Map {
         // fps clock stops
         legacyMap.stats.end(dirty);
         core.callListener('tick', {});
+    }
+
+    /** The frame profiler, created on first use once the device exists. */
+    private frameProfiler(): FrameProfiler {
+
+        if (!this.frameProfiler_) {
+
+            this.frameProfiler_ = new FrameProfiler(this.core_.renderer.gpu);
+        }
+
+        return this.frameProfiler_;
+    }
+
+    /**
+     * Publish the profiler result to the inspector stats and (when
+     * `mapExposeFpsToWindow` is set) to `window`. Throttled because each
+     * result sorts the sample windows; medians move slowly so a few
+     * updates per second suffice.
+     */
+    private publishFrameProfile(): void {
+
+        if ((this.profileWrite_++ % 15) !== 0) return;
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return;
+
+        const profile = this.frameProfiler_!.result();
+        legacyMap.stats.frameProfile = profile;
+
+        if (legacyMap.config.mapExposeFpsToWindow
+                && typeof window !== 'undefined') {
+
+            const target = window as unknown as {
+                __vtsFps?: number | null;
+                __vtsPerf?: { frame?: FrameProfiler.Result };
+            };
+
+            target.__vtsFps = profile.limitFps;
+            target.__vtsPerf = target.__vtsPerf ?? {};
+            target.__vtsPerf.frame = profile;
+        }
     }
 
     /**

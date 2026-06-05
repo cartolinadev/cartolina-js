@@ -99,6 +99,7 @@ const BOOLEAN_KEYS = new Set([
     'mapCheckTextureSize',
     'mapNormalizeOctantTexelSize',
     'mapExposeFpsToWindow',
+    'mapProfileGpu',
     'mario',
     'rendererAntialiasing',
     'rendererAllowScreenshots'

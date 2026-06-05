@@ -23,7 +23,38 @@ function injectLcpObserver() {
 }
 
 /* ----------------------------------------------------------------------------
-   FPS helper (inject)
+   Viewer capture (inject) — cartolina.map is a non-configurable getter,
+   so wrap Object.defineProperty to record the Viewer it returns.
+   ------------------------------------------------------------------------- */
+function injectViewerCapture() {
+  return `
+  (function () {
+    const define = Object.defineProperty;
+    Object.defineProperty = function (target, prop, descr) {
+      try {
+        if (prop === 'map' && descr && typeof descr.get === 'function'
+            && !descr.__viewerWrapped) {
+          const get = descr.get;
+          descr.get = function () {
+            const factory = get.call(this);
+            if (typeof factory !== 'function') return factory;
+            return function () {
+              const viewer = factory.apply(this, arguments);
+              window.__viewer = viewer;
+              return viewer;
+            };
+          };
+          descr.__viewerWrapped = true;
+        }
+      } catch (e) {}
+      return define.call(Object, target, prop, descr);
+    };
+  })();`;
+}
+
+/* ----------------------------------------------------------------------------
+   FPS helper (inject) — drive continuous redraw so frames actually render,
+   then read the engine's FrameProfiler result (window.__vtsPerf.frame).
    ------------------------------------------------------------------------- */
 function injectFpsHelper() {
   return `
@@ -40,48 +71,43 @@ function injectFpsHelper() {
     }
 
     window.__vtsPerf.startFps = function startFps(warmupMs, measureMs) {
-      const samples = [];
-      let frames = 0;
-      let collecting = false;
-      let endAt = 0;
+      const samples = [];      // limitFps readings from the engine profiler
+      let stop = false;
 
-      let externalFps = null;
-      try { if (typeof window.__vtsFps === 'number') externalFps = () => window.__vtsFps; } catch (e) {}
-
-      function rafStep(now) {
-        frames++;
-        if (collecting && now >= endAt) {
-          const dur = measureMs;
-          const fps = (frames * 1000) / dur;
-          samples.push(fps);
-          collecting = false;
-        }
-        requestAnimationFrame(rafStep);
+      // Force the map to redraw every frame so the profiler measures real
+      // rendering rather than the idle loop.
+      function pump() {
+        if (stop) return;
+        try { if (window.__viewer) window.__viewer.redraw(); } catch (e) {}
+        requestAnimationFrame(pump);
       }
-      requestAnimationFrame(rafStep);
 
       return new Promise(resolve => {
         setTimeout(() => {
-          frames = 0;
-          collecting = true;
-          endAt = performance.now() + measureMs;
+          requestAnimationFrame(pump);
 
-          let intervalId = null;
-          if (externalFps) {
-            intervalId = setInterval(() => {
-              const v = externalFps();
-              if (typeof v === 'number' && v > 0) samples.push(v);
-            }, 500);
-          }
+          const sampleId = setInterval(() => {
+            const f = window.__vtsPerf.frame;
+            if (f && typeof f.limitFps === 'number' && f.limitFps > 0) {
+              samples.push(f.limitFps);
+            }
+          }, 250);
 
           setTimeout(() => {
-            if (intervalId) clearInterval(intervalId);
-            const avg = samples.reduce((s,x)=>s+x,0) / (samples.length || 1);
+            clearInterval(sampleId);
+            stop = true;
+
+            const last = window.__vtsPerf.frame || {};
             const stats = {
-              avg: avg || 0,
+              avg: (samples.reduce((s,x)=>s+x,0) / (samples.length || 1)) || 0,
               p10: percentile(samples, 0.10) || 0,
               p50: percentile(samples, 0.50) || 0,
-              p90: percentile(samples, 0.90) || 0
+              p90: percentile(samples, 0.90) || 0,
+              cpuMs: last.cpuMs ? last.cpuMs.median : 0,
+              gpuMs: (last.gpuMs && last.gpuMs.available)
+                ? last.gpuMs.median : null,
+              drawCalls: last.drawCalls || 0,
+              fboSwitches: last.fboSwitches || 0
             };
             window.__vtsPerf.fpsStats = stats;
             resolve(stats);
@@ -237,12 +263,17 @@ async function runOne(cfg, outDir) {
   });
 
   // -------------------- inject observers before any app code runs --------------------
+  await page.addInitScript(injectViewerCapture());
   await page.addInitScript(injectLcpObserver());
   await page.addInitScript(injectFpsHelper());
 
+  // Enable the engine's GPU timer for this measurement run.
+  const measureUrl = cfg.url + (cfg.url.includes('?') ? '&' : '?')
+    + 'mapProfileGpu=1';
+
   const navStart = Date.now();
   const t0 = navStart;
-  await page.goto(cfg.url, { waitUntil: 'domcontentloaded' });
+  await page.goto(measureUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load').catch(() => {});
   await page.waitForTimeout(200); // small buffer
 
@@ -322,6 +353,12 @@ async function runOne(cfg, outDir) {
       p50: fps.p50,
       p90: fps.p90,
       unit: "frames/second"
+    },
+    frame: {
+      cpuMs: fps.cpuMs,
+      gpuMs: fps.gpuMs,
+      drawCalls: fps.drawCalls,
+      fboSwitches: fps.fboSwitches
     },
     lcp: { value: lcp, unit: "ms" },
     finish: { value: finish, unit: "ms" },
