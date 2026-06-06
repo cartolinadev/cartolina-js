@@ -184,6 +184,7 @@ export class Renderer {
     // programs
     programs!: {
         tile?: GpuProgram,
+        tileDiscarding?: GpuProgram
         background?: GpuProgram
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
@@ -474,10 +475,43 @@ get curSize(): Readonly<Size2> {
 
 programTile() : GpuProgram {
 
-    // existing program, return it
+    // discard-free variant for unmasked, unclipped tiles
     if (this.programs.tile) return this.programs.tile;
 
-    // none existing yet, initialize with appropriate bindings
+    __DEV__ && console.log('Initializing programs.tile');
+
+    this.programs.tile = this.buildTileColorProgram('shader-tile', []);
+
+    return this.programs.tile;
+}
+
+/**
+ * Tile color program variant that keeps the coverage mask and quadrant
+ * clip `discard`, lazy initialization. Used for tiles that need to
+ * discard fragments (masked or clipped).
+ */
+
+programTileDiscarding() : GpuProgram {
+
+    if (this.programs.tileDiscarding) return this.programs.tileDiscarding;
+
+    __DEV__ && console.log('Initializing programs.tileDiscarding');
+
+    this.programs.tileDiscarding = this.buildTileColorProgram(
+        'shader-tile-discarding', ['TILE_DISCARD']);
+
+    return this.programs.tileDiscarding;
+}
+
+/**
+ * Build a tile color program with the shared bindings, optionally
+ * compiling the masked variant via preprocessor defines.
+ * @name diagnostic program name
+ * @defines preprocessor macros to define (e.g. `['TILE_DISCARD']`)
+ */
+
+private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
+
     let atmBindings = {}
 
     if (this.core.map.atmosphere) {
@@ -485,19 +519,13 @@ programTile() : GpuProgram {
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
     }
 
-    __DEV__ && console.log('Initializing programs.tile');
-
-
-    this.programs.tile = new GpuProgram(
+    return new GpuProgram(
         this.gpu, shaderTileVert, shaderTileFrag,
-        'shader-tile', {
+        name, {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
             ...atmBindings
-        }, { uTexAtmDensity: this.textureIdxs.atmosphere });
-
-    // done
-    return this.programs.tile;
+        }, { uTexAtmDensity: this.textureIdxs.atmosphere }, defines);
 }
 
 /**

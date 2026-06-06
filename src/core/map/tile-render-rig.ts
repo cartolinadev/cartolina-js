@@ -274,7 +274,15 @@ export class TileRenderRig {
             return;
         }
 
-        const program = this.renderer.programTile();
+        // discard-free program for plain tiles; the discarding variant
+        // keeps the coverage-mask and quadrant-clip discard. splitMask is
+        // the legacy surface-tree quadrant clip and is removed with that
+        // traversal, leaving a plain maskTexture check.
+        const needsDiscard = !!maskTexture || this.tile.splitMask != null;
+
+        const program = needsDiscard
+            ? this.renderer.programTileDiscarding()
+            : this.renderer.programTile();
 
         /* make sure we got the right program (device caches the current program,
          * so no extra churn) */
@@ -296,15 +304,19 @@ export class TileRenderRig {
                 'uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
         }*/
 
-        // uClip
-        let splitMask = this.tile.splitMask || [1, 1, 1, 1];
-        program.setFloatArray('uClip', splitMask);
-    
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
-        // uMask
-        this.bindMask(program, maskTexture);
+        // coverage uniforms exist only on the discarding program
+        if (needsDiscard) {
+
+            // uClip
+            let splitMask = this.tile.splitMask || [1, 1, 1, 1];
+            program.setFloatArray('uClip', splitMask);
+
+            // uMask
+            this.bindMask(program, maskTexture);
+        }
 
         //program.setSampler(
         //    'material.normalMap', this.normalMap.getGpuTexture());

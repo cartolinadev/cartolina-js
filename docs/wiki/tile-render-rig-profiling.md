@@ -134,9 +134,15 @@ color shader produces identical output. Confirmed pixel-equivalent
 The ~4.5 ms / 29% figure comes from the 2×2 matrix above, assembled from
 separate builds rather than a single clock-matched A/B, so it carries the
 clock-drift uncertainty noted earlier. The win is large and the
-interaction pattern is clear, but a clock-matched A/B (as done for the
-layer-VM split) should firm the exact number before it is quoted as a
-target; the backlog entry's acceptance criteria require that.
+interaction pattern is clear.
+
+**Implemented and firmed (2026-06-06).** Two tile color programs land
+the change: a discard-free program for unmasked tiles and a discarding
+program keeping both discards (see the backlog entry, now resolved). A
+clock-matched A/B on this build (alternating discard-free vs forced
+always-discard, MSAA on, `dpr=1`, minima of several runs) gives settled
+GPU 15.58 ms → 11.05 ms — the predicted ~29%, with the clock-drift
+confound removed.
 
 ### WIN 2 — split the layer VM into a specialized straight-line shader (~1.5 ms)
 

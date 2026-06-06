@@ -177,7 +177,13 @@ discard-free passes.
 ## PERF: discard-free tile color shader for watertight tiles
 
 **Opened:** 2026-06-06
-**Status:** open — actionable
+**Status:** resolved 2026-06-06 — two color programs; the discard-free
+one is selected for unmasked tiles, the discarding one (with the
+coverage-mask and quadrant-clip `discard`) for tiles carrying a mask.
+Clock-matched A/B on `simple.json` at 2560×1353, `dpr=1`: settled GPU
+15.58 ms → 11.05 ms (~29%). Pixel parity on `simple`/`complex`/`full`;
+the discarding program is selected and the seam composites on the
+benatky multi-surface scene. See the session log.
 **Related:** [tile-render-rig-profiling.md](tile-render-rig-profiling.md),
 [gpu-subsystem.md](gpu-subsystem.md)
 
@@ -239,6 +245,24 @@ then preserve it.
 - GPU frame cost on `simple.json` at 2560×1353 drops to ~11 ms range
   (`mapProfileGpu=1`). Note the iGPU clock-drift caveat in the profiling
   doc: compare clock-matched, not single readings.
+
+### Resolution
+
+`tile.frag.glsl` guards both `discard` sites (the `uMaskEnabled` test
+and the `applyTileClip` include and call) behind `#ifdef TILE_DISCARD`,
+so the default compile contains no `discard`. `GpuProgram` gained a
+`defines: string[]` constructor parameter that injects `#define` lines
+after the `#version` directive — the GLSL-ES-3.00-correct form of the
+raw-string `#define` prepend the legacy GLSL 1.00 path uses in
+`init.js`. `Renderer.programTile()` builds the discard-free program and
+`Renderer.programTileDiscarding()` the `TILE_DISCARD` variant, sharing
+`buildTileColorProgram`. `TileRenderRig.draw()` selects per draw:
+`(maskTexture || tile.splitMask) ? programTileDiscarding() :
+programTile()`, and sets `uClip`/`uMask` only on the discarding branch.
+`splitMask` is the legacy `surface-tree.js` quadrant clip; that term
+routes legacy clipped tiles to the discarding program and is removed
+with the legacy traversal, leaving a plain `maskTexture` check.
+`drawDepth()`/`footprint()` are unchanged (single-sample targets).
 
 
 ## PERF: draw-traversal — empty-quadrant fold

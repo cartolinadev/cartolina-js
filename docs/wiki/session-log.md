@@ -1,5 +1,47 @@
 # Session log
 
+## 2026-06-06 — Discard-free tile color shader
+
+Implemented the backlog entry "discard-free tile color shader for
+watertight tiles." The terrain color shader had two `discard` sites (the
+`uMaskEnabled` coverage test and the `applyTileClip` quadrant clip).
+Profiling showed any reachable `discard` defeats the MSAA fast-clear path
+on the measured Intel iGPU, costing ~4.5 ms on the fill-bound
+`simple.json` frame.
+
+Change: compile the color shader as two programs and select per draw.
+
+- `tile.frag.glsl` guards both discard sites behind `#ifdef TILE_DISCARD`,
+  including the `tile-clip.inc.glsl` include and the `uMask`/
+  `uMaskEnabled` uniforms, so the default compile has no `discard`.
+- `GpuProgram` gained a `defines: string[]` constructor parameter that
+  injects `#define` lines after the `#version` directive. This is the
+  GLSL-ES-3.00-correct form of the raw-string `#define` prepend the
+  legacy GLSL 1.00 shaders use in `init.js` (prepending before
+  `#version` is illegal in 3.00). Reusable for future modern variants.
+- `Renderer.programTile()` (discard-free) and `programTileDiscarding()`
+  (`TILE_DISCARD`) share a `buildTileColorProgram` helper. The program
+  is named for the act, not the cause: the coverage mask is one reason
+  to discard, the quadrant clip another.
+- `TileRenderRig.draw()` selects
+  `(maskTexture || tile.splitMask) ? discarding : tile` and sets the
+  coverage uniforms only on the discarding branch.
+
+`splitMask` is the legacy `surface-tree.js` quadrant clip and has no
+`maskTexture`; that term keeps the legacy clip on the discarding shader
+and is removed with the legacy traversal, leaving a plain `maskTexture`
+check. `drawDepth()`/`footprint()` were left unchanged — they render to
+single-sample targets where the discard×MSAA mechanism does not apply.
+
+Verification: `simple`/`complex`/`full` terrain dev-vs-prod pixel-
+identical, no console/network errors. A program-selection probe showed
+the watertight `simple.json` recursive scene uses the discard-free
+program for every draw, and the benatky multi-surface scene selects the
+discarding program where a mask is present. Clock-matched A/B on the same
+session (discard-free vs forced always-discard, `tmp/perf/probe_2560.js`,
+MSAA on, `dpr=1`): settled GPU 15.58 ms → 11.05 ms (~29%), matching the
+profiling prediction with the iGPU clock-drift confound removed.
+
 ## 2026-06-06 — TileRenderRig GPU profiling
 
 Profiled the settled-state GPU cost of the terrain color shader on
