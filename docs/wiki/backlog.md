@@ -1,5 +1,164 @@
 # Task backlog
 
+## REFACTOR/PERF: split tile rendering execution out of `TileRenderRig`
+
+**Opened:** 2026-06-06
+**Status:** deferred
+**Related:** [rendering-architecture.md](rendering-architecture.md)
+
+### Motivation
+
+`src/core/map/tile-render-rig.ts` is built around the style layer model.
+That model should stay: it is the style-era terrain composition model,
+and the rig already does useful tile-local work. It owns the tile and
+submesh resource references, builds the prepared layer stack, tracks
+essential vs optional readiness, supports fallback readiness, collapses
+normal/bump layers when possible, and reports active layer IDs for
+credits.
+
+The problem is narrower: the rig also owns backend execution. Its
+`draw()`, `drawDepth()`, `footprint()`, layer UBO encoding, texture-unit
+binding, mask binding, and GLSL program selection make the tile resource
+object the WebGL renderer for terrain. That couples the map/style data
+model to the current WebGL execution strategy.
+
+The current color path renders the prepared layer stack through one
+large tile shader. That shader behaves like a small layer interpreter:
+it loops over encoded layer records, branches on source/target/operation
+types, reads sampler indices from the UBO, maintains shader-side stacks,
+and applies shading, masks, atmosphere, and render flags in one pass.
+
+This may be a performance problem. The working hypothesis is that the
+"one pass is always better than many passes" assumption does not hold
+for this terrain workload once the single pass becomes a large dynamic
+shader. The old terrain path used simpler draw calls per layer and was
+faster in comparable scenes, but that is not yet proof that pass count
+is the cause: the old path also used simpler shaders, compile-time
+variants, and different material logic. A dedicated A/B measurement is
+needed.
+
+This is not part of the legacy map draw-path replacement, which is
+already underway as a separate cleanup track. It is a later renderer
+architecture task for the terrain path after the current traversal and
+draw-path work has settled.
+
+The extensibility problem is clearer. Future terrain layer types will
+not all fit naturally inside one tile fragment shader:
+
+- vector layers may rasterize waterways or other features before a
+  later specular or compositing pass reads the result;
+- land-cover layers may classify texture values into styled RGB or masks;
+- future analytical or generated layers may produce intermediate scalar,
+  color, normal, or mask textures before they affect final terrain color.
+
+Adding each layer type to the monolithic tile shader would grow the
+shader into a renderer-specific layer VM. It would also make a later
+WebGPU backend harder, because the style model and the WebGL execution
+model would remain fused.
+
+### Goals
+
+- Keep `TileRenderRig` as the tile/submesh resource holder and readiness
+  planner.
+- Move backend execution out of the rig into renderer-owned terrain tile
+  rendering code.
+- Treat multipass rendering as the baseline execution model to test:
+  a style layer or layer operation may emit one or more render passes.
+- Preserve `TileRenderRig`'s existing layer/resource optimization role:
+  skipping covered layers, collapsing normal/bump work, and deciding
+  which prepared layers belong in the render plan remain rig work.
+- Let the renderer execute that prepared plan with backend-specific draw
+  code and specialized shaders.
+- Make intermediate render products explicit: color, normal, scalar,
+  mask, or tile-local textures can be produced and consumed by later
+  passes.
+- Separate the prepared map/style model from WebGL-specific details so a
+  future backend can map the same render plan to a different execution
+  API.
+
+### Suggested API shape
+
+Do not expose the rig's mutable internal layer array directly. Add a
+narrow read API that returns a prepared render description for the
+requested readiness level, e.g.:
+
+```ts
+rig.layersForRender(readiness): readonly TileRenderRig.PreparedLayer[]
+```
+
+The returned data should describe what is ready to draw, not how WebGL
+binds it. It can include the prepared layer records, resource handles,
+texture transforms, active render flags, watertight/opacity facts, and
+the submesh resource needed by the backend. The shape should be narrow
+enough that the renderer cannot mutate rig state by accident.
+
+Renderer-owned code then consumes the rig:
+
+```ts
+renderer.terrainTiles.drawRig(rig, {
+    cameraPos,
+    target,
+    maskTexture,
+    pass: 'color' | 'depth' | 'footprint',
+});
+```
+
+The exact class names are open. Possible layers of ownership:
+
+- `TileRenderRig`: tile/submesh resources, prepared stack, readiness,
+  rig-local preprocessing such as normal collapse.
+- `TileRenderer`: turns a ready rig or render plan into terrain passes for 
+  color, depth, mask, and footprint.
+- WebGL backend helpers: own GLSL programs, framebuffer/render-target
+  operations, blend state, texture units, UBO/uniform packing, and draw
+  calls.
+
+During migration, `TileRenderRig.draw()` can remain as a compatibility
+shim that delegates to the renderer. The traversal can later call the
+renderer directly once the new boundary is stable.
+
+### Suggested execution direction
+
+The candidate rendering model is multipass-first:
+
+- `blend` operations use fixed-function blending where possible;
+- `push` operations can render into an independent intermediate target;
+- `pop` sources can bind a prior intermediate texture;
+- layer-specific renderers can produce tile-local textures for later
+  layers;
+- depth and footprint passes remain specialized paths rather than
+  variants of the full color shader;
+- optimization may fuse adjacent compatible passes or substitute a
+  specialized fast path for common simple stacks.
+
+This is not yet an RFC-level design. Open questions include target
+allocation, tile-local texture lifetime, pass sorting constraints,
+interaction with traversal masks, interaction with atmosphere/shadows,
+where normal collapse belongs after the executor split, and how much
+state should be represented as an explicit pass graph.
+
+### Measurement plan
+
+Start with a flag-gated experimental path for a small current subset,
+for example constants, diffuse texture layers, and simple shading.
+Compare it with the current monolithic rig on the canonical terrain
+URLs:
+
+- `simple-terrain`
+- `complex-terrain`
+- `full-terrain`
+
+Measure visual parity, draw calls, program switches, framebuffer
+switches, texture binds, CPU frame cost, and GPU frame cost when
+`mapProfileGpu=1` is enabled. The useful result is not only "faster" or
+"slower": if the multipass path loses, the counters should show whether
+the cost comes from framebuffer bandwidth, draw-call CPU overhead,
+texture binds, or pass setup. If it wins, expand the experiment to
+bump, specular, atmosphere, shadows, and traversal-mask cases.
+
+---
+
+
 ## PERF: draw-traversal — empty-quadrant fold
 
 **Opened:** 2026-06-04
