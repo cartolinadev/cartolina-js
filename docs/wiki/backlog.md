@@ -1,5 +1,105 @@
 # Task backlog
 
+## DATA/TOOLS: viewfinder-dem1 poisoned coarse navtiles + navtile-less LOD band
+
+**Opened:** 2026-06-07
+**Status:** open — fix lives in vts-tools / vts-libs, not cartolina-js
+**Related:** [nav-tiles.md](nav-tiles.md),
+[tile-index.md](tile-index.md),
+[tileserver-metatile-production.md](tileserver-metatile-production.md)
+
+### Symptom
+
+On `viewfinder-dem1`, resolving a `float` camera position to a fixed
+terrain height returns a garbage altitude (~32696 m ASL) instead of the
+real value (~1103 m near Mt Etna). The client reads the stored data
+faithfully — this is a data defect in the bottom-up-rebuilt tileset, not
+a cartolina-js bug. No client change is warranted.
+
+### Reproduction
+
+Single-surface dem1, with a `float` camera position near Mt Etna
+(15.051301, 37.768294), resolves to `fix,32695.89,…` in BOTH `recursive`
+and `legacy` traversal modes — confirming the defect is in the data, not
+the recursive path.
+
+Two-surface `viewfinder13.json` (dem3 back, dem1 front) made it look
+like a recursive-vs-legacy regression: recursive returns dem1's garbage
+(the front surface wins the front-to-back height query), legacy walks
+one merged tree and lands on dem3's good node (~1103 m). It is not a
+client regression — just dem1's frontmost data being read honestly.
+
+### Root cause (two independent defects, both in the rebuild)
+
+dem1's source tileset is lod 13–15 only (lodRange [13,15]); the
+mapproxy-store version (lodRange [1,15]) had coarse LODs 1–12 generated
+bottom-up.
+
+1. **Coarse navtile height ranges are poisoned by the int16 nodata
+   sentinel.** ~20 coarse/edge navtile nodes carry int16-saturated,
+   often inverted ranges. The root `[1,0,0]` stores `minHeight=32725`,
+   `maxHeight=32667` (inverted; raw bytes `D5 7F 9B 7F` at file offset
+   0x3F of `1-0-0.meta` — stored, not a parse error; dem3 parses to sane
+   ranges like -48/3356). When coarse navtiles are aggregated over
+   mostly-empty area, the ~±32767/32768 nodata value is not masked out of
+   the height-range computation. The navtile pixel itself is normal
+   (~128/255), so the bad min/max maps it to ~32696 m. The range comes
+   from `opencv::NavTile::heightRange()` over coverage-white pixels, with
+   `InvalidHeight = -FLT_MAX` (heightmap.hpp) and an unclamped
+   float→int16 cast.
+
+2. **A navtile-less coarse LOD band prevents correction.** The metanode
+   TREE has no holes: along the descent to real data (Etna 15.05E
+   37.77N: `1-0-0, 2-1-0, 3-2-1, 4-4-3, 5-8-6, 6-17-12, 7-34-24…`) the
+   intermediate nodes (2,1,0)..(6,17,12) exist as content-less ROUTING
+   nodes (geometry bit clear, navtile bit clear, child bits intact,
+   minH=1/maxH=0 = the no-navtile sentinel); the renderer descends
+   through them fine. What is missing is navtile (and mesh) CONTENT at
+   lod 2–6. `vts --complete-tileindex-up`
+   (vts-libs `tools/vts.cpp:2990`, `VtsStorage::completeTileindexUp`)
+   sets `mesh|navtile` only where coarsened coverage clears
+   `meshThreshold = K/8`; a point-like data region is sub-1/8 of a coarse
+   tile, so its mid-LOD ancestors stay routing-only.
+
+   The height query asks for a coarse LOD (~5; camera ~52 km). From the
+   root down to that LOD the ONLY navtile is the poisoned root (lod 1) —
+   the correct navtiles start at lod 7, finer than `desiredLod`, so
+   `MapSurfaceTree.traceHeightTileByMap`'s
+   `id[0] > desiredLod && heightMap` guard stops before reaching them.
+   dem3 navigates fine because its pyramid carries a navtile at every LOD
+   (it resolves cleanly at lod 5).
+
+### Where to fix (vts-tools / vts-libs)
+
+Both are needed for dem1 to navigate correctly; they are independent
+(fixing only one leaves the other symptom):
+
+- **Bottom-up pass (`completeTileindexUp`)** — must produce a complete,
+  walkable navtile pyramid: do not leave a navtile-less band above real
+  data. Either do not gate `navtile` on the `K/8` coverage threshold
+  (mark/generate a coarse navtile on every routing ancestor of real
+  data), or otherwise guarantee a coarse height overview exists at each
+  LOD down the chain.
+- **Coarse navtile generation** — must honor nodata: mask the int16
+  sentinel before computing the height range, so generated coarse
+  navtiles are not saturated/inverted.
+
+### Verification
+
+- `vts --tileindex-info <ts>/tileset.index --tileId L-X-Y` (tileId
+  format `L-X-Y`) shows `mesh,navtile` present at lod 1 and lod 7+ but
+  absent at lod 2–6 along the Etna path.
+- Decoding `.meta` files shows the poisoned ranges at coarse/edge nodes
+  (root 32725/32667).
+- After the fix, the single-surface dem1 reproduction URL must resolve
+  `float` to ~1103 m, and `vts` must report a navtile at every LOD down
+  the Etna path with sane ranges.
+- `vts` subcommands used: `tileindex-info`, `tile-info`,
+  `dump-navtile`, `query-navtile`.
+
+---
+
+
 ## REFACTOR/PERF: split tile rendering execution out of `TileRenderRig`
 
 **Opened:** 2026-06-06

@@ -5203,3 +5203,54 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 | `setSuperElevationProgression` | `setVeScaleRampFromProgression` (deprecated) |
 
 ---
+
+## 2026-06-07 — viewfinder-dem1 garbage terrain height (data, not client)
+
+Investigated why `viewfinder-dem1` resolves a `float` camera position to
+~32696 m ASL instead of ~1103 m. Concluded it is a data defect in the
+bottom-up-rebuilt tileset; the cartolina-js client reads it faithfully.
+No client change. Full write-up in the new backlog entry
+[backlog.md](backlog.md) ("DATA/TOOLS: viewfinder-dem1 poisoned coarse
+navtiles + navtile-less LOD band") and in auto-memory.
+
+### How it was traced
+
+Temporary instrumentation in `MapMeasure.getSurfaceHeight`
+(`measure.js`, reverted) logged, per surface tree, the metanode the
+height trace lands on and its range. Raw `.meta` files were decoded with
+a standalone Python reader; the on-disk tileset was queried with
+`vts --tileindex-info … --tileId L-X-Y`.
+
+### Findings
+
+- The root navtile node `[1,0,0]` stores `minHeight=32725`,
+  `maxHeight=32667` — inverted and absurd. Raw bytes `D5 7F 9B 7F` at
+  offset 0x3F of `1-0-0.meta` confirm it is stored, not a parse error
+  (dem3 parses to sane ranges). The int16 nodata sentinel (~±32767/8)
+  leaked into the coarse navtile height-range aggregation
+  (`opencv::NavTile::heightRange()` over coverage-white pixels,
+  `InvalidHeight = -FLT_MAX`, unclamped float→int16 cast).
+- dem1's source is lod 13–15; coarse LODs 1–12 were generated bottom-up.
+  `vts --complete-tileindex-up` (vts-libs `tools/vts.cpp:2990`) only sets
+  `mesh|navtile` where coarsened coverage clears `meshThreshold = K/8`,
+  leaving a navtile-less band at lod 2–6 above sparse data. The metanode
+  tree itself is intact — those are content-less routing nodes (child
+  bits set), so rendering descends through them; only the navtile content
+  is missing.
+- The height query asks for a coarse LOD (~5, camera ~52 km). From the
+  root down to that LOD the only navtile is the poisoned root; the real
+  navtiles start at lod 7 (finer than `desiredLod`), so
+  `traceHeightTileByMap`'s `id>desiredLod && heightMap` guard stops
+  before reaching them. dem3 navigates fine (navtile at every LOD).
+- The two-surface `viewfinder13.json` case looked like a recursive-vs-
+  legacy regression only because the recursive height query takes the
+  frontmost surface (dem1) while legacy's merged tree lands on dem3.
+  Single-surface dem1 fails identically in both modes.
+
+### Fix location (out of scope here)
+
+vts-tools / vts-libs: complete the coarse navtile pyramid in
+`completeTileindexUp`, and mask nodata in coarse navtile range
+generation. Both are needed.
+
+---
