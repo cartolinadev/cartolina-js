@@ -286,12 +286,14 @@ function traverseNode(context: NodeContext): CoverageResult {
  * node: each active surface with a ready, in-frustum child at this
  * quadrant contributes that child.
  *
- * Also reports the quadrant as `culled` when every active surface's
- * finer child here is loaded and frustum-culled — off-screen for the
- * whole active set. A surface with no finer child (its own tile covers
- * the quadrant) or an unloaded one (visibility untestable) is not
- * off-screen. The caller folds a culled quadrant into a watertight
- * result instead of drawing a fallback nothing can see.
+ * Also reports the quadrant as `culled` when every active surface with
+ * known coverage here is loaded and frustum-culled — off-screen for the
+ * whole active set. A missing child on a watertight parent is covered by
+ * that parent; a missing child on a sparse parent is considered absent
+ * coverage.
+ * An unloaded child is not off-screen because visibility is unknown. The
+ * caller folds a culled quadrant into a watertight result instead of
+ * drawing a fallback nothing can see.
  */
 function collectChildActive(
     context: NodeContext,
@@ -307,9 +309,13 @@ function collectChildActive(
 
     for (const entry of active) {
 
-        if (!entry.tile.metanode!.hasChild(quadrant)) {
+        const node = entry.tile.metanode!;
 
-            culled = false;      // no finer child; the current tile covers it
+        if (!node.hasChild(quadrant)) {
+
+            if (node.watertight && node.hasGeometry()) {
+                culled = false;  // watertight parent covers this quadrant
+            }
             continue;
         }
 

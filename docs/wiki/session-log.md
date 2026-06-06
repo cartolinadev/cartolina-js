@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-06-06 — sparse no-child fallback fix
+
+Fixed recursive traversal handling for missing children on sparse
+non-watertight surfaces. `collectChildActive` no longer treats every
+missing child as coverage by the current tile. A no-child quadrant keeps
+the conservative "not culled" result only when the current metanode is
+watertight and has geometry; sparse no-child quadrants are absent
+coverage, while unloaded children still keep visibility unknown.
+
+The bug was verified on the reported `viewfinder13.json` camera: sparse
+`viewfinder-dem1` no-child quadrants combined with frustum-culled
+`viewfinder-dem3` children made DEM3 LOD3 parents render as fallback
+coverage. After the fix the viewfinder case settles to 108 tiles, all at
+LOD13, with no LOD3 fallback draws. `simple.json` stays unchanged at
+84 LOD13 tiles and 0 framebuffer switches. Standard screenshots passed
+for `simple-terrain`, `complex-terrain`, and `full-terrain`.
+
 ## 2026-06-06 — Discard-free tile color shader
 
 Implemented the backlog entry "discard-free tile color shader for
