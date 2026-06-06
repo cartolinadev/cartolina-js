@@ -28,6 +28,35 @@ and cached fixed-function state.
 Map code decides what should be drawn. Renderer/GPU code issues the GL
 work and owns GL invariants.
 
+## Frame Profiling
+
+`src/core/map/frame-profiler.ts` measures frames that actually draw. It
+brackets `Map.draw()` and overlay rendering from `src/core/map.ts`, so
+loader promotion and event dispatch are outside the measured render
+section.
+
+CPU render time, realized wall-clock cadence of drawn frames, draw-call
+count, render texture-bind count, and framebuffer-switch count are always
+sampled. `GpuDevice` supplies the GL counters: draw calls are counted by
+wrapping WebGL draw entry points, render texture binds are counted by the
+`GpuDevice.bindTexture()` wrapper, and framebuffer switches are counted
+by the device framebuffer binding helper.
+
+GPU timer-query sampling is separate. It is enabled by `mapProfileGpu`
+and uses `EXT_disjoint_timer_query_webgl2`. The default map runtime keeps
+it off. Diagnostic entry points may enable it explicitly: the stats panel
+turns it on while visible and restores the previous setting on close, and
+the performance runner adds `mapProfileGpu=1`.
+
+GPU timer queries measure elapsed work on the GPU timeline, not
+JavaScript wall-clock time. Local probes on `complex2`, `simple`, and
+`viewfinder13` showed GPU-derived FPS limits matching independent RAF
+cadence on representative views, so GPU timing is the preferred
+bottleneck metric when enabled. With GPU timing disabled, `renderMs` and
+`limitFps` are CPU-frame metrics. With GPU timing enabled and valid
+samples available, `renderMs` and `limitFps` report the CPU/GPU
+bottleneck while `cpuMs` and `gpuMs` expose the two components.
+
 ## Fixed-Function State
 
 `GpuDevice.setState()` owns cached WebGL fixed-function state:

@@ -113,12 +113,15 @@ export class GpuDevice {
     private disposed_ = false;
 
     /**
-     * Cumulative GL draw calls and draw-framebuffer switches. `FrameProfiler`
-     * reads per-frame deltas of these; they are never reset here. The draw
-     * count is incremented by the wrappers installed in `installDrawCounters`;
-     * the switch count by `bindFramebuffer` when the bound framebuffer changes.
+     * Cumulative GL draw calls, render texture binds, and draw-framebuffer
+     * switches. `FrameProfiler` reads per-frame deltas of these; they are
+     * never reset here. The draw count is incremented by the wrappers
+     * installed in `installDrawCounters`; the texture bind count by
+     * `bindTexture`; the switch count by `bindFramebuffer` when the bound
+     * framebuffer changes.
      */
     drawCallCount = 0;
+    textureBindCount = 0;
     fboSwitchCount = 0;
 
     /** Last framebuffer bound per target, so only real switches are counted. */
@@ -625,6 +628,8 @@ bindTexture(texture: GpuTexture, id?: GLint) {
     const gl = this.gl;
 
     const unit = (id == null ? 0 : id);
+    this.textureBindCount++;
+
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, texture.texture);
 

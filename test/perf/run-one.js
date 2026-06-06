@@ -23,8 +23,9 @@ function injectLcpObserver() {
 }
 
 /* ----------------------------------------------------------------------------
-   Viewer capture (inject) — cartolina.map is a non-configurable getter,
-   so wrap Object.defineProperty to record the Viewer it returns.
+   Viewer capture (inject) - cartolina factory functions are
+   non-configurable getters, so wrap Object.defineProperty to record the
+   Viewer they return.
    ------------------------------------------------------------------------- */
 function injectViewerCapture() {
   return `
@@ -32,8 +33,8 @@ function injectViewerCapture() {
     const define = Object.defineProperty;
     Object.defineProperty = function (target, prop, descr) {
       try {
-        if (prop === 'map' && descr && typeof descr.get === 'function'
-            && !descr.__viewerWrapped) {
+        if ((prop === 'map' || prop === 'browser') && descr
+            && typeof descr.get === 'function' && !descr.__viewerWrapped) {
           const get = descr.get;
           descr.get = function () {
             const factory = get.call(this);
@@ -53,7 +54,7 @@ function injectViewerCapture() {
 }
 
 /* ----------------------------------------------------------------------------
-   FPS helper (inject) — drive continuous redraw so frames actually render,
+   FPS helper (inject) - drive continuous redraw so frames actually render,
    then read the engine's FrameProfiler result (window.__vtsPerf.frame).
    ------------------------------------------------------------------------- */
 function injectFpsHelper() {
@@ -106,7 +107,9 @@ function injectFpsHelper() {
               cpuMs: last.cpuMs ? last.cpuMs.median : 0,
               gpuMs: (last.gpuMs && last.gpuMs.available)
                 ? last.gpuMs.median : null,
+              rafFps: last.rafFps || null,
               drawCalls: last.drawCalls || 0,
+              textureBinds: last.textureBinds || 0,
               fboSwitches: last.fboSwitches || 0
             };
             window.__vtsPerf.fpsStats = stats;
@@ -133,6 +136,20 @@ function trimUrl(u, max = 160) {
 function ts() {
   const d = new Date();
   return d.toISOString().split('T')[1].replace('Z', '');
+}
+
+function withQueryParam(url, key, value) {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has(key)) parsed.searchParams.set(key, value);
+    return parsed.href;
+  } catch (_) {
+    const parts = url.split('#');
+    const base = parts[0];
+    const hash = parts.length > 1 ? '#' + parts.slice(1).join('#') : '';
+    if (new RegExp('([?&])' + key + '=').test(base)) return url;
+    return base + (base.includes('?') ? '&' : '?') + key + '=' + value + hash;
+  }
 }
 
 /* ----------------------------------------------------------------------------
@@ -168,7 +185,7 @@ async function runOne(cfg, outDir) {
   // idle params
   const idleMs = Number(cfg.idleMs ?? 2000);
   const maxIdleWaitMs = Number(cfg.maxIdleWaitMs ?? 30000);
-  const postNavHoldMs = Number(cfg.postNavHoldMs ?? 1200);     // don’t finish too soon after nav
+  const postNavHoldMs = Number(cfg.postNavHoldMs ?? 1200);     // do not finish too soon after nav
   const workerGuardMs = Number(cfg.workerGuardMs ?? 5000);     // if no worker seen after 5s, allow idle anyway
 
   // -------------------- one route to capture *everything* --------------------
@@ -267,9 +284,14 @@ async function runOne(cfg, outDir) {
   await page.addInitScript(injectLcpObserver());
   await page.addInitScript(injectFpsHelper());
 
-  // Enable the engine's GPU timer for this measurement run.
-  const measureUrl = cfg.url + (cfg.url.includes('?') ? '&' : '?')
-    + 'mapProfileGpu=1';
+  // Ask the engine to publish FrameProfiler data and include GPU timer
+  // queries. Performance runs are diagnostic measurements, so they report
+  // the CPU/GPU bottleneck instead of CPU submission alone.
+  const measureUrl = withQueryParam(
+    withQueryParam(cfg.url, 'mapExposeFpsToWindow', '1'),
+    'mapProfileGpu',
+    '1'
+  );
 
   const navStart = Date.now();
   const t0 = navStart;
@@ -286,7 +308,7 @@ async function runOne(cfg, outDir) {
       const sinceNav = Date.now() - navStart;
       // require: either we saw worker activity OR we gave it some time
       const workerOk = workerSeen || sinceNav >= workerGuardMs;
-      // also: don’t even consider idle before postNavHoldMs
+      // also: do not even consider idle before postNavHoldMs
       return workerOk && sinceNav >= postNavHoldMs;
     }
 
@@ -308,7 +330,7 @@ async function runOne(cfg, outDir) {
         // Keep re-arming idle window based on last activity & inflight
         const quietFor = now - lastActivityTs;
         if (allowIdleNow() && inflight === 0 && seenAny && quietFor >= idleMs) {
-          console.log(`[${ts()}] [IDLE] quiet ${quietFor}ms ≥ idleMs=${idleMs}, inflight=0, finishing.`);
+          console.log(`[${ts()}] [IDLE] quiet ${quietFor}ms >= idleMs=${idleMs}, inflight=0, finishing.`);
           clearInterval(tick);
           resolve({ idleTs: now, transferredAtIdle: Math.max(bytesByHeader, bytesDecoded), requestsAtIdle: requests });
           return;
@@ -357,7 +379,9 @@ async function runOne(cfg, outDir) {
     frame: {
       cpuMs: fps.cpuMs,
       gpuMs: fps.gpuMs,
+      rafFps: fps.rafFps,
       drawCalls: fps.drawCalls,
+      textureBinds: fps.textureBinds,
       fboSwitches: fps.fboSwitches
     },
     lcp: { value: lcp, unit: "ms" },

@@ -10,15 +10,16 @@ import type { GpuDevice } from '../renderer/gpu/device';
  * medians over the last N drawn frames.
  *
  * One sample is recorded per dirty frame (`beginFrame`/`endFrame` bracket
- * `Map.draw`): main-thread draw time, draw-call and framebuffer-switch
- * counts (read as deltas from `GpuDevice`), and — when GPU profiling is
- * enabled — GPU execution time via `EXT_disjoint_timer_query_webgl2`.
+ * `Map.draw`): main-thread draw time, draw-call, texture-bind and
+ * framebuffer-switch counts (read as deltas from `GpuDevice`), realized
+ * wall-clock cadence of drawn frames, and, when GPU profiling is enabled,
+ * GPU execution time via `EXT_disjoint_timer_query_webgl2`.
  *
  * Samples live in fixed-size ring buffers indexed by drawn frame, not by
  * wall time, so a read taken while the map is idle still reflects the last
  * real rendering rather than emptying. `result()` reports medians plus an
  * `ageMs` so a stale (idle) reading is recognisable. There is no realized
- * frame-interval "physical fps" — that is undefined at rest; `limitFps` is
+ * frame-interval "physical fps"; that is undefined at rest. `limitFps` is
  * the upper bound the per-frame cost allows.
  */
 class FrameProfiler {
@@ -26,7 +27,9 @@ class FrameProfiler {
     private readonly device_: GpuDevice;
     private readonly cpuMs_: Ring;
     private readonly gpuMs_: Ring;
+    private readonly frameIntervalMs_: Ring;
     private readonly drawCalls_: Ring;
+    private readonly textureBinds_: Ring;
     private readonly fboSwitches_: Ring;
 
     private gpuEnabled_ = false;
@@ -37,7 +40,9 @@ class FrameProfiler {
 
     private frameStart_ = 0;
     private drawCallsBase_ = 0;
+    private textureBindsBase_ = 0;
     private fboSwitchesBase_ = 0;
+    private lastFrameStart_ = 0;
     private lastSampleTime_ = 0;
 
     /**
@@ -50,7 +55,9 @@ class FrameProfiler {
         this.device_ = device;
         this.cpuMs_ = new Ring(windowSize);
         this.gpuMs_ = new Ring(windowSize);
+        this.frameIntervalMs_ = new Ring(windowSize);
         this.drawCalls_ = new Ring(windowSize);
+        this.textureBinds_ = new Ring(windowSize);
         this.fboSwitches_ = new Ring(windowSize);
     }
 
@@ -64,11 +71,16 @@ class FrameProfiler {
     beginFrame(): void {
 
         this.frameStart_ = performance.now();
+        this.recordFrameInterval(this.frameStart_);
+
         this.drawCallsBase_ = this.device_.drawCallCount;
+        this.textureBindsBase_ = this.device_.textureBindCount;
         this.fboSwitchesBase_ = this.device_.fboSwitchCount;
 
-        const ext = this.timerExtension();
-        if (this.gpuEnabled_ && ext && !this.activeQuery_) {
+        if (this.gpuEnabled_ && !this.activeQuery_) {
+
+            const ext = this.timerExtension();
+            if (!ext) return;
 
             const query = this.device_.gl.createQuery();
             if (query) {
@@ -86,6 +98,8 @@ class FrameProfiler {
 
         this.cpuMs_.push(now - this.frameStart_);
         this.drawCalls_.push(this.device_.drawCallCount - this.drawCallsBase_);
+        this.textureBinds_.push(
+            this.device_.textureBindCount - this.textureBindsBase_);
         this.fboSwitches_.push(
             this.device_.fboSwitchCount - this.fboSwitchesBase_);
         this.lastSampleTime_ = now;
@@ -108,15 +122,23 @@ class FrameProfiler {
 
         const cpu = this.cpuMs_.stats();
         const gpu = this.gpuMs_.stats();
+        const frameInterval = this.frameIntervalMs_.stats();
         const gpuAvailable =
             this.gpuEnabled_ && !!this.timerExt_ && gpu.count > 0;
 
+        // Without GPU profiling, this is the CPU submission cost. When GPU
+        // profiling is explicitly enabled and valid samples exist, this is the
+        // CPU/GPU bottleneck cost for the bracketed render work.
         const renderMs = Math.max(cpu.median, gpuAvailable ? gpu.median : 0);
 
         return {
             cpuMs: { median: cpu.median, p90: cpu.p90 },
             gpuMs: { median: gpu.median, p90: gpu.p90, available: gpuAvailable },
+            rafFps: frameInterval.mean > 0
+                ? 1000 / frameInterval.mean
+                : null,
             drawCalls: Math.round(this.drawCalls_.stats().median),
+            textureBinds: Math.round(this.textureBinds_.stats().median),
             fboSwitches: Math.round(this.fboSwitches_.stats().median),
             renderMs,
             limitFps: renderMs > 0 ? 1000 / renderMs : null,
@@ -125,6 +147,31 @@ class FrameProfiler {
                 ? performance.now() - this.lastSampleTime_
                 : Infinity,
         };
+    }
+
+    /**
+     * Track realized drawn-frame cadence. Long idle gaps reset the cadence
+     * window; within a continuous redraw run, the mean interval captures slow
+     * frames that a median interval would hide.
+     */
+    private recordFrameInterval(now: number): void {
+
+        if (!this.lastFrameStart_) {
+
+            this.lastFrameStart_ = now;
+            return;
+        }
+
+        const interval = now - this.lastFrameStart_;
+        this.lastFrameStart_ = now;
+
+        if (interval > 250) {
+
+            this.frameIntervalMs_.clear();
+            return;
+        }
+
+        this.frameIntervalMs_.push(interval);
     }
 
     /** Lazily fetch the timer extension once; null when unsupported. */
@@ -205,10 +252,15 @@ class Ring {
         if (this.count < this.data_.length) this.count++;
     }
 
-    /** Median and 90th percentile over the filled samples. */
-    stats(): { median: number; p90: number; count: number } {
+    /** Mean, median, and 90th percentile over the filled samples. */
+    stats(): { mean: number; median: number; p90: number; count: number } {
 
-        if (this.count === 0) return { median: 0, p90: 0, count: 0 };
+        if (this.count === 0) {
+            return { mean: 0, median: 0, p90: 0, count: 0 };
+        }
+
+        let sum = 0;
+        for (let i = 0; i < this.count; i++) sum += this.data_[i];
 
         // Valid samples occupy [0, count): before the buffer fills the
         // head has not wrapped, and once full count equals the capacity.
@@ -216,10 +268,17 @@ class Ring {
             .sort((a, b) => a - b);
 
         return {
+            mean: sum / this.count,
             median: percentile(sorted, 0.5),
             p90: percentile(sorted, 0.9),
             count: this.count,
         };
+    }
+
+    clear(): void {
+
+        this.head_ = 0;
+        this.count = 0;
     }
 }
 
@@ -241,7 +300,9 @@ namespace FrameProfiler {
     export type Result = {
         cpuMs: { median: number; p90: number };
         gpuMs: { median: number; p90: number; available: boolean };
+        rafFps: number | null;
         drawCalls: number;
+        textureBinds: number;
         fboSwitches: number;
         renderMs: number;
         limitFps: number | null;

@@ -1,5 +1,39 @@
 # Session log
 
+## 2026-06-06 — frame profiler audit
+
+Audited the frame profiler commit after opening the stats panel made draw
+times jump by roughly an order of magnitude. The source-level mechanism
+was verified: `InspectorStats.showPanel()` silently set
+`mapProfileGpu = true`, `test/perf/run-one.js` appended
+`mapProfileGpu=1` to every measured URL, and `FrameProfiler.result()`
+folded GPU timer-query medians into the primary `renderMs` and
+`limitFps` with `Math.max(cpu, gpu)`.
+
+Corrected the ownership split. The default map runtime keeps GPU timing
+off. The stats panel is a diagnostic entry point: it pumps redraws while
+open, enables `mapProfileGpu` while visible, and restores the previous
+setting on close. The performance runner adds `mapProfileGpu=1` because
+it reports diagnostic bottleneck measurements. `FrameProfiler` does not
+touch `EXT_disjoint_timer_query_webgl2` unless GPU profiling is enabled.
+With GPU profiling disabled, `renderMs` and `limitFps` come from the CPU
+frame median. With GPU profiling enabled and valid samples available,
+they report the CPU/GPU bottleneck, and the panel shows FPS limit first,
+then realized RAF cadence plus CPU and GPU frame times. The profiler also
+reports render texture binds, counted as per-frame deltas of calls
+through `GpuDevice.bindTexture()`, between draw calls and framebuffer
+switches.
+
+Current state: GPU profiling is not removed. It remains available via
+`mapProfileGpu=1`, and diagnostic entry points enable it when their job
+is bottleneck measurement. The first local Chromium probe required
+elevated launch permissions; after rerunning with approval, probes showed
+GPU timer FPS limits matching independent RAF cadence on representative
+views. The high GPU values were real GPU-timeline work, not JavaScript
+wall-clock frame time. Source checks passed:
+`npx tsc --noEmit`, `node -c test/perf/run-one.js`, and
+`git diff --check`.
+
 ## 2026-06-05 — empty-quadrant fold
 
 Split the recursive traversal's coverage result so a frustum-culled

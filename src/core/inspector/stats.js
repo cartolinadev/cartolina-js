@@ -75,10 +75,8 @@ InspectorStats.prototype.showPanel = function() {
     this.element.style.display = 'block';
     this.panelVisible = true;
 
-    // Opening the panel is itself the opt-in to full diagnostics, so turn
-    // on the profiler's GPU timing while it is visible; restore on close.
     var map = this.core.getMap();
-    if (map) {
+    if (map && this.savedProfileGpu == null) {
         this.savedProfileGpu = map.config.mapProfileGpu;
         map.config.mapProfileGpu = true;
     }
@@ -104,6 +102,12 @@ InspectorStats.prototype.pumpRedraw = function() {
 InspectorStats.prototype.hidePanel = function() {
     this.element.style.display = 'none';
     this.panelVisible = false;
+
+    var map = this.core.getMap();
+    if (map && this.savedProfileGpu != null) {
+        map.config.mapProfileGpu = this.savedProfileGpu;
+        this.savedProfileGpu = null;
+    }
 };
 
 
@@ -125,23 +129,25 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
     var fp = stats.frameProfile;
     var idle = (fp && fp.ageMs > 1000)
         ? ' (idle ' + (fp.ageMs / 1000).toFixed(1) + 's)' : '';
+    var rafFps = (fp && fp.rafFps) ? fp.rafFps.toFixed(1) : 'n/a';
     var fpsText = fp
-        ? ('FPS limit: ' + (fp.limitFps ? Math.round(fp.limitFps) : '—')
+        ? ('FPS limit: ' + (fp.limitFps ? Math.round(fp.limitFps) : 'n/a')
                 + idle + '<br/>'
-            + 'Render: ' + fp.renderMs.toFixed(2) + ' ms (cpu '
-                + fp.cpuMs.median.toFixed(2)
-                + (fp.gpuMs.available
-                    ? ', gpu ' + fp.gpuMs.median.toFixed(2) : '')
-                + ')<br/>')
-        : 'FPS limit: —<br/>';
+            + 'RAF cadence: ' + rafFps + ' fps<br/>'
+            + 'CPU frame: ' + fp.cpuMs.median.toFixed(2) + ' ms<br/>'
+            + (fp.gpuMs.available
+                ? 'GPU frame: ' + fp.gpuMs.median.toFixed(2) + ' ms<br/>'
+                : ''))
+        : 'FPS limit: n/a<br/>';
 
     var text2 =
-            // Group 1 — render performance.
+            // Group 1 - render performance.
             fpsText +
             'Draw calls: ' + (fp ? fp.drawCalls : 0) + '<br/>' +
+            'Texture binds: ' + (fp ? fp.textureBinds : 0) + '<br/>' +
             'FBO switches: ' + (fp ? fp.fboSwitches : 0) + '<br/><br/>' +
 
-            // Group 2 — caches.
+            // Group 2 - caches.
             'GPU Cache: ' + Math.round(stats.gpuUsed/(1024*1024)) + 'MB<br/>' +
             ' - textures: ' + Math.round(stats.gpuTextures/(1024*1024)) + 'MB<br/>' +
             ' - meshes: ' + Math.round(stats.gpuMeshes/(1024*1024)) + 'MB<br/>' +
@@ -149,7 +155,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
             'CPU Cache: ' + Math.round(stats.resourcesUsed/(1024*1024)) + 'MB<br/>' +
             'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/><br/>' +
 
-            // Group 3 — this frame's render footprint.
+            // Group 3 - this frame's render footprint.
             'Render resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +
             'Topdown: ' + Math.round(stats.gpuNeeded/(1024*1024)) + 'MB<br/>' +
             'Polygons: ' + (stats.drawnFaces) + '<br/><br/>' +
