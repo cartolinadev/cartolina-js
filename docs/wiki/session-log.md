@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-06-06 — legacy traversal: tolerate zero-submesh meshes
+
+`viewfinder-dem1` rendered nothing in `mapTerrainTraversal=legacy` while
+recursive rendered fine. Traced the descent: the melown2015 root `0-0-0`
+(no geometry of its own) splits at lod 1 into three division-node roots
+(pseudomerc, north UPS, south UPS). The north-UPS root `1-0-1` is flagged
+with geometry in the metatile but its mesh has zero submeshes (a valid
+14-byte VTS header, `numSubmeshes = 0`). `drawSurfaceTile` returned
+not-ready for it forever (`if (!surfaceMesh.submeshes.length) return
+false`), and the legacy topdown `drawSurface` descends the root only when
+every child is render-ready (`childrenCount == readyCount`), so that one
+empty sibling pinned the root at 2/3 ready and blocked the whole globe.
+
+Fix (workaround, client): in `drawSurfaceTile`, when a mesh has parsed
+(`loadState == 2`) but carries zero submeshes, report it ready instead of
+not-ready — it is a tile with nothing to draw, not an unloaded one.
+Marked for removal with the legacy path. Verified the reported camera now
+renders in legacy, recursive is unchanged, and `simple-terrain`,
+`complex-terrain`, `full-terrain` screenshots still pass.
+
+The underlying tileserver defect — a `surface` generator emitting a
+zero-submesh mesh for a geometry-flagged node — is recorded in
+[backlog.md](backlog.md) for a server-side fix.
+
 ## 2026-06-06 — map demo resolves relative style source URLs
 
 The map demo (`demos/map/index.html`) fetches the style as text to

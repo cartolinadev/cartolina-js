@@ -2262,3 +2262,83 @@ when the token is first received — no render-loop involvement needed.
 | `src/core/core.js:275–308` | `onAutorizationLoaded` — sets up token and callback |
 | `src/core/core.js:351–357` | initial auth fetch |
 | `src/core/map/map.js:1451–1455` | per-frame expiry check in `update()` |
+
+
+## BUG (tileserver): surface generator emits a zero-submesh mesh
+
+**Opened:** 2026-06-06
+**Status:** deferred
+**Repository:** cartolina-tileserver (mapproxy `surface` generator)
+**Related:** client workaround landed in
+[draw-tiles.js](../../src/core/map/draw-tiles.js) (the
+`surfaceMesh.loadState == 2` early return in `drawSurfaceTile`)
+
+### Symptom
+
+A `surface-dem` resource can serve a tile whose metatile metanode has the
+`geometry` flag set while the matching `.bin` mesh contains zero
+submeshes. The mesh is structurally valid (the VTS header reports
+`numSubmeshes = 0`), so it is not malformed in the format sense, but it
+is inconsistent with the metatile that advertises geometry.
+
+Observed on the global `topoearth/viewfinder-dem1` surface (a sparse DEM
+whose tile index was extended upward with `vts complete-tileindex-up`).
+The melown2015 root splits at lod 1 into three division-node subtrees
+(pseudomerc, north UPS, south UPS). The north-UPS root tile `1-0-1` is
+flagged with geometry and real height extents in the metatile, but its
+mesh decodes to 14 bytes — a valid header with zero submeshes.
+
+### Root cause
+
+The metatile geometry flag comes from the tile index and the metatile's
+own 8×8 per-tile sampling
+(`metatileSamplesPerTile = 1<<3`), which finds valid heights for the
+node. The mesh is built separately at 128×128 via
+`Operation::demOptimal`, and the delivery path adds a submesh only when
+the sampled local mesh has vertices:
+
+`mapproxy/src/mapproxy/generator/surface.cpp` (`SurfaceBase::generateMesh`)
+
+```cpp
+vts::Mesh mesh(false);
+if (!lm.mesh.vertices.empty()) {
+    auto &sm(addSubMesh(mesh, lm.mesh, nodeInfo, lm.geoidGrid, textureMode));
+    ...
+}
+```
+
+When that warp yields no vertices the output mesh keeps zero submeshes.
+The two products (metatile, mesh) sample the dataset differently and can
+disagree about coverage for a coarse node, producing the mismatch.
+
+(A raw 128×128 warp of `1-0-1` actually returns ~22.8% valid pixels, so
+the node is not even genuinely empty — the empty mesh is itself
+questionable, separate from the consistency issue.)
+
+### Impact
+
+A geometry-flagged tile backed by a zero-submesh mesh can never become
+render-ready on the client, because the mesh has nothing to draw. The
+legacy topdown traversal descends the root only when every division-node
+sibling is ready, so one such sibling stalls the whole surface (blank
+globe). Worked around client-side for the legacy path; the recursive
+path tolerates it.
+
+### Suggested direction
+
+A surface generator should always emit exactly one submesh. The cleanest
+fix is in `SurfaceBase::generateMesh`: add the submesh unconditionally
+(an empty submesh with zero faces is acceptable), or otherwise reconcile
+the metatile `geometry` flag with the actual mesh content so the two are
+never inconsistent. Empty submeshes need a sane bounding box — an empty
+`extents()` returns inverted/sentinel values — and the coverage-mask,
+normal-map, and watertight/multimesh paths must tolerate the empty case.
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `mapproxy/src/mapproxy/generator/surface.cpp` | `SurfaceBase::generateMesh` — submesh added only if `!lm.mesh.vertices.empty()` |
+| `mapproxy/src/mapproxy/generator/surface-dem.cpp` | `generateMeshImpl` — 128×128 `demOptimal` warp |
+| `mapproxy/src/mapproxy/generator/metatile.cpp` | metatile geometry flag from index + 8×8 sampling |
+| `mapproxy/src/mapproxy/support/mesh.cpp` | `addSubMesh`, `meshFromNode` |

@@ -113,7 +113,18 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 // tile as not-ready and try children. (The submeshes array
                 // is also non-empty after CPU eviction — see cpuReady below
                 // for that case.)
-                if (!surfaceMesh.submeshes.length) return false;
+                //
+                // Workaround: a surface generator can deliver a parsed,
+                // structurally valid mesh that carries zero submeshes (no
+                // geometry over the tile). Once it has loaded (loadState 2)
+                // such a tile is ready with nothing to draw, so report it
+                // ready. Reporting not-ready forever stalls the legacy
+                // topdown traversal, which descends the root only when every
+                // division-node sibling is ready — one empty sibling then
+                // blocks the whole surface. Remove with the legacy path.
+                if (!surfaceMesh.submeshes.length) {
+                    return surfaceMesh.loadState == 2;
+                }
 
                 // CPU residence is a stricter condition than meshReady.
                 // killSubmeshes nulls per-submesh CPU fields (vertices,
