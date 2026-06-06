@@ -156,7 +156,89 @@ the cost comes from framebuffer bandwidth, draw-call CPU overhead,
 texture binds, or pass setup. If it wins, expand the experiment to
 bump, specular, atmosphere, shadows, and traversal-mask cases.
 
+**Update 2026-06-06:** a first A/B measurement is done — see
+[tile-render-rig-profiling.md](tile-render-rig-profiling.md). On
+`simple.json` at 2560×1353 the settled frame is fragment/fill bound
+(~85 draws, but CPU ~3 ms and flat with resolution; GPU tracks pixel
+count). Hand-specializing the layer loop into a straight-line shader for
+that stack is pixel-equivalent and ~1.0–1.9 ms cheaper (clock-matched,
+~15% of the no-discard frame), with the cost shape pointing at layer-VM
+register pressure rather than shading math. That straight-line shader is
+exactly the "specialized fast path for common simple stacks" this entry
+proposes: the executor split, done for a simple stack, produces it. The
+profiling doc also isolates a larger, separate win — removing the
+shader's `discard` (see the PERF entry below) — which the executor split
+should preserve by keeping depth and footprint as specialized,
+discard-free passes.
+
 ---
+
+
+## PERF: discard-free tile color shader for watertight tiles
+
+**Opened:** 2026-06-06
+**Status:** open — actionable
+**Related:** [tile-render-rig-profiling.md](tile-render-rig-profiling.md),
+[gpu-subsystem.md](gpu-subsystem.md)
+
+### Motivation
+
+The tile color shader (`tile.frag.glsl`) contains `discard` in two
+places: the coverage-mask test (`uMaskEnabled`) and the quadrant clip
+(`applyTileClip`, `shaders/includes/tile-clip.inc.glsl`). Any reachable
+`discard` makes
+the driver defer the depth test and, on the Intel iGPU measured, also
+defeats the MSAA fast-clear / compression path on the multisampled
+canvas.
+
+Measured on `simple.json` at 2560×1353 (see the profiling doc): removing
+both `discard` sites drops the settled frame from ~15.6 ms to ~11.05 ms
+at `dpr=1` — about 29% — and as a side effect makes MSAA nearly free
+(its standalone cost is ~0.9 ms; the ~4.5 ms is a discard×MSAA
+interaction term, not early-Z, since the near-nadir view has no
+occlusion to reject). This is the single largest recoverable win found
+and needs no shader rewrite.
+
+### Proposed change
+
+Split the tile color shader into two compiled programs by whether they
+keep the `discard`:
+
+- the **tile color shader** — discard-free, used for fully-covered
+  tiles (watertight, unclipped, unmasked). This is the common case: it
+  is exactly the traversal's watertight fast-path set.
+- the **masked/clipped variant** — keeps the `discard` for the coverage
+  mask and the quadrant clip, used only for tiles that actually need
+  masking or clipping (LOD-boundary quadrant trims, non-watertight
+  surfaces).
+
+Select per draw on whether the tile needs the coverage mask or the
+quadrant clip. Output is pixel-identical for fully-covered tiles
+(verified), because the mask and clip remove nothing there;
+`uMaskEnabled` disappears from the discard-free shader.
+
+Maintain the second program only for passes that render into the
+multisampled canvas and are fill-heavy — the color pass. The
+depth/footprint passes render to single-sample targets (`RGBA8UI`
+hitmap; see [render-targets.md](render-targets.md)), so the discard×MSAA
+mechanism does not apply there and they need no second program for this
+reason.
+
+This is conceptually inside the `split tile rendering execution` entry
+above (the executor would own program selection), but it is small and
+high-value enough to land on its own first; the executor split should
+then preserve it.
+
+### Acceptance
+
+- Discard-free shader selected for fully-covered (watertight, unclipped,
+  unmasked) tiles; the masked/clipped variant retained for tiles that
+  need masking or clipping.
+- Pixel parity on `simple`, `complex`, `full`, and a non-watertight /
+  masked case (where the masked/clipped variant must still discard).
+- GPU frame cost on `simple.json` at 2560×1353 drops to ~11 ms range
+  (`mapProfileGpu=1`). Note the iGPU clock-drift caveat in the profiling
+  doc: compare clock-matched, not single readings.
 
 
 ## PERF: draw-traversal — empty-quadrant fold

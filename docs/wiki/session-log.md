@@ -1,5 +1,43 @@
 # Session log
 
+## 2026-06-06 — TileRenderRig GPU profiling
+
+Profiled the settled-state GPU cost of the terrain color shader on
+`simple.json` at 2560×1353. Full writeup with method, numbers, and the
+three wins is in
+[tile-render-rig-profiling.md](tile-render-rig-profiling.md); this is the
+orientation summary.
+
+Started on a stale webpack bundle (served behind a cached ts-loader error
+overlay while `tsc` was clean) and reported invalid numbers before the
+browser-console compile error gave it away — restarted the dev server and
+redid everything. The harness (`tmp/perf/probe_2560.js`, headless with
+`--use-angle=gl`) drives a redraw pump and reads `window.__vtsPerf.frame`
+with `mapProfileGpu=1`; it runs on the real Intel iGPU with timer queries
+available. The iGPU's absolute GPU-timer values drift ~10–30% (up to ~2×
+when a light shader lets the clock drop), so small deltas were measured
+clock-matched (alternating builds, minimum of several runs), and the
+`dpr=1.5` sweep point was discarded as non-monotonic.
+
+Findings: the settled frame (85 draws, 85 binds, 0 FBO switches) is
+fragment/fill bound — GPU tracks pixel count, CPU is flat at ~3 ms, so
+the draw/bind counts are not the bottleneck. Three confirmed wins:
+(1) removing the shader's `discard` recovers ~4.5 ms / 29% via a
+discard×MSAA interaction (not early-Z; the nadir view has no occlusion) —
+landed as an actionable backlog entry; (2) replacing the runtime layer VM
+with a pixel-equivalent straight-line shader saves ~1.0–1.9 ms
+(clock-matched), confirming the UBO/stack-loop register-pressure
+hypothesis — noted on the `split tile rendering execution` backlog entry,
+which produces this shader for simple stacks. A third candidate —
+dropping the 4-tap octahedral normal filtering to a single tap (the fold
+is only needed for `z < 0` overhangs, impossible for DEM heightfield
+normals) — turned out **not** to be a measurable win: a clock-matched
+A/B put the tap difference below the iGPU clock-noise floor (a 4-tap run
+even beat every 1-tap run), most likely because the 256² normal map is
+texture-cache-resident. The earlier ~1.5 ms reading for it was a
+cross-clock-state artifact. Probe shaders were reverted; the tree is
+clean.
+
 ## 2026-06-06 — frame profiler audit
 
 Audited the frame profiler commit after opening the stats panel made draw

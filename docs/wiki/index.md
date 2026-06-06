@@ -86,6 +86,11 @@ then branch into more specific documents as needed.
   encoding: why it is kept for full-sphere coverage and uniform precision,
   the nonlinearity problem when blending encoded values, and how
   `TextureBlend` oct-normal mode fixes it for bump-layer collapse
+- [tile-render-rig-profiling.md](tile-render-rig-profiling.md) —
+  settled-state GPU cost of the terrain color shader on `simple.json`:
+  method and clock-drift caveat, the fill-bound finding, two confirmed
+  wins (discard×MSAA, layer-VM split), and a normal-tap change that did
+  not pay off on this hardware
 
 ### API, navigation, demos, and testing
 
