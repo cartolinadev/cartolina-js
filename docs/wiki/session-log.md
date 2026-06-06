@@ -1,5 +1,32 @@
 # Session log
 
+## 2026-06-06 — map demo resolves relative style source URLs
+
+The map demo (`demos/map/index.html`) fetches the style as text to
+expand `__placeholder__` tokens, then hands the parsed object to
+`cartolina.map()`. Because the factory receives an object rather than a
+URL string, it used `window.location.href` (the demo's own URL) as the
+base for resolving relative source paths — the style's actual URL never
+reached it.
+
+A style served from a surface directory uses `"url": "./"` for its
+`cartolina-surface` source. That resolved to
+`http://localhost:8080/demos/map/mapConfig.json` (404) and the map
+failed to load.
+
+Fix: after parsing the expanded style, `absolutizeSourceUrls` rewrites
+each `sources[].url` via `new URL(url, absoluteStyleUrl)`, where
+`absoluteStyleUrl` is the URL the style was fetched from. Absolute URLs
+(including those produced by `__backend__` expansion) pass through
+unchanged. Scoped to `sources[].url`, the only field cartolina resolves
+relative to the style base; font URLs in styles are expected absolute.
+
+Verified with
+`?style=http://localhost/mapproxy/melown2015/surface/topoearth/viewfinder-dem1/style.json`
+(relative `./` source now loads, terrain renders, no console errors) and
+`?style=simple&backend=test` (placeholder-expanded absolute URL still
+resolves to the test backend, no regression).
+
 ## 2026-06-06 — sparse no-child fallback fix
 
 Fixed recursive traversal handling for missing children on sparse

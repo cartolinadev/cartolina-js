@@ -72,6 +72,21 @@ function expandStyleTemplate(styleText, params) {
   });
 }
 
+/**
+ * Rewrites relative source URLs in a parsed style to absolute URLs,
+ * resolving them against the URL the style was retrieved from. URLs
+ * that are already absolute are left unchanged.
+ */
+function absolutizeSourceUrls(style, baseUrl) {
+  if (!style || typeof style.sources !== 'object') return;
+
+  for (const source of Object.values(style.sources)) {
+    if (source && typeof source.url === 'string') {
+      source.url = new URL(source.url, baseUrl).href;
+    }
+  }
+}
+
 async function loadStyle(params) {
   const styleUrl = resolveStyleUrl(params.get('style'));
 
@@ -83,11 +98,23 @@ async function loadStyle(params) {
   const styleText = await response.text();
   const expandedStyleText = expandStyleTemplate(styleText, params);
 
+  let style;
+
   try {
-    return JSON.parse(expandedStyleText);
+    style = JSON.parse(expandedStyleText);
   } catch (e) {
     throw new Error(`Expanded style is not valid JSON: ${e.message}`);
   }
+
+  // The style is fetched as text and handed to the map factory as a
+  // parsed object, so the factory never sees the style's own URL and
+  // would resolve relative source paths against this demo's URL. Make
+  // those paths absolute here, against the URL the style came from.
+  const absoluteStyleUrl = new URL(styleUrl, window.location.href).href;
+
+  absolutizeSourceUrls(style, absoluteStyleUrl);
+
+  return style;
 }
 
 async function main() {
