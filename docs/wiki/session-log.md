@@ -45,9 +45,10 @@ each `sources[].url` via `new URL(url, absoluteStyleUrl)`, where
 unchanged. Scoped to `sources[].url`, the only field cartolina resolves
 relative to the style base; font URLs in styles are expected absolute.
 
-Verified with
-`?style=http://localhost/mapproxy/melown2015/surface/topoearth/viewfinder-dem1/style.json`
-(relative `./` source now loads, terrain renders, no console errors) and
+Verified with the `viewfinder-dem1` surface `style.json`
+(`melown2015/surface/topoearth/viewfinder-dem1/style.json`, served from
+the test backend) — relative `./` source now loads, terrain renders, no
+console errors — and
 `?style=simple&backend=test` (placeholder-expanded absolute URL still
 resolves to the test backend, no regression).
 
