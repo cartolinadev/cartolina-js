@@ -74,12 +74,40 @@ InspectorStats.prototype.init = function() {
 InspectorStats.prototype.showPanel = function() {
     this.element.style.display = 'block';
     this.panelVisible = true;
+
+    var map = this.core.getMap();
+    if (map && this.savedProfileGpu == null) {
+        this.savedProfileGpu = map.config.mapProfileGpu;
+        map.config.mapProfileGpu = true;
+    }
+
+    this.pumpRedraw();
+};
+
+
+// While the panel is open, keep the map drawing each frame so the frame
+// profiler has fresh samples to show; the loop stops once it closes.
+InspectorStats.prototype.pumpRedraw = function() {
+    if (!this.panelVisible) {
+        return;
+    }
+
+    this.core.markDirty();
+
+    var self = this;
+    requestAnimationFrame(function() { self.pumpRedraw(); });
 };
 
 
 InspectorStats.prototype.hidePanel = function() {
     this.element.style.display = 'none';
     this.panelVisible = false;
+
+    var map = this.core.getMap();
+    if (map && this.savedProfileGpu != null) {
+        map.config.mapProfileGpu = this.savedProfileGpu;
+        this.savedProfileGpu = null;
+    }
 };
 
 
@@ -98,22 +126,38 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
     }
     var inspector = this.inspector;
     
+    var fp = stats.frameProfile;
+    var idle = (fp && fp.ageMs > 1000)
+        ? ' (idle ' + (fp.ageMs / 1000).toFixed(1) + 's)' : '';
+    var rafFps = (fp && fp.rafFps) ? fp.rafFps.toFixed(1) : 'n/a';
+    var fpsText = fp
+        ? ('FPS limit: ' + (fp.limitFps ? Math.round(fp.limitFps) : 'n/a')
+                + idle + '<br/>'
+            + 'RAF cadence: ' + rafFps + ' fps<br/>'
+            + 'CPU frame: ' + fp.cpuMs.median.toFixed(2) + ' ms<br/>'
+            + (fp.gpuMs.available
+                ? 'GPU frame: ' + fp.gpuMs.median.toFixed(2) + ' ms<br/>'
+                : ''))
+        : 'FPS limit: n/a<br/>';
+
     var text2 =
-            'FPS (upper limit): ' + Math.round(stats.fps) + '<br/>' +
-            'Render time: ' + stats.renderTime.toFixed(2) + ' ms/frame <br/>' +
-            ' - resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +
-            ' - topdown: ' + Math.round(stats.gpuNeeded/(1024*1024)) + 'MB<br/>' +
-            //" - resources: " + (stats.gpuRenderUsed) + " --- " + (stats.gpuRenderUsed / stats.drawnTiles) + "<br/>" +
+            // Group 1 - render performance.
+            fpsText +
+            'Draw calls: ' + (fp ? fp.drawCalls : 0) + '<br/>' +
+            'Texture binds: ' + (fp ? fp.textureBinds : 0) + '<br/>' +
+            'FBO switches: ' + (fp ? fp.fboSwitches : 0) + '<br/><br/>' +
+
+            // Group 2 - caches.
             'GPU Cache: ' + Math.round(stats.gpuUsed/(1024*1024)) + 'MB<br/>' +
             ' - textures: ' + Math.round(stats.gpuTextures/(1024*1024)) + 'MB<br/>' +
             ' - meshes: ' + Math.round(stats.gpuMeshes/(1024*1024)) + 'MB<br/>' +
             ' - geodata: ' + Math.round(stats.gpuGeodata/(1024*1024)) + 'MB<br/>' +
             'CPU Cache: ' + Math.round(stats.resourcesUsed/(1024*1024)) + 'MB<br/>' +
-            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/>' +
-//            "FOV: " + Math.round(this.core.getOption("fov")) + " deg<br/>" +
-//            "viewHeight: " + Math.round(this.core.getOption("viewHeight")) + " m<br/>" +
-//            "distance: " + Math.round(this.core.renderer.cameraDistance) + " m<br/>" +
-            'Draw calls: ' + (stats.drawCalls) + '<br/>' +
+            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/><br/>' +
+
+            // Group 3 - this frame's render footprint.
+            'Render resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +
+            'Topdown: ' + Math.round(stats.gpuNeeded/(1024*1024)) + 'MB<br/>' +
             'Polygons: ' + (stats.drawnFaces) + '<br/><br/>' +
             'Terrain Height: ' + (stats.heightTerrain.toFixed(2)) + '<br/>' +
             '- float: ' + (stats.heightDelta.toFixed(2)) + '<br/>' +
@@ -138,8 +182,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         text2 += stats.debugStr + '<br/>';        
     }
 
-    var text3 = 'BFRate: ' +
-        Math.round(1000 / (stats.frameTime+0.00001)) +'<br/><br/>';
+    var text3 = '';
 
     var map = this.core.getMap();
 

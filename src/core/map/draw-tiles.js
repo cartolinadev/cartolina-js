@@ -44,13 +44,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 !tile.surface.geodata && preventLoad && !tile.surfaceMesh;
             if (probingUnloadedTerrain) return false;
 
-            if (this.map.outerMap.overrides.heightmapOnly && !preventRedener) {
-                if (!tile.surface.geodata) {
-                    tile.drawGrid(cameraPos);
-                }
-                return true;
-            }
-
             // update tile counts in inspector
             if (!preventRedener) {
                 this.stats.renderedLods[tile.id[0]]++;
@@ -90,10 +83,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 // -- tile-render-rig integration - start
 
                 if (!tile.surfaceMesh) {
-                    // resourceSurface unresolved from virtual surface —
-                    // no mesh URL available, skip tile.
-                    if (tile.resourceSurface.virtual) return true;
-
                     let path = tile.resourceSurface.getMeshUrl(tile.id);
                     tile.surfaceMesh = tile.resources.getMesh(path, tile);
                 }
@@ -113,7 +102,18 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 // tile as not-ready and try children. (The submeshes array
                 // is also non-empty after CPU eviction — see cpuReady below
                 // for that case.)
-                if (!surfaceMesh.submeshes.length) return false;
+                //
+                // Workaround: a surface generator can deliver a parsed,
+                // structurally valid mesh that carries zero submeshes (no
+                // geometry over the tile). Once it has loaded (loadState 2)
+                // such a tile is ready with nothing to draw, so report it
+                // ready. Reporting not-ready forever stalls the legacy
+                // topdown traversal, which descends the root only when every
+                // division-node sibling is ready — one empty sibling then
+                // blocks the whole surface. Remove with the legacy path.
+                if (!surfaceMesh.submeshes.length) {
+                    return surfaceMesh.loadState == 2;
+                }
 
                 // CPU residence is a stricter condition than meshReady.
                 // killSubmeshes nulls per-submesh CPU fields (vertices,
@@ -138,10 +138,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 for (let i = 0; i < surfaceMesh.submeshes.length; i++) {
 
                     var submeshSurface = tile.resourceSurface;
-
-                    if (tile.resourceSurface.glue)
-                        submeshSurface = tile.resourceSurface.getSurfaceReference(
-                            surfaceMesh.submeshes[i].surfaceReference);
 
                     // we are either drawing the tile for the first time, or
                     // there has been a boundlayer fallback, or a view
@@ -415,13 +411,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         //text = "" + min[0].toFixed(1) + " " + min[1].toFixed(1) + " " + min[2].toFixed(1);
         //text = "" + Math.floor(node.corners[0]) + " " + Math.floor(node.corners[1]) + " " + Math.floor(node.corners[2]) + " " + Math.floor(node.corners[3]);
 
-        var b = node.border2;
-        if (b) {
-            text = '' + Math.floor(b[0]) + ' ' + Math.floor(b[1]) + ' ' + Math.floor(b[2]) + ' ' + Math.floor(b[3]) + ' ' + Math.floor(b[4]) + ' ' + Math.floor(b[5]) + ' ' + Math.floor(b[6]) + ' ' + Math.floor(b[7]) + ' ' + Math.floor(b[8]);
-            this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+3*factor), 4*factor, text, [0,1,1,1], pos[2]);
-        }
-
-        b = node.border;
+        var b = node.border;
         if (b) {
             text = Math.floor(b[0]) + ' ' + Math.floor(b[1]) + ' '
                 + Math.floor(b[2]) + ' ' + Math.floor(b[3]) + ' '
@@ -443,7 +433,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
 
     //draw face count
     if (debug.drawFaceCount && mesh) {
-        text = '' + mesh.faces + ' - ' + mesh.submeshes.length + ((tile.surface && tile.surface.glue) ? ' - 1' : ' - 0');
+        text = '' + mesh.faces + ' - ' + mesh.submeshes.length;
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, [0,1,0,1], pos[2]);
     }
 
@@ -465,10 +455,6 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
             c = [1,1,1,1];
         }
 
-        if (node.alien) {
-            text = '[A]' + text;
-        }
-
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, c, pos[2]);
     }
 
@@ -478,13 +464,6 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         for (var key in tile.imageryCredits) {
             if (tile.imageryCredits[key]) {
                 text += key + ':' + tile.imageryCredits[key] + ', ';
-            }
-        }
-
-        for (key in tile.glueImageryCredits) {
-            if (!tile.imageryCredits[key]) {
-                text += key + ':' + tile.glueImageryCredits[key] + ', ';
-                //text += key + ", ";
             }
         }
 

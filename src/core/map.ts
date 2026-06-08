@@ -19,6 +19,7 @@ import * as utils from './utils/utils';
 import LegacyMap from './map/map';
 import FreezeCameraState from './map/freeze-camera-state';
 import { defaultOverrides, type Overrides } from './map/overrides';
+import FrameProfiler from './map/frame-profiler';
 import MapStyle from './map/style';
 import MapDraw from './map/draw';
 import MapConvert from './map/convert';
@@ -112,12 +113,21 @@ class Map {
     private terrainMaskPool_: DrawTraversalMaskPool | null = null;
 
     /**
+     * Per-drawn-frame timing (cpu, gpu, draw-call and FBO-switch counts),
+     * feeding the inspector panel and `window.__vtsPerf`. Lazily created
+     * on the first drawn frame once the GPU device exists.
+     */
+    private frameProfiler_: FrameProfiler | null = null;
+
+    /** Throttle for publishing profiler results (every Nth drawn frame). */
+    private profileWrite_ = 0;
+
+    /**
      * Per-surface helper trees used by the recursive draw traversal
      * (rfc-draw-traversal.md §2.1). Keyed by surface id. Each tree is
      * a single-surface `MapSurfaceTree` constructed with the surface
-     * as its `freeLayerSurface`, which makes every tile auto-select
-     * that surface and avoids the legacy multi-surface merge in
-     * `MapSurfaceTile.checkSurface`. The cache is refreshed against
+     * as its `freeLayerSurface`, so every tile binds directly to that
+     * surface. The cache is refreshed against
      * the current `surfaceList()` on every draw; entries for surfaces
      * that have left the view are dropped.
      */
@@ -738,11 +748,21 @@ class Map {
             legacyMap.bestMeshTexelSize = 0;
             legacyMap.bestGeodataTexelSize = 0;
 
+            // Time only the rendering (draw + overlays); the loader and
+            // event work below is not part of the frame's GPU cost.
+            const profiler = this.frameProfiler();
+            profiler.setGpuEnabled(legacyMap.config.mapProfileGpu === true);
+
+            profiler.beginFrame();
+
             // draw
             this.draw();
 
             // overlays
             this.runOverlays();
+
+            profiler.endFrame();
+            this.publishFrameProfile();
 
             /* Post-draw loader promotion: requests discovered during
              * traversal enter the loader the same frame instead of
@@ -756,6 +776,47 @@ class Map {
         // fps clock stops
         legacyMap.stats.end(dirty);
         core.callListener('tick', {});
+    }
+
+    /** The frame profiler, created on first use once the device exists. */
+    private frameProfiler(): FrameProfiler {
+
+        if (!this.frameProfiler_) {
+
+            this.frameProfiler_ = new FrameProfiler(this.core_.renderer.gpu);
+        }
+
+        return this.frameProfiler_;
+    }
+
+    /**
+     * Publish the profiler result to the inspector stats and (when
+     * `mapExposeFpsToWindow` is set) to `window`. Throttled because each
+     * result sorts the sample windows; medians move slowly so a few
+     * updates per second suffice.
+     */
+    private publishFrameProfile(): void {
+
+        if ((this.profileWrite_++ % 15) !== 0) return;
+
+        const legacyMap = this.core_.map;
+        if (!legacyMap) return;
+
+        const profile = this.frameProfiler_!.result();
+        legacyMap.stats.frameProfile = profile;
+
+        if (legacyMap.config.mapExposeFpsToWindow
+                && typeof window !== 'undefined') {
+
+            const target = window as unknown as {
+                __vtsFps?: number | null;
+                __vtsPerf?: { frame?: FrameProfiler.Result };
+            };
+
+            target.__vtsFps = profile.limitFps;
+            target.__vtsPerf = target.__vtsPerf ?? {};
+            target.__vtsPerf.frame = profile;
+        }
     }
 
     /**
@@ -814,20 +875,8 @@ class Map {
                 }
 
                 // draw mesh tiles
-                if (legacyMap.tree.surfaceSequence.length > 0) {
-
-                    // The new recursive terrain draw lives on `Map`;
-                    // `terrainTraversal` chooses between it and the
-                    // legacy iterative path while both coexist.
-                    const traversal = this.overrides.terrainTraversal
-                        ?? legacyMap.config.mapTerrainTraversal
-                        ?? 'recursive';
-
-                    if (traversal === 'recursive')
-                        this.drawTerrainRecursive();
-                    else
-                        legacyMap.tree.draw(false);
-                    
+                if (this.surfaceList().length > 0) {
+                    this.drawTerrainRecursive();
                 }
 
                 // draw free layers
@@ -928,8 +977,6 @@ class Map {
         legacyMap.isGeocent =
             !legacyMap.getNavigationSrs().isProjected();
 
-        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
-
         // generate sequences
         legacyMap.refreshView();
 
@@ -970,7 +1017,6 @@ class Map {
         legacyMap.isGeocent =
             !legacyMap.getNavigationSrs().isProjected();
 
-        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
         legacyMap.currentView_ = new MapView(legacyMap, {});
 
         mapCfg.afterConfigParsed();
@@ -1022,7 +1068,7 @@ class Map {
         if (this.drawChannel !== 'depth') {
 
             legacyMap.visibleCredits = {
-                imagery: {}, glueImagery: {}, mapdata: {},
+                imagery: {}, mapdata: {},
             };
         }
 
@@ -1102,7 +1148,7 @@ class Map {
     }
 
     /**
-     * Recursive terrain draw selected by `mapTerrainTraversal`. Feeds
+     * Recursive terrain draw — the only surface traversal path. Feeds
      * the combined-descent traversal in `draw-traversal.ts` with the
      * current `surfaceList()` and the cached per-surface helper trees.
      * Glues and virtual surfaces are excluded — see
@@ -1137,21 +1183,15 @@ class Map {
      * traversal will descend this frame, in `surfaceList()` order.
      * Allocates the trees on demand and drops stale cache entries.
      *
-     * Intended for terrain queries that previously walked
-     * `legacyMap.tree` (e.g. `MapMeasure.getSurfaceHeight`): they
-     * should iterate this list front-to-back (last index first) and
-     * return the first tree whose trace yields data.
+     * Intended for terrain queries such as
+     * `MapMeasure.getSurfaceHeight`: they should iterate this list
+     * front-to-back (last index first) and return the first tree whose
+     * trace yields data.
      *
      * Returns an empty array when the recursive path is not active or
      * when no surface is in view.
      */
     surfaceTreesForQuery(): MapSurfaceTree[] {
-
-        const mode = this.overrides.terrainTraversal
-            ?? this.core_.map?.config.mapTerrainTraversal
-            ?? 'recursive';
-
-        if (mode !== 'recursive') return [];
         return this.resolveSurfaceTrees();
     }
 
@@ -1192,9 +1232,8 @@ class Map {
 
         } else {
 
-            // Map-config maps: the active view names plain surfaces by
-            // id. `legacyMap.virtualSurfaces` and `legacyMap.glues`
-            // are kept out of the recursive path entirely.
+            // Map-config maps: the active view's surface keys are the
+            // full surface set, looked up by id.
             const view = legacyMap.getCurrentView();
             const byId = (key: string): MapSurface | undefined =>
                 legacyMap.surfaces.find(
@@ -1233,10 +1272,9 @@ class Map {
             if (!surfaceTree) {
 
                 // Construct a single-surface tree by passing the
-                // surface as `freeLayerSurface`. This short-circuits
-                // the multi-surface logic in `checkSurface` and gives
-                // each tile in the tree direct, per-surface metatile
-                // lookups.
+                // surface as `freeLayerSurface`; every tile then binds
+                // directly to that surface, giving the tree direct,
+                // per-surface metatile lookups.
                 surfaceTree = new MapSurfaceTree(legacyMap, true, surface);
                 cache.set(id, surfaceTree);
             }

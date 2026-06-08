@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review
+**Status:** Implemented
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -97,9 +97,9 @@ through terrain mask rendering.
 
 Non-geodata free layers are not supported by the new traversal. The
 legacy path can render free layers that behave like independent tiled
-surface trees, but style-based maps do not produce them and no current
-test URL depends on them. The new path ignores such layers and emits a
-one-off console warning naming the unsupported free layer.
+surface trees, but no current test URL mapConfig includes a
+type-`'free'` free layer. The new path ignores such layers and emits a
+console warning once per unsupported free-layer name (via `warnOnce`).
 
 ---
 
@@ -1111,11 +1111,10 @@ override on `Map.overrides.terrainTraversal` (`'recursive' | 'legacy'
 `CoreConfig` (URL-configurable). The override wins when set; otherwise
 the config value is used; the default is `'recursive'`. When the
 resolved mode is `'recursive'`, terrain calls the TypeScript recursive
-traversal with the legacy tree as its data source; otherwise terrain
-continues through `legacyMap.tree.draw()` and the existing
-`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not
-use this switch. After validation, the switch and old terrain modes
-are removed.
+traversal; otherwise the validation-era path used the legacy
+`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not use
+this switch. After validation, the switch and old terrain modes are
+removed.
 
 `TileRenderRig` is the terrain tile drawing backend used by the new
 traversal, not the gate that selects the traversal.
@@ -1178,11 +1177,11 @@ Implementation phases:
      and slightly reduced map responsiveness. The tradeoff is
      expected and resolves in phase 6.
 
-   Follow-up implementation note: `mapTraversalMaskThreshold` makes the
-   mask discard cutoff configurable and defaults it to `0.65`. This is a
-   read-time conservative-overlap bias for linearly sampled mask edges,
-   not mask-space erosion. Revisit the default after phase 6 can fill
-   masks directly for watertight tiles.
+   Follow-up implementation note: `mapTraversalMaskThreshold` made the
+   mask discard cutoff configurable and initially defaulted it to
+   `0.65`. This was a read-time conservative-overlap bias for linearly
+   sampled mask edges, not mask-space erosion. Phase 7 reset the default
+   to `0.5` for cleaner manual erosion testing.
 
 2. **Implemented.** Combined descent over plain surfaces.
 
@@ -1349,18 +1348,124 @@ Implementation phases:
    to surfaces whose geometry is available only at finer LODs than the
    first fitted watertight node.
 
+   **Post-implementation note — deferred-rectangle coverage (2026-06-04).**
+   The eager per-level fill/blit scheme described in this section is
+   replaced in `DrawTraversalMaskPool` by a deferred representation. A
+   node's coverage is the union of two coexisting parts: a CPU list of
+   axis-aligned rectangles in the node's UV [0,1] space (all dyadic
+   coverage — watertight cells and the LOD hierarchy) and a per-depth
+   footprint texture holding only the non-rectangular coverage of
+   non-watertight tiles. Watertight quadrant fills become rectangle
+   appends; child-to-parent composition transforms child rectangles up by
+   a CPU scale-and-offset (`x→x*0.5+qx`), and blits the child footprint
+   texture only when the child has one. No framebuffer is touched while
+   coverage propagates. The rectangle list is rasterized into a transient
+   texture (combined with the footprint texture when present) only when a
+   surface actually samples the mask (`materialize`), in a single draw
+   call. The old lazy-init guard (`maskInitialized`) is gone: reset is a
+   CPU array clear at node entry, and `hasCoverage(depth)` answers whether
+   there is anything to sample.
+
+   Why: on a single watertight surface the eager scheme spent the whole
+   per-frame mask cost on fills, blits, and clears at boundary nodes
+   (culling makes a node partial, which propagates up the ancestor chain).
+   The rectangle representation moves that propagation off the GPU — the
+   fills and per-level blits of the rectangular part become CPU array
+   work, leaving only the on-demand `materialize` rasterization. Measured
+   on `simple.json` (cadence 3, settled): framebuffer switches 128→100,
+   viewport calls 413→285, mask draws 65→50, total draw calls 259→244;
+   GPU time fell from a stable ~12 ms toward the ~9 ms legacy floor (the
+   disjoint timer is noisy run-to-run, so the GL-command counts are the
+   reliable signal). This is a modest standalone win. The residual
+   framebuffer churn is the `materialize` bind at each node that draws
+   masked fallback coverage over an all-watertight-or-culled subtree;
+   removing those nodes is the job of the empty-quadrant fold (see
+   `backlog.md`), which on this data subsumes the gain here and also drops
+   the cadence fallback overdraw. The rectangle representation's own
+   lasting value is elsewhere: it eliminates framebuffer switches at
+   non-rendering propagation nodes during loading and at genuine gaps
+   (which the fold cannot, since a gap is required coverage), and it is the
+   representation an analytic in-shader rectangle test would consume to
+   remove mask framebuffers entirely for watertight-or-empty data.
+
+   This change does **not** improve mask precision and does not remove the
+   need for LINEAR sampling. LINEAR (and the 0.65 discard threshold) exist
+   for non-rectangular footprint coverage, which still rasterizes and
+   blit-downscales per level in this scheme exactly as before, so LINEAR is
+   retained. Dyadic/watertight coverage was already exact under the eager
+   scheme (carried by quadrant fills at the consumer's own resolution, not
+   a downscale chain). The one narrow precision gain is that watertight
+   coverage sitting under a partial ancestor now stays an exact rectangle
+   instead of riding the ancestor's downscaled blit; this only arises in
+   scenes that have partial tiles and is not the motivation for the change.
+
+   `programTileMaskFill` and `tile-mask-fill.frag.glsl` (the quadrant-fill
+   program) are removed; quadrant fills are ordinary rectangles rasterized
+   by `programTileMaskRect` (the blit vertex shader plus the footprint
+   fragment shader). The original eager scheme is described below for
+   historical context.
+
+   **Post-implementation note — empty-quadrant fold (2026-06-05).**
+   `traverseNode` returns one of four coverage kinds, replacing the earlier
+   `none` with two: `watertight` (on-screen cell solid, recorded as an
+   analytic rectangle), `partial` (covered with an arbitrary shape held in
+   the node mask, to blit up — partial *coverage*, not a partial *tile*),
+   `gap` (on-screen but nothing rendered yet — waiting for data),
+   and `empty` (no on-screen area). `collectChildActive` reports a quadrant
+   as `culled` when it produced no active child purely because its finer
+   geometry is off-screen (not because data is missing); the descent treats
+   a culled quadrant as `empty`. A node then early-outs as watertight when
+   every quadrant is `watertight` or `empty`
+   (`(watertightMask | emptyMask) === all`), and returns `empty` when every
+   quadrant is empty.
+
+   The effect: on watertight data the only reason a node had fewer than four
+   watertight children was frustum culling, which now folds in instead of
+   forcing a fallback draw plus a mask. The visible tree collapses to
+   watertight up to the root. Measured on `simple.json` (cadence 3,
+   settled), `recursive` matches `legacy` exactly — draw calls 244→171, mask
+   draws 50→0, framebuffer switches 100→0, clears 51→1, drawn tiles 193→170
+   (the cadence fallback overdraw is gone) — at legacy GPU parity (~8.7 ms).
+   Verified with no holes on `simple`, `complex`, `full`, `legacy-benatky`,
+   and on `full` at cadence 1 and a large cadence (the fold drops only
+   off-screen coverage, never on-screen). Culling is recomputed per frame,
+   so a quadrant that becomes visible is reclassified the next frame.
+
    Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky`.
 
-7. Edge-preserving erosion.
+7. **Implemented.** Edge-preserving erosion.
 
-   Consider erosion only after the combined descent and watertight
-   fast path are correct. Keep `k = 0` unless visible cracks require
-   the deferred erosion step in §4.2.
+   Mask erosion is implemented as an optional final pass in
+   `DrawTraversalMaskPool.materialize`, after arbitrary footprints and
+   exact rectangles have been composed into the transient consumer
+   texture. The mask pool shape differs from the original RFC text:
+   footprint textures exist only for partial tile coverage, while
+   watertight coverage and LOD hierarchy coverage are carried as exact
+   rectangles until a draw samples the mask. Eroding at materialization
+   keeps that representation intact during traversal and applies one
+   rule to the fully composed mask.
 
-   Manual checkpoint: tune against real multi-surface data only if
-   this step is implemented; verify that watertight seams between
-   same-surface siblings are preserved.
+   The rollout uses only `k = 1`, controlled by the runtime/URL
+   parameter `mapTraversalMaskErosion`; the default is `1`. The erosion
+   pass uses a fixed 3x3 rectangular structuring element and writes the
+   minimum of the neighborhood. Boundary pixels of the materialized tile
+   mask are copied without erosion, so erosion cannot open coverage
+   along the tile edge. The default `mapTraversalMaskThreshold` was reset
+   from `0.65` to `0.5` for cleaner manual comparison while erosion is
+   tested.
+
+   This pass targets loading artifacts from hard geographic-mask edges.
+   It does not address cracks in high-oblique settled views; those are a
+   screen-space problem and remain covered by the backlog entry for
+   screen-space blurring.
+
+   Regression checkpoint completed for `simple-terrain`,
+   `complex-terrain`, `full-terrain`, and `legacy-benatky`. Manual
+   loading checks showed smooth nadir appearances and visibly suppressed
+   oblique-view artifacts, with no meaningful FPS cost observed. This
+   promoted erosion from opt-in to default-on; `mapTraversalMaskErosion=0`
+   remains available for comparison.
 
 8. Delete the legacy terrain traversal.
 
@@ -1372,6 +1477,108 @@ Implementation phases:
    geodata caller keeps a fitted-frontier traversal of its own, or
    moves to a dedicated geodata replacement. Do not retain the old
    topdown, downtop, splitting, or fitonly modes only for geodata.
+
+   **Implemented (core removal).** Four of the five methods are gone:
+   `drawSurface`, `drawSurfaceWithSpliting`, `drawSurfaceFitOnly`, and
+   `drawSurfaceDownTop`. `drawSurfaceFit` is kept — the body text above
+   lists it among the removals, but the geodata caller actually reaches
+   `drawSurfaceFit`, not `drawSurfaceFitOnly`: `MapSurfaceTree.draw()`
+   selects it via `mapGeodataLoadMode`, which defaults to `fit`. That
+   fitted-frontier traversal is the geodata caller's own traversal the
+   step waits for, so it stays. `MapSurfaceTree.draw()` no longer
+   switches on a load mode; it always calls `drawSurfaceFit` (with
+   periodicity shifts) and is now reached only by the free-layer loop,
+   since terrain always goes through `Map.drawTerrainRecursive`.
+
+   Removed with it: the `mapTerrainTraversal` config and the
+   `Map.overrides.terrainTraversal` per-frame override (recursive is the
+   only surface traversal path now); the `mapLoadMode`,
+   `mapGeodataLoadMode`, and `mapSplitMeshes` config keys; and the
+   now-dead modern `splitMask` / `uClip` plumbing — the `splitMask`
+   field, the `uClip` sets in `TileRenderRig.draw`/`drawDepth`, the
+   `applyTileClip` calls in `tile.frag.glsl` / `tile-depth.frag.glsl`,
+   and `tile-clip.inc.glsl` (deleted). `tile.splitMask`'s only setter was
+   inside the removed split method, so `uClip` was already a constant
+   `[1,1,1,1]` no-op.
+
+   **Implemented (grid fallback and plane subsystem).** A follow-up pass
+   removed the legacy heightfield grid fallback, now unreachable for the
+   only surviving callers. Terrain draws through the recursive traversal,
+   so `drawSurfaceFit` is reached only by free-layer trees, where its grid
+   gate `(!geodata && !free && mapHeightfiledWhenUnloaded)` is always
+   false. Removed: the `heightmapOnly` debug override; the grid-placeholder
+   logic and `drawGrid` / `grids` plumbing in `drawSurfaceFit` /
+   `processDrawBuffer` (a tile hitting the per-frame GPU budget now skips a
+   frame instead of drawing a grid); `MapSurfaceTile.drawGrid` and its
+   exclusive helper `MapMetanode.getGridHeight`; the dead `border2` /
+   `border3` data; the now-dead `mapHeightfiledWhenUnloaded` and
+   `mapGridUnderSurface` config keys; and the entire plane shader subsystem
+   `drawGrid` rendered through — `MapMetanode.drawPlane` (already
+   callerless), the `progPlane*` programs, `planeMesh`, `planeBuffer`,
+   `RendererGeometry.buildPlane`, and the `planeVertexShader` /
+   `planeFragmentShader` / `quadPoint` GLSL.
+
+   **Implemented (glue / virtual-surface / alien-flag teardown).** The
+   client no longer models glues, virtual surfaces, or the alien flag.
+   Removed:
+
+   - `MapVirtualSurface` (`virtual-surface.js` deleted) and its
+     `sourceReference` redirection; `MapConfig.parseVirtualSurfaces` /
+     `parseGlues`; `Map.glues` / `Map.virtualSurfaces`, `addGlue` /
+     `getGlue`; the `mapVirtualSurfaces` config key (core.js, map.js,
+     url-config.ts); `style.ts` no longer initializes those maps.
+   - `surface.glue` and `surface.virtual` flags, the glue
+     `surfaceReference` array, and `MapSurface.getSurfaceReference`.
+   - `MapSurfaceTile.createVirtualMetanode` and `isVirtualMetanodeReady`;
+     the `virtual` / `virtualSurfaces` / `virtualSurfacesUncomplete`
+     tile state; the `surface.virtual` / `sourceReference` branch in
+     `isMetanodeReady`.
+   - the per-node `alien` flag (`metanode.js`) and its metatile bitplane
+     consumer (`metatile.js` keeps only the watertight bitplane); the
+     `[A]` debug overlay in `draw-tiles.js`.
+   - the whole `surfaceSequence` / `surfaceOnlySequence` machinery:
+     `MapSurfaceSequence.generateSurfaceSequence` is deleted, along with
+     the `tree.surfaceSequence` / `surfaceOnlySequence` arrays. Each tree
+     now renders exactly one surface, bound through its
+     `freeLayerSurface`. `generateBoundLayerSequence` stays in
+     `surface-sequence.ts` for map-config bound-layer styling. The
+     `freeLayersHaveGeodata` flag and the non-geodata free-layer warning
+     moved to `Map.refreshFreelayesInView`.
+   - `MapSurfaceTile.checkSurface`: surface binding is now the inline
+     `this.surface = tree.freeLayerSurface` in `isMetanodeReady`.
+   - the `glueImagery` / `glueImageryCredits` credit plumbing
+     (`map.js`, `surface-tile.js`, `draw-tiles.js`, `map.ts`,
+     `map.d.ts`).
+
+   The draw gate and the remaining "any surface in view" checks now read
+   `Map.surfaceList()` instead of `surfaceSequence.length`. A mapConfig
+   that still declares `virtualSurfaces` or `glue` entries logs a console
+   warning at parse time (`config.js`) and is otherwise ignored. The
+   `surfaceReference` field still rides the submesh wire format but is
+   not consumed.
+
+   **Implemented (final main-tree removal).** The legacy volume measure
+   path was removed instead of migrated because it was the only remaining
+   caller that needed area mesh extraction from the old main tree, and it
+   was not correct for partial-coverage multi-surface terrain. Removed:
+   the Volume button and cut/fill computation from the legacy measure UI;
+   `Map.getSurfaceAreaGeometry`; `MapMeasure.getSurfaceAreaGeometry`;
+   `MapSurfaceTree.storeGeometry`, `traceAreaTiles`, and its mesh-readiness
+   helper; `MapSurfaceTile.insideCone`; the main-tree construction in
+   both map factories; and the `LegacyMap.tree` declaration / kill path.
+
+   The only remaining `MapSurfaceTree` users are per-surface helper trees
+   for recursive terrain queries and free-layer trees for geodata job
+   collection. The final checkpoint passed typecheck and the requested
+   render regressions: `simple-terrain`, `complex-terrain`,
+   `full-terrain`, and `legacy-benatky`.
+
+   Manual checkpoint completed (2026-06-08, glue/virtual/alien teardown):
+   `simple-terrain`, `complex-terrain`, `full-terrain`, and
+   `legacy-benatky` render with no console or network errors on a fresh
+   webpack server; the benatky multi-surface scene is visually
+   indistinguishable from production, and its imagery credits still
+   populate after the `glueImagery` removal.
 
 ---
 
@@ -1391,9 +1598,10 @@ surface types served by cartolina-tileserver, including spheroid
 surfaces and any path not covered by the DEM-based
 `metatileFromDemImpl`.
 
-**Per-surface mask pool (deferred).** The current design uses one
-`node_mask[depth]` that combines coverage from all surfaces. This
-produces a priority inversion in two related cases.
+**Per-surface mask pool (deferred indefinitely).** The current design
+uses one `node_mask[depth]` that combines coverage from all surfaces.
+This can produce a priority inversion in two related cases, but the
+known cases do not justify the complexity of per-surface mask pools.
 
 The first is a steady-state geometry case: at a dataset boundary seam
 tile, a back surface may have finer LOD children than the front surface
@@ -1414,17 +1622,19 @@ not only at dataset edges. It is transient — once the front surface's
 finer tiles load, they render normally — but it means lower-priority
 data may briefly appear where higher-priority data is still pending.
 
-Both cases share the same root cause and the same fix. Replace
-`node_mask[depth]` with per-surface `surface_mask[i][depth]` textures
-plus a per-node `claimed_mask[depth]` that accumulates front-to-back.
-Each surface samples its own `surface_mask[i]` (finer descendants) and
-`claimed_mask` (higher-priority coverage) independently. Pool grows to
-16 × (N + 1) + 1 textures; blit calls per inner node multiply by N.
+The direct fix would replace `node_mask[depth]` with per-surface
+`surface_mask[i][depth]` textures plus a per-node `claimed_mask[depth]`
+that accumulates front-to-back. Each surface would sample its own
+descendant mask and the higher-priority claimed mask independently.
+That would grow the pool to `16 * (N + 1) + 1` textures and multiply
+inner-node blit calls by surface count.
 
-Implement after the single-surface path is validated. Validation should
-include a progressive-loading multi-surface case and a seam case before
-the legacy draw path is removed, to establish whether these effects are
-visible in practice.
+That design is deferred indefinitely. The current mask pool is already a
+large piece of the renderer, and adding per-surface masks would increase
+state, memory, and pass orchestration for edge cases that have not been
+shown to affect current test scenes. Revisit only if a measured
+multi-surface regression demonstrates that the existing combined mask
+cannot be kept.
 
 ## Review round 1
 

@@ -41,7 +41,6 @@ var Core = function(element, config) {
         mapMobileDetailDegradation : 0,
         mapNavSamplesPerViewExtent : 4,
         mapIgnoreNavtiles : false,
-        mapVirtualSurfaces : true,
         mapAllowHires : true,
         mapAllowLowres : true,
         mapAllowSmartSwitching : true,
@@ -52,23 +51,18 @@ var Core = function(element, config) {
         mapBasicTileSequence : false,
         mapPreciseBBoxTest : false,
         mapPreciseDistanceTest : false,
-        mapHeightfiledWhenUnloaded : true,
         mapForceMetatileV3 : false,
         mapSmartNodeParsing : true,
         mapLoadErrorRetryTime : 3000,
         mapLoadErrorMaxRetryCount : 3,
-        mapLoadMode : 'topdown', // 'topdown', 'downtop', 'fit', 'fitonly'
-        mapGeodataLoadMode : 'fit', // 'fitonly'
-        mapSplitMeshes : false, // used for topdown load mode
         mapSplitMargin : 0.0025, // used for topdown load mode
         mapTraversalMaskResolution : 256,
-        mapTraversalMaskThreshold : 0.65, // fallback-coverage discard cutoff
-        mapTerrainTraversal : 'recursive', // 'recursive', 'legacy'
+        mapTraversalMaskThreshold : 0.5, // fallback-coverage discard cutoff
+        mapTraversalMaskErosion : 1, // 0 disabled, 1 = protected 3x3
         mapFallbackCadence : 3, // 1 = topdown, large = fitonly
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,
-        mapGridUnderSurface: 0,
         mapGridTextureLevel: -1,
         mapGridTextureLayer: null, // 'bing",
         mapXhrImageLoad : true,
@@ -102,6 +96,7 @@ var Core = function(element, config) {
         mapFeaturesReduceFactor2 : 1,
 
         mapExposeFpsToWindow: false,
+        mapProfileGpu: false, // opt-in GPU timer queries in FrameProfiler
 
         mapDMapSize : 512,
         mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
@@ -532,8 +527,6 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.map = utils.validateString(value, null); break;
     case 'style':
         this.config.style = utils.validateString(value, null); break;
-    case 'mapVirtualSurfaces':
-        this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
     case 'mapShadingLambertian':
         this.config.mapShadingLambertian = utils.validateBool(value, true); break;
     case 'mapShadingSlope':

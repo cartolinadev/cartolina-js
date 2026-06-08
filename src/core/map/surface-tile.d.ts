@@ -53,8 +53,6 @@ export class MapSurfaceTile {
 
     surfaceMesh: MapMesh;
 
-    splitMask: [number, number, number, number] | null;
-
     boundTextures: { [key: string]: MapTexture };
 
     boundLayers: { [key: string]: MapBoundLayer };

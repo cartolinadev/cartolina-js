@@ -29,12 +29,22 @@ export class GpuProgram {
       * Create a new gpu program, compile and link sources.
       * @ubBindings the optional dictionary of uniform block bindings, maps
       *      a block name to its ubo binding point.
+      * @samplerUnitMappings the optional dictionary of sampler-to-unit
+      *      assignments applied once after link.
+      * @defines preprocessor macros to define in both shader stages,
+      *      e.g. `['TILE_DISCARD']`. Each becomes a `#define <name>` line
+      *      injected after the `#version` directive, so the same source
+      *      file can compile into several variants.
       */
 
     constructor(gpu: GpuDevice, vertex: string, fragment: string,
               name: string = 'unnamed',
               ubBindings: {[key:string]: number} = {},
-              samplerUnitMappings: {[key:string]: number} = {}) {
+              samplerUnitMappings: {[key:string]: number} = {},
+              defines: string[] = []) {
+
+        vertex = GpuProgram.withDefines(vertex, defines);
+        fragment = GpuProgram.withDefines(fragment, defines);
 
         this.gpu = gpu;
         this.vertex = vertex;
@@ -50,6 +60,33 @@ export class GpuProgram {
 
         this.createProgram(vertex, fragment, ubBindings, samplerUnitMappings);
     };
+
+
+    /**
+      * Inject `#define <name>` lines into a shader source. GLSL ES 3.00
+      * requires `#version` to be the first line, so the defines are placed
+      * immediately after it rather than prepended.
+      * @source the shader source
+      * @defines the macro names to define; an empty list returns the source
+      *      unchanged
+      */
+
+    private static withDefines(source: string, defines: string[]): string {
+
+        if (defines.length === 0) return source;
+
+        const lines = source.split('\n');
+        const directives = defines.map((name) => `#define ${name}`);
+
+        // place the defines after the #version directive when present,
+        // otherwise at the very top
+        const versionIndex = lines.findIndex(
+            (line) => line.trim().startsWith('#version'));
+
+        lines.splice(versionIndex + 1, 0, ...directives);
+
+        return lines.join('\n');
+    }
 
 
     log(message: string, logger: (message: string) => void = utils.warnOnce) {

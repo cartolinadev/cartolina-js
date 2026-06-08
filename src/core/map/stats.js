@@ -14,14 +14,11 @@ var MapStats = function(map) {
     this.processedMetatiles = 0;    
     this.counter = 0;
     this.statsCycle = 0;
-    this.fps = 0;
     this.frameTime = 0;
-    this.renderTime = 0;
-    this.renderTimeTmp = 0;
     this.renderTimeBegin = 0;
     this.renderBuild = 0;
-    this.lastRenderTime = 0;
     this.lastFrameTime = 0;
+    this.frameProfile = null; // FrameProfiler.Result; written by Map
     this.renderedLods = new Array(32);
     this.debugIds = {};
 
@@ -154,15 +151,10 @@ MapStats.prototype.begin = function(dirty) {
 MapStats.prototype.end = function(dirty) {
     var timer = performance.now();
 
+    // Raw per-frame render time, kept for the inspector graphs. The
+    // reliable median cost shown in the panel comes from FrameProfiler,
+    // not from this value.
     var renderTime = timer - this.renderTimeBegin;
-    //var frameTime = timer - this.frameTime;
-    //this.frameTime = timer;
-    if (dirty) { 
-        this.renderTimeTmp += renderTime;
-        this.lastRenderTime = renderTime;
-    } else {
-        this.renderTimeTmp += this.lastRenderTime;
-    }
 
     if (this.recordGraphs) {
         var i = this.graphsTimeIndex;
@@ -193,10 +185,11 @@ MapStats.prototype.end = function(dirty) {
     }
 
 
+    // Refresh the inspector panel a few times a second. The fps and
+    // render-cost figures it reads come from FrameProfiler (written to
+    // `this.frameProfile` by Map); `__vtsFps`/`__vtsPerf` are likewise
+    // published by Map, not here.
     if ((this.statsCycle % 50) == 0) {
-        this.renderTime = this.renderTimeTmp / 100;
-        this.fps = 1000 / this.renderTime;
-        this.renderTimeTmp = 0;
 
         if (this.inspector && this.inspector.stats) {
             this.gpuUsed = this.map.gpuCache.totalCost;
@@ -205,15 +198,6 @@ MapStats.prototype.end = function(dirty) {
 
             this.inspector.stats.updateStatsPanel(this);
         }
-
-        // Optionally expose FPS to window for external automation (e.g., Playwright).
-        try {
-            if (this.map.config.mapExposeFpsToWindow && typeof window !== 'undefined') {
-
-                window.__vtsFps = this.fps;
-            }
-        } catch(e) {}
-        this.renderTimeTmp = 0;
     }
     
     //do not reset flux data in begin function, because we to collect data from events which     

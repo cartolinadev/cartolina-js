@@ -2,6 +2,18 @@
 
 See [index.md](index.md) for the wiki table of contents.
 
+> **Client status (2026-06-08): removed.** The draw-traversal RFC step 8
+> teardown deleted the client-side implementation of both meanings of
+> "virtual" described below: `MapVirtualSurface` and its
+> `sourceReference` redirection, the glue/`surfaceSequence` seam
+> machinery, and `checkSurface`'s multi-surface source selection. The
+> recursive terrain traversal renders plain surfaces directly via mask
+> compositing ([rfc-draw-traversal.md](rfc-draw-traversal.md)). The
+> mapConfig `virtualSurfaces` and `glue` arrays are no longer parsed by
+> cartolina-js. This page is retained as a record of the VTS concept,
+> which still exists server-side and may be revived in modified form.
+> The code references below describe the deleted client path.
+
 The word "virtual" appears in two distinct, unrelated contexts inside
 the surface-rendering code. Both are explained here. The first requires
 understanding how the renderer normally selects a data source for each

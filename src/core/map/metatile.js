@@ -360,9 +360,7 @@ MapMetatile.prototype.applyMetatatileBitplanes = function() {
                     if (bitplane[byteIndex] & bitMask) {
 
                         switch(i) {
-                        case 0:
-                            this.nodes[y*this.sizex+x].alien = true;
-                            break;       
+                        // bitplane 1 carries the watertight flag
                         case 1:
                             this.nodes[y*this.sizex+x].watertight = true;
                             break;
@@ -392,9 +390,7 @@ MapMetatile.prototype.applyMetatanodeBitplanes = function(x, y) {
             if (bitplane[byteIndex] & bitMask) {
 
                 switch(i) {
-                case 0:
-                    this.nodes[y*this.sizex+x].alien = true;
-                    break;       
+                // bitplane 1 carries the watertight flag
                 case 1:
                     this.nodes[y*this.sizex+x].watertight = true;
                     break;

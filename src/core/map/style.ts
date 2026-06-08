@@ -456,8 +456,6 @@ export class MapStyle {
         map.bodies = {}
         map.credits = {}
         map.surfaces = []
-        map.virtualSurfaces = {}
-        map.glues = {}
         map.freeLayers = {}
         map.boundLayers = {}
         map.stylesheets = {}
@@ -626,10 +624,6 @@ export class MapStyle {
 
         let map = this.map;
 
-        // terrain.sources order: back-to-front, front at last index
-        map.tree.surfaceSequence = [];
-        map.tree.surfaceOnlySequence = [];
-
         this.styleSpec.terrain.sources.forEach((sourceId: string) => {
 
             const surface = map.surfaces.find((s: MapSurface) =>
@@ -640,9 +634,6 @@ export class MapStyle {
                     + `"${sourceId}" but no surface was loaded for `
                     + `that source`);
             }
-
-            map.tree.surfaceSequence.push([surface, false]);
-            map.tree.surfaceOnlySequence.push([surface, false]);
 
             // surface layer sequence is the style spec itself
             surface.style = this.style();
@@ -694,8 +685,6 @@ export class MapStyle {
 
             if (freeLayer) {
 
-                freeLayer.surfaceSequence = [freeLayer];
-                freeLayer.surfaceOnlySequence = [freeLayer];
                 freeLayer.options = {};
 
                 if (freeLayer.geodata)

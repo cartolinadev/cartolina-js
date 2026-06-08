@@ -18,7 +18,6 @@
 export const defaultOverrides = {
 
     // draw-side overrides
-    heightmapOnly   : false,
     drawBBoxes      : false,
     drawMeshBBox    : false,
     drawLods        : false,
@@ -42,12 +41,6 @@ export const defaultOverrides = {
     debugTextSize   : 2.0,
     maxZoom         : false,
     meshStats       : undefined as boolean | undefined,
-
-    // rfc-draw-traversal phase 1: diagnostic switch comparing the new
-    // recursive terrain draw against the legacy one. `undefined` defers
-    // to `config.mapTerrainTraversal`; an explicit value wins for that
-    // frame. Removal target in phase 8 once the legacy path is deleted.
-    terrainTraversal: undefined as 'recursive' | 'legacy' | undefined,
 
     // render flag overrides (undefined = use config default)
     flagLighting          : undefined as boolean | undefined,

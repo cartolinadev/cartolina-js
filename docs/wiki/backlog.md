@@ -1,5 +1,594 @@
 # Task backlog
 
+## BUG/DESIGN: coverage-aware point terrain queries
+
+**Opened:** 2026-06-08
+**Status:** open — front-to-back point queries need an ownership rule
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md),
+[nav-tiles.md](nav-tiles.md),
+[surface-metatile.md](surface-metatile.md)
+
+### Symptom
+
+`MapMeasure.getSurfaceHeight()` and `getSurfaceHeightNodeOnly()` query
+the recursive path's per-surface helper trees front-to-back and return
+the first tree that yields a navtile or metanode. That is safe when the
+front surface fully owns the coordinate, but partial front-surface tiles
+can carry data while not covering every point in the tile. In that case
+a point query can stop on a partial front surface where rendering would
+use a lower-priority back surface for the visible terrain.
+
+Affected callers include camera float-height navigation, `fix`/`float`
+coordinate conversion, public terrain-height queries, hit-coordinate
+conversion to `float`, and geodata draping through
+`geodata.processHeights()`.
+
+### Direction
+
+Point terrain queries should use a coverage-aware ownership rule that
+matches the recursive terrain traversal closely enough for navigation
+and draping. A likely rule is to prefer the first front-to-back surface
+with a watertight owner along the coordinate path, treating
+non-watertight hits as provisional. This may choose a coarser back
+surface at dataset fringes, but avoids treating a partial front tile as
+complete terrain.
+
+The rule cannot require a watertight flag unconditionally. Before
+metatile v6 the watertight bitplane is absent, so all client-visible
+watertight checks are generally false. A v6-only rule would make point
+queries fail or always fall through on older configurations. The
+implementation must define fallback semantics for pre-v6 data, for
+single-surface maps, and for datasets that do not yet encode watertight
+coverage.
+
+### Open questions
+
+- Whether an ancestor watertight claim is enough to stop lower-priority
+  surfaces for the coordinate, mirroring traversal deactivation.
+- Whether a non-watertight front hit should be returned when no
+  watertight surface exists, or only for APIs that prefer availability
+  over strict ownership.
+- How to distinguish "watertight information unavailable" from "known
+  non-watertight" in query code without regressing pre-v6 maps.
+- Whether point-query diagnostics should report the selected surface id,
+  tile id, and ownership reason during regression tests.
+
+---
+
+## DATA/TOOLS: viewfinder-dem1 poisoned coarse navtiles + navtile-less LOD band
+
+**Opened:** 2026-06-07
+**Status:** open — fix lives in vts-tools / vts-libs, not cartolina-js
+**Related:** [nav-tiles.md](nav-tiles.md),
+[tile-index.md](tile-index.md),
+[tileserver-metatile-production.md](tileserver-metatile-production.md)
+
+### Symptom
+
+On `viewfinder-dem1`, resolving a `float` camera position to a fixed
+terrain height returns a garbage altitude (~32696 m ASL) instead of the
+real value (~1103 m near Mt Etna). The client reads the stored data
+faithfully — this is a data defect in the bottom-up-rebuilt tileset, not
+a cartolina-js bug. No client change is warranted.
+
+### Reproduction
+
+Single-surface dem1, with a `float` camera position near Mt Etna
+(15.051301, 37.768294), resolves to `fix,32695.89,…` in BOTH `recursive`
+and `legacy` traversal modes — confirming the defect is in the data, not
+the recursive path.
+
+Two-surface `viewfinder13.json` (dem3 back, dem1 front) made it look
+like a recursive-vs-legacy regression: recursive returns dem1's garbage
+(the front surface wins the front-to-back height query), legacy walks
+one merged tree and lands on dem3's good node (~1103 m). It is not a
+client regression — just dem1's frontmost data being read honestly.
+
+### Root cause (two independent defects, both in the rebuild)
+
+dem1's source tileset is lod 13–15 only (lodRange [13,15]); the
+mapproxy-store version (lodRange [1,15]) had coarse LODs 1–12 generated
+bottom-up.
+
+1. **Coarse navtile height ranges are poisoned by the int16 nodata
+   sentinel.** ~20 coarse/edge navtile nodes carry int16-saturated,
+   often inverted ranges. The root `[1,0,0]` stores `minHeight=32725`,
+   `maxHeight=32667` (inverted; raw bytes `D5 7F 9B 7F` at file offset
+   0x3F of `1-0-0.meta` — stored, not a parse error; dem3 parses to sane
+   ranges like -48/3356). When coarse navtiles are aggregated over
+   mostly-empty area, the ~±32767/32768 nodata value is not masked out of
+   the height-range computation. The navtile pixel itself is normal
+   (~128/255), so the bad min/max maps it to ~32696 m. The range comes
+   from `opencv::NavTile::heightRange()` over coverage-white pixels, with
+   `InvalidHeight = -FLT_MAX` (heightmap.hpp) and an unclamped
+   float→int16 cast.
+
+2. **A navtile-less coarse LOD band prevents correction.** The metanode
+   TREE has no holes: along the descent to real data (Etna 15.05E
+   37.77N: `1-0-0, 2-1-0, 3-2-1, 4-4-3, 5-8-6, 6-17-12, 7-34-24…`) the
+   intermediate nodes (2,1,0)..(6,17,12) exist as content-less ROUTING
+   nodes (geometry bit clear, navtile bit clear, child bits intact,
+   minH=1/maxH=0 = the no-navtile sentinel); the renderer descends
+   through them fine. What is missing is navtile (and mesh) CONTENT at
+   lod 2–6. `vts --complete-tileindex-up`
+   (vts-libs `tools/vts.cpp:2990`, `VtsStorage::completeTileindexUp`)
+   sets `mesh|navtile` only where coarsened coverage clears
+   `meshThreshold = K/8`; a point-like data region is sub-1/8 of a coarse
+   tile, so its mid-LOD ancestors stay routing-only.
+
+   The height query asks for a coarse LOD (~5; camera ~52 km). From the
+   root down to that LOD the ONLY navtile is the poisoned root (lod 1) —
+   the correct navtiles start at lod 7, finer than `desiredLod`, so
+   `MapSurfaceTree.traceHeightTileByMap`'s
+   `id[0] > desiredLod && heightMap` guard stops before reaching them.
+   dem3 navigates fine because its pyramid carries a navtile at every LOD
+   (it resolves cleanly at lod 5).
+
+### Where to fix (vts-tools / vts-libs)
+
+Both are needed for dem1 to navigate correctly; they are independent
+(fixing only one leaves the other symptom):
+
+- **Bottom-up pass (`completeTileindexUp`)** — must produce a complete,
+  walkable navtile pyramid: do not leave a navtile-less band above real
+  data. Either do not gate `navtile` on the `K/8` coverage threshold
+  (mark/generate a coarse navtile on every routing ancestor of real
+  data), or otherwise guarantee a coarse height overview exists at each
+  LOD down the chain.
+- **Coarse navtile generation** — must honor nodata: mask the int16
+  sentinel before computing the height range, so generated coarse
+  navtiles are not saturated/inverted.
+
+### Verification
+
+- `vts --tileindex-info <ts>/tileset.index --tileId L-X-Y` (tileId
+  format `L-X-Y`) shows `mesh,navtile` present at lod 1 and lod 7+ but
+  absent at lod 2–6 along the Etna path.
+- Decoding `.meta` files shows the poisoned ranges at coarse/edge nodes
+  (root 32725/32667).
+- After the fix, the single-surface dem1 reproduction URL must resolve
+  `float` to ~1103 m, and `vts` must report a navtile at every LOD down
+  the Etna path with sane ranges.
+- `vts` subcommands used: `tileindex-info`, `tile-info`,
+  `dump-navtile`, `query-navtile`.
+
+---
+
+
+## REFACTOR/PERF: split tile rendering execution out of `TileRenderRig`
+
+**Opened:** 2026-06-06
+**Status:** deferred
+**Related:** [rendering-architecture.md](rendering-architecture.md)
+
+### Motivation
+
+`src/core/map/tile-render-rig.ts` is built around the style layer model.
+That model should stay: it is the style-era terrain composition model,
+and the rig already does useful tile-local work. It owns the tile and
+submesh resource references, builds the prepared layer stack, tracks
+essential vs optional readiness, supports fallback readiness, collapses
+normal/bump layers when possible, and reports active layer IDs for
+credits.
+
+The problem is narrower: the rig also owns backend execution. Its
+`draw()`, `drawDepth()`, `footprint()`, layer UBO encoding, texture-unit
+binding, mask binding, and GLSL program selection make the tile resource
+object the WebGL renderer for terrain. That couples the map/style data
+model to the current WebGL execution strategy.
+
+The current color path renders the prepared layer stack through one
+large tile shader. That shader behaves like a small layer interpreter:
+it loops over encoded layer records, branches on source/target/operation
+types, reads sampler indices from the UBO, maintains shader-side stacks,
+and applies shading, masks, atmosphere, and render flags in one pass.
+
+This may be a performance problem. The working hypothesis is that the
+"one pass is always better than many passes" assumption does not hold
+for this terrain workload once the single pass becomes a large dynamic
+shader. The old terrain path used simpler draw calls per layer and was
+faster in comparable scenes, but that is not yet proof that pass count
+is the cause: the old path also used simpler shaders, compile-time
+variants, and different material logic. A dedicated A/B measurement is
+needed.
+
+This is not part of the legacy map draw-path replacement, which is
+already underway as a separate cleanup track. It is a later renderer
+architecture task for the terrain path after the current traversal and
+draw-path work has settled.
+
+The extensibility problem is clearer. Future terrain layer types will
+not all fit naturally inside one tile fragment shader:
+
+- vector layers may rasterize waterways or other features before a
+  later specular or compositing pass reads the result;
+- land-cover layers may classify texture values into styled RGB or masks;
+- future analytical or generated layers may produce intermediate scalar,
+  color, normal, or mask textures before they affect final terrain color.
+
+Adding each layer type to the monolithic tile shader would grow the
+shader into a renderer-specific layer VM. It would also make a later
+WebGPU backend harder, because the style model and the WebGL execution
+model would remain fused.
+
+### Goals
+
+- Keep `TileRenderRig` as the tile/submesh resource holder and readiness
+  planner.
+- Move backend execution out of the rig into renderer-owned terrain tile
+  rendering code.
+- Treat multipass rendering as the baseline execution model to test:
+  a style layer or layer operation may emit one or more render passes.
+- Preserve `TileRenderRig`'s existing layer/resource optimization role:
+  skipping covered layers, collapsing normal/bump work, and deciding
+  which prepared layers belong in the render plan remain rig work.
+- Let the renderer execute that prepared plan with backend-specific draw
+  code and specialized shaders.
+- Make intermediate render products explicit: color, normal, scalar,
+  mask, or tile-local textures can be produced and consumed by later
+  passes.
+- Separate the prepared map/style model from WebGL-specific details so a
+  future backend can map the same render plan to a different execution
+  API.
+
+### Suggested API shape
+
+Do not expose the rig's mutable internal layer array directly. Add a
+narrow read API that returns a prepared render description for the
+requested readiness level, e.g.:
+
+```ts
+rig.layersForRender(readiness): readonly TileRenderRig.PreparedLayer[]
+```
+
+The returned data should describe what is ready to draw, not how WebGL
+binds it. It can include the prepared layer records, resource handles,
+texture transforms, active render flags, watertight/opacity facts, and
+the submesh resource needed by the backend. The shape should be narrow
+enough that the renderer cannot mutate rig state by accident.
+
+Renderer-owned code then consumes the rig:
+
+```ts
+renderer.terrainTiles.drawRig(rig, {
+    cameraPos,
+    target,
+    maskTexture,
+    pass: 'color' | 'depth' | 'footprint',
+});
+```
+
+The exact class names are open. Possible layers of ownership:
+
+- `TileRenderRig`: tile/submesh resources, prepared stack, readiness,
+  rig-local preprocessing such as normal collapse.
+- `TileRenderer`: turns a ready rig or render plan into terrain passes for 
+  color, depth, mask, and footprint.
+- WebGL backend helpers: own GLSL programs, framebuffer/render-target
+  operations, blend state, texture units, UBO/uniform packing, and draw
+  calls.
+
+During migration, `TileRenderRig.draw()` can remain as a compatibility
+shim that delegates to the renderer. The traversal can later call the
+renderer directly once the new boundary is stable.
+
+### Suggested execution direction
+
+The candidate rendering model is multipass-first:
+
+- `blend` operations use fixed-function blending where possible;
+- `push` operations can render into an independent intermediate target;
+- `pop` sources can bind a prior intermediate texture;
+- layer-specific renderers can produce tile-local textures for later
+  layers;
+- depth and footprint passes remain specialized paths rather than
+  variants of the full color shader;
+- optimization may fuse adjacent compatible passes or substitute a
+  specialized fast path for common simple stacks.
+
+This is not yet an RFC-level design. Open questions include target
+allocation, tile-local texture lifetime, pass sorting constraints,
+interaction with traversal masks, interaction with atmosphere/shadows,
+where normal collapse belongs after the executor split, and how much
+state should be represented as an explicit pass graph.
+
+### Measurement plan
+
+Start with a flag-gated experimental path for a small current subset,
+for example constants, diffuse texture layers, and simple shading.
+Compare it with the current monolithic rig on the canonical terrain
+URLs:
+
+- `simple-terrain`
+- `complex-terrain`
+- `full-terrain`
+
+Measure visual parity, draw calls, program switches, framebuffer
+switches, texture binds, CPU frame cost, and GPU frame cost when
+`mapProfileGpu=1` is enabled. The useful result is not only "faster" or
+"slower": if the multipass path loses, the counters should show whether
+the cost comes from framebuffer bandwidth, draw-call CPU overhead,
+texture binds, or pass setup. If it wins, expand the experiment to
+bump, specular, atmosphere, shadows, and traversal-mask cases.
+
+**Update 2026-06-06:** a first A/B measurement is done — see
+[tile-render-rig-profiling.md](tile-render-rig-profiling.md). On
+`simple.json` at 2560×1353 the settled frame is fragment/fill bound
+(~85 draws, but CPU ~3 ms and flat with resolution; GPU tracks pixel
+count). Hand-specializing the layer loop into a straight-line shader for
+that stack is pixel-equivalent and ~1.0–1.9 ms cheaper (clock-matched,
+~15% of the no-discard frame), with the cost shape pointing at layer-VM
+register pressure rather than shading math. That straight-line shader is
+exactly the "specialized fast path for common simple stacks" this entry
+proposes: the executor split, done for a simple stack, produces it. The
+profiling doc also isolates a larger, separate win — removing the
+shader's `discard` (see the PERF entry below) — which the executor split
+should preserve by keeping depth and footprint as specialized,
+discard-free passes.
+
+---
+
+
+## PERF: discard-free tile color shader for watertight tiles
+
+**Opened:** 2026-06-06
+**Status:** resolved 2026-06-06 — two color programs; the discard-free
+one is selected for unmasked tiles, the discarding one (with the
+coverage-mask and quadrant-clip `discard`) for tiles carrying a mask.
+Clock-matched A/B on `simple.json` at 2560×1353, `dpr=1`: settled GPU
+15.58 ms → 11.05 ms (~29%). Pixel parity on `simple`/`complex`/`full`;
+the discarding program is selected and the seam composites on the
+benatky multi-surface scene. See the session log.
+**Related:** [tile-render-rig-profiling.md](tile-render-rig-profiling.md),
+[gpu-subsystem.md](gpu-subsystem.md)
+
+### Motivation
+
+The tile color shader (`tile.frag.glsl`) contains `discard` in two
+places: the coverage-mask test (`uMaskEnabled`) and the quadrant clip
+(`applyTileClip`, `shaders/includes/tile-clip.inc.glsl`). Any reachable
+`discard` makes
+the driver defer the depth test and, on the Intel iGPU measured, also
+defeats the MSAA fast-clear / compression path on the multisampled
+canvas.
+
+Measured on `simple.json` at 2560×1353 (see the profiling doc): removing
+both `discard` sites drops the settled frame from ~15.6 ms to ~11.05 ms
+at `dpr=1` — about 29% — and as a side effect makes MSAA nearly free
+(its standalone cost is ~0.9 ms; the ~4.5 ms is a discard×MSAA
+interaction term, not early-Z, since the near-nadir view has no
+occlusion to reject). This is the single largest recoverable win found
+and needs no shader rewrite.
+
+### Proposed change
+
+Split the tile color shader into two compiled programs by whether they
+keep the `discard`:
+
+- the **tile color shader** — discard-free, used for fully-covered
+  tiles (watertight, unclipped, unmasked). This is the common case: it
+  is exactly the traversal's watertight fast-path set.
+- the **masked/clipped variant** — keeps the `discard` for the coverage
+  mask and the quadrant clip, used only for tiles that actually need
+  masking or clipping (LOD-boundary quadrant trims, non-watertight
+  surfaces).
+
+Select per draw on whether the tile needs the coverage mask or the
+quadrant clip. Output is pixel-identical for fully-covered tiles
+(verified), because the mask and clip remove nothing there;
+`uMaskEnabled` disappears from the discard-free shader.
+
+Maintain the second program only for passes that render into the
+multisampled canvas and are fill-heavy — the color pass. The
+depth/footprint passes render to single-sample targets (`RGBA8UI`
+hitmap; see [render-targets.md](render-targets.md)), so the discard×MSAA
+mechanism does not apply there and they need no second program for this
+reason.
+
+This is conceptually inside the `split tile rendering execution` entry
+above (the executor would own program selection), but it is small and
+high-value enough to land on its own first; the executor split should
+then preserve it.
+
+### Acceptance
+
+- Discard-free shader selected for fully-covered (watertight, unclipped,
+  unmasked) tiles; the masked/clipped variant retained for tiles that
+  need masking or clipping.
+- Pixel parity on `simple`, `complex`, `full`, and a non-watertight /
+  masked case (where the masked/clipped variant must still discard).
+- GPU frame cost on `simple.json` at 2560×1353 drops to ~11 ms range
+  (`mapProfileGpu=1`). Note the iGPU clock-drift caveat in the profiling
+  doc: compare clock-matched, not single readings.
+
+### Resolution
+
+`tile.frag.glsl` guards both `discard` sites (the `uMaskEnabled` test
+and the `applyTileClip` include and call) behind `#ifdef TILE_DISCARD`,
+so the default compile contains no `discard`. `GpuProgram` gained a
+`defines: string[]` constructor parameter that injects `#define` lines
+after the `#version` directive — the GLSL-ES-3.00-correct form of the
+raw-string `#define` prepend the legacy GLSL 1.00 path uses in
+`init.js`. `Renderer.programTile()` builds the discard-free program and
+`Renderer.programTileDiscarding()` the `TILE_DISCARD` variant, sharing
+`buildTileColorProgram`. `TileRenderRig.draw()` selects per draw:
+`(maskTexture || tile.splitMask) ? programTileDiscarding() :
+programTile()`, and sets `uClip`/`uMask` only on the discarding branch.
+`splitMask` is the legacy `surface-tree.js` quadrant clip; that term
+routes legacy clipped tiles to the discarding program and is removed
+with the legacy traversal, leaving a plain `maskTexture` check.
+`drawDepth()`/`footprint()` are unchanged (single-sample targets).
+
+**Update 2026-06-08:** the legacy-traversal removal (rfc-draw-traversal
+step 8) landed. `splitMask`, the `uClip` set, the `applyTileClip`
+quadrant clip, and `tile-clip.inc.glsl` are gone; `TileRenderRig.draw()`
+now selects on `!!maskTexture`, and the discarding program's only
+`discard` is the `uMaskEnabled` coverage test.
+
+
+## PERF: draw-traversal — empty-quadrant fold
+
+**Opened:** 2026-06-04
+**Status:** resolved 2026-06-05 — implemented via the gap/empty coverage
+split; on `simple.json` `recursive` now matches `legacy` exactly (mask
+draws 50→0, framebuffer switches 100→0, drawn tiles 193→170, GPU
+parity). See the §2.1 post-implementation note and the session log.
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+
+**Update 2026-06-04:** deferred-rectangle coverage has landed (see the
+session log and the §5.1 post-implementation note). It carries the
+rectangular (watertight/LOD-hierarchy) coverage as a CPU rectangle list
+and rasterizes only on consumption, which moved the per-level fill/blit
+of that part off the GPU. Measured residual on `simple.json` (cadence
+3): framebuffer switches 128→100, mask draws 65→50 — a modest standalone
+win. (It does not improve precision and does not remove LINEAR sampling,
+which is for footprint coverage; an earlier note claimed otherwise and
+is corrected.) The remaining churn is the `materialize` bind at each
+node drawing masked fallback coverage over an all-watertight-or-culled
+subtree — exactly the culling-induced consumers this fold removes, which
+on this data subsumes the rectangle gain and also drops the cadence
+overdraw. The fold is the next step; the rectangle representation's own
+lasting value is the gap/loading case (framebuffer switches at
+non-rendering propagation nodes, which the fold cannot remove) and as
+the substrate for a later analytic in-shader test.
+
+### Goal
+
+Stop the recursive terrain traversal from materializing mask coverage
+for frustum-culled quadrants, so a fully-loaded frame issues no
+footprint, fill, blit, or node-mask clear, and the mask render-target
+churn drops to the legacy level at rest.
+
+### Measured cost
+
+Profiled on `simple.json` (single surface, no textures or labels,
+melown2015, prod v6 mapproxy backend, 1280x800, scene settled, one
+forced redraw per frame). Per-frame medians, GL commands counted by
+patching the WebGL2 context, GPU time from
+`EXT_disjoint_timer_query_webgl2`:
+
+| metric | recursive cad3 | recursive fitonly | legacy topdown | legacy fitonly |
+|---|---|---|---|---|
+| gpuMs | 12.1 | 12.5 | 9.0 | 8.7 |
+| drawCalls | 259 | 250 | 171 | 171 |
+| maskDraws | 65 | 79 | 0 | 0 |
+| fbSwitch | 128 | 150 | 0 | 0 |
+| clear | 52 | 55 | 1 | 1 |
+| drawnTiles | 193 | 170 | 170 | 170 |
+
+Recursive runs ~35-45% slower on the GPU than legacy at rest (+3.5 ms,
+well above the ~0.7-1.5 ms run-to-run spread). Both pipelines produce a
+pixel-equivalent image, so the gap is pure overhead. Legacy topdown and
+fitonly converge to the same 170-tile frontier once loaded, so the
+RFC's "mask turns topdown into fill-the-gaps" GPU saving does not exist
+at rest — topdown does not overdraw ancestors there.
+
+The mask operations were counted directly by wrapping the four
+`DrawTraversalMaskPool` methods. In fitonly: `addFootprint` 0,
+`fillNodeQuadrants` 28.6, `blitChildToParent` 58.3, `clearNode` 59.4
+per frame. Footprint rasterization is already zero — every drawn tile is
+watertight (metatile v6; the whole fit frontier L1-L14 reads watertight)
+and returns before `addFootprint` in
+[draw-traversal.ts](../../src/core/map/draw-traversal.ts). The residual
+cost is fill and blit quads plus their clears.
+
+### Root cause
+
+A node propagates watertight coverage with no mask only when all four
+child quadrants come back watertight
+([draw-traversal.ts:203](../../src/core/map/draw-traversal.ts)). Because
+every tile here is watertight and loaded, the only way a quadrant fails
+to return watertight is frustum culling: a culled quadrant is dropped in
+`collectChildActive` and never recursed, so its parent sees fewer than
+four watertight children and must materialize the coverage —
+`clearNode`, `fillNodeQuadrants` for the quadrants it does have — and
+then returns `partial`. That `partial` poisons the whole ancestor chain
+to the root: each parent of a partial node runs a `blitChildToParent`
+and a clear. One culled quadrant near the frontier creates a fill plus
+a blit at every level above it.
+
+The regions a coarse fallback tile would fill at those partial nodes are
+exactly the culled quadrants, which are off-screen. So in the
+fully-loaded state both the mask bookkeeping and any fallback draw it
+supports work on geometry that is not on screen.
+
+### Design
+
+Two parts. The data-model change is the **gap/empty split**; the
+optimization it enables is the **empty-quadrant fold**.
+
+The current `CoverageResult` kind `'none'` conflates two cases: a node
+with an on-screen region nothing covered (waiting for data), and a node
+whose descendants are all culled (no on-screen area at all). A node
+passing its own bbox visibility does not imply its descendants are
+visible, so a recursed subtree can legitimately have no on-screen area.
+Split `'none'` into:
+
+```ts
+type CoverageResult =
+    | { kind: 'watertight' }  // on-screen cell solid; analytic, no mask
+    | { kind: 'partial' }     // on-screen cell covered via a mask to blit
+    | { kind: 'gap' }         // on-screen area not covered — waiting for data
+    | { kind: 'empty' };      // no on-screen area — nothing to cover
+```
+
+`'gap'` means "waiting for data": an unready child metatile, a child
+whose metanode is loaded but whose rig is not ready, or a leaf that
+could not draw. It is transient and absent from a fully-loaded frame.
+`'empty'` means no on-screen area, produced both by a culled quadrant in
+`collectChildActive` and by a recursed subtree whose quadrants are all
+empty. `collectChildActive` reports the dropped-quadrant reason —
+culled child metanode present but off-screen gives `'empty'`; child
+present but unready, metatile unloaded, or `!hasChild` on-screen gives
+`'gap'` (an unready child has no metanode to bbox-test, so it is treated
+as `'gap'`, which keeps the win to the steady state where it belongs).
+
+The fold is then a one-line widening of the early-out: a node returns
+`'watertight'` when every quadrant is `'watertight'` or `'empty'` (none
+`'partial'`, none `'gap'`). Track the empty quadrants in a
+`notRequiredMask` next to the existing `watertightChildMask`:
+
+```ts
+if ((watertightChildMask | notRequiredMask) === AllQuadrantsMask)
+    return CoverageWatertight;
+```
+
+A node whose only missing quadrants are culled passes watertight up
+untouched — no clear, no fill, no blit. In a fully-loaded frame the
+whole visible tree collapses to watertight and the mask machinery goes
+silent. The cadence fallback draws also stop, because the early-out
+fires before the render loop. The mask still activates wherever a finer
+tile is genuinely loading, which is its purpose, so the progressive-load
+behavior and the multi-surface seam compositing are unchanged.
+
+`'partial'` deliberately covers both "fully covered, held in a mask" and
+"covered with holes": the mask itself carries the hole pattern, a
+consumer reads it and fills only the uncovered texels, and both are
+blitted identically. The traversal never needs a per-subtree
+"fully converged" signal, so the conflation costs nothing.
+
+### Verification plan
+
+The premise that every steady-state partial is culling-caused is forced
+by the verified facts (frontier 100% watertight, scene settled), but the
+payoff must be measured:
+
+1. Re-run the mask-op counter on settled `simple-terrain`; expect
+   `fillNodeQuadrants`, `blitChildToParent`, `clearNode` near zero and
+   `addFootprint` still zero.
+2. Re-run the GL/GPU profiler; expect `recursive-cadence3` GPU to fall
+   from ~12 ms toward the ~9 ms legacy floor.
+3. Screenshot mid-load to confirm the mask still fills genuine gaps (no
+   transient holes at partially-loaded boundaries) and at rest to
+   confirm pixel parity with today.
+4. Re-check `complex-terrain` and `full-terrain`, which have real
+   non-watertight boundary tiles, to confirm footprints still fire where
+   they should.
+
+The profiling harness and probes live under the gitignored `tmp/perf/`.
+
+---
+
 ## REFACTOR: audit draw-readiness policy flags after traversal rollout
 
 **Opened:** 2026-05-30
@@ -1429,7 +2018,10 @@ piece is a render-time color / opacity path for geodata lines.
 ## PERF: pre-built metatile index eliminating serve-time DEM warps
 
 **Opened:** 2026-05-16
-**Status:** early design — expand into RFC when implementation starts
+**Status:** promoted to RFC — see
+[rfc-metanode-store.md](rfc-metanode-store.md), which subsumes this item
+and the coverage-mask `mapproxy-tiling` redesign below. The notes here
+are retained as the originating discussion.
 
 ### Goal
 
@@ -1534,8 +2126,11 @@ naturally.
 ## PERF/REDESIGN: coverage-mask `mapproxy-tiling`
 
 **Opened:** 2026-05-29
-**Status:** early design — contains untested assumptions; elevate to
-RFC before implementation
+**Status:** subsumed by [rfc-metanode-store.md](rfc-metanode-store.md)
+(§4), which folds the coverage-mask native pass and the height-range
+extraction into one tiling redesign. The notes here are retained as the
+originating discussion; the untested assumptions are carried into the
+RFC's §4.5 and verification plan.
 
 ### Goal
 
@@ -1834,3 +2429,83 @@ when the token is first received — no render-loop involvement needed.
 | `src/core/core.js:275–308` | `onAutorizationLoaded` — sets up token and callback |
 | `src/core/core.js:351–357` | initial auth fetch |
 | `src/core/map/map.js:1451–1455` | per-frame expiry check in `update()` |
+
+
+## BUG (tileserver): surface generator emits a zero-submesh mesh
+
+**Opened:** 2026-06-06
+**Status:** deferred
+**Repository:** cartolina-tileserver (mapproxy `surface` generator)
+**Related:** client workaround landed in
+[draw-tiles.js](../../src/core/map/draw-tiles.js) (the
+`surfaceMesh.loadState == 2` early return in `drawSurfaceTile`)
+
+### Symptom
+
+A `surface-dem` resource can serve a tile whose metatile metanode has the
+`geometry` flag set while the matching `.bin` mesh contains zero
+submeshes. The mesh is structurally valid (the VTS header reports
+`numSubmeshes = 0`), so it is not malformed in the format sense, but it
+is inconsistent with the metatile that advertises geometry.
+
+Observed on the global `topoearth/viewfinder-dem1` surface (a sparse DEM
+whose tile index was extended upward with `vts complete-tileindex-up`).
+The melown2015 root splits at lod 1 into three division-node subtrees
+(pseudomerc, north UPS, south UPS). The north-UPS root tile `1-0-1` is
+flagged with geometry and real height extents in the metatile, but its
+mesh decodes to 14 bytes — a valid header with zero submeshes.
+
+### Root cause
+
+The metatile geometry flag comes from the tile index and the metatile's
+own 8×8 per-tile sampling
+(`metatileSamplesPerTile = 1<<3`), which finds valid heights for the
+node. The mesh is built separately at 128×128 via
+`Operation::demOptimal`, and the delivery path adds a submesh only when
+the sampled local mesh has vertices:
+
+`mapproxy/src/mapproxy/generator/surface.cpp` (`SurfaceBase::generateMesh`)
+
+```cpp
+vts::Mesh mesh(false);
+if (!lm.mesh.vertices.empty()) {
+    auto &sm(addSubMesh(mesh, lm.mesh, nodeInfo, lm.geoidGrid, textureMode));
+    ...
+}
+```
+
+When that warp yields no vertices the output mesh keeps zero submeshes.
+The two products (metatile, mesh) sample the dataset differently and can
+disagree about coverage for a coarse node, producing the mismatch.
+
+(A raw 128×128 warp of `1-0-1` actually returns ~22.8% valid pixels, so
+the node is not even genuinely empty — the empty mesh is itself
+questionable, separate from the consistency issue.)
+
+### Impact
+
+A geometry-flagged tile backed by a zero-submesh mesh can never become
+render-ready on the client, because the mesh has nothing to draw. The
+legacy topdown traversal descends the root only when every division-node
+sibling is ready, so one such sibling stalls the whole surface (blank
+globe). Worked around client-side for the legacy path; the recursive
+path tolerates it.
+
+### Suggested direction
+
+A surface generator should always emit exactly one submesh. The cleanest
+fix is in `SurfaceBase::generateMesh`: add the submesh unconditionally
+(an empty submesh with zero faces is acceptable), or otherwise reconcile
+the metatile `geometry` flag with the actual mesh content so the two are
+never inconsistent. Empty submeshes need a sane bounding box — an empty
+`extents()` returns inverted/sentinel values — and the coverage-mask,
+normal-map, and watertight/multimesh paths must tolerate the empty case.
+
+### Relevant files
+
+| File | Note |
+|---|---|
+| `mapproxy/src/mapproxy/generator/surface.cpp` | `SurfaceBase::generateMesh` — submesh added only if `!lm.mesh.vertices.empty()` |
+| `mapproxy/src/mapproxy/generator/surface-dem.cpp` | `generateMeshImpl` — 128×128 `demOptimal` warp |
+| `mapproxy/src/mapproxy/generator/metatile.cpp` | metatile geometry flag from index + 8×8 sampling |
+| `mapproxy/src/mapproxy/support/mesh.cpp` | `addSubMesh`, `meshFromNode` |

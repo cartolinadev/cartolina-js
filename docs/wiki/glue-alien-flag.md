@@ -2,6 +2,18 @@
 
 See [index.md](index.md) for the wiki table of contents.
 
+> **Client status (2026-06-08): removed.** The draw-traversal RFC step 8
+> teardown deleted the client-side glue and alien machinery —
+> `createVirtualMetanode`, the per-node `alien` flag, the proper/alien
+> glue entries in `surfaceSequence`, and the glue generation in
+> `surface-sequence.ts`. The recursive terrain traversal renders plain
+> surfaces directly via mask compositing
+> ([rfc-draw-traversal.md](rfc-draw-traversal.md)); glues and the alien
+> flag no longer exist in cartolina-js. This page is retained as a
+> record of the VTS concept, which still exists server-side and may be
+> revived in modified form (a server-side unification of metanode
+> trees). The code references below describe the deleted client path.
+
 Background on VTS storage, the aggregated tileset driver, and how
 virtual surfaces are produced and served is in
 [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md).

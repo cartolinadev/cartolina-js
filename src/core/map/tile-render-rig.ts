@@ -274,7 +274,13 @@ export class TileRenderRig {
             return;
         }
 
-        const program = this.renderer.programTile();
+        // discard-free program for plain tiles; the discarding variant
+        // keeps the coverage-mask discard, driven by the mask texture.
+        const needsDiscard = !!maskTexture;
+
+        const program = needsDiscard
+            ? this.renderer.programTileDiscarding()
+            : this.renderer.programTile();
 
         /* make sure we got the right program (device caches the current program,
          * so no extra churn) */
@@ -296,15 +302,15 @@ export class TileRenderRig {
                 'uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
         }*/
 
-        // uClip
-        let splitMask = this.tile.splitMask || [1, 1, 1, 1];
-        program.setFloatArray('uClip', splitMask);
-    
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
-        // uMask
-        this.bindMask(program, maskTexture);
+        // coverage uniforms exist only on the discarding program
+        if (needsDiscard) {
+
+            // uMask
+            this.bindMask(program, maskTexture);
+        }
 
         //program.setSampler(
         //    'material.normalMap', this.normalMap.getGpuTexture());
@@ -336,10 +342,6 @@ export class TileRenderRig {
 
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
-
-        // uClip
-        let splitMask = this.tile.splitMask || [1, 1, 1, 1];
-        program.setFloatArray('uClip', splitMask);
 
         // uMask
         this.bindMask(program, maskTexture);

@@ -1,5 +1,500 @@
 # Session log
 
+## 2026-06-08 — draw traversal: mark RFC implemented
+
+Closed out [rfc-draw-traversal.md](rfc-draw-traversal.md) after reviewing
+the step-8 diff (`d7a9e58a..HEAD`): the deletions match the step-8 notes,
+no removed symbol is still referenced (the surviving `surfaceSequence`
+bound-layer path, `drawGridCells` debug feature, and unconsumed
+`sourceReference` wire-format parse are all expected), and `tsc --noEmit`
+is clean.
+
+Applied the two editorial notes from the round-7 sign-off: §1 now states
+the verifiable "no current test URL mapConfig includes a type-`'free'`
+free layer" instead of the undefined "style-based maps", and defines the
+unsupported-free-layer warning as throttled once per name via `warnOnce`.
+Flipped the RFC status from `In review` to `Implemented` and moved its
+index entry from "RFCs — active" into
+[rfcs-implemented.md](rfcs-implemented.md).
+
+One discrepancy noted, not a defect: §7 predicted the legacy
+`gpu/shaders.js` `uClip` / `vClipCoord` shader would be removed, but it is
+retained because it is shared with the out-of-scope geodata
+`JOB_POLYGON` flat-shade path (`progCFlatShadeTile`). The terrain path's
+clip (`tile-clip.inc.glsl`) was removed as the step-8 notes claim.
+
+Verified: `npx tsc --noEmit`; fresh webpack compile with zero errors; the
+full screenshot suite (`simple-terrain`, `a-3d-mountain-map`,
+`tacoma-fitonly`, `complex-terrain`, `full-terrain`, `nacis-2023`,
+`legacy-benatky`) captured dev and prod for all seven, with dev matching
+prod and the multi-surface benatky scene visually indistinguishable.
+
+## 2026-06-08 — draw traversal: remove legacy main tree
+
+Completed the final step of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+the surviving `legacyMap.tree` main tree is gone. The old tree was kept
+only for the legacy measure control's Volume tool, which gathered terrain
+meshes through `getSurfaceAreaGeometry()` and `traceAreaTiles()`. That
+path was front-surface-only after the multi-surface refactor and could
+not represent composed terrain at partial-coverage seams.
+
+Removed the Volume button and cut/fill computation from
+`src/browser/ui/control/measure.js`; deleted `Map.getSurfaceAreaGeometry`,
+`MapMeasure.getSurfaceAreaGeometry`, `MapSurfaceTree.storeGeometry`,
+`traceAreaTiles`, its mesh-readiness helper, and
+`MapSurfaceTile.insideCone`; removed main-tree construction from both
+map factories and the `LegacyMap.tree` declaration / kill path.
+
+`MapSurfaceTree` remains only for per-surface query helper trees and
+free-layer geodata traversal. Updated [rfc-event-bus.md](rfc-event-bus.md)
+because the deleted volume path also removed the only source call sites
+that used the third `wait` argument to `once`; that RFC moved back to
+`In review` with a review-request section as required after editing an
+accepted RFC.
+
+Verified: `npx tsc --noEmit`; fresh webpack compile; screenshot checks
+for `simple-terrain`, `complex-terrain`, `full-terrain`, and
+`legacy-benatky` all passed with no reported console or network errors.
+
+## 2026-06-08 — draw traversal: glue / virtual-surface / alien teardown
+
+Step 8 continued: removed the client-side glue, virtual-surface, and
+alien-flag machinery — the last large body of legacy multi-surface code.
+The recursive terrain traversal already rendered plain surfaces directly
+via mask compositing, so glues and virtual surfaces were unconsumed by
+the draw path; this session deleted the loading and the remaining
+tile-processing that still modeled them.
+
+Removed: `MapVirtualSurface` (`virtual-surface.js`) and `sourceReference`
+redirection; `MapConfig.parseVirtualSurfaces` / `parseGlues`;
+`Map.glues` / `virtualSurfaces`, `addGlue` / `getGlue`; the
+`mapVirtualSurfaces` config key; `surface.glue` / `surface.virtual` flags
+and `getSurfaceReference`; `MapSurfaceTile.createVirtualMetanode` /
+`isVirtualMetanodeReady` and the `virtual*` tile state; the per-node
+`alien` flag and its metatile bitplane consumer; and the `glueImagery`
+credit plumbing.
+
+The whole surface-sequence concept went with it: `generateSurfaceSequence`
+and the `tree.surfaceSequence` / `surfaceOnlySequence` arrays are gone,
+and so is `MapSurfaceTile.checkSurface` (its sole job was selecting one
+surface from overlapping surfaces plus glues). Every tree now renders
+exactly one surface bound through `freeLayerSurface`, so surface binding
+is the inline `this.surface = tree.freeLayerSurface`. The "any surface in
+view" gates (draw gate, measure, stats) read `Map.surfaceList()`;
+`freeLayersHaveGeodata` and the non-geodata-free-layer warning moved to
+`Map.refreshFreelayesInView`; `generateBoundLayerSequence` stays for
+map-config bound-layer styling. A mapConfig that still declares
+`virtualSurfaces` / `glue` logs a warning at parse and is ignored.
+
+Kept by decision: a minimal `legacyMap.tree`, now a single-surface tree —
+the measure area/volume trace and `storeGeometry` bind its
+`freeLayerSurface` to the front surface before tracing. Its full removal
+is the deferred final step that closes the RFC. Typecheck clean; fresh
+webpack build with no errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no console/network
+errors. Benatky (the old glue scene) is visually indistinguishable from
+production through pure mask compositing, and imagery credits still
+populate.
+
+## 2026-06-08 — draw traversal: remove grid fallback + plane subsystem
+
+Follow-up to the step-8 core removal, same day. Established that the
+legacy heightfield grid fallback (`drawGrid`) is unreachable for its only
+surviving callers: terrain draws through the recursive traversal, so
+`drawSurfaceFit` is reached only by free-layer trees, where its grid gate
+`(!geodata && !free && mapHeightfiledWhenUnloaded)` is always false. The
+only way `drawGrid` still executed was the GPU-budget-exhaustion clause in
+`processDrawBuffer`, which would paint a terrain heightfield over leftover
+tiles — meaningless for geodata.
+
+Removed: the `heightmapOnly` debug override (overrides + draw-tiles +
+inspector); the grid-placeholder logic and `drawGrid`/`grids` plumbing in
+`drawSurfaceFit` and `processDrawBuffer` (a tile hitting the GPU budget now
+skips a frame instead of drawing a grid); `MapSurfaceTile.drawGrid` and its
+exclusive helper `MapMetanode.getGridHeight`; the dead `border2`/`border3`
+data (resets + one debug overlay); and the `mapHeightfiledWhenUnloaded` and
+`mapGridUnderSurface` config keys.
+
+Then removed the plane shader subsystem `drawGrid` rendered through, which
+turned out to be entirely dead (its only other user, `MapMetanode.drawPlane`,
+was already callerless before this session): the `progPlane*` programs,
+`planeMesh`, `planeBuffer`, `RendererGeometry.buildPlane`, `drawPlane`, and
+the `planeVertexShader`/`planeFragmentShader`/`quadPoint` GLSL.
+
+Verified `drawGrid`'s border-height side effect had no live consumers first
+(only a `debug.drawPositions` overlay tolerant of null). Typecheck clean;
+fresh webpack build with no errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no regression vs production.
+
+Deferred: glue/virtual-surface/alien teardown; the legacy `gpu/shaders.js`
+`uClip[8]`/`vClipCoord` tile clip and legacy tile draw-command programs
+(pending an audit of the `drawSurfaceTile` free-layer path); the dead
+`noGrid` param and the now-write-only `gridSkipped`/`mapGridMode` overlay.
+
+## 2026-06-08 — draw traversal: delete legacy terrain traversal (step 8)
+
+Executed the core-removal part of rollout step 8. Removed four of the
+five legacy traversal methods from `surface-tree.js` — `drawSurface`,
+`drawSurfaceWithSpliting`, `drawSurfaceFitOnly`, `drawSurfaceDownTop` —
+and kept `drawSurfaceFit`. Verified against the code that the geodata
+caller reaches `drawSurfaceFit` (via `mapGeodataLoadMode` defaulting to
+`fit`), not `drawSurfaceFitOnly` as the RFC body text says; that fitted
+frontier is the geodata traversal step 8 waits for, so it stays.
+`MapSurfaceTree.draw()` no longer switches on a load mode — it always
+calls `drawSurfaceFit` (periodicity shifts preserved) and is reached
+only by the free-layer loop, since terrain always goes through
+`Map.drawTerrainRecursive`.
+
+Made recursive the only surface path: removed the `mapTerrainTraversal`
+config, the `Map.overrides.terrainTraversal` per-frame override, and the
+dispatch branch in `map.ts`. Removed the `mapLoadMode`,
+`mapGeodataLoadMode`, and `mapSplitMeshes` config keys (defaults,
+set/get cases, url-config, stats, types). Removed the now-dead modern
+`splitMask` / `uClip` plumbing: the `splitMask` field, the `uClip` sets
+in `TileRenderRig`, the `applyTileClip` calls in `tile.frag.glsl` /
+`tile-depth.frag.glsl`, and `tile-clip.inc.glsl` (deleted). `splitMask`'s
+only setter was the removed split method, so `uClip` was already a
+constant `[1,1,1,1]` no-op.
+
+Deferred to a follow-up (recorded in the RFC step 8 note): the glue /
+virtual-surface / alien-flag teardown (`createVirtualMetanode`,
+`MapVirtualSurface`, `sourceReference`, glue-entry generation), still
+entangled with the `surfaceSequence` terrain gate and shared tile
+processing; and the legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord`
+clipping, still used by the kept `drawSurfaceFit` → `processDrawBuffer`
+→ `drawGrid` path.
+
+Verification: `npx tsc --noEmit` and `npm run typecheck` clean; fresh
+webpack build with zero errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no regression against
+production — complex geodata labels and the benatky multi-surface scene
+match.
+
+## 2026-06-08 — hook: skip version bumps for docs-only commits
+
+Changed `.husky/pre-commit` so staged documentation-only commits skip
+the package/version bump. Documentation-only means every staged path is
+under `docs/`, is a Markdown file, or is `AGENTS.md`.
+Session-log and sensitive-content checks still run before the skip.
+
+The package version identifies runnable behaviour for deployed
+instances; documentation-only commits do not change runtime behaviour.
+
+## 2026-06-08 — draw traversal: protected materialized-mask erosion
+
+Implemented the last constructive draw-traversal rollout step:
+edge-preserving mask erosion. The mask pool now erodes only after
+`materialize` has composed footprint coverage and exact rectangles into
+the transient sampled texture. The default is now enabled
+(`mapTraversalMaskErosion = 1`); `?mapTraversalMaskErosion=0` disables
+the pass for comparison. The fixed `k = 1` 3x3 min-filter copies the
+materialized mask boundary without erosion, so the pass cannot open
+coverage along tile edges.
+
+The default `mapTraversalMaskThreshold` was reset from `0.65` to `0.5`
+for manual comparison. The RFC implementation note records that erosion
+targets loading artifacts, not high-oblique settled-view cracks; those
+remain a screen-space/backlog issue.
+
+Manual verification after implementation showed smooth nadir loading and
+visibly suppressed oblique-view artifacts, with no meaningful FPS cost
+observed. That promoted erosion from opt-in to default-on.
+
+## 2026-06-06 — legacy traversal: tolerate zero-submesh meshes
+
+`viewfinder-dem1` rendered nothing in `mapTerrainTraversal=legacy` while
+recursive rendered fine. Traced the descent: the melown2015 root `0-0-0`
+(no geometry of its own) splits at lod 1 into three division-node roots
+(pseudomerc, north UPS, south UPS). The north-UPS root `1-0-1` is flagged
+with geometry in the metatile but its mesh has zero submeshes (a valid
+14-byte VTS header, `numSubmeshes = 0`). `drawSurfaceTile` returned
+not-ready for it forever (`if (!surfaceMesh.submeshes.length) return
+false`), and the legacy topdown `drawSurface` descends the root only when
+every child is render-ready (`childrenCount == readyCount`), so that one
+empty sibling pinned the root at 2/3 ready and blocked the whole globe.
+
+Fix (workaround, client): in `drawSurfaceTile`, when a mesh has parsed
+(`loadState == 2`) but carries zero submeshes, report it ready instead of
+not-ready — it is a tile with nothing to draw, not an unloaded one.
+Marked for removal with the legacy path. Verified the reported camera now
+renders in legacy, recursive is unchanged, and `simple-terrain`,
+`complex-terrain`, `full-terrain` screenshots still pass.
+
+The underlying tileserver defect — a `surface` generator emitting a
+zero-submesh mesh for a geometry-flagged node — is recorded in
+[backlog.md](backlog.md) for a server-side fix.
+
+## 2026-06-06 — map demo resolves relative style source URLs
+
+The map demo (`demos/map/index.html`) fetches the style as text to
+expand `__placeholder__` tokens, then hands the parsed object to
+`cartolina.map()`. Because the factory receives an object rather than a
+URL string, it used `window.location.href` (the demo's own URL) as the
+base for resolving relative source paths — the style's actual URL never
+reached it.
+
+A style served from a surface directory uses `"url": "./"` for its
+`cartolina-surface` source. That resolved to
+`http://localhost:8080/demos/map/mapConfig.json` (404) and the map
+failed to load.
+
+Fix: after parsing the expanded style, `absolutizeSourceUrls` rewrites
+each `sources[].url` via `new URL(url, absoluteStyleUrl)`, where
+`absoluteStyleUrl` is the URL the style was fetched from. Absolute URLs
+(including those produced by `__backend__` expansion) pass through
+unchanged. Scoped to `sources[].url`, the only field cartolina resolves
+relative to the style base; font URLs in styles are expected absolute.
+
+Verified with the `viewfinder-dem1` surface `style.json`
+(`melown2015/surface/topoearth/viewfinder-dem1/style.json`, served from
+the test backend) — relative `./` source now loads, terrain renders, no
+console errors — and
+`?style=simple&backend=test` (placeholder-expanded absolute URL still
+resolves to the test backend, no regression).
+
+## 2026-06-06 — sparse no-child fallback fix
+
+Fixed recursive traversal handling for missing children on sparse
+non-watertight surfaces. `collectChildActive` no longer treats every
+missing child as coverage by the current tile. A no-child quadrant keeps
+the conservative "not culled" result only when the current metanode is
+watertight and has geometry; sparse no-child quadrants are absent
+coverage, while unloaded children still keep visibility unknown.
+
+The bug was verified on the reported `viewfinder13.json` camera: sparse
+`viewfinder-dem1` no-child quadrants combined with frustum-culled
+`viewfinder-dem3` children made DEM3 LOD3 parents render as fallback
+coverage. After the fix the viewfinder case settles to 108 tiles, all at
+LOD13, with no LOD3 fallback draws. `simple.json` stays unchanged at
+84 LOD13 tiles and 0 framebuffer switches. Standard screenshots passed
+for `simple-terrain`, `complex-terrain`, and `full-terrain`.
+
+## 2026-06-06 — Discard-free tile color shader
+
+Implemented the backlog entry "discard-free tile color shader for
+watertight tiles." The terrain color shader had two `discard` sites (the
+`uMaskEnabled` coverage test and the `applyTileClip` quadrant clip).
+Profiling showed any reachable `discard` defeats the MSAA fast-clear path
+on the measured Intel iGPU, costing ~4.5 ms on the fill-bound
+`simple.json` frame.
+
+Change: compile the color shader as two programs and select per draw.
+
+- `tile.frag.glsl` guards both discard sites behind `#ifdef TILE_DISCARD`,
+  including the `tile-clip.inc.glsl` include and the `uMask`/
+  `uMaskEnabled` uniforms, so the default compile has no `discard`.
+- `GpuProgram` gained a `defines: string[]` constructor parameter that
+  injects `#define` lines after the `#version` directive. This is the
+  GLSL-ES-3.00-correct form of the raw-string `#define` prepend the
+  legacy GLSL 1.00 shaders use in `init.js` (prepending before
+  `#version` is illegal in 3.00). Reusable for future modern variants.
+- `Renderer.programTile()` (discard-free) and `programTileDiscarding()`
+  (`TILE_DISCARD`) share a `buildTileColorProgram` helper. The program
+  is named for the act, not the cause: the coverage mask is one reason
+  to discard, the quadrant clip another.
+- `TileRenderRig.draw()` selects
+  `(maskTexture || tile.splitMask) ? discarding : tile` and sets the
+  coverage uniforms only on the discarding branch.
+
+`splitMask` is the legacy `surface-tree.js` quadrant clip and has no
+`maskTexture`; that term keeps the legacy clip on the discarding shader
+and is removed with the legacy traversal, leaving a plain `maskTexture`
+check. `drawDepth()`/`footprint()` were left unchanged — they render to
+single-sample targets where the discard×MSAA mechanism does not apply.
+
+Verification: `simple`/`complex`/`full` terrain dev-vs-prod pixel-
+identical, no console/network errors. A program-selection probe showed
+the watertight `simple.json` recursive scene uses the discard-free
+program for every draw, and the benatky multi-surface scene selects the
+discarding program where a mask is present. Clock-matched A/B on the same
+session (discard-free vs forced always-discard, `tmp/perf/probe_2560.js`,
+MSAA on, `dpr=1`): settled GPU 15.58 ms → 11.05 ms (~29%), matching the
+profiling prediction with the iGPU clock-drift confound removed.
+
+## 2026-06-06 — TileRenderRig GPU profiling
+
+Profiled the settled-state GPU cost of the terrain color shader on
+`simple.json` at 2560×1353. Full writeup with method, numbers, and the
+three wins is in
+[tile-render-rig-profiling.md](tile-render-rig-profiling.md); this is the
+orientation summary.
+
+Started on a stale webpack bundle (served behind a cached ts-loader error
+overlay while `tsc` was clean) and reported invalid numbers before the
+browser-console compile error gave it away — restarted the dev server and
+redid everything. The harness (`tmp/perf/probe_2560.js`, headless with
+`--use-angle=gl`) drives a redraw pump and reads `window.__vtsPerf.frame`
+with `mapProfileGpu=1`; it runs on the real Intel iGPU with timer queries
+available. The iGPU's absolute GPU-timer values drift ~10–30% (up to ~2×
+when a light shader lets the clock drop), so small deltas were measured
+clock-matched (alternating builds, minimum of several runs), and the
+`dpr=1.5` sweep point was discarded as non-monotonic.
+
+Findings: the settled frame (85 draws, 85 binds, 0 FBO switches) is
+fragment/fill bound — GPU tracks pixel count, CPU is flat at ~3 ms, so
+the draw/bind counts are not the bottleneck. Three confirmed wins:
+(1) removing the shader's `discard` recovers ~4.5 ms / 29% via a
+discard×MSAA interaction (not early-Z; the nadir view has no occlusion) —
+landed as an actionable backlog entry; (2) replacing the runtime layer VM
+with a pixel-equivalent straight-line shader saves ~1.0–1.9 ms
+(clock-matched), confirming the UBO/stack-loop register-pressure
+hypothesis — noted on the `split tile rendering execution` backlog entry,
+which produces this shader for simple stacks. A third candidate —
+dropping the 4-tap octahedral normal filtering to a single tap (the fold
+is only needed for `z < 0` overhangs, impossible for DEM heightfield
+normals) — turned out **not** to be a measurable win: a clock-matched
+A/B put the tap difference below the iGPU clock-noise floor (a 4-tap run
+even beat every 1-tap run), most likely because the 256² normal map is
+texture-cache-resident. The earlier ~1.5 ms reading for it was a
+cross-clock-state artifact. Probe shaders were reverted; the tree is
+clean.
+
+## 2026-06-06 — frame profiler audit
+
+Audited the frame profiler commit after opening the stats panel made draw
+times jump by roughly an order of magnitude. The source-level mechanism
+was verified: `InspectorStats.showPanel()` silently set
+`mapProfileGpu = true`, `test/perf/run-one.js` appended
+`mapProfileGpu=1` to every measured URL, and `FrameProfiler.result()`
+folded GPU timer-query medians into the primary `renderMs` and
+`limitFps` with `Math.max(cpu, gpu)`.
+
+Corrected the ownership split. The default map runtime keeps GPU timing
+off. The stats panel is a diagnostic entry point: it pumps redraws while
+open, enables `mapProfileGpu` while visible, and restores the previous
+setting on close. The performance runner adds `mapProfileGpu=1` because
+it reports diagnostic bottleneck measurements. `FrameProfiler` does not
+touch `EXT_disjoint_timer_query_webgl2` unless GPU profiling is enabled.
+With GPU profiling disabled, `renderMs` and `limitFps` come from the CPU
+frame median. With GPU profiling enabled and valid samples available,
+they report the CPU/GPU bottleneck, and the panel shows FPS limit first,
+then realized RAF cadence plus CPU and GPU frame times. The profiler also
+reports render texture binds, counted as per-frame deltas of calls
+through `GpuDevice.bindTexture()`, between draw calls and framebuffer
+switches.
+
+Current state: GPU profiling is not removed. It remains available via
+`mapProfileGpu=1`, and diagnostic entry points enable it when their job
+is bottleneck measurement. The first local Chromium probe required
+elevated launch permissions; after rerunning with approval, probes showed
+GPU timer FPS limits matching independent RAF cadence on representative
+views. The high GPU values were real GPU-timeline work, not JavaScript
+wall-clock frame time. Source checks passed:
+`npx tsc --noEmit`, `node -c test/perf/run-one.js`, and
+`git diff --check`.
+
+## 2026-06-05 — empty-quadrant fold
+
+Split the recursive traversal's coverage result so a frustum-culled
+quadrant stops forcing a fallback draw. `CoverageResult`'s `none` becomes
+two kinds: `empty` (no on-screen area) and `gap` (on-screen, nothing
+rendered yet). `partial` keeps its name (partial *coverage*, distinct
+from a partial *tile* — a comment on the type says so).
+`collectChildActive` now also returns `culled` (the
+quadrant produced no active child only because its finer geometry is
+off-screen), derived from a single `required` flag — no flag soup. The
+descent classifies every quadrant into one kind, and a node early-outs as
+watertight when `(watertightMask | emptyMask) === all`, or returns `empty`
+when every quadrant is empty. All in `src/core/map/draw-traversal.ts`.
+
+Result on `simple.json` (cadence 3, settled): `recursive` now equals
+`legacy` on every cost metric — draw calls 244→171, mask draws 50→0,
+framebuffer switches 100→0, clears 51→1, drawn tiles 193→170, program
+switches 67→2 — at legacy GPU parity (8.74 vs 8.65 ms), CPU lower (2.7 vs
+3.9). The mask machinery is silent on watertight data and the cadence
+fallback overdraw is gone. The recursive pipeline now costs what legacy
+costs while keeping deferred rectangles, progressive loading, and
+multi-surface compositing. (One cosmetic leftover: 172 viewport calls
+from `renderSurface` re-setting the already-bound screen target per tile;
+no framebuffer switch, negligible.)
+
+Verification: `npx tsc --noEmit` clean; fresh build; no holes on
+`simple` (recursive vs legacy pixel-equivalent), `complex`, `full`,
+`legacy-benatky`, and `full` at cadence 1 and a large cadence (the fold
+drops only off-screen coverage). Closes the empty-quadrant fold backlog
+entry.
+
+## 2026-06-04 — deferred-rectangle terrain coverage
+
+Replaced the recursive traversal's eager per-level mask fill/blit with a
+deferred-rectangle representation in `DrawTraversalMaskPool`. Coverage is
+now a CPU rectangle list (dyadic/watertight coverage and the LOD
+hierarchy) plus a per-depth footprint texture for only the
+non-rectangular coverage of non-watertight tiles; the two coexist with
+no promotion. Rectangles propagate up the tree by a CPU scale-and-offset
+with no framebuffer touched, and are rasterized into a transient texture
+(combined with the footprint texture when present) in a single draw only
+when a surface samples the mask (`materialize`). `clearNode` /
+`fillNodeQuadrants` / `blitChildToParent` / the `maskInitialized` flag
+are gone; new pool API is `resetCoverage` / `hasCoverage` /
+`addQuadrantRects` / `appendChild` / `addFootprint` / `materialize`.
+`programTileMaskFill` and `tile-mask-fill.frag.glsl` are deleted;
+`programTileMaskRect` (blit vertex + footprint fragment) rasterizes the
+rectangle list.
+
+A first cut rasterized each rectangle with its own `gl.viewport` draw;
+that inflated draw counts (fitonly mask draws 79→463) because rectangles
+accumulate along the boundary chain. Switched to one buffered draw per
+`materialize`. Result on `simple.json` (cadence 3, settled): framebuffer
+switches 128→100, viewport calls 413→285, mask draws 65→50, draw calls
+259→244; GPU time fell from a stable ~12 ms toward the ~9 ms legacy
+floor (disjoint timer noisy, so GL-command counts are the reliable
+signal). A modest win on its own — the residual framebuffer churn is the
+`materialize` bind at each node drawing masked fallback coverage over an
+all-watertight-or-culled subtree, which the empty-quadrant fold removes
+(and which on this data subsumes this gain plus the cadence overdraw).
+
+Correction to an earlier claim in this entry: this change does not
+improve precision and does not remove the need for LINEAR sampling.
+LINEAR exists for non-rectangular footprint coverage, which still
+rasterizes and blit-downscales per level here as before; dyadic coverage
+was already exact via quadrant fills. The rectangle representation's
+lasting value is removing framebuffer switches at non-rendering
+propagation nodes during loading and genuine gaps (where the fold cannot
+help), and being the substrate for a future analytic in-shader test.
+
+Verification: `npx tsc --noEmit` clean; fresh webpack build (cleared
+`node_modules/.cache` to shed a stale fork-ts-checker error);
+`simple-terrain` recursive vs legacy pixel-equivalent; `legacy-benatky`
+(multi-surface internal-texture footprint path), `complex-terrain`, and
+`full-terrain` render with no console, network, or page errors. Next:
+the empty-quadrant fold removes culling-induced fallback consumers and
+should cut the residual `materialize` binds.
+
+## 2026-06-04 — recursive vs legacy render-cost profiling
+
+Profiled the recursive draw traversal against the legacy path on
+`simple.json` (single watertight surface, settled, forced redraw per
+frame). Built a GL-command + GPU-timer harness under the gitignored
+`tmp/perf/` (`measure.js`, `probe_maskops.js`, `probe_watertight.js`):
+patches the WebGL2 context to count draws/binds/clears, reads per-frame
+GPU time from `EXT_disjoint_timer_query_webgl2`, and captures the Viewer
+by intercepting the `cartolina.map` getter through a patched
+`Object.defineProperty`.
+
+Finding: recursive costs ~12 ms GPU vs ~9 ms legacy (+~40%), entirely
+from mask render-target churn — per frame ~37 `fillNodeQuadrants`, ~34
+`blitChildToParent`, ~56 `clearNode`, ~128 framebuffer switches.
+`addFootprint` is already zero: every drawn tile is watertight (metatile
+v6; fit frontier L1-L14 all watertight), so the churn is fills, blits,
+and clears, not footprints. Root cause: a frustum-culled quadrant is the
+only way a watertight node returns fewer than four watertight children,
+which makes the node partial and poisons the ancestor chain to the root
+with a fill plus a blit at every level. Legacy topdown and fitonly
+converge to the same 170-tile frontier at rest, so the RFC's claimed
+topdown-overdraw saving does not exist there.
+
+Two optimizations identified and discussed: the **empty-quadrant fold**
+(culled quadrants stop poisoning the chain; backlog entry added) and
+**deferred-rectangle coverage** (carry coverage as UV rectangles
+transformed up the tree on the CPU, rasterize only when a draw samples
+the mask; rectangles and a footprint-only texture coexist with no
+promotion). Deferred-rectangle is the approved next implementation step;
+plan agreed. This commit lands the backlog entry only.
+
+Verification: profiling runs reproducible via `tmp/perf/` scripts;
+screenshots confirmed recursive and legacy are pixel-equivalent at rest.
+
 ## 2026-06-04 — fitted watertight traversal stops
 
 Updated recursive terrain traversal so watertight metanodes can affect
@@ -4907,5 +5402,126 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 |---|---|
 | `getSeProgressionFactor` | `getVeScaleFactor` |
 | `setSuperElevationProgression` | `setVeScaleRampFromProgression` (deprecated) |
+
+---
+
+## 2026-06-07 — viewfinder-dem1 garbage terrain height (data, not client)
+
+Investigated why `viewfinder-dem1` resolves a `float` camera position to
+~32696 m ASL instead of ~1103 m. Concluded it is a data defect in the
+bottom-up-rebuilt tileset; the cartolina-js client reads it faithfully.
+No client change. Full write-up in the new backlog entry
+[backlog.md](backlog.md) ("DATA/TOOLS: viewfinder-dem1 poisoned coarse
+navtiles + navtile-less LOD band") and in auto-memory.
+
+### How it was traced
+
+Temporary instrumentation in `MapMeasure.getSurfaceHeight`
+(`measure.js`, reverted) logged, per surface tree, the metanode the
+height trace lands on and its range. Raw `.meta` files were decoded with
+a standalone Python reader; the on-disk tileset was queried with
+`vts --tileindex-info … --tileId L-X-Y`.
+
+### Findings
+
+- The root navtile node `[1,0,0]` stores `minHeight=32725`,
+  `maxHeight=32667` — inverted and absurd. Raw bytes `D5 7F 9B 7F` at
+  offset 0x3F of `1-0-0.meta` confirm it is stored, not a parse error
+  (dem3 parses to sane ranges). The int16 nodata sentinel (~±32767/8)
+  leaked into the coarse navtile height-range aggregation
+  (`opencv::NavTile::heightRange()` over coverage-white pixels,
+  `InvalidHeight = -FLT_MAX`, unclamped float→int16 cast).
+- dem1's source is lod 13–15; coarse LODs 1–12 were generated bottom-up.
+  `vts --complete-tileindex-up` (vts-libs `tools/vts.cpp:2990`) only sets
+  `mesh|navtile` where coarsened coverage clears `meshThreshold = K/8`,
+  leaving a navtile-less band at lod 2–6 above sparse data. The metanode
+  tree itself is intact — those are content-less routing nodes (child
+  bits set), so rendering descends through them; only the navtile content
+  is missing.
+- The height query asks for a coarse LOD (~5, camera ~52 km). From the
+  root down to that LOD the only navtile is the poisoned root; the real
+  navtiles start at lod 7 (finer than `desiredLod`), so
+  `traceHeightTileByMap`'s `id>desiredLod && heightMap` guard stops
+  before reaching them. dem3 navigates fine (navtile at every LOD).
+- The two-surface `viewfinder13.json` case looked like a recursive-vs-
+  legacy regression only because the recursive height query takes the
+  frontmost surface (dem1) while legacy's merged tree lands on dem3.
+  Single-surface dem1 fails identically in both modes.
+
+### Fix location (out of scope here)
+
+vts-tools / vts-libs: complete the coarse navtile pyramid in
+`completeTileindexUp`, and mask nodata in coarse navtile range
+generation. Both are needed.
+
+---
+
+## 2026-06-08 — RFC: the metanode store (precomputed metatiles)
+
+**Branch:** feature/draw-traversal-v1
+
+Wrote a draft RFC ([rfc-metanode-store.md](rfc-metanode-store.md))
+eliminating the serve-time DEM warp on the metatile critical path by
+precomputing per-node values into a separate, paged, mmapped quadtree —
+the **metanode store**. Design discussion only; no code.
+
+### Decisions reached (with the user)
+
+- **Store `{flags, minZ, maxZ}` only**, 4 bytes/node (`half` pair).
+  ~0.4 GiB for a planet land pyramid. Everything else derived at
+  delivery: surrogate = midpoint `(minZ+maxZ)/2`; navtile range = SDS→nav
+  transform; horizontal extents = full-cell analytic; texelSize = relief
+  heuristic over the range.
+- **Separate from, not fused into, the flag tile index.** Fusing heights
+  into the QTree value defeats the region-merge compression (heights
+  don't share horizontally), degenerates the tree, breaks the byte
+  serialization, and taxes vtsd. A parallel quadtree keeps the ocean
+  collapse + vertical range aggregation a quadtree is good at.
+- **Raw payload, paged, page-shape a build parameter.** Not
+  pre-serialized metatiles. Makes the future shallow-subtree delivery
+  (the ping-pong fix) a re-bake + serializer change, not a redesign.
+- **Subsumes the coverage-mask `mapproxy-tiling` redesign**: one native
+  warp (mask band w/o nodata → exist/watertight; elevation band *with*
+  nodata → minZ/maxZ) + bottom-up reduction. Retires the min/max VRTWO
+  pyramids at build and serve (generatevrtwo 3→1 pyramids).
+
+### Non-obvious findings (verified in code)
+
+- DEM metanodes always take the `applyTexelSize` path
+  (`surface-dem.cpp:316` passes `displaySize = boost::none`), so the
+  texelSize heuristic is load-bearing for LOD selection, not cosmetic.
+- cartolina-js computes `diskPos` from `minZ`, not the surrogate
+  (`metanode.js:369`); vts-browser-cpp uses surrogate only for camera
+  altitude/nav (`altitude.cpp:296`). Midpoint is safe for both.
+- Current serve warp computes surrogate as the *mean* (`metatile.cpp:466`)
+  and texelSize from sampled surface *area* (`metatile.cpp:460`) — the
+  two fields that aren't pure min/max, hence derived/approximated.
+
+### Calibration plan (RFC phase 1, ahead of store work)
+
+Regress the texelSize relief constant `c` from existing v6 metatiles
+over **two Copernicus GLO-30 cuts** (mountainous + near-flat), across a
+**span of LODs**, in **both melown2015 and earth-qsc** — tile-cell
+geometry differs between frames, so a `c` from one is not assumed to
+carry to the other. Per-reference-frame constant or table if drift is
+too large.
+
+### Addendum — vertical datum (§3.5)
+
+Stored `minZ/maxZ` must be **orthometric**, not geodetic/ellipsoidal:
+ellipsoidal heights make still water a smoothly varying field (the geoid
+undulation), so no two tiles share a value and the quadtree cannot
+collapse flat water/terrain — the same value-sharing failure that sinks
+fusing heights into the flag index. The canonical datum is the **vertical
+component of the reference frame's public SRS**
+(`referenceFrame.model.publicSrs`), not a hardcoded Earth geoid (EGM96),
+because cartolina models non-Earth bodies; deriving from the reference
+frame is generic and body-correct. The pipeline already follows this:
+`sds2srs`/`setGeoid` (mesh.cpp:311) attach the geoid at the SDS↔physical
+boundary, so SDS heights are orthometric. Store SDS values verbatim →
+zero delivery conversion; datum identity is pinned by the reference-frame
+id in the store header.
+
+Status: draft, not yet in review.
 
 ---

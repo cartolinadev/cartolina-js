@@ -36,7 +36,7 @@ import shaderTileMaskFootprintFrag from
     './shaders/tile-mask-footprint.frag.glsl';
 import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
 import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
-import shaderTileMaskFillFrag from './shaders/tile-mask-fill.frag.glsl';
+import shaderTileMaskErodeFrag from './shaders/tile-mask-erode.frag.glsl';
 
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
@@ -185,11 +185,13 @@ export class Renderer {
     // programs
     programs!: {
         tile?: GpuProgram,
+        tileDiscarding?: GpuProgram
         background?: GpuProgram
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
         tileMaskBlit?: GpuProgram
-        tileMaskFill?: GpuProgram
+        tileMaskErode?: GpuProgram
+        tileMaskRect?: GpuProgram
         frustum?: GpuProgram
     }
 
@@ -475,10 +477,43 @@ get curSize(): Readonly<Size2> {
 
 programTile() : GpuProgram {
 
-    // existing program, return it
+    // discard-free variant for unmasked, unclipped tiles
     if (this.programs.tile) return this.programs.tile;
 
-    // none existing yet, initialize with appropriate bindings
+    __DEV__ && console.log('Initializing programs.tile');
+
+    this.programs.tile = this.buildTileColorProgram('shader-tile', []);
+
+    return this.programs.tile;
+}
+
+/**
+ * Tile color program variant that keeps the coverage mask and quadrant
+ * clip `discard`, lazy initialization. Used for tiles that need to
+ * discard fragments (masked or clipped).
+ */
+
+programTileDiscarding() : GpuProgram {
+
+    if (this.programs.tileDiscarding) return this.programs.tileDiscarding;
+
+    __DEV__ && console.log('Initializing programs.tileDiscarding');
+
+    this.programs.tileDiscarding = this.buildTileColorProgram(
+        'shader-tile-discarding', ['TILE_DISCARD']);
+
+    return this.programs.tileDiscarding;
+}
+
+/**
+ * Build a tile color program with the shared bindings, optionally
+ * compiling the masked variant via preprocessor defines.
+ * @name diagnostic program name
+ * @defines preprocessor macros to define (e.g. `['TILE_DISCARD']`)
+ */
+
+private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
+
     let atmBindings = {}
 
     if (this.core.map.atmosphere) {
@@ -486,19 +521,13 @@ programTile() : GpuProgram {
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
     }
 
-    __DEV__ && console.log('Initializing programs.tile');
-
-
-    this.programs.tile = new GpuProgram(
+    return new GpuProgram(
         this.gpu, shaderTileVert, shaderTileFrag,
-        'shader-tile', {
+        name, {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
             ...atmBindings
-        }, { uTexAtmDensity: this.textureIdxs.atmosphere });
-
-    // done
-    return this.programs.tile;
+        }, { uTexAtmDensity: this.textureIdxs.atmosphere }, defines);
 }
 
 /**
@@ -597,23 +626,48 @@ programTileMaskBlit(): GpuProgram {
 
 
 /**
- * Tile mask quadrant-fill program, lazy initialization.
+ * Tile mask erosion program, lazy initialization.
  */
-programTileMaskFill(): GpuProgram {
+programTileMaskErode(): GpuProgram {
 
-    if (this.programs.tileMaskFill) return this.programs.tileMaskFill;
+    if (this.programs.tileMaskErode) return this.programs.tileMaskErode;
 
-    __DEV__ && console.log('Initializing programs.tileMaskFill');
+    __DEV__ && console.log('Initializing programs.tileMaskErode');
 
-    this.programs.tileMaskFill = new GpuProgram(
+    this.programs.tileMaskErode = new GpuProgram(
         this.gpu,
         shaderTileMaskBlitVert,
-        shaderTileMaskFillFrag,
-        'shader-tile-mask-fill',
+        shaderTileMaskErodeFrag,
+        'shader-tile-mask-erode',
+        {},
+        { uSource: this.textureIdxs.maskBlit });
+
+    return this.programs.tileMaskErode;
+}
+
+
+/**
+ * Tile mask rectangle-rasterization program, lazy initialization.
+ *
+ * Dynamic rectangle geometry (using the blit vertex shader) paired with
+ * the footprint fragment shader writes full coverage for exact UV-space
+ * rectangles into a mask target.
+ */
+programTileMaskRect(): GpuProgram {
+
+    if (this.programs.tileMaskRect) return this.programs.tileMaskRect;
+
+    __DEV__ && console.log('Initializing programs.tileMaskRect');
+
+    this.programs.tileMaskRect = new GpuProgram(
+        this.gpu,
+        shaderTileMaskBlitVert,
+        shaderTileMaskFootprintFrag,
+        'shader-tile-mask-rect',
         {},
         {});
 
-    return this.programs.tileMaskFill;
+    return this.programs.tileMaskRect;
 }
 
 

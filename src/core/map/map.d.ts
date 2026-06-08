@@ -10,7 +10,6 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type MapDraw from './draw';
-import type MapSurfaceTree from './surface-tree';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
 import type {
@@ -45,8 +44,6 @@ type MapServices = {
 
 type FreeLayer = MapSurface & {
     geodata?: unknown;
-    surfaceSequence: MapSurface[];
-    surfaceOnlySequence: MapSurface[];
     options: Record<string, unknown>;
     setStyle(style: unknown): void;
 
@@ -137,8 +134,6 @@ export default class Map {
     bodies: Record<string, MapBody>;
     credits: Record<string, MapCredit>;
     surfaces: MapSurface[];
-    virtualSurfaces: Record<string, unknown>;
-    glues: Record<string, unknown>;
     freeLayers: Record<string, FreeLayer | null>;
     boundLayers: Record<string, MapBoundLayer | null>;
     stylesheets: Record<string, unknown>;
@@ -151,13 +146,10 @@ export default class Map {
     /** Credit name → weight accumulated this frame; reset each draw pass. */
     visibleCredits: {
         imagery: Record<string, number>;
-        glueImagery: Record<string, number>;
         mapdata: Record<string, number>;
     };
 
     style: MapStyle | null;
-
-    tree: MapSurfaceTree;
 
     draw: MapDraw;
 

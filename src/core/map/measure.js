@@ -25,70 +25,24 @@ var MapMeasure = function(map) {
  * Returns the surface trees terrain queries should walk for this
  * frame, ordered back-to-front (front tree at the last index).
  *
- * In the recursive draw path the answer is the typed Map's
- * per-surface helper trees, which are populated by the same descent
- * that renders the frame. The query iterates this list front-to-back
- * and stops on the first tree whose trace yields data.
+ * The answer is the typed Map's per-surface helper trees, which are
+ * populated by the same descent that renders the frame. The query
+ * iterates this list front-to-back and stops on the first tree whose
+ * trace yields data.
  *
- * In the legacy draw path the answer is a single-element array
- * containing the legacy main tree, so the query behaves exactly as
- * it did before the recursive path existed.
- *
- * Returns an empty array only when no surface is in view; callers
- * use that to return their not-found result.
+ * Returns an empty array when no surface is in view; callers use that
+ * to return their not-found result.
  */
 MapMeasure.prototype.queryTrees_ = function() {
 
-    var trees = this.map.outerMap.surfaceTreesForQuery();
-    if (trees && trees.length > 0) return trees;
-
-    var legacy = this.map.tree;
-    if (legacy && legacy.surfaceSequence
-            && legacy.surfaceSequence.length > 0) {
-        return [legacy];
-    }
-
-    return [];
-};
-
-MapMeasure.prototype.getSurfaceAreaGeometry = function(coords, radius, mode, limit, loadMeshes, loadTextures) {
-    var tree = this.map.tree;
-
-    if (tree.surfaceSequence.length == 0) {
-        reurn [true, []];
-    }
-
-    var center = this.convert.convertCoords(coords, 'navigation', 'physical');
-    var coneVec = [0,0,0];
-
-    vec3.normalize(center, coneVec);
-
-    var distance = vec3.length(center);
-    var coneAngle = Math.atan(Math.tan(radius / distance));
-
-    tree.params = {
-        coneVec : coneVec,
-        coneAngle : coneAngle,
-        mode : mode,
-        limit : limit,
-        loaded : true,
-        areaTiles : [],
-        loadMeshes: (loadMeshes === true),
-        loadTextures: (loadTextures === true)
-    };
-
-    //priority = 0, noReadInly = false
-    tree.traceAreaTiles(tree.surfaceTree, 0, false);
-
-    return [tree.params.loaded, tree.params.areaTiles];
+    return this.map.outerMap.surfaceTreesForQuery();
 };
 
 MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, nodeCoords, coordsArray, useNodeOnly) {
-    // Front-to-back query order: helper trees from the recursive path
-    // when active, fall back to the legacy main tree otherwise. The
-    // first tree whose `traceHeight` finds a heightMap or a metanode
-    // wins; only when every tree comes up empty do we return the
-    // not-found result.
+    // Front-to-back query order: per-surface helper trees from the
+    // recursive traversal. The first tree whose `traceHeight` finds a
+    // heightMap or a metanode wins; only when every tree comes up empty
+    // do we return the not-found result.
     var trees = this.queryTrees_();
 
     if (trees.length === 0) {

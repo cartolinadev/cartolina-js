@@ -48,7 +48,6 @@ const BOOLEAN_KEYS = new Set([
     'timeNormalizedInertia',
     'bigScreenMargins',
     'walkMode',
-    'mapVirtualSurfaces',
     'map16bitMeshes',
     'inspector',
     'mapMobileMode',
@@ -66,7 +65,6 @@ const BOOLEAN_KEYS = new Set([
     'mapGridSurrogatez',
     'mapPreciseBBoxTest',
     'mapPreciseDistanceTest',
-    'mapHeightfiledWhenUnloaded',
     'mapForceMetatileV3',
     'mapDegradeHorizon',
     'mapMetricUnits',
@@ -88,7 +86,6 @@ const BOOLEAN_KEYS = new Set([
     'mapFlagLabels',
     'mapSoftViewSwitch',
     'mapAsyncImageDecode',
-    'mapSplitMeshes',
     'mapSeparateLoader',
     'mapGeodataBinaryLoad',
     'mapPackLoaderEvents',
@@ -99,6 +96,7 @@ const BOOLEAN_KEYS = new Set([
     'mapCheckTextureSize',
     'mapNormalizeOctantTexelSize',
     'mapExposeFpsToWindow',
+    'mapProfileGpu',
     'mario',
     'rendererAntialiasing',
     'rendererAllowScreenshots'
@@ -122,7 +120,6 @@ const NUMBER_KEYS = new Set([
     'mapMaxGeodataProcessingTime',
     'mapMobileDetailDegradation',
     'mapNavSamplesPerViewExtent',
-    'mapGridUnderSurface',
     'mapGridTextureLevel',
     'mapRefreshCycles',
     'mapForceFrameTime',
@@ -131,6 +128,7 @@ const NUMBER_KEYS = new Set([
     'mapHysteresisWait',
     'mapFallbackCadence',
     'mapTraversalMaskThreshold',
+    'mapTraversalMaskErosion',
     'rendererAnisotropic'
 ]);
 
@@ -156,8 +154,6 @@ const STRING_KEYS = new Set([
     'controlSearchValue',
     'geodata',
     'geojson',
-    'mapLoadMode',
-    'mapGeodataLoadMode',
     'mapGridMode',
     'mapGridTextureLayer',
     'mapLanguage',

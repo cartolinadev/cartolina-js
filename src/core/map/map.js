@@ -48,8 +48,6 @@ var Map = function(core, path, config, configStorage) {
     this.credits = {};
     this.creditsByNumber = {};
     this.surfaces = [];
-    this.virtualSurfaces = {};
-    this.glues = {};
     this.freeLayers = {};
     this.boundLayers = {};
     this.stylesheets = {};
@@ -69,15 +67,12 @@ var Map = function(core, path, config, configStorage) {
     this.srsReady = false;
     this.surfaceCounter = 0;
 
-    this.tree = null;
-
     this.freeLayerSequence = [];
 
     this.freeLayersHaveGeodata = false;
 
     this.visibleCredits = {
         imagery : {},
-        glueImagery : {},
         mapdata : {}
     };
     
@@ -113,10 +108,6 @@ var Map = function(core, path, config, configStorage) {
 
 Map.prototype.kill = function() {
     this.killed = true;
-
-    if (this.tree) {
-        this.tree.kill();
-    }
 
     for (var key in this.freeLayers) {
         var layer = this.freeLayers[key];
@@ -251,20 +242,11 @@ Map.prototype.getCredits = function() {
 
 Map.prototype.getVisibleCredits = function() {
     var imagery = this.visibleCredits.imagery;
-    var glueImagery = this.visibleCredits.glueImagery;
-    var imageryArray = []; 
+    var imageryArray = [];
     var imagerySpecificity = [];
     var i, li, t, sorted;
 
-    for (var key in glueImagery) {
-        if (!imagery[key]) {
-            imagery[key] = glueImagery[key];
-        }
-    }
-    
-    this.visibleCredits.glueImagery = {};
-    
-    for (key in imagery) {
+    for (var key in imagery) {
         imageryArray.push(key);
         imagerySpecificity.push(imagery[key]); 
     }
@@ -339,16 +321,6 @@ Map.prototype.getSurfaces = function() {
         keys.push(this.surfaces[i].id);
     }
     return keys;
-};
-
-
-Map.prototype.addGlue = function(id, glue) {
-    this.glues[id] = glue;
-};
-
-
-Map.prototype.getGlue = function(id) {
-    return this.glues[id];
 };
 
 
@@ -563,7 +535,6 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
         renderer.draw.clearJobHBuffer(); //hotfix - reset hysteresis buffer
     }
 
-    this.surfaceSequence.generateSurfaceSequence();
     this.surfaceSequence.generateBoundLayerSequence();
 
     this.refreshFreelayesInView();
@@ -652,24 +623,33 @@ Map.prototype.getView = function() {
 Map.prototype.refreshFreelayesInView = function() {
     var freeLayers = this.getCurrentView().freeLayers;
     this.freeLayerSequence = [];
+    this.freeLayersHaveGeodata = false;
 
     for (var key in freeLayers) {
         var freeLayer = this.getFreeLayer(key);
-        
+
         if (freeLayer) {
-            
+
             freeLayer.zFactor = freeLayers[key]['depthOffset'];
             freeLayer.maxLod = freeLayers[key]['maxLod'];
-            
+
             this.freeLayerSequence.push(freeLayer);
-            
+
+            // The terrain traversal renders only geodata free layers.
+            if (freeLayer.geodata) {
+                this.freeLayersHaveGeodata = true;
+            } else {
+                utils.warnOnce('Free layer "' + key + '" is not a geodata'
+                    + ' layer and is not rendered.', 1);
+            }
+
             if (freeLayers[key]['style']) {
                 freeLayer.setStyle(freeLayers[key]['style']);
             } else {
                 freeLayer.setStyle(freeLayer.originalStyle);
             }
-            
-            //TODO: generate bound layer seqence for      
+
+            //TODO: generate bound layer seqence for
         }
     }
 };
@@ -683,7 +663,6 @@ Map.prototype.refreshView = function() {
     // mapconfig-based map, use the legacy methods
     if (!this.style && this.currentView_) {
 
-        this.surfaceSequence.generateSurfaceSequence();
         this.surfaceSequence.generateBoundLayerSequence();
         this.refreshFreelayesInView();
     }
@@ -934,36 +913,6 @@ Map.prototype.getSurfaceHeight = function(coords, precision) {
 };
 
 
-Map.prototype.getSurfaceAreaGeometry = function(
-    coords, radius, mode, limit, callback, loadTextures) {
-
-    var res = this.measure.getSurfaceAreaGeometry(
-        coords, radius, mode, limit, true, loadTextures);
-
-    if (!res[0]) {
-
-        return this.core.once(
-            'map-update',
-            this.getSurfaceAreaGeometry.bind(
-                this, coords, radius, mode, limit, callback, loadTextures),
-            1);
-    }
-
-    var buffer = res[1], ret = [];
-
-    if (this.tree) {
-
-        this.storedTilesRes = [];
-        this.tree.storeGeometry(buffer, buffer.length);
-        ret = this.storedTilesRes;
-        this.storedTilesRes = [];
-    }
-
-    callback(ret);
-    return function() {};
-};
-
-
 Map.prototype.getDistance = function(
     coords, coords2, includingHeights, usePublic) {
 
@@ -1080,10 +1029,9 @@ Map.prototype.getStats = function(switches) {
         'bestGeodataTexelSize' : this.bestGeodataTexelSize,
         'downloading' : this.loader.downloading.length,
         'lastDownload' : this.loader.lastDownloadTime,
-        'surfaces' : this.tree.surfaceSequence.length,
+        'surfaces' : this.outerMap.surfaceList().length,
         'freeLayers' : this.freeLayerSequence.length,
         'texelSizeFit' : this.texelSizeFit,
-        'loadMode' : this.config.mapLoadMode,
         'processingTasks' : this.processingTasks.length,
         'busyWorkers' : busyWorkers,
         'dirty' : this.dirty,
@@ -1183,8 +1131,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapBasicTileSequence':          this.config.mapBasicTileSequence = utils.validateBool(value, true); break;
     case 'mapSmartNodeParsing':           this.config.mapSmartNodeParsing = utils.validateBool(value, true); break;
     case 'mapXhrImageLoad':               this.config.mapXhrImageLoad = utils.validateBool(value, false); break;
-    case 'mapLoadMode':                   this.config.mapLoadMode = utils.validateString(value, 'topdown'); break;
-    case 'mapGeodataLoadMode':            this.config.mapGeodataLoadMode = utils.validateString(value, 'fit'); break;
     case 'mapTraversalMaskResolution': {
 
         // Mask textures must be power-of-two; fall back to the default
@@ -1195,19 +1141,24 @@ Map.prototype.setConfigParam = function(key, value) {
             isPowerOfTwo ? resolution : 256;
         break;
     }
-    case 'mapTraversalMaskThreshold':     this.config.mapTraversalMaskThreshold = utils.validateNumber(value, 0, 1, 0.65); this.markDirty(); break;
-    case 'mapTerrainTraversal':           this.config.mapTerrainTraversal = (value === 'legacy' ? 'legacy' : 'recursive'); break;
+    case 'mapTraversalMaskThreshold':
+        this.config.mapTraversalMaskThreshold =
+            utils.validateNumber(value, 0, 1, 0.5);
+        this.markDirty();
+        break;
+    case 'mapTraversalMaskErosion':
+        this.config.mapTraversalMaskErosion =
+            utils.validateNumber(value, 0, 1, 1);
+        this.markDirty();
+        break;
     case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
     case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
-    case 'mapGridUnderSurface':           this.config.mapGridUnderSurface = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
     case 'mapGridTextureLevel':           this.config.mapGridTextureLevel = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, -1); break;
     case 'mapGridTextureLayer':           this.config.mapGridTextureLayer = utils.validateString(value, ''); break;
     case 'mapPreciseBBoxTest':            this.config.mapPreciseBBoxTest = utils.validateBool(value, true); break;
     case 'mapPreciseDistanceTest':        this.config.mapPreciseDistanceTest = utils.validateBool(value, false); break;
-    case 'mapHeightfiledWhenUnloaded':    this.config.mapHeightfiledWhenUnloaded = utils.validateBool(value, false); break;
     case 'mapForceMetatileV3':            this.config.mapForceMetatileV3 = utils.validateBool(value, false); break;
-    case 'mapVirtualSurfaces':            this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
     case 'mapDegradeHorizon':             this.config.mapDegradeHorizon = utils.validateBool(value, true); break;
     case 'mapDegradeHorizonParams':       this.config.mapDegradeHorizonParams = utils.validateNumberArray(value, 4, [0,1,1,1], [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE], [1, 3000, 15000, 7000]); break;
     case 'mapRefreshCycles':              this.config.mapRefreshCycles = utils.validateNumber(value, 0, Number.MAXINTEGER, 3); break;
@@ -1227,7 +1178,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapCollapseBumps':             this.config.mapCollapseBumps = utils.validateBool(value, true); break;
     case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
     case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
-    case 'mapSplitMeshes':                this.config.mapSplitMeshes = utils.validateBool(value, false); break;
     case 'mapForceFrameTime':             this.config.mapForceFrameTime = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
     case 'mapFeatureGridCells':           this.config.mapFeatureGridCells = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
     case 'mapFeaturesPerSquareInch':      this.config.mapFeaturesPerSquareInch = utils.validateNumber(value, 0.000001, Number.MAXINTEGER, 0); break;
@@ -1253,6 +1203,7 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapDMapSize':                   this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER, 512); break; 
     case 'mapDMapMode':                   this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER, 1); break;
     case 'mapExposeFpsToWindow':          this.config.mapExposeFpsToWindow = utils.validateBool(value, false); break;
+    case 'mapProfileGpu':                 this.config.mapProfileGpu = utils.validateBool(value, false); break;
     case 'mapSplitSpace':                 this.config.mapSplitSpace = value; break;
     case 'mario':                         this.config.mario = utils.validateBool(value, true); break;
     case 'mapFeaturesReduceMode':         
@@ -1295,22 +1246,18 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapBasicTileSequence':          return this.config.mapBasicTileSequence;
     case 'mapSmartNodeParsing':           return this.config.mapSmartNodeParsing;
     case 'mapXhrImageLoad':               return this.config.mapXhrImageLoad;
-    case 'mapLoadMode':                   return this.config.mapLoadMode;
-    case 'mapGeodataLoadMode':            return this.config.mapGeodataLoadMode;
     case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
     case 'mapTraversalMaskThreshold':     return this.config.mapTraversalMaskThreshold;
-    case 'mapTerrainTraversal':           return this.config.mapTerrainTraversal;
+    case 'mapTraversalMaskErosion':
+        return this.config.mapTraversalMaskErosion;
     case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
     case 'mapGridMode':                   return this.config.mapGridMode;
     case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
-    case 'mapGridUnderSurface':           return this.config.mapGridUnderSurface;
     case 'mapGridTextureLevel':           return this.config.mapGridTextureLevel;
     case 'mapGridTextureLayer':           return this.config.mapGridTextureLayer;
     case 'mapPreciseBBoxTest':            return this.config.mapPreciseBBoxTest;
     case 'mapPreciseDistanceTest':        return this.config.mapPreciseDistanceTest;
-    case 'mapHeightfiledWhenUnloaded':    return this.config.mapHeightfiledWhenUnloaded;
     case 'mapForceMetatileV3':            return this.config.mapForceMetatileV3;
-    case 'mapVirtualSurfaces':            return this.config.mapVirtualSurfaces;
     case 'mapDegradeHorizon':             return this.config.mapDegradeHorizon;
     case 'mapDegradeHorizonParams':       return this.config.mapDegradeHorizonParams;
     case 'mapRefreshCycles':              return this.config.mapRefreshCycles;
@@ -1651,16 +1598,6 @@ Map.prototype.applyCredits = function(tile) {
             this.visibleCredits.imagery[key] = value > value2 ? value : value2;
         } else {
             this.visibleCredits.imagery[key] = value;
-        }
-    }
-    for (key in tile.glueImageryCredits) {
-        value = tile.glueImageryCredits[key];
-        value2 = this.visibleCredits.imagery[key];
-
-        if (value2) {
-            this.visibleCredits.glueImagery[key] = value > value2 ? value : value2;
-        } else {
-            this.visibleCredits.glueImagery[key] = value;
         }
     }
     for (key in tile.mapdataCredits) {

@@ -24,11 +24,11 @@ import type { GpuDevice } from '../renderer/gpu/device';
  *
  * On backtrack each surface that is at its natural leaf at the current
  * node draws against the accumulated mask; surfaces that still have
- * finer children render too, supplying fallback coverage. Partial masks
- * propagate back to the parent through `maskPool.blitChildToParent`;
- * watertight coverage propagates as state and fills only its parent
- * quadrant when needed. Surfaces render front-to-back (last index
- * first) so the front surface claims pixels before the back ones can.
+ * finer children render too, supplying fallback coverage. Partial
+ * coverage propagates back to the parent through `maskPool.appendChild`;
+ * watertight coverage propagates as state and exact quadrant
+ * rectangles. Surfaces render front-to-back (last index first) so the
+ * front surface claims pixels before the back ones can.
  *
  * Glues and virtual surfaces are never consulted.
  *
@@ -117,10 +117,16 @@ export function drawTerrainTraversal(
  * their metanode, or reach a position their tree no longer has a
  * child for.
  *
- * A partial result means this depth's node mask holds coverage that
- * the caller must blit into the parent. A watertight result means the
- * subtree fully covers the node's geographic cell; the caller records
- * that analytically and does not sample or blit a child mask.
+ * The returned kind tells the caller how this quadrant of the parent is
+ * covered:
+ *   - `watertight`: the on-screen cell is fully covered; the caller
+ *     records it analytically (a quadrant rectangle), no mask.
+ *   - `partial`: covered with an arbitrary shape that lives in this
+ *     depth's node mask; the caller blits it into the parent.
+ *   - `gap`: on-screen but nothing rendered yet (waiting for data); the
+ *     caller leaves it uncovered for its own draw or an ancestor to fill.
+ *   - `empty`: no on-screen area at all (off-screen); the caller folds it
+ *     into a watertight result instead of drawing a fallback.
  *
  * @param context Frame-wide state plus the active surface set and the
  *     current recursion depth.
@@ -131,7 +137,7 @@ function traverseNode(context: NodeContext): CoverageResult {
     const { active, depth, maskPool, texelSizeFit, fallbackCadence } =
         context;
 
-    if (active.length === 0) return CoverageNone;
+    if (active.length === 0) return CoverageEmpty;
 
     // The bbox-visibility check has already been applied to every
     // entry of `active` by the caller (root setup or the child loop
@@ -161,60 +167,70 @@ function traverseNode(context: NodeContext): CoverageResult {
     // from any active surface: this prevents forced descent to surfaces
     // that have geometry available only on finer LODs.
 
-    let coverage = CoverageNone;
-    let watertightChildMask = 0;
-    let maskInitialized = false;
+    // Each node starts from empty coverage. Reset is CPU-cheap (it clears
+    // a rectangle list), so there is no lazy-init guard.
+    maskPool.resetCoverage(depth);
+
+    let watertightMask = 0;
+    let emptyMask = 0;
 
     if (!hasWatertightFit && shouldDescend) {
 
         for (let quadrant = 0; quadrant < 4; quadrant++) {
 
-            const childActive = collectChildActive(context, quadrant);
-            if (childActive.length === 0) continue;
+            const child = collectChildActive(context, quadrant);
+
+            if (child.active.length === 0) {
+
+                // Culled (off-screen for every surface): nothing to cover,
+                // so fold it in. Otherwise a real gap, left for the draw.
+                if (child.culled) emptyMask |= 1 << quadrant;
+                continue;
+            }
 
             const childContext: NodeContext = {
                 ...context,
-                active: childActive,
+                active: child.active,
                 depth: depth + 1,
             };
 
             const childCoverage = traverseNode(childContext);
-            if (childCoverage.kind === 'none') continue;
 
             if (childCoverage.kind === 'watertight') {
 
-                watertightChildMask |= 1 << quadrant;
-                coverage = CoveragePartial;
+                watertightMask |= 1 << quadrant;
                 continue;
             }
 
-            if (!maskInitialized) {
+            if (childCoverage.kind === 'empty') {
 
-                maskPool.clearNode(depth);
-                maskInitialized = true;
+                emptyMask |= 1 << quadrant;
+                continue;
             }
 
-            maskPool.blitChildToParent(depth + 1, depth, quadrant);
-            coverage = CoveragePartial;
+            if (childCoverage.kind === 'partial') {
+
+                // Fold the child's mask into this node's quadrant: its
+                // rectangles map up on the CPU, footprint coverage blits
+                // up only if the child has any.
+                maskPool.appendChild(depth + 1, depth, quadrant);
+                continue;
+            }
+
+            // 'gap': on-screen and uncovered; nothing to fold.
         }
     }
 
-    // fully covered by watertight children => pass through
-    if (watertightChildMask === AllQuadrantsMask) {
+    // No on-screen area anywhere below: this node contributes nothing.
+    if (emptyMask === AllQuadrantsMask) return CoverageEmpty;
+
+    // Every on-screen quadrant is watertight (the rest are off-screen):
+    // covered, no draw or mask needed, early return
+    if ((watertightMask | emptyMask) === AllQuadrantsMask)
         return CoverageWatertight;
-    }
 
-    // fill watertight children quadrants in mask
-    if (watertightChildMask !== 0) {
-
-        if (!maskInitialized) {
-
-            maskPool.clearNode(depth);
-            maskInitialized = true;
-        }
-
-        maskPool.fillNodeQuadrants(depth, watertightChildMask);
-    }
+    // Record watertight children as exact quadrant rectangles.
+    if (watertightMask !== 0) maskPool.addQuadrantRects(depth, watertightMask);
 
     // Render surfaces front-to-back. The last entry is the front surface
     // (lowest `viewSurfaceIndex`), so iterate in reverse.
@@ -248,60 +264,81 @@ function traverseNode(context: NodeContext): CoverageResult {
                 entry,
                 readiness,
                 preventLoad,
-                maskInitialized,
             );
 
-        if (renderedCoverage.kind !== 'none') {
+        // A surface drawing watertight fully covers the node.
+        if (renderedCoverage.kind === 'watertight') return CoverageWatertight;
 
-            coverage = renderedCoverage;
-
-            if (renderedCoverage.kind === 'partial')
-                maskInitialized = true;
-        }
-
-        // Stop once a surface claims full node coverage or renders watertight.
-        if (node.watertight || renderedCoverage.kind === 'watertight') break;
+        // A watertight metanode claims the node even before it draws, so
+        // stop rendering lower-priority surfaces under it.
+        if (node.watertight) break;
     }
 
-    return coverage;
+    // The node's coverage is whatever ended up in its mask: watertight
+    // rectangles, blitted child masks, or rendered footprints. An empty
+    // mask means an on-screen gap nothing has filled yet.
+    return maskPool.hasCoverage(depth) ? CoveragePartial : CoverageGap;
 }
 
 
 /**
  * Builds the active surface set for one child quadrant of the current
- * node. For each currently-active surface that knows it has a child
- * at this quadrant, this fetches the child tile, runs the metanode
- * readiness check, and applies frustum culling. Surfaces with no
- * child at this quadrant simply drop out — their parent-level
- * coverage already includes this quadrant geographically and they
- * will be drawn at the current node, not pushed further down.
+ * node: each active surface with a ready, in-frustum child at this
+ * quadrant contributes that child.
+ *
+ * Also reports the quadrant as `culled` when every active surface with
+ * known coverage here is loaded and frustum-culled — off-screen for the
+ * whole active set. A missing child on a watertight parent is covered by
+ * that parent; a missing child on a sparse parent is considered absent
+ * coverage.
+ * An unloaded child is not off-screen because visibility is unknown. The
+ * caller folds a culled quadrant into a watertight result instead of
+ * drawing a fallback nothing can see.
  */
 function collectChildActive(
     context: NodeContext,
     quadrant: number,
-): ActiveSurface[] {
+): ChildQuadrant {
 
     const { active, cameraPos } = context;
     const childActive: ActiveSurface[] = [];
 
+    // Holds while every surface's finer child here is loaded and
+    // off-screen; each other case clears it (see the branches).
+    let culled = true;
+
     for (const entry of active) {
 
-        if (!entry.tile.metanode!.hasChild(quadrant)) continue;
+        const node = entry.tile.metanode!;
+
+        if (!node.hasChild(quadrant)) {
+
+            if (node.watertight && node.hasGeometry()) {
+                culled = false;  // watertight parent covers this quadrant
+            }
+            continue;
+        }
 
         const childTile = getReadyChild(entry.tree, entry.tile, quadrant);
-        if (!childTile || !childTile.metanode) continue;
+
+        if (!childTile || !childTile.metanode) {
+
+            culled = false;      // finer child not loaded; visibility unknown
+            continue;
+        }
 
         if (!childTile.bboxVisible(childTile.id, childTile.metanode.bbox,
                 cameraPos, childTile.metanode)) {
 
-            continue;
+            continue;            // finer child loaded and off-screen
         }
 
+        culled = false;          // finer child visible; joins the active set
         childTile.updateTexelSize();
         childActive.push({ tree: entry.tree, tile: childTile });
     }
 
-    return childActive;
+    return { active: childActive, culled };
 }
 
 
@@ -316,7 +353,6 @@ function renderSurface(
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
     preventLoad = false,
-    maskInitialized = false,
 ): CoverageResult {
 
     const { tree, tile } = entry;
@@ -324,10 +360,17 @@ function renderSurface(
     const legacyMap = tree.map;
     const node = tile.metanode;
 
-    if (!node || !node.hasGeometry()) return CoverageNone;
+    if (!node || !node.hasGeometry()) return CoverageGap;
 
     const priority = tile.id[0] * tile.distance;
-    const maskTexture = maskInitialized ? maskPool.nodeMask(depth) : undefined;
+
+    // Sample prior coverage (finer descendants and higher-priority
+    // surfaces drawn before this one) only when some exists; materialize
+    // rasterizes the rectangle list and footprint texture on demand.
+    const erosion = Number(legacyMap.config.mapTraversalMaskErosion ?? 1);
+    const maskTexture = maskPool.hasCoverage(depth)
+        ? maskPool.materialize(depth, erosion)
+        : undefined;
 
     legacyMap.renderer.gpu.setRenderTarget(screenTarget);
 
@@ -347,7 +390,7 @@ function renderSurface(
             maskTexture,
         ));
 
-    if (!isRig(rig)) return CoverageNone;
+    if (!isRig(rig)) return CoverageGap;
 
     tile.drawCounter = legacyMap.draw.drawCounter;
 
@@ -355,10 +398,8 @@ function renderSurface(
         return CoverageWatertight;
     }
 
-    if (!maskInitialized) {
-        maskPool.clearNode(depth);
-    }
-
+    // Non-watertight tile: its footprint joins this node's coverage so
+    // the next (back) surface and the parent see it.
     maskPool.addFootprint(rig, depth);
     return CoveragePartial;
 }
@@ -425,6 +466,13 @@ type ActiveSurface = {
 };
 
 
+/** One quadrant's active children, and whether it is fully culled. */
+type ChildQuadrant = {
+    active: ActiveSurface[];
+    culled: boolean;
+};
+
+
 type Counters = {
     processedNodes: number;
     processedMetatiles: number;
@@ -445,13 +493,17 @@ type NodeContext = {
 };
 
 
+// `partial` is partial *coverage* (an arbitrary covered shape held in
+// the mask), unrelated to a partial *tile* (a non-watertight mesh).
 type CoverageResult =
-    | { kind: 'none' }
-    | { kind: 'partial' }
-    | { kind: 'watertight' };
+    | { kind: 'empty' }       // no on-screen area — nothing to cover
+    | { kind: 'gap' }         // on-screen, nothing rendered yet (waiting)
+    | { kind: 'partial' }     // covered with an arbitrary shape, in a mask
+    | { kind: 'watertight' }; // on-screen cell fully covered, analytic
 
 
-const CoverageNone: CoverageResult = { kind: 'none' };
+const CoverageEmpty: CoverageResult = { kind: 'empty' };
+const CoverageGap: CoverageResult = { kind: 'gap' };
 const CoveragePartial: CoverageResult = { kind: 'partial' };
 const CoverageWatertight: CoverageResult = { kind: 'watertight' };
 

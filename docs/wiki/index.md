@@ -28,10 +28,10 @@ then branch into more specific documents as needed.
 
 ### RFCs — active
 
-- [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
-  tile-tree traversal replacing the four legacy draw modes; client-side
-  mask compositing replacing server-side glues; mask-space design
-  question discussed
+- [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed metanode
+  store replacing the serve-time DEM warp; paged mmapped `{flags, minZ,
+  maxZ}` quadtree, fields derived at delivery; subsumes the
+  coverage-mask `mapproxy-tiling` redesign
 - [rfc-config-store.md](rfc-config-store.md) — reactive ConfigStore
   to replace stringly-typed config routing; prerequisite for
   core.js suppression
@@ -86,6 +86,11 @@ then branch into more specific documents as needed.
   encoding: why it is kept for full-sphere coverage and uniform precision,
   the nonlinearity problem when blending encoded values, and how
   `TextureBlend` oct-normal mode fixes it for bump-layer collapse
+- [tile-render-rig-profiling.md](tile-render-rig-profiling.md) —
+  settled-state GPU cost of the terrain color shader on `simple.json`:
+  method and clock-drift caveat, the fill-bound finding, two confirmed
+  wins (discard×MSAA, layer-VM split), and a normal-tap change that did
+  not pay off on this hardware
 
 ### API, navigation, demos, and testing
 
@@ -111,12 +116,14 @@ then branch into more specific documents as needed.
   conversion, geodata draping), the v1–v3 height-range propagation
   path, the legacy grid-fallback relationship, and dead code
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
-  and the legacy `virtualSurfaces` mapConfig concept
+  and the legacy `virtualSurfaces` mapConfig concept (client
+  implementation removed 2026-06-08; retained as a server-side concept)
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
   VTS storage layout, the aggregated tileset driver, how virtual surfaces
   are built and served, and the two-generation history of the alien flag
 - [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
-  `surfaceSequence` and why it is currently vestigial
+  `surfaceSequence` (client implementation removed 2026-06-08; retained
+  as a record of the VTS concept)
 - [vts-vtsd-archeology.md](vts-vtsd-archeology.md) — how vts-vtsd serves
   stored tilesets (delivery only, no transcoding), where the watertight
   information lives, and the `vts --reencode` process that upgrades a

@@ -22,13 +22,12 @@ in float vVerticalExaggeration;
 // atm functions
 #include "./includes/atmosphere.inc.glsl";
 
-// tile quadrant clipping
-#include "./includes/tile-clip.inc.glsl";
-
 // other uniforms
 uniform vec3 uUpVector;
+#ifdef TILE_DISCARD
 uniform sampler2D uMask;
 uniform bool uMaskEnabled;
+#endif
 
 // render target
 out vec4 fragColor;
@@ -197,13 +196,15 @@ void main() {
     // render flags
     int renderFlags = frameRenderFlags();
 
-    applyTileClip(vTexCoords2, uFrame.clipParams.x);
-
+    // the coverage mask exists only in the discarding program variant;
+    // the discard-free variant drops it, keeping the MSAA fast-clear path
+#ifdef TILE_DISCARD
     if (uMaskEnabled) {
 
         float covered = texture(uMask, vTexCoords2).r;
         if (covered > frameMaskThreshold()) discard;
     }
+#endif
 
     // light
     Light light = frameLight();

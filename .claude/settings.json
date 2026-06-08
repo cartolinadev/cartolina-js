@@ -7,7 +7,8 @@
       "WebFetch(domain:pixijs.download)",
       "WebFetch(domain:doc.babylonjs.com)",
       "WebFetch(domain:pixijs.com)",
-      "WebFetch(domain:cdn.tspl.re)"
+      "WebFetch(domain:cdn.tspl.re)",
+      "mcp__playwright__browser_drag"
     ]
   },
   "hooks": {
