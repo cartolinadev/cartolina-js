@@ -52,7 +52,6 @@ var Core = function(element, config) {
         mapBasicTileSequence : false,
         mapPreciseBBoxTest : false,
         mapPreciseDistanceTest : false,
-        mapHeightfiledWhenUnloaded : true,
         mapForceMetatileV3 : false,
         mapSmartNodeParsing : true,
         mapLoadErrorRetryTime : 3000,
@@ -65,7 +64,6 @@ var Core = function(element, config) {
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,
-        mapGridUnderSurface: 0,
         mapGridTextureLevel: -1,
         mapGridTextureLayer: null, // 'bing",
         mapXhrImageLoad : true,

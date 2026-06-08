@@ -47,7 +47,6 @@ var MapDraw = function(map) {
     this.tmpVec3 = new Array(3);
     this.tmpVec5 = new Array(5);
     this.bboxBuffer = new Float32Array(8*3);
-    this.planeBuffer = new Float32Array(9*3);
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});

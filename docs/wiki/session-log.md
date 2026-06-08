@@ -1,5 +1,40 @@
 # Session log
 
+## 2026-06-08 — draw traversal: remove grid fallback + plane subsystem
+
+Follow-up to the step-8 core removal, same day. Established that the
+legacy heightfield grid fallback (`drawGrid`) is unreachable for its only
+surviving callers: terrain draws through the recursive traversal, so
+`drawSurfaceFit` is reached only by free-layer trees, where its grid gate
+`(!geodata && !free && mapHeightfiledWhenUnloaded)` is always false. The
+only way `drawGrid` still executed was the GPU-budget-exhaustion clause in
+`processDrawBuffer`, which would paint a terrain heightfield over leftover
+tiles — meaningless for geodata.
+
+Removed: the `heightmapOnly` debug override (overrides + draw-tiles +
+inspector); the grid-placeholder logic and `drawGrid`/`grids` plumbing in
+`drawSurfaceFit` and `processDrawBuffer` (a tile hitting the GPU budget now
+skips a frame instead of drawing a grid); `MapSurfaceTile.drawGrid` and its
+exclusive helper `MapMetanode.getGridHeight`; the dead `border2`/`border3`
+data (resets + one debug overlay); and the `mapHeightfiledWhenUnloaded` and
+`mapGridUnderSurface` config keys.
+
+Then removed the plane shader subsystem `drawGrid` rendered through, which
+turned out to be entirely dead (its only other user, `MapMetanode.drawPlane`,
+was already callerless before this session): the `progPlane*` programs,
+`planeMesh`, `planeBuffer`, `RendererGeometry.buildPlane`, `drawPlane`, and
+the `planeVertexShader`/`planeFragmentShader`/`quadPoint` GLSL.
+
+Verified `drawGrid`'s border-height side effect had no live consumers first
+(only a `debug.drawPositions` overlay tolerant of null). Typecheck clean;
+fresh webpack build with no errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no regression vs production.
+
+Deferred: glue/virtual-surface/alien teardown; the legacy `gpu/shaders.js`
+`uClip[8]`/`vClipCoord` tile clip and legacy tile draw-command programs
+(pending an audit of the `drawSurfaceTile` free-layer path); the dead
+`noGrid` param and the now-write-only `gridSkipped`/`mapGridMode` overlay.
+
 ## 2026-06-08 — draw traversal: delete legacy terrain traversal (step 8)
 
 Executed the core-removal part of rollout step 8. Removed four of the

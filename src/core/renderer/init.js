@@ -49,12 +49,6 @@ RendererInit.prototype.initShaders = function() {
     renderer.progCFlatShadeTile = new GpuProgram(gpu, '#define flatShadeVar\n' + shaders.tileVertexShader, (sdExt+'#define flatShadeVar\n#define flatShade\n#define fogAndColor\n' + shaders.tileFragmentShader).replace('mediump', 'highp'));
     renderer.progCFlatShadeTileSE = new GpuProgram(gpu, '#define applySE\n#define flatShadeVar\n' + shaders.tileVertexShader, (sdExt+'#define flatShadeVar\n#define flatShade\n#define fogAndColor\n' + shaders.tileFragmentShader).replace('mediump', 'highp'));
 
-    renderer.progPlane = new GpuProgram(gpu, '#define flat\n' + shaders.planeVertexShader, shaders.planeFragmentShader); //flat
-    renderer.progPlane2 = new GpuProgram(gpu, '#define poles\n' + shaders.planeVertexShader, '#define poles\n' + shaders.planeFragmentShader); //poles
-    renderer.progPlane3 = new GpuProgram(gpu, shaders.planeVertexShader, shaders.planeFragmentShader); // grid
-    renderer.progPlaneD = new GpuProgram(gpu, '#define depth\n#define flat\n' + shaders.planeVertexShader, '#define depth\n' + shaders.planeFragmentShader); //flat
-    renderer.progPlane2D = new GpuProgram(gpu, '#define depth\n#define poles\n' + shaders.planeVertexShader, '#define depth\n#define poles\n' + shaders.planeFragmentShader); //poles
-    renderer.progPlane3D = new GpuProgram(gpu, '#define depth\n' + shaders.planeVertexShader, '#define depth\n' + shaders.planeFragmentShader); // grid
 
     renderer.progBBox = new GpuProgram(gpu, shaders.bboxVertexShader, shaders.bboxFragmentShader);
     renderer.progBBox2 = new GpuProgram(gpu, shaders.bbox2VertexShader, shaders.bboxFragmentShader);
@@ -108,12 +102,6 @@ RendererInit.prototype.initHeightmap = function() {
     var use16Bit = renderer.core.config.map16bitMeshes;
     var gpu = this.gpu;
 
-    // initialize heightmap geometry
-    var meshData = RendererGeometry.buildHeightmap(5, true);
-    //renderer.heightmapMesh = new GpuMesh(gpu, meshData, this.core, use16Bit);
-
-    meshData = RendererGeometry.buildPlane(16, true);
-    renderer.planeMesh = new GpuMesh(gpu, meshData, this.core, use16Bit, false);
 
     // create heightmap texture
     var size = 64;

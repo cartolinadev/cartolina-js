@@ -1502,16 +1502,35 @@ Implementation phases:
    inside the removed split method, so `uClip` was already a constant
    `[1,1,1,1]` no-op.
 
+   **Implemented (grid fallback and plane subsystem).** A follow-up pass
+   removed the legacy heightfield grid fallback, now unreachable for the
+   only surviving callers. Terrain draws through the recursive traversal,
+   so `drawSurfaceFit` is reached only by free-layer trees, where its grid
+   gate `(!geodata && !free && mapHeightfiledWhenUnloaded)` is always
+   false. Removed: the `heightmapOnly` debug override; the grid-placeholder
+   logic and `drawGrid` / `grids` plumbing in `drawSurfaceFit` /
+   `processDrawBuffer` (a tile hitting the per-frame GPU budget now skips a
+   frame instead of drawing a grid); `MapSurfaceTile.drawGrid` and its
+   exclusive helper `MapMetanode.getGridHeight`; the dead `border2` /
+   `border3` data; the now-dead `mapHeightfiledWhenUnloaded` and
+   `mapGridUnderSurface` config keys; and the entire plane shader subsystem
+   `drawGrid` rendered through — `MapMetanode.drawPlane` (already
+   callerless), the `progPlane*` programs, `planeMesh`, `planeBuffer`,
+   `RendererGeometry.buildPlane`, and the `planeVertexShader` /
+   `planeFragmentShader` / `quadPoint` GLSL.
+
    **Deferred to a follow-up.** The glue / virtual-surface / alien-flag
    teardown (`createVirtualMetanode`, the alien flag, `MapVirtualSurface`,
    `sourceReference` rendering, glue-entry generation in
    `surface-sequence.ts`) is not removed: it is still entangled with
    `surfaceSequence`, which the recursive path reads as the terrain gate,
    and with tile-processing code shared by the kept geodata path. The
-   legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord` clipping also stays —
-   it still serves the kept `drawSurfaceFit` → `processDrawBuffer` →
-   `drawGrid` legacy draw-command path used by geodata and tiled free
-   layers.
+   legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord` tile clipping and the
+   legacy tile draw-command programs also stay, pending a separate audit of
+   whether the kept `drawSurfaceFit` → `processDrawBuffer` →
+   `drawSurfaceTile` free-layer path still uses them. The dead `noGrid`
+   parameter in `processDrawBuffer` and the now-write-only `gridSkipped` /
+   `mapGridMode` overlay are smaller follow-up candidates.
 
    Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky` render with no regression on a

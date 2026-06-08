@@ -79,51 +79,6 @@ RendererGeometry.buildHeightmap = function(size, use16bit) {
 };
 
 
-RendererGeometry.buildPlane = function(size, use16bit) {
-    size--;
-
-    var g = RendererGeometry;
-    var numFaces = (size* size) * 2;
-    var vertices = (use16bit) ? (new Uint16Array(numFaces * 3 * 3)) : (new Float32Array(numFaces * 3 * 3));
-    var uvs = new Float32Array(numFaces * 3 * 2);//[];
-
-    var factor = 1.0 / (size);
-    var index = 0, index2 = 0;
-    var x1, y1, x2, y2, xx1, xx2, yy1, yy2;
-
-    for (var i = 0; i < size; i++) {
-        for (var j = 0; j < size; j++) {
-            x1 = j;
-            x2 = j+1;
-            y1 = i;
-            y2 = i+1;
-
-            xx1 = j * factor;
-            xx2 = (j+1) * factor;
-            yy1 = (i) * factor;
-            yy2 = (i+1) * factor;
-
-            g.setFaceVertices(vertices, [x1, y1, 0], [x1, y2, 0], [x2, y2, 0], index);
-            g.setFaceUVs(uvs, [xx1, yy1], [xx1, yy2], [xx2, yy2], index2);
-            index += 9;
-            index2 += 6;
-
-            g.setFaceVertices(vertices, [x2, y2, 0], [x2, y1, 0], [x1, y1, 0], index);
-            g.setFaceUVs(uvs, [xx2, yy2], [xx2, yy1], [xx1, yy1], index2);
-            index += 9;
-            index2 += 6;
-        }
-    }
-
-    var bbox = new BBox(0,0,0,1,1,1);
-
-    if (use16bit) {
-        return { bbox:bbox, vertices:vertices, uvs: this.covnetTo16Bit(uvs)};
-    } else {
-        return { bbox:bbox, vertices:vertices, uvs: uvs};
-    }
-};
-
 RendererGeometry.covnetTo16Bit = function(array) {
     var t, array2 = new Uint16Array(array.length);
 

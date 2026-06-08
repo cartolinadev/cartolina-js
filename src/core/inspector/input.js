@@ -431,9 +431,6 @@ export default class InspectorInput {
                     hit = true; break;
                 }
 
-                case 72: case 104:  // Shift+H — heightmap only
-                    debug.heightmapOnly = !debug.heightmapOnly; hit = true; break;
-
                 case 81: case 113: {  // Shift+Q — toggle view mode (obj/subj)
 
                     const pos = map.getPosition();
@@ -545,7 +542,6 @@ export default class InspectorInput {
         }
         case 'debugLBox':      debug.drawLabelBoxes = getBool(); break;
         case 'debugNoEarth':   debug.drawEarth = !getBool(); break;
-        case 'debugHeightmap': debug.heightmapOnly = getBool(); break;
         case 'debugGridCells': debug.drawGridCells = getBool(); break;
         case 'debugRadar': {
 

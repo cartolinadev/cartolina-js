@@ -187,8 +187,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
 
     var geodata = tile.surface ? tile.surface.geodata : null;
     var maxLod = tile.surface.maxLod || tile.surface.lodRange[1];
-    var free = tile.surface ? tile.surface.free : null;
-    var drawGrid = (!geodata && !free && map.config.mapHeightfiledWhenUnloaded);
     var checkGpu = true;
     
     var lodShift = 4;//this.freeLayerSurface ? 1 : 1;
@@ -220,7 +218,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     var pocessedMetatiles = 1;  
     var drawCounter = draw.drawCounter;
     var maxHiresLodLevels = map.config.mapMaxHiresLodLevels, i, j, lj, child, priority, parent, parent2, children2;
-    var grids = false; 
     
     do {
         var best = 0;
@@ -242,33 +239,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
             }*/
             
             if (depth >= maxHiresLodLevels) {
-                if (drawGrid) {
-                    parent = tile;
-
-                    //make sure that we draw grid with lowest possible detail 
-                    parent2 = parent.parent;                    
-
-                    if (parent.id[0] > 3 && depth !=0 && parent2 && parent2.childrenReadyCount == 0) {
-                        children2 = parent2.children;
-
-                        if (!(depth >= 1 && parent.parent && ((children2[0] && children2[0].childrenReadyCount != 0) || 
-                             (children2[1] && children2[1].childrenReadyCount != 0) ||
-                             (children2[2] && children2[2].childrenReadyCount != 0) ||
-                             (children2[3] && children2[3].childrenReadyCount != 0)))) {
-                            parent = parent.parent;
-                        }
-                    }
-
-                    //make sure that grid tile is rendered only one time
-                    if (parent.drawCounter != draw.drawCounter && (!parent.parent || parent.parent.drawCounter != draw.drawCounter )) { 
-                        parent.drawCounter = draw.drawCounter;
-                        
-                        drawBuffer[drawBufferIndex] = [parent, true]; //draw grid
-                        drawBufferIndex++;
-                        grids = true;
-                    }
-                }
-
                 continue;
             }
             
@@ -448,34 +418,6 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                 }
             }
 
-
-            if (drawGrid && lastProcessBufferIndex == newProcessBufferIndex && lastDrawBufferIndex == drawBufferIndex) {
-                parent = tile;
-
-                //make sure that we draw grid with lowest possible detail 
-                parent2 = parent.parent;                    
-
-                if (parent.id[0] > 3 && depth !=0 && parent2 && parent2.childrenReadyCount == 0) {
-                    children2 = parent2.children;
-
-                    if (!(depth >= 1 && parent.parent && ((children2[0] && children2[0].childrenReadyCount != 0) || 
-                         (children2[1] && children2[1].childrenReadyCount != 0) ||
-                         (children2[2] && children2[2].childrenReadyCount != 0) ||
-                         (children2[3] && children2[3].childrenReadyCount != 0)))) {
-                        parent = parent.parent;
-                    }
-                }
-
-                //make sure that grid tile is rendered only one time
-                if (parent && parent.drawCounter != draw.drawCounter) { 
-                    parent.drawCounter = draw.drawCounter;
-
-                    drawBuffer[drawBufferIndex] = [parent, true]; //draw grid
-                    drawBufferIndex++;
-                    grids = true;
-                }
-            }
-
         }
 
         /*if (this.map.drawIndices) {
@@ -495,11 +437,11 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     stats.processedNodes = pocessedNodes;    
     stats.processedMetatiles = pocessedMetatiles;    
 
-    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, drawBuffer, drawBufferIndex);
+    this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex);
 };
 
 
-MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawGrid, grids, drawBuffer, drawBufferIndex, noGrid) {
+MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex, noGrid) {
 
     var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2); // && this.freeLayerSurface.geodata && draw.drawChannel == 0);
     var hmax = -999999, hmin = 999999;
@@ -507,18 +449,6 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
     var mvp = this.camera.getMvpMatrix(), p1, p2, camVec, length, tilt, factor, i, tile, node; 
 
     map.gpuCache.skipCostCheck = true;
-
-    var underSurfaceGrid = (drawGrid && map.config.mapGridUnderSurface > 0 && grids);
-    
-    if (underSurfaceGrid) {
-        //draw only grid
-        for (i = drawBufferIndex - 1; i >= 0; i--) {
-            drawBuffer[i][0].drawGrid(cameraPos); 
-        }
-
-        //clear zbuffer
-        map.renderer.gpu.clearDepth();
-    }
 
     var drawSelectedBuffer = function(drawCameraPos) {
 
@@ -571,39 +501,19 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
             } else { // if !noGrid
 
-                if (underSurfaceGrid) {
+                if (stats.gpuRenderUsed >= draw.maxGpuUsed) {
 
-                    if (!item[1]
-                        && !(stats.gpuRenderUsed >= draw.maxGpuUsed)) {
-                        drawTiles.drawSurfaceTile(
-                            tile, tile.metanode, drawCameraPos,
-                            tile.texelSize, 0, false, false);
-                    } else {
-                        if (drawTiles.map.outerMap.overrides.drawBBoxes) {
-                            drawTiles.drawTileInfo(
-                                tile, tile.metanode, drawCameraPos);
-                        }
+                    // out of GPU budget this frame; show bbox info if
+                    // requested and skip the tile (no grid fallback)
+                    if (drawTiles.map.outerMap.overrides.drawBBoxes) {
+                        drawTiles.drawTileInfo(
+                            tile, tile.metanode, drawCameraPos);
                     }
 
-                } else { // if (!noGrid && !underSurfaceGrid)
-
-                    if ((drawGrid && item[1])
-                        || stats.gpuRenderUsed >= draw.maxGpuUsed) {
-
-                        if (drawTiles.map.outerMap.overrides.drawBBoxes) {
-                            drawTiles.drawTileInfo(
-                                tile, tile.metanode, drawCameraPos);
-                        }
-
-                        tile.drawGrid(drawCameraPos); 
-                    } else {
-
-                        if (!item[1]) {
-                            drawTiles.drawSurfaceTile(
-                                tile, tile.metanode, drawCameraPos,
-                                tile.texelSize, 0, false, false);
-                        }
-                    }
+                } else {
+                    drawTiles.drawSurfaceTile(
+                        tile, tile.metanode, drawCameraPos,
+                        tile.texelSize, 0, false, false);
                 }
 
             }

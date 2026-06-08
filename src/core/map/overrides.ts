@@ -18,7 +18,6 @@
 export const defaultOverrides = {
 
     // draw-side overrides
-    heightmapOnly   : false,
     drawBBoxes      : false,
     drawMeshBBox    : false,
     drawLods        : false,
