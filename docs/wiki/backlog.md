@@ -1,5 +1,60 @@
 # Task backlog
 
+## BUG/DESIGN: coverage-aware point terrain queries
+
+**Opened:** 2026-06-08
+**Status:** open — front-to-back point queries need an ownership rule
+**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md),
+[nav-tiles.md](nav-tiles.md),
+[surface-metatile.md](surface-metatile.md)
+
+### Symptom
+
+`MapMeasure.getSurfaceHeight()` and `getSurfaceHeightNodeOnly()` query
+the recursive path's per-surface helper trees front-to-back and return
+the first tree that yields a navtile or metanode. That is safe when the
+front surface fully owns the coordinate, but partial front-surface tiles
+can carry data while not covering every point in the tile. In that case
+a point query can stop on a partial front surface where rendering would
+use a lower-priority back surface for the visible terrain.
+
+Affected callers include camera float-height navigation, `fix`/`float`
+coordinate conversion, public terrain-height queries, hit-coordinate
+conversion to `float`, and geodata draping through
+`geodata.processHeights()`.
+
+### Direction
+
+Point terrain queries should use a coverage-aware ownership rule that
+matches the recursive terrain traversal closely enough for navigation
+and draping. A likely rule is to prefer the first front-to-back surface
+with a watertight owner along the coordinate path, treating
+non-watertight hits as provisional. This may choose a coarser back
+surface at dataset fringes, but avoids treating a partial front tile as
+complete terrain.
+
+The rule cannot require a watertight flag unconditionally. Before
+metatile v6 the watertight bitplane is absent, so all client-visible
+watertight checks are generally false. A v6-only rule would make point
+queries fail or always fall through on older configurations. The
+implementation must define fallback semantics for pre-v6 data, for
+single-surface maps, and for datasets that do not yet encode watertight
+coverage.
+
+### Open questions
+
+- Whether an ancestor watertight claim is enough to stop lower-priority
+  surfaces for the coordinate, mirroring traversal deactivation.
+- Whether a non-watertight front hit should be returned when no
+  watertight surface exists, or only for APIs that prefer availability
+  over strict ownership.
+- How to distinguish "watertight information unavailable" from "known
+  non-watertight" in query code without regressing pre-v6 maps.
+- Whether point-query diagnostics should report the selected surface id,
+  tile id, and ownership reason during regression tests.
+
+---
+
 ## DATA/TOOLS: viewfinder-dem1 poisoned coarse navtiles + navtile-less LOD band
 
 **Opened:** 2026-06-07
