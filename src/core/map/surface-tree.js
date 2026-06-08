@@ -24,9 +24,6 @@ var MapSurfaceTree = function(map, freeLayer, freeLayerSurface) {
         //this.heightTracerNodeOnly = new MapMetanodeTracer(this, null, this.traceTileHeightNodeOnly.bind(this), this.traceHeightChild.bind(this));
     //}
 
-    this.surfaceSequence = [];
-    this.surfaceOnlySequence = [];
-
     this.config = this.map.config;
     this.cameraPos = [0,0,0];
     this.worldPos = [0,0,0];

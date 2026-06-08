@@ -8,59 +8,6 @@ var MapSurfaceSequence = function(this: any, map: any) {
 };
 
 
-MapSurfaceSequence.prototype.generateSurfaceSequence = function() {
-    var view = this.map.getCurrentView();
-    var tree = this.map.tree;
-
-    if (!tree) {
-        return;
-    }
-
-    tree.surfaceSequence = [];
-    tree.surfaceOnlySequence = [];
-
-    // Plain surfaces named by the active view, in back-to-front order so
-    // the front surface lands at the last index. Glues and virtual
-    // surfaces no longer take part: the recursive terrain traversal
-    // renders the plain surfaces directly via mask compositing, and the
-    // legacy main tree (kept only for area/height queries) selects the
-    // front-most plain surface per tile.
-    for (var key in view.surfaces) {
-
-        var surface = this.map.getSurface(key);
-
-        if (surface) {
-
-            tree.surfaceSequence.push([surface, false]);
-            tree.surfaceOnlySequence.push(surface);
-        }
-    }
-
-    this.map.freeLayersHaveGeodata = false;
-
-    // Free layers each form their own single-surface tree.
-    for (key in view.freeLayers) {
-
-        var freeLayer = this.map.getFreeLayer(key);
-
-        if (freeLayer) {
-
-            freeLayer.surfaceSequence = [freeLayer];
-            freeLayer.surfaceOnlySequence = [freeLayer];
-
-            if (freeLayer.geodata) {
-                this.map.freeLayersHaveGeodata = true;
-            } else {
-                warnNonGeodataFreeLayer(key);
-            }
-        }
-    }
-
-    //just in case
-    this.map.renderer.draw.clearJobBuffer();
-};
-
-
 MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
 
     if (this.map.style)
@@ -331,30 +278,6 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
         }
     }
 };
-
-
-/*
- * One-off console warning for a view configuration the recursive draw
- * traversal does not render: a non-geodata free layer. It fires once
- * per unique layer per session, deduped via this module-local set. The
- * configuration does not fail; the layer is simply not drawn as
- * terrain, so the warning flags intent rather than a visible failure.
- */
-
-const freeLayerWarned: Set<string> = new Set();
-
-
-function warnNonGeodataFreeLayer(layerId: string): void {
-
-    if (freeLayerWarned.has(layerId)) return;
-
-    freeLayerWarned.add(layerId);
-    console.warn(
-        '[draw-traversal] free layer "%s" is not a geodata layer;'
-        + ' the recursive terrain traversal does not render'
-        + ' non-geodata free layers.',
-        layerId);
-}
 
 
 export default MapSurfaceSequence;

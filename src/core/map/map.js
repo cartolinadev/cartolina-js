@@ -541,7 +541,6 @@ Map.prototype.setView = function(view, forceRefresh, posToFixed) {
         renderer.draw.clearJobHBuffer(); //hotfix - reset hysteresis buffer
     }
 
-    this.surfaceSequence.generateSurfaceSequence();
     this.surfaceSequence.generateBoundLayerSequence();
 
     this.refreshFreelayesInView();
@@ -630,24 +629,33 @@ Map.prototype.getView = function() {
 Map.prototype.refreshFreelayesInView = function() {
     var freeLayers = this.getCurrentView().freeLayers;
     this.freeLayerSequence = [];
+    this.freeLayersHaveGeodata = false;
 
     for (var key in freeLayers) {
         var freeLayer = this.getFreeLayer(key);
-        
+
         if (freeLayer) {
-            
+
             freeLayer.zFactor = freeLayers[key]['depthOffset'];
             freeLayer.maxLod = freeLayers[key]['maxLod'];
-            
+
             this.freeLayerSequence.push(freeLayer);
-            
+
+            // The terrain traversal renders only geodata free layers.
+            if (freeLayer.geodata) {
+                this.freeLayersHaveGeodata = true;
+            } else {
+                utils.warnOnce('Free layer "' + key + '" is not a geodata'
+                    + ' layer and is not rendered.', 1);
+            }
+
             if (freeLayers[key]['style']) {
                 freeLayer.setStyle(freeLayers[key]['style']);
             } else {
                 freeLayer.setStyle(freeLayer.originalStyle);
             }
-            
-            //TODO: generate bound layer seqence for      
+
+            //TODO: generate bound layer seqence for
         }
     }
 };
@@ -661,7 +669,6 @@ Map.prototype.refreshView = function() {
     // mapconfig-based map, use the legacy methods
     if (!this.style && this.currentView_) {
 
-        this.surfaceSequence.generateSurfaceSequence();
         this.surfaceSequence.generateBoundLayerSequence();
         this.refreshFreelayesInView();
     }
@@ -1058,7 +1065,7 @@ Map.prototype.getStats = function(switches) {
         'bestGeodataTexelSize' : this.bestGeodataTexelSize,
         'downloading' : this.loader.downloading.length,
         'lastDownload' : this.loader.lastDownloadTime,
-        'surfaces' : this.tree.surfaceSequence.length,
+        'surfaces' : this.outerMap.surfaceList().length,
         'freeLayers' : this.freeLayerSequence.length,
         'texelSizeFit' : this.texelSizeFit,
         'processingTasks' : this.processingTasks.length,

@@ -34,6 +34,20 @@ MapConfig.prototype.parseConfig = function() {
         throw new Error('Error in map configuration.');
     }
 
+    // Virtual surfaces and glues are a server-side seam-stitching concept
+    // the client renders through mask compositing instead. Warn when a
+    // mapConfig declares them so the operator knows they are ignored.
+    var virtualSurfaces = this.mapConfig['virtualSurfaces'];
+    var glues = this.mapConfig['glue'];
+
+    if ((Array.isArray(virtualSurfaces) && virtualSurfaces.length > 0)
+            || (Array.isArray(glues) && glues.length > 0)) {
+
+        console.warn('mapConfig declares virtualSurfaces / glue entries;'
+            + ' this client ignores them and renders the plain surfaces'
+            + ' directly.');
+    }
+
     var stats = this.map.stats;
     stats.loadedCount = 0;
     stats.loadErrorCount = 0;

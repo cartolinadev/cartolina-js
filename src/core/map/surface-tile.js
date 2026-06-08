@@ -269,9 +269,9 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
         
     if (!preventLoad) {
 
-        //provide surface for tile
+        //provide surface for tile - each tree renders one surface
         if (this.surface == null) {
-            this.checkSurface(tree, priority);
+            this.surface = tree.freeLayerSurface;
         }
 
         //provide metanode for tile
@@ -342,31 +342,6 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
     }
 
     return true;
-};
-
-
-MapSurfaceTile.prototype.checkSurface = function(tree, priority) {
-    this.surface = null;
-
-    if (tree.freeLayerSurface) {  //free layer has only one surface
-        this.surface = tree.freeLayerSurface;
-        return;
-    }
-
-    // Main multi-surface tree, kept only for area/height queries: pick
-    // the front-most plain surface that has geometry at this tile. The
-    // surface sequence is back-to-front, so iterate from the last index.
-    var sequence = tree.surfaceSequence;
-
-    for (var i = sequence.length - 1; i >= 0; i--) {
-
-        var surface = sequence[i][0];
-
-        if (surface.hasTile2(this.id)[0]) {
-            this.surface = surface;
-            return;
-        }
-    }
 };
 
 

@@ -45,8 +45,6 @@ type MapServices = {
 
 type FreeLayer = MapSurface & {
     geodata?: unknown;
-    surfaceSequence: MapSurface[];
-    surfaceOnlySequence: MapSurface[];
     options: Record<string, unknown>;
     setStyle(style: unknown): void;
 

@@ -25,37 +25,29 @@ var MapMeasure = function(map) {
  * Returns the surface trees terrain queries should walk for this
  * frame, ordered back-to-front (front tree at the last index).
  *
- * In the recursive draw path the answer is the typed Map's
- * per-surface helper trees, which are populated by the same descent
- * that renders the frame. The query iterates this list front-to-back
- * and stops on the first tree whose trace yields data.
+ * The answer is the typed Map's per-surface helper trees, which are
+ * populated by the same descent that renders the frame. The query
+ * iterates this list front-to-back and stops on the first tree whose
+ * trace yields data.
  *
- * In the legacy draw path the answer is a single-element array
- * containing the legacy main tree, so the query behaves exactly as
- * it did before the recursive path existed.
- *
- * Returns an empty array only when no surface is in view; callers
- * use that to return their not-found result.
+ * Returns an empty array when no surface is in view; callers use that
+ * to return their not-found result.
  */
 MapMeasure.prototype.queryTrees_ = function() {
 
-    var trees = this.map.outerMap.surfaceTreesForQuery();
-    if (trees && trees.length > 0) return trees;
-
-    var legacy = this.map.tree;
-    if (legacy && legacy.surfaceSequence
-            && legacy.surfaceSequence.length > 0) {
-        return [legacy];
-    }
-
-    return [];
+    return this.map.outerMap.surfaceTreesForQuery();
 };
 
 MapMeasure.prototype.getSurfaceAreaGeometry = function(coords, radius, mode, limit, loadMeshes, loadTextures) {
     var tree = this.map.tree;
 
-    if (tree.surfaceSequence.length == 0) {
-        reurn [true, []];
+    // The main tree walks one surface; bind it to the front surface for
+    // this trace.
+    var surfaces = this.map.outerMap.surfaceList();
+    tree.freeLayerSurface = surfaces[surfaces.length - 1] || null;
+
+    if (!tree.freeLayerSurface) {
+        return [true, []];
     }
 
     var center = this.convert.convertCoords(coords, 'navigation', 'physical');

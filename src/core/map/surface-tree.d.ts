@@ -22,13 +22,11 @@ export default class MapSurfaceTree {
 
     map: LegacyMap;
     surfaceTree: MapSurfaceTile;
-    surfaceSequence: [MapSurface, boolean][];
-    surfaceOnlySequence: [MapSurface, boolean][];
 
     /**
-     * If set, every tile in this tree auto-selects this single
-     * surface. Used by free layers and by the new draw traversal's
-     * per-surface helper trees.
+     * The single surface every tile in this tree binds to. Set for the
+     * per-surface helper trees of the recursive draw traversal, for free
+     * layers, and for the main tree (its front surface).
      */
     freeLayerSurface: MapSurface | null;
 

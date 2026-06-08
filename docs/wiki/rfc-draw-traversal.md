@@ -1537,30 +1537,36 @@ Implementation phases:
    - the per-node `alien` flag (`metanode.js`) and its metatile bitplane
      consumer (`metatile.js` keeps only the watertight bitplane); the
      `[A]` debug overlay in `draw-tiles.js`.
-   - glue entry / proper-alien generation in `surface-sequence.ts`:
-     `generateSurfaceSequence` now builds only the plain-surface list
-     (back-to-front) plus free-layer setup; `generateBoundLayerSequence`
-     stays for map-config bound-layer styling.
+   - the whole `surfaceSequence` / `surfaceOnlySequence` machinery:
+     `MapSurfaceSequence.generateSurfaceSequence` is deleted, along with
+     the `tree.surfaceSequence` / `surfaceOnlySequence` arrays. Each tree
+     now renders exactly one surface, bound through its
+     `freeLayerSurface`. `generateBoundLayerSequence` stays in
+     `surface-sequence.ts` for map-config bound-layer styling. The
+     `freeLayersHaveGeodata` flag and the non-geodata free-layer warning
+     moved to `Map.refreshFreelayesInView`.
+   - `MapSurfaceTile.checkSurface`: surface binding is now the inline
+     `this.surface = tree.freeLayerSurface` in `isMetanodeReady`.
    - the `glueImagery` / `glueImageryCredits` credit plumbing
      (`map.js`, `surface-tile.js`, `draw-tiles.js`, `map.ts`,
      `map.d.ts`).
 
-   `MapSurfaceTile.checkSurface` no longer does a multi-surface merge:
-   for a helper / free-layer tree it binds the tile to the tree's single
-   `freeLayerSurface`; for the kept main tree it picks the front-most
-   plain surface in `surfaceSequence` that has the tile. The
-   `surfaceReference` field still rides the submesh wire format but is no
-   longer consumed.
+   The draw gate and the remaining "any surface in view" checks now read
+   `Map.surfaceList()` instead of `surfaceSequence.length`. A mapConfig
+   that still declares `virtualSurfaces` or `glue` entries logs a console
+   warning at parse time (`config.js`) and is otherwise ignored. The
+   `surfaceReference` field still rides the submesh wire format but is
+   not consumed.
 
    **Deferred — final step that closes this RFC.** `legacyMap.tree` (the
-   main multi-surface tree) is kept in minimal form because it still
-   backs the measure control's area/volume trace
-   (`MapMeasure.getSurfaceAreaGeometry` → `MapSurfaceTree.traceAreaTiles`),
-   `Map.storeGeometry`, and a stats count. Removing it requires migrating
-   those onto the per-surface helper trees
-   (`Map.surfaceTreesForQuery`), after which `legacyMap.tree`,
-   `tree.surfaceSequence`, and the slimmed `generateSurfaceSequence`
-   plain-surface build can go. The legacy `gpu/shaders.js` `uClip[8]` /
+   main tree) is kept in minimal form because it still backs the measure
+   control's area/volume trace (`MapMeasure.getSurfaceAreaGeometry` →
+   `MapSurfaceTree.traceAreaTiles`), `Map.storeGeometry`, and a stats
+   count. It is a single-surface tree now: the measure code binds its
+   `freeLayerSurface` to the front surface (`Map.surfaceList()` last
+   entry) before tracing. Removing it requires migrating those callers
+   onto the per-surface helper trees (`Map.surfaceTreesForQuery`), after
+   which `legacyMap.tree` can go. The legacy `gpu/shaders.js` `uClip[8]` /
    `vClipCoord` tile clipping and the legacy tile draw-command programs
    also remain, pending an audit of whether the kept `drawSurfaceFit` →
    `processDrawBuffer` → `drawSurfaceTile` free-layer path still uses

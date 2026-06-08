@@ -15,22 +15,30 @@ redirection; `MapConfig.parseVirtualSurfaces` / `parseGlues`;
 `mapVirtualSurfaces` config key; `surface.glue` / `surface.virtual` flags
 and `getSurfaceReference`; `MapSurfaceTile.createVirtualMetanode` /
 `isVirtualMetanodeReady` and the `virtual*` tile state; the per-node
-`alien` flag and its metatile bitplane consumer; glue entry generation in
-`surface-sequence.ts` (kept the plain-surface + free-layer build and
-`generateBoundLayerSequence`); and the `glueImagery` credit plumbing.
+`alien` flag and its metatile bitplane consumer; and the `glueImagery`
+credit plumbing.
 
-`checkSurface` is now a plain selector: helper / free-layer trees bind to
-their single `freeLayerSurface`; the kept main tree picks the front-most
-plain surface in `surfaceSequence`.
+The whole surface-sequence concept went with it: `generateSurfaceSequence`
+and the `tree.surfaceSequence` / `surfaceOnlySequence` arrays are gone,
+and so is `MapSurfaceTile.checkSurface` (its sole job was selecting one
+surface from overlapping surfaces plus glues). Every tree now renders
+exactly one surface bound through `freeLayerSurface`, so surface binding
+is the inline `this.surface = tree.freeLayerSurface`. The "any surface in
+view" gates (draw gate, measure, stats) read `Map.surfaceList()`;
+`freeLayersHaveGeodata` and the non-geodata-free-layer warning moved to
+`Map.refreshFreelayesInView`; `generateBoundLayerSequence` stays for
+map-config bound-layer styling. A mapConfig that still declares
+`virtualSurfaces` / `glue` logs a warning at parse and is ignored.
 
-Kept by decision: a minimal `legacyMap.tree`, because the measure
-control's area/volume trace, `storeGeometry`, and a stats count still
-use it. Its full removal is the final step that closes the RFC and was
-deferred per the user. Typecheck clean; fresh webpack build with no
-errors; `simple-terrain`, `complex-terrain`, `full-terrain`, and
-`legacy-benatky` render with no console/network errors. Benatky (the old
-glue scene) is visually indistinguishable from production through pure
-mask compositing, and imagery credits still populate.
+Kept by decision: a minimal `legacyMap.tree`, now a single-surface tree —
+the measure area/volume trace and `storeGeometry` bind its
+`freeLayerSurface` to the front surface before tracing. Its full removal
+is the deferred final step that closes the RFC. Typecheck clean; fresh
+webpack build with no errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no console/network
+errors. Benatky (the old glue scene) is visually indistinguishable from
+production through pure mask compositing, and imagery credits still
+populate.
 
 ## 2026-06-08 — draw traversal: remove grid fallback + plane subsystem
 
