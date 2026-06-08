@@ -1,5 +1,34 @@
 # Session log
 
+## 2026-06-08 — draw traversal: mark RFC implemented
+
+Closed out [rfc-draw-traversal.md](rfc-draw-traversal.md) after reviewing
+the step-8 diff (`d7a9e58a..HEAD`): the deletions match the step-8 notes,
+no removed symbol is still referenced (the surviving `surfaceSequence`
+bound-layer path, `drawGridCells` debug feature, and unconsumed
+`sourceReference` wire-format parse are all expected), and `tsc --noEmit`
+is clean.
+
+Applied the two editorial notes from the round-7 sign-off: §1 now states
+the verifiable "no current test URL mapConfig includes a type-`'free'`
+free layer" instead of the undefined "style-based maps", and defines the
+unsupported-free-layer warning as throttled once per name via `warnOnce`.
+Flipped the RFC status from `In review` to `Implemented` and moved its
+index entry from "RFCs — active" into
+[rfcs-implemented.md](rfcs-implemented.md).
+
+One discrepancy noted, not a defect: §7 predicted the legacy
+`gpu/shaders.js` `uClip` / `vClipCoord` shader would be removed, but it is
+retained because it is shared with the out-of-scope geodata
+`JOB_POLYGON` flat-shade path (`progCFlatShadeTile`). The terrain path's
+clip (`tile-clip.inc.glsl`) was removed as the step-8 notes claim.
+
+Verified: `npx tsc --noEmit`; fresh webpack compile with zero errors; the
+full screenshot suite (`simple-terrain`, `a-3d-mountain-map`,
+`tacoma-fitonly`, `complex-terrain`, `full-terrain`, `nacis-2023`,
+`legacy-benatky`) captured dev and prod for all seven, with dev matching
+prod and the multi-surface benatky scene visually indistinguishable.
+
 ## 2026-06-08 — draw traversal: remove legacy main tree
 
 Completed the final step of [rfc-draw-traversal.md](rfc-draw-traversal.md):

@@ -1,6 +1,6 @@
 # RFC: unified recursive draw traversal
 
-**Status:** In review
+**Status:** Implemented
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -97,9 +97,9 @@ through terrain mask rendering.
 
 Non-geodata free layers are not supported by the new traversal. The
 legacy path can render free layers that behave like independent tiled
-surface trees, but style-based maps do not produce them and no current
-test URL depends on them. The new path ignores such layers and emits a
-one-off console warning naming the unsupported free layer.
+surface trees, but no current test URL mapConfig includes a
+type-`'free'` free layer. The new path ignores such layers and emits a
+console warning once per unsupported free-layer name (via `warnOnce`).
 
 ---
 

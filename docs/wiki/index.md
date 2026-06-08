@@ -32,10 +32,6 @@ then branch into more specific documents as needed.
   store replacing the serve-time DEM warp; paged mmapped `{flags, minZ,
   maxZ}` quadtree, fields derived at delivery; subsumes the
   coverage-mask `mapproxy-tiling` redesign
-- [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
-  tile-tree traversal replacing the four legacy draw modes; client-side
-  mask compositing replacing server-side glues; mask-space design
-  question discussed
 - [rfc-config-store.md](rfc-config-store.md) — reactive ConfigStore
   to replace stringly-typed config routing; prerequisite for
   core.js suppression
