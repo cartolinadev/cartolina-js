@@ -5255,3 +5255,57 @@ vts-tools / vts-libs: complete the coarse navtile pyramid in
 generation. Both are needed.
 
 ---
+
+## 2026-06-08 — RFC: the metanode store (precomputed metatiles)
+
+**Branch:** feature/draw-traversal-v1
+
+Wrote a draft RFC ([rfc-metanode-store.md](rfc-metanode-store.md))
+eliminating the serve-time DEM warp on the metatile critical path by
+precomputing per-node values into a separate, paged, mmapped quadtree —
+the **metanode store**. Design discussion only; no code.
+
+### Decisions reached (with the user)
+
+- **Store `{flags, minZ, maxZ}` only**, 4 bytes/node (`half` pair).
+  ~0.4 GiB for a planet land pyramid. Everything else derived at
+  delivery: surrogate = midpoint `(minZ+maxZ)/2`; navtile range = SDS→nav
+  transform; horizontal extents = full-cell analytic; texelSize = relief
+  heuristic over the range.
+- **Separate from, not fused into, the flag tile index.** Fusing heights
+  into the QTree value defeats the region-merge compression (heights
+  don't share horizontally), degenerates the tree, breaks the byte
+  serialization, and taxes vtsd. A parallel quadtree keeps the ocean
+  collapse + vertical range aggregation a quadtree is good at.
+- **Raw payload, paged, page-shape a build parameter.** Not
+  pre-serialized metatiles. Makes the future shallow-subtree delivery
+  (the ping-pong fix) a re-bake + serializer change, not a redesign.
+- **Subsumes the coverage-mask `mapproxy-tiling` redesign**: one native
+  warp (mask band w/o nodata → exist/watertight; elevation band *with*
+  nodata → minZ/maxZ) + bottom-up reduction. Retires the min/max VRTWO
+  pyramids at build and serve (generatevrtwo 3→1 pyramids).
+
+### Non-obvious findings (verified in code)
+
+- DEM metanodes always take the `applyTexelSize` path
+  (`surface-dem.cpp:316` passes `displaySize = boost::none`), so the
+  texelSize heuristic is load-bearing for LOD selection, not cosmetic.
+- cartolina-js computes `diskPos` from `minZ`, not the surrogate
+  (`metanode.js:369`); vts-browser-cpp uses surrogate only for camera
+  altitude/nav (`altitude.cpp:296`). Midpoint is safe for both.
+- Current serve warp computes surrogate as the *mean* (`metatile.cpp:466`)
+  and texelSize from sampled surface *area* (`metatile.cpp:460`) — the
+  two fields that aren't pure min/max, hence derived/approximated.
+
+### Calibration plan (RFC phase 1, ahead of store work)
+
+Regress the texelSize relief constant `c` from existing v6 metatiles
+over **two Copernicus GLO-30 cuts** (mountainous + near-flat), across a
+**span of LODs**, in **both melown2015 and earth-qsc** — tile-cell
+geometry differs between frames, so a `c` from one is not assumed to
+carry to the other. Per-reference-frame constant or table if drift is
+too large.
+
+Status: draft, not yet in review.
+
+---

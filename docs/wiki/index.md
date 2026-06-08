@@ -28,6 +28,10 @@ then branch into more specific documents as needed.
 
 ### RFCs — active
 
+- [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed metanode
+  store replacing the serve-time DEM warp; paged mmapped `{flags, minZ,
+  maxZ}` quadtree, fields derived at delivery; subsumes the
+  coverage-mask `mapproxy-tiling` redesign
 - [rfc-draw-traversal.md](rfc-draw-traversal.md) — unified recursive
   tile-tree traversal replacing the four legacy draw modes; client-side
   mask compositing replacing server-side glues; mask-space design
