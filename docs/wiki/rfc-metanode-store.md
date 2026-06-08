@@ -317,7 +317,76 @@ The non-sharing of height *values* (the reason fusing into the flag
 index fails) is harmless here: in the populated 29% the tree is
 full-depth because the *data* is there, and that is the data we must
 store; in the empty 71% the tree collapses. The structure earns its keep
-on exactly the axis the ocean problem raises.
+on exactly the axis the ocean problem raises — and, with the right
+vertical datum (§3.5), flat water and flat terrain collapse *too*, a
+bonus beyond the ocean sparsity.
+
+### 3.5 Vertical datum — orthometric, load-bearing for compression
+
+The stored `minZ/maxZ` **must** be in an orthometric (gravity-based)
+vertical datum, not a geodetic (ellipsoidal) one. This is not a
+precision nicety; it is what makes flat surfaces compress.
+
+**Which orthometric datum: the reference frame's, not Earth's.** The
+canonical vertical datum is the **vertical component of the reference
+frame's public SRS** (`referenceFrame.model.publicSrs`,
+[referenceframe.hpp:191](../../cartolina-tileserver/externals/vts-libs/vts-libs/registry/referenceframe.hpp)),
+which is orthometric for every reference frame in use. It must **not** be
+a hardcoded geoid such as EGM96 (EPSG:5773) or EGM2008: cartolina models
+bodies other than Earth, and an Earth geoid is meaningless on the Moon or
+Mars. Each body's reference frame carries its own gravity-based vertical
+(geoid / selenoid / areoid) in its public SRS, so deriving the datum from
+the reference frame is both generic and automatically body-correct. The
+Earth examples below (EGM2008, ocean = 0) are instances of this rule, not
+the rule itself.
+
+A geodetic height references the ellipsoid, so the sea surface — which is
+near-constant in orthometric height (≈ 0, mean sea level) — has a
+*non-zero, smoothly varying* ellipsoidal height equal to the geoid
+undulation (roughly −106 m … +85 m globally). Stored ellipsoidally,
+every ocean, lake, and flat-plain tile would carry a slightly different
+`(minZ, maxZ)` than its neighbour, so **no two siblings share a value and
+the quadtree cannot collapse them** — the same value-sharing failure that
+sinks fusing heights into the flag index (§1.3), now self-inflicted.
+Stored orthometrically, a region of still water is `(0, 0)` everywhere:
+uniform quadrants merge horizontally and aggregate to `(0, 0)` up the
+pyramid. Where DEMs encode ocean as valid 0 (Copernicus GLO-30 does,
+referenced to EGM2008), those tiles *exist* in the store (mesh +
+watertight) and collapse to almost nothing — only with the orthometric
+datum.
+
+**This is already the pipeline's convention.** `sds2srs`
+([mesh.cpp:311](../../cartolina-tileserver/mapproxy/src/mapproxy/support/mesh.cpp))
+attaches the configured geoid to the **SDS** SRS (`geo::setGeoid`) and
+resolves the undulation only when converting SDS→physical. So SDS
+heights — the frame `minZ/maxZ` live in — are orthometric for any
+geoid-configured DEM resource (the norm); the ellipsoidal undulation is
+bridged at the SDS↔physical boundary, not stored. The navtile range
+(`minHeight/maxHeight`, navSRS) is orthometric on the same basis.
+
+**Consequences for the store:**
+
+- **Store the SDS values verbatim** — exactly what the metatile
+  serialises. Delivery needs *no* vertical conversion, which is the
+  fastest path and the one §0 prioritises. The "cheaply convertible at
+  delivery" fallback is held in reserve only if we ever pick a canonical
+  internal datum different from the resource's SDS.
+- **The tiling pass (§4) must reduce elevation in that same SDS frame** —
+  apply the resource's `heightFunction` and treat the source datum
+  consistently — so the stored range matches what the warp would have
+  produced. If a source DEM is ellipsoidal, convert to the orthometric
+  SDS datum at build, both for correctness and to regain the collapse.
+- **The datum is pinned by the reference-frame id already in the header**
+  (§7): since it is the public SRS vertical, the reference-frame
+  identity *is* the datum identity. Validate the store's reference-frame
+  id against the resource on load rather than trusting a free-standing
+  datum tag, so a frame (and therefore datum) mismatch is detectable
+  rather than silent.
+
+The exact public-SRS vertical is reference-frame-defined in the registry;
+§9 carries verifying it — that it is orthometric for melown2015 and
+earth-qsc, and that the "derive from the reference frame" rule holds for
+any non-Earth frame — as a checklist item.
 
 ---
 
@@ -615,6 +684,13 @@ to the other.
   size after phase 6. The "right" depth for single-LOD blocks may differ
   from the future subtree depth — that is expected, it is a re-bake
   parameter.
+- **Vertical datum (§3.5).** Confirm the public-SRS vertical is
+  orthometric for melown2015 and earth-qsc, that SDS `minZ/maxZ` are in
+  that datum (so storing verbatim needs no conversion), and that the
+  tiling reduction applies the same `heightFunction`/datum. Spot-check
+  that ocean/flat regions actually collapse in a built store. Confirm the
+  "derive datum from the reference frame" rule carries to a non-Earth
+  frame if one is ever configured.
 - **`half` precision.** ~8 m ulp near 9 km altitude; bias `minZ` down and
   `maxZ` up to the next representable value at write time so the stored
   range is conservative for culling. Verify the bias is applied in the

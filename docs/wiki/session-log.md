@@ -5306,6 +5306,22 @@ geometry differs between frames, so a `c` from one is not assumed to
 carry to the other. Per-reference-frame constant or table if drift is
 too large.
 
+### Addendum — vertical datum (§3.5)
+
+Stored `minZ/maxZ` must be **orthometric**, not geodetic/ellipsoidal:
+ellipsoidal heights make still water a smoothly varying field (the geoid
+undulation), so no two tiles share a value and the quadtree cannot
+collapse flat water/terrain — the same value-sharing failure that sinks
+fusing heights into the flag index. The canonical datum is the **vertical
+component of the reference frame's public SRS**
+(`referenceFrame.model.publicSrs`), not a hardcoded Earth geoid (EGM96),
+because cartolina models non-Earth bodies; deriving from the reference
+frame is generic and body-correct. The pipeline already follows this:
+`sds2srs`/`setGeoid` (mesh.cpp:311) attach the geoid at the SDS↔physical
+boundary, so SDS heights are orthometric. Store SDS values verbatim →
+zero delivery conversion; datum identity is pinned by the reference-frame
+id in the store header.
+
 Status: draft, not yet in review.
 
 ---
