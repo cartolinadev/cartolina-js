@@ -1,5 +1,32 @@
 # Session log
 
+## 2026-06-08 — draw traversal: remove legacy main tree
+
+Completed the final step of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+the surviving `legacyMap.tree` main tree is gone. The old tree was kept
+only for the legacy measure control's Volume tool, which gathered terrain
+meshes through `getSurfaceAreaGeometry()` and `traceAreaTiles()`. That
+path was front-surface-only after the multi-surface refactor and could
+not represent composed terrain at partial-coverage seams.
+
+Removed the Volume button and cut/fill computation from
+`src/browser/ui/control/measure.js`; deleted `Map.getSurfaceAreaGeometry`,
+`MapMeasure.getSurfaceAreaGeometry`, `MapSurfaceTree.storeGeometry`,
+`traceAreaTiles`, its mesh-readiness helper, and
+`MapSurfaceTile.insideCone`; removed main-tree construction from both
+map factories and the `LegacyMap.tree` declaration / kill path.
+
+`MapSurfaceTree` remains only for per-surface query helper trees and
+free-layer geodata traversal. Updated [rfc-event-bus.md](rfc-event-bus.md)
+because the deleted volume path also removed the only source call sites
+that used the third `wait` argument to `once`; that RFC moved back to
+`In review` with a review-request section as required after editing an
+accepted RFC.
+
+Verified: `npx tsc --noEmit`; fresh webpack compile; screenshot checks
+for `simple-terrain`, `complex-terrain`, `full-terrain`, and
+`legacy-benatky` all passed with no reported console or network errors.
+
 ## 2026-06-08 — draw traversal: glue / virtual-surface / alien teardown
 
 Step 8 continued: removed the client-side glue, virtual-surface, and

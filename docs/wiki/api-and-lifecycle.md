@@ -191,8 +191,9 @@ API, allocates `CustomEvent` objects for frequent events, and still
 needs an adapter. See [rfc-event-bus.md](rfc-event-bus.md).
 
 `once` accepts an optional `wait` parameter that skips the first N
-firings. `getSurfaceAreaGeometry` uses this to defer a callback past a
-stale update cycle.
+firings. No current source call site passes `wait`; the parameter is a
+legacy compatibility surface slated for removal by
+[rfc-event-bus.md](rfc-event-bus.md).
 
 Known events:
 

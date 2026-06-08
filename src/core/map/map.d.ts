@@ -10,7 +10,6 @@ import type MapStyle from './style';
 import type MapSurface from './surface';
 import type MapUrl from './url';
 import type MapDraw from './draw';
-import type MapSurfaceTree from './surface-tree';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
 import type {
@@ -151,8 +150,6 @@ export default class Map {
     };
 
     style: MapStyle | null;
-
-    tree: MapSurfaceTree;
 
     draw: MapDraw;
 

@@ -38,49 +38,11 @@ MapMeasure.prototype.queryTrees_ = function() {
     return this.map.outerMap.surfaceTreesForQuery();
 };
 
-MapMeasure.prototype.getSurfaceAreaGeometry = function(coords, radius, mode, limit, loadMeshes, loadTextures) {
-    var tree = this.map.tree;
-
-    // The main tree walks one surface; bind it to the front surface for
-    // this trace.
-    var surfaces = this.map.outerMap.surfaceList();
-    tree.freeLayerSurface = surfaces[surfaces.length - 1] || null;
-
-    if (!tree.freeLayerSurface) {
-        return [true, []];
-    }
-
-    var center = this.convert.convertCoords(coords, 'navigation', 'physical');
-    var coneVec = [0,0,0];
-
-    vec3.normalize(center, coneVec);
-
-    var distance = vec3.length(center);
-    var coneAngle = Math.atan(Math.tan(radius / distance));
-
-    tree.params = {
-        coneVec : coneVec,
-        coneAngle : coneAngle,
-        mode : mode,
-        limit : limit,
-        loaded : true,
-        areaTiles : [],
-        loadMeshes: (loadMeshes === true),
-        loadTextures: (loadTextures === true)
-    };
-
-    //priority = 0, noReadInly = false
-    tree.traceAreaTiles(tree.surfaceTree, 0, false);
-
-    return [tree.params.loaded, tree.params.areaTiles];
-};
-
 MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, nodeCoords, coordsArray, useNodeOnly) {
-    // Front-to-back query order: helper trees from the recursive path
-    // when active, fall back to the legacy main tree otherwise. The
-    // first tree whose `traceHeight` finds a heightMap or a metanode
-    // wins; only when every tree comes up empty do we return the
-    // not-found result.
+    // Front-to-back query order: per-surface helper trees from the
+    // recursive traversal. The first tree whose `traceHeight` finds a
+    // heightMap or a metanode wins; only when every tree comes up empty
+    // do we return the not-found result.
     var trees = this.queryTrees_();
 
     if (trees.length === 0) {

@@ -977,8 +977,6 @@ class Map {
         legacyMap.isGeocent =
             !legacyMap.getNavigationSrs().isProjected();
 
-        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
-
         // generate sequences
         legacyMap.refreshView();
 
@@ -1019,7 +1017,6 @@ class Map {
         legacyMap.isGeocent =
             !legacyMap.getNavigationSrs().isProjected();
 
-        legacyMap.tree = new MapSurfaceTree(legacyMap, false);
         legacyMap.currentView_ = new MapView(legacyMap, {});
 
         mapCfg.afterConfigParsed();
@@ -1186,10 +1183,10 @@ class Map {
      * traversal will descend this frame, in `surfaceList()` order.
      * Allocates the trees on demand and drops stale cache entries.
      *
-     * Intended for terrain queries that previously walked
-     * `legacyMap.tree` (e.g. `MapMeasure.getSurfaceHeight`): they
-     * should iterate this list front-to-back (last index first) and
-     * return the first tree whose trace yields data.
+     * Intended for terrain queries such as
+     * `MapMeasure.getSurfaceHeight`: they should iterate this list
+     * front-to-back (last index first) and return the first tree whose
+     * trace yields data.
      *
      * Returns an empty array when the recursive path is not active or
      * when no surface is in view.

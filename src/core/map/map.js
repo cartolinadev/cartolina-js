@@ -67,8 +67,6 @@ var Map = function(core, path, config, configStorage) {
     this.srsReady = false;
     this.surfaceCounter = 0;
 
-    this.tree = null;
-
     this.freeLayerSequence = [];
 
     this.freeLayersHaveGeodata = false;
@@ -110,10 +108,6 @@ var Map = function(core, path, config, configStorage) {
 
 Map.prototype.kill = function() {
     this.killed = true;
-
-    if (this.tree) {
-        this.tree.kill();
-    }
 
     for (var key in this.freeLayers) {
         var layer = this.freeLayers[key];
@@ -916,36 +910,6 @@ Map.prototype.getSurfaceHeight = function(coords, precision) {
     return this.measure.getSurfaceHeight(
         coords,
         this.measure.getOptimalHeightLodBySampleSize(coords, precision));
-};
-
-
-Map.prototype.getSurfaceAreaGeometry = function(
-    coords, radius, mode, limit, callback, loadTextures) {
-
-    var res = this.measure.getSurfaceAreaGeometry(
-        coords, radius, mode, limit, true, loadTextures);
-
-    if (!res[0]) {
-
-        return this.core.once(
-            'map-update',
-            this.getSurfaceAreaGeometry.bind(
-                this, coords, radius, mode, limit, callback, loadTextures),
-            1);
-    }
-
-    var buffer = res[1], ret = [];
-
-    if (this.tree) {
-
-        this.storedTilesRes = [];
-        this.tree.storeGeometry(buffer, buffer.length);
-        ret = this.storedTilesRes;
-        this.storedTilesRes = [];
-    }
-
-    callback(ret);
-    return function() {};
 };
 
 

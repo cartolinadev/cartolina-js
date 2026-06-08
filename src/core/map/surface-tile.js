@@ -422,18 +422,6 @@ MapSurfaceTile.prototype.bboxVisible = function(id, bbox, cameraPos, node) {
     }
 };
 
-MapSurfaceTile.prototype.insideCone = function(coneVec, angle, node) {
-
-    if (this.map.isGeocent) { // && node.diskPos && node.diskNormal) {
-        var a = Math.acos(vec3.dot(coneVec, node.diskNormal));
-
-        return (a < angle + node.diskAngle2A);
-    }
-
-    return false;
-};
-
-
 MapSurfaceTile.prototype.getPixelSize = function(bbox, screenPixelSize, cameraPos, worldPos, returnDistance) {
     var min = bbox.min;
     var max = bbox.max;
@@ -766,4 +754,3 @@ MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null
 
 
 export default MapSurfaceTile;
-

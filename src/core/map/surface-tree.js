@@ -541,48 +541,6 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
 
 
 
-MapSurfaceTree.prototype.storeGeometry = function(array, length) {
-    var map = this.map;
-    var drawBuffer = array;
-    map.storedTilesRes = new Array(length);        
-
-    for (var i = length - 1; i >= 0; i--) {
-        var tile = drawBuffer[i];
-
-        if (tile.metanode && tile.surface && tile.metanode.hasGeometry() &&
-            tile.surfaceMesh && tile.surfaceMesh.isReady(true, 0, true)) {
-
-            var mesh = tile.surfaceMesh;
-            var submeshes = [];
-
-            for (var j = 0, lj = mesh.submeshes.length; j < lj; j++) {
-                var submesh = mesh.submeshes[j],
-                    vertices = submesh.vertices.slice(),
-                    min = submesh.bbox.min,
-                    max = submesh.bbox.max,
-                    delta = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-
-                for (var k = 0, lk = vertices.length; k < lk; k+=3) {
-                    vertices[k] = vertices[k]*delta[0] + min[0];
-                    vertices[k+1] = vertices[k+1]*delta[1] + min[1];
-                    vertices[k+2] = vertices[k+2]*delta[2] + min[2];
-                }
-
-                submeshes.push({ 
-                    "bbox": [min.slice(), max.slice()],
-                    "vertices" : vertices });
-            }
-
-            map.storedTilesRes[i] = {
-                "id": tile.id.slice(),
-                "type": "mesh",
-                "submeshes": submeshes
-            };
-        }
-    }
-};
-
-
 MapSurfaceTree.prototype.traceHeight = function(tile, params, nodeOnly) {
     if (!tile) {
         return;
@@ -870,68 +828,6 @@ MapSurfaceTree.prototype.getRenderedNodeById = function(id, drawCounter) {
 
     return;
 };
-
-
-MapSurfaceTree.prototype.chekTileMesh = function(tile) {
-    if (this.params.loadMeshes || this.params.loadTextures) {
-
-        var tmp = this.config.mapNoTextures;
-        this.config.mapNoTextures = !this.params.loadTextures;
-
-        //are resources ready? priority=0, preventRender=true, preventLoad=false, doNotCheckGpu=true
-        if (!this.map.draw.drawTiles.drawSurfaceTile(tile, tile.metanode, this.map.renderer.cameraPosition, tile.texelSize, 0, true, false, true)) {
-            this.params.loaded = false;
-        }
-
-        this.config.mapNoTextures = tmp;
-    }
-};
-
-
-MapSurfaceTree.prototype.traceAreaTiles = function(tile, priority, nodeReadyOnly) {
-    if (tile == null) {
-        return;
-    }
-
-    if (!tile.isMetanodeReady(this, 0) || nodeReadyOnly) {
-        this.params.loaded = false;
-        //console.log('(L)' + JSON.stringify(tile.id));
-        tile.isMetanodeReady(this, 0);
-        return;
-    }
-
-    tile.metanode.metatile.used();
-
-    if (tile.lastSurface && tile.lastSurface == tile.surface) {
-        tile.lastSurface = null;
-        tile.restoreLastState();
-        //return;
-    }
-
-    if (!tile.insideCone(this.params.coneVec, this.params.coneAngle, tile.metanode)) {
-        return;
-    }
-
-    var fit = (this.params.mode == 'lod') ? (tile.id[0] >= this.params.limit) : (tile.metanode.pixelSize <= this.params.limit);
-
-    if (fit) {
-        //console.log('(A)' + JSON.stringify(tile.id));
-        this.chekTileMesh(tile);
-        this.params.areaTiles.push(tile);
-        return;
-    }
-
-    if (!tile.metanode.hasChildren()) {
-        //console.log('(A)' + JSON.stringify(tile.id));
-        this.chekTileMesh(tile);
-        this.params.areaTiles.push(tile);
-    } else {
-        for (var i = 0; i < 4; i++) {
-            this.traceAreaTiles(tile.children[i], priority, nodeReadyOnly);
-        }
-    }
-};
-
 
 
 export default MapSurfaceTree;

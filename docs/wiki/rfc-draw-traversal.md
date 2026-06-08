@@ -1111,11 +1111,10 @@ override on `Map.overrides.terrainTraversal` (`'recursive' | 'legacy'
 `CoreConfig` (URL-configurable). The override wins when set; otherwise
 the config value is used; the default is `'recursive'`. When the
 resolved mode is `'recursive'`, terrain calls the TypeScript recursive
-traversal with the legacy tree as its data source; otherwise terrain
-continues through `legacyMap.tree.draw()` and the existing
-`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not
-use this switch. After validation, the switch and old terrain modes
-are removed.
+traversal; otherwise the validation-era path used the legacy
+`mapLoadMode` / `drawSurface*` methods. Geodata free layers do not use
+this switch. After validation, the switch and old terrain modes are
+removed.
 
 `TileRenderRig` is the terrain tile drawing backend used by the new
 traversal, not the gate that selects the traversal.
@@ -1558,21 +1557,21 @@ Implementation phases:
    `surfaceReference` field still rides the submesh wire format but is
    not consumed.
 
-   **Deferred — final step that closes this RFC.** `legacyMap.tree` (the
-   main tree) is kept in minimal form because it still backs the measure
-   control's area/volume trace (`MapMeasure.getSurfaceAreaGeometry` →
-   `MapSurfaceTree.traceAreaTiles`), `Map.storeGeometry`, and a stats
-   count. It is a single-surface tree now: the measure code binds its
-   `freeLayerSurface` to the front surface (`Map.surfaceList()` last
-   entry) before tracing. Removing it requires migrating those callers
-   onto the per-surface helper trees (`Map.surfaceTreesForQuery`), after
-   which `legacyMap.tree` can go. The legacy `gpu/shaders.js` `uClip[8]` /
-   `vClipCoord` tile clipping and the legacy tile draw-command programs
-   also remain, pending an audit of whether the kept `drawSurfaceFit` →
-   `processDrawBuffer` → `drawSurfaceTile` free-layer path still uses
-   them. The dead `noGrid` parameter in `processDrawBuffer` and the
-   write-only `gridSkipped` / `mapGridMode` overlay are smaller
-   candidates. The RFC stays open until `legacyMap.tree` is gone.
+   **Implemented (final main-tree removal).** The legacy volume measure
+   path was removed instead of migrated because it was the only remaining
+   caller that needed area mesh extraction from the old main tree, and it
+   was not correct for partial-coverage multi-surface terrain. Removed:
+   the Volume button and cut/fill computation from the legacy measure UI;
+   `Map.getSurfaceAreaGeometry`; `MapMeasure.getSurfaceAreaGeometry`;
+   `MapSurfaceTree.storeGeometry`, `traceAreaTiles`, and its mesh-readiness
+   helper; `MapSurfaceTile.insideCone`; the main-tree construction in
+   both map factories; and the `LegacyMap.tree` declaration / kill path.
+
+   The only remaining `MapSurfaceTree` users are per-surface helper trees
+   for recursive terrain queries and free-layer trees for geodata job
+   collection. The final checkpoint passed typecheck and the requested
+   render regressions: `simple-terrain`, `complex-terrain`,
+   `full-terrain`, and `legacy-benatky`.
 
    Manual checkpoint completed (2026-06-08, glue/virtual/alien teardown):
    `simple-terrain`, `complex-terrain`, `full-terrain`, and
@@ -1599,9 +1598,10 @@ surface types served by cartolina-tileserver, including spheroid
 surfaces and any path not covered by the DEM-based
 `metatileFromDemImpl`.
 
-**Per-surface mask pool (deferred).** The current design uses one
-`node_mask[depth]` that combines coverage from all surfaces. This
-produces a priority inversion in two related cases.
+**Per-surface mask pool (deferred indefinitely).** The current design
+uses one `node_mask[depth]` that combines coverage from all surfaces.
+This can produce a priority inversion in two related cases, but the
+known cases do not justify the complexity of per-surface mask pools.
 
 The first is a steady-state geometry case: at a dataset boundary seam
 tile, a back surface may have finer LOD children than the front surface
@@ -1622,17 +1622,19 @@ not only at dataset edges. It is transient — once the front surface's
 finer tiles load, they render normally — but it means lower-priority
 data may briefly appear where higher-priority data is still pending.
 
-Both cases share the same root cause and the same fix. Replace
-`node_mask[depth]` with per-surface `surface_mask[i][depth]` textures
-plus a per-node `claimed_mask[depth]` that accumulates front-to-back.
-Each surface samples its own `surface_mask[i]` (finer descendants) and
-`claimed_mask` (higher-priority coverage) independently. Pool grows to
-16 × (N + 1) + 1 textures; blit calls per inner node multiply by N.
+The direct fix would replace `node_mask[depth]` with per-surface
+`surface_mask[i][depth]` textures plus a per-node `claimed_mask[depth]`
+that accumulates front-to-back. Each surface would sample its own
+descendant mask and the higher-priority claimed mask independently.
+That would grow the pool to `16 * (N + 1) + 1` textures and multiply
+inner-node blit calls by surface count.
 
-Implement after the single-surface path is validated. Validation should
-include a progressive-loading multi-surface case and a seam case before
-the legacy draw path is removed, to establish whether these effects are
-visible in practice.
+That design is deferred indefinitely. The current mask pool is already a
+large piece of the renderer, and adding per-surface masks would increase
+state, memory, and pass orchestration for edge cases that have not been
+shown to affect current test scenes. Revisit only if a measured
+multi-surface regression demonstrates that the existing combined mask
+cannot be kept.
 
 ## Review round 1
 

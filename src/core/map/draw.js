@@ -15,7 +15,6 @@ var MapDraw = function(map) {
     this.renderer = map.renderer;
     this.stats = map.stats;
     this.camera = map.camera;
-    this.tree = map.tree;
 
     this.ndcToScreenPixel = 1.0;
 

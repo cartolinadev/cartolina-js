@@ -1,6 +1,6 @@
 # RFC: event bus — extraction and redesign
 
-**Status:** Accepted — ready to implement
+**Status:** In review
 **Context:** event bus section in [architecture.md](architecture.md);
 `core.js` suppression track in [backlog.md](backlog.md)
 
@@ -19,8 +19,8 @@ implementation:
 
 - `Core.once()` does not forward the unsubscribe function returned by
   `Core.on()`. Every call site expecting a cancellation token gets
-  `undefined`. `LegacyMap.getSurfaceAreaGeometry()` relies on this
-  return value and silently cannot cancel its retry listener.
+  `undefined`; the public API contract should match `on()` and return a
+  usable unsubscribe closure.
 - `Browser.kill()` registers listeners at construction but stores no
   unsubscribe closures and removes none. After `kill()`, those listeners
   remain in the array and dispatch into dead callbacks until `Core` is
@@ -36,8 +36,9 @@ implementation:
   listeners across many event types, each high-frequency `tick` emit
   visits every record regardless of how many are `tick` listeners.
 - The `wait` mechanism — an integer countdown that skips the first N
-  firings — is an undocumented workaround with two known call sites that
-  each require separate analysis before removal.
+  firings — is an undocumented compatibility surface. The known source
+  call sites were removed with the legacy volume measurement path, so
+  no current caller depends on it.
 
 ### Where the bus should live after Core is gone
 
@@ -113,35 +114,12 @@ record. For each firing of the named event while `wait > 0`, the counter
 decrements and the listener is skipped. It fires on the next event after
 the counter reaches zero.
 
-There are two call sites.
-
-**`LegacyMap.getSurfaceAreaGeometry()`** registers
-`once('map-update', retry, 1)` when tile meshes are not yet loaded.
-The `wait=1` skips one `map-update`. The reason: this call often
-originates from inside a `map-update` handler. The current
-`callListener` iterates the live `listeners` array, so a record
-appended mid-iteration would be visited in the same pass — delivering
-the retry on the update that just reported the data was missing.
-
-Any bus that snapshots the active listener set at the start of each emit
-makes this impossible: a listener registered during event X cannot
-receive event X. `wait=1` is then unnecessary, and the call site
-simplifies to `once('map-update', retry)`.
-
-**`measure.js` (`src/browser/ui/control/measure.js:612, 620`)** uses
-`once('tick', traceVolumeLine, 1)` to spread a volume calculation across
-frames. `traceVolumeLine` is a step function that reschedules itself each
-time it runs. Tracing the execution with the current live-array dispatch:
-`traceVolumeLine` fires on tick N and registers `once('tick',
-traceVolumeLine, 1)`. `callListener` continues iterating, finds the new
-record mid-pass, decrements `wait` from 1 to 0, and skips it without
-firing. On tick N+1 the record fires. The computation runs once per tick.
-
-With snapshot dispatch and no `wait`: the reschedule registration is not
-in the snapshot, so tick N ends without a second call. Tick N+1 fires.
-Same once-per-tick rate. `wait=1` at both call sites is the
-mid-dispatch workaround — not a rate limiter — and can be removed
-alongside `getSurfaceAreaGeometry`.
+No current source call site passes the third `wait` argument. The two
+known users, `LegacyMap.getSurfaceAreaGeometry()` and the measure UI's
+volume `traceVolumeLine` loop, were removed with the legacy volume
+measurement path during the draw-traversal rollout. The event-bus
+implementation can therefore remove `wait` without preserving a
+compatibility branch for live code.
 
 ---
 
@@ -459,10 +437,8 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
   the `Browser.callListener` → `Core.callListener` reach-through.
 - The dead `positionchanged` subscription in `explore-bar.js` is removed.
 - `wait` is removed from `Core.once`, `Map.once`, and `Viewer.once`.
-  Both `getSurfaceAreaGeometry` and the `measure.js` `traceVolumeLine`
-  reschedule are updated to use `once` without `wait`. Both use `wait=1`
-  only as a mid-dispatch workaround; snapshot dispatch makes it
-  unnecessary at both sites without changing computation rate.
+  No source call site passes the third argument after the legacy volume
+  measurement path was removed.
 
 ---
 
@@ -484,8 +460,7 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
    Replace `this.core.callListener(...)` call sites with
    `this.bus.emit(...)`.
 6. Remove `wait` from `Core.once`, `Map.once`, `Viewer.once`.
-   Update `getSurfaceAreaGeometry` and `measure.js` `traceVolumeLine`
-   to use `once` without `wait`.
+   No source call site currently passes `wait`.
 7. Reroute all `Browser.callListener(...)` emission sites through
    `map.emit(...)`.
 8. Fix `Browser.kill()` to store and drain all unsubscribe closures.
@@ -647,3 +622,18 @@ cleanup comments, not design blockers.
 
   *Author: open question closed. Step 2 commits to the rename; no
   further confirmation needed.*
+
+---
+
+## Review round 4 — requested
+
+The legacy volume measurement path was removed during the
+draw-traversal rollout. That deleted the two known source call sites
+that passed the third `wait` argument to `once`: the
+`getSurfaceAreaGeometry()` retry and the measure UI's `traceVolumeLine`
+loop.
+
+This update changes the status back to `In review` because the accepted
+RFC body changed after sign-off. The design still removes `wait`; the
+implementation no longer needs to update those call sites because they
+no longer exist.
