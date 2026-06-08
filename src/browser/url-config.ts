@@ -48,7 +48,6 @@ const BOOLEAN_KEYS = new Set([
     'timeNormalizedInertia',
     'bigScreenMargins',
     'walkMode',
-    'mapVirtualSurfaces',
     'map16bitMeshes',
     'inspector',
     'mapMobileMode',

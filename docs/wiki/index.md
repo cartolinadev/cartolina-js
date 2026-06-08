@@ -120,12 +120,14 @@ then branch into more specific documents as needed.
   conversion, geodata draping), the v1–v3 height-range propagation
   path, the legacy grid-fallback relationship, and dead code
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
-  and the legacy `virtualSurfaces` mapConfig concept
+  and the legacy `virtualSurfaces` mapConfig concept (client
+  implementation removed 2026-06-08; retained as a server-side concept)
 - [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md) —
   VTS storage layout, the aggregated tileset driver, how virtual surfaces
   are built and served, and the two-generation history of the alien flag
 - [glue-alien-flag.md](glue-alien-flag.md) — the `isAlien` flag in
-  `surfaceSequence` and why it is currently vestigial
+  `surfaceSequence` (client implementation removed 2026-06-08; retained
+  as a record of the VTS concept)
 - [vts-vtsd-archeology.md](vts-vtsd-archeology.md) — how vts-vtsd serves
   stored tilesets (delivery only, no transcoding), where the watertight
   information lives, and the `vts --reencode` process that upgrades a

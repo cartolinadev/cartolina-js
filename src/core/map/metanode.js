@@ -14,7 +14,6 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     this.map = metatile.map;
     this.id = id;
     this.credits = [];
-    this.alien = false;
     this.watertight = false;
     this.ready = false;
     this.heightReady = false;
@@ -233,8 +232,7 @@ struct Metanode {
     }
 
     this.heightReady = this.hasNavtile();
-    
-    this.alien = false;
+
     this.watertight = false;
 
     //var nodeSize2 = stream.index - lastIndex;

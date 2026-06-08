@@ -1519,23 +1519,61 @@ Implementation phases:
    `RendererGeometry.buildPlane`, and the `planeVertexShader` /
    `planeFragmentShader` / `quadPoint` GLSL.
 
-   **Deferred to a follow-up.** The glue / virtual-surface / alien-flag
-   teardown (`createVirtualMetanode`, the alien flag, `MapVirtualSurface`,
-   `sourceReference` rendering, glue-entry generation in
-   `surface-sequence.ts`) is not removed: it is still entangled with
-   `surfaceSequence`, which the recursive path reads as the terrain gate,
-   and with tile-processing code shared by the kept geodata path. The
-   legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord` tile clipping and the
-   legacy tile draw-command programs also stay, pending a separate audit of
-   whether the kept `drawSurfaceFit` → `processDrawBuffer` →
-   `drawSurfaceTile` free-layer path still uses them. The dead `noGrid`
-   parameter in `processDrawBuffer` and the now-write-only `gridSkipped` /
-   `mapGridMode` overlay are smaller follow-up candidates.
+   **Implemented (glue / virtual-surface / alien-flag teardown).** The
+   client no longer models glues, virtual surfaces, or the alien flag.
+   Removed:
 
-   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
-   `full-terrain`, and `legacy-benatky` render with no regression on a
-   fresh webpack server; `complex-terrain` geodata labels and the benatky
-   multi-surface scene match production.
+   - `MapVirtualSurface` (`virtual-surface.js` deleted) and its
+     `sourceReference` redirection; `MapConfig.parseVirtualSurfaces` /
+     `parseGlues`; `Map.glues` / `Map.virtualSurfaces`, `addGlue` /
+     `getGlue`; the `mapVirtualSurfaces` config key (core.js, map.js,
+     url-config.ts); `style.ts` no longer initializes those maps.
+   - `surface.glue` and `surface.virtual` flags, the glue
+     `surfaceReference` array, and `MapSurface.getSurfaceReference`.
+   - `MapSurfaceTile.createVirtualMetanode` and `isVirtualMetanodeReady`;
+     the `virtual` / `virtualSurfaces` / `virtualSurfacesUncomplete`
+     tile state; the `surface.virtual` / `sourceReference` branch in
+     `isMetanodeReady`.
+   - the per-node `alien` flag (`metanode.js`) and its metatile bitplane
+     consumer (`metatile.js` keeps only the watertight bitplane); the
+     `[A]` debug overlay in `draw-tiles.js`.
+   - glue entry / proper-alien generation in `surface-sequence.ts`:
+     `generateSurfaceSequence` now builds only the plain-surface list
+     (back-to-front) plus free-layer setup; `generateBoundLayerSequence`
+     stays for map-config bound-layer styling.
+   - the `glueImagery` / `glueImageryCredits` credit plumbing
+     (`map.js`, `surface-tile.js`, `draw-tiles.js`, `map.ts`,
+     `map.d.ts`).
+
+   `MapSurfaceTile.checkSurface` no longer does a multi-surface merge:
+   for a helper / free-layer tree it binds the tile to the tree's single
+   `freeLayerSurface`; for the kept main tree it picks the front-most
+   plain surface in `surfaceSequence` that has the tile. The
+   `surfaceReference` field still rides the submesh wire format but is no
+   longer consumed.
+
+   **Deferred — final step that closes this RFC.** `legacyMap.tree` (the
+   main multi-surface tree) is kept in minimal form because it still
+   backs the measure control's area/volume trace
+   (`MapMeasure.getSurfaceAreaGeometry` → `MapSurfaceTree.traceAreaTiles`),
+   `Map.storeGeometry`, and a stats count. Removing it requires migrating
+   those onto the per-surface helper trees
+   (`Map.surfaceTreesForQuery`), after which `legacyMap.tree`,
+   `tree.surfaceSequence`, and the slimmed `generateSurfaceSequence`
+   plain-surface build can go. The legacy `gpu/shaders.js` `uClip[8]` /
+   `vClipCoord` tile clipping and the legacy tile draw-command programs
+   also remain, pending an audit of whether the kept `drawSurfaceFit` →
+   `processDrawBuffer` → `drawSurfaceTile` free-layer path still uses
+   them. The dead `noGrid` parameter in `processDrawBuffer` and the
+   write-only `gridSkipped` / `mapGridMode` overlay are smaller
+   candidates. The RFC stays open until `legacyMap.tree` is gone.
+
+   Manual checkpoint completed (2026-06-08, glue/virtual/alien teardown):
+   `simple-terrain`, `complex-terrain`, `full-terrain`, and
+   `legacy-benatky` render with no console or network errors on a fresh
+   webpack server; the benatky multi-surface scene is visually
+   indistinguishable from production, and its imagery credits still
+   populate after the `glueImagery` removal.
 
 ---
 

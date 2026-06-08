@@ -6,7 +6,6 @@ import MapView from './view';
 import MapSrs_ from './srs';
 import MapBody_ from './body';
 import MapSurface_ from './surface';
-import MapVirtualSurface_ from './virtual-surface';
 import MapStylesheet_ from './stylesheet';
 
 //get rid of compiler mess
@@ -14,7 +13,6 @@ var MapCredit = MapCredit_;
 var MapSrs = MapSrs_;
 var MapBody = MapBody_;
 var MapSurface = MapSurface_;
-var MapVirtualSurface = MapVirtualSurface_;
 var MapStylesheet = MapStylesheet_;
 
 
@@ -27,9 +25,8 @@ var MapConfig = function(map, config) {
 
 MapConfig.prototype.parseConfig = function() {
     if (!(this.parseSrses() && this.parseBodies() && this.parseReferenceFrame() &&
-          this.parseCredits() && this.parseStylesheets() && 
-          this.parseSurfaces() && this.parseGlues() && 
-          this.parseVirtualSurfaces() && this.parseBoundLayers() &&
+          this.parseCredits() && this.parseStylesheets() &&
+          this.parseSurfaces() && this.parseBoundLayers() &&
           this.parseFreeLayers() && this.parseViews() &&
           this.parseParams() && this.parseBrowserOptions() &&
           this.parseServices())) {
@@ -142,27 +139,6 @@ MapConfig.prototype.parseSurfaces = function() {
 };
 
 
-MapConfig.prototype.parseVirtualSurfaces = function() {
-    var surfaces = this.mapConfig['virtualSurfaces'];
-    this.map.virtualSurfaces = [];
-
-    if (!this.map.config.mapVirtualSurfaces) {
-        return true;
-    }
-
-    if (surfaces == null) {
-        return true;
-    }
-
-    for (var i = 0, li = surfaces.length; i < li; i++) {
-        var surface = new MapVirtualSurface(this.map, surfaces[i]);
-        this.map.virtualSurfaces[surface.strId] = surface;
-    }
-
-    return true;
-};
-
-
 MapConfig.prototype.parseViews = function() {
     var views = this.mapConfig['namedViews'];
     this.map.namedViews = [];
@@ -186,23 +162,6 @@ MapConfig.prototype.parseViews = function() {
     view = new MapView(this.map, view, true);
 
     this.map.initialView = view.getInfo();
-    return true;
-};
-
-
-MapConfig.prototype.parseGlues = function() {
-    var glues = this.mapConfig['glue'];
-    this.map.glues = [];
-
-    if (glues == null) {
-        return true;
-    }
-
-    for (var i = 0, li = glues.length; i < li; i++) {
-        var surface = new MapSurface(this.map, glues[i], 'glue');
-        this.map.addGlue(surface.id.join(';'), surface);
-    }
-
     return true;
 };
 

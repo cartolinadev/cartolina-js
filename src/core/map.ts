@@ -126,9 +126,9 @@ class Map {
      * Per-surface helper trees used by the recursive draw traversal
      * (rfc-draw-traversal.md §2.1). Keyed by surface id. Each tree is
      * a single-surface `MapSurfaceTree` constructed with the surface
-     * as its `freeLayerSurface`, which makes every tile auto-select
-     * that surface and avoids the legacy multi-surface merge in
-     * `MapSurfaceTile.checkSurface`. The cache is refreshed against
+     * as its `freeLayerSurface`, which makes every tile bind directly
+     * to that surface in `MapSurfaceTile.checkSurface`. The cache is
+     * refreshed against
      * the current `surfaceList()` on every draw; entries for surfaces
      * that have left the view are dropped.
      */
@@ -1072,7 +1072,7 @@ class Map {
         if (this.drawChannel !== 'depth') {
 
             legacyMap.visibleCredits = {
-                imagery: {}, glueImagery: {}, mapdata: {},
+                imagery: {}, mapdata: {},
             };
         }
 
@@ -1237,8 +1237,8 @@ class Map {
         } else {
 
             // Map-config maps: the active view names plain surfaces by
-            // id. `legacyMap.virtualSurfaces` and `legacyMap.glues`
-            // are kept out of the recursive path entirely.
+            // id. Glues and virtual surfaces no longer exist on the
+            // client, so the view's surface keys are the full set.
             const view = legacyMap.getCurrentView();
             const byId = (key: string): MapSurface | undefined =>
                 legacyMap.surfaces.find(
@@ -1277,10 +1277,9 @@ class Map {
             if (!surfaceTree) {
 
                 // Construct a single-surface tree by passing the
-                // surface as `freeLayerSurface`. This short-circuits
-                // the multi-surface logic in `checkSurface` and gives
-                // each tile in the tree direct, per-surface metatile
-                // lookups.
+                // surface as `freeLayerSurface`. `checkSurface` then
+                // binds every tile directly to that surface, giving the
+                // tree direct, per-surface metatile lookups.
                 surfaceTree = new MapSurfaceTree(legacyMap, true, surface);
                 cache.set(id, surfaceTree);
             }

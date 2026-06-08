@@ -41,7 +41,6 @@ var Core = function(element, config) {
         mapMobileDetailDegradation : 0,
         mapNavSamplesPerViewExtent : 4,
         mapIgnoreNavtiles : false,
-        mapVirtualSurfaces : true,
         mapAllowHires : true,
         mapAllowLowres : true,
         mapAllowSmartSwitching : true,
@@ -528,8 +527,6 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.map = utils.validateString(value, null); break;
     case 'style':
         this.config.style = utils.validateString(value, null); break;
-    case 'mapVirtualSurfaces':
-        this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
     case 'mapShadingLambertian':
         this.config.mapShadingLambertian = utils.validateBool(value, true); break;
     case 'mapShadingSlope':

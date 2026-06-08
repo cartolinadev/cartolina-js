@@ -83,10 +83,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 // -- tile-render-rig integration - start
 
                 if (!tile.surfaceMesh) {
-                    // resourceSurface unresolved from virtual surface —
-                    // no mesh URL available, skip tile.
-                    if (tile.resourceSurface.virtual) return true;
-
                     let path = tile.resourceSurface.getMeshUrl(tile.id);
                     tile.surfaceMesh = tile.resources.getMesh(path, tile);
                 }
@@ -142,10 +138,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 for (let i = 0; i < surfaceMesh.submeshes.length; i++) {
 
                     var submeshSurface = tile.resourceSurface;
-
-                    if (tile.resourceSurface.glue)
-                        submeshSurface = tile.resourceSurface.getSurfaceReference(
-                            surfaceMesh.submeshes[i].surfaceReference);
 
                     // we are either drawing the tile for the first time, or
                     // there has been a boundlayer fallback, or a view
@@ -441,7 +433,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
 
     //draw face count
     if (debug.drawFaceCount && mesh) {
-        text = '' + mesh.faces + ' - ' + mesh.submeshes.length + ((tile.surface && tile.surface.glue) ? ' - 1' : ' - 0');
+        text = '' + mesh.faces + ' - ' + mesh.submeshes.length;
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, [0,1,0,1], pos[2]);
     }
 
@@ -463,10 +455,6 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
             c = [1,1,1,1];
         }
 
-        if (node.alien) {
-            text = '[A]' + text;
-        }
-
         this.drawText(Math.round(pos[0]-this.getTextSize(4*factor, text)*0.5), Math.round(pos[1]+10*factor), 4*factor, text, c, pos[2]);
     }
 
@@ -476,13 +464,6 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         for (var key in tile.imageryCredits) {
             if (tile.imageryCredits[key]) {
                 text += key + ':' + tile.imageryCredits[key] + ', ';
-            }
-        }
-
-        for (key in tile.glueImageryCredits) {
-            if (!tile.imageryCredits[key]) {
-                text += key + ':' + tile.glueImageryCredits[key] + ', ';
-                //text += key + ", ";
             }
         }
 

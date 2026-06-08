@@ -456,8 +456,6 @@ export class MapStyle {
         map.bodies = {}
         map.credits = {}
         map.surfaces = []
-        map.virtualSurfaces = {}
-        map.glues = {}
         map.freeLayers = {}
         map.boundLayers = {}
         map.stylesheets = {}

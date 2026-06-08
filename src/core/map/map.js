@@ -48,8 +48,6 @@ var Map = function(core, path, config, configStorage) {
     this.credits = {};
     this.creditsByNumber = {};
     this.surfaces = [];
-    this.virtualSurfaces = {};
-    this.glues = {};
     this.freeLayers = {};
     this.boundLayers = {};
     this.stylesheets = {};
@@ -77,7 +75,6 @@ var Map = function(core, path, config, configStorage) {
 
     this.visibleCredits = {
         imagery : {},
-        glueImagery : {},
         mapdata : {}
     };
     
@@ -251,20 +248,11 @@ Map.prototype.getCredits = function() {
 
 Map.prototype.getVisibleCredits = function() {
     var imagery = this.visibleCredits.imagery;
-    var glueImagery = this.visibleCredits.glueImagery;
-    var imageryArray = []; 
+    var imageryArray = [];
     var imagerySpecificity = [];
     var i, li, t, sorted;
 
-    for (var key in glueImagery) {
-        if (!imagery[key]) {
-            imagery[key] = glueImagery[key];
-        }
-    }
-    
-    this.visibleCredits.glueImagery = {};
-    
-    for (key in imagery) {
+    for (var key in imagery) {
         imageryArray.push(key);
         imagerySpecificity.push(imagery[key]); 
     }
@@ -339,16 +327,6 @@ Map.prototype.getSurfaces = function() {
         keys.push(this.surfaces[i].id);
     }
     return keys;
-};
-
-
-Map.prototype.addGlue = function(id, glue) {
-    this.glues[id] = glue;
-};
-
-
-Map.prototype.getGlue = function(id) {
-    return this.glues[id];
 };
 
 
@@ -1210,7 +1188,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapPreciseBBoxTest':            this.config.mapPreciseBBoxTest = utils.validateBool(value, true); break;
     case 'mapPreciseDistanceTest':        this.config.mapPreciseDistanceTest = utils.validateBool(value, false); break;
     case 'mapForceMetatileV3':            this.config.mapForceMetatileV3 = utils.validateBool(value, false); break;
-    case 'mapVirtualSurfaces':            this.config.mapVirtualSurfaces = utils.validateBool(value, true); break;
     case 'mapDegradeHorizon':             this.config.mapDegradeHorizon = utils.validateBool(value, true); break;
     case 'mapDegradeHorizonParams':       this.config.mapDegradeHorizonParams = utils.validateNumberArray(value, 4, [0,1,1,1], [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE], [1, 3000, 15000, 7000]); break;
     case 'mapRefreshCycles':              this.config.mapRefreshCycles = utils.validateNumber(value, 0, Number.MAXINTEGER, 3); break;
@@ -1310,7 +1287,6 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapPreciseBBoxTest':            return this.config.mapPreciseBBoxTest;
     case 'mapPreciseDistanceTest':        return this.config.mapPreciseDistanceTest;
     case 'mapForceMetatileV3':            return this.config.mapForceMetatileV3;
-    case 'mapVirtualSurfaces':            return this.config.mapVirtualSurfaces;
     case 'mapDegradeHorizon':             return this.config.mapDegradeHorizon;
     case 'mapDegradeHorizonParams':       return this.config.mapDegradeHorizonParams;
     case 'mapRefreshCycles':              return this.config.mapRefreshCycles;
@@ -1651,16 +1627,6 @@ Map.prototype.applyCredits = function(tile) {
             this.visibleCredits.imagery[key] = value > value2 ? value : value2;
         } else {
             this.visibleCredits.imagery[key] = value;
-        }
-    }
-    for (key in tile.glueImageryCredits) {
-        value = tile.glueImageryCredits[key];
-        value2 = this.visibleCredits.imagery[key];
-
-        if (value2) {
-            this.visibleCredits.glueImagery[key] = value > value2 ? value : value2;
-        } else {
-            this.visibleCredits.glueImagery[key] = value;
         }
     }
     for (key in tile.mapdataCredits) {

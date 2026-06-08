@@ -700,16 +700,15 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
         params.bestHeightMap = tile.id[0];
 
         if (!tile.heightMap) {
-            //if (!preventLoad) {
-                //if (!tile.surface || tile.surface.virtual) {
-            if (!tile.surface || !tile.resourceSurface) { //surface.virtual) {
+
+            if (!tile.surface || !tile.resourceSurface) {
                 return false; //is it best way how to do it?
             }
-                
-            if (!tile.resourceSurface.getNavUrl) { //virtual surface is as resource surface. Is it bug??!!
+
+            if (!tile.resourceSurface.getNavUrl) {
                 return false; //is it best way how to do it?
             }
-                
+
             var path = tile.resourceSurface.getNavUrl(tile.id);
             tile.heightMap = tile.resources.getTexture(path, true);
             //}

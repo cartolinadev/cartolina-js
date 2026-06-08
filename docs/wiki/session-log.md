@@ -1,5 +1,37 @@
 # Session log
 
+## 2026-06-08 — draw traversal: glue / virtual-surface / alien teardown
+
+Step 8 continued: removed the client-side glue, virtual-surface, and
+alien-flag machinery — the last large body of legacy multi-surface code.
+The recursive terrain traversal already rendered plain surfaces directly
+via mask compositing, so glues and virtual surfaces were unconsumed by
+the draw path; this session deleted the loading and the remaining
+tile-processing that still modeled them.
+
+Removed: `MapVirtualSurface` (`virtual-surface.js`) and `sourceReference`
+redirection; `MapConfig.parseVirtualSurfaces` / `parseGlues`;
+`Map.glues` / `virtualSurfaces`, `addGlue` / `getGlue`; the
+`mapVirtualSurfaces` config key; `surface.glue` / `surface.virtual` flags
+and `getSurfaceReference`; `MapSurfaceTile.createVirtualMetanode` /
+`isVirtualMetanodeReady` and the `virtual*` tile state; the per-node
+`alien` flag and its metatile bitplane consumer; glue entry generation in
+`surface-sequence.ts` (kept the plain-surface + free-layer build and
+`generateBoundLayerSequence`); and the `glueImagery` credit plumbing.
+
+`checkSurface` is now a plain selector: helper / free-layer trees bind to
+their single `freeLayerSurface`; the kept main tree picks the front-most
+plain surface in `surfaceSequence`.
+
+Kept by decision: a minimal `legacyMap.tree`, because the measure
+control's area/volume trace, `storeGeometry`, and a stats count still
+use it. Its full removal is the final step that closes the RFC and was
+deferred per the user. Typecheck clean; fresh webpack build with no
+errors; `simple-terrain`, `complex-terrain`, `full-terrain`, and
+`legacy-benatky` render with no console/network errors. Benatky (the old
+glue scene) is visually indistinguishable from production through pure
+mask compositing, and imagery credits still populate.
+
 ## 2026-06-08 — draw traversal: remove grid fallback + plane subsystem
 
 Follow-up to the step-8 core removal, same day. Established that the

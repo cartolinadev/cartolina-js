@@ -49,17 +49,13 @@ var MapSurfaceTile = function(map, parent, id) {
     this.lastMetanode = null;
     this.boundmetaresources = null; //link to bound layers metatile storage
 
-    this.surface = null; //surface or glue
+    this.surface = null;
     this.surfaceMesh = null;
     this.surfaceGeodata = null;     //probably only used in free layers
     this.surfaceGeodataView = null; //probably only used in free layers
     this.surfaceTextures = [];
     this.resourceSurface = null; //surface directing to resources
 
-    this.virtual = false;
-    this.virtualReady = false;
-    this.virtualSurfaces = [];
-    
     this.resetDrawCommands = false;
     this.drawCommands = [[], [], []];
 
@@ -72,7 +68,6 @@ var MapSurfaceTile = function(map, parent, id) {
     this.heightMap = null;
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
-    this.glueImageryCredits = {};
     this.mapdataCredits = {};
     
     this.resources = this.map.resourcesTree.findNode(id, true);   // link to resource tree
@@ -111,10 +106,6 @@ MapSurfaceTile.prototype.kill = function() {
     this.boundTextures = {};
     this.updateBounds = true;
 
-    this.virtual = false;
-    this.virtualReady = false;
-    this.virtualSurfaces = [];
-
     //this.renderReady = false;
     this.lastSurface = null;
     this.lastState = null;
@@ -123,7 +114,6 @@ MapSurfaceTile.prototype.kill = function() {
     this.heightMap = null;
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
-    this.glueImageryCredits = {};
     this.mapdataCredits = {};
 
     this.verifyChildren = false;
@@ -168,7 +158,7 @@ MapSurfaceTile.prototype.viewSwitched = function() {
     this.verifyChildren = true;
     //this.renderReady = false;
     this.lastMetanode = this.metanode;
-    this.metanode = null; //quick hack for switching virtual surfaeces //keep old value for smart switching
+    this.metanode = null; //keep old value for smart view switching
 
     if (!this.map.config.mapSoftViewSwitch) {
 
@@ -207,15 +197,9 @@ MapSurfaceTile.prototype.viewSwitched = function() {
     this.surfaceGeodata = null;
     this.surfaceGeodataView = null;
     this.resourceSurface = null;
-    
-    this.virtual = false;
-    this.virtualReady = false;
-    this.virtualSurfaces = [];
-    this.virtualSurfacesUncomplete = false;
-    
+
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
-    this.glueImageryCredits = {};
     this.mapdataCredits = {};
 };
 
@@ -284,28 +268,22 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
     }
         
     if (!preventLoad) {
-   
+
         //provide surface for tile
-        if (this.virtualSurfacesUncomplete || (this.surface == null && this.virtualSurfaces.length == 0) ) { //|| this.virtualSurfacesUncomplete) {
+        if (this.surface == null) {
             this.checkSurface(tree, priority);
         }
-   
+
         //provide metanode for tile
         if (this.metanode == null || this.lastMetanode) {
-            
-            if (!this.virtualSurfacesUncomplete) {
-                var ret = this.checkMetanode(tree, priority);
-                
-                if (!ret && !(this.metanode != null && this.lastMetanode)) { //metanode is not ready yet
-                    return false;
-                }
+
+            var ret = this.checkMetanode(tree, priority);
+
+            if (!ret && !(this.metanode != null && this.lastMetanode)) {
+                //metanode is not ready yet
+                return false;
             }
-            
-            /*if (this.lastMetanode) {
-                processFlag2 = true;
-            }*/
         }
-        
     }
 
     if (this.metanode == null) { // || processFlag3) { //only for wrong data
@@ -321,19 +299,7 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
     }
 
     if (this.surface) {
-        if (this.surface.virtual) {
-            this.resourceSurface = this.surface.getSurface(this.metanode.sourceReference);
-            if (!this.resourceSurface) {
-                console.warn('Virtual surface sourceReference %d not found'
-                    + ' in mapping for surface %s — tile %s will be'
-                    + ' skipped.',
-                    this.metanode.sourceReference,
-                    this.surface.id, this.id);
-                this.resourceSurface = this.surface;
-            }
-        } else {
-            this.resourceSurface = this.surface;
-        }
+        this.resourceSurface = this.surface;
     }
 
     var renderer = this.map.renderer;
@@ -381,87 +347,30 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
 
 MapSurfaceTile.prototype.checkSurface = function(tree, priority) {
     this.surface = null;
-    this.virtual = false;
-    this.virtualReady = false;
-    this.virtualSurfaces = [];
-    this.virtualSurfacesUncomplete = false;
-    
+
     if (tree.freeLayerSurface) {  //free layer has only one surface
         this.surface = tree.freeLayerSurface;
-        return; 
+        return;
     }
 
+    // Main multi-surface tree, kept only for area/height queries: pick
+    // the front-most plain surface that has geometry at this tile. The
+    // surface sequence is back-to-front, so iterate from the last index.
     var sequence = tree.surfaceSequence;
 
-    //multiple surfaces
-    //build virtual surfaces array
-    //find surfaces with content
-    for (var i = 0, li = sequence.length; i < li; i++) {
+    for (var i = sequence.length - 1; i >= 0; i--) {
+
         var surface = sequence[i][0];
-        var alien = sequence[i][1];
 
-        var res = surface.hasTile2(this.id);
-        if (res[0]) {
-            
-            //check if tile exist
-            if (this.id[0] > 0) { //surface.lodRange[0]) {
-                // removed for debug !!!!!
-                // ????????
-                var parent = this.parent;
-                if (parent) { 
-                    
-                    if (parent.virtualSurfacesUncomplete) {
-                        this.virtualSurfacesUncomplete = true;
-                        this.virtualSurfaces = [];
-                        return;
-                    }
-                    
-                    var metatile = parent.metaresources.getMetatile(surface, null, this);
-                    if (metatile) {
-                        
-                        if (!metatile.isReady(priority)) {
-                            this.virtualSurfacesUncomplete = true;
-                            continue;
-                        }
-                        
-                        var node = metatile.getNode(parent.id);
-                        if (node) {
-                            if (!node.hasChildById(this.id)) {
-                                continue;
-                            }
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-            }
-    
-            //store surface
-            this.virtualSurfaces.push([surface, alien]);        
+        if (surface.hasTile2(this.id)[0]) {
+            this.surface = surface;
+            return;
         }
-    }
-
-    if (this.virtualSurfaces.length > 1) {
-        this.virtual = true;
-    } else {
-        this.surface = (this.virtualSurfaces[0]) ? this.virtualSurfaces[0][0] : null;
     }
 };
 
 
 MapSurfaceTile.prototype.checkMetanode = function(tree, priority) {
-    if (this.virtual) {
-        if (this.isVirtualMetanodeReady(tree, priority)) {
-            this.metanode = this.createVirtualMetanode(tree, priority);
-            this.lastMetanode = null;
-            this.map.markDirty();
-        } else {
-            return false;
-        }
-    }
-
     var surface = this.surface;
 
     if (surface == null) {
@@ -472,16 +381,14 @@ MapSurfaceTile.prototype.checkMetanode = function(tree, priority) {
 
     if (metatile.isReady(priority)) {
 
-        if (!this.virtual) {
-            this.metanode = metatile.getNode(this.id);
-            this.lastMetanode = null;
-            this.map.markDirty(); 
-        }
+        this.metanode = metatile.getNode(this.id);
+        this.lastMetanode = null;
+        this.map.markDirty();
 
         if (this.metanode != null) {
             this.metanode.tile = this; //used only for validate
             this.lastMetanode = null;
-            this.map.markDirty(); 
+            this.map.markDirty();
 
             for (var i = 0; i < 4; i++) {
                 if (this.metanode.hasChild(i)) {
@@ -495,132 +402,8 @@ MapSurfaceTile.prototype.checkMetanode = function(tree, priority) {
     } else {
         return false;
     }
-    
+
     return true;
-};
-
-
-MapSurfaceTile.prototype.isVirtualMetanodeReady = function(tree, priority) {
-    var surfaces = this.virtualSurfaces;
-    var readyCount = 0;
-
-    for (var i = 0, li = surfaces.length; i < li; i++) {
-        var surface = surfaces[i][0];
-        var metatile = this.metaresources.getMetatile(surface, true, this);
-
-        if (metatile.isReady(priority)) {
-            readyCount++;
-        }
-    }
-    
-    if (readyCount == li) {
-        return true;        
-    } else {
-        return false;
-    }
-};
-
-
-MapSurfaceTile.prototype.createVirtualMetanode = function(tree, priority) {
-    var surfaces = this.virtualSurfaces;
-    var node = null, i, li, surface, metatile, metanode;
-
-    //get top most existing surface
-    for (i = 0, li = surfaces.length; i < li; i++) {
-        surface = surfaces[i][0];
-        var alien = surfaces[i][1];
-        metatile = this.metaresources.getMetatile(surface, null, this);
-
-        if (metatile.isReady(priority)) {
-            metanode = metatile.getNode(this.id);
-
-            if (metanode != null) {
-                if (alien != metanode.alien) {
-                    continue;
-                }
-
-                //does metanode have surface reference?
-                //internalTextureCount is reference to surface
-                if (!alien && surface.glue && !metanode.hasGeometry() &&
-                    metanode.internalTextureCount > 0) {
-                    
-                    var desiredSurfaceIndex = metanode.internalTextureCount - 1;
-                    desiredSurfaceIndex = this.map.getSurface(surface.id[desiredSurfaceIndex]).viewSurfaceIndex;
-                    
-                    var jump = false; 
-                        
-                    for (var j = i; j < li; j++) {
-                        if (surfaces[j].viewSurfaceIndex <= desiredSurfaceIndex) {
-                            jump = (j > i);
-                            i = j - 1;
-                            break;
-                        }
-                    }
-                    
-                    if (jump) {
-                        continue;
-                    }                         
-                }
-                
-                if (metanode.hasGeometry()) {
-                    node = metanode.clone();
-                    this.surface = surface;
-                    break;
-                }
-            }
-        }
-    }
-
-    //extend bbox, credits and children flags by other surfaces
-    for (i = 0, li = surfaces.length; i < li; i++) {
-        surface = surfaces[i][0];
-        metatile = this.metaresources.getMetatile(surface, null, this);
-
-        if (metatile.isReady(priority)) {
-            metanode = metatile.getNode(this.id);
-
-            if (metanode != null) {
-                //does metanode have surface reference?
-                //internalTextureCount is reference to surface
-                /*
-                if (surface.glue && !metanode.hasGeometry() &&
-                    metanode.internalTextureCount > 0) {
-                    i = this.map.surfaceSequenceIndices[metanode.internalTextureCount - 1] - 1;
-                    continue;
-                }*/
-
-                if (!node) { //just in case all surfaces are without geometry
-                    node = metanode.clone();
-                    this.surface = surface;
-                } else {
-                    node.flags |= metanode.flags & ((15)<<4); 
-
-                    /*
-                    for (var j = 0, lj = metanode.credits.length; j <lj; j++) {
-                        if (node.credits.indexOf(metanode.credits[j]) == -1) {
-                            node.credits.push(metanode.credits[j]);
-                        } 
-                    }*/
-                   
-                    if (metatile.useVersion < 4) {
-                        // removed for debug !!!!!
-                        node.bbox.min[0] = Math.min(node.bbox.min[0], metanode.bbox.min[0]); 
-                        node.bbox.min[1] = Math.min(node.bbox.min[1], metanode.bbox.min[1]); 
-                        node.bbox.min[2] = Math.min(node.bbox.min[2], metanode.bbox.min[2]); 
-                        node.bbox.max[0] = Math.max(node.bbox.max[0], metanode.bbox.max[0]); 
-                        node.bbox.max[1] = Math.max(node.bbox.max[1], metanode.bbox.max[1]); 
-                        node.bbox.max[2] = Math.max(node.bbox.max[2], metanode.bbox.max[2]);
-                    }
-                }
-            }
-        }
-    }
-    
-    if (node) {
-        node.generateCullingHelpers(true);
-    }
-    
-    return node;
 };
 
 
@@ -982,31 +765,16 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
 
 
 /**
- * Extract credits for a tile submesh and add them to tile.[glueI|i]mageryCredits.
- * The submeshes are presumed too follow the same order as the components of
- * the glue id.
+ * Extract credits for a tile submesh and add them to tile.imageryCredits.
  */
 
 MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null) {
 
     // process surface credits
-    if (this.surface.glue) {
+    let specificity = this.surface.specificity;
 
-        let specificity
-            = this.map.getSurface(this.surface.id[index]).specificity;
-
-        //set credits
-        for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
-            this.glueImageryCredits[this.metanode.credits[k]] = specificity;
-
-    } else  {
-
-        let specificity = this.surface.specificity;
-
-        //set credits
-        for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
-            this.imageryCredits[this.metanode.credits[k]] = specificity;
-    }
+    for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
+        this.imageryCredits[this.metanode.credits[k]] = specificity;
 
     // process bound layers
     if (!activeLayers) activeLayers = this.boundLayers;

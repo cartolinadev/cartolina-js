@@ -34,9 +34,7 @@ var MapSurface = function(map, json, type) {
     this.diffuseSequence = [];
     this.specularSequence = [];
     this.bumpSequence = [];
-    this.glue = (type == 'glue');
     this.free = (type == 'free');
-    this.virtual = false;
     this.zFactor = 0;
     this.ready = false;
     this.geodataProcessor = null;
@@ -166,12 +164,6 @@ MapSurface.prototype.parseJson = function(json) {
         }
     }
 
-    this.surfaceReference = [];
-    if (this.glue) {
-        for (i = 0, li = this.id.length; i < li; i++) {
-            this.surfaceReference.push(this.map.getSurface(this.id[i]));
-        }
-    }
 };
 
 
@@ -354,12 +346,6 @@ MapSurface.prototype.setStyle = function(style) {
     //this.map.setStylesheetData(id); //force update
     
     this.map.markDirty();
-};
-
-
-//used only for glues
-MapSurface.prototype.getSurfaceReference = function(index) {
-    return this.surfaceReference[index - 1];
 };
 
 

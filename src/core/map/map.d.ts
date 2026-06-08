@@ -137,8 +137,6 @@ export default class Map {
     bodies: Record<string, MapBody>;
     credits: Record<string, MapCredit>;
     surfaces: MapSurface[];
-    virtualSurfaces: Record<string, unknown>;
-    glues: Record<string, unknown>;
     freeLayers: Record<string, FreeLayer | null>;
     boundLayers: Record<string, MapBoundLayer | null>;
     stylesheets: Record<string, unknown>;
@@ -151,7 +149,6 @@ export default class Map {
     /** Credit name → weight accumulated this frame; reset each draw pass. */
     visibleCredits: {
         imagery: Record<string, number>;
-        glueImagery: Record<string, number>;
         mapdata: Record<string, number>;
     };
 
