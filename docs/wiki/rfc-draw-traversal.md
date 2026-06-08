@@ -107,32 +107,6 @@ one-off console warning naming the unsupported free layer.
 
 ### 2.1 Traversal structure
 
-**Post-implementation note — empty-quadrant fold (2026-06-05).**
-`traverseNode` returns one of four coverage kinds, replacing the earlier
-`none` with two: `watertight` (on-screen cell solid, recorded as an
-analytic rectangle), `partial` (covered with an arbitrary shape held in
-the node mask, to blit up — partial *coverage*, not a partial *tile*),
-`gap` (on-screen but nothing rendered yet — waiting for data),
-and `empty` (no on-screen area). `collectChildActive` reports a quadrant
-as `culled` when it produced no active child purely because its finer
-geometry is off-screen (not because data is missing); the descent treats
-a culled quadrant as `empty`. A node then early-outs as watertight when
-every quadrant is `watertight` or `empty`
-(`(watertightMask | emptyMask) === all`), and returns `empty` when every
-quadrant is empty.
-
-The effect: on watertight data the only reason a node had fewer than four
-watertight children was frustum culling, which now folds in instead of
-forcing a fallback draw plus a mask. The visible tree collapses to
-watertight up to the root. Measured on `simple.json` (cadence 3,
-settled), `recursive` matches `legacy` exactly — draw calls 244→171, mask
-draws 50→0, framebuffer switches 100→0, clears 51→1, drawn tiles 193→170
-(the cadence fallback overdraw is gone) — at legacy GPU parity (~8.7 ms).
-Verified with no holes on `simple`, `complex`, `full`, `legacy-benatky`,
-and on `full` at cadence 1 and a large cadence (the fold drops only
-off-screen coverage, never on-screen). Culling is recomputed per frame,
-so a quadrant that becomes visible is reclassified the next frame.
-
 The new function is a depth-first recursive descent of the tile
 quadtree. Current terrain surfaces do not exceed LOD 15 in practice
 (ground resolution ~9.6 m at the equator in the melown2015 reference
@@ -746,63 +720,6 @@ correctness requirement.
 ## 5. WebGL2 infrastructure
 
 ### 5.1 Per-surface mask sequence (geographic)
-
-**Post-implementation note — deferred-rectangle coverage (2026-06-04).**
-The eager per-level fill/blit scheme described in this section is
-replaced in `DrawTraversalMaskPool` by a deferred representation. A
-node's coverage is the union of two coexisting parts: a CPU list of
-axis-aligned rectangles in the node's UV [0,1] space (all dyadic
-coverage — watertight cells and the LOD hierarchy) and a per-depth
-footprint texture holding only the non-rectangular coverage of
-non-watertight tiles. Watertight quadrant fills become rectangle
-appends; child-to-parent composition transforms child rectangles up by
-a CPU scale-and-offset (`x→x*0.5+qx`), and blits the child footprint
-texture only when the child has one. No framebuffer is touched while
-coverage propagates. The rectangle list is rasterized into a transient
-texture (combined with the footprint texture when present) only when a
-surface actually samples the mask (`materialize`), in a single draw
-call. The old lazy-init guard (`maskInitialized`) is gone: reset is a
-CPU array clear at node entry, and `hasCoverage(depth)` answers whether
-there is anything to sample.
-
-Why: on a single watertight surface the eager scheme spent the whole
-per-frame mask cost on fills, blits, and clears at boundary nodes
-(culling makes a node partial, which propagates up the ancestor chain).
-The rectangle representation moves that propagation off the GPU — the
-fills and per-level blits of the rectangular part become CPU array
-work, leaving only the on-demand `materialize` rasterization. Measured
-on `simple.json` (cadence 3, settled): framebuffer switches 128→100,
-viewport calls 413→285, mask draws 65→50, total draw calls 259→244;
-GPU time fell from a stable ~12 ms toward the ~9 ms legacy floor (the
-disjoint timer is noisy run-to-run, so the GL-command counts are the
-reliable signal). This is a modest standalone win. The residual
-framebuffer churn is the `materialize` bind at each node that draws
-masked fallback coverage over an all-watertight-or-culled subtree;
-removing those nodes is the job of the empty-quadrant fold (see
-`backlog.md`), which on this data subsumes the gain here and also drops
-the cadence fallback overdraw. The rectangle representation's own
-lasting value is elsewhere: it eliminates framebuffer switches at
-non-rendering propagation nodes during loading and at genuine gaps
-(which the fold cannot, since a gap is required coverage), and it is the
-representation an analytic in-shader rectangle test would consume to
-remove mask framebuffers entirely for watertight-or-empty data.
-
-This change does **not** improve mask precision and does not remove the
-need for LINEAR sampling. LINEAR (and the 0.65 discard threshold) exist
-for non-rectangular footprint coverage, which still rasterizes and
-blit-downscales per level in this scheme exactly as before, so LINEAR is
-retained. Dyadic/watertight coverage was already exact under the eager
-scheme (carried by quadrant fills at the consumer's own resolution, not
-a downscale chain). The one narrow precision gain is that watertight
-coverage sitting under a partial ancestor now stays an exact rectangle
-instead of riding the ancestor's downscaled blit; this only arises in
-scenes that have partial tiles and is not the motivation for the change.
-
-`programTileMaskFill` and `tile-mask-fill.frag.glsl` (the quadrant-fill
-program) are removed; quadrant fills are ordinary rectangles rasterized
-by `programTileMaskRect` (the blit vertex shader plus the footprint
-fragment shader). The original eager scheme is described below for
-historical context.
 
 The geographic mask uses one R8 `node_mask` texture per active
 recursion depth level and one R8 `scratch` texture reused across
@@ -1431,6 +1348,89 @@ Implementation phases:
    at that node for the whole active set. This prevents forced descent
    to surfaces whose geometry is available only at finer LODs than the
    first fitted watertight node.
+
+   **Post-implementation note — deferred-rectangle coverage (2026-06-04).**
+   The eager per-level fill/blit scheme described in this section is
+   replaced in `DrawTraversalMaskPool` by a deferred representation. A
+   node's coverage is the union of two coexisting parts: a CPU list of
+   axis-aligned rectangles in the node's UV [0,1] space (all dyadic
+   coverage — watertight cells and the LOD hierarchy) and a per-depth
+   footprint texture holding only the non-rectangular coverage of
+   non-watertight tiles. Watertight quadrant fills become rectangle
+   appends; child-to-parent composition transforms child rectangles up by
+   a CPU scale-and-offset (`x→x*0.5+qx`), and blits the child footprint
+   texture only when the child has one. No framebuffer is touched while
+   coverage propagates. The rectangle list is rasterized into a transient
+   texture (combined with the footprint texture when present) only when a
+   surface actually samples the mask (`materialize`), in a single draw
+   call. The old lazy-init guard (`maskInitialized`) is gone: reset is a
+   CPU array clear at node entry, and `hasCoverage(depth)` answers whether
+   there is anything to sample.
+
+   Why: on a single watertight surface the eager scheme spent the whole
+   per-frame mask cost on fills, blits, and clears at boundary nodes
+   (culling makes a node partial, which propagates up the ancestor chain).
+   The rectangle representation moves that propagation off the GPU — the
+   fills and per-level blits of the rectangular part become CPU array
+   work, leaving only the on-demand `materialize` rasterization. Measured
+   on `simple.json` (cadence 3, settled): framebuffer switches 128→100,
+   viewport calls 413→285, mask draws 65→50, total draw calls 259→244;
+   GPU time fell from a stable ~12 ms toward the ~9 ms legacy floor (the
+   disjoint timer is noisy run-to-run, so the GL-command counts are the
+   reliable signal). This is a modest standalone win. The residual
+   framebuffer churn is the `materialize` bind at each node that draws
+   masked fallback coverage over an all-watertight-or-culled subtree;
+   removing those nodes is the job of the empty-quadrant fold (see
+   `backlog.md`), which on this data subsumes the gain here and also drops
+   the cadence fallback overdraw. The rectangle representation's own
+   lasting value is elsewhere: it eliminates framebuffer switches at
+   non-rendering propagation nodes during loading and at genuine gaps
+   (which the fold cannot, since a gap is required coverage), and it is the
+   representation an analytic in-shader rectangle test would consume to
+   remove mask framebuffers entirely for watertight-or-empty data.
+
+   This change does **not** improve mask precision and does not remove the
+   need for LINEAR sampling. LINEAR (and the 0.65 discard threshold) exist
+   for non-rectangular footprint coverage, which still rasterizes and
+   blit-downscales per level in this scheme exactly as before, so LINEAR is
+   retained. Dyadic/watertight coverage was already exact under the eager
+   scheme (carried by quadrant fills at the consumer's own resolution, not
+   a downscale chain). The one narrow precision gain is that watertight
+   coverage sitting under a partial ancestor now stays an exact rectangle
+   instead of riding the ancestor's downscaled blit; this only arises in
+   scenes that have partial tiles and is not the motivation for the change.
+
+   `programTileMaskFill` and `tile-mask-fill.frag.glsl` (the quadrant-fill
+   program) are removed; quadrant fills are ordinary rectangles rasterized
+   by `programTileMaskRect` (the blit vertex shader plus the footprint
+   fragment shader). The original eager scheme is described below for
+   historical context.
+
+   **Post-implementation note — empty-quadrant fold (2026-06-05).**
+   `traverseNode` returns one of four coverage kinds, replacing the earlier
+   `none` with two: `watertight` (on-screen cell solid, recorded as an
+   analytic rectangle), `partial` (covered with an arbitrary shape held in
+   the node mask, to blit up — partial *coverage*, not a partial *tile*),
+   `gap` (on-screen but nothing rendered yet — waiting for data),
+   and `empty` (no on-screen area). `collectChildActive` reports a quadrant
+   as `culled` when it produced no active child purely because its finer
+   geometry is off-screen (not because data is missing); the descent treats
+   a culled quadrant as `empty`. A node then early-outs as watertight when
+   every quadrant is `watertight` or `empty`
+   (`(watertightMask | emptyMask) === all`), and returns `empty` when every
+   quadrant is empty.
+
+   The effect: on watertight data the only reason a node had fewer than four
+   watertight children was frustum culling, which now folds in instead of
+   forcing a fallback draw plus a mask. The visible tree collapses to
+   watertight up to the root. Measured on `simple.json` (cadence 3,
+   settled), `recursive` matches `legacy` exactly — draw calls 244→171, mask
+   draws 50→0, framebuffer switches 100→0, clears 51→1, drawn tiles 193→170
+   (the cadence fallback overdraw is gone) — at legacy GPU parity (~8.7 ms).
+   Verified with no holes on `simple`, `complex`, `full`, `legacy-benatky`,
+   and on `full` at cadence 1 and a large cadence (the fold drops only
+   off-screen coverage, never on-screen). Culling is recomputed per frame,
+   so a quadrant that becomes visible is reclassified the next frame.
 
    Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky`.
