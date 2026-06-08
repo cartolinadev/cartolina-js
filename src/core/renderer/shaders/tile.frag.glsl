@@ -22,11 +22,6 @@ in float vVerticalExaggeration;
 // atm functions
 #include "./includes/atmosphere.inc.glsl";
 
-// tile quadrant clipping
-#ifdef TILE_DISCARD
-#include "./includes/tile-clip.inc.glsl";
-#endif
-
 // other uniforms
 uniform vec3 uUpVector;
 #ifdef TILE_DISCARD
@@ -201,12 +196,9 @@ void main() {
     // render flags
     int renderFlags = frameRenderFlags();
 
-    // mask and quadrant clip only exist in the discarding program
-    // variant; the discard-free variant drops both, keeping the MSAA
-    // fast-clear path
+    // the coverage mask exists only in the discarding program variant;
+    // the discard-free variant drops it, keeping the MSAA fast-clear path
 #ifdef TILE_DISCARD
-    applyTileClip(vTexCoords2, uFrame.clipParams.x);
-
     if (uMaskEnabled) {
 
         float covered = texture(uMask, vTexCoords2).r;

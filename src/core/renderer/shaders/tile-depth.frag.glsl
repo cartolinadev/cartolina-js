@@ -8,9 +8,6 @@ in vec2 vTexCoords2;
 // frame ubo
 #include "./includes/frame.inc.glsl";
 
-// tile quadrant clipping
-#include "./includes/tile-clip.inc.glsl";
-
 uniform sampler2D uMask;
 uniform bool uMaskEnabled;
 
@@ -20,8 +17,6 @@ out uvec4 fragColor;
 // main
 
 void main() {
-
-    applyTileClip(vTexCoords2, uFrame.clipParams.x);
 
     if (uMaskEnabled) {
 

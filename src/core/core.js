@@ -57,14 +57,10 @@ var Core = function(element, config) {
         mapSmartNodeParsing : true,
         mapLoadErrorRetryTime : 3000,
         mapLoadErrorMaxRetryCount : 3,
-        mapLoadMode : 'topdown', // 'topdown', 'downtop', 'fit', 'fitonly'
-        mapGeodataLoadMode : 'fit', // 'fitonly'
-        mapSplitMeshes : false, // used for topdown load mode
         mapSplitMargin : 0.0025, // used for topdown load mode
         mapTraversalMaskResolution : 256,
         mapTraversalMaskThreshold : 0.5, // fallback-coverage discard cutoff
         mapTraversalMaskErosion : 1, // 0 disabled, 1 = protected 3x3
-        mapTerrainTraversal : 'recursive', // 'recursive', 'legacy'
         mapFallbackCadence : 3, // 1 = topdown, large = fitonly
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'

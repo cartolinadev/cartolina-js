@@ -364,6 +364,12 @@ routes legacy clipped tiles to the discarding program and is removed
 with the legacy traversal, leaving a plain `maskTexture` check.
 `drawDepth()`/`footprint()` are unchanged (single-sample targets).
 
+**Update 2026-06-08:** the legacy-traversal removal (rfc-draw-traversal
+step 8) landed. `splitMask`, the `uClip` set, the `applyTileClip`
+quadrant clip, and `tile-clip.inc.glsl` are gone; `TileRenderRig.draw()`
+now selects on `!!maskTexture`, and the discarding program's only
+`discard` is the `uMaskEnabled` coverage test.
+
 
 ## PERF: draw-traversal — empty-quadrant fold
 

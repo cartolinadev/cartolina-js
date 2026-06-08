@@ -1,5 +1,44 @@
 # Session log
 
+## 2026-06-08 — draw traversal: delete legacy terrain traversal (step 8)
+
+Executed the core-removal part of rollout step 8. Removed four of the
+five legacy traversal methods from `surface-tree.js` — `drawSurface`,
+`drawSurfaceWithSpliting`, `drawSurfaceFitOnly`, `drawSurfaceDownTop` —
+and kept `drawSurfaceFit`. Verified against the code that the geodata
+caller reaches `drawSurfaceFit` (via `mapGeodataLoadMode` defaulting to
+`fit`), not `drawSurfaceFitOnly` as the RFC body text says; that fitted
+frontier is the geodata traversal step 8 waits for, so it stays.
+`MapSurfaceTree.draw()` no longer switches on a load mode — it always
+calls `drawSurfaceFit` (periodicity shifts preserved) and is reached
+only by the free-layer loop, since terrain always goes through
+`Map.drawTerrainRecursive`.
+
+Made recursive the only surface path: removed the `mapTerrainTraversal`
+config, the `Map.overrides.terrainTraversal` per-frame override, and the
+dispatch branch in `map.ts`. Removed the `mapLoadMode`,
+`mapGeodataLoadMode`, and `mapSplitMeshes` config keys (defaults,
+set/get cases, url-config, stats, types). Removed the now-dead modern
+`splitMask` / `uClip` plumbing: the `splitMask` field, the `uClip` sets
+in `TileRenderRig`, the `applyTileClip` calls in `tile.frag.glsl` /
+`tile-depth.frag.glsl`, and `tile-clip.inc.glsl` (deleted). `splitMask`'s
+only setter was the removed split method, so `uClip` was already a
+constant `[1,1,1,1]` no-op.
+
+Deferred to a follow-up (recorded in the RFC step 8 note): the glue /
+virtual-surface / alien-flag teardown (`createVirtualMetanode`,
+`MapVirtualSurface`, `sourceReference`, glue-entry generation), still
+entangled with the `surfaceSequence` terrain gate and shared tile
+processing; and the legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord`
+clipping, still used by the kept `drawSurfaceFit` → `processDrawBuffer`
+→ `drawGrid` path.
+
+Verification: `npx tsc --noEmit` and `npm run typecheck` clean; fresh
+webpack build with zero errors; `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` render with no regression against
+production — complex geodata labels and the benatky multi-surface scene
+match.
+
 ## 2026-06-08 — hook: skip version bumps for docs-only commits
 
 Changed `.husky/pre-commit` so staged documentation-only commits skip

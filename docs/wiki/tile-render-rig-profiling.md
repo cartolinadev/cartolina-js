@@ -144,6 +144,12 @@ always-discard, MSAA on, `dpr=1`, minima of several runs) gives settled
 GPU 15.58 ms → 11.05 ms — the predicted ~29%, with the clock-drift
 confound removed.
 
+**Update (2026-06-08).** The quadrant-clip discard site is gone:
+rfc-draw-traversal step 8 removed `applyTileClip` and
+`tile-clip.inc.glsl` with the legacy traversal. The discarding program's
+only remaining `discard` is the `uMaskEnabled` coverage test; the
+discard-free program is unchanged.
+
 ### WIN 2 — split the layer VM into a specialized straight-line shader (~1.5 ms)
 
 Replacing `simple.json`'s runtime layer loop with the unrolled

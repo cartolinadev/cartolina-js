@@ -1479,6 +1479,45 @@ Implementation phases:
    moves to a dedicated geodata replacement. Do not retain the old
    topdown, downtop, splitting, or fitonly modes only for geodata.
 
+   **Implemented (core removal).** Four of the five methods are gone:
+   `drawSurface`, `drawSurfaceWithSpliting`, `drawSurfaceFitOnly`, and
+   `drawSurfaceDownTop`. `drawSurfaceFit` is kept — the body text above
+   lists it among the removals, but the geodata caller actually reaches
+   `drawSurfaceFit`, not `drawSurfaceFitOnly`: `MapSurfaceTree.draw()`
+   selects it via `mapGeodataLoadMode`, which defaults to `fit`. That
+   fitted-frontier traversal is the geodata caller's own traversal the
+   step waits for, so it stays. `MapSurfaceTree.draw()` no longer
+   switches on a load mode; it always calls `drawSurfaceFit` (with
+   periodicity shifts) and is now reached only by the free-layer loop,
+   since terrain always goes through `Map.drawTerrainRecursive`.
+
+   Removed with it: the `mapTerrainTraversal` config and the
+   `Map.overrides.terrainTraversal` per-frame override (recursive is the
+   only surface traversal path now); the `mapLoadMode`,
+   `mapGeodataLoadMode`, and `mapSplitMeshes` config keys; and the
+   now-dead modern `splitMask` / `uClip` plumbing — the `splitMask`
+   field, the `uClip` sets in `TileRenderRig.draw`/`drawDepth`, the
+   `applyTileClip` calls in `tile.frag.glsl` / `tile-depth.frag.glsl`,
+   and `tile-clip.inc.glsl` (deleted). `tile.splitMask`'s only setter was
+   inside the removed split method, so `uClip` was already a constant
+   `[1,1,1,1]` no-op.
+
+   **Deferred to a follow-up.** The glue / virtual-surface / alien-flag
+   teardown (`createVirtualMetanode`, the alien flag, `MapVirtualSurface`,
+   `sourceReference` rendering, glue-entry generation in
+   `surface-sequence.ts`) is not removed: it is still entangled with
+   `surfaceSequence`, which the recursive path reads as the terrain gate,
+   and with tile-processing code shared by the kept geodata path. The
+   legacy `gpu/shaders.js` `uClip[8]` / `vClipCoord` clipping also stays —
+   it still serves the kept `drawSurfaceFit` → `processDrawBuffer` →
+   `drawGrid` legacy draw-command path used by geodata and tiled free
+   layers.
+
+   Manual checkpoint completed: `simple-terrain`, `complex-terrain`,
+   `full-terrain`, and `legacy-benatky` render with no regression on a
+   fresh webpack server; `complex-terrain` geodata labels and the benatky
+   multi-surface scene match production.
+
 ---
 
 ## 9. Verification and deferred work

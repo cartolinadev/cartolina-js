@@ -877,19 +877,7 @@ class Map {
 
                 // draw mesh tiles
                 if (legacyMap.tree.surfaceSequence.length > 0) {
-
-                    // The new recursive terrain draw lives on `Map`;
-                    // `terrainTraversal` chooses between it and the
-                    // legacy iterative path while both coexist.
-                    const traversal = this.overrides.terrainTraversal
-                        ?? legacyMap.config.mapTerrainTraversal
-                        ?? 'recursive';
-
-                    if (traversal === 'recursive')
-                        this.drawTerrainRecursive();
-                    else
-                        legacyMap.tree.draw(false);
-                    
+                    this.drawTerrainRecursive();
                 }
 
                 // draw free layers
@@ -1164,7 +1152,7 @@ class Map {
     }
 
     /**
-     * Recursive terrain draw selected by `mapTerrainTraversal`. Feeds
+     * Recursive terrain draw — the only surface traversal path. Feeds
      * the combined-descent traversal in `draw-traversal.ts` with the
      * current `surfaceList()` and the cached per-surface helper trees.
      * Glues and virtual surfaces are excluded — see
@@ -1208,12 +1196,6 @@ class Map {
      * when no surface is in view.
      */
     surfaceTreesForQuery(): MapSurfaceTree[] {
-
-        const mode = this.overrides.terrainTraversal
-            ?? this.core_.map?.config.mapTerrainTraversal
-            ?? 'recursive';
-
-        if (mode !== 'recursive') return [];
         return this.resolveSurfaceTrees();
     }
 
