@@ -139,7 +139,7 @@ lighting defined in the local north-east-down frame at the scene center.
 
 See the usage examples on the [cartolina website](https://cartolina.dev/examples).
 
-You may also examine the [/demos] directory in this repository.
+You may also examine the [demos](/demos) directory in this repository.
 
 
 ### Build from source
@@ -178,11 +178,11 @@ the `./dist/<version>-branch.<short-hash>` directory.
 For usage examples, refer to [this page](#usage) and to the
 [examples on cartolina website](https://cartolina.dev/examples).
 
-For architecture notes, subsystem details, and contributor-oriented project
-knowledge, start with the [wiki index](docs/wiki/index.md).
-
 There is currently no API reference manual. Use the code's JSDoc
 annotations for API details.
+
+For architecture notes, subsystem details, and contributor-oriented project
+knowledge, start with the [wiki index](docs/wiki/index.md).
 
 As a last resort, use the legacy
 [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki).
