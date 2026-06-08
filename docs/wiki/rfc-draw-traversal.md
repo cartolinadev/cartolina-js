@@ -1261,11 +1261,11 @@ Implementation phases:
      and slightly reduced map responsiveness. The tradeoff is
      expected and resolves in phase 6.
 
-   Follow-up implementation note: `mapTraversalMaskThreshold` makes the
-   mask discard cutoff configurable and defaults it to `0.65`. This is a
-   read-time conservative-overlap bias for linearly sampled mask edges,
-   not mask-space erosion. Revisit the default after phase 6 can fill
-   masks directly for watertight tiles.
+   Follow-up implementation note: `mapTraversalMaskThreshold` made the
+   mask discard cutoff configurable and initially defaulted it to
+   `0.65`. This was a read-time conservative-overlap bias for linearly
+   sampled mask edges, not mask-space erosion. Phase 7 reset the default
+   to `0.5` for cleaner manual erosion testing.
 
 2. **Implemented.** Combined descent over plain surfaces.
 
@@ -1435,15 +1435,38 @@ Implementation phases:
    Manual checkpoint completed for `simple-terrain`, `complex-terrain`,
    `full-terrain`, and `legacy-benatky`.
 
-7. Edge-preserving erosion.
+7. **Implemented.** Edge-preserving erosion.
 
-   Consider erosion only after the combined descent and watertight
-   fast path are correct. Keep `k = 0` unless visible cracks require
-   the deferred erosion step in §4.2.
+   Mask erosion is implemented as an optional final pass in
+   `DrawTraversalMaskPool.materialize`, after arbitrary footprints and
+   exact rectangles have been composed into the transient consumer
+   texture. The mask pool shape differs from the original RFC text:
+   footprint textures exist only for partial tile coverage, while
+   watertight coverage and LOD hierarchy coverage are carried as exact
+   rectangles until a draw samples the mask. Eroding at materialization
+   keeps that representation intact during traversal and applies one
+   rule to the fully composed mask.
 
-   Manual checkpoint: tune against real multi-surface data only if
-   this step is implemented; verify that watertight seams between
-   same-surface siblings are preserved.
+   The rollout uses only `k = 1`, controlled by the runtime/URL
+   parameter `mapTraversalMaskErosion`; the default is `1`. The erosion
+   pass uses a fixed 3x3 rectangular structuring element and writes the
+   minimum of the neighborhood. Boundary pixels of the materialized tile
+   mask are copied without erosion, so erosion cannot open coverage
+   along the tile edge. The default `mapTraversalMaskThreshold` was reset
+   from `0.65` to `0.5` for cleaner manual comparison while erosion is
+   tested.
+
+   This pass targets loading artifacts from hard geographic-mask edges.
+   It does not address cracks in high-oblique settled views; those are a
+   screen-space problem and remain covered by the backlog entry for
+   screen-space blurring.
+
+   Regression checkpoint completed for `simple-terrain`,
+   `complex-terrain`, `full-terrain`, and `legacy-benatky`. Manual
+   loading checks showed smooth nadir appearances and visibly suppressed
+   oblique-view artifacts, with no meaningful FPS cost observed. This
+   promoted erosion from opt-in to default-on; `mapTraversalMaskErosion=0`
+   remains available for comparison.
 
 8. Delete the legacy terrain traversal.
 

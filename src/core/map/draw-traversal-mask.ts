@@ -46,6 +46,7 @@ class DrawTraversalMaskPool {
     private readonly consume_: GpuTexture;
     private readonly footprintState_: GpuDevice.State;
     private readonly blitState_: GpuDevice.State;
+    private readonly erodeState_: GpuDevice.State;
     private quadVao_: WebGLVertexArrayObject | null = null;
     private quadBuffer_: WebGLBuffer | null = null;
 
@@ -77,6 +78,11 @@ class DrawTraversalMaskPool {
         });
         this.blitState_ = renderer.gpu.createState({
             blend: true,
+            culling: false,
+            ztest: false,
+            zwrite: false,
+        });
+        this.erodeState_ = renderer.gpu.createState({
             culling: false,
             ztest: false,
             zwrite: false,
@@ -241,9 +247,10 @@ class DrawTraversalMaskPool {
      * separately.
      *
      * @param depth Recursion depth being consumed.
+     * @param erosion Radius in texels. Only 0 and 1 are supported.
      * @returns The combined coverage texture.
      */
-    materialize(depth: number): GpuTexture {
+    materialize(depth: number, erosion: number): GpuTexture {
 
         const gpu = this.renderer_.gpu;
 
@@ -255,7 +262,10 @@ class DrawTraversalMaskPool {
 
         this.rasterizeRects(this.rects_[depth]);
 
-        return this.consume_;
+        if (erosion <= 0) return this.consume_;
+
+        this.erodeMaterializedMask();
+        return this.scratch_;
     }
 
     /** Grow the per-depth coverage arrays to cover `depth`. */
@@ -401,6 +411,29 @@ class DrawTraversalMaskPool {
         renderer.gpu.setState(this.blitState_);
         gl.blendEquation(gl.MAX);
         gl.blendFunc(gl.ONE, gl.ONE);
+
+        this.bindQuad(program);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
+
+        renderer.gpu.setState(previousState, true);
+    }
+
+    private erodeMaterializedMask(): void {
+
+        const renderer = this.renderer_;
+        const gl = renderer.gpu.gl;
+        const program = renderer.programTileMaskErode();
+        const previousState = renderer.gpu.currentState;
+
+        renderer.gpu.setTextureSpaceRenderTarget(this.scratch_, this.size_);
+        renderer.gpu.useProgram2(program);
+        renderer.gpu.bindTexture(this.consume_, renderer.textureIdxs.maskBlit);
+        renderer.gpu.setState(this.erodeState_);
+        program.setVec2('uTexelSize', [
+            1 / this.resolution,
+            1 / this.resolution,
+        ]);
 
         this.bindQuad(program);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

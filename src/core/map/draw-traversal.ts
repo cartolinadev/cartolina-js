@@ -367,8 +367,9 @@ function renderSurface(
     // Sample prior coverage (finer descendants and higher-priority
     // surfaces drawn before this one) only when some exists; materialize
     // rasterizes the rectangle list and footprint texture on demand.
+    const erosion = Number(legacyMap.config.mapTraversalMaskErosion ?? 1);
     const maskTexture = maskPool.hasCoverage(depth)
-        ? maskPool.materialize(depth)
+        ? maskPool.materialize(depth, erosion)
         : undefined;
 
     legacyMap.renderer.gpu.setRenderTarget(screenTarget);

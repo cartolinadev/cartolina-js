@@ -132,6 +132,7 @@ const NUMBER_KEYS = new Set([
     'mapHysteresisWait',
     'mapFallbackCadence',
     'mapTraversalMaskThreshold',
+    'mapTraversalMaskErosion',
     'rendererAnisotropic'
 ]);
 

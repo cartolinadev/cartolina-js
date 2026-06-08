@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-06-08 — draw traversal: protected materialized-mask erosion
+
+Implemented the last constructive draw-traversal rollout step:
+edge-preserving mask erosion. The mask pool now erodes only after
+`materialize` has composed footprint coverage and exact rectangles into
+the transient sampled texture. The default is now enabled
+(`mapTraversalMaskErosion = 1`); `?mapTraversalMaskErosion=0` disables
+the pass for comparison. The fixed `k = 1` 3x3 min-filter copies the
+materialized mask boundary without erosion, so the pass cannot open
+coverage along tile edges.
+
+The default `mapTraversalMaskThreshold` was reset from `0.65` to `0.5`
+for manual comparison. The RFC implementation note records that erosion
+targets loading artifacts, not high-oblique settled-view cracks; those
+remain a screen-space/backlog issue.
+
+Manual verification after implementation showed smooth nadir loading and
+visibly suppressed oblique-view artifacts, with no meaningful FPS cost
+observed. That promoted erosion from opt-in to default-on.
+
 ## 2026-06-06 — legacy traversal: tolerate zero-submesh meshes
 
 `viewfinder-dem1` rendered nothing in `mapTerrainTraversal=legacy` while

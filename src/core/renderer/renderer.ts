@@ -36,6 +36,7 @@ import shaderTileMaskFootprintFrag from
     './shaders/tile-mask-footprint.frag.glsl';
 import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
 import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
+import shaderTileMaskErodeFrag from './shaders/tile-mask-erode.frag.glsl';
 
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
@@ -189,6 +190,7 @@ export class Renderer {
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
         tileMaskBlit?: GpuProgram
+        tileMaskErode?: GpuProgram
         tileMaskRect?: GpuProgram
         frustum?: GpuProgram
     }
@@ -620,6 +622,27 @@ programTileMaskBlit(): GpuProgram {
         { uSource: this.textureIdxs.maskBlit });
 
     return this.programs.tileMaskBlit;
+}
+
+
+/**
+ * Tile mask erosion program, lazy initialization.
+ */
+programTileMaskErode(): GpuProgram {
+
+    if (this.programs.tileMaskErode) return this.programs.tileMaskErode;
+
+    __DEV__ && console.log('Initializing programs.tileMaskErode');
+
+    this.programs.tileMaskErode = new GpuProgram(
+        this.gpu,
+        shaderTileMaskBlitVert,
+        shaderTileMaskErodeFrag,
+        'shader-tile-mask-erode',
+        {},
+        { uSource: this.textureIdxs.maskBlit });
+
+    return this.programs.tileMaskErode;
 }
 
 
