@@ -7,9 +7,11 @@ if git diff --cached --quiet; then
   exit 1
 fi
 
+STAGED_FILES=$(git diff --cached --name-only)
+
 # Require session log to be staged (set SKIP_SESSION_LOG=1 to bypass)
 if [ -z "$SKIP_SESSION_LOG" ]; then
-  if ! git diff --cached --name-only | grep -q '^docs/wiki/session-log\.md$'; then
+  if ! echo "$STAGED_FILES" | grep -q '^docs/wiki/session-log\.md$'; then
     echo "pre-commit: docs/wiki/session-log.md is not staged."
     echo "Update the session log before committing, or set SKIP_SESSION_LOG=1."
     exit 1
@@ -83,6 +85,23 @@ if [ -z "$SKIP_SENSITIVE" ]; then
       | awk 'BEGIN{n=0} /^[0-9]{8}$/{n++; if(n>=3) exit 0} END{exit (n<3)}'; then
     fail_sensitive "block of 8-digit codes in staged changes"
   fi
+fi
+
+DOCS_ONLY=1
+for path in $STAGED_FILES; do
+  case "$path" in
+    docs/*|*.md|AGENTS.md)
+      ;;
+    *)
+      DOCS_ONLY=0
+      break
+      ;;
+  esac
+done
+
+if [ "$DOCS_ONLY" -eq 1 ]; then
+  echo "pre-commit: docs-only commit — skipping version bump."
+  exit 0
 fi
 
 # Now do the version bump

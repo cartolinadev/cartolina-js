@@ -1,5 +1,15 @@
 # Session log
 
+## 2026-06-08 — hook: skip version bumps for docs-only commits
+
+Changed `.husky/pre-commit` so staged documentation-only commits skip
+the package/version bump. Documentation-only means every staged path is
+under `docs/`, is a Markdown file, or is `AGENTS.md`.
+Session-log and sensitive-content checks still run before the skip.
+
+The package version identifies runnable behaviour for deployed
+instances; documentation-only commits do not change runtime behaviour.
+
 ## 2026-06-08 — draw traversal: protected materialized-mask erosion
 
 Implemented the last constructive draw-traversal rollout step:
