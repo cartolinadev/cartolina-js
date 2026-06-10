@@ -1,4 +1,9 @@
-<p align="center"><img width="320" alt="cartoloina-js" src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo.png"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo-white.png">
+    <img width="320" alt="cartolina-js" src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo.png">
+  </picture>
+</p>
 
 # cartolina-js
 
