@@ -3,6 +3,10 @@ import * as utils from '../utils/utils';
 import GpuTexture from '../renderer/gpu/texture';
 import Atmosphere from './atmosphere';
 
+import {
+    decodeGrayPng, grayPngDecodeAvailable
+} from '../utils/gray-png';
+
 import * as vts from '../constants';
 
 var MapSubtexture = function(map, path, type, tile, internal) {
@@ -263,6 +267,20 @@ MapSubtexture.prototype.onLoad = function(header, url, onLoaded, onError) {
         this.loadState = 1;
     }
 
+    // the atmosphere density texture carries encoded numbers, not
+    // colors. The browser image pipeline color-manages PNG pixels (on
+    // iOS this changes the bytes and corrupts the encoding), so the
+    // PNG is fetched raw and decoded by the gray-png module instead.
+    if (this.type == vts.TEXTURETYPE_ATMDENSITY
+        && grayPngDecodeAvailable()) {
+
+        this.map.loader.processLoadBinary(url,
+            this.onDensityBinaryLoaded.bind(this), onerror, null,
+            'atmdensity');
+
+        return;
+    }
+
     if (this.map.config.mapXhrImageLoad) {
         //utils.loadBinary(url, this.onBinaryLoaded.bind(this), onerror, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams, 'blob');
         this.map.loader.processLoadBinary(url, this.onBinaryLoaded.bind(this), onerror, null, 'texture');
@@ -320,6 +338,50 @@ MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
     createImageBitmap(data)
         .then(this.onLoaded.bind(this,false))
         .catch(this.onLoadError.bind(this, false));
+};
+
+
+/**
+ * Atmosphere density download handler. Receives the raw PNG bytes and
+ * hands them to the gray-png decoder, keeping the browser image
+ * pipeline (and its color management) out of the loop.
+ *
+ * @param data the PNG file as an ArrayBuffer
+ */
+MapSubtexture.prototype.onDensityBinaryLoaded = function(data) {
+
+    this.fileSize = data.byteLength;
+
+    decodeGrayPng(data)
+        .then(this.onDensityDecoded.bind(this))
+        .catch(this.onLoadError.bind(this, false));
+};
+
+
+/**
+ * Atmosphere density decode handler. Repacks the verbatim grayscale
+ * planes into the interleaved rgb layout that the gpu texture upload
+ * expects, then finishes the load like onLoaded does.
+ *
+ * @param img decoded image: width, height, one byte per pixel
+ */
+MapSubtexture.prototype.onDensityDecoded = function(img) {
+
+    if (this.map.killed) {
+        return;
+    }
+
+    this.decoded = Atmosphere.decodeAtmosphereDensityGray(img);
+    this.imageExtents = [this.decoded.width, this.decoded.height];
+
+    this.cacheItem = this.map.resourcesCache.insert(
+        this.killImage.bind(this, true), this.decoded.data.length);
+
+    this.map.markDirty();
+    this.loadState = 2;
+    this.loadErrorTime = null;
+    this.loadErrorCounter = 0;
+    this.mapLoaderCallLoaded();
 };
 
 

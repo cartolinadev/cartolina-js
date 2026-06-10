@@ -414,6 +414,43 @@ class Atmosphere {
     }
 
     /**
+     * repack a raw grayscale density image into interleaved rgb
+     *
+     * Same repacking as decodeAtmosphereDensity, but the input carries
+     * one byte per pixel (raw PNG bytes from the gray-png decoder)
+     * instead of the four-byte pixels of canvas ImageData.
+     *
+     * @param img raw grayscale atmosphere density (stacked planes)
+     * @returns the interleaved rgb density array, with dimensions
+     */
+
+    static decodeAtmosphereDensityGray(
+        img: { width: number, height: number, data: Uint8Array }):
+        { width: number, height: number, data: Uint8Array } {
+
+        const w = img.width, h3 = img.height, gray = img.data;
+        console.assert(h3 % 3 === 0, `height ${h3} not divisible by 3`);
+
+        const h = h3 / 3, planeSize = w * h;
+
+        // repack stacked grayscale planes -> interleaved RGB
+
+        const rgb = new Uint8Array(planeSize * 3);
+
+        const offRpx = 0, offGpx = planeSize, offBpx = planeSize * 2;
+        let di = 0;
+
+        for (let i = 0; i < planeSize; i++) {
+
+            rgb[di++] = gray[offRpx + i];
+            rgb[di++] = gray[offGpx + i];
+            rgb[di++] = gray[offBpx + i];
+        }
+
+        return { width: w, height: h, data: rgb }
+    }
+
+    /**
      * convert AtmosphereTextureSpec to a base64-encoded query argument
      * @spec atmosphere texture spec, derived from parameters
      * @returns 'def' arg for atmdensity query

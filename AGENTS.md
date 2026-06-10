@@ -60,8 +60,9 @@ summarize the relevant conclusion without recording its path.
   key subsystems, and non-obvious implementation details.
 - [label-styling-engine.md](docs/wiki/label-styling-engine.md) —
   reference notes for the shared lettering/style engine.
-- [session-log.md](docs/wiki/session-log.md) — chronological record
-  of significant work sessions.
+- [session-log.md](docs/wiki/session-log.md) — record of significant
+  work sessions, top-posted: the newest entry goes at the top of the
+  file, directly under the `# Session log` heading.
 
 ### RFCs
 
@@ -507,7 +508,9 @@ capture script is `test/diagnostics/label-pipeline.js`.
 new entry in `docs/wiki/session-log.md` covering: goal, work done,
 current state, open questions, and a link to the plan file. Keep it
 brief but self-contained — a future agent picking up mid-session must
-be able to orient from it alone.
+be able to orient from it alone. The log is top-posted: place the new
+entry at the top of the file, directly under the `# Session log`
+heading, never at the end.
 
 3. A URL **renders correctly** when all of the following hold:
    - No network errors (failed tile or resource fetches).

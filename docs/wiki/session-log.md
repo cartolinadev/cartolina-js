@@ -1,5 +1,75 @@
 # Session log
 
+## 2026-06-10 — iOS atmosphere rings: root cause and fix
+
+Branch: `bugfix/ios-atmosphere-grayscale-decode`.
+
+The atmosphere has never rendered correctly on iOS (flickering
+concentric rings in both the background and the tile pass), and was
+suppressed there by a gate in `Map.isAtmospheric()`. Two earlier fix
+attempts (RGBA8UI texture format, normalized sampler + raw readback,
+precision changes — branch `bugfix/ios-atmosphere`) failed.
+
+### Root cause (confirmed fixed on an iOS device, 2026-06-10)
+
+The atmdensity service serves the density lookup table as an 8-bit
+grayscale PNG (color type 0, no gAMA/iCCP/sRGB chunk — verified by
+fetching `atmdensity.png` from the live service and parsing chunks).
+Every browser decode path the client used (canvas `getImageData`,
+`createImageBitmap`, `texImage2D` from a DOM image) runs the pixels
+through the platform image pipeline. On iOS, CoreGraphics assigns
+untagged grayscale images a gamma 2.2 gray color space and converts
+the values to sRGB, which shifts the stored bytes by a few counts.
+Chrome passes the bytes through unchanged.
+
+The texture does not store colors: each density value is split as
+R + G/256 + B/65536 across three planes, and the shader takes the
+difference of two such samples and feeds it to an exponential with a
+coefficient in the thousands. A per-plane remap of a few counts makes
+the reconstructed value locally non-monotonic, and the shader output
+swings over its full range along level sets of the texture's polar
+parametrization — concentric rings. This explains every observation:
+
+- both render paths fail (they share the corrupted texture);
+- texel-identity sandbox passed (both panes showed the same
+  already-corrupted bytes; corruption of a few counts is invisible);
+- precision changes had no effect (the input data was wrong);
+- both prior fix attempts failed (RGBA8UI changed the upload format
+  of corrupted bytes; `colorSpaceConversion: 'none'` is not honored
+  by WebKit, and `readPixels` faithfully returned corrupted bytes);
+- vts-browser-cpp works on iOS (it decodes PNGs with its own decoder).
+
+### Fix
+
+Decode the density PNG in the client, bypassing the browser image
+pipeline entirely:
+
+- `src/core/utils/gray-png.ts` — minimal decoder for 8-bit grayscale
+  non-interlaced PNG, inflating IDAT via `DecompressionStream`
+  (Chrome 80+, Safari 16.4+, Firefox 113+). Verified byte-exact
+  against a PIL reference decode of the live service PNG.
+- `MapSubtexture` fetches ATMDENSITY as a raw ArrayBuffer (kind
+  `atmdensity` falls through to the in-thread XHR helper, skipping
+  the worker bitmap decode) and decodes it with the new module;
+  `Atmosphere.decodeAtmosphereDensityGray()` repacks the verbatim
+  planes (stride 1) into interleaved RGB. The old bitmap/canvas path
+  remains as fallback where `DecompressionStream` is missing.
+- The iOS gate in `Map.isAtmospheric()` now applies only when the
+  decoder cannot run (iOS before 16.4).
+
+GPU side (RGB8UI, usampler2D, texelFetch) is unchanged: the sandbox
+already verified that path returns exact bytes on iOS.
+
+Screenshot tests simple/complex/full-terrain pass; dev output is
+pixel-identical (max channel diff 0) to prod, with full.json's
+atmosphere active — the new decoder feeds the renderer exactly the
+bytes the old path produced on Chrome, so iOS, which now takes the
+same code path, must see the same bytes too.
+
+Note for later: `TEXTURETYPE_HEIGHT` navtiles are also grayscale PNGs
+read through `getImageData` and are subject to the same iOS remapping
+(small height errors on device). Out of scope here.
+
 ## 2026-06-10 — TileRenderRig view-switch rotation
 
 Fixed a `TileRenderRig` lifecycle bug in `draw-tiles.js`: `updateBounds`
