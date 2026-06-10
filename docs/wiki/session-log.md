@@ -1,5 +1,67 @@
 # Session log
 
+## 2026-06-10 — iOS interaction crash: decoded tile images retained
+
+Branch: `bugfix/ios-imagebitmap-release`.
+
+Every map dies on iOS after sustained interaction: the screen freezes,
+then goes blank with only the attribution text left. The blank screen
+is WebGL context loss (`gpu-context-lost` fires; nothing restores GPU
+resources afterwards, so the page stays dead). Time to death tracks
+texture churn: 20-30 s of zoom/pan on the complex style, a minute or
+two on the simple style.
+
+### Mechanism (source analysis; fix confirmed on iOS, 2026-06-10)
+
+With the production defaults (`mapXhrImageLoad`, `mapAsyncImageDecode`
+both true in `core.js`), every tile texture is decoded to an
+`ImageBitmap` in the loader worker and handed to `MapSubtexture`.
+After `buildGpuTexture()` uploads it, the bitmap stayed referenced in
+`MapSubtexture.image` under the resources cache (default 900 MB,
+accounted at w*h*3 bytes), and `ImageBitmap.close()` was never called
+anywhere — release was left to garbage collection even after cache
+eviction dropped the reference.
+
+On WebKit an `ImageBitmap` is GPU-backed (IOSurface). Each resident
+tile texture therefore held two GPU copies: the WebGL texture in the
+GPU cache plus the decoded bitmap in the resources cache, and the
+bitmap pool grew with every newly loaded tile toward a budget far
+beyond what iOS allows a page before it kills the GPU process. This
+matches the symptoms: every map dies, faster on texture-heavy styles,
+and slower since the recursive pipeline reduced resident tiles.
+Desktop browsers tolerate the same growth, so only iOS breaks.
+
+### Fix
+
+`subtexture.js`:
+
+- `buildGpuTexture()` now releases the decoded image and its resources
+  cache entry right after the upload; the WebGL texture is the single
+  resident copy. After GPU-cache eviction the texture is re-downloaded
+  on demand (`killGpuTexture` already reset `loadState` for that case).
+- `killImage()` and `buildHeightMap()` call `ImageBitmap.close()`
+  before dropping the reference, and `buildHeightMap()` zeroes its
+  temporary canvas so the backing store is freed at once.
+
+`gpu/texture.ts`: `[Symbol.dispose]` now also deletes the framebuffer
+and depth renderbuffer a `GpuTexture` may own (previously only the
+texture handle was deleted; mask-pool and hitmap teardown leaked them).
+
+A Playwright probe on complex-terrain confirmed the ledger: 28 image
+loads = 12 released after upload + 15 height/density conversions
+(bitmap closed, CPU `imageData` kept by design) + 1 still awaiting
+upload. Type check and the three regression screenshots (simple,
+complex, full) pass with renders identical to prod.
+
+Device test (iPad 6 / iPhone 13 mini): before the fix the complex
+style died after 20-30 s of zoom/pan; with the fix it survived
+minutes of heavy interaction without context loss. The fix removes
+the crash at least to a large extent; whether a slower residual
+growth path remains is not established.
+
+`this.mask` on `MapSubtexture` is never assigned anywhere; the
+kill-cascade through it is dead code.
+
 ## 2026-06-10 — iOS atmosphere rings: root cause and fix
 
 Branch: `bugfix/ios-atmosphere-grayscale-decode`.

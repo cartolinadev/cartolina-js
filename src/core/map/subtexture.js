@@ -53,6 +53,12 @@ MapSubtexture.prototype.kill = function() {
 
 
 MapSubtexture.prototype.killImage = function(killedByCache) {
+
+    // close() releases ImageBitmap pixel storage at once instead of
+    // leaving it to garbage collection (on WebKit it is gpu memory)
+    if (this.image && typeof this.image.close === 'function')
+        this.image.close();
+
     this.image = null;
     this.imageData = null;
 
@@ -589,6 +595,24 @@ MapSubtexture.prototype.buildGpuTexture = function () {
                 this.image, this.type, 'linear', false);
     }
 
+    // The gpu texture is now the resident copy of an image-backed
+    // texture: release the decoded image and its cache entry at once.
+    // An ImageBitmap holds gpu-backed pixel storage on WebKit, so a
+    // retained image doubles the texture's gpu footprint there. After
+    // gpu-cache eviction the texture is downloaded again on demand.
+    // (The atmosphere density path keeps its cpu-decoded data and has
+    // no image here.)
+    if (this.image) {
+
+        if (typeof this.image.close === 'function') this.image.close();
+        this.image = null;
+
+        if (this.cacheItem) {
+            this.map.resourcesCache.remove(this.cacheItem);
+            this.cacheItem = null;
+        }
+    }
+
     this.gpuSize = this.gpuTexture.getSize();
 
     this.stats.gpuTextures += this.gpuSize;
@@ -608,7 +632,16 @@ MapSubtexture.prototype.buildHeightMap = function () {
     ctx.drawImage(this.image, 0, 0);
     this.imageData = ctx.getImageData(0, 0, this.image.naturalWidth, this.image.naturalHeight).data;
     this.imageExtents = [this.image.naturalWidth, this.image.naturalHeight];
+
+    // close() releases ImageBitmap pixel storage at once instead of
+    // leaving it to garbage collection (on WebKit it is gpu memory)
+    if (typeof this.image.close === 'function') this.image.close();
     this.image = null;
+
+    // release the canvas backing store at once; browsers keep it
+    // allocated until garbage collection otherwise
+    canvas.width = 0;
+    canvas.height = 0;
 };
 
 

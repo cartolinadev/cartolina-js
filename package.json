@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.513-bugfix_ios_atmosphere_grayscale_decode.97f813d4",
+  "version": "2.49.514-bugfix_ios_imagebitmap_release.9a4dccb1",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {

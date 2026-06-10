@@ -71,13 +71,25 @@ export class GpuTexture {
     };
 
 
-/** Releases the GPU texture handle. */
+/** Releases the GPU texture, framebuffer and renderbuffer handles. */
 [Symbol.dispose](): void {
 
     if (this.disposed_) return;
     this.disposed_ = true;
     this.gl.deleteTexture(this.texture);
     this.texture = null;
+
+    if (this.framebuffer) {
+
+        this.gl.deleteFramebuffer(this.framebuffer);
+        this.framebuffer = null;
+    }
+
+    if (this.renderbuffer) {
+
+        this.gl.deleteRenderbuffer(this.renderbuffer);
+        this.renderbuffer = null;
+    }
 }
 
 // subtexture.js calls this directly; remove once subtexture.js is TS.
