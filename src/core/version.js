@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.514-bugfix_ios_imagebitmap_release.9a4dccb1';
+  return '2.49.515-ba486b46';
 }

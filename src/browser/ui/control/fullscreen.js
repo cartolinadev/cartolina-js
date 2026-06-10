@@ -54,18 +54,57 @@ UIControlFullscreen.prototype.fullscreenEnabled = function() {
 };
 
 
+/**
+ * Return the element currently displayed in native fullscreen, across
+ * vendor prefixes, or a falsy value when none is.
+ */
+UIControlFullscreen.prototype.fullscreenElement = function() {
+    return (document.fullscreenElement || document.webkitFullscreenElement
+        || document.mozFullScreenElement || document.msFullscreenElement);
+};
+
+
+/**
+ * Toggle a CSS overlay that stretches the map wrapper across the
+ * viewport. Used as a fallback where the native Fullscreen API is
+ * unavailable. The renderer picks up the new wrapper size on the next
+ * frame, the same way it reacts to a native fullscreen resize.
+ */
+UIControlFullscreen.prototype.toggleFakeFullscreen = function() {
+
+    var element = this.ui.element;
+    var on = !element.classList.contains('vts-fullscreen-fake');
+
+    element.classList.toggle('vts-fullscreen-fake', on);
+    this.enabled = on;
+};
+
+
+/**
+ * Handle a click on the fullscreen button, toggling fullscreen on the
+ * map wrapper. Uses the native Fullscreen API where available, and a CSS
+ * overlay where it is not.
+ */
 UIControlFullscreen.prototype.onClick = function() {
 
-    let fe = document.fullscreenElement;
+    //Safari on iPhone implements the Fullscreen API for <video> only, so
+    //the map wrapper has no requestFullscreen method and the native path
+    //silently fails. Fall back to a CSS overlay there. iPadOS Safari and
+    //desktop browsers report fullscreen support and take the native path.
+    if (!this.fullscreenEnabled()) {
 
-    if (fe) {
+        this.toggleFakeFullscreen();
+        return;
+    }
 
-        document.exitFullscreen();
+    if (this.fullscreenElement()) {
+
+        this.exitFullscreen();
         this.enabled = false;
 
     } else {
 
-        this.ui.element.requestFullscreen();
+        this.requestFullscreen(this.ui.element);
         this.enabled = true;
     }
 };

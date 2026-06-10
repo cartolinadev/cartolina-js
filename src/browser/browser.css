@@ -596,6 +596,20 @@
     z-index: 10;
 }
 
+/* Pseudo-fullscreen overlay for browsers without the element Fullscreen
+   API (Safari on iPhone). Fixed positioning fills the visual viewport;
+   the two-class selector outranks the base .vts-browser rule. */
+.vts-browser.vts-fullscreen-fake {
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    z-index: 99999;
+}
+
 /*
  * NOTIFICATION OVERLAY
  */

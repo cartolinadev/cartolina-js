@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-06-11 — fullscreen button fails on iPhone Safari
+
+The map fullscreen control did nothing on iPhone 13 while working on
+iPad 6. Cause: `UIControlFullscreen.onClick` called
+`this.ui.element.requestFullscreen()` directly. Safari on iPhone
+implements the Fullscreen API for `<video>` only, so the map wrapper
+has no `requestFullscreen` method and the call silently fails. iPadOS
+Safari reports as desktop and supports the API, hence the split.
+
+Fix in [fullscreen.js](../../src/browser/ui/control/fullscreen.js): route
+`onClick` through the vendor-prefixed helper methods already present in
+the file (they were defined but bypassed), add a `fullscreenElement()`
+helper, and fall back to a CSS overlay when `fullscreenEnabled()` is
+false. The overlay toggles a `vts-fullscreen-fake` class on the map
+wrapper; [browser.css](../../src/browser/browser.css) gives that class
+`position: fixed; inset: 0` so the wrapper fills the viewport. The
+renderer re-reads DOM size each frame, so it resizes automatically, the
+same path native fullscreen uses.
+
+Verified in a real browser against the freshly built bundle by forcing
+`document.fullscreenEnabled` false: first click takes the wrapper from
+600x400 absolute to full-viewport fixed, second click restores it. The
+homepage loads the library from the CDN, so this reaches cartolina.dev
+only after a dist rebuild and publish.
+
 ## 2026-06-11 — RFC numbering; RFC 8 draft (context-loss recovery)
 
 Protocol change recorded in AGENTS.md: RFCs are numbered in a single
