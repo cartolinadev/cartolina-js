@@ -3,16 +3,12 @@
 ## FEATURE: recover from WebGL context loss
 
 **Opened:** 2026-06-10
-**Status:** open
+**Status:** promoted to
+[RFC 8](rfc-context-loss-recovery.md) on 2026-06-11
 
-`GpuDevice` listens for `webglcontextlost` (and calls `preventDefault`
-so the browser may restore the context) and for `webglcontextrestored`,
-but `contextRestored()` only fires the `gpu-context-restored` listener.
-No GPU resources (programs, textures, buffers, framebuffers) are
-re-created, so after a context loss the map stays blank permanently.
-Recovery needs either a full renderer re-initialization plus cache
-flush on restore, or a documented decision that the embedding
-application must rebuild the viewer.
+After a context loss the map stays blank permanently;
+`contextRestored()` only fires an event. Design and implementation
+plan live in the RFC.
 
 ## BUG/DESIGN: coverage-aware point terrain queries
 

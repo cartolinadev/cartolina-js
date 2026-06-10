@@ -1,5 +1,26 @@
 # Session log
 
+## 2026-06-11 — RFC numbering; RFC 8 draft (context-loss recovery)
+
+Protocol change recorded in AGENTS.md: RFCs are numbered in a single
+plain-integer sequence in creation order. The number appears in the
+document title and the index listings; filenames keep their
+`rfc-<slug>.md` form so the ~140 existing cross-references stay
+valid. Existing RFCs were assigned 1–7 by git creation date
+(config-store, event-bus, draw-traversal, bump-bake, remove-3dtiles,
+map-frame, metanode-store).
+
+Drafted [RFC 8: recover from WebGL context loss]
+(rfc-context-loss-recovery.md), promoting the 2026-06-10 backlog
+entry. Map-level design: on `webglcontextrestored` the same context
+object becomes valid again, so recovery is a gpu-cache flush (the
+destructors and lazy re-download machinery already exist and are
+exercised by cache eviction) plus re-creation of the static GL
+objects, inventoried in the RFC. Central invariant: every GPU-resident
+object is either gpu-cache-tracked or created by a re-runnable
+initialization entry point. Testable on desktop via
+`WEBGL_lose_context`. Status Draft; reviewer not yet assigned.
+
 ## 2026-06-10 — iOS interaction crash: decoded tile images retained
 
 Branch: `bugfix/ios-imagebitmap-release`.

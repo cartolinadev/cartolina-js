@@ -28,15 +28,22 @@ then branch into more specific documents as needed.
 
 ### RFCs — active
 
-- [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed metanode
-  store replacing the serve-time DEM warp; paged mmapped `{flags, minZ,
-  maxZ}` quadtree, fields derived at delivery; subsumes the
-  coverage-mask `mapproxy-tiling` redesign
-- [rfc-config-store.md](rfc-config-store.md) — reactive ConfigStore
-  to replace stringly-typed config routing; prerequisite for
-  core.js suppression
-- [rfc-event-bus.md](rfc-event-bus.md) — extract the event bus from
-  `core.js` to a typed `EventBus<EventMap>` class as part of the
+RFCs are numbered in a plain integer sequence; see the RFC protocol
+in [AGENTS.md](../../AGENTS.md).
+
+- RFC 8 [rfc-context-loss-recovery.md](rfc-context-loss-recovery.md) —
+  recover from WebGL context loss at the map level: flush GPU caches,
+  re-create renderer statics from one entry point, let the lazy tile
+  machinery repopulate
+- RFC 7 [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed
+  metanode store replacing the serve-time DEM warp; paged mmapped
+  `{flags, minZ, maxZ}` quadtree, fields derived at delivery; subsumes
+  the coverage-mask `mapproxy-tiling` redesign
+- RFC 1 [rfc-config-store.md](rfc-config-store.md) — reactive
+  ConfigStore to replace stringly-typed config routing; prerequisite
+  for core.js suppression
+- RFC 2 [rfc-event-bus.md](rfc-event-bus.md) — extract the event bus
+  from `core.js` to a typed `EventBus<EventMap>` class as part of the
   `core.js` suppression track; `EventTarget` evaluated and rejected
 
 ### Data model

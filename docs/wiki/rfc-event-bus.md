@@ -1,4 +1,4 @@
-# RFC: event bus — extraction and redesign
+# RFC 2: event bus — extraction and redesign
 
 **Status:** In review
 **Context:** event bus section in [architecture.md](architecture.md);

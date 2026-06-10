@@ -1,4 +1,4 @@
-# RFC: remove the OGC 3D Tiles / VTS octree pipeline
+# RFC 5: remove the OGC 3D Tiles / VTS octree pipeline
 
 **Status:** Implemented
 **Elevates:** "REFACTOR: remove OGC 3D Tiles streaming mechanism" and

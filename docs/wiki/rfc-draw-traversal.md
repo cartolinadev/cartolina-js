@@ -1,4 +1,4 @@
-# RFC: unified recursive draw traversal
+# RFC 3: unified recursive draw traversal
 
 **Status:** Implemented
 **Context:** REFACTOR: replace legacy map draw path in

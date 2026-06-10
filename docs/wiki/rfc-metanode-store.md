@@ -1,4 +1,5 @@
-# RFC: the metanode store — precomputed metatiles without serve-time warp
+# RFC 7: the metanode store — precomputed metatiles without serve-time
+warp
 
 **Status:** Draft
 **Opened:** 2026-06-07

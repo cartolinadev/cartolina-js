@@ -1,4 +1,4 @@
-# RFC: bump-layer collapse inside `TileRenderRig`
+# RFC 4: bump-layer collapse inside `TileRenderRig`
 
 **Status:** Implemented (2026-05-21)
 **Context:** PERF: bake bump maps into normal map inside

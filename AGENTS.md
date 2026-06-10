@@ -76,6 +76,12 @@ historical record.
 RFC files live in `docs/wiki/` and are named `rfc-<slug>.md`.
 They are listed in the **RFCs** section of `index.md`.
 
+RFCs are numbered in a single plain-integer sequence in order of
+creation. A new RFC takes the next unused integer. The number appears
+in the document title (`# RFC 7: ...`) and in the index listings; the
+filename stays `rfc-<slug>.md`, without the number, so existing
+cross-references remain valid.
+
 **Lifecycle:**
 
 - A backlog entry may be promoted to an RFC when the scope grows

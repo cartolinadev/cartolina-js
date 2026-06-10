@@ -1,4 +1,4 @@
-# RFC: ConfigStore — reactive configuration for cartolina-js
+# RFC 1: ConfigStore — reactive configuration for cartolina-js
 
 **Status:** In review  
 **Context:** core.js suppression; see [architecture.md](architecture.md)

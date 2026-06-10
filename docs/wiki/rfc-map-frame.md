@@ -1,4 +1,4 @@
-# RFC: Map owns the frame loop
+# RFC 6: Map owns the frame loop
 
 **Status:** Implemented
 **Context:** Promotes step 2 of
