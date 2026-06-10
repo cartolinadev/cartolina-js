@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-06-10 — TileRenderRig view-switch rotation
+
+Fixed a `TileRenderRig` lifecycle bug in `draw-tiles.js`: `updateBounds`
+was cleared inside the submesh loop after the first rig rebuild. Because
+the flag is tile-wide but rig rotation is per-submesh, later submeshes
+could miss the view-switch or bound-layer fallback rebuild. The clear now
+runs after the loop, guarded by CPU mesh readiness, so every submesh sees
+the stale flag while avoiding rig construction from killed CPU submesh
+fields.
+
+Reviewed the soft view-switch path while fixing this. `lastRenderRig`
+is the terrain equivalent of the old `lastRenderState` replay for the
+normal same-surface case, but it only runs after `drawSurfaceTile`
+reaches the per-submesh rig loop. Added a backlog entry for the remaining
+early-exit gaps: new surface mesh metadata not parsed yet, and CPU mesh
+data evicted when a rebuild is required.
+
+Verified: screenshot checks passed for `simple-terrain`,
+`complex-terrain`, `full-terrain`, and `legacy-benatky`.
+
 ## 2026-06-08 — draw traversal: mark RFC implemented
 
 Closed out [rfc-draw-traversal.md](rfc-draw-traversal.md) after reviewing

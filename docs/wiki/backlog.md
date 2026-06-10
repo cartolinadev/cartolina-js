@@ -976,6 +976,51 @@ for the full explanation and the discard-threshold tuning knob.
 
 ---
 
+## BUG: TileRenderRig soft view switching has early-exit gaps
+
+**Opened:** 2026-06-10
+**Status:** open — `lastRenderRig` covers the normal same-surface view
+switch, but `drawSurfaceTile` can return before reaching the fallback
+rig path
+**Related:** [rendering-architecture.md](rendering-architecture.md)
+
+### Confirmed behavior
+
+`MapSurfaceTile.viewSwitched()` keeps the current `tileRenderRig` alive
+and sets `tile.updateBounds = true`. On the next terrain draw,
+`drawSurfaceTile` moves the old current rig to `lastRenderRig[i]`,
+constructs a new `TileRenderRig`, and draws `lastRenderRig[i]` when the
+new rig is not ready. This is the modern terrain equivalent of the old
+`lastRenderState` soft view-switch replay.
+
+The old command replay and the new rig fallback do not have identical
+failure surfaces. `lastRenderState` could replay commands while new tile
+state was being rebuilt. The `lastRenderRig` fallback only runs after
+`drawSurfaceTile` reaches the per-submesh rig loop.
+
+### Caveats
+
+- If the new view points at a different surface and the new mesh has not
+  parsed submesh metadata yet, `drawSurfaceTile` returns before the
+  per-submesh loop, so the old rig is not drawn for that tile.
+- If CPU mesh data has been evicted (`surfaceMesh.submeshesKilled`) at
+  the moment a rig rebuild is needed, the rebuild is deferred until CPU
+  data reloads. Existing GPU-resident rigs can keep drawing when no
+  rebuild is needed, but a required rebuild does not currently fall back
+  to the old rig inside the same branch.
+
+### Follow-up
+
+If visible holes appear during surface or style switches, instrument
+`drawSurfaceTile` around the early returns and the CPU-residence guard.
+The desired property is that a GPU-resident previous rig can draw
+whenever the tile position is still valid and the replacement rig cannot
+yet be constructed or made ready. Any fix must avoid constructing a new
+rig from killed CPU submesh fields; that guard prevents the drab-tile
+race documented below.
+
+---
+
 ## BUG: TileRenderRig — internal texture missing from layer stack
 
 **Opened:** 2026-05-28

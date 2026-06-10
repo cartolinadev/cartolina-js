@@ -156,8 +156,6 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                         tile.tileRenderRig[i] = new TileRenderRig(
                             i, submeshSurface.style, tile, this.renderer,
                             this.config);
-
-                        tile.updateBounds = false;
                     }
 
                     let curRig = tile.tileRenderRig[i];
@@ -230,6 +228,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
 
                     ret = rigToDraw;
                 } // end iterate through submeshes
+
+                // submesh rigs were rebuilt -> clear update flag
+                if (cpuReady) tile.updateBounds = false;
 
                 // draw the overlay once per tile, on the color pass, when the
                 // tile painted color content this frame
