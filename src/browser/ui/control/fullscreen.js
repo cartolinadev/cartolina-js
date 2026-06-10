@@ -69,13 +69,40 @@ UIControlFullscreen.prototype.fullscreenElement = function() {
  * viewport. Used as a fallback where the native Fullscreen API is
  * unavailable. The renderer picks up the new wrapper size on the next
  * frame, the same way it reacts to a native fullscreen resize.
+ *
+ * The wrapper is reparented to the document body while the overlay is
+ * active. A host page can place the map inside an element that forms a
+ * CSS stacking context (a positioned header, a transform), which would
+ * trap the overlay below that page chrome no matter how high its
+ * z-index. Moving the wrapper out to the body, and back on exit, escapes
+ * any such context. The move preserves the canvas and its GL context.
  */
 UIControlFullscreen.prototype.toggleFakeFullscreen = function() {
 
     var element = this.ui.element;
     var on = !element.classList.contains('vts-fullscreen-fake');
 
-    element.classList.toggle('vts-fullscreen-fake', on);
+    if (on) {
+
+        //remember where the wrapper lived so it can be restored exactly
+        this.fakeParent = element.parentNode;
+        this.fakeNextSibling = element.nextSibling;
+
+        element.classList.add('vts-fullscreen-fake');
+        document.body.appendChild(element);
+
+    } else {
+
+        element.classList.remove('vts-fullscreen-fake');
+
+        if (this.fakeParent) {
+            this.fakeParent.insertBefore(element, this.fakeNextSibling);
+        }
+
+        this.fakeParent = null;
+        this.fakeNextSibling = null;
+    }
+
     this.enabled = on;
 };
 

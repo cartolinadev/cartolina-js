@@ -25,6 +25,25 @@ Verified in a real browser against the freshly built bundle by forcing
 homepage loads the library from the CDN, so this reaches cartolina.dev
 only after a dist rebuild and publish.
 
+**Follow-up (same day): the first attempt broke on the live page.** The
+`position: fixed` overlay was painted *below* the site header — the
+cartolina.dev masthead (logo, hamburger, its bottom border) showed
+through on top of the map, and that header covered the exit button, so
+there was no way back out. Cause: a host page can nest the map inside an
+element that forms a CSS stacking context, which traps the overlay below
+the page chrome no matter how high its z-index. The first test page had
+no site chrome, so it never showed this.
+
+Second fix: `toggleFakeFullscreen` now reparents the wrapper to
+`document.body` on enter and restores it to its original parent on exit.
+Moving the wrapper out of the trapped subtree lets the overlay sit above
+all page chrome; the move preserves the canvas and its GL context.
+Reproduced and verified against a copy of the real homepage (Minimal
+Mistakes masthead present) at a 390x844 iPhone viewport: before the fix
+the masthead painted over the map and covered the button; after it the
+canvas and the exit button are the topmost elements, and exiting
+restores the wrapper to `#map` with the page intact.
+
 ## 2026-06-11 — RFC numbering; RFC 8 draft (context-loss recovery)
 
 Protocol change recorded in AGENTS.md: RFCs are numbered in a single
