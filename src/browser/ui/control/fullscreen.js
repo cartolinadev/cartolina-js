@@ -76,6 +76,11 @@ UIControlFullscreen.prototype.fullscreenElement = function() {
  * trap the overlay below that page chrome no matter how high its
  * z-index. Moving the wrapper out to the body, and back on exit, escapes
  * any such context. The move preserves the canvas and its GL context.
+ *
+ * A `vts-fullscreen-active` class is also set on the document element so
+ * the iOS safe-area bars (rounded screen corners, the notch and home
+ * indicator strip) are painted black rather than the host page's default
+ * background, which would otherwise show as white margins.
  */
 UIControlFullscreen.prototype.toggleFakeFullscreen = function() {
 
@@ -89,11 +94,13 @@ UIControlFullscreen.prototype.toggleFakeFullscreen = function() {
         this.fakeNextSibling = element.nextSibling;
 
         element.classList.add('vts-fullscreen-fake');
+        document.documentElement.classList.add('vts-fullscreen-active');
         document.body.appendChild(element);
 
     } else {
 
         element.classList.remove('vts-fullscreen-fake');
+        document.documentElement.classList.remove('vts-fullscreen-active');
 
         if (this.fakeParent) {
             this.fakeParent.insertBefore(element, this.fakeNextSibling);

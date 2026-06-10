@@ -608,6 +608,16 @@
     width: auto;
     height: auto;
     z-index: 99999;
+    background: #000;
+}
+
+/* Paint the iOS safe-area bars (rounded screen corners, notch, home
+   indicator strip) black while the overlay is active. Without this the
+   host page's default background shows there as white margins, most
+   visibly on the sides in landscape. */
+html.vts-fullscreen-active,
+html.vts-fullscreen-active body {
+    background: #000;
 }
 
 /*

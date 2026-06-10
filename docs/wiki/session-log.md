@@ -44,6 +44,17 @@ the masthead painted over the map and covered the button; after it the
 canvas and the exit button are the topmost elements, and exiting
 restores the wrapper to `#map` with the page intact.
 
+**iOS safe-area bars (device feedback).** With the overlay working, the
+iOS safe-area regions (rounded screen corners, notch, home indicator
+strip — most visible on the sides in landscape) showed the host page's
+white background. The page has no `viewport-fit=cover`, which the
+library cannot set, so the overlay fills only the inset layout viewport.
+Mitigation: `toggleFakeFullscreen` also adds a `vts-fullscreen-active`
+class to the document element; `browser.css` paints `html`, `body`, and
+the overlay black under that class, so the bars read black instead of
+white. Class add/remove and the background restore on exit are verified
+in a desktop browser; the on-device bar colour is the user's check.
+
 ## 2026-06-11 — RFC numbering; RFC 8 draft (context-loss recovery)
 
 Protocol change recorded in AGENTS.md: RFCs are numbered in a single
