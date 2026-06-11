@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: review round 2
+
+Round-1 dispositions verified as implemented. The new §7.1
+(deployment, pairing revision, atomic publication, rollback) is sound.
+Five round-2 notes, driven by one empirical finding: the current
+client's metatile addressing is hardcoded — `surface-tile.js:74` uses
+a literal aggregation 5 and `texture.js:184` a literal 8; the
+`metaBinaryOrder` parsed from the reference frame (`refframe.js:33`,
+`surface-tree.js:16`) and from the surface JSON (`surface.js:85`) is
+never read. So §6's compatibility rule must be the numeric
+`metaBinaryOrder = 5, metaDepth = 1`, and advertising surface
+packaging fields in mapConfig is verified behavior-neutral for
+current clients. Other notes: §3.3's "per-LOD pages lose" argument
+now contradicts the chosen `metaDepth = 1` page shape (reframe around
+first-class rebricking; specify level-slice serialisation); the
+phase-7 rebrick tool has no legal production use in this milestone —
+recommended demoting it to a phase 2–3 validation exercise, with an
+explicit argument against the alternative of pulling client
+consumption into scope (second design, breaks the parity gate,
+`metaDepth` choice needs phase-6 numbers, asymmetric deferral costs,
+server win ships without client coordination); the §5.2 clamp makes a
+serve touch two pages;
+§6 editorial fixes (dangling "It does not", undefined "compatibility
+hint", metaDepth default asymmetry).
+
 ## 2026-06-11 — RFC 7 deployment and migration review topics
 
 Added the RFC 7 deployment strategy after the round-1 response. The

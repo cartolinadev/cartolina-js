@@ -1194,3 +1194,148 @@ any unresolved round-1 follow-up.
   `metaDepth` on an existing dataset. Rebricking rewrites store pages and
   pairing metadata from a validated pair without rerunning the
   native-resolution tiling pass.
+
+## Review round 2
+
+All six round-1 dispositions were checked against the revised body and
+are faithfully implemented. The new §7.1 is sound as a design: the
+pairing revision, the tooling-computed pairing id, the staged
+write/validate/fsync/rename publication, the rollback rule per resource
+flavor, and the explicit "normal-only VRTWO without a valid store is a
+load failure" boundary are the right mechanics, stated checkably. The
+notes below target the added scope and two inconsistencies the rewrite
+introduced.
+
+1. The client compatibility story in §1.6 and §6 does not match the
+   client. Verified in the source: the current cartolina-js metatile
+   addressing is hardcoded — `surface-tile.js:74` calls
+   `findAgregatedNode(id, 5, true)` with a literal 5 (and
+   `texture.js:184` a literal 8 for bound-layer metatiles). The
+   reference-frame value is parsed (`refframe.js:33`), copied to
+   `MapSurfaceTree.metaBinaryOrder` (`surface-tree.js:16`), and never
+   read; the surface-level value is parsed (`surface.js:85`,
+   `this.metaBinaryOrder = json['metaBinaryOrder'] || 1`) and never
+   read. Three consequences:
+
+   - §1.6's "Today this value comes from the reference frame" is true
+     of the server only. State both halves: the server takes
+     `metaBinaryOrder` from the reference frame; the current client
+     ignores both config sources and uses a hardcoded 5, which works
+     because every registry frame is 5.
+   - §6's compatibility constraint must be stated numerically:
+     resources for current clients need effective
+     `metaBinaryOrder = 5` and `metaDepth = 1`. "Keep the
+     reference-frame value" is the wrong rule — a hypothetical frame
+     with a different order would already break today's client.
+   - The §6 caveat "even if the mapConfig already advertises
+     equivalent surface fields" is verified safe, and the RFC can say
+     so plainly: advertising surface packaging fields cannot change
+     current-client behavior because the parsed fields are dead.
+     Record the hardcoded sites (`surface-tile.js:74`,
+     `texture.js:184`) in §8 phase 9 as the things the deferred client
+     milestone must replace with the effective per-surface values.
+
+2. §3.3 now contradicts itself. The "two extremes both lose" argument
+   rejects per-LOD pages, yet the chosen client-compatible page shape
+   (`metaDepth = 1`) *is* the per-LOD extreme. Round 1's design
+   escaped via a page depth decoupled from delivery; the revision
+   couples page shape to the effective packaging — a good
+   simplification (one less free parameter), but the supporting text
+   was not updated to match. Rewrite the extremes paragraph to the
+   actual rule: page shape equals the delivery unit, the per-LOD shape
+   is acceptable as the v1 shape *because* rebricking is first-class,
+   and a future subtree unit is a rebrick away. Two follow-ons:
+
+   - §9's "profile cold-serve span size and directory size after
+     phase 6" item is vestigial: with page shape locked to packaging
+     and packaging locked to `(5, 1)` by client compatibility, there
+     is no tunable left until the client milestone. Either delete the
+     item or state which decision the profiling feeds (e.g. choosing
+     the future default `metaDepth`).
+   - At `metaDepth = 1` a page is a single-LOD 32×32 slice, which is
+     not a subtree, while §3.3 describes only depth-first subtree
+     serialisation. State how a level slice is serialised inside a
+     page (dense 1024-slot grid, or leaf level of a depth-5 local tree
+     with uniform quadrants collapsed) — it decides whether the ocean
+     and flat-water collapse claimed in §3.4/§3.5 happens inside
+     pages or only between them.
+
+3. Phase 7 ships a migration tool with no legal production use in
+   this milestone: changing packaging away from `(5, 1)` is forbidden
+   until a client consumes it, and page-shape tuning is excluded by
+   the same constraint. The project rule is no machinery for
+   hypothetical future use, and §0 says serve latency is the prize —
+   the rebrick tool serves neither. The forward-compatibility proof
+   the RFC actually needs is already delivered by phase 2's exit
+   (round-trip at one non-default packaging) plus a payload-equality
+   check; the operator-grade tool and its §8 guide section have their
+   user only in the client milestone.
+
+   **Recommendation: demote phase 7 to a validation exercise inside
+   phases 2–3 and move the tool, with its §8 guide section, to the
+   client milestone's scope.**
+
+   The alternative — giving the tool a user by pulling client
+   consumption of surface-advertised packaging into this RFC — is
+   rejected for these reasons, recorded so the boundary holds:
+
+   - It is a second design, not an addition. Reading the mapConfig
+     field is the trivial part; the content is a multi-LOD metatile
+     binary format (a v7 break — a node pyramid cannot be serialised
+     as byte-compatible v6), a rewrite of the metatile fetch-descend
+     logic in the legacy JS tree code, the dead-field trim, and the
+     choice of `metaDepth` itself.
+   - It would dismantle the parity gate. This RFC's rollout safety
+     rests on store-served v6 being diffable node-by-node against
+     warp-served v6 (§7). A multi-LOD metatile has no warp-path twin
+     to diff against; keeping the client out keeps the validation
+     story intact.
+   - The decision data does not exist yet. The right `metaDepth` is a
+     measured trade between round trips and speculative bytes, per
+     reference frame, and depends on the cold/warm serve latency,
+     page-cache behaviour, and store size that phase 6 produces.
+     Choosing `v` before phase 6 is guessing; after it, measuring.
+   - The deferral costs are asymmetric. Deferring the tool costs
+     nothing: rebrickability is proven by the phase 2 exit, the node
+     payload is packaging-independent by construction, and raw
+     payload plus rebrick is exactly the option §3.3 already bought.
+     Shipping the tool early buys an operator-grade artifact that
+     must then be maintained through the very format decisions it
+     predates.
+   - The store with warp fallback delivers the §0 prize — cold misses
+     in milliseconds — to every existing client the day it deploys,
+     with zero client coordination. Coupling that win to a client
+     format break holds it hostage to the longest pole in the
+     project.
+
+   Client consumption should open as its own RFC once phase 6 numbers
+   are in hand. Separately, file a backlog entry (not RFC scope) for
+   the client's hardcoded aggregation order from note 1: replacing the
+   literal 5 with the advertised value is behavior-neutral today but
+   is a silent landmine if any frame ever ships a different order.
+
+4. §5.2's clamp claims the parent "is available in the current
+   single-LOD serializer by looking up the parent node". Be precise
+   about the cost: at `metaDepth = 1` the parent of every node in a
+   page lives in the parent-LOD page, so a clamped serve touches two
+   pages, not one. Still cheap, but §0's "read bytes, emit bytes"
+   accounting should say it, and phase 4's no-warp timing check
+   should run with the clamp enabled so the two-page path is what
+   gets measured.
+
+5. Editorial breakage from the rewrite, all in §6:
+
+   - The paragraph "It does not, because of two choices already
+     made:" lost its referent when the surrounding text was rewritten;
+     the sentence it answered ("The design must not preclude this…")
+     no longer ends with the claim "it does not". Reconnect or
+     rephrase.
+   - "The reference frame provides defaults and a compatibility hint"
+     — "compatibility hint" names no mechanism. The hint is nothing
+     more than the default value itself; drop the phrase or define it.
+   - The round-1 response under note 1 says both packaging values
+     take reference-frame defaults, but the §6 formula defaults
+     `metaDepth` to the constant 1 and never reads it from the
+     reference frame. The body is right (the registry stays
+     untouched, which is the point); align the wording where the
+     asymmetry is described.
