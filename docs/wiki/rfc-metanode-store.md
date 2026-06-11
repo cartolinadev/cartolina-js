@@ -149,6 +149,27 @@ shallow subtrees instead of single-LOD blocks — which constrains the
 on-disk layout (§3.3, §6). Treat that as a load-bearing requirement, not
 a future aspiration.
 
+### 1.6 Terminology — metatile packaging
+
+This RFC uses **metatile packaging parameters** for the values that
+decide how metanodes are grouped into served metatile resources. They do
+not change the tile coordinate system, DEM samples, or tile existence;
+they change the delivery unit and the store page shape.
+
+- **`metaBinaryOrder`** is the horizontal packaging parameter. A metatile
+  root level contains an `h × h` block where
+  `h = 1 << metaBinaryOrder`. Today this value comes from the reference
+  frame.
+- **`metaDepth`** is the vertical packaging parameter introduced by this
+  RFC. It is the number of LOD levels in a metatile subtree. The current
+  client-compatible value is `1`, meaning a metatile contains one LOD
+  level only.
+
+The effective values for a DEM surface are defined in §6. In this RFC
+implementation, the server/tooling/store path learns both parameters,
+but datasets served to current cartolina-js clients keep the reference
+frame `metaBinaryOrder` and `metaDepth = 1`.
+
 ---
 
 ## 2. Goals and non-goals
@@ -162,7 +183,7 @@ a future aspiration.
   ID and stable; only origin latency changes.
 - Produce a store whose on-disk layout does not commit the project to
   single-LOD-block delivery, so the future shallow-subtree packaging is
-  a re-bake plus a serializer change, not a redesign.
+  a rebrick plus client/server serializer change, not a redesign.
 - Fold the height-range extraction into a redesigned `mapproxy-tiling`
   that computes existence, watertight, and range in one native-resolution
   pass plus a bottom-up reduction — retiring the per-tile per-LOD warp
@@ -173,7 +194,13 @@ a future aspiration.
 - The client-side ping-pong (§1.5). Separate, complementary, deferred.
 - A metatile format break. The store emits **v6**, byte-compatible,
   during this milestone. Trimming dead v6 fields is deferred to the
-  packaging RFC where it rides a change that is structural anyway (§5.2).
+  later client-facing shallow-subtree milestone, where it rides a change
+  that is structural anyway (§5.3).
+- Client support for surface-level metatile packaging overrides. This
+  RFC defines the tileserver-side resource settings and requires
+  tooling/store support for non-default values, but current cartolina-js
+  clients still consume the reference-frame `metaBinaryOrder` and
+  `metaDepth = 1` metatiles only.
 - vtsd. It serves stored tilesets verbatim and never warps; the store is
   a mapproxy-side artifact. vtsd is untouched.
 - Non-DEM surfaces (spheroid, geodata). The warp this removes is
@@ -191,15 +218,19 @@ holding, per existing node:
 
 | Field | Bytes | Source |
 |---|---|---|
-| flags + child flags | (in node encoding) | tiling pass |
+| mesh existence | (in node encoding) | tiling pass mask band |
+| watertight | (in node encoding) | tiling pass mask band |
 | `minZ` | 2 (`half`) | tiling pass — elevation min |
 | `maxZ` | 2 (`half`) | tiling pass — elevation max |
 
 **4 bytes of payload per node.** Everything else a metanode carries is
-derived at delivery (§3.2). The store carries its **own** copy of the
-flags so a metatile serves from a single read; the duplication is
-negligible (flags collapse to almost nothing in the quadtree) and it
-leaves the existing flag index, and vtsd, untouched.
+derived at delivery (§3.2). The store carries only data-derived DEM
+surface flags: mesh existence and watertight. Child existence comes
+from the tree structure during traversal. `navtilePresent` is derived
+at delivery from the resource's navtile LOD range, so a config edit
+does not make the store stale. Alien and glue/source-reference state
+are not applicable to a mapproxy DEM surface. Duplicating mesh and
+watertight leaves the existing flag index, and vtsd, untouched.
 
 The name is deliberately generic: height range is the *first* channel,
 not the last. The obvious second channel — sampled horizontal coverage
@@ -224,12 +255,20 @@ heuristic over `{minZ, maxZ}`:
 
 | Metanode field | How it is produced at serve time |
 |---|---|
-| content / child flags | from the store's flags |
+| content flags | mesh/watertight from the store; navtile from config |
+| child flags | from tree structure |
 | `minZ` / `maxZ` (SDS) | read from the store |
-| `minHeight`/`maxHeight` (navtile, navSRS) | SDS→nav transform of the stored range (analytic) |
+| `minHeight`/`maxHeight` (navtile, navSRS) | SDS→nav vertical transform of the stored range |
 | `surrogate` | **midpoint** `(minZ+maxZ)/2` (see below) |
 | `texelSize` | relief heuristic over the stored range (§5) |
-| SDS horizontal extents (`llX..urX`) | **full-cell** analytic from tile ID + division node (§5.2) |
+| SDS horizontal extents (`llX..urX`) | **full-cell** analytic from tile ID + division node (§5.3) |
+
+The SDS→nav height conversion is cheap, not always analytic. When SDS
+and navSRS share the same orthometric vertical datum it is an identity
+on height. If they differ, delivery evaluates the existing SRS
+conversion for the node range, including any geoid-grid lookup needed
+by that transform. The vertical-datum checklist in §9 verifies which
+case applies for the target reference frames.
 
 **Surrogate = midpoint.** The current warp computes the surrogate as the
 *average* of valid samples (metatile.cpp:466) — not a min/max, so a
@@ -273,16 +312,22 @@ crux of forward compatibility (§6). The two extremes both lose:
   depth-`metaBinaryOrder` subtree) is far too large to read per request.
 
 Bricking with a tunable page depth is the compromise that serves both.
-And because the store is a *derived* artifact, cheaply re-bakeable, the
-page shape is never a permanent commitment: when delivery moves from
-single-LOD blocks to shallow subtrees, re-bake with a page depth equal
-to the subtree depth and the future delivery unit becomes *one page, one
-`sendfile`*.
+The page key is the metatile root block `(rootLod, rootX, rootY)`, using
+the same phase and horizontal masking rule as the delivery unit in §6.
+The page shape is the resource's effective metatile packaging
+parameters (§6). For today's client-compatible shape — reference-frame
+`metaBinaryOrder`, `metaDepth = 1` — a page is one single-LOD block. For
+`metaDepth > 1`, a page is the `h × h` forest of that depth, serialized
+depth-first within each subtree and contiguous as a whole. Because the
+store is a *derived* artifact and can be rebricked cheaply, the page
+shape is never a permanent commitment: changing packaging parameters for
+an existing dataset is a rebrick and atomic migration (§7.1), not a DEM
+retiling.
 
 **Store raw payload, not pre-serialised metatiles.** Serialising
 `{flags, minZ, maxZ}` into a v6 metatile at request time costs
-microseconds; pre-serialising would re-bake the world on every format or
-packaging change. Raw payload future-proofs against exactly the
+microseconds; pre-serialising would repackage the world on every format
+or packaging change. Raw payload future-proofs against exactly the
 v6→v7 / flat-block→subtree change §6 anticipates. The metatile *format*
 and *packaging* become serializer concerns over an unchanged store.
 
@@ -407,9 +452,16 @@ read at every pyramid level, twice over.
 
 ### 4.2 The native-resolution pass
 
-Per reference-frame division node, warp the source **once** at the
-resolution floor (the native-resolution LOD calipers already computes),
-and reduce per output cell. Two bands, reduced to four statistics:
+Per reference-frame division node, visit the source at the resolution
+floor (the native-resolution LOD calipers already computes) and reduce
+per output cell. This is a **windowed** pass, not a materialized global
+grid: each worker warps a bounded output-cell block, reduces its mask
+and elevation samples, writes the leaf results, and releases the block.
+Peak memory is bounded by `workers × windowCells × bands`, plus the
+streaming reduction buffers for the coarser levels being flushed. "Once"
+means one visit per source/output sample at the native floor, not one
+GDAL warp call and not one planet-sized array. Two bands are reduced to
+four statistics:
 
 1. **Mask band** (`GetMaskBand`, GDAL RFC 15) → existence and watertight.
    `max(cell) > 0` ⇒ exists; `min(cell) == 255` ⇒ watertight.
@@ -422,9 +474,11 @@ Then build coarser LODs bottom-up with no further sampling:
 - `minZ`: `parent = min(children)`
 - `maxZ`: `parent = max(children)`
 
-Leaves are sampled once; every coarser node is pure reduction. This is
-the `O(levels × area)` → `O(area)` collapse the coverage-mask item
-describes, now carrying the height payload in the same reduction.
+Leaves are sampled once; every coarser node is pure reduction. Coarser
+levels are reduced bottom-up as windows complete, with partial parent
+accumulators kept only for open regions. This is the `O(levels × area)`
+→ `O(area)` collapse the coverage-mask item describes, now carrying the
+height payload in the same reduction.
 
 ### 4.3 The nodata rule — opposite per band
 
@@ -527,6 +581,16 @@ heuristic over the stored range, no warp. This is the first concrete
 implementation step in §8, deliberately ahead of the store work so the
 one soft assumption is measured before it is built upon.
 
+The spike also reports monotonicity along descent paths. The client
+compares `node.pixelSize` independently per node, so a derived child
+value must not exceed its parent or descent can stop early on rugged
+terrain. The planar term halves per LOD, but `relief / tileEdge` can
+grow with depth. If the raw heuristic violates monotonicity against the
+true warped values, delivery clamps the emitted child value to no more
+than the emitted parent value. The parent is already on the store page
+read path for a shallow subtree, and is available in the current
+single-LOD serializer by looking up the parent node.
+
 ### 5.3 The unused v6 fields
 
 The store emits **v6** unchanged, so fields cartolina-js does not consume
@@ -541,40 +605,107 @@ must still be filled with something valid:
 - **surrogate** → midpoint (§3.2).
 
 The alternative — patching the v6 spec to reserve these fields — is a
-real format break for ~16 bytes/node. Defer it to the shallow-subtree
-packaging RFC, where reserving fields rides a change that is structural
-anyway. Filling full-cell extents keeps the output diffable against the
-live warp path during rollout (§7), which the parity gate needs.
+real format break for ~16 bytes/node. Defer it to the later
+client-facing shallow-subtree milestone, where reserving fields rides a
+change that is structural anyway. Filling full-cell extents keeps the
+output diffable against the live warp path during rollout (§7), which
+the parity gate needs.
 
 ---
 
 ## 6. Forward compatibility — shallow-subtree delivery
 
 The likely fix for the ping-pong (§1.5) is to stop serving single-LOD
-flat blocks and start serving **shallow subtrees** — a metatile spanning
-several LODs of descent — or neighbouring sets of them, on the bet that
-a client fetching a metanode will follow with its children. The design
-must not preclude this.
+flat blocks and start serving **shallow subtrees**: a metatile spanning
+several LODs of descent. The design must not preclude this, so the
+future delivery unit is defined here even though it is deferred.
+
+Metatile addressing is parameterized by two **metatile packaging
+parameters**:
+
+- **Horizontal integration.** `metaBinaryOrder` defines
+  `h = 1 << metaBinaryOrder`. A metatile root level contains an `h × h`
+  block of subtree roots.
+- **Vertical integration.** `metaDepth = v` defines how many LOD levels
+  each subtree spans. Subtree roots exist at `lod ≡ 0 (mod v)`. A
+  requested tile at LOD `L` belongs to root LOD `L - (L mod v)`.
+
+The reference frame provides defaults and a compatibility hint. The DEM
+surface/resource definition may override either value:
+
+```
+effectiveMetaBinaryOrder =
+    surface.metaBinaryOrder ?? referenceFrame.metaBinaryOrder
+
+effectiveMetaDepth =
+    surface.metaDepth ?? 1
+```
+
+The effective values are authoritative for server-side generation,
+store layout, metatile serving, and future client traversal. Surface
+definitions are the right ownership boundary because DEM surfaces are
+generated, rebricked, migrated, rolled back, and cache-busted one at a
+time. The reference-frame values remain defaults for resources that do
+not opt into per-surface packaging.
+
+The tileserver resource parser, generation tooling, rebrick tooling,
+store header, source hash, validation rules, and produced mapConfig
+surface definition must all carry both effective values. The mapConfig
+fields are how a future client learns that a surface uses custom
+packaging. Current clients understand only the reference-frame
+`metaBinaryOrder` and `metaDepth = 1`; resources intended for current
+cartolina-js must keep those effective values even if the mapConfig
+already advertises equivalent surface fields. Changing cartolina-js to
+consume per-surface packaging is deferred. The tileserver-side knobs,
+store layout, and repackaging support for non-default values are part of
+this RFC.
+
+A multi-LOD metatile rooted at `rootLod` contains levels
+`h × h`, `2h × 2h`, ..., `h·2^(v-1) × h·2^(v-1)`, for
+`h² · (4^v - 1) / 3` nodes total. With today's
+`metaBinaryOrder = 5` and `metaDepth = 1`, that is the existing
+32×32 single-LOD block of 1024 nodes. A future `metaBinaryOrder = 2`,
+`metaDepth = 4` unit would contain 16 + 64 + 256 + 1024 = 1360 nodes,
+and would cut a LOD-15 metatile descent from roughly 16 fetch phases to
+4 fetch phases.
+
+The root block's X/Y are computed by taking the tile's ancestor at
+`rootLod`, then masking by `~(h - 1)`, preserving the current
+shift-and-mask `metaId` shape. There is no per-division-node vertical
+anchor: a division node rooted off-phase starts as an interior level of
+the enclosing metatile, and a `lodRange` that starts mid-phase yields a
+partial metatile, just as today's blocks can straddle a tile range.
+
+At `metaDepth > 1`, one metatile has `4^v` child metatiles. The leaf
+level's child flags remain the fetch signal at the block boundary, and
+the client fetches only children covering the view. Larger `v` reduces
+round trips and increases speculative nodes per fetch. Smaller
+`metaBinaryOrder` reduces horizontal speculative nodes and may increase
+neighbouring metatile requests. Both are per-surface trade-offs once the
+client supports them.
 
 It does not, because of two choices already made:
 
 1. **Raw payload, not pre-serialised metatiles** (§3.3). The delivery
    *packaging* — flat block vs. subtree vs. neighbour-set — is a
    serializer over the store. Changing it does not touch stored bytes.
-2. **Page shape is a build parameter** (§3.3). Re-bake the store with a
-   page depth equal to the target subtree depth, and the new delivery
-   unit *is* one page: serve = `sendfile`. No storage-model change.
+2. **Page shape is resource packaging** (§3.3). Rebrick the store with
+   the resource's effective `metaBinaryOrder` and `metaDepth`, keyed by
+   the root block above, and the new delivery unit is one page. No
+   storage-model change and no DEM retiling.
 
-So the shallow-subtree milestone, when it comes, is a serializer plus a
-re-bake — and that is also the natural moment to trim the dead v6 fields
-(§5.3) and bump the metatile format, all in one structural change rather
-than spent piecemeal now.
+So the client-facing shallow-subtree milestone, when it comes, is a
+client/parser change and, if needed, a format bump over server-side
+surface settings that already exist. That is also the natural moment to
+trim the dead v6 fields (§5.3), all in one structural change rather than
+spent piecemeal now.
 
 The single-LOD-block reality of today is confirmed by `metaId`
 (`tileop.hpp:401`, masks `x,y &= ~((1<<metaBinaryOrder)-1)`): a metatile
-is a single-LOD square block. The store's page abstraction sits one level
-below that, so today's serializer reads a page's leaf slice and emits a
-block; tomorrow's reads a page and emits a subtree.
+is a single-LOD square block. `metaDepth = 1` preserves that behavior.
+The store's page abstraction sits one level below the serializer, so
+today's serializer reads a page and emits a v6 block; tomorrow's reads a
+page and emits a multi-LOD metatile.
 
 ---
 
@@ -590,10 +721,28 @@ currently calls `metatileFromDem(... warp ...)`. The new path:
 2. If no store is present (old resource, mid-rollout), fall back to the
    existing warp path unchanged.
 
-The store carries a **format version, reference-frame id, and source
-hash** so the server detects a stale or absent store and falls back
-cleanly during a rolling upgrade. The fallback is the safety net that
-makes the parity gate (§8, phase 4) non-blocking for production.
+The store carries a **format version, reference-frame id, source hash,
+effective metatile packaging values, and pairing revision** so the server
+detects a stale or absent store and falls back cleanly during a rolling
+upgrade. The source hash covers every input that changes stored values:
+source DEM identity, `heightFunction`, geoid/datum configuration, the
+mask tree, and value-affecting tiling parameters. Packaging values
+(`metaBinaryOrder`, `metaDepth`, page shape) live beside the source hash
+because they change page layout and metatile addressing, not the
+source-derived node payload.
+
+The flag tile index and metanode store are bound by the same pairing
+revision. A full tiling run writes both artifacts. A packaging rebrick
+may reuse the same flag index and rewrite only the store pages, but it
+still publishes a new paired artifact set with fresh pairing metadata.
+The serve path uses the store only when the store pairing revision and
+packaging values match the loaded flag index and resource definition;
+otherwise it ignores the store and uses the warp fallback. This prevents
+a new store from being paired with an old index, which would let metatile
+child flags claim tiles whose geometry lookups use a different existence
+tree. Rebuilds and rebricks write staged artifacts to temporary names,
+fsync them, then rename them into place so a serving daemon sees either
+the old pair or the new pair.
 
 **Parity gate.** Because the store emits byte-compatible v6 and the warp
 path remains available, the two can be diffed node-by-node on the same
@@ -601,6 +750,71 @@ resource (height range within `half` tolerance; flags exact; extents
 expected to differ — full-cell vs. sampled — and that difference is
 characterised, not failed). This is the gate that validates §4's GDAL
 assumptions before the store becomes the default.
+
+### 7.1 Deployment and dataset migration
+
+The server rollout and dataset migration are separate.
+
+An upgraded tileserver remains compatible with old DEM resources:
+
+| Resource artifacts | Server action |
+|---|---|
+| old flag index, no store, three-pyramid VRTWO | serve by warp fallback |
+| matched flag index + metanode store | serve from the store |
+| mismatched flag index + store | ignore the store; use fallback |
+| normal-only VRTWO with no valid store | resource load failure |
+
+The last row is the boundary created by retiring the min/max VRTWO
+pyramids. A normal-only DEM resource cannot rely on the old
+`valueMinMax` warp path, because the min/max inputs it sampled are not
+present. Once phase 5 lands, "fallback" means warp only for old
+three-pyramid resources. For normal-only resources, a missing or
+mismatched store is a resource health error.
+
+Backfill uses the clean path only: re-run the new tiling pipeline and
+produce a fresh flag tile index and metanode store together. Do not
+generate a store beside an arbitrary existing tile index. The tiling run
+writes a pairing id or digest into both artifacts. Operators do not
+increase that pairing value by hand; the tooling computes it from the
+inputs and output artifacts.
+
+Changing metatile packaging for an existing dataset does **not** require
+re-running the native-resolution tiling pass. The implementation must
+include a rebrick tool that consumes a validated flag-index/store pair,
+rewrites the store pages for a new effective `metaBinaryOrder` and/or
+`metaDepth`, and writes a new paired artifact set. The flag tile index
+contents are unchanged, but the published pair still gets fresh pairing
+metadata (or a fresh pairing sidecar, if that is where the implementation
+stores it) so the server never mixes old and new packaging. Rebricking is
+the migration path for order/depth changes; full tiling is needed only
+when source coverage, height values, tiling flags, or datum-affecting
+inputs change.
+
+Do not change packaging fields in the served mapConfig without the
+matching rebuilt pair. Resources intended for today's cartolina-js client
+must keep effective `metaBinaryOrder` equal to the reference-frame
+default and effective `metaDepth = 1`.
+
+Publication is atomic at the resource-artifact level:
+
+1. Write the new flag index and metanode store to a staging location.
+2. Validate the pair: format, shared pairing id, store/index revision
+   match, effective packaging values, and parity against the warp path
+   where the old VRTWO supports it.
+3. Fsync the staged artifacts and containing directory.
+4. Rename the staged pair into the resource so a serving daemon sees
+   either the old pair or the new pair, never a partial pair.
+
+Rollback keeps the same unit of ownership. For old three-pyramid
+resources, rolling back to the previous flag index and no store restores
+the warp path. For normal-only resources, rollback must restore the
+previous matched flag-index/store pair.
+
+The implementation must ship an operator-facing migration guide when the
+tooling exists. That guide belongs with the implemented command names,
+artifact paths, validation commands, and daemon reload procedure; it
+should not be published as authoritative documentation while this RFC is
+still a design.
 
 ---
 
@@ -623,32 +837,46 @@ to the other.
    Copernicus GLO-30 cuts — one mountainous, one near-flat — across a
    **span of LODs**, in **both melown2015 and earth-qsc**. Regress `c`
    and report the residual drift vs. the true (warped) texelSize per LOD
-   and per reference frame. *Exit:* either a single `c` per reference
-   frame with acceptable drift across scales, or a fitted small table.
-   This de-risks the only non-analytic delivery field first, on
-   representative geometry rather than one tile.
+   and per reference frame. Report monotonicity violations along descent
+   paths and decide whether the delivery clamp is required. *Exit:* either
+   a single `c` per reference frame with acceptable drift across scales,
+   or a fitted small table, plus a monotonicity rule. This de-risks the
+   only non-analytic delivery field first, on representative geometry
+   rather than one tile.
 
-2. **Store format + writer, height channel only.** Define the paged,
-   directory-indexed, mmappable on-disk layout (§3.3) with `{flags,
-   minZ, maxZ}` and the version/refframe/hash header. Implement the
-   reader (`mmapped`-style offset access) and a writer. *Exit:* round-trip
-   a hand-built tree; mmap and random-read it.
+2. **Resource packaging plumbing + store format.** Add surface-level
+   `metaBinaryOrder` and `metaDepth` settings, defaulting to the
+   reference-frame `metaBinaryOrder` and `1`, to the tileserver resource
+   parser, generated mapConfig surface definition, store header, source
+   hash, validation rules, and tiling command-line or resource-file
+   knobs. Define the paged, directory-indexed, mmappable on-disk layout
+   (§3.3) with `{flags, minZ, maxZ}` and a header carrying version,
+   refframe, hash, revision, effective `metaBinaryOrder`, and effective
+   `metaDepth`. Implement the reader (`mmapped`-style offset access) and
+   a writer. *Exit:* round-trip a hand-built tree at the current
+   client-compatible packaging and at one non-default packaging; mmap and
+   random-read it; reject mismatched revisions and mismatched packaging
+   values against a flag index/resource fixture.
 
 3. **Unified tiling pass (§4).** Replace the per-tile per-LOD warp with
-   the single native-resolution pass (mask band + elevation band, §4.3
-   nodata rule) plus bottom-up reduction, emitting both the flag index
-   and the metanode store. Keep the old tiling tool available behind a
-   flag for the parity diff. *Exit on the test dataset:* existence and
-   watertight **identical** to the old tool; height range matches a
-   hand-reduced reference within tolerance; §4.5 assumptions confirmed
-   empirically.
+   the windowed native-resolution pass (mask band + elevation band,
+   §4.3 nodata rule) plus streaming bottom-up reduction, emitting both
+   the flag index and the metanode store with one shared revision. Keep
+   the old tiling tool available behind a flag for the parity diff. *Exit
+   on the test dataset:* existence and watertight **identical** to the old
+   tool; height range matches a hand-reduced reference within tolerance;
+   store pages are produced with the resource's effective packaging
+   values; peak memory stays within the window bound; full-pair staging,
+   validation, and atomic publish are exercised; §4.5 assumptions
+   confirmed empirically.
 
 4. **Serve from the store, with warp fallback (§7).** `SurfaceDem`
    reads the store and serialises v6; falls back to warp when absent.
    Run the parity gate: diff store-served vs. warp-served metatiles
    node-by-node on the test dataset. *Exit:* flags exact, range within
-   `half` tolerance, extents difference characterised, **no warp on the
-   store path** (verify via timing and GDAL call counts).
+   `half` tolerance, extents difference characterised, revision mismatch
+   forces fallback, **no warp on the store path** (verify via timing and
+   GDAL call counts).
 
 5. **Retire the min/max pyramids (§4.4).** Drop the min and max overview
    generation from `generatevrtwo`; confirm no other consumer (§9).
@@ -661,10 +889,48 @@ to the other.
    *Exit:* serve latency in single-digit ms; store size and RSS within
    projection.
 
-7. **Deferred — shallow-subtree packaging.** Out of scope here (§6).
-   When taken up: re-bake with subtree-depth pages, add the subtree
-   serializer, trim the dead v6 fields, bump the metatile format. Listed
-   so the boundary is explicit.
+7. **Packaging rebrick tool.** Implement the order/depth migration tool
+   that reads a validated flag-index/store pair and writes a new paired
+   artifact set with different effective `metaBinaryOrder` and/or
+   `metaDepth`, without source DEM access and without rerunning the
+   native-resolution tiling pass. *Exit:* rebrick a test pair from the
+   client-compatible packaging to one non-default packaging and back;
+   validate pairing metadata, source hash, node payload equality, page
+   addressing, and atomic publication.
+
+8. **Operator migration guide.** Write the dataset migration guide after
+   the generation, validation, publish, and rebrick commands exist. It
+   must be a HOWTO organized by operator task, not an abstract design
+   note:
+
+   - **Process a new DEM dataset.** Choose effective
+     `metaBinaryOrder`/`metaDepth`; for current cartolina-js clients,
+     keep the reference-frame `metaBinaryOrder` and `metaDepth = 1`.
+     Run the new tiling pipeline, validate the flag-index/store pair,
+     publish atomically, and apply the deployment's public/cache revision
+     policy.
+   - **Migrate an existing three-pyramid DEM dataset to metanode store.**
+     Run the new tiling pipeline to create a fresh matched flag index and
+     metanode store. Keep the old min/max VRTWO pyramids until store
+     parity, fallback behaviour, and rollback are verified. Drop min/max
+     pyramids only after the resource has a valid matched store and an
+     operator-tested rollback path.
+   - **Change `metaBinaryOrder` or `metaDepth` for an existing dataset.**
+     Use the rebrick tool, not full tiling. Publish the rebricked pair
+     atomically. Use effective values different from the reference-frame
+     `metaBinaryOrder` and `metaDepth = 1` only after deployed clients
+     support surface-level packaging parameters.
+
+   The guide must also cover normal-only resource failure, daemon reload
+   semantics, and rollback. *Exit:* the guide uses implemented command
+   names and artifact paths and is linked from [index.md](index.md).
+
+9. **Deferred — client shallow-subtree consumption.** Out of scope here
+   (§6). When taken up: teach cartolina-js to read the mapConfig
+   `metaDepth`, request multi-LOD metatiles, trim the dead v6 fields, and
+   bump the metatile format if needed. Listed so the boundary is explicit:
+   server-side packaging tooling, advertisement, store support, and
+   rebricking are in scope for this RFC; client consumption is not.
 
 ---
 
@@ -677,21 +943,34 @@ to the other.
   any tool/debug path read only the normal pyramid before phase 5
   removes the min/max ones.
 - **texelSize drift (§5.2).** The regressed `c` is an assumption; phase 1
-  measures it. Revisit if rugged-terrain LOD selection regresses.
+  measures it. Also measure monotonicity along descent paths and enable
+  the delivery clamp if the heuristic can emit child values larger than
+  their parent.
 - **Surrogate fidelity.** Midpoint vs. true-mean is assumed invisible for
   cartolina-js (uses `minZ`) and acceptable for vts-browser-cpp
   (navigation only). Spot-check if a surrogate consumer is ever added.
-- **Page depth.** A tunable; profile cold-serve span size and directory
-  size after phase 6. The "right" depth for single-LOD blocks may differ
-  from the future subtree depth — that is expected, it is a re-bake
-  parameter.
+- **Packaging parameters.** Per-resource tunables; profile cold-serve
+  span size and directory size after phase 6. Today's client-compatible
+  values are the reference-frame `metaBinaryOrder` and `metaDepth = 1`.
+  Verify tooling can set non-default values before tiling and can migrate
+  an existing dataset by rebricking and atomically publishing a new
+  paired artifact set.
 - **Vertical datum (§3.5).** Confirm the public-SRS vertical is
   orthometric for melown2015 and earth-qsc, that SDS `minZ/maxZ` are in
   that datum (so storing verbatim needs no conversion), and that the
-  tiling reduction applies the same `heightFunction`/datum. Spot-check
-  that ocean/flat regions actually collapse in a built store. Confirm the
-  "derive datum from the reference frame" rule carries to a non-Earth
-  frame if one is ever configured.
+  tiling reduction applies the same `heightFunction`/datum. Confirm
+  whether SDS and navSRS share the same vertical datum or require a
+  geoid-grid shift at delivery. Spot-check that ocean/flat regions
+  actually collapse in a built store. Confirm the "derive datum from the
+  reference frame" rule carries to a non-Earth frame if one is ever
+  configured.
+- **Artifact consistency.** Verify a mismatched store/index revision is
+  ignored, and that the tiling writer publishes both artifacts with a
+  temp-write, fsync, rename sequence.
+- **Migration guide.** Do not publish the operator migration guide before
+  the implementation exists. When phase 8 lands, keep it aligned with the
+  implemented tool names, artifact paths, validation commands, and
+  rollback procedure.
 - **`half` precision.** ~8 m ulp near 9 km altitude; bias `minZ` down and
   `maxZ` up to the next representable value at write time so the stored
   range is conservative for culling. Verify the bias is applied in the
@@ -788,6 +1067,15 @@ must close before the design is build-ready.
    page, serialize one multi-LOD metatile — and §3.3's "one page, one
    `sendfile`" claim becomes exact rather than aspirational.
 
+   *Implemented.* §6 now defines the future delivery unit as
+   `(metaBinaryOrder, metaDepth)`, with power-of-two horizontal masking,
+   global vertical phase, default `metaDepth = 1`, child fan-out, and a
+   worked `metaBinaryOrder = 2`, `metaDepth = 4` example. The design was
+   later refined so both packaging values are effective per-surface
+   settings, with reference-frame values serving as defaults. §3.3
+   defines store pages by the same phased root block, and §7.1 adds the
+   rebrick migration path for changing packaging without DEM retiling.
+
 2. §3.1 stores "flags + child flags" without enumerating which flags.
    Some metatile flags are config-derived, not data-derived:
    `navtilePresent` depends on the resource's navtile LOD range, and
@@ -798,6 +1086,11 @@ must close before the design is build-ready.
    presence derived at delivery from LOD against the resource config;
    everything else (alien, glue) not applicable to a mapproxy DEM
    surface.
+
+   *Implemented.* §3.1 now lists only mesh existence, watertight, `minZ`,
+   and `maxZ` as stored payload. §3.2 derives child existence from tree
+   structure and navtile presence from resource config, with alien and
+   glue/source-reference state excluded for mapproxy DEM surfaces.
 
 3. §7's "source hash" is undefined, and the store/flag-index pair has
    no stated consistency rule. The hash must cover every input that
@@ -813,6 +1106,12 @@ must close before the design is build-ready.
    Since stores will be rebuilt under a serving daemon, also state the
    atomic-swap rule (write to temp, fsync, rename).
 
+   *Implemented.* §7 defines the source hash inputs, separates packaging
+   metadata from value-affecting source inputs, adds a shared pairing
+   revision for the flag index and store, requires revision and packaging
+   match before the store path is used, and states temp-write, fsync,
+   rename publication. §8 and §9 add mismatch verification.
+
 4. §4.2 says "warp the source once at the resolution floor". At
    GLO-30's native resolution a global grid is on the order of 10¹²
    cells (~2 TB at int16) — it cannot be materialized, and the section
@@ -822,6 +1121,11 @@ must close before the design is build-ready.
    stated peak-memory bound. The `O(area)` cost claim survives; the
    point is that "once" means one visit per source pixel, not one
    warp call.
+
+   *Implemented.* §4.2 now describes a bounded windowed pass, streaming
+   bottom-up reduction, and peak memory as workers times window cells
+   plus open parent accumulators. §8 makes the memory bound a phase-3
+   exit condition.
 
 5. §5's heuristic has an unstated ordering requirement. The client
    evaluates `node.pixelSize` per node independently, so LOD descent
@@ -836,6 +1140,10 @@ must close before the design is build-ready.
    delivery-time clamp (the parent's stored range is on the path read,
    so clamping child ≤ parent is cheap).
 
+   *Implemented.* §5.2 adds monotonicity reporting to the calibration
+   spike and specifies a delivery clamp that caps a child value to its
+   emitted parent value when needed. §8 and §9 carry that check forward.
+
 6. §3.2 labels the navtile range derivation "SDS→nav transform of the
    stored range (analytic)". It is not analytic in general: when the
    navigation SRS vertical is the same orthometric datum as the SDS
@@ -844,3 +1152,45 @@ must close before the design is build-ready.
    cheap but not a formula. Name the actual mechanism and its cost,
    and fold the SDS-vs-nav datum check into the §9 vertical-datum
    checklist item.
+
+   *Implemented.* §3.2 now names the SDS→nav range conversion as cheap
+   but not always analytic, distinguishing identity-height transforms
+   from geoid-grid shifts. §9 adds the SDS-vs-nav datum check.
+
+## Additional topics for review round 2
+
+The deployment and dataset-migration changes below were added after the
+round-1 response. They are added review scope for round 2 in addition to
+any unresolved round-1 follow-up.
+
+- §7.1 now separates server rollout from dataset migration. The upgraded
+  server keeps the old three-pyramid resource path working through warp
+  fallback, serves matched flag-index/store pairs from the store, ignores
+  mismatched stores, and treats normal-only VRTWO resources without a
+  valid store as load failures.
+- Backfill is now specified as a full new tiling run that writes a fresh
+  flag tile index and metanode store together. The document rejects the
+  alternative of generating a store beside an arbitrary existing tile
+  index.
+- §7.1 states that the tiling tool computes the pairing id or digest;
+  operators do not edit it by hand. Public resource or CDN revision bumps
+  are publication policy, not the correctness mechanism.
+- §7.1 and §8 require staging, validation, fsync, and atomic publication
+  of the new flag-index/store pair before the old tile index is rotated
+  out.
+- §8 and §9 now require an operator migration guide as an implementation
+  deliverable, but do not publish it before the tooling exists. The guide
+  must use implemented command names and artifact paths. §8 now
+  prescribes the guide as a task-oriented HOWTO with sections for:
+  processing a new DEM dataset, migrating an existing three-pyramid DEM
+  dataset to the metanode store, and changing `metaBinaryOrder` or
+  `metaDepth` with the rebrick tool.
+- §6 now defines `metaBinaryOrder` and `metaDepth` as surface-level
+  metatile packaging settings, with reference-frame values used as
+  defaults and compatibility hints. §8 requires tileserver parser,
+  tooling, store header, source hash, validation, and generated mapConfig
+  surface definitions to carry the effective values.
+- §7.1 now requires a rebrick tool for changing `metaBinaryOrder` and/or
+  `metaDepth` on an existing dataset. Rebricking rewrites store pages and
+  pairing metadata from a validated pair without rerunning the
+  native-resolution tiling pass.

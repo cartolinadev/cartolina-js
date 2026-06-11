@@ -1,5 +1,73 @@
 # Session log
 
+## 2026-06-11 — RFC 7 deployment and migration review topics
+
+Added the RFC 7 deployment strategy after the round-1 response. The
+server rollout and dataset migration are now separate: an upgraded
+tileserver keeps old three-pyramid DEM resources working through the
+warp fallback, serves matched flag-index/store pairs from the store, and
+treats normal-only VRTWO resources without a valid store as load
+failures.
+
+Backfill is specified as a full new tiling run, not a store-only sidecar
+generation. The new tiling run writes a fresh flag tile index and
+metanode store together with a tooling-computed pairing id or digest.
+Operators do not edit that pairing value by hand. Publication rotates the
+old tile index out only after staging, validation, fsync, and atomic
+rename of the new pair.
+
+Added `## Additional topics for review round 2` to
+[rfc-metanode-store.md](rfc-metanode-store.md), so the reviewer sees the
+compatibility matrix, the full-pair-only backfill rule, and the atomic
+publication/rollback contract as added scope for the next review. The
+operator migration guide is now listed as an implementation deliverable,
+not a standalone wiki page, because the tooling and command names do not
+exist yet.
+
+Follow-up: clarified that `metaBinaryOrder` and `metaDepth` are
+per-resource DEM surface packaging settings, with reference-frame values
+as defaults and compatibility hints. The RFC now requires tileserver
+parser, generation tooling, store header, source hash, validation, and
+generated mapConfig surface definitions to carry the effective values.
+Current clients still consume only the reference-frame `metaBinaryOrder`
+and `metaDepth = 1`; server-side tooling and store support for
+non-default values remain in scope.
+
+Changing order/depth for an existing dataset is now a rebrick migration,
+not a full native-resolution tiling run. The rebrick tool reads a
+validated flag-index/store pair, rewrites store pages and pairing
+metadata for the new packaging, and publishes the new pair atomically.
+
+Follow-up: phase 8 now requires the future operator guide to be a HOWTO
+organized by task: process a new DEM dataset, migrate an existing
+three-pyramid DEM dataset to metanode store, and change
+`metaBinaryOrder`/`metaDepth` with the rebrick tool. The round-2 section
+records this as added review scope.
+
+Follow-up: added an early terminology section defining
+`metaBinaryOrder`, `metaDepth`, and metatile packaging before the RFC
+uses those terms in goals, non-goals, and store layout.
+
+## 2026-06-11 — RFC 7 review round 1 responses
+
+Processed review round 1 in
+[rfc-metanode-store.md](rfc-metanode-store.md) on
+`feature/metanode-store`. The reviewed state was already preserved by
+commit `f3729ea0`, so no empty snapshot commit was added.
+
+The RFC now defines shallow-subtree delivery as
+`(metaBinaryOrder, metaDepth)`: horizontal integration remains a
+power-of-two root block, and `metaDepth` adds a globally phased vertical
+span with default `1`. Store pages use the same phased root block, so
+the future packaging milestone has a concrete rebrick target.
+
+Other responses enumerate the stored DEM flags, derive navtile presence
+from resource config, define the source hash and shared pairing metadata,
+require temp-write/fsync/rename publication, bound the native-resolution
+tiling pass as windowed streaming reduction, add texelSize monotonicity
+measurement and a delivery clamp, and replace the analytic SDS-to-nav
+height claim with the actual SRS conversion rule.
+
 ## 2026-06-11 — RFC 7 metanode store: review round 1
 
 Reviewed [rfc-metanode-store.md](rfc-metanode-store.md); status moved
@@ -12,15 +80,14 @@ Six notes. The main one concretizes §6's deferred shallow-subtree
 delivery: generalize metatile addressing to horizontal integration
 `h` (root block of `h × h` subtree roots, kept a power of two so
 `metaId` stays a bit mask) and vertical integration `v` (subtree
-depth in LODs, new reference-frame parameter, default 1 — today's
-format is the `v = 1` special case, so the registry change stays
-deferred). A `h = 4, v = 4` metatile is 1360 nodes vs today's 1024
-while cutting descent round trips 4x. Store pages keyed by subtree
-root with depth `v` make the future delivery unit one page. Remaining
-notes: enumerate stored vs config-derived flags; define the staleness
-hash and store/flag-index atomicity; bound the native-resolution pass
-with windowing; add texelSize monotonicity to the phase-1 spike;
-name the actual SDS→nav vertical mechanism.
+depth in LODs, later resolved in the RFC as resource-level
+`metaDepth`). A `h = 4, v = 4` metatile is 1360 nodes vs today's 1024
+while cutting descent round trips 4x. Store pages keyed by subtree root
+with depth `v` make the future delivery unit one page. Remaining notes:
+enumerate stored vs config-derived flags; define the staleness hash and
+store/flag-index atomicity; bound the native-resolution pass with
+windowing; add texelSize monotonicity to the phase-1 spike; name the
+actual SDS→nav vertical mechanism.
 
 ## 2026-06-11 — non-geodata free-layer path removed
 
