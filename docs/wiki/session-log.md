@@ -1,5 +1,27 @@
 # Session log
 
+## 2026-06-11 — RFC 7 metanode store: review round 1
+
+Reviewed [rfc-metanode-store.md](rfc-metanode-store.md); status moved
+to In review on branch `feature/metanode-store`. Source claims checked
+against `metatile.cpp`, `tileop.hpp`, `referenceframe.hpp`,
+`metanode.js`, and the registry (`metaBinaryOrder` is 5 in every
+reference frame) — all hold.
+
+Six notes. The main one concretizes §6's deferred shallow-subtree
+delivery: generalize metatile addressing to horizontal integration
+`h` (root block of `h × h` subtree roots, kept a power of two so
+`metaId` stays a bit mask) and vertical integration `v` (subtree
+depth in LODs, new reference-frame parameter, default 1 — today's
+format is the `v = 1` special case, so the registry change stays
+deferred). A `h = 4, v = 4` metatile is 1360 nodes vs today's 1024
+while cutting descent round trips 4x. Store pages keyed by subtree
+root with depth `v` make the future delivery unit one page. Remaining
+notes: enumerate stored vs config-derived flags; define the staleness
+hash and store/flag-index atomicity; bound the native-resolution pass
+with windowing; add texelSize monotonicity to the phase-1 spike;
+name the actual SDS→nav vertical mechanism.
+
 ## 2026-06-11 — non-geodata free-layer path removed
 
 `freeLayerSequence` now contains geodata free layers only. The

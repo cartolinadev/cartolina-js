@@ -1,7 +1,7 @@
 # RFC 7: the metanode store — precomputed metatiles without serve-time
 warp
 
-**Status:** Draft
+**Status:** In review
 **Opened:** 2026-06-07
 **Context:** subsumes two backlog items —
 **PERF: pre-built metatile index eliminating serve-time DEM warps** and
@@ -714,3 +714,133 @@ to the other.
 
 Unchanged: the v6 metatile format and the client; vtsd; the flag tile
 index (both flavors); non-DEM generators.
+
+---
+
+## Review round 1
+
+The source claims were verified against the code before review: the
+`valueMinMax` warp and the surrogate/texelSize derivations in
+`metatileFromDemImpl`, the `metaId` bit masking in `tileop.hpp`, the
+client's use of `minZ` for `diskPos` and its skipping of the v5
+extents in `metanode.js`, `publicSrs` in `referenceframe.hpp`, and
+`metaBinaryOrder = 5` in every reference frame in the registry
+(`vts-registry/registry/registry/referenceframes.json`). All hold as
+stated. The priority order in §0 and the separation of the store from
+the flag index (§1.3) are sound. The notes below are the gaps that
+must close before the design is build-ready.
+
+1. §6 names shallow-subtree delivery as a load-bearing constraint but
+   never defines the delivery unit. The store's page shape, the
+   directory keying, and the future "re-bake plus serializer" claim
+   all depend on what that unit is, so it must be pinned down now —
+   otherwise "page depth equal to the subtree depth" is a parameter
+   with no defined target. Proposed parameterization:
+
+   Generalize metatile addressing from one reference-frame parameter
+   to two. **Horizontal integration `h`**: the metatile's root level
+   is an `h × h` block of subtree roots. **Vertical integration `v`**:
+   each subtree spans `v` LODs. A metatile rooted at LOD `L` then
+   contains node levels of `h×h`, `2h×2h`, …, `h·2^(v−1) × h·2^(v−1)`,
+   for `h²·(4^v − 1)/3` nodes total. Worked example: `h = 3, v = 4`
+   gives 9 subtrees of depth 4 — 3×3, 6×6, 12×12, 24×24 — 765 nodes.
+   Today's metatile (`metaBinaryOrder` 5 in every registry frame) is a
+   32×32 single-LOD block of 1024 nodes, so the pyramid metatile is
+   *smaller* than today's unit while cutting metatile round trips on a
+   descent path by a factor of `v` (a LOD-15 descent: 16 fetches → 4).
+   This is the shape Cesium's 3D Tiles implicit tiling uses
+   (`subtreeLevels` plus availability streams), which is evidence the
+   delivery geometry works at planet scale.
+
+   Refinements the spec should adopt:
+
+   - **Constrain `h` to powers of two** and keep expressing it as the
+     existing `metaBinaryOrder`. `metaId` (`tileop.hpp:401`) stays a
+     shift-and-mask: take the tile's ancestor at the root LOD, then
+     mask `x, y` by `~(h−1)`. The worked example becomes e.g.
+     `h = 4, v = 4` → 16 + 64 + 256 + 1024 = 1360 nodes, still
+     comparable to today's 1024.
+   - **Define the vertical phase globally**: subtree roots exist at
+     `lod ≡ 0 (mod v)`, so any tile's metatile root LOD is
+     `lod − (lod mod v)`. No per-division-node anchor; a division node
+     rooted off-phase (melown2015's productive node at LOD 1) starts
+     as an interior level of the enclosing metatile, and a `lodRange`
+     starting mid-phase yields a partial metatile, exactly as today's
+     blocks straddle `tileRange`.
+   - **Make the change additive**: keep `metaBinaryOrder`, add one new
+     parameter (suggested name `metaDepth`) defaulting to 1. Today's
+     format is the `(metaBinaryOrder, metaDepth = 1)` special case, so
+     the registry change is deferred to the packaging milestone and no
+     existing reference frame is touched until then. Old-client
+     compatibility rides the metatile format bump that milestone
+     already carries.
+   - **Child fan-out**: one metatile has `4^v` child metatiles (256 at
+     `v = 4`). The leaf level's child flags are the fetch signal, as
+     at today's block edge; the client fetches only the children
+     covering the view. Larger `v` buys fewer round trips at the cost
+     of more speculative nodes per fetch — `v` and `h` are registry
+     tunables to be measured at the packaging milestone, not fixed
+     here.
+
+   Consequences to record in §3.3/§6: store page depth = `v`, pages
+   keyed by subtree root `(lod, x, y)` with the same phase rule. The
+   delivery re-encoding step then has a concrete shape — read one
+   page, serialize one multi-LOD metatile — and §3.3's "one page, one
+   `sendfile`" claim becomes exact rather than aspirational.
+
+2. §3.1 stores "flags + child flags" without enumerating which flags.
+   Some metatile flags are config-derived, not data-derived:
+   `navtilePresent` depends on the resource's navtile LOD range, and
+   storing it would bake configuration into the store — a config edit
+   would then silently invalidate stored bytes. Enumerate the stored
+   set explicitly: existence (mesh) and watertight from the tiling
+   pass; child existence from the tree structure itself; navtile
+   presence derived at delivery from LOD against the resource config;
+   everything else (alien, glue) not applicable to a mapproxy DEM
+   surface.
+
+3. §7's "source hash" is undefined, and the store/flag-index pair has
+   no stated consistency rule. The hash must cover every input that
+   changes stored values: source DEM identity, `heightFunction`,
+   geoid/datum configuration, the mask tree, and the tiling
+   parameters (including page depth). Separately, the store and the
+   flag tile index become two artifacts claiming authority over
+   existence and watertight; §4 generates both in one pass, but §7's
+   fallback makes mixed states reachable mid-rollout. State the rule:
+   both artifacts are written by the same tiling run and bound by a
+   shared revision, so the serve path never pairs a new store with an
+   old index (clients would see child flags disagreeing with 404s).
+   Since stores will be rebuilt under a serving daemon, also state the
+   atomic-swap rule (write to temp, fsync, rename).
+
+4. §4.2 says "warp the source once at the resolution floor". At
+   GLO-30's native resolution a global grid is on the order of 10¹²
+   cells (~2 TB at int16) — it cannot be materialized, and the section
+   does not say how the pass is bounded. State the implementation
+   shape: a windowed pass (block-wise warps aligned to output cells)
+   with streaming bottom-up reduction as windows complete, and a
+   stated peak-memory bound. The `O(area)` cost claim survives; the
+   point is that "once" means one visit per source pixel, not one
+   warp call.
+
+5. §5's heuristic has an unstated ordering requirement. The client
+   evaluates `node.pixelSize` per node independently, so LOD descent
+   assumes texel size decreases along every descent path. The planar
+   term halves per LOD exactly, but `relief/tileEdge` can grow with
+   depth (a cliff's relief does not halve when the tile does), so the
+   derived child value is not guaranteed to fall below the parent's
+   where the true values do — and where it fails, descent stops early
+   and terrain stays coarse. Add to the phase-1 spike: report
+   monotonicity violations of the heuristic along descent paths
+   against the true texelSize, and if violations occur, specify the
+   delivery-time clamp (the parent's stored range is on the path read,
+   so clamping child ≤ parent is cheap).
+
+6. §3.2 labels the navtile range derivation "SDS→nav transform of the
+   stored range (analytic)". It is not analytic in general: when the
+   navigation SRS vertical is the same orthometric datum as the SDS
+   vertical, the transform is identity on heights; otherwise it is a
+   per-node vertical shift evaluated from geoid grids — a grid lookup,
+   cheap but not a formula. Name the actual mechanism and its cost,
+   and fold the SDS-vs-nav datum check into the §9 vertical-datum
+   checklist item.
