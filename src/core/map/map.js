@@ -631,26 +631,23 @@ Map.prototype.refreshFreelayesInView = function() {
 
         if (freeLayer) {
 
+            if (!freeLayer.geodata) {
+                utils.warnOnce('Free layer "' + key + '" is not a geodata'
+                    + ' layer and is not rendered.', 1);
+                continue;
+            }
+
             freeLayer.zFactor = freeLayers[key]['depthOffset'];
             freeLayer.maxLod = freeLayers[key]['maxLod'];
 
             this.freeLayerSequence.push(freeLayer);
-
-            // The terrain traversal renders only geodata free layers.
-            if (freeLayer.geodata) {
-                this.freeLayersHaveGeodata = true;
-            } else {
-                utils.warnOnce('Free layer "' + key + '" is not a geodata'
-                    + ' layer and is not rendered.', 1);
-            }
+            this.freeLayersHaveGeodata = true;
 
             if (freeLayers[key]['style']) {
                 freeLayer.setStyle(freeLayers[key]['style']);
             } else {
                 freeLayer.setStyle(freeLayer.originalStyle);
             }
-
-            //TODO: generate bound layer seqence for
         }
     }
 };

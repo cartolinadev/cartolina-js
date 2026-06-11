@@ -685,10 +685,10 @@ export class MapStyle {
 
             if (freeLayer) {
 
-                freeLayer.options = {};
+                if (!freeLayer.geodata) continue;
 
-                if (freeLayer.geodata)
-                    this.map.freeLayersHaveGeodata = true;
+                freeLayer.options = {};
+                this.map.freeLayersHaveGeodata = true;
 
                 // WARN: investigage, possibly add to layer properties
                 //freeLayer.zFactor = stylesheet['depthOffset'];

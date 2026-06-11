@@ -835,7 +835,7 @@ export class TileRenderRig {
 
             if (layer) rt.layerStack.push(layer);
 
-        }); // layerDef.bumpSequence.forEach()
+        });
 
         // target 'color'
 
@@ -919,7 +919,7 @@ export class TileRenderRig {
                 rt: {}
             });
 
-            // process specular sequence
+            // process specular layers
             speculars.forEach((item) => {
 
                 let necessity = item.necessity ?? 'essential';
@@ -928,7 +928,7 @@ export class TileRenderRig {
                     true, 'color', specularMask);
                 if (layer) rt.layerStack.push(layer);
 
-            }); // layerDef.specularSequence.forEach()
+            });
 
             // specular shade with specular multiply
             rt.layerStack.push({
@@ -958,7 +958,7 @@ export class TileRenderRig {
                 rt: {}
             });
 
-        } // if (rt.illumination && layerDef.specularSequence.length > 0)
+        } // if (rt.illumination && speculars.length > 0)
 
         // add atmosphere
         // we do not add atmosphere on iOs until the safari alighnment

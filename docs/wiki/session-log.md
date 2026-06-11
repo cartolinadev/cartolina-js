@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-06-11 — non-geodata free-layer path removed
+
+`freeLayerSequence` now contains geodata free layers only. The
+mapConfig refresh path skips non-geodata free layers before inserting
+them into the draw sequence and keeps the existing warning that they are
+not rendered. The style path applies the same filter.
+
+Removed the obsolete mapConfig free-layer bound-layer composition code
+from `surface-sequence.ts`; it only populated `freeLayer.diffuseSequence`,
+which no renderer read. Removed the unused `diffuseSequence`,
+`specularSequence`, and `bumpSequence` fields from `MapSurface`.
+
+`TileRenderRig` remains the terrain composition owner. MapConfig terrain
+views still adapt their ordered surface bound layers into style-shaped
+`surface.style.layers`; only the obsolete free-layer raster composition
+path was removed.
+
 ## 2026-06-11 — fullscreen button fails on iPhone Safari
 
 The map fullscreen control did nothing on iPhone 13 while working on

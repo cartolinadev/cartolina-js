@@ -885,15 +885,11 @@ class Map {
 
                     const layer = freeLayers[i];
 
-                    if (!labelsEnabled
-                        && (layer.type === 'geodata' || layer.geodata)) {
-                        continue;
-                    }
+                    if (!labelsEnabled) continue;
 
                     if (layer.ready && layer.tree
-                        && (!layer.geodata
-                            || (layer.stylesheet
-                                && layer.stylesheet.isReady()))
+                        && layer.stylesheet
+                        && layer.stylesheet.isReady()
                         && channel === 'color') {
 
                         if (layer.zFactor) {
@@ -904,9 +900,8 @@ class Map {
                             // monolithic geodata job collection
                             mapDraw.drawMonoliticGeodata(layer);
                         } else {
-                            /* Tiled free-layer traversal. Surface
-                             * tiles draw directly; geodata tiles only
-                             * collect jobs. */
+                            // Tiled geodata only collects jobs; labels and
+                            // icons are drawn after terrain.
                             layer.tree.draw();
                         }
 

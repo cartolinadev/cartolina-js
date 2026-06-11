@@ -215,70 +215,7 @@ MapSurfaceSequence.prototype.generateBoundLayerSequence = function() {
     } // for (let key in view.surfaces
 
 
-    //free layers
-    for (let key in view.freeLayers) {
-        var freeLayersProperties = view.freeLayers[key];
-        var freeLayer = this.map.getFreeLayer(key);
-        if (freeLayer != null && freeLayer.ready) {
-
-            freeLayer.options = freeLayersProperties['options'] || {};
-
-            freeLayer.diffuseSequence = [];
-            
-            var boundLayers = freeLayersProperties['boundLayers'];
-            
-            if (boundLayers && Array.isArray(boundLayers)) {
-
-                for (let i = 0, li = boundLayers.length; i < li; i++) {
-                    let item = boundLayers[i];
-            
-                    if (typeof item === 'string') {
-                        let layer = this.map.getBoundLayerById(item);
-                        if (layer) {
-                            freeLayer.diffuseSequence.push([layer, 1]);
-                        }
-                    } else {
-                        let layer = this.map.getBoundLayerById(item['id']);
-                        if (layer) {
-    
-                            let alpha = 1;
-                            if (typeof item['alpha'] !== 'undefined') {
-                                alpha = parseFloat(item['alpha']);
-                            }
-    
-                            freeLayer.diffuseSequence.push([layer, alpha]);
-
-                            /*if (item['shaderVarFlatShade']) {
-                                if (!layer.shaderFilters) {
-                                    layer.shaderFilters = {};
-                                }
-                                
-                                if (!layer.shaderFilters[surface.id]) {
-                                    layer.shaderFilters[surface.id] = {};
-                                }
-
-                                layer.shaderFilters[surface.id].varFlatShade = item['shaderVarFlatShade'];
-                            }
-
-                            if (item['shaderFilter']) {
-                                if (!layer.shaderFilters) {
-                                    layer.shaderFilters = {};
-                                }
-                                
-                                if (!layer.shaderFilters[surface.id]) {
-                                    layer.shaderFilters[surface.id] = {};
-                                }
-
-                                layer.shaderFilters[surface.id].filter = item['shaderFilter'];
-                            }*/
-                        }
-                    }
-                }
-            }  
-        }
-    }
 };
 
 
 export default MapSurfaceSequence;
-
