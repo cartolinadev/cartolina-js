@@ -594,7 +594,7 @@ true warped values, delivery clamps the emitted child value to no more
 than the emitted parent value. With `metaDepth > 1`, the parent is
 already on the store page read path. With the current `metaDepth = 1`
 single-LOD packaging, the parent lives in the parent-LOD page, so a
-clamped serve path may touch two mapped pages. Phase 4 measures the
+clamped serve path may touch two mapped pages. Phase 5 measures the
 store path with the clamp enabled so this cost is included in the
 no-warp timing check.
 
@@ -967,7 +967,7 @@ to the other.
 - **Packaging parameters.** Per-resource tunables; today's
   client-compatible values are `metaBinaryOrder = 5` and `metaDepth = 1`.
   Phase 2 proves non-default packaging can encode the same node payload.
-  Phase 6 profiles cold-serve span size, directory size, page-cache
+  Phase 7 profiles cold-serve span size, directory size, page-cache
   behaviour, and store size so the later client milestone can choose a
   measured default `metaDepth`.
 - **Vertical datum (§3.5).** Confirm the public-SRS vertical is
@@ -1372,7 +1372,7 @@ introduced.
    *Implemented.* §5.2 now distinguishes the `metaDepth > 1` case, where
    the parent is already on the page read path, from today's
    `metaDepth = 1` case, where clamping may touch the parent-LOD page.
-   Phase 4 now requires the no-warp timing check with the monotonic
+   Phase 5 now requires the no-warp timing check with the monotonic
    clamp enabled.
 
 5. Editorial breakage from the rewrite, all in §6:
@@ -1448,3 +1448,7 @@ the phase renumbering:
    The remaining phase references were checked and are consistent
    with the new numbering. With these three corrected, the next round
    is expected to be a sign-off.
+
+   *Implemented.* Corrected the three stale phase references: §5.2 and
+   the round-2 note-4 author response now point the clamp timing check to
+   phase 5, and §9 now points the packaging profiling item to phase 7.
