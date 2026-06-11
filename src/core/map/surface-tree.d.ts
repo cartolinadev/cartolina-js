@@ -9,7 +9,7 @@
 import type LegacyMap from './map';
 import type MapSurface from './surface';
 import type MapSurfaceTile from './surface-tile';
-import type { LegacyMetanode } from './surface-tile';
+import type MapMetanode from './metanode';
 
 export default class MapSurfaceTree {
 
@@ -31,7 +31,7 @@ export default class MapSurfaceTree {
 
     updateNodeHeightExtents(
         tile: MapSurfaceTile,
-        node: LegacyMetanode,
+        node: MapMetanode,
     ): void;
 
     draw(stopOnFinish?: boolean): void;

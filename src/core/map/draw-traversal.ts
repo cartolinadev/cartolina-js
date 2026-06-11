@@ -5,7 +5,6 @@
 import type Map from '../map';
 import type MapSurfaceTree from './surface-tree';
 import type MapSurfaceTile from './surface-tile';
-import type { LegacyMetanode } from './surface-tile';
 import type DrawTraversalMaskPool from './draw-traversal-mask';
 import type { TileRenderRig } from './tile-render-rig';
 import type { GpuDevice } from '../renderer/gpu/device';
@@ -519,9 +518,3 @@ const ReadinessFallback: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',
     desired: 'fallback',
 };
-
-
-// LegacyMetanode is re-exported only to keep this module's imports
-// aligned with the surface-tile contract; the local helpers above use
-// the metanode through `MapSurfaceTile.metanode` only.
-export type { LegacyMetanode };

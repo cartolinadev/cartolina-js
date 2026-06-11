@@ -4,35 +4,12 @@ import type MapMesh from './mesh';
 import type MapTexture from './texture';
 import type MapBoundLayer from './bound-layer';
 import type Map from './map';
-
-/*
- * `LegacyMetatile` and `LegacyMetanode` are phase-1 validation
- * contracts for the recursive terrain traversal. Removal target in
- * phase 8 alongside the legacy tile tree.
- */
-export type LegacyMetatile = {
-    drawCounter: number;
-    useVersion: number;
-};
-
-export type LegacyMetanode = {
-    metatile: LegacyMetatile;
-    bbox: unknown;
-    bbox2: number[];
-    pixelSize: number;
-    watertight: boolean;
-    hasChild(index: number): boolean;
-    hasChildren(): boolean;
-    hasGeometry(): boolean;
-};
+import type MapSurfaceTree from './surface-tree';
+import type MapMetanode from './metanode';
 
 /**
- * A node in the terrain tile tree.
- *
- * The runtime implementation is in `surface-tile.js`. This declaration
- * covers the properties accessed by TypeScript modules. The fields
- * tagged "phase-1" below are reads from the recursive terrain
- * traversal and disappear with the legacy tree in phase 8.
+ * Surface-tree node carrying metanode, resource, and LOD state for one
+ * terrain tile address.
  */
 export class MapSurfaceTile {
 
@@ -48,8 +25,8 @@ export class MapSurfaceTile {
     /** The surface that owns the mesh and texture resources. */
     resourceSurface: MapSurface;
 
-    /** phase-1: metanode selected by the legacy lookup. */
-    metanode: LegacyMetanode | null;
+    /** Metanode selected for this tile address, or null until loaded. */
+    metanode: MapMetanode | null;
 
     surfaceMesh: MapMesh;
 
@@ -57,29 +34,56 @@ export class MapSurfaceTile {
 
     boundLayers: { [key: string]: MapBoundLayer };
 
-    /** phase-1: child tiles in quadrant order. */
+    /** Children in NW, NE, SW, SE quadrant order. */
     children: [MapSurfaceTile | null, MapSurfaceTile | null,
         MapSurfaceTile | null, MapSurfaceTile | null];
 
-    /** phase-1 */
+    /** Current screen-space texel error used by LOD traversal. */
     texelSize: number;
-    /** phase-1 */
+
+    /** Camera-to-tile distance used for resource priority. */
     distance: number;
-    /** phase-1 */
+
+    /** Last draw traversal generation in which this tile rendered. */
     drawCounter: number;
 
     kill(): void;
 
-    /** phase-1 */
-    isMetanodeReady(tree: unknown, priority: number): boolean;
-    /** phase-1 */
+    /**
+     * Ensures that this tile has a usable metanode for `tree`.
+     *
+     * @param tree Surface tree that supplies the tile surface.
+     * @param priority Loader priority, normally the tile LOD.
+     * @param preventLoad When true, only already-loaded data may pass.
+     * @returns True when `metanode` is available and height state is valid.
+     */
+    isMetanodeReady(
+        tree: MapSurfaceTree,
+        priority: number,
+        preventLoad?: boolean,
+    ): boolean;
+
+    /**
+     * Tests whether this tile's metanode volume intersects the camera
+     * frustum, including the geocentric horizon test when enabled.
+     *
+     * @param id Tile address used for depth and culling thresholds.
+     * @param bbox Axis-aligned bbox used by pre-v4 metatile formats.
+     * @param cameraPos Camera position in map coordinates.
+     * @param node Metanode whose culling data is tested.
+     * @returns True when the tile should remain in traversal.
+     */
     bboxVisible(
         id: [number, number, number],
         bbox: unknown,
         cameraPos: [number, number, number],
-        node: LegacyMetanode,
+        node: MapMetanode,
     ): boolean;
-    /** phase-1 */
+
+    /**
+     * Updates `texelSize` and `distance` from the current camera and
+     * metanode state.
+     */
     updateTexelSize(): void;
 }
 
