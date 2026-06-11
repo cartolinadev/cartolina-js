@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: review round 3
+
+All five round-2 dispositions verified as faithfully implemented,
+including the rebrick-tool demotion and the §3.3 page-equals-delivery
+reframe. The `mapproxy-setup-resource` follow-up was verified against
+the source: `setup-resource/main.cpp` builds `dem`/`dem.min`/`dem.max`
+at lines 650–668 and runs `tiling::generate` at line 917, as stated.
+The new phase 4 (setup-tool integration) is correctly scoped. The
+backlog entry for the client's hardcoded aggregation order is in
+place. One note: the phase renumbering left three stale
+cross-references (§5.2 "Phase 4" → 5, §9 "Phase 6 profiles" → 7, and
+the author annotation under round-2 note 4). Design converged;
+round 4 expected to be a sign-off.
+
 ## 2026-06-12 — RFC 7 review round 2 processed
 
 Processed round 2 in [rfc-metanode-store.md](rfc-metanode-store.md).

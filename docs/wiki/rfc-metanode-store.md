@@ -1409,3 +1409,42 @@ only the normal DEM VRTWO, write the matched flag-index/store pair,
 carry effective `metaBinaryOrder`/`metaDepth`, and validate the pair
 before publication. The old three-pyramid path may remain only as an
 explicit legacy fallback resource mode.
+
+## Review round 3
+
+All five round-2 dispositions were checked against the revised body
+and are faithfully implemented: the numeric `(5, 1)` compatibility
+rule with the hardcoded client sites named, the §3.3 reframe around
+page-equals-delivery-unit with the level-slice local quadtree and
+within-page collapse, the rebrick tool demoted to the phase-2
+validation obligation, the two-page clamp cost, and the §6 editorial
+repairs. The backlog entry for the client's hardcoded aggregation
+order is in place and correctly scoped.
+
+The setup-tool follow-up was verified against the source:
+`setup-resource/main.cpp` creates `dem` (cubicspline), `dem.min`
+(minimum), and `dem.max` (maximum) at lines 650–668 and runs
+`tiling::generate` at line 917, as the RFC states. The new phase 4 is
+correctly scoped (normal-only VRTWO, paired artifacts required, the
+three-pyramid path surviving only as an explicit legacy mode) and its
+exit criterion is testable.
+
+The design is converged. One mechanical defect remains, introduced by
+the phase renumbering:
+
+1. Three phase cross-references still point at the old numbering.
+   After inserting setup-resource integration as phase 4, serve from
+   the store is phase 5 and planet-scale bring-up is phase 7, but:
+
+   - §5.2 says "Phase 4 measures the store path with the clamp
+     enabled" — the no-warp timing check with the clamp is phase 5.
+   - §9 "Packaging parameters" says "Phase 6 profiles cold-serve span
+     size, directory size, page-cache behaviour, and store size" —
+     that profiling is phase 7, planet-scale bring-up.
+   - The author response under round-2 note 4 says "Phase 4 now
+     requires the no-warp timing check" — phase 5. The annotation is
+     the author's text and should be corrected by the author.
+
+   The remaining phase references were checked and are consistent
+   with the new numbering. With these three corrected, the next round
+   is expected to be a sign-off.
