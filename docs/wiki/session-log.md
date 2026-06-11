@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-06-12 — RFC 7 review round 2 processed
+
+Processed round 2 in [rfc-metanode-store.md](rfc-metanode-store.md).
+The RFC now states the current-client compatibility rule numerically:
+DEM resources for cartolina-js must use effective
+`metaBinaryOrder = 5` and `metaDepth = 1` until the client consumes
+surface packaging. The deferred client milestone names the hardcoded
+terrain and bound-layer metatile order sites to replace, and
+[backlog.md](backlog.md) now tracks that client follow-up.
+
+The store layout section now treats the current `(5, 1)` page as a
+single-LOD 32x32 delivery unit encoded as a local quadtree, with
+non-default packaging proven by validation rather than shipped as an
+operator rebrick command. The implementation plan removed the
+production packaging-rebrick tool from this milestone and keeps
+operator order/depth migration with the later client packaging work.
+
+The setup-tool path is covered from source, not inference:
+`mapproxy-setup-resource` currently creates `dem`, `dem.min`, and
+`dem.max` in `mapproxy/src/setup-resource/main.cpp` before running
+`tiling::generate`. RFC 7 now requires metanode-store mode to create
+only the normal DEM VRTWO, pass effective packaging into the new
+tiling/store generation command, and validate the matched
+flag-index/store pair.
+
 ## 2026-06-12 — RFC 7 metanode store: review round 2
 
 Round-1 dispositions verified as implemented. The new §7.1
@@ -49,25 +74,26 @@ operator migration guide is now listed as an implementation deliverable,
 not a standalone wiki page, because the tooling and command names do not
 exist yet.
 
-Follow-up: clarified that `metaBinaryOrder` and `metaDepth` are
-per-resource DEM surface packaging settings, with reference-frame values
-as defaults and compatibility hints. The RFC now requires tileserver
-parser, generation tooling, store header, source hash, validation, and
-generated mapConfig surface definitions to carry the effective values.
-Current clients still consume only the reference-frame `metaBinaryOrder`
-and `metaDepth = 1`; server-side tooling and store support for
-non-default values remain in scope.
+Follow-up, later narrowed by round 2: clarified that `metaBinaryOrder`
+and `metaDepth` are per-resource DEM surface packaging settings.
+Reference-frame values default `metaBinaryOrder`; `metaDepth` defaults
+to `1`. The RFC requires tileserver parser, generation tooling, store
+metadata, validation, and generated mapConfig surface definitions to
+carry the effective values. Current clients consume only hardcoded
+terrain `metaBinaryOrder = 5` and `metaDepth = 1`, so non-default
+packaging is supported and validated on the server side but not exposed
+as an operator migration path in this milestone.
 
-Changing order/depth for an existing dataset is now a rebrick migration,
-not a full native-resolution tiling run. The rebrick tool reads a
-validated flag-index/store pair, rewrites store pages and pairing
-metadata for the new packaging, and publishes the new pair atomically.
+Changing order/depth for an existing dataset is now deferred to the
+later client packaging milestone. Round 2 removed the production
+rebrick tool from this RFC; this milestone proves rebrickability by
+round-tripping non-default packaging in validation.
 
-Follow-up: phase 8 now requires the future operator guide to be a HOWTO
-organized by task: process a new DEM dataset, migrate an existing
-three-pyramid DEM dataset to metanode store, and change
-`metaBinaryOrder`/`metaDepth` with the rebrick tool. The round-2 section
-records this as added review scope.
+Follow-up, later narrowed by round 2: the future operator guide remains
+a HOWTO organized by task: process a new DEM dataset and migrate an
+existing three-pyramid DEM dataset to metanode store. Instructions for
+changing `metaBinaryOrder`/`metaDepth` belong to the later client
+packaging milestone when client support and the rebrick tool exist.
 
 Follow-up: added an early terminology section defining
 `metaBinaryOrder`, `metaDepth`, and metatile packaging before the RFC

@@ -1,5 +1,31 @@
 # Task backlog
 
+## CLIENT/FOLLOW-UP: replace hardcoded metatile aggregation order
+
+**Opened:** 2026-06-12
+**Status:** open — depends on RFC 7 implementation and client
+surface-packaging support
+**Related:** [rfc-metanode-store.md](rfc-metanode-store.md),
+[surface-metatile.md](surface-metatile.md)
+
+Current cartolina-js does not consume configured metatile packaging
+values. Terrain metatile fetches use a literal aggregation order 5 in
+`src/core/map/surface-tile.js`; bound-layer texture metatiles use a
+literal order 8 in `src/core/map/texture.js`. Parsed reference-frame
+and surface `metaBinaryOrder` values are currently dead.
+
+This item has no standalone meaning before RFC 7 is implemented: the
+server must first advertise effective surface packaging values in
+mapConfig, validate them against metanode-store artifacts, and keep
+current datasets on effective `(metaBinaryOrder = 5, metaDepth = 1)`.
+After that exists, the later client packaging milestone must replace the
+literals with effective per-surface values from mapConfig, add
+compatibility checks, and ship the operator rebrick tool used to migrate
+existing metanode-store datasets to new `metaBinaryOrder`/`metaDepth`
+values.
+
+---
+
 ## FEATURE: recover from WebGL context loss
 
 **Opened:** 2026-06-10
