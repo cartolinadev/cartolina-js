@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: review round 4
+
+The round-3 phase-reference fixes verified; no other stale references
+found. Before sign-off, a cross-check of §4 against the subsumed
+coverage-mask backlog item surfaced a design regression: the original
+item delegated the leaf reduction to GDAL min/max resampling warped
+to one pixel per tile, while §4.2 rewrote it as a native-resolution
+windowed pass with custom streaming reduction — yet §4.5 kept the
+filter design's assumption list. Round 4 carries one note asking §4
+to return to the filter design: four warp passes (mask/elevation ×
+min/max) to pixel-per-tile grids, bottom-up reduction as plain
+min/max downsampling (max = OR, min = AND on masks), inspectable
+intermediates, far less custom code. Constraints recorded: one
+resampling algorithm per warp operation (so four passes), nodata
+inversion per pass, edge-shared-sample semantics as a new §4.5 item,
+monotone-heightFunction rule, full-footprint aggregation as the
+load-bearing claim. The pyramid reduction is specified as an in-tool
+mip loop interleaved with flag-index/store emission, not GDAL
+overviews: `BuildOverviews` has no min/max resampling (verified
+against GDAL 3.4.1). Nothing outside §4 moves. Round 5 expected to
+be the sign-off. The texelSize stored-area escape hatch and the
+client-milestone-as-own-RFC observations are recorded as non-blocking
+remarks in the round.
+
 ## 2026-06-12 — RFC 7 metanode store: review round 3
 
 All five round-2 dispositions verified as faithfully implemented,

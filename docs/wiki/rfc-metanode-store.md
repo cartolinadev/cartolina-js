@@ -1452,3 +1452,111 @@ the phase renumbering:
    *Implemented.* Corrected the three stale phase references: §5.2 and
    the round-2 note-4 author response now point the clamp timing check to
    phase 5, and §9 now points the packaging profiling item to phase 7.
+
+## Review round 4
+
+The round-3 note is implemented exactly: the three stale phase
+references now match the renumbered plan, and a re-check of every
+phase reference in the document found no others.
+
+Before signing off, a final cross-check of §4 against the backlog
+item it subsumes surfaced one design regression. One note; round 5 is
+expected to be the sign-off once it is resolved.
+
+1. §4.2 should return to the subsumed backlog item's reduction
+   design: warp to **one pixel per tile** with GDAL min/max
+   resampling, instead of warping at the resolution floor and
+   reducing in custom code.
+
+   The original coverage-mask item (opened 2026-05-29) specified the
+   leaf reduction as GDAL's job: "Reduce two statistics per output
+   cell during the warp, using GDAL's min/max resampling
+   (`GRA_Min` / `GRA_Max`)". §4.2 rewrote this into a
+   native-resolution windowed pass with hand-rolled streaming
+   reduction — while §4.5 kept the assumption list of the filter
+   design ("GDAL min/max resampling aggregates over the full
+   destination footprint"), which has nothing to test when the
+   reduction is custom code. The document drifted from the design
+   that generated its own checklist.
+
+   The filter design is better on this project's axes, and §4.2,
+   §4.3, §4.5, and phase 3 should be rewritten around it:
+
+   - The windowed pass calls GDAL warp per window anyway, so it is
+     GDAL's `ChunkAndWarpImage` chunking re-implemented one level up,
+     plus accumulator machinery GDAL makes unnecessary. Warping each
+     reference-frame division node into a destination grid of one
+     pixel per tile at the analysis maximum LOD moves the entire leaf
+     reduction into the warp kernel. GDAL is built to warp
+     arbitrarily large datasets block-wise under a memory budget
+     (warp memory limit, `NUM_THREADS`); delegate to it.
+   - Outputs per division node: four grids — mask-min, mask-max,
+     elev-min, elev-max. For melown2015 at LOD 15 that is
+     2¹⁴ × 2¹⁴ per grid, ~1.5 GiB total: inspectable flat rasters,
+     so phase 3's hand-reduced reference check becomes a raster
+     diff.
+   - The bottom-up reduction degenerates to 2× min/max downsampling
+     of those grids: on 0/255 masks, max *is* OR and min *is* AND, so
+     the whole flag-and-range pyramid is a trivial mip loop. Write
+     that loop in the tool, interleaved with flag-index and
+     store-page emission — the ascent that computes parent min/max
+     is the same walk that builds both artifacts. Do not delegate it
+     to GDAL overviews: `BuildOverviews` has no min/max resampling
+     (GDAL 3.4 offers nearest/average/rms/gauss/cubic/…/mode only;
+     min/max exist in the warp kernels alone). The "partial parent
+     accumulators for open regions" machinery disappears.
+   - Per §0, generation is the lesser win: the extra source-read
+     passes this costs (below) buy a large code deletion. That is
+     the right trade.
+
+   Constraints the rewrite must state:
+
+   - One warp operation has one resampling algorithm
+     (`GDALWarpOptions::eResampleAlg` is per-operation, not
+     per-band), so this is one warp per (band, filter): four passes,
+     each re-reading the source. Sequential reads at build time,
+     acceptable per §0. The mask band must be exposed as a warpable
+     band (a VRT wrapping `GetMaskBand`, or a translate to a byte
+     raster).
+   - State the data-volume claim precisely: output volume drops by
+     `samplesPerTile²` (about four orders of magnitude); source I/O
+     and kernel work remain `O(source pixels)` per pass.
+   - §4.3's nodata inversion survives unchanged, expressed as
+     per-pass warp options: mask passes with no `srcnodata`,
+     elevation passes with `srcnodata` set, mask destination
+     initialised to 0 so cells outside the source reduce to
+     not-existing.
+   - New §4.5 item — edge-shared samples. The pixel-per-tile warp
+     partitions source pixels disjointly among tiles, while the
+     serve-time warp it must match samples corner-inclusive grids in
+     which adjacent tiles share edge samples; an extremum exactly on
+     a tile edge lands in one tile only. The `half` write bias gives
+     ~1 ulp of slack; the phase-5 parity gate must characterise the
+     residual.
+   - `heightFunction` commutes with min/max only when monotonic.
+     State the rule: apply it post-aggregation in the monotone
+     (normal) case; a non-monotone function would need a pre-warp
+     derived-band VRT.
+   - §4.5's full-footprint aggregation assumption graduates from
+     checklist item to the load-bearing claim of the leaf pass,
+     verified in phase 3 exactly as already planned, including the
+     warp kernel's window heuristics (`XSCALE`/`YSCALE`) at extreme
+     downsample ratios.
+
+   Nothing outside §4 moves: the store, the datum, the
+   pairing/publication machinery, the serve path, and the phase
+   gates stand. The change makes the document consistent with its
+   own §4.5 and its parent backlog item.
+
+For the record, two non-blocking observations requiring no document
+changes now:
+
+- If the phase-1 spike shows relief is the wrong texelSize signal in
+  kind (rough-but-low-relief terrain), the in-design escape is a
+  third stored channel — true surface area reduced by summation in
+  the same tiling pass — not further calibration. Recorded so the
+  option is not rediscovered under pressure.
+- The client shallow-subtree milestone should open as its own RFC
+  once phase-7 numbers exist, taking with it the operator rebrick
+  tool, the v6 field trim, and the backlog entry on the client's
+  hardcoded aggregation orders.
