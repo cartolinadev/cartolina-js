@@ -1,5 +1,14 @@
 # Session log
 
+## 2026-06-12 — tileserver tools inventory page
+
+Added [tileserver-tools.md](tileserver-tools.md): one-line purpose
+per executable, grouped by package (`cartolina-tileserver`,
+`cartolina-tileserver-tools`, in-tree-only), linked from the index.
+Prompted by the 1.115metanodestore packaging round, which also added
+install rules for the RFC 7 tools (mapproxy-mnstore, mapproxy-tidiff,
+mapproxy-texel-spike).
+
 ## 2026-06-12 — RFC 7 follow-up: cross-node warp pooling implemented
 
 The earth-qsc planetary measurement (62m56s, six faces serialized)

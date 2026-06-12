@@ -59,6 +59,9 @@ in [AGENTS.md](../../AGENTS.md).
   generated, stored, and projected to screen-space error in
   `updateTexelSize`; distance functions, degrade-horizon logic, tree
   traversal, and comparisons with other renderers
+- [tileserver-tools.md](tileserver-tools.md) — inventory of the
+  tileserver executables: which package ships each tool and what it
+  is for
 - [tileserver-metatile-production.md](tileserver-metatile-production.md) —
   how the tileserver generates metatiles on demand (VRTWO, tile index,
   serve-time GDAL warp), where the cost lies, and the structural problem
