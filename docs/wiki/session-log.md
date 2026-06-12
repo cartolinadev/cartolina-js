@@ -1,5 +1,44 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: implemented (phases 1-6)
+
+Implemented RFC 7 on `feature/metanode-store` (cartolina-tileserver +
+vts-libs submodule). Phase-1 texelSize spike passed decisively: the
+analytic planar texel matches the warp-derived value within ±0.5%
+(p5-p95, lods >= 7, both frames) because the warp's own 8x8 sampling
+barely encodes relief; `c = 0.5` compiled in, zero monotonicity
+violations in 848k descent pairs, no clamp needed. Landed: `mnstore`
+store format (paged local quadtrees, half height range, pairing
+digest), unified tiling pass as the default `mapproxy-tiling` mode
+(four one-pixel-per-tile GDALWarp filter passes + 2x2 mip loop,
+atomically published pair), store serve path with warp fallback in
+`SurfaceDem`, packaging plumbing (`metaBinaryOrder`/`metaDepth`
+through definitions, tileset properties and mapConfig; vts-libs),
+setup-resource metanode-store mode (normal-only VRTWO), and
+min/max-pyramid retirement (required only without a valid store).
+
+Verified on a 1.94 Gpx viewfinder cut (Alps + Po valley, gaps):
+tile-index parity 0.38%/0.42% (melown2015/earth-qsc), all residuals
+boundary/edge classes where the new pass is the more faithful reading
+of the source (verified by hand-reduction); store height ranges equal
+the true per-tile source range while the old warp's were blurred
+outward by the min/max overview pyramids. Serve A/B on the same
+delivery index: node sets and flags identical, texelSize p95 < 1%;
+store p50 25 ms vs warp p50 695 ms. Found and fixed a real pairing
+hazard: the cached `delivery.index` is not covered by the tiling-file
+digest, so prepare now records `delivery.index.src` and the store is
+rejected unless the delivery index derives from the paired tiling.
+Notable empirical findings recorded as deviations in the RFC
+implementation notes: v6 metatiles serialize raw-SDS (ellipsoidal)
+heights, not orthometric (§3.5 premise false; store keeps verbatim
+values); libgeo `warpInto` both degenerates at the 1-px-per-tile
+ratio and may silently swap in an averaging overview (filter passes
+use GDAL's `GDALWarp()` utility API instead); GDAL nudges valid
+values colliding with dstnodata (mask passes use `INIT_DEST=0`).
+Deferred: planet-scale bring-up (phase 7), operator migration guide
+(phase 8), filter-pass/process parallelism, masked-resource store
+support.
+
 ## 2026-06-12 — RFC 7 metanode store: review round 6 — sign-off
 
 All three round-5 dispositions verified as faithfully implemented:

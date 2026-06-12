@@ -2099,10 +2099,11 @@ piece is a render-time color / opacity path for geodata lines.
 ## PERF: pre-built metatile index eliminating serve-time DEM warps
 
 **Opened:** 2026-05-16
-**Status:** promoted to RFC — see
-[rfc-metanode-store.md](rfc-metanode-store.md), which subsumes this item
-and the coverage-mask `mapproxy-tiling` redesign below. The notes here
-are retained as the originating discussion.
+**Status:** implemented (2026-06-12) — RFC 7
+([rfc-metanode-store.md](rfc-metanode-store.md)) landed on
+`feature/metanode-store`; see its implementation notes for results
+(store-served metatiles ~25 ms vs ~700 ms warp on the test sample) and
+deviations. The notes here are retained as the originating discussion.
 
 ### Goal
 
@@ -2207,11 +2208,12 @@ naturally.
 ## PERF/REDESIGN: coverage-mask `mapproxy-tiling`
 
 **Opened:** 2026-05-29
-**Status:** subsumed by [rfc-metanode-store.md](rfc-metanode-store.md)
-(§4), which folds the coverage-mask native pass and the height-range
-extraction into one tiling redesign. The notes here are retained as the
-originating discussion; the untested assumptions are carried into the
-RFC's §4.5 and verification plan.
+**Status:** implemented (2026-06-12) as part of RFC 7
+([rfc-metanode-store.md](rfc-metanode-store.md) §4); the unified pass
+is the default `mapproxy-tiling` mode (legacy analysis behind
+`--legacy`). §4.5 assumptions verified on the test sample; residuals
+characterized in the RFC implementation notes. The notes here are
+retained as the originating discussion.
 
 ### Goal
 
