@@ -1,5 +1,33 @@
 # Session log
 
+## 2026-06-12 — RFC 7 phase 7: planetary bring-up (viewfinder-dem3)
+
+Ran the unified pass on the global 3-arcsec viewfinder-dem3 in both
+frames, against an independent local dataset directory of symlinks
+into the shared 55 GB original (only tiling/store artifacts local).
+melown2015: 52m47s, store 752 MB / 262k pages (filled-ocean worst
+case, all 268M nodes exist; orthometric collapse holds it under the
+dense 1.4 GB); earth-qsc: 62m56s six faces serialized (the measured
+case for the deferred warp pooling), store 66 MB. Parity vs the
+legacy planetary tiling: melown residuals are the barren-node
+1-1-1 quadrant (legacy fake-watertighted it; unified omits non-real
+nodes; serving-invisible) plus a 0.3% navtile band at caps and the
+antimeridian; qsc 1.4%, navtile band + face-edge rows. Serve: warm
+p50 31 ms / p90 39 ms, RSS 187 MB over the 752 MB mmap. Two real
+catches: an unguarded polar conversion aborted the first 44-minute
+run before publish (out-of-domain conversions now contained in both
+tiling and serve), and global coarse metatiles served at 1.5-2 s —
+a silent per-request warp fallback caused by per-node NodeInfo
+construction (~14 ms PROJ pipeline per node on constrained subtrees)
+whose ancestor-derived replacement exposed a NodeInfo::child() throw
+on RF-invalid nodes; fixed via deriveNodeInfo with invalidity
+short-circuit, global metatiles now ~230 ms, zero fallbacks. The
+polar flag diagnosis (old tiling watertight everywhere on caps, the
+partial-tile recollection living in mesh clipping, not flags) is
+recorded as a flags-vs-mesh contract backlog entry; further backlog:
+cross-node warp pooling, spatially varying bottom lod with a
+relative resolution margin, AGENTS now carry the Knuth rule.
+
 ## 2026-06-12 — RFC 7 metanode store: orthometric store (format v2)
 
 Review of the implementation notes overturned the raw-SDS storage

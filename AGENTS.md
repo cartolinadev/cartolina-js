@@ -283,6 +283,11 @@ two approaches solve the problem equally well, choose the one with
 fewer moving parts, fewer special cases, and less code. A design that
 eliminates a concept is better than one that models it more precisely.
 
+- **Knuth's rule: premature optimization is the root of all evil.**
+  Do not buy speculative performance with code complexity. Optimize
+  when a measurement shows the need, against that measurement; until
+  then, prefer the simpler design and record the deferred idea in the
+  backlog instead of the codebase.
 - **Write as little code as possible.** Before writing new code, search
   for existing functionality to reuse. When duplication is unavoidable,
   abstract, but only once the duplication is real and the right

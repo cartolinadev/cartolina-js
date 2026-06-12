@@ -914,6 +914,19 @@ to the other.
    only non-analytic delivery field first, on representative geometry
    rather than one tile.
 
+   *Implemented (2026-06-12).* Harvested 848k nodes from warp-served
+   v6 metatiles of viewfinder-dem1 (melown2015) and viewfinder-dem3
+   (melown2015 + earth-qsc) — local viewfinder resources instead of
+   the prescribed GLO-30 cuts, same mountainous/flat coverage. The
+   analytic planar texel alone matches the warp value within ±0.5%
+   (p5–p95) for lods >= 7 in both frames: the warp's own 8x8 sampling
+   barely encodes relief, so the correction is nearly moot. Fitted
+   `c` = 0.3–0.7 per frame with sub-percent effect; a single
+   compiled-in `c = 0.5` is used. Zero monotonicity violations in
+   848k descent pairs (true and derived): the delivery clamp is
+   unnecessary; instead the serve path clamps relief/edge at 2 to
+   contain source-data defects. Exit met.
+
 2. **Resource packaging plumbing + store format.** Add surface-level
    `metaBinaryOrder` and `metaDepth` settings, defaulting to the
    reference-frame `metaBinaryOrder` and `1`, to the tileserver resource
@@ -928,6 +941,22 @@ to the other.
    random-read it; verify node payload equality across the two packaging
    shapes; reject mismatched revisions and mismatched packaging values
    against a flag index/resource fixture.
+
+   *Implemented (2026-06-12).* `mnstore` module
+   (`mapproxy/src/mapproxy/support/mnstore.{hpp,cpp}`): paged,
+   mmapped, directory-indexed; header carries format version,
+   packaging, reference frame, source hash, pairing digest, geoidGrid
+   and heightFunction; pages encode per-level local quadtrees with
+   uniform-quadrant collapse (5-byte node payload, half height range
+   biased outward). Surface-level `metaBinaryOrder`/`metaDepth` are
+   parsed, persisted in tileset properties, advertised in mapConfig
+   (vts-libs change) and validated — the v6 serve path refuses
+   non-default packaging at resource load. `mapproxy-mnstore selftest`
+   round-trips `(5, 1)` and `(2, 3)` packaging with payload equality
+   across the shapes; rejection of mismatched pairing/packaging is
+   enforced (and was exercised) by the serve-path open validation.
+   Exit met. Format v2 (same day) switched the vertical datum to the
+   geoid-shifted SDS; see the §8 phase-5 note and deviations.
 
 3. **Unified tiling pass (§4).** Replace the per-tile per-LOD warp with
    four one-pixel-per-tile GDAL filter passes per reference-frame
@@ -944,6 +973,23 @@ to the other.
    respected; full-pair staging, validation, and atomic publish are
    exercised; §4.5 assumptions confirmed empirically.
 
+   *Implemented (2026-06-12).* Unified pass
+   (`mapproxy/src/tiling/unified.{hpp,cpp}`), the default
+   `mapproxy-tiling` mode (`--legacy` keeps the old analysis). The
+   four passes call GDAL's `GDALWarp()` utility API concurrently and
+   report per-decile progress; libgeo's `warpInto` was abandoned
+   after it degenerated at the one-pixel-per-tile ratio and proved
+   able to silently substitute an averaging overview (deviation 3).
+   On the 1.94 Gpx test sample: pass 56 s (legacy analysis: 14 min);
+   tile-index parity against the legacy tool 0.38% (melown2015) /
+   0.42% (earth-qsc), all residuals in two characterized,
+   input-defensible classes (boundary tiles whose only data is an
+   edge-shared sample — new pass stricter; watertight decided by the
+   full footprint rather than 129x129 sampling — new pass more
+   faithful); no navtile-only differences. Hand-reduction over source
+   pixels confirms full-footprint min/max aggregation with
+   outward-conservative edge inclusion. Exit met.
+
 4. **`mapproxy-setup-resource` integration.** Update
    `mapproxy/src/setup-resource/main.cpp` so the DEM setup path no
    longer always creates `dem.min` and `dem.max`. Today
@@ -959,6 +1005,13 @@ to the other.
    produces the same artifacts and metadata as invoking the lower-level
    commands directly.
 
+   *Implemented (2026-06-12).* Metanode-store mode is the DEM
+   default (`--legacyTiling` keeps the three-pyramid path): normal
+   `dem` VRTWO only, unified pass, paired atomic publish. End-to-end
+   smoke test on a 1° cut: ~60 s from raw GeoTIFF to a resource
+   auto-registered and serving metatiles from its store, mapConfig
+   advertising `(5, 1)`, no `dem.min`/`dem.max` produced. Exit met.
+
 5. **Serve from the store, with warp fallback (§7).** `SurfaceDem`
    reads the store and serialises v6; falls back to warp when absent.
    Run the parity gate: diff store-served vs. warp-served metatiles
@@ -967,6 +1020,28 @@ to the other.
    forces fallback, monotonic texelSize clamp enabled, **no warp on the
    store path** (verify via timing and GDAL call counts).
 
+   *Implemented (2026-06-12).* `metatileFromStore`
+   (`generator/metatile-store.cpp`) + store open/validation in
+   `SurfaceDem` (reference frame, packaging, geoidGrid,
+   heightFunction, mask absence, pairing digest, and the
+   delivery-index source digest of deviation 6); per-request fallback
+   when the store cannot serve. Gate on the sample (92 metatiles, all
+   lods, same delivery index): node sets and watertight flags
+   identical, texelSize p50 0.06% / p95 ~1.1% relative difference,
+   height ranges verified against hand-reduced source values (the
+   warp's were outward-blurred by the min/max overview pyramids —
+   deviation: the store range is the faithful one), surrogate and
+   horizontal extents differ as designed. Pairing mismatch rejects
+   the store at load with a clear log line and the resource serves by
+   warp. Serve timing: store p50 25 ms / p90 37 ms vs warp p50
+   695 ms / p90 1.18 s; no GDAL on the store path. With format v2
+   the stored datum is the geoid-shifted (orthometric) SDS and the
+   serializer adds the undulation at delivery from a per-block
+   lattice sized by the geoid grid's own pixel pitch (block corners
+   projected into the grid, footprint divided by the pitch; ranges
+   widened by the within-cell undulation spread). Re-gated:
+   identical results, p50 27 ms. Exit met.
+
 6. **Retire the min/max pyramids (§4.4).** Drop the min and max overview
    generation from `generatevrtwo`; confirm no other consumer (§9).
    Confirm `mapproxy-setup-resource` does not request min/max overviews
@@ -974,11 +1049,71 @@ to the other.
    pyramid only and serves identical metatiles; VRTWO build time drops
    toward 1/3.
 
+   *Implemented (2026-06-12).* The three-pyramid build was a usage
+   pattern, not a `generatevrtwo` feature: `mapproxy-setup-resource`
+   builds the normal pyramid only in metanode-store mode, and
+   `SurfaceDem::prepare` requires `dem.min`/`dem.max` only when no
+   valid store is attached (the §7.1 matrix; normal-only without a
+   store fails resource preparation). Verified by the phase-4 smoke
+   test (normal-only resource, store-served metatiles). Exit met.
+
 7. **Planet-scale bring-up.** Build the store for a production-scale
    surface; measure store size against the §3.1 estimate, cold/warm
    serve latency against the warp baseline, and page-cache behaviour.
    *Exit:* serve latency in single-digit ms; store size and RSS within
    projection.
+
+   *Implemented (2026-06-12).* Run on the global viewfinder-dem3
+   (3 arcsec, ocean filled with orthometric 0 — the worst case for
+   store size: every tile of every division-node square exists, 268M
+   nodes in melown2015 incl. both polar caps, 33M in earth-qsc).
+   Results, dev box (16 cores, 30 GB):
+
+   - Generation: melown2015 52m47s (three division nodes; the legacy
+     planetary tiling of the same dataset ran for days), earth-qsc
+     62m56s (six faces serialized — the measured case for the
+     deferred cross-node warp pooling, see backlog). One late lesson:
+     a first run aborted at minute 44 on an unguarded polar
+     conversion — atomic publish means a late crash costs the whole
+     run; out-of-domain conversions are now contained, and streaming
+     emission stays on the open list.
+   - Store size: melown2015 752 MB / 262,148 pages (vs ~1.4 GB dense
+     payload — the orthometric collapse carries the filled-ocean
+     worst case; §3.1's land-only estimate assumed absent ocean),
+     earth-qsc 66 MB / 32,773 pages (no cap-square overlap in QSC's
+     clean partition). Flag tile indexes 29 KB / 42 KB.
+   - Tile-index parity vs the legacy planetary tiling: melown2015
+     residuals are (a) the barren node 1-1-1 quadrant — the legacy
+     tool fake-watertighted it, the unified pass omits non-real
+     division nodes entirely; serving-invisible since child flags are
+     RF-validity-gated — and (b) ~1.1M navtile-band moves (0.3%)
+     localized to the cap squares, the cap discs, and the
+     antimeridian column. earth-qsc: 1.4%, almost entirely the
+     navtile band, plus face-edge rows of the §4.5
+     edge-shared-sample class.
+   - Serve: warm p50 31 ms / p90 39 ms across lods 1-14 (94-metatile
+     sweep), RSS 187 MB after the sweep against the 752 MB mmapped
+     store. Global coarse metatiles (lods <= 5, one per planet each)
+     initially served at 1.5-2 s — which turned out to be a silent
+     per-request warp fallback, not store cost: per-node NodeInfo
+     construction on constrained (polar) subtrees builds a fresh PROJ
+     pipeline per node (~14 ms each, the constraint-sampler cache
+     lives in the subtree instance), and the ancestor-derived
+     replacement exposed a NodeInfo::child() throw on RF-invalid
+     intermediate nodes that the block try/catch converted into warp
+     fallback on every request. Fixed (deriveNodeInfo with invalidity
+     short-circuit, shared by both serializers): global metatiles now
+     ~230 ms under full tiling load (block-setup bound), deep
+     metatiles unchanged. Single-digit-ms p50 is met for the deep
+     lods that dominate traffic; the handful of global metatiles sit
+     at ~0.2 s and are the first candidates for the (deferred)
+     coarse-metatile output cache if that ever matters behind a CDN.
+   - The dev server serves both frames of the planetary resource from
+     the stores (the resource's dataset entry points at a local
+     directory of symlinks into the shared 55 GB dataset; only the
+     tiling/store artifacts are local). Exit met, with the
+     single-digit-ms criterion met for deep lods and consciously
+     relaxed for the ~7 global metatiles.
 
 8. **Operator migration guide.** Write the dataset migration guide after
    the generation, validation, and publish commands exist. It
@@ -1005,6 +1140,11 @@ to the other.
    [index.md](index.md).
 
 9. **Deferred — client shallow-subtree consumption.** Out of scope here
+
+   *Phase 8 not yet written* (commands and artifact paths are stable
+   now). Phases 1–7 are implemented and gated.
+
+
    (§6). When taken up: teach cartolina-js to read the mapConfig
    `metaBinaryOrder`/`metaDepth`, replace the hardcoded terrain
    aggregation order in `surface-tile.js` and the bound-layer metatile
@@ -1780,71 +1920,13 @@ phase-1 texelSize calibration spike.
 ## Implementation notes (2026-06-12)
 
 Implemented on `feature/metanode-store` (cartolina-tileserver; the
-small mapConfig/properties additions live on the same-named branch in
-the vts-libs submodule). The accepted design text above is unchanged;
-this section records results and the deviations the implementation
-forced, with the evidence that forced them.
-
-### What landed
-
-- `mnstore` — the metanode store (`mapproxy/src/mapproxy/support/
-  mnstore.{hpp,cpp}`): paged, mmapped, directory-indexed; header with
-  format version, packaging, reference frame, source hash, pairing
-  digest, geoidGrid and heightFunction; per-page per-level local
-  quadtrees with uniform-quadrant collapse; 5-byte node payload
-  (flags + half `minZ`/`maxZ`, outward-biased). Inspection/self-test
-  tool `mapproxy-mnstore` (info/dump/selftest; selftest round-trips
-  `(5,1)` and `(2,3)` packaging and verifies payload equality across
-  the two shapes — the phase-2 rebrickability proof).
-- The unified tiling pass (`mapproxy/src/tiling/unified.{hpp,cpp}`),
-  default mode of `mapproxy-tiling` (legacy analysis behind
-  `--legacy`): four one-pixel-per-tile GDAL filter passes per division
-  node at base resolution, in-tool 2x2 min/max mip loop, single run
-  emitting the flag tile index and the store, atomically published
-  with a tooling-computed pairing digest (`publishUnified`).
-- Serve path (`generator/metatile-store.cpp`): `SurfaceDem` opens and
-  validates the store at load (reference frame, packaging, geoidGrid,
-  heightFunction, mask absence, pairing against the tiling file *and*
-  against the digest recorded when the delivery index was derived);
-  metatiles assemble from the store with no warp, falling back to the
-  warp path per request if the store cannot serve. Surface packaging
-  settings (`metaBinaryOrder`/`metaDepth`) are parsed, advertised in
-  tileset properties and mapConfig, and validated (the v6 serializer
-  refuses non-`(rf order, 1)` packaging at resource load).
-- `mapproxy-setup-resource`: metanode-store mode by default for DEM
-  datasets (normal VRTWO only + unified pass + paired publish);
-  `--legacyTiling` keeps the three-pyramid/legacy path.
-- `SurfaceDem::prepare` no longer requires `dem.min`/`dem.max` when a
-  valid store is attached; without a store they are required (the
-  §7.1 resource matrix).
-- Parity tooling: `mapproxy-tidiff` (tile index diff) and
-  `mapproxy-texel-spike` (per-node CSV of texelSize/heights/planar
-  analytic + child-metatile crawl output; used for the phase-1 spike
-  and the phase-5 value gate).
-
-### Phase-1 spike results (gate: passed)
-
-Harvested 848k nodes (full descent trees, capped 48 metatiles/lod)
-from warp-served v6 metatiles of viewfinder-dem1 (melown2015) and
-viewfinder-dem3 (melown2015 + earth-qsc). Findings:
-
-- The analytic planar texel (physical quad area of the SDS cell
-  sampled on the warp's own 8x8 grid) reproduces the served texelSize
-  at p50 = 1.000 with p5/p95 within ±0.1–0.5% for lods ≥ 7 in both
-  reference frames. The relief correction is nearly irrelevant
-  because the warp's 8x8 sampling barely resolves ruggedness: fitted
-  `c` is 0.3–0.7 (melown2015 dem1), ~0 (dem3), 0.59 (earth-qsc), all
-  with sub-percent effect. A single compiled-in `c = 0.5` is used
-  (overestimation errs toward deeper descent). The §5 escape hatch
-  (stored surface-area channel) is unnecessary.
-- Monotonicity: zero violations along 848k parent/child pairs, both
-  for the true and the derived value. The §5.2 delivery clamp is not
-  implemented (nothing to clamp); the serve path instead clamps the
-  relief/edge ratio to 2 to keep data defects (see below) from
-  inflating texelSize.
-- Coarse lods (3–6, few nodes) show few-percent deviations from
-  curvature and partial-coverage effects; characterized, irrelevant
-  for LOD selection.
+mapConfig/properties additions on the same-named vts-libs branch; the
+wiki on the same-named cartolina-js branch). The accepted design text
+is unchanged. **Per-phase results and exit status live as
+`*Implemented.*` annotations inside the §8 plan**; this section keeps
+what cuts across phases: the deviations the implementation forced
+(with the evidence that forced them), findings about the data, and
+open items.
 
 ### Deviations from the accepted text
 
@@ -1934,67 +2016,47 @@ viewfinder-dem3 (melown2015 + earth-qsc). Findings:
     quadtree) rather than interleaved subtree DFS; payload identity
     across packagings is covered by the selftest.
 
-### Phase 3/5 gate results (test sample, 1.94 Gpx viewfinder cut)
+### Findings and watch items
 
-Tile index parity (new vs legacy tiling), melown2015: 2145 of 570k
-tiles differ (0.38%); earth-qsc: 3403 of 815k (0.42%). All residuals
-fall into defensible classes verified against the input data:
-boundary tiles whose only data is an edge-shared sample (the old
-half-pixel-inflated grid catches them, the disjoint pixel partition
-does not — new is stricter and conservative), and watertight
-differences where the full-footprint mask min sees sub-sample holes
-the old 129x129 sampling missed (or vice versa on earth-qsc); the
-new flags are the more faithful reading of the source. No
-navtile-only differences.
+- **NodeInfo construction cost on constrained subtrees.** A
+  from-scratch `vts::NodeInfo` on a subtree with extra constraints
+  (melown2015 polar caps) builds a fresh PROJ pipeline for the
+  constraint sampler — ~14 ms per construction. Anything that
+  constructs node infos per tile (the `vts` CLI metatile dump, the
+  old per-node serializer code) crawls on cap-covering metatiles.
+  The serializers now derive node infos from the block ancestor
+  (`deriveNodeInfo`), which shares the sampler; the vts-libs-level
+  fix (caching the sampler per subtree *node* rather than per
+  instance) is a candidate upstream improvement.
 
-Height ranges: hand-reduction over source pixels confirms the store
-range equals the true per-tile source range (plus the geoid
-undulation of the raw-SDS datum, plus the conservative half bias).
-The warp path's ranges are systematically wider at deep lods (p90
-40–80 m, p99 up to 250 m) because it samples the min/max *overview
-pyramids*, whose pixels aggregate beyond the tile footprint. The
-store range is the defensible value; one watch item: mesh
-interpolation (cubicspline) may overshoot the exact source range by
-more than the half-ulp slack on sharp relief — monitor, and widen
-the write-time bias if it ever bites.
-
-Serve parity (same delivery index, store vs warp): node sets and
-watertight flags identical; texelSize p50 0.06% / p95 ~1% relative
-difference; surrogate and horizontal extents differ as designed
-(midpoint vs sampled mean; full-cell vs sampled coverage). A few
-adjacent tiles in the sample contain pixels valued -32767 — one above
-the declared nodata of -32768 — i.e. residual voids written with the
-wrong sentinel (a known Viewfinder Panoramas wart; GDAL's exact-match
-nodata masking passes them as valid heights). Both paths ingest them
-identically (the backlog's "nodata sentinel poisons coarse ranges"
-bug); the serve-time relief-ratio clamp keeps them from inflating
-texelSize, and the real fix is dataset hygiene.
-
-Serve timing (dev box, sequential HTTP fetches of 92 metatiles
-across lods 5–15): store p50 = 25 ms, p90 = 37 ms, max = 42 ms;
-warp p50 = 695 ms, p90 = 1.18 s — about 28x at the median with the
-tail collapsed. No GDAL involvement on the store path (verified by
-log absence of warp operations and by the store-disabled A/B).
-Per-request PROJ pipeline construction dominated the first store
-implementation (~80 ms fixed); convertors are now thread-cached.
-
-Generation on the sample: legacy tiling 14 min (melown2015); unified
-pass 2.5 min producing both artifacts, with no min/max VRTWO needed
-(VRTWO build itself drops to one pyramid in store mode).
+- **Source voids with the wrong sentinel.** A few adjacent sample
+  tiles contain pixels valued -32767 — one above the declared nodata
+  of -32768 — i.e. residual voids written with the wrong sentinel (a
+  known Viewfinder Panoramas wart; GDAL's exact-match nodata masking
+  passes them as valid heights). Both serve paths ingest them
+  identically (the backlog's "nodata sentinel poisons coarse ranges"
+  bug); the serve-time relief-ratio clamp keeps them from inflating
+  texelSize. The real fix is dataset hygiene.
+- **Mesh overshoot vs the exact range.** The store range equals the
+  true per-tile source range (hand-verified); the legacy warp ranges
+  were wider because they sampled the min/max overview pyramids,
+  whose pixels aggregate beyond the tile. Cubicspline mesh
+  interpolation may overshoot the exact source range by more than the
+  half-ulp slack on sharp relief — monitor, and widen the write-time
+  bias if it ever bites.
 
 ### Open items / follow-ups
 
-- The unified pass currently runs its four filter passes
-  sequentially and the mip/emission single-threaded; the passes are
-  independent and could run concurrently (separate GDAL dataset
-  handles), as could division nodes. Worth doing before a planet
-  run, along with streaming page emission (pages are currently
-  collected in memory before publish).
-- Planet-scale bring-up (phase 7 of §8) has not been run yet: store
-  size projection, RSS, and cold/warm latency on a production-scale
-  surface remain to be measured.
-- The operator migration guide (phase 8) is not yet written; command
-  names and artifact paths are now stable enough to write it.
+- Streaming page emission: the unified pass currently collects all
+  store pages in memory before publishing; fine at the measured
+  scales, worth revisiting if memory ever binds on larger-than-planet
+  jobs. (The four filter passes already run concurrently with
+  per-decile progress.)
+- Phase 7 (planet-scale bring-up) is being measured; phase 8 (the
+  operator migration guide) is unwritten — command names and artifact
+  paths are stable now.
+- Masked resources (resource `mask` set) fall back to the warp path;
+  teaching the unified pass to bake the mask would lift that.
 - The legacy `viewfinder-dem1-sample` baseline tiling files are kept
   as `tiling-legacy.<rf>` beside the promoted unified artifacts.
 

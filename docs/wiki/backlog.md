@@ -2592,3 +2592,110 @@ normal-map, and watertight/multimesh paths must tolerate the empty case.
 | `mapproxy/src/mapproxy/generator/surface-dem.cpp` | `generateMeshImpl` — 128×128 `demOptimal` warp |
 | `mapproxy/src/mapproxy/generator/metatile.cpp` | metatile geometry flag from index + 8×8 sampling |
 | `mapproxy/src/mapproxy/support/mesh.cpp` | `addSubMesh`, `meshFromNode` |
+
+## PERF (tileserver): pool unified-pass warps across division nodes
+
+**Opened:** 2026-06-12
+**Status:** deferred until a multi-node planetary run shows the need.
+
+The RFC 7 unified tiling pass runs its four filter passes (mask
+min/max, elevation min/max) concurrently *within* one reference-frame
+division node, but division nodes are processed sequentially. Treating
+all `(division node, pass)` warps as one task pool with a small
+concurrency cap (~6; the work is source-read/decompress bound, so more
+would queue on IO) would overlap the node tails — a bounded ~15-20%
+win on melown2015 (the pseudomerc node dominates, polar caps are
+small), but potentially much more on **earth-qsc**, whose six
+similar-sized QSC faces currently serialize. The refactor is
+contained: split `processNode` (`mapproxy/src/tiling/unified.cpp`)
+into a warp stage and a reduce/emit stage and gate the pool with a
+semaphore; per-node grids would coexist, so mind peak memory on
+planet-scale leaf grids (~0.7 GB per melown2015-sized node).
+
+Decide after measuring the earth-qsc planetary tiling wall time; if
+it is acceptably short, this stays deferred (premature-optimization
+rule).
+
+## BUG/INVESTIGATE (tileserver): mesh content contradicts metatile flags at RF-validity boundaries
+
+**Opened:** 2026-06-12
+**Status:** deferred — diagnosis only, surfaced by the RFC 7 polar
+parity check ([rfc-metanode-store.md](rfc-metanode-store.md)
+implementation notes).
+**Related:** "surface generator emits a zero-submesh mesh" above —
+likely the same mechanism observed at its extreme.
+
+### Symptom / mechanism
+
+The tile index (and therefore the served metatile flags) and the mesh
+generator answer "what is in this tile" by different rules. The tile
+index marks reference-frame-invalid areas of productive division
+subtrees watertight (the legacy tiling's explicit "fake watertight
+subtree in invalid part of a tree" lie; the unified pass reaches the
+same flags on filled sources because the warped mask genuinely covers
+the whole node square). The mesh generator, however, clips geometry by
+RF-node validity (`generateCoverage` over the NodeInfo coverage mask).
+Consequences, verified on the melown2015 polar caps of the planetary
+viewfinder-dem3 tiling:
+
+- tiles straddling the division-node constraint boundary (~±85.05 deg)
+  serve **clipped meshes under a watertight metanode** — the client
+  trusts the flag, skips fallback handling, and the clipped edge can
+  produce the known boundary artifacts at the rf-node seam;
+- tiles wholly outside the valid area but inside the watertight-lied
+  subtree can serve **empty (zero-submesh) meshes under geometry +
+  watertight flags** — presumably the zero-submesh bug above.
+
+### Open questions
+
+- What should the contract be? Either flags follow the clipped reality
+  (partial/absent at the boundary — but partial tiles trigger fallback
+  rendering whose resolution spills over the seam, the original
+  artifact), or meshes stop clipping at the boundary (watertight seam,
+  at the cost of duplicate geometry and possible z-fighting on rf-node
+  overlaps). Neither is obviously right; needs a worked decision.
+- Whether the metanode-store pipeline should bake RF validity into the
+  mask passes once the contract is decided (the unified pass currently
+  reproduces the legacy flags).
+
+Out of scope for RFC 7; flags-vs-mesh consistency is a pipeline-wide
+contract question.
+
+## PERF (tileserver): spatially varying bottom lod — prune subtrees beyond source resolution
+
+**Opened:** 2026-06-12
+**Status:** deferred; needs a per-resource opt-in design.
+
+Pseudomercator's sec(lat) inflation means same-lod tiles cover ~11x
+less ground at 85 deg than at the equator, so a global lodRange keeps
+high-latitude subtrees descending several lods past the source's
+native resolution. Both client and server then traverse, request, and
+generate tiles that add no terrain information (interpolated meshes,
+upsampled normals) — wasted bandwidth and cycles on both ends.
+
+Idea: prune the tile tree spatially during tiling — stop emitting
+children once per-tile sampling reaches the source resolution. The
+RFC 7 unified pass already computes the signal per tile (the
+`truescale` measure driving the navtile bit); the prune is a cutoff in
+the emission loop, and the metatile tree, tile index and store stay
+consistent by construction. Clients handle spatially varying leaf
+depth the same way they handle today's lodRange bottom.
+
+Design refinement: the bound-layer headroom is *relative*, not
+absolute. Draped imagery is textured per surface tile id, so an
+orthophoto finer than the DEM needs surface tiles past terrain-native
+resolution — but the imagery's tiles live on the same pseudomerc grid
+and stretch by the same sec(lat) factor, so the needed margin is a
+latitude-invariant number of extra lods. One per-resource parameter
+covers it: prune children where `truescale >= 2^k`, with `k` the
+configured resolution-margin lods (k = 0 prunes at terrain-native;
+today's behavior is k = infinity). The surface still cannot know what
+will be draped on it, so `k` is an operator setting in the resource
+definition.
+
+Remaining caveat: **leaf triangle budget** — mesh simplification
+budgets faces per tile, so a native-resolution leaf stretched over a
+close-up view renders coarser geometry than today's re-meshed
+interpolated children. May need a larger face budget on pruned
+leaves.
+
