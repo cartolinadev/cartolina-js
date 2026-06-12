@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-06-12 — RFC 7 phase 8: operator migration guide
+
+Wrote [metanode-store-operations.md](metanode-store-operations.md)
+(linked from the index under integration guides): task-oriented HOWTO
+covering new-dataset setup (setup-resource default mode and the
+manual route), migration of three-pyramid datasets, the pairing and
+delivery-index re-prepare rules, the §7.1 resource matrix, rollback
+as a pair-level operation, and the known failure-mode log messages.
+Command names and artifact paths are the implemented ones, exercised
+in the phase-7 planetary bring-up. This closes the last in-scope
+phase of RFC 7; remaining deferred scope is the client
+shallow-subtree milestone (RFC 7 §8 phase 9).
+
 ## 2026-06-12 — RFC 7 phase 7: planetary bring-up (viewfinder-dem3)
 
 Ran the unified pass on the global 3-arcsec viewfinder-dem3 in both

@@ -1139,11 +1139,19 @@ to the other.
    uses implemented command names and artifact paths and is linked from
    [index.md](index.md).
 
+   *Implemented (2026-06-12).* The guide is
+   [metanode-store-operations.md](metanode-store-operations.md),
+   linked from [index.md](index.md) under integration guides:
+   task-oriented (new dataset via `mapproxy-setup-resource` or the
+   manual route; three-pyramid migration with the
+   keep-min/max-until-verified rule; pairing and delivery-index
+   re-prepare semantics; the §7.1 matrix; rollback as a pair-level
+   operation; failure-mode log messages). Command names and artifact
+   paths are the implemented ones, exercised in the phase-7
+   planetary bring-up. Exit met — phases 1–8 are implemented; only
+   the deferred client milestone (phase 9) remains.
+
 9. **Deferred — client shallow-subtree consumption.** Out of scope here
-
-   *Phase 8 not yet written* (commands and artifact paths are stable
-   now). Phases 1–7 are implemented and gated.
-
 
    (§6). When taken up: teach cartolina-js to read the mapConfig
    `metaBinaryOrder`/`metaDepth`, replace the hardcoded terrain

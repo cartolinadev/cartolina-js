@@ -25,6 +25,10 @@ then branch into more specific documents as needed.
 - [compat-mapy-integration.md](compat-mapy-integration.md) — inventory
   of the API methods the mapy.com 3D integration consumes; reference
   for assessing migration impact when removing or changing those methods
+- [metanode-store-operations.md](metanode-store-operations.md) —
+  operator guide for metanode-store DEM resources (RFC 7): new-dataset
+  setup, migration from three-pyramid datasets, pairing validation,
+  rollback, and failure modes
 
 ### RFCs — active
 
