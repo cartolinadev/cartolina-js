@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-06-12 — RFC 7 review round 4 processed
+
+Processed review round 4 in
+[rfc-metanode-store.md](rfc-metanode-store.md). The generation design now
+matches the subsumed coverage-mask backlog item: per reference-frame
+division node, the tiling tool creates one-pixel-per-tile leaf rasters
+with GDAL min/max warp resampling, using four passes (mask min, mask
+max, elevation min, elevation max). The tool then builds coarser levels
+with an in-tool 2x2 min/max mip loop while emitting the flag index and
+metanode store.
+
+The RFC now states the per-pass nodata rules, the output-volume/source
+I/O trade, the reason not to use GDAL overviews for the bottom-up ascent,
+and the edge-shared-sample residual that phase 5 must characterize
+against the old warp path. The old round-1 author response that
+described a windowed custom reducer is marked as refined by round 4.
+
 ## 2026-06-12 — RFC 7 metanode store: review round 4
 
 The round-3 phase-reference fixes verified; no other stale references

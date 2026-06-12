@@ -188,9 +188,9 @@ and `metaDepth = 1`.
   single-LOD-block delivery, so the future shallow-subtree packaging is
   a rebrick plus client/server serializer change, not a redesign.
 - Fold the height-range extraction into a redesigned `mapproxy-tiling`
-  that computes existence, watertight, and range in one native-resolution
-  pass plus a bottom-up reduction — retiring the per-tile per-LOD warp
-  and the min/max VRTWO pyramids.
+  that computes existence, watertight, and range through
+  one-pixel-per-tile GDAL filter passes plus a bottom-up reduction —
+  retiring the per-tile per-LOD warp and the min/max VRTWO pyramids.
 
 **Non-goals**
 
@@ -445,35 +445,53 @@ descending the whole tree
 days. The serve path then warps *again* at request time. The same DEM is
 read at every pyramid level, twice over.
 
-### 4.2 The native-resolution pass
+### 4.2 The one-pixel-per-tile filter pass
 
-Per reference-frame division node, visit the source at the resolution
-floor (the native-resolution LOD calipers already computes) and reduce
-per output cell. This is a **windowed** pass, not a materialized global
-grid: each worker warps a bounded output-cell block, reduces its mask
-and elevation samples, writes the leaf results, and releases the block.
-Peak memory is bounded by `workers × windowCells × bands`, plus the
-streaming reduction buffers for the coarser levels being flushed. "Once"
-means one visit per source/output sample at the native floor, not one
-GDAL warp call and not one planet-sized array. Two bands are reduced to
-four statistics:
+Per reference-frame division node, warp the source into leaf grids at
+the analysis maximum LOD, with **one destination pixel per tile**. GDAL
+does the leaf reduction: each destination pixel receives the min or max
+over the source footprint that maps to that tile. The tool does not
+materialize a sub-tile sample grid and does not hand-reduce native
+samples.
 
-1. **Mask band** (`GetMaskBand`, GDAL RFC 15) → existence and watertight.
-   `max(cell) > 0` ⇒ exists; `min(cell) == 255` ⇒ watertight.
-2. **Elevation band** → `minZ = min(cell)`, `maxZ = max(cell)`.
+Four leaf grids are produced per division node:
 
-Then build coarser LODs bottom-up with no further sampling:
+1. **Mask max** from the GDAL mask band (`GetMaskBand`, RFC 15):
+   `max(cell) > 0` means the tile exists.
+2. **Mask min** from the same mask band:
+   `min(cell) == 255` means the tile is watertight for binary masks.
+3. **Elevation min** from the DEM band: `minZ = min(cell)`.
+4. **Elevation max** from the DEM band: `maxZ = max(cell)`.
 
-- existence: `parent = OR(children)`
-- watertight: `parent = AND(children)`
-- `minZ`: `parent = min(children)`
-- `maxZ`: `parent = max(children)`
+One GDAL warp operation has one resampling algorithm
+(`GDALWarpOptions::eResampleAlg`), so this is one warp per
+`(band, filter)`: four passes, each re-reading the source. That is an
+acceptable generation-time cost per §0. GDAL already chunks large warp
+operations under a memory budget and can use `NUM_THREADS`; use that
+instead of reimplementing chunked warp scheduling and custom
+accumulators. The mask band must be exposed as a warpable band, either
+with a VRT over `GetMaskBand()` or by translating it to a byte raster.
 
-Leaves are sampled once; every coarser node is pure reduction. Coarser
-levels are reduced bottom-up as windows complete, with partial parent
-accumulators kept only for open regions. This is the `O(levels × area)`
-→ `O(area)` collapse the coverage-mask item describes, now carrying the
-height payload in the same reduction.
+The intermediate output volume drops by `samplesPerTile²` relative to a
+sub-tile sample grid (about four orders of magnitude for 129×129
+samples). Source I/O and warp-kernel work remain `O(source pixels)` per
+pass. For melown2015 at LOD 15, each leaf grid is 2¹⁴×2¹⁴ pixels; two
+byte mask grids plus two 16-bit elevation grids are roughly 1.5 GiB,
+large but inspectable flat rasters.
+
+Then build coarser LODs bottom-up with no further source sampling. The
+tool runs a 2×2 min/max mip loop over the leaf grids while emitting the
+flag index and metanode store pages:
+
+- existence: `parent = max(children)`; on 0/255 masks this is OR.
+- watertight: `parent = min(children)`; on 0/255 masks this is AND.
+- `minZ`: `parent = min(children)`.
+- `maxZ`: `parent = max(children)`.
+
+Do not delegate the bottom-up ascent to GDAL overviews. GDAL 3.4
+`BuildOverviews` does not provide min/max resampling; min/max are warp
+kernels here. The ascent is the same walk that writes the two artifacts,
+so keeping it in the tiling tool is both simpler and testable.
 
 ### 4.3 The nodata rule — opposite per band
 
@@ -489,13 +507,18 @@ wrong reproduces a known bug:
   exactly the existing backlog bug *"coarse navtile height ranges are
   poisoned by the int16 nodata sentinel"*.
 
-Same pass, per-band nodata config inverted.
+The rule is applied per warp pass. Mask min/max passes use no
+`srcnodata`, and their destinations are initialized to 0 so cells
+outside the source reduce to not-existing and not-watertight. Elevation
+min/max passes set `srcnodata` so invalid elevation pixels cannot poison
+the stored range.
 
 ### 4.4 What generation loses
 
-- The per-tile per-LOD warp (replaced by one native pass + reduction).
+- The per-tile per-LOD warp (replaced by four one-pixel-per-tile GDAL
+  filter passes plus a bottom-up mip loop).
 - The **min/max VRTWO pyramids**, at *both* build and serve time: the
-  range is reduced from native resolution, so the pre-built min/max
+  range is reduced by the GDAL filter passes, so the pre-built min/max
   overviews are never read. `generatevrtwo` drops from three pyramids to
   one (normal only, still needed for mesh/navtile). A ~3× → ~1× cut on
   the multi-hour VRTWO step.
@@ -522,11 +545,19 @@ serve path depends on the output (§7 parity gate):
 
 - GDAL min/max resampling aggregates over the full destination footprint
   at extreme downsample ratios, not a subsample.
-- Edge-straddle semantics at tile boundaries (affects watertight exactly
-  at edges) — diff against a hand-reduced reference.
+- Boundary / straddle semantics: whether a source pixel straddling a
+  tile edge is counted by overlap or by center. This affects watertight
+  exactly at tile edges; diff the leaf grids against a hand-reduced
+  raster reference.
+- Edge-shared samples: the pixel-per-tile warp partitions source pixels
+  disjointly among tiles, while the serve-time warp samples
+  corner-inclusive grids where adjacent tiles share edge samples. An
+  extremum exactly on a tile edge can land in only one tile in the
+  filter pass. The `half` write bias gives about one ulp of slack; the
+  phase-5 parity gate must characterize the residual.
 - Alpha-mask sources (`GMF_ALPHA`) need a threshold; DEMs are normally
   `GMF_NODATA` / `GMF_ALL_VALID`.
-- Empty-region pruning: a full-extent native pass must recover the cheap
+- Empty-region pruning: a full-extent leaf pass must recover the cheap
   ocean-skip the current descent gets for free (bound by source
   footprint and/or a coarse existence pre-pass).
 
@@ -864,16 +895,19 @@ to the other.
    against a flag index/resource fixture.
 
 3. **Unified tiling pass (§4).** Replace the per-tile per-LOD warp with
-   the windowed native-resolution pass (mask band + elevation band,
-   §4.3 nodata rule) plus streaming bottom-up reduction, emitting both
-   the flag index and the metanode store with one shared revision. Keep
-   the old tiling tool available behind a flag for the parity diff. *Exit
-   on the test dataset:* existence and watertight **identical** to the old
-   tool; height range matches a hand-reduced reference within tolerance;
-   store pages are produced with the resource's effective packaging
-   values; peak memory stays within the window bound; full-pair staging,
-   validation, and atomic publish are exercised; §4.5 assumptions
-   confirmed empirically.
+   four one-pixel-per-tile GDAL filter passes per reference-frame
+   division node: mask min, mask max, elevation min, elevation max, with
+   the §4.3 nodata rule applied per pass. Build coarser levels with the
+   in-tool 2×2 min/max mip loop and emit both the flag index and the
+   metanode store with one shared revision. Keep the old tiling tool
+   available behind a flag for the parity diff. *Exit on the test
+   dataset:* leaf grids diff cleanly against a hand-reduced raster
+   reference; existence and watertight are **identical** to the old tool
+   except for characterized edge-shared-sample residuals; height range
+   matches the reference within tolerance; store pages are produced with
+   the resource's effective packaging values; GDAL warp memory limits are
+   respected; full-pair staging, validation, and atomic publish are
+   exercised; §4.5 assumptions confirmed empirically.
 
 4. **`mapproxy-setup-resource` integration.** Update
    `mapproxy/src/setup-resource/main.cpp` so the DEM setup path no
@@ -951,8 +985,9 @@ to the other.
 ## 9. Verification and deferred work
 
 - **GDAL resampling assumptions (§4.5).** The load-bearing claims;
-  verified on the test dataset in phase 3 before the serve path depends
-  on them.
+  verify leaf grids on the test dataset in phase 3 before the serve path
+  depends on them. Phase 5 parity characterizes the edge-shared-sample
+  residual against the warp path.
 - **min/max pyramid consumers (§4.4).** Confirm navtile generation and
   any tool/debug path read only the normal pyramid before phase 6
   removes the min/max ones. Confirm `mapproxy-setup-resource` does not
@@ -1006,7 +1041,7 @@ to the other.
 |---|---|
 | Serve-time `valueMinMax` warp in `metatileFromDemImpl` (DEM) | store read + derive (§7) |
 | min/max VRTWO pyramids (build and serve) | bottom-up reduction in tiling (§4.4) |
-| Per-tile per-LOD warp in `mapproxy-tiling` | single native pass + reduction (§4) |
+| Per-tile per-LOD warp in `mapproxy-tiling` | GDAL filter passes + mip loop (§4) |
 | Stored `surrogate` (sampled mean) | midpoint of stored range (§3.2) |
 | Stored `texelSize` (sampled area) | relief heuristic over stored range (§5) |
 | Sampled horizontal extents on the serve path | full-cell analytic (§5.3) |
@@ -1144,10 +1179,10 @@ must close before the design is build-ready.
    point is that "once" means one visit per source pixel, not one
    warp call.
 
-   *Implemented.* §4.2 now describes a bounded windowed pass, streaming
-   bottom-up reduction, and peak memory as workers times window cells
-   plus open parent accumulators. §8 makes the memory bound a phase-3
-   exit condition.
+   *Implemented; later refined by round 4.* §4.2 now avoids a
+   materialized native-resolution global grid by using one-pixel-per-tile
+   GDAL filter passes at the analysis maximum LOD, under GDAL's warp
+   memory budget, followed by an in-tool 2×2 min/max mip loop.
 
 5. §5's heuristic has an unstated ordering requirement. The client
    evaluates `node.pixelSize` per node independently, so LOD descent
@@ -1533,6 +1568,12 @@ expected to be the sign-off once it is resolved.
      a tile edge lands in one tile only. The `half` write bias gives
      ~1 ulp of slack; the phase-5 parity gate must characterise the
      residual.
+
+   *Implemented.* §4.2 now uses one-pixel-per-tile GDAL min/max filter
+   passes instead of a custom native-resolution reducer. §4.3 states the
+   per-pass nodata rules, §4.5 adds the edge-shared-sample parity risk,
+   phase 3 validates leaf rasters and the in-tool 2×2 min/max mip loop,
+   and the old round-1 response was marked as refined by this round.
    - `heightFunction` commutes with min/max only when monotonic.
      State the rule: apply it post-aggregation in the monotone
      (normal) case; a non-monotone function would need a pre-warp
