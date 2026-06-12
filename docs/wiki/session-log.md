@@ -1,5 +1,25 @@
 # Session log
 
+## 2026-06-12 — RFC 7 review round 5 processed
+
+Processed review round 5 in
+[rfc-metanode-store.md](rfc-metanode-store.md). All three notes
+implemented. Note 1 (protocol): moved the round-4 note-1 author
+annotation below the complete note, restoring the `heightFunction` and
+full-footprint bullets to the reviewer's contiguous constraint list.
+Note 2: added a "Value transform after aggregation" paragraph to §4.2
+stating that the warp kernel and mip loop reduce raw source elevations,
+with `heightFunction` and any source→SDS datum conversion applied
+post-aggregation to the per-tile `{min, max}`; monotonicity is the
+validity condition, a non-monotone function forces a pre-warp
+derived-band VRT, and a spatially varying datum conversion is bounded
+against the `half` write bias or moved pre-warp. §3.5's "must reduce
+elevation in that same SDS frame" sentence was rewritten to match, and
+§9's vertical-datum item carries the undulation-bound check. Note 3:
+§4.2 now requires all four passes to read base resolution with overview
+selection disabled (`-ovr NONE`), with a new §4.5 verify item to diff
+against a forced `-ovr NONE` run on the test dataset.
+
 ## 2026-06-12 — RFC 7 metanode store: review round 5
 
 The §4 filter-design rewrite is faithful where applied; the softened

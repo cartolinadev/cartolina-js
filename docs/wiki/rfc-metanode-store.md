@@ -412,11 +412,16 @@ bridged at the SDS↔physical boundary, not stored. The navtile range
   fastest path and the one §0 prioritises. The "cheaply convertible at
   delivery" fallback is held in reserve only if we ever pick a canonical
   internal datum different from the resource's SDS.
-- **The tiling pass (§4) must reduce elevation in that same SDS frame** —
-  apply the resource's `heightFunction` and treat the source datum
-  consistently — so the stored range matches what the warp would have
-  produced. If a source DEM is ellipsoidal, convert to the orthometric
-  SDS datum at build, both for correctness and to regain the collapse.
+- **The stored range must end up in that same SDS frame.** The §4 filter
+  passes reduce *raw source* elevations to a per-tile `{min, max}`; the
+  resource's `heightFunction` and any source→SDS vertical-datum
+  conversion apply *after* aggregation, to those two numbers (§4.2). Min
+  and max commute with a monotone height map, so the post-aggregation
+  result matches what the warp would have produced. If a source DEM is
+  ellipsoidal, the same post-aggregation step converts it to the
+  orthometric SDS datum, both for correctness and to regain the collapse;
+  a spatially varying conversion is bounded against the `half` write bias
+  or moved pre-warp (§4.2).
 - **The datum is pinned by the reference-frame id already in the header**
   (§7): since it is the public SRS vertical, the reference-frame
   identity *is* the datum identity. Validate the store's reference-frame
@@ -472,6 +477,16 @@ instead of reimplementing chunked warp scheduling and custom
 accumulators. The mask band must be exposed as a warpable band, either
 with a VRT over `GetMaskBand()` or by translating it to a byte raster.
 
+All four passes must read the source at **base resolution with overview
+selection disabled** (`-ovr NONE`, or an API path that demonstrably
+never engages overview selection). A one-pixel-per-tile destination is
+an extreme downsample by construction, so GDAL's default automatic
+overview selection (`-ovr AUTO`) would read average-filtered overviews,
+biasing `minZ` up and `maxZ` down and blurring mask edges — defeating
+the conservative range the store exists to provide. This holds for
+whatever a pass reads: the source DEM, or any VRT over it that exposes
+overview levels.
+
 The intermediate output volume drops by `samplesPerTile²` relative to a
 sub-tile sample grid (about four orders of magnitude for 129×129
 samples). Source I/O and warp-kernel work remain `O(source pixels)` per
@@ -492,6 +507,20 @@ Do not delegate the bottom-up ascent to GDAL overviews. GDAL 3.4
 `BuildOverviews` does not provide min/max resampling; min/max are warp
 kernels here. The ascent is the same walk that writes the two artifacts,
 so keeping it in the tiling tool is both simpler and testable.
+
+**Value transform after aggregation.** The warp kernel and the mip loop
+reduce *raw source* elevations. The resource's `heightFunction` and any
+source→SDS vertical-datum conversion apply **after** aggregation, to the
+two reduced numbers per tile, not to every source sample. Min and max
+commute with a monotone height map, so applying `heightFunction`
+post-aggregation gives the same range as applying it per sample; a
+non-monotone function would instead need a pre-warp derived-band VRT. A
+spatially varying vertical-datum conversion (geoid undulation across the
+tile) commutes with min/max only approximately: either bound the
+within-tile undulation variation against the `half` write bias —
+expected sub-ulp at tile scales, verified in §9 — or apply the
+conversion pre-warp via a derived band. The stored range is therefore in
+the SDS frame §3.5 requires, produced without a per-sample SDS warp.
 
 ### 4.3 The nodata rule — opposite per band
 
@@ -560,6 +589,12 @@ serve path depends on the output (§7 parity gate):
 - Empty-region pruning: a full-extent leaf pass must recover the cheap
   ocean-skip the current descent gets for free (bound by source
   footprint and/or a coarse existence pre-pass).
+- Overview selection disabled: confirm all four passes read the source
+  at base resolution and never engage automatic overview selection, e.g.
+  by diffing the leaf grids against a forced `-ovr NONE` run on the test
+  dataset. At the extreme one-pixel-per-tile downsample ratio, automatic
+  selection would silently read smoothed overviews instead of the base
+  raster and erode the conservative range (§4.2).
 
 ---
 
@@ -1008,12 +1043,16 @@ to the other.
 - **Vertical datum (§3.5).** Confirm the public-SRS vertical is
   orthometric for melown2015 and earth-qsc, that SDS `minZ/maxZ` are in
   that datum (so storing verbatim needs no conversion), and that the
-  tiling reduction applies the same `heightFunction`/datum. Confirm
-  whether SDS and navSRS share the same vertical datum or require a
-  geoid-grid shift at delivery. Spot-check that ocean/flat regions
-  actually collapse in a built store. Confirm the "derive datum from the
-  reference frame" rule carries to a non-Earth frame if one is ever
-  configured.
+  tiling pass applies `heightFunction` and any source→SDS datum
+  conversion post-aggregation (§4.2), so the stored range lands in the
+  SDS frame. Where a source→SDS conversion is spatially varying, bound
+  the within-tile geoid-undulation variation against the `half` write
+  bias to confirm the post-aggregation conversion stays sub-ulp at tile
+  scales; otherwise move it pre-warp via a derived band. Confirm whether
+  SDS and navSRS share the same vertical datum or require a geoid-grid
+  shift at delivery. Spot-check that ocean/flat regions actually collapse
+  in a built store. Confirm the "derive datum from the reference frame"
+  rule carries to a non-Earth frame if one is ever configured.
 - **Artifact consistency.** Verify a mismatched store/index revision is
   ignored, and that the tiling writer publishes both artifacts with a
   temp-write, fsync, rename sequence.
@@ -1568,12 +1607,6 @@ expected to be the sign-off once it is resolved.
      a tile edge lands in one tile only. The `half` write bias gives
      ~1 ulp of slack; the phase-5 parity gate must characterise the
      residual.
-
-   *Implemented.* §4.2 now uses one-pixel-per-tile GDAL min/max filter
-   passes instead of a custom native-resolution reducer. §4.3 states the
-   per-pass nodata rules, §4.5 adds the edge-shared-sample parity risk,
-   phase 3 validates leaf rasters and the in-tool 2×2 min/max mip loop,
-   and the old round-1 response was marked as refined by this round.
    - `heightFunction` commutes with min/max only when monotonic.
      State the rule: apply it post-aggregation in the monotone
      (normal) case; a non-monotone function would need a pre-warp
@@ -1588,6 +1621,17 @@ expected to be the sign-off once it is resolved.
    pairing/publication machinery, the serve path, and the phase
    gates stand. The change makes the document consistent with its
    own §4.5 and its parent backlog item.
+
+   *Implemented.* §4.2 now uses one-pixel-per-tile GDAL min/max filter
+   passes instead of a custom native-resolution reducer. §4.3 states the
+   per-pass nodata rules, §4.5 adds the edge-shared-sample parity risk,
+   phase 3 validates leaf rasters and the in-tool 2×2 min/max mip loop,
+   and the old round-1 response was marked as refined by this round. The
+   `heightFunction` monotonicity rule is stated in round-5 note 2 below
+   (§4.2 value-transform order, reconciled with §3.5). The full-footprint
+   aggregation claim is the load-bearing §4.5 item, verified in phase 3.
+   (Annotation moved below the full note per round-5 note 1; it
+   previously split the constraint list.)
 
 For the record, two non-blocking observations requiring no document
 changes now:
@@ -1623,6 +1667,14 @@ through. Three notes; the first explains the second.
    The protocol point is not cosmetic — the two bullets below the
    insertion point were evidently never processed, which is note 2.
 
+   *Implemented.* The round-4 note-1 annotation now sits below the full
+   note, after the "Nothing outside §4 moves" paragraph; the
+   `heightFunction` and full-footprint bullets are restored to the
+   reviewer's contiguous constraint list above it. The annotation records
+   that the previously-skipped `heightFunction` bullet is processed under
+   note 2 here, and that the full-footprint bullet is the existing §4.5
+   load-bearing item verified in phase 3.
+
 2. The `heightFunction` constraint from round-4 note 1 is
    unaddressed, and the filter design makes it load-bearing. The
    warp kernel reduces **raw source values**; `heightFunction` and
@@ -1645,6 +1697,19 @@ through. Three notes; the first explains the second.
      apply the conversion pre-warp via a derived band.
    - Reconcile the §3.5 sentence with this order.
 
+   *Implemented.* §4.2 gains a "Value transform after aggregation"
+   paragraph stating the order: the warp kernel and mip loop reduce raw
+   source elevations, and `heightFunction` plus any source→SDS datum
+   conversion apply post-aggregation to the per-tile `{min, max}`. It
+   states the monotonicity requirement, names the pre-warp derived-band
+   VRT as the non-monotone escape, and gives the spatially-varying datum
+   conversion the same choice: bound the within-tile undulation against
+   the `half` write bias, or move it pre-warp. §3.5's "must reduce
+   elevation in that same SDS frame" sentence is rewritten to "the stored
+   range must end up in that same SDS frame", matching the
+   post-aggregation order. §9's vertical-datum item carries the
+   undulation-bound verification.
+
 3. New, surfaced by the filter design itself: **source overview
    selection must be disabled on the min/max passes.** GDAL's warp
    utilities select a source overview level automatically when the
@@ -1661,3 +1726,13 @@ through. Three notes; the first explains the second.
    a forced `-ovr NONE` run on the test dataset. This applies to
    whatever dataset the passes read — the source DEM or any
    VRT over it that exposes overview levels.
+
+   *Implemented.* §4.2 now states that all four passes read the source at
+   base resolution with overview selection disabled (`-ovr NONE`, or an
+   API path that never engages overview selection), explaining that the
+   extreme one-pixel-per-tile downsample would otherwise read
+   average-filtered overviews and erode the conservative range. The
+   statement covers the source DEM or any VRT over it that exposes
+   overviews. §4.5 gains a verify item: confirm the implementation reads
+   base resolution, e.g. by diffing the leaf grids against a forced
+   `-ovr NONE` run on the test dataset.
