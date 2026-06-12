@@ -26,6 +26,35 @@ values.
 
 ---
 
+## CLIENT/REDESIGN: shallow-subtree metatile delivery (awaits RFC promotion)
+
+**Opened:** 2026-06-12
+**Status:** open — awaiting promotion to its own RFC, per RFC 7 §8
+phase 9 and the round-2 review disposition.
+**Related:** [rfc-metanode-store.md](rfc-metanode-store.md);
+"replace hardcoded metatile aggregation order" above (one ingredient
+of this milestone).
+
+The deferred client milestone of RFC 7: replace single-LOD metatile
+blocks with shallow-subtree delivery to cut the metatile descent
+ping-pong (a LOD-15 descent: ~16 fetch phases to ~4 at
+`metaDepth = 4`). Scope when taken up: teach cartolina-js to read the
+mapConfig `metaBinaryOrder`/`metaDepth` (advertised by the server
+since RFC 7), replace the hardcoded terrain and bound-layer orders,
+define the multi-LOD metatile binary (a v7 break), trim the dead v6
+fields, ship the operator packaging-rebrick tool, and choose the
+default `metaDepth` from measurements. The decision inputs RFC 7
+promised now exist: the phase-7 planetary numbers (store sizes, page
+counts, serve latency, RSS) are in the RFC implementation notes, and
+the store payload is proven rebrickable across packaging shapes by
+the `mapproxy-mnstore` selftest. The v7 wire format should also
+settle the vertical-datum question recorded in the RFC's orthometric
+addendum: orthometric heights plus per-metatile corner undulations
+(~16 bytes) would let the client do the bilinear shift for free,
+versus keeping the wire ellipsoidal at zero client cost.
+
+---
+
 ## FEATURE: recover from WebGL context loss
 
 **Opened:** 2026-06-10

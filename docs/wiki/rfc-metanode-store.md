@@ -1,7 +1,7 @@
 # RFC 7: the metanode store — precomputed metatiles without serve-time
 warp
 
-**Status:** Accepted
+**Status:** Implemented (2026-06-12)
 **Opened:** 2026-06-07
 **Context:** subsumes two backlog items —
 **PERF: pre-built metatile index eliminating serve-time DEM warps** and
@@ -1163,6 +1163,13 @@ to the other.
    scope for this RFC; client consumption and operator packaging
    migration are not.
 
+   *Deferred as designed (2026-06-12).* The server-side prerequisites
+   this item depends on are all in place (packaging advertised in
+   mapConfig, store rebrickability proven, phase-7 planetary numbers
+   measured). The milestone is recorded in [backlog.md](backlog.md)
+   ("shallow-subtree metatile delivery") and awaits promotion to its
+   own RFC; everything else here is out of scope by construction.
+
 ---
 
 ## 9. Verification and deferred work
@@ -1938,32 +1945,26 @@ open items.
 
 ### Deviations from the accepted text
 
-1. **Stored heights are raw-SDS (ellipsoidal), not orthometric.**
-   *Superseded the same day — see the datum addendum below; the store
-   is orthometric as §3.5 designed, and this deviation now applies
-   only to the v6 wire format, which the serializer converts to.*
-   §3.5 assumes the v6 metatile serializes orthometric SDS heights.
-   Empirically false: `geomExtents.z` passes through `sdsg2sdsr`
-   (geoid-shifted SDS → raw SDS), so serialized heights are
-   ellipsoidal — verified on Adriatic sea-level tiles, which carry
-   minZ ≈ +44 m, the EGM96 undulation. §3.5's own decision rule
-   ("store verbatim what the metatile serialises; delivery needs no
-   vertical conversion") wins over the orthometric premise: the store
-   keeps raw-SDS values. The flat-water collapse argument of §3.5 is
-   thereby weakened (sea-surface values vary with the undulation);
-   the dominant ocean saving (nonexistent tiles) is unaffected.
-2. **Datum conversion applies at leaf granularity, before the mip
-   ascent.** *Superseded the same day — with the orthometric store
-   (addendum below) generation does no datum conversion at all.* §4.2 applies `heightFunction` and the source→SDS datum
-   conversion post-aggregation per tile. At coarse lods the
-   undulation varies by tens of meters across one tile, while the
-   warp path converts per sample; converting only the two reduced
-   numbers of a coarse tile would diverge accordingly. The unified
-   pass therefore applies `heightFunction` plus the geoid shift to
-   each *leaf* tile's `{min, max}` (at the leaf-cell center, where
-   within-cell undulation variation is sub-ulp) and mips the
-   converted values. This matches the warp semantics at every lod and
-   is the in-tool equivalent of §4.2's pre-warp derived-band option.
+1. **The v6 wire format is raw-SDS (ellipsoidal); delivery converts
+   from the orthometric store.** §3.5 assumes the v6 metatile
+   serializes orthometric SDS heights. Empirically false:
+   `geomExtents.z` passes through `sdsg2sdsr` (geoid-shifted SDS →
+   raw SDS), so serialized heights are ellipsoidal — verified on
+   Adriatic sea-level tiles, which carry minZ ≈ +44 m, the EGM96
+   undulation. The store keeps the orthometric values §3.5 designed
+   (so flat water collapses) and the v6 serializer adds the geoid
+   undulation at delivery; mechanics and history in the datum
+   addendum below. (The implementation initially stored the raw-SDS
+   values verbatim, trading collapse for a conversion-free delivery;
+   review feedback on filled-ocean datasets overturned that the same
+   day.)
+2. **Generation does no datum conversion.** A consequence of the
+   orthometric store: the unified pass stores `heightFunction(source)`
+   values directly, and §4.2's source→SDS datum-conversion step has
+   nothing to do at tiling time — the geoid shift happens once, at
+   delivery (addendum below). The monotone-`heightFunction`
+   requirement of §4.2 still applies and is enforced
+   post-aggregation per leaf tile.
 3. **The filter passes call GDAL's `GDALWarp()` utility API, not
    libgeo's `warpInto`.** Two empirical reasons. (a) libgeo's warp
    wrapper degenerates at the extreme one-pixel-per-tile downsample:
@@ -2023,6 +2024,60 @@ open items.
     their levels as consecutive level grids (each a collapsed 2D
     quadtree) rather than interleaved subtree DFS; payload identity
     across packagings is covered by the selftest.
+
+### §9 verification checklist — disposition
+
+- **GDAL resampling assumptions (§4.5)** — verified in phase 3:
+  full-footprint min/max aggregation confirmed by hand-reduction over
+  source pixels (edge pixels included by overlap, outward bias only);
+  base-resolution reads enforced by `-ovr NONE` through the GDALWarp
+  utility API; boundary/edge-shared-sample residuals characterized in
+  the tile-index parity diffs (sample and planetary).
+- **min/max pyramid consumers (§4.4)** — confirmed: meshes use
+  `demOptimal` and navtiles `dem` on the normal pyramid; the only
+  min/max consumer is the `valueMinMax` metatile warp (now the
+  fallback). `mapproxy-setup-resource` builds normal-only in store
+  mode; the phase-4 smoke test served a normal-only resource end to
+  end.
+- **texelSize drift (§5.2)** — measured in phase 1 (±0.5% p5–p95 at
+  operative lods, both frames); zero monotonicity violations in 848k
+  descent pairs, so no delivery clamp; a relief-ratio clamp guards
+  against source-data defects instead.
+- **Surrogate fidelity** — midpoint vs sampled mean characterized in
+  the phase-5 value diff; no consumer regression expected (cartolina-js
+  reads `minZ`).
+- **Packaging parameters** — non-default packaging round-trip and
+  payload equality proven by `mapproxy-mnstore selftest`; phase-7
+  profiles (page counts, store sizes, latency, RSS) recorded for the
+  client milestone's `metaDepth` choice.
+- **Vertical datum (§3.5)** — the premise was empirically overturned
+  (v6 serializes raw-SDS heights; verified on sea-level tiles) and
+  the store went through verbatim-raw to orthometric v2 (deviations
+  1–2 and the addendum). Ocean/flat collapse verified at planet scale
+  (752 MB vs ~1.4 GB dense on a filled planet). SDS-vs-nav: the
+  navtile range uses the geoid-shifted-SDS-to-navigation convertor,
+  the warp path's own conversion. Deviation: the store datum is the
+  resource `geoidGrid`, not the reference-frame public SRS vertical;
+  a non-Earth frame remains unverified (no non-Earth metanode-store
+  resource configured yet — note `mars-mola-dem` as a candidate).
+- **Artifact consistency** — pairing-mismatch rejection verified live
+  (store ignored with a logged reason, warp fallback served);
+  temp-write/fsync/rename publication implemented in
+  `publishUnified` and exercised by every tiling run; the
+  delivery-index source digest closes the cached-derived-artifact
+  gap (deviation 6).
+- **Setup-tool integration** — phase-4 smoke test: same artifacts and
+  metadata as the lower-level commands, resource served from its
+  store; legacy path behind `--legacyTiling`.
+- **Migration guide** — published after the tooling
+  ([metanode-store-operations.md](metanode-store-operations.md)),
+  using implemented names and paths.
+- **`half` precision** — outward bias implemented in the writer and
+  checked by the selftest; phase-5 diffs confirm stored ranges are
+  conservative within tolerance.
+- **Non-DEM surfaces** — untouched by code inspection (spheroid and
+  geodata generators have no store path; the added packaging
+  validation is the only change); their serve paths are unchanged.
 
 ### Findings and watch items
 

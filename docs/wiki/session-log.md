@@ -1,5 +1,15 @@
 # Session log
 
+## 2026-06-12 — RFC 7 closed: status Implemented
+
+Final RFC 7 housekeeping: §9 verification checklist dispositioned in
+the implementation notes (each item verified, with the vertical-datum
+item recording its empirical overturn and the non-Earth-frame check
+left open), §8 item 9 annotated as deferred-as-designed with a new
+backlog entry ("shallow-subtree metatile delivery") holding the
+client milestone until RFC promotion, status line moved to
+Implemented, index entry moved to [rfcs-implemented.md](rfcs-implemented.md).
+
 ## 2026-06-12 — RFC 7 phase 8: operator migration guide
 
 Wrote [metanode-store-operations.md](metanode-store-operations.md)

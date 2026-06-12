@@ -39,10 +39,6 @@ in [AGENTS.md](../../AGENTS.md).
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate
-- RFC 7 [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed
-  metanode store replacing the serve-time DEM warp; paged mmapped
-  `{flags, minZ, maxZ}` quadtree, fields derived at delivery; subsumes
-  the coverage-mask `mapproxy-tiling` redesign
 - RFC 1 [rfc-config-store.md](rfc-config-store.md) — reactive
   ConfigStore to replace stringly-typed config routing; prerequisite
   for core.js suppression
