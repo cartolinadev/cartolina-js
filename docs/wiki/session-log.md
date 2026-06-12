@@ -1,5 +1,16 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: review round 6 — sign-off
+
+All three round-5 dispositions verified as faithfully implemented:
+annotation relocated below its note, the §4.2 value-transform-after-
+aggregation order (monotone `heightFunction` post-aggregation, datum
+commutation bounded against the `half` bias) with §3.5 reconciled,
+and the overview-selection exclusion (`-ovr NONE`) with its §4.5
+verify item. No open notes remain. Sign-off appended; status moved
+to Accepted. RFC 7 is ready to implement, starting with the phase-1
+texelSize calibration spike. The review ran six rounds.
+
 ## 2026-06-12 — RFC 7 review round 5 processed
 
 Processed review round 5 in

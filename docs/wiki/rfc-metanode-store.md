@@ -1,7 +1,7 @@
 # RFC 7: the metanode store — precomputed metatiles without serve-time
 warp
 
-**Status:** In review
+**Status:** Accepted
 **Opened:** 2026-06-07
 **Context:** subsumes two backlog items —
 **PERF: pre-built metatile index eliminating serve-time DEM warps** and
@@ -1736,3 +1736,41 @@ through. Three notes; the first explains the second.
    overviews. §4.5 gains a verify item: confirm the implementation reads
    base resolution, e.g. by diffing the leaf grids against a forced
    `-ovr NONE` run on the test dataset.
+
+## Review round 6 — sign-off
+
+The design is accepted. All three round-5 dispositions are implemented
+faithfully: the round-4 annotation sits below its complete note with
+the constraint list restored; §4.2's "Value transform after
+aggregation" paragraph states the raw-value reduction order, the
+monotonicity requirement with its pre-warp derived-band escape, and
+the bounded commutation of spatially varying datum conversions, with
+§3.5 reconciled and §9 carrying the undulation-bound check; and the
+overview-selection exclusion is stated in §4.2 with its §4.5
+verification item. No notes remain open from any round; there are no
+editorial leftovers.
+
+What is being accepted: a paged, mmapped metanode store holding
+`{mesh existence, watertight, minZ, maxZ}` per node in the reference
+frame's orthometric public-SRS vertical; all other metanode fields
+derived at delivery (midpoint surrogate, full-cell extents, a
+calibrated and clamp-guarded texelSize heuristic measured first);
+generation as four one-pixel-per-tile GDAL filter passes at base
+resolution plus an in-tool 2×2 min/max mip loop that emits the flag
+index and store pages as one atomically published, pairing-bound
+artifact set, with `heightFunction` and datum conversion applied
+post-aggregation; serve from the store with warp fallback, gated by
+node-level v6 parity; min/max VRTWO pyramids retired and
+`mapproxy-setup-resource` building normal-only in metanode-store
+mode; metatile packaging parameterized as per-surface
+`(metaBinaryOrder, metaDepth)` with effective `(5, 1)` mandatory for
+current clients, rebrickability proven in validation, and client
+consumption plus operator repackaging deferred to a later RFC.
+
+The two for-the-record observations in round 4 (the stored
+surface-area channel as the texelSize escape hatch; the client
+milestone opening as its own RFC on phase-7 numbers) remain recorded
+and non-blocking.
+
+The status line moves to Accepted. Implementation starts with the
+phase-1 texelSize calibration spike.
