@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: orthometric store (format v2)
+
+Review of the implementation notes overturned the raw-SDS storage
+deviation: filled-ocean planetary datasets store orthometric 0 over
+the sea, so ellipsoidal storage bakes the undulation into every ocean
+tile and defeats the quadtree collapse. The store (v2) now keeps the
+geoid-shifted orthometric SDS vertical per §3.5; generation does no
+datum conversion, and the v6 serializer adds the undulation at
+delivery (block-corner bilinear at lods >= 10, exact cell corners
+below, range widened by the within-cell undulation spread). Re-gated:
+ocean tiles store (0,0) and collapse, serialized output matches the
+warp within ~0.15 m, serve p50 27 ms, stores shrank 6-7.6% even on
+the mostly-land sample. Also: the four tiling filter passes now run
+concurrently (sample pass 2m33s -> 56s, bit-identical output), warps
+report per-decile progress, tools end with I4 "Done.", and the slow
+browser metatiles were diagnosed as HTTP/1.1 six-connection stalling
+behind mesh warps (66 ms server-side), absent under production H2.
+
 ## 2026-06-12 — RFC 7 metanode store: implemented (phases 1-6)
 
 Implemented RFC 7 on `feature/metanode-store` (cartolina-tileserver +

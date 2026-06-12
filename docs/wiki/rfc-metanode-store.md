@@ -1849,6 +1849,9 @@ viewfinder-dem3 (melown2015 + earth-qsc). Findings:
 ### Deviations from the accepted text
 
 1. **Stored heights are raw-SDS (ellipsoidal), not orthometric.**
+   *Superseded the same day — see the datum addendum below; the store
+   is orthometric as §3.5 designed, and this deviation now applies
+   only to the v6 wire format, which the serializer converts to.*
    §3.5 assumes the v6 metatile serializes orthometric SDS heights.
    Empirically false: `geomExtents.z` passes through `sdsg2sdsr`
    (geoid-shifted SDS → raw SDS), so serialized heights are
@@ -1860,7 +1863,8 @@ viewfinder-dem3 (melown2015 + earth-qsc). Findings:
    thereby weakened (sea-surface values vary with the undulation);
    the dominant ocean saving (nonexistent tiles) is unaffected.
 2. **Datum conversion applies at leaf granularity, before the mip
-   ascent.** §4.2 applies `heightFunction` and the source→SDS datum
+   ascent.** *Superseded the same day — with the orthometric store
+   (addendum below) generation does no datum conversion at all.* §4.2 applies `heightFunction` and the source→SDS datum
    conversion post-aggregation per tile. At coarse lods the
    undulation varies by tens of meters across one tile, while the
    warp path converts per sample; converting only the two reduced
@@ -1993,3 +1997,44 @@ pass 2.5 min producing both artifacts, with no min/max VRTWO needed
   names and artifact paths are now stable enough to write it.
 - The legacy `viewfinder-dem1-sample` baseline tiling files are kept
   as `tiling-legacy.<rf>` beside the promoted unified artifacts.
+
+### Addendum (2026-06-12, post-review): orthometric store (format v2)
+
+Review feedback on these notes overturned the raw-SDS storage
+decision (deviations 1-2 above): on a production planet the ocean is
+not absent but *filled* with orthometric 0, so raw-SDS storage bakes
+the smoothly varying undulation into every ocean tile and defeats
+both the horizontal and the within-page collapse — a latent GiB-scale
+inflation. The store (format v2) now keeps the **geoid-shifted
+(orthometric) SDS vertical** declared by the header's `geoidGrid`, as
+§3.5 originally designed:
+
+- Generation does **no datum conversion at all** (deviation 2 is
+  void): the unified pass stores `heightFunction(source)` values
+  directly, which also removes two convertor calls per leaf tile.
+- The v6 serializer shifts to the raw-SDS vertical at delivery by
+  adding the geoid undulation: evaluated at the metatile block
+  corners and bilinearly interpolated for lods >= 10, exactly at the
+  cell corners below (few, large cells); the delivered range is
+  widened by the within-cell undulation spread so it still covers the
+  mesh, which samples the undulation per vertex. The navtile height
+  range uses the geoid-shifted-SDS-to-navigation convertor at the
+  cell center — the warp path's own conversion.
+- Verified on the sample: ocean tiles store exactly `(0, 0)` (and
+  collapse), serialized v6 values reproduce the warp's undulation
+  range within ~0.15 m; the full serve gate is unchanged (node sets
+  and watertight identical, texelSize p95 ~1%, p50 27 ms, no
+  fallbacks). Store sizes shrank 6-7.6% even on the mostly-land
+  sample (melown2015 2.20 -> 2.07 MB, earth-qsc 5.28 -> 4.88 MB);
+  the structural win is on filled-ocean planets.
+- v1 stores are rejected by the version check and fall back to the
+  warp path; the pairing digests are unaffected (the flag tile index
+  does not depend on the datum and the tiling output is
+  deterministic).
+
+For the deferred v7 milestone this also frames the wire question: a
+v7 metatile could carry orthometric heights verbatim plus the four
+corner undulations of the metatile (~16 bytes), letting the client do
+the same bilinear shift for free instead of shipping a geoid grid;
+keeping the wire ellipsoidal remains the zero-client-cost
+alternative. Decide there.
