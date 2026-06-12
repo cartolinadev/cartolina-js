@@ -2013,13 +2013,21 @@ inflation. The store (format v2) now keeps the **geoid-shifted
   void): the unified pass stores `heightFunction(source)` values
   directly, which also removes two convertor calls per leaf tile.
 - The v6 serializer shifts to the raw-SDS vertical at delivery by
-  adding the geoid undulation: evaluated at the metatile block
-  corners and bilinearly interpolated for lods >= 10, exactly at the
-  cell corners below (few, large cells); the delivered range is
-  widened by the within-cell undulation spread so it still covers the
-  mesh, which samples the undulation per vertex. The navtile height
-  range uses the geoid-shifted-SDS-to-navigation convertor at the
-  cell center — the warp path's own conversion.
+  adding the geoid undulation, sampled on a per-block lattice whose
+  density follows the geoid grid itself: the block corners are
+  projected into the grid's CRS, the bounding-box span is divided by
+  the grid's sample pitch (read once from the grid file's GDAL
+  metadata; 0.25 deg fallback), and the lattice lands at or below
+  grid-sample spacing — interpolating between lattice nodes is then
+  as faithful as evaluating the (itself grid-interpolated) undulation
+  per node. The density is capped at 65x65; only the few coarsest
+  metatiles hit the cap, with meters of residual against
+  kilometer-scale ranges. The delivered range is widened by the
+  within-cell undulation spread (cell-corner bilinear plus interior
+  lattice nodes) so it still covers the mesh, which samples the
+  undulation per vertex. The navtile height range uses the
+  geoid-shifted-SDS-to-navigation convertor at the cell center — the
+  warp path's own conversion.
 - Verified on the sample: ocean tiles store exactly `(0, 0)` (and
   collapse), serialized v6 values reproduce the warp's undulation
   range within ~0.15 m; the full serve gate is unchanged (node sets
