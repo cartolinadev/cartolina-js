@@ -2625,7 +2625,16 @@ normal-map, and watertight/multimesh paths must tolerate the empty case.
 ## PERF (tileserver): pool unified-pass warps across division nodes
 
 **Opened:** 2026-06-12
-**Status:** deferred until a multi-node planetary run shows the need.
+**Status:** implemented 2026-06-12 — the earth-qsc planetary run
+(62m56s, six faces serialized) met the entry's own decision
+criterion. One pool over all (node, pass) warps, gated by
+`--warpConcurrency` (default min(12, hardware threads)), elevation
+passes scheduled first; reduce/emit stays sequential in node order,
+so artifacts are bit-identical (verified on the sample and on the
+earth-qsc planet). Measured 62m56s -> 53m38s at concurrency 6 on the
+dev laptop, limited there by per-warp `NUM_THREADS=ALL_CPUS`
+over-subscription rather than IO; capping per-warp threads when the
+pool is wide is the follow-up if planetary cadence demands more.
 
 The RFC 7 unified tiling pass runs its four filter passes (mask
 min/max, elevation min/max) concurrently *within* one reference-frame

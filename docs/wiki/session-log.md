@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-06-12 — RFC 7 follow-up: cross-node warp pooling implemented
+
+The earth-qsc planetary measurement (62m56s, six faces serialized)
+met the backlog entry's decision criterion, so the deferred pooling
+landed before production rollout: one task pool over all (division
+node, pass) warps, `--warpConcurrency` default min(12, hardware
+threads), elevation-first scheduling, reduce/emit sequential in node
+order. Artifacts verified bit-identical on the sample and the
+earth-qsc planet regeneration; wall 62m56s -> 53m38s at concurrency 6
+on the dev laptop (per-warp NUM_THREADS over-subscription is the
+limiter there, noted in the backlog entry for a future per-warp
+thread cap).
+
 ## 2026-06-12 — RFC 7 closed: status Implemented
 
 Final RFC 7 housekeeping: §9 verification checklist dispositioned in
