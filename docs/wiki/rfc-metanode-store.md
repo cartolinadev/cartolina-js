@@ -1601,3 +1601,63 @@ changes now:
   once phase-7 numbers exist, taking with it the operator rebrick
   tool, the v6 field trim, and the backlog entry on the client's
   hardcoded aggregation orders.
+
+## Review round 5
+
+The §4 rewrite is faithful where it was applied: the
+one-pixel-per-tile filter passes, the per-pass nodata rules, the
+edge-shared-sample item, the in-tool mip loop with the
+`BuildOverviews` exclusion, and the phase-3 raster-reference exit all
+match the round-4 note. The softened phase-3 flag-identity criterion
+("identical except for characterized edge-shared-sample residuals")
+is accepted: the disjoint pixel partition can legitimately differ
+from the old tool's grid sampling exactly at edges, and the exit
+still demands the residual be characterized rather than waved
+through. Three notes; the first explains the second.
+
+1. The round-4 response annotation was inserted into the middle of
+   note 1, splitting its constraint list: the `*Implemented.*`
+   paragraph sits between the edge-shared-samples bullet and the two
+   bullets that follow it (`heightFunction`, full-footprint
+   graduation). Move the annotation below the complete note text.
+   The protocol point is not cosmetic — the two bullets below the
+   insertion point were evidently never processed, which is note 2.
+
+2. The `heightFunction` constraint from round-4 note 1 is
+   unaddressed, and the filter design makes it load-bearing. The
+   warp kernel reduces **raw source values**; `heightFunction` and
+   any vertical-datum conversion happen after aggregation, on two
+   numbers per tile — but §3.5 still says "the tiling pass (§4) must
+   reduce elevation in that same SDS frame", which described the old
+   custom reducer and now contradicts §4.2. State the value-transform
+   order explicitly:
+
+   - The filter passes reduce raw source elevations.
+   - `heightFunction` applies post-aggregation to the per-tile
+     `{min, max}`. This is valid because min/max commute with
+     monotone maps; state the monotonicity requirement, and note
+     that a non-monotone function would force a pre-warp
+     derived-band VRT.
+   - A non-trivial source→SDS vertical-datum conversion is spatially
+     varying and commutes with min/max only approximately. Either
+     bound the within-tile undulation variation against the `half`
+     write bias (expected sub-ulp at tile scales; verify in §9), or
+     apply the conversion pre-warp via a derived band.
+   - Reconcile the §3.5 sentence with this order.
+
+3. New, surfaced by the filter design itself: **source overview
+   selection must be disabled on the min/max passes.** GDAL's warp
+   utilities select a source overview level automatically when the
+   destination resolution is much coarser (`-ovr AUTO` is the
+   gdalwarp default), and a one-pixel-per-tile destination is an
+   extreme downsample by construction. Overviews are average-filtered
+   (or otherwise smoothing): reading them biases `minZ` up and
+   `maxZ` down, defeating the conservative range the store exists to
+   provide, and blurs mask edges. §4.2 must state that all four
+   passes read the base resolution with overview selection disabled
+   (`-ovr NONE`, or an API path that demonstrably never engages
+   overview selection), and §4.5 gains a verify item: confirm the
+   implementation path hits base resolution, e.g. by diffing against
+   a forced `-ovr NONE` run on the test dataset. This applies to
+   whatever dataset the passes read — the source DEM or any
+   VRT over it that exposes overview levels.

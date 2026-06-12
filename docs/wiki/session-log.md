@@ -1,5 +1,23 @@
 # Session log
 
+## 2026-06-12 — RFC 7 metanode store: review round 5
+
+The §4 filter-design rewrite is faithful where applied; the softened
+phase-3 flag-identity criterion is accepted. Three notes. The round-4
+response annotation was inserted mid-note, splitting the constraint
+list — the two bullets below the insertion point (`heightFunction`,
+full-footprint graduation) were never processed. Note 2 makes the
+missed `heightFunction` item concrete for the filter design: the warp
+reduces raw source values, so `heightFunction` applies
+post-aggregation (valid only because monotone), spatially varying
+datum conversions commute only approximately, and §3.5's "reduce in
+the SDS frame" sentence now contradicts §4.2. Note 3 is new and
+load-bearing: GDAL warp utilities auto-select source overview levels
+on extreme downsamples (`-ovr AUTO` default); average-filtered
+overviews would bias `minZ` up and `maxZ` down, so all four passes
+must read base resolution with overview selection disabled, verified
+on the test dataset.
+
 ## 2026-06-12 — RFC 7 review round 4 processed
 
 Processed review round 4 in
