@@ -73,6 +73,15 @@ atomically, writes the resource definition and waits until mapproxy
 serves it. `--legacyTiling` restores the old three-pyramid + legacy
 analysis behavior.
 
+Add `--gsd <meters>` to set the floor resolution (highest LOD)
+explicitly instead of relying on the measured GSD. A *lower* (finer)
+value than the dataset's native resolution deepens the floor to carry
+a more detailed draped layer — e.g. `--gsd 10` on the ~90 m
+`viewfinder-dem3` so it can carry the 10 m `esa-worldcover` overlay; a
+*higher* (coarser) value caps the effective resolution. This works for
+both DEM and imagery resources and replaces the deprecated, DEM-only
+`demToOphotoScale` knob.
+
 ### Manual route
 
 ```
@@ -81,6 +90,7 @@ ln -s vrtwo.cubicspline/dataset <dir>/dem
 
 mapproxy-calipers <dir>/dem --referenceFrame <rf>
    # gives lodRange + per-division-node tile ranges + resource ranges
+   # add --gsd <meters> to set the floor resolution (highest LOD) explicitly
 
 mapproxy-tiling <dir> <rf> --lodRange <l0,l1> \
     --tileRange <lod>/<range> [--tileRange ...] \
@@ -111,7 +121,10 @@ expand a shallow flag tile index at runtime, but a metanode store also
 owns height ranges and texel-size inputs, so mapproxy now refuses to
 synthesise deeper LODs for store-backed datasets. If you need a deeper
 `lodRange.max`, rerun `mapproxy-tiling` for the new range and publish a
-new matched `tiling.<rf>` + `metanodes.<rf>` pair. On a live reload, a
+new matched `tiling.<rf>` + `metanodes.<rf>` pair. To choose the floor
+`lodRange.max` up front at setup time, pass `--gsd` to
+`mapproxy-calipers`/`mapproxy-setup-resource` rather than re-tiling
+later. On a live reload, a
 bad expanded configuration fails to prepare and the previously ready
 resource continues serving its old revision; on a fresh start, the
 resource stays unavailable until the artifacts and configuration match.

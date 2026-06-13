@@ -18,9 +18,9 @@ Dataset preparation and resource setup:
 | Tool | Purpose |
 |---|---|
 | `generatevrtwo` | builds a virtual GDAL dataset with overview pyramids (vrtwo) from an input raster; one resampling per run |
-| `mapproxy-calipers` | measures a dataset in a reference frame: GSD, lod range, per-division-node tile ranges, suggested position — feeds `mapproxy-tiling` and the resource definition |
+| `mapproxy-calipers` | measures a dataset in a reference frame: GSD, lod range, per-division-node tile ranges, suggested position — feeds `mapproxy-tiling` and the resource definition; `--gsd <meters>` sets the floor resolution (highest LOD) explicitly for DEM or imagery |
 | `mapproxy-tiling` | the unified tiling pass (RFC 7): analyzes a DEM and atomically publishes the paired flag tile index + metanode store; `--legacy` runs the old per-tile analysis (tile index only) |
-| `mapproxy-setup-resource` | end-to-end resource setup from a raw raster: vrtwo, tiling/store, resource definition, mapproxy registration; metanode-store mode by default for DEMs (`--legacyTiling` for the three-pyramid path) |
+| `mapproxy-setup-resource` | end-to-end resource setup from a raw raster: vrtwo, tiling/store, resource definition, mapproxy registration; metanode-store mode by default for DEMs (`--legacyTiling` for the three-pyramid path); accepts `--gsd <meters>` to set the floor resolution (forwarded to calipers) |
 | `mapproxy-rf-mask` | builds reference-frame mask trees (resource `mask` setting) |
 
 Metanode-store diagnostics (RFC 7):

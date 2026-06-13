@@ -1,5 +1,18 @@
 # Session log
 
+## 2026-06-13 — calipers --gsd floor-resolution override
+
+Documented the new `--gsd` option on `mapproxy-calipers` and
+`mapproxy-setup-resource` in [tileserver-tools.md](tileserver-tools.md)
+and [metanode-store-operations.md](metanode-store-operations.md). It
+sets the floor resolution (highest LOD) explicitly in meters, for DEM
+or imagery alike: a lower (finer) value deepens the floor so a coarse
+DEM can carry a more detailed draped layer (e.g. a ~90 m
+`viewfinder-dem3` to `--gsd 10` for the 10 m `esa-worldcover` overlay),
+a higher (coarser) value caps the effective resolution. It supersedes
+the deprecated DEM-only `demToOphotoScale` knob and is the setup-time
+lever for `lodRange.max`, contrasted with re-tiling after the fact.
+
 ## 2026-06-13 — RFC 7 follow-up: store LOD bounds and geodata metatiles
 
 Closed two RFC 7 loose ends in the tileserver plan: store-backed DEM
