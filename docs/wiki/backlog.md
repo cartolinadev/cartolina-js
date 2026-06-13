@@ -2737,3 +2737,30 @@ close-up view renders coarser geometry than today's re-meshed
 interpolated children. May need a larger face budget on pruned
 leaves.
 
+## TOOLS: background-color keying does not reach the VRTWO mask band
+
+`generatevrtwo --background <color>` (mapproxy-setup-resource imagery
+path) is documented as keying out tiles that consist entirely of the
+background color. That keying currently affects only **overview tile
+emptiness**, not the base-resolution GDAL mask band: the `dataset`
+VRT's `GetMaskBand` still reports `255` (valid) over a solid
+background region. There is a standing `// TODO` at
+`generatevrtwo.cpp:697` ("we are using a background color: need to
+check content for ...").
+
+Discovered while verifying the RFC 7 imagery coverage-tiling mode
+(unified mask pass for orthophoto, store-less). Both the legacy tiling
+and the new coverage pass read the same VRTWO mask, so neither
+excludes background-keyed regions from the flag tile index — they
+agree, and the behavior is unchanged by the coverage work. It is
+harmless today because tms-raster applies background transparency
+per-pixel at tile-generation time, independent of the coverage index.
+
+It would matter only if coverage-driven existence is ever expected to
+honor background keying (e.g. to skip generating wholly-background
+tiles). The fix is to populate the per-dataset mask band from the same
+block/background comparison `generatevrtwo` already runs for overview
+emptiness, so `GetMaskBand` reflects keyed-out regions at base
+resolution. Verified with a synthetic black-background RGB cut: VRTWO
+mask = 255 over the keyed region.
+

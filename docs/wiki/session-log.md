@@ -1,5 +1,39 @@
 # Session log
 
+## 2026-06-13 — coverage (mask-only) tiling for imagery
+
+Extended the RFC 7 unified `mapproxy-tiling` pass to non-DEM (imagery)
+datasets as a store-less **coverage mode**: it runs only the two mask
+filter passes (existence/watertight), skips the elevation passes and
+the metanode store, and publishes the flag tile index alone. This
+replaces the slow legacy per-tile per-LOD warp descent for imagery
+(WorldCover cut: ~4 s vs ~3 min) — the speedup RFC 7 gave DEMs but had
+gated to DEM only. `mapproxy-tiling` now routes by dataset type
+(calipers' single-band non-byte = DEM) instead of refusing non-DEM
+input, and `mapproxy-setup-resource` makes coverage the imagery default
+(`--legacyTiling` keeps the warp descent). `navtile` is a surface
+concept and is no longer set on imagery indexes; tms-raster serving
+never read it.
+
+Verified end to end: DEM flag index byte-identical to the RFC 7
+baseline (a no-op for the DEM path); ESA WorldCover and synthetic
+transparent-alpha / background-keyed parity against the legacy tool in
+both melown2015 and earth-qsc, with all residuals confined to the two
+RFC-7-characterized classes (edge-shared-sample boundary, full-footprint
+watertight) and coverage proving equal-or-more-faithful (it correctly
+excludes fully-transparent tiles and denies watertight to half-alpha
+tiles that legacy's coarse-LOD resampling bled into). A
+`mapproxy-setup-resource` run produced a serving TMS resource with no
+metanode store, delivering tiles and masks.
+
+Non-obvious finding (filed in [backlog.md](backlog.md)):
+`generatevrtwo --background` keys overview emptiness only — the
+base-resolution GDAL mask band stays valid over solid-background
+regions, so neither legacy nor coverage tiling excludes background-keyed
+tiles from the index. Harmless today (per-pixel transparency is applied
+at serve time), but the mask band would need populating from the
+background comparison if coverage-driven existence should ever honor it.
+
 ## 2026-06-13 — calipers --gsd floor-resolution override
 
 Documented the new `--gsd` option on `mapproxy-calipers` and
