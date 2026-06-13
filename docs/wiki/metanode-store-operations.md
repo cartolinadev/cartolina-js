@@ -106,6 +106,61 @@ both and the server refuses a store whose values disagree with the
 resource definition. The four filter passes log per-decile progress
 and the run ends with an `I4 Done.` line.
 
+#### Reading calipers output into the command line
+
+`mapproxy-calipers` prints one `range<SRS>:` line per spatial-division
+node, then a final `range:` line. They feed two different places:
+
+- each `range<SRS>:` line gives one `--tileRange` for `mapproxy-tiling`;
+- the final `range:` line gives the resource definition's `lodRange`
+  and `tileRange`, not the tiling command.
+
+A `range<SRS>:` line reads `<lodRange> <lod>/<tileRange>`. Pass its
+second token — the `<lod>/<tileRange>` part — verbatim as one
+`--tileRange`. Do not copy the leading `<lodRange>` token: writing
+`--tileRange 14 14/10979,2787:13596,5404` (the `2,14` line's `14`
+included) makes the parser reject the argument, or, with the
+two-positional form, treat the freed `14/...` as a stray third
+positional ("too many positional options"). Each value is
+`LOD/xmin,ymin:xmax,ymax`; the colon between the corners is required.
+So this output:
+
+```
+gsd: 92.4552
+gsdOverride: 10
+range<pseudomerc>: 1,15 15/0,0:16383,16383
+range<steres-wgs84>: 2,14 14/10979,2787:13596,5404
+range<steren-wgs84>: 2,14 14/2787,10979:5404,13596
+range: 1,15 0,0:1,1
+```
+
+translates to:
+
+```
+mapproxy-tiling <dir> <rf> \
+    --lodRange 1,15 \
+    --tileRange 15/0,0:16383,16383 \
+    --tileRange 14/10979,2787:13596,5404 \
+    --tileRange 14/2787,10979:5404,13596 \
+    --geoidGrid <grid.gtx>
+```
+
+`--lodRange` is one value for the whole run: the union of the per-node
+`<lodRange>` first tokens — here `min(1,2,2) = 1` and
+`max(15,14,14) = 15`, giving `1,15`.
+
+The `<lod>/` prefix on a `--tileRange` is an extent anchor, not a depth
+limit. It is the LOD at which calipers measured that node's footprint;
+the unified pass rescales the footprint to whatever LOD it is currently
+descending. It does not cap how deep the node is tiled — every node
+descends to the single `--lodRange.max`. In the example the polar
+`steres`/`steren` nodes resolve to the 10 m floor GSD at LOD 14, but
+with `--lodRange.max = 15` they are still tiled and stored one level
+past their useful resolution. There is no per-node depth knob today;
+the per-node `14` survives only as the footprint anchor. Trimming this
+dead-resolution descent is tracked in the backlog (PERF: spatially
+varying bottom lod).
+
 Packaging: keep the defaults. Current cartolina-js clients require
 effective `metaBinaryOrder = 5` (the reference-frame value) and
 `metaDepth = 1`; mapproxy refuses to serve anything else, and

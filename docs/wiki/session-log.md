@@ -1,5 +1,39 @@
 # Session log
 
+## 2026-06-13 — document calipers → mapproxy-tiling translation
+
+Documented how `mapproxy-calipers` output maps to the `mapproxy-tiling`
+command line in [metanode-store-operations.md](metanode-store-operations.md):
+each `range<SRS>:` line becomes one repeated `--tileRange`, the final
+`range:` line feeds the resource definition, and `--lodRange` is the
+union of the per-node ranges. Spelled out the trap that the `<lod>/`
+prefix on a `--tileRange` is an extent anchor, not a depth limit — every
+node descends to the single `--lodRange.max`, so a node calipers caps
+shallower (e.g. melown2015 polar `steres`/`steren` at lod 14 under a
+lod-15 run) gets tiled and stored past its useful resolution. Added a
+caution against copying the leading `<lodRange>` token (the source of a
+confusing "invalid argument" / "too many positional options" error) and
+noted the required `LOD/xmin,ymin:xmax,ymax` colon grammar. Dropped the
+`wrapx` line from the worked example: it is a generatevrtwo input, not a
+tiling one, and the sampled value (786432 px) is a suspect seam overlap.
+
+Mirrored the format details into the `mapproxy-tiling --help` text
+(cartolina-tileserver [tiling/main.cpp](../../../cartolina-tileserver/mapproxy/src/tiling/main.cpp)):
+literal complex syntax, the repeatable one-entry-per-division-node rule,
+and the anchor-not-depth clarification.
+
+Filed a backlog entry, *TOOLS (tileserver): per-node bottom lod for
+mapproxy-tiling* ([backlog.md](backlog.md)), proposing a per-node leaf
+LOD (from each `--tileRange`'s leading LOD) sourced from calipers, next
+to the related spatially-varying-bottom-lod prune entry.
+
+Also filed *PERF (tileserver): generatevrtwo wrap halo scales as
+3·2^levels* ([backlog.md](backlog.md)): generatevrtwo pads the base by
+`3·2^(overview levels)` px per side whenever calipers reports an engaged
+`wrapx` (which it does for any seamless global ±180° source, value 0), so
+a deep global pyramid's halo can exceed the data width — ~2.8× on a
+3 arc-sec source. A per-level wrap would avoid it.
+
 ## 2026-06-13 — coverage (mask-only) tiling for imagery
 
 Extended the RFC 7 unified `mapproxy-tiling` pass to non-DEM (imagery)

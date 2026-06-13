@@ -2737,6 +2737,85 @@ close-up view renders coarser geometry than today's re-meshed
 interpolated children. May need a larger face budget on pruned
 leaves.
 
+## TOOLS (tileserver): per-node bottom lod for mapproxy-tiling
+
+**Opened:** 2026-06-13
+**Status:** open; small, well-scoped tool change.
+
+`mapproxy-tiling` takes a single `--lodRange`, so every spatial-division
+node descends to `--lodRange.max` regardless of its own native
+resolution. The leaf is global: `leafLod = lodRange_.max` for all nodes
+(`unified.cpp` `prepareNode`), with only the floor varying per node
+(`max(lodRange_.min, node.id.lod)`).
+
+`mapproxy-calipers` already computes the per-node bottom lod — it prints
+it as the first token of each `range<SRS>:` line — but the tiling
+command line has no slot for it. The second token (`LOD/tileRange`)
+becomes one `--tileRange`, and its LOD prefix is consumed only as a
+footprint anchor for rescaling during descent, not as a depth limit (see
+metanode-store-operations.md, "Reading calipers output into the command
+line"). The per-node bottom lod is therefore discarded, and nodes whose
+native resolution tops out shallower are tiled and stored one or more
+lods past their useful resolution. Concrete case: a melown2015 dataset
+where calipers gives `pseudomerc` lod 15 but the polar `steres`/`steren`
+nodes lod 14 — with `--lodRange 1,15` the poles still get a lod-15 leaf.
+
+Idea: let each `--tileRange` entry's leading LOD (or a separate
+`--nodeLodRange`-style option) cap that node's descent, defaulting to
+`--lodRange.max` when absent, and have calipers/setup-resource fill it
+from the per-node bottom lod. Implementation is a per-node `leafLod` in
+the unified pass instead of the single `lodRange_.max`.
+
+Relation to the spatially varying bottom lod entry above: this is the
+coarse, uniform-per-node version — one integer per node, no per-tile
+signal — and it lands the high-latitude savings directly from data
+calipers already produces. The spatial prune is the finer, latitude-
+varying refinement; per-node bottom lod is a strict subset of it and
+could be a stepping stone or be subsumed once the spatial prune ships.
+Same leaf-triangle-budget caveat applies, but only where a node's own
+native-resolution leaf is later viewed close up.
+
+## PERF (tileserver): generatevrtwo wrap halo scales as 3·2^levels
+
+**Opened:** 2026-06-13
+**Status:** open; needs a per-level wrap design.
+
+generatevrtwo's x-wrap padding scales with the overview count, not the
+seam width. mapproxy-calipers reports an *engaged* `wrapx` for any
+x-periodic source whose extent reaches ±180° — value 0 when the seam is
+exact, since both overhangs are 0. setup-resource forwards it
+(`config.wrapx = cm.xOverlap`), and generatevrtwo gates on
+`if (!config.wrapx)`: an engaged optional(0) is truthy, so it enters the
+wrap branch and pads the base by `xPlus = 3·2^(overview levels)` px per
+side regardless of the overlap value (the 0 only zeroes the sampling
+shift).
+
+The intent is sound — give the coarsest overview 3 px of lanczos wrap
+context — but projecting that need down to base resolution makes the
+halo grow with pyramid depth. A global source with N overviews gains
+3·2^N px of halo per side; on a deep pyramid this exceeds the data width
+itself, and the padded base and its whole overview pyramid are then
+stored and processed at the inflated width.
+
+Worked example: a seamless global source at 3 arc-sec (~432000 px wide)
+with 17 overviews gains 6·2^17 = 786432 px of padding — more than the
+data — to give a ~10 px top overview its 3 px margin, leaving the stored
+result ~2.8× the necessary size. Any source that runs through
+generatevrtwo with wrap enabled is affected; a source served as a plain
+VRT without generatevrtwo is not.
+
+A side effect: re-running calipers on a generatevrtwo output re-reads the
+baked halo as a large `wrapx`. That value is an artifact, not a
+mapproxy-tiling input, and must never be fed back into another
+generatevrtwo run, or the halo doubles.
+
+Idea: build the wrap halo per overview level — each level wraps 3 px from
+its own opposite edge — instead of padding the base by 3·2^levels, so the
+base carries only the actual seam overlap (often 0) plus a small fixed
+margin. Alternatively cap the padded levels, accepting a non-wrapped
+margin on the few coarsest overviews where 3 px already spans a large
+distance.
+
 ## TOOLS: background-color keying does not reach the VRTWO mask band
 
 `generatevrtwo --background <color>` (mapproxy-setup-resource imagery
