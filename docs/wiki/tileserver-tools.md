@@ -19,8 +19,8 @@ Dataset preparation and resource setup:
 |---|---|
 | `generatevrtwo` | builds a virtual GDAL dataset with overview pyramids (vrtwo) from an input raster; one resampling per run |
 | `mapproxy-calipers` | measures a dataset in a reference frame: GSD, lod range, per-division-node tile ranges, suggested position — feeds `mapproxy-tiling` and the resource definition; `--gsd <meters>` sets the floor resolution (highest LOD) explicitly for DEM or imagery |
-| `mapproxy-tiling` | the unified tiling pass (RFC 7): analyzes a DEM and atomically publishes the paired flag tile index + metanode store; `--legacy` runs the old per-tile analysis (tile index only) |
-| `mapproxy-setup-resource` | end-to-end resource setup from a raw raster: vrtwo, tiling/store, resource definition, mapproxy registration; metanode-store mode by default for DEMs (`--legacyTiling` for the three-pyramid path); accepts `--gsd <meters>` to set the floor resolution (forwarded to calipers) |
+| `mapproxy-tiling` | the unified tiling pass (RFC 7): analyzes a DEM and atomically publishes the paired flag tile index + metanode store; `--legacy` runs the old per-tile analysis (tile index only); `--geoidGrid` defaults to the reference frame body's geoid (`""` disables) and must be a PROJ-readable grid — validated at startup, so the registry `.jpg` geoid (not PROJ-readable) aborts rather than baking an unservable store |
+| `mapproxy-setup-resource` | end-to-end resource setup from a raw raster: vrtwo, tiling/store, resource definition, mapproxy registration; metanode-store mode by default for DEMs (`--legacyTiling` for the three-pyramid path); accepts `--gsd <meters>` to set the floor resolution (forwarded to calipers); `--tin.geoidGrid` defaults to the body geoid and is PROJ-validated as in `mapproxy-tiling` |
 | `mapproxy-rf-mask` | builds reference-frame mask trees (resource `mask` setting) |
 
 Metanode-store diagnostics (RFC 7):

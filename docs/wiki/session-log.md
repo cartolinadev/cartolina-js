@@ -6256,3 +6256,56 @@ id in the store header.
 Status: draft, not yet in review.
 
 ---
+
+## 2026-06-14 — Geoid grid PROJ-readability validation + tiling body default
+
+A `viewfinder-dem3` metanode-store migration was tiled with the VTS
+registry geoid grid (`geoidgrid/geographic-wgs84-egm96-geoidgrid.jpg`)
+passed as `--geoidGrid`. The store loaded once its `geoidGrid` string
+was patched to match, but every metatile 500'd: `PROJ: Unrecognized
+vertical grid format` → `vgridshift: could not find required grid(s)` →
+`No inverse operation`.
+
+### Findings (verified in code)
+
+- The resource `geoidGrid` is an opaque `PROJ4_GRIDS` string baked into
+  a WKT vertical datum (`srsdef.cpp:507`, `setGeoid`). The serve/warp and
+  sds↔nav conversions feed it to PROJ, which only reads `.gtx`/NTv2/GTiff
+  — **not** the registry `.jpg`. That JPEG geoid is read only by the VTS
+  C++ registry stack; `srs.json` deliberately carries both spellings
+  (PROJ side `+geoidgrids=egm96_15.gtx`, registry side the `.jpg`).
+- The store-acceptance `geoidGrid` check (`metatile.cpp:529`) is a
+  byte-for-byte string compare, not geoid-equivalence — so the two
+  spellings of the same EGM96 geoid don't match.
+- The registry already declares a per-body default
+  (`bodies.json` Earth `defaultGeoidGrid: egm96_15.gtx`); only
+  `mapproxy-setup-resource` consumed it (`setup-resource/main.cpp:826`),
+  not `mapproxy-tiling`.
+- Reload semantics: `prepare()` runs only for a not-ready generator
+  (`generators.cpp:282`); a no-revision-bump reload keeps an unchanged
+  resource ready, so a freshly published `tiling`/`metanodes` pair is
+  silently ignored — the *"delivery index is not derived..."* check
+  (`metatile.cpp:574`) runs only at prepare time and is not logged on a
+  plain reload. (Corrected an overstatement in the operator guide.)
+
+### Changes (cartolina-tileserver)
+
+- New shared `validateGeoidGrid()` (`support/mesh.cpp` / `support/srs.hpp`):
+  applies the geoid to a WGS84 SRS and runs one point through PROJ; an
+  unloadable grid throws a clear, actionable error. Wired into
+  `mapproxy-tiling` and `mapproxy-setup-resource` at startup.
+- `mapproxy-tiling` now mirrors `setup-resource` geoid resolution: omit
+  → body default, `--geoidGrid ""` → none. Help text updated on both.
+
+### Non-obvious finding
+
+`vts::CsConvertor(geo::SrsDefinition, std::string)` interprets the
+string arg as a **registry SRS id**, not a proj4 definition — a raw
+`+proj=...` string there fails with "not known spatial reference
+system". The validator must use `geo::CsConvertor`, which takes
+`SrsDefinition` on both sides.
+
+Status: implemented, built, verified against the real binary (jpg
+aborts; `egm96_15.gtx` and the omitted body-default pass).
+
+---

@@ -94,7 +94,7 @@ mapproxy-calipers <dir>/dem --referenceFrame <rf>
 
 mapproxy-tiling <dir> <rf> --lodRange <l0,l1> \
     --tileRange <lod>/<range> [--tileRange ...] \
-    --geoidGrid <grid.gtx>
+    --geoidGrid egm96_15.gtx
 ```
 
 `mapproxy-tiling` runs the unified pass by default and publishes
@@ -105,6 +105,48 @@ and, if configured, `--heightFunction <file.json>` — the store bakes
 both and the server refuses a store whose values disagree with the
 resource definition. The four filter passes log per-decile progress
 and the run ends with an `I4 Done.` line.
+
+**`--geoidGrid` is the resource's `geoidGrid` string, copied verbatim.**
+It is an opaque `PROJ4_GRIDS` reference: the tiling tool bakes the
+literal string into the store header, the serve path injects the same
+string into a WKT vertical datum, and the store-acceptance check is a
+**byte-for-byte string compare** against the resource definition's
+`geoidGrid` field — no path resolution, no geoid-equivalence. PROJ
+resolves the grid (locating the file in its data path) at warp time on
+both sides; the store check does *not*, by design — it is an identity
+check that the store was built for the datum the resource declares.
+
+So pass exactly what the resource definition carries, character for
+character — and it must be a **PROJ-readable** grid, because the warp
+and the sds↔nav conversion feed the string to PROJ as a `vgridshift`
+step. The PROJ grid name `egm96_15.gtx` (resolved from proj-data)
+works. The registry-shipped geoid grid path
+`/opt/vts/etc/registry/geoidgrid/geographic-wgs84-egm96-geoidgrid.jpg`
+does **not**: it is a JPEG heightfield read only by the VTS C++
+registry stack, and PROJ rejects it with *"Unrecognized vertical grid
+format"* → *"vgridshift: could not find required grid(s)"* → a 500 on
+every metatile (it is the same EGM96 geoid, but the wrong delivery
+format for this path). Never put the registry `.jpg` in a resource
+`geoidGrid` or in `--geoidGrid`. Standardize on the string your
+resource definitions already use — across this install that is
+`egm96_15.gtx`. If you change one side, re-run the tiling so the store
+is rebuilt with the matching string.
+
+Two guard rails make this harder to get wrong:
+
+- **Default.** Omitting `--geoidGrid` no longer means "no geoid": both
+  `mapproxy-tiling` and `mapproxy-setup-resource` fall back to the
+  reference frame body's `defaultGeoidGrid` from the registry
+  (`egm96_15.gtx` for Earth — `bodies.json`). Pass `--geoidGrid ""`
+  explicitly for a source that is already ellipsoidal (no geoid). Give
+  an explicit grid only to override the body default (e.g. a different
+  geoid).
+- **Fail-fast validation.** Both tools test the resolved grid through
+  PROJ at startup (one `vgridshift` transform) and abort with
+  *"Geoid grid '…' is not loadable by PROJ/GDAL … use a PROJ-readable
+  grid such as egm96_15.gtx"* if PROJ cannot open it — so the registry
+  `.jpg` (or any unreadable grid) is rejected in seconds instead of
+  baking a store that 500s at serve time.
 
 #### Reading calipers output into the command line
 
@@ -142,7 +184,7 @@ mapproxy-tiling <dir> <rf> \
     --tileRange 15/0,0:16383,16383 \
     --tileRange 14/10979,2787:13596,5404 \
     --tileRange 14/2787,10979:5404,13596 \
-    --geoidGrid <grid.gtx>
+    --geoidGrid egm96_15.gtx
 ```
 
 `--lodRange` is one value for the whole run: the union of the per-node
@@ -206,7 +248,7 @@ ln -s vrtwo.cubicspline/dataset dem
 
    ```
    mapproxy-tiling <dir> <rf> --lodRange ... --tileRange ... \
-       --geoidGrid <grid>
+       --geoidGrid egm96_15.gtx
    ```
 
    This *replaces* `tiling.<rf>` and adds `metanodes.<rf>` in one
@@ -225,11 +267,20 @@ ln -s vrtwo.cubicspline/dataset dem
 
 2. **Force a re-prepare**: bump the resource `revision` (or clear the
    resource's cache directory under the mapproxy store) and reload
-   mapproxy. The delivery index is a cached artifact derived from the
-   flag index at prepare time; without a re-prepare the store is
-   rejected with *"delivery index is not derived from the paired flag
-   tile index"* and the resource keeps serving by warp — consistent,
-   but not what you migrated for.
+   mapproxy. This is the step most likely to surprise you: mapproxy
+   re-prepares a generator only when it is **not already ready**, and a
+   plain reload leaves an unchanged resource definition ready. So just
+   swapping `tiling.<rf>`/`metanodes.<rf>` on disk and reloading does
+   **nothing observable** — the running generator keeps its cached
+   delivery index and its existing store mapping, the new pair is never
+   examined, and *nothing is logged*. There is no active rejection in
+   this case (the *"delivery index is not derived from the paired flag
+   tile index"* check at [metatile.cpp] runs only during a prepare). It
+   is the revision bump (or cache clear) that forces the re-prepare,
+   which rebuilds the delivery index from the new flag index and binds
+   the new store. If you ever do see the *"not derived"* rejection, it
+   means a prepare ran against a stale cached delivery index; the same
+   revision bump fixes it.
 
 3. Verify in the mapproxy log:
 
@@ -289,9 +340,16 @@ previous *matched* pair. Always re-prepare after swapping artifacts.
   clear cache and reload.
 - *"unsupported version"* — store from an older format; re-run the
   tiling.
-- *"geoid grid mismatch" / "height function mismatch"* — the resource
-  definition changed after the store was built; re-run the tiling
-  with the current settings.
+- *"geoid grid mismatch" / "height function mismatch"* — the
+  `--geoidGrid`/`--heightFunction` baked into the store is not a
+  byte-for-byte match for the resource definition's value. Either the
+  definition changed after the store was built, or the two sides spell
+  the same geoid differently (e.g. `egm96_15.gtx` vs the registry
+  `geographic-wgs84-egm96-geoidgrid.jpg` path — same EGM96, different
+  string; the check is literal, not geoid-aware). Make the strings
+  identical — using the PROJ-readable grid (`egm96_15.gtx`), never the
+  registry `.jpg`, which PROJ cannot open (see above) — and re-run the
+  tiling with the current settings.
 - *"configured max LOD ... exceeds paired tiling max LOD"* — the
   resource definition asks for runtime LOD expansion. This is not
   supported for metanode-store-backed datasets; rerun
