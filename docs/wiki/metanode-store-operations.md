@@ -34,7 +34,14 @@ logs a warning and serves metatiles by the legacy warp:
   what forces a re-prepare after re-tiling (see below);
 - the resource has no `mask` (masked resources always use the warp
   path);
+- the configured resource `lodRange.max` does not exceed the LOD range
+  covered by the paired `tiling.<rf>`/`metanodes.<rf>` artifacts;
 - store format version (current: 2; older stores are rejected).
+
+Store rejection and store-to-warp fallback are warning conditions
+(`W3`). They are safe only for old three-pyramid datasets where
+`dem.min` and `dem.max` are still present. Investigate them; they mean
+the resource is not using the RFC 7 fast path.
 
 Check a store with:
 
@@ -99,6 +106,16 @@ knobs exist for store validation work only.
 Then write the resource definition as usual (ranges from the
 calipers `range:` line) and let mapproxy pick it up.
 
+LOD range changes are a re-tiling operation. The old server path could
+expand a shallow flag tile index at runtime, but a metanode store also
+owns height ranges and texel-size inputs, so mapproxy now refuses to
+synthesise deeper LODs for store-backed datasets. If you need a deeper
+`lodRange.max`, rerun `mapproxy-tiling` for the new range and publish a
+new matched `tiling.<rf>` + `metanodes.<rf>` pair. On a live reload, a
+bad expanded configuration fails to prepare and the previously ready
+resource continues serving its old revision; on a fresh start, the
+resource stays unavailable until the artifacts and configuration match.
+
 ### Shared datasets — independent artifact directory
 
 When the source dataset lives in a shared location you must not
@@ -158,10 +175,26 @@ ln -s vrtwo.cubicspline/dataset dem
 
 4. **Keep `dem.min`/`dem.max` until verified.** With them present,
    any store rejection degrades to the warp path and the resource
-   stays up. Only after the store has been serving correctly and the
-   rollback path is tested may the min/max pyramids be deleted —
-   after that, a resource whose store fails validation **fails to
-   prepare** (the §7.1 matrix):
+   stays up — this is the safety net for the verification window.
+   Deleting them gives up the warp fallback for good — that is what
+   going normal-only means — so delete only after the store has been
+   serving correctly **and** you have a tested store-only rollback: a
+   retained known-good `tiling.<rf>`/`metanodes.<rf>` pair you can
+   restore and re-prepare. The post-deletion safety net is that
+   previous matched pair, not the warp path.
+
+   **Defer deletion while any `W3` `falling back to warp` warnings are
+   visible in the log.** They mean the store could not serve some
+   metatiles and the warp path is still carrying them live; deleting
+   the pyramids then turns those requests into failures. Resolve the
+   fallback cause first (step 3) and confirm a clean log before
+   removing the pyramids.
+
+   After deletion, a resource whose store fails validation **fails to
+   prepare**, and tiled-geodata freelayer metatiles that use the same
+   DEM must also have a valid store-backed path. The old geodata
+   metatile warp fallback needs `dem.min`/`dem.max` too (the §7.1
+   matrix):
 
    | Dataset artifacts | Server behavior |
    |---|---|
@@ -191,6 +224,14 @@ previous *matched* pair. Always re-prepare after swapping artifacts.
 - *"geoid grid mismatch" / "height function mismatch"* — the resource
   definition changed after the store was built; re-run the tiling
   with the current settings.
+- *"configured max LOD ... exceeds paired tiling max LOD"* — the
+  resource definition asks for runtime LOD expansion. This is not
+  supported for metanode-store-backed datasets; rerun
+  `mapproxy-tiling` for the deeper range and publish the new pair.
+- *"falling back to warp"* — the store was present but could not serve
+  a metatile. This is logged as `W3`. It is a temporary compatibility
+  path only while `dem.min`/`dem.max` exist; normal-only datasets fail
+  instead of falling back.
 - Cache revision policy: re-tiling changes served metatile bytes
   (within the documented tolerances), so apply the deployment's
   usual public revision bump if a CDN caches metatiles.

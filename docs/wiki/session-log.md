@@ -1,5 +1,34 @@
 # Session log
 
+## 2026-06-13 — RFC 7 follow-up: store LOD bounds and geodata metatiles
+
+Closed two RFC 7 loose ends in the tileserver plan: store-backed DEM
+resources no longer runtime-synthesise deeper LODs from a shallow flag
+index, because the metanode store cannot invent height ranges or
+texel-size inputs safely; an expanded config fails the replacement
+prepare, leaving the old ready revision serving. Store rejection and
+store-to-warp fallback are now warning-level operational events. Tiled
+geodata metatiles are documented as sharing the DEM store path; after
+`dem.min`/`dem.max` are removed, both surface and tiled-geodata
+metatiles require a valid matched store.
+
+Also rewrote [tileserver-metatile-production.md](tileserver-metatile-production.md)
+for the RFC 7 implementation: the default DEM pipeline is now a
+normal-only VRTWO plus the unified `mapproxy-tiling` pass emitting a
+paired flag index and metanode store, and metatiles serve from the
+store with no warp (the three-pyramid warp path is documented as the
+legacy fallback). The serve-time-warp structural problem is reframed
+as solved, and the client ping-pong is left as the open shallow-subtree
+milestone.
+
+Clarified the three-pyramid migration step in
+[metanode-store-operations.md](metanode-store-operations.md): the
+rollback that must be tested before deleting `dem.min`/`dem.max` is the
+store-pair rollback, not the legacy warp path (deletion gives the warp
+path up by design), and deletion must be deferred while any `W3`
+`falling back to warp` warnings show the warp path is still carrying
+metatiles live.
+
 ## 2026-06-12 — tileserver tools inventory page
 
 Added [tileserver-tools.md](tileserver-tools.md): one-line purpose
