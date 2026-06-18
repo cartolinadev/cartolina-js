@@ -1,5 +1,50 @@
 # Task backlog
 
+## TOOLING: ship TypeScript types (.d.ts emit + type-only npm package)
+
+**Opened:** 2026-06-18
+**Status:** deferred — explored and intentionally not built; premature
+until there are multiple external TS consumers. Findings recorded below.
+**Related:** [architecture.md](architecture.md) (Map/Core/LegacyMap
+absorption), [api-and-lifecycle.md](api-and-lifecycle.md).
+
+The published ESM bundle (`cartolina.min.esm.js`) ships no type
+declarations, so URL/dynamic-import consumers get `any` and must hand-write
+their own interface. Cesium
+ships a JSDoc-generated `Cesium.d.ts` in its npm package; three.js outsources
+types to the community `@types/three`. cartolina is TS-authored, so an
+accurate `.d.ts` for the public API is a near-free artifact — the entry
+already type-checks cleanly with full JSDoc.
+
+Why this is deferred rather than done: a prototype confirmed the public type
+graph can be emitted self-contained, but only by giving every legacy ES5
+`.js` module a nameable type. Declaration emit fails on ~86 such modules
+(TS9005/TS9006 "requires using private name"); ~17 are reachable from the
+public surface (the `Map`/`Core`/`LegacyMap` halves slated for TS
+absorption — see architecture.md, plus `position`, `srs`, `surface*`,
+`texture`, `camera`, `bound-layer`, `credit`, `refframe`, `url`,
+`division-node`, `inspector`). The project already types some of these with
+co-located hand-written `.d.ts` sidecars. Completing the set means either
+*faithful* sidecars (petrifies legacy code we want gone) or *opaque* `any`
+placeholders (carry no real type info). Either way `tsc` will not copy
+source `.d.ts` to the emit outDir, so a copy step is also required.
+
+Net: the only genuinely useful output is the public-API `.d.ts`, which
+already exists in source; the rest is `any` plumbing. Not worth it until
+the JS→TS migration reduces the sidecar surface and/or there are real
+external consumers. Do not rewrite the runtime `.js` files solely for emit
+— they are validated only by the screenshot tests.
+
+Distribution note for when this is taken up: types must ship as a package,
+because TypeScript resolves types from `node_modules`/disk, never from a
+runtime `import()` URL — shipping a `.d.ts` next to the CDN bundle alone
+does not give consumers types. Options: (a) a full npm package (bundle +
+types), or (b) a type-only package consumed as a devDependency while the
+runtime bundle still loads from the CDN ESM URL by profile. Prefer (b) for
+the URL-loaded-ESM model the project already uses.
+
+---
+
 ## CLIENT/FOLLOW-UP: replace hardcoded metatile aggregation order
 
 **Opened:** 2026-06-12
@@ -2842,4 +2887,3 @@ block/background comparison `generatevrtwo` already runs for overview
 emptiness, so `GetMaskBand` reflects keyed-out regions at base
 resolution. Verified with a synthetic black-background RGB cut: VRTWO
 mask = 255 over the keyed region.
-

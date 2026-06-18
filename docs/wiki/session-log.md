@@ -1,5 +1,33 @@
 # Session log
 
+## 2026-06-19 — Defer shipping TypeScript types (backlog)
+
+### Context
+
+URL-import consumers of the CDN ESM bundle receive no types and must
+hand-write a small interface. Explored emitting a complete shipped
+`.d.ts` so consumers get real types instead.
+
+### Finding
+
+The public API (`map`, `MapOptions`, `runtimeOptionsFromUrl`, `Viewer`)
+already type-checks cleanly in source. A prototype confirmed the public
+type graph can be emitted self-contained, but only by giving ~17 legacy
+ES5 `.js` modules nameable types via co-located `.d.ts` — either faithful
+(petrifies code slated for the TS migration) or opaque `any` (no real
+type info). `tsc` also will not copy source `.d.ts` to the emit outDir, so
+a copy step is required too. The only genuinely useful output is the
+public-API `.d.ts`, which already exists in source.
+
+### Decision
+
+Deferred and not built — premature with a single consumer. Findings
+recorded in [backlog.md](backlog.md), including that types must ship as a
+package (TS resolves types from disk, never from a runtime `import()`
+URL). No code changes landed; the prototype was reverted.
+
+---
+
 ## 2026-06-13 — document calipers → mapproxy-tiling translation
 
 Documented how `mapproxy-calipers` output maps to the `mapproxy-tiling`
