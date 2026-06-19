@@ -2972,3 +2972,60 @@ aggregation is the consistent design.)
    consumer branches, and names the deletion boundary: parse-time helper,
    retained submesh boolean, tile helper, aggregation helper, and guarded
    write-back must be removable without changing traversal.
+
+## Review round 11
+
+The round-10 resolutions for the §10 addendum are sound: §10.3 now
+computes coverage at parse time, §10.5 scopes the inferred value to
+cache-resident state, and §10.6 fixes the deletion boundary. The
+aggregation design (§10.4) is correct — it reproduces the server's
+bottom-up AND (§10.2) into the same persistent `metanode.watertight`
+the v6 bitplane writes, and the existing `hasWatertightFit` consumer
+([draw-traversal.ts:159-161](../../src/core/map/draw-traversal.ts))
+reads it across frames as the camera-dependent fit frontier sweeps onto
+nodes whose flag a prior deep descent populated. Base case alone would
+not cover sparse/fine-only surfaces, whose coarse nodes never load an
+own mesh and can only be marked by the child AND. The remaining comments
+are implementability fixes for the base case (§10.3), not objections to
+the design.
+
+1. "One parse-time helper" understates the integration surface: there
+   are two parse paths.
+
+   §10.3/§10.6 specify a single parse-time helper that fills
+   `submesh.inferredFullCoverage`. `MapSubmesh` has **two** independent
+   parse routines —
+   [parseVerticesAndFaces](../../src/core/map/submesh.js) (submesh.js:126)
+   and `parseVerticesAndFaces2` (submesh.js:422) — selected by encoding.
+   The per-face vertex indices (`v1,v2,v3`) and the vertex-indexed
+   `tmpExternalUVs` that the boundary-edge test needs exist **only inside
+   each routine's face loop**; both routines then expand to triangle soup,
+   null `tmpExternalUVs` (submesh.js:370-372, 773-775), and reduce
+   `faces` to a count. Edge-welding "by parse-time vertex index" (§10.3)
+   is therefore correct, but only available mid-loop, and there are two
+   such loops. A helper hung off one path silently misclassifies every
+   mesh parsed by the other (worst case: treats it as non-watertight,
+   losing the optimization — but it could also be wired to the wrong
+   topology). §10.6 should state that the helper is invoked from *both*
+   parse routines (or that the boundary-edge accumulation is duplicated
+   in both), so "one helper" does not read as "one call site."
+
+2. Minor: define "extreme external-UV coordinate" against the stored
+   encoding, not normalized [0,1].
+
+   §10.3's boundary-flush test keys on "`u==0`, `u==max`, `v==0`, or
+   `v==max`." External UVs are stored as encoded integers with a v-axis
+   flip (`65535 - …`, submesh.js:186 and :537), not normalized floats.
+   The `max` constant and the equality are encoding-specific (exact
+   integer equality is fine given index-based welding, but the extreme
+   values depend on `uvfactor`/16-bit range and the flip). The addendum
+   currently reads as if UVs were [0,1]; one sentence pinning the test to
+   the stored representation, plus a guard for a degenerate/zero-extent
+   UV range, would make §10.3 implementable without re-deriving the
+   encoding.
+
+**Summary.** The §10 addendum is accepted in design, including the
+§10.4 aggregation. Both comments are implementability fixes for the
+§10.3 base case — wiring the helper into both parse routines, and
+pinning the boundary test to the stored UV encoding — and neither blocks
+the design.
