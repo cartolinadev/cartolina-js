@@ -1719,12 +1719,16 @@ uses — and it is the client analogue of the server's leaf
 `maskMin == 255` base case.
 
 Computed during `MapSubmesh` parsing, while the original face indices
-and `tmpExternalUVs` are still available, and stored as a retained
-boolean on the submesh. This avoids depending on post-parse buffers:
-`faces` is only a count after parse, `tmpExternalUVs` is discarded, and
-the default retained `externalUVs` buffer is triangle soup rather than
-shared topology. Edge-welding is **by parse-time vertex index**, so
-shared edges share indices exactly; there is no coordinate tolerance.
+and vertex-indexed `tmpExternalUVs` are still available, and stored as a
+retained boolean on the submesh. This avoids depending on post-parse
+buffers: `faces` is only a count after parse, `tmpExternalUVs` is
+discarded, and the default retained `externalUVs` buffer is triangle
+soup rather than shared topology. The helper must be called from both
+submesh parse routines, `parseVerticesAndFaces` and
+`parseVerticesAndFaces2`, because each routine has its own face loop and
+the required `(v1, v2, v3)` indices exist only inside that loop.
+Edge-welding is **by parse-time vertex index**, so shared edges share
+indices exactly; there is no coordinate tolerance.
 
 A submesh fully covers its cell iff all hold:
 
@@ -1734,9 +1738,13 @@ A submesh fully covers its cell iff all hold:
   degenerate triangle is simply not considered watertight;
 - every **mesh-boundary edge** (undirected edge used by exactly one
   face) is flush to a single tile edge — both endpoints share one
-  extreme external-UV coordinate (`u==0`, `u==max`, `v==0`, or
-  `v==max`). Any boundary edge crossing the interior is the rim of a
-  hole or a partial-coverage data cut.
+  extreme external-UV coordinate in the stored, decoded representation:
+  `u == minU`, `u == maxU`, `v == minV`, or `v == maxV`. The v
+  coordinate has already been flipped by the decoder. For 16-bit
+  submeshes the extrema are the encoded integer endpoints; for float
+  submeshes they are the scaled float endpoints. A zero-width or
+  zero-height UV domain is not watertight. Any boundary edge crossing
+  the interior is the rim of a hole or a partial-coverage data cut.
 
 The v1 tile base case is satisfied iff **any single submesh** covers the
 whole cell. This is conservative: multi-submesh union coverage can be
@@ -1815,9 +1823,9 @@ unchanged: no new read sites, no traversal change.
 
 ### 10.6 Code surface and deletability
 
-- One parse-time helper that computes and stores
-  `submesh.inferredFullCoverage` from the original face/external-UV
-  topology (§10.3).
+- One parse-time helper called from both `MapSubmesh` face loops that
+  computes and stores `submesh.inferredFullCoverage` from the original
+  face/external-UV topology (§10.3).
 - One tile helper that ORs the retained booleans by the conservative
   "any single full submesh" rule (§10.3).
 - One backtrack aggregation: all four children present and watertight
@@ -3010,6 +3018,11 @@ the design.
    parse routines (or that the boundary-edge accumulation is duplicated
    in both), so "one helper" does not read as "one call site."
 
+   *Implemented.* §10.3 now states that the parse-time helper must be
+   called from both `parseVerticesAndFaces` and `parseVerticesAndFaces2`,
+   because each routine owns a separate face loop. §10.6 now describes
+   one helper with two parse-loop call sites.
+
 2. Minor: define "extreme external-UV coordinate" against the stored
    encoding, not normalized [0,1].
 
@@ -3024,8 +3037,55 @@ the design.
    UV range, would make §10.3 implementable without re-deriving the
    encoding.
 
+   *Implemented.* §10.3 now defines the boundary test against the
+   stored, decoded external-UV representation, accounts for the decoded
+   v-axis flip and the 16-bit versus float domains, and rejects zero
+   width or zero-height UV domains.
+
 **Summary.** The §10 addendum is accepted in design, including the
 §10.4 aggregation. Both comments are implementability fixes for the
 §10.3 base case — wiring the helper into both parse routines, and
 pinning the boundary test to the stored UV encoding — and neither blocks
 the design.
+
+## Review round 12
+
+1. §10.3/§10.5 gate inference *consumption* on pre-v6 but leave the
+   parse-time *computation* ungated, contradicting §10.1 and §10.5's own
+   "v6 pays nothing."
+
+   §10.1 states the intent: the compatibility path "exists only while a
+   pre-v6 surface does," and §10.5 says "v6 pays nothing (the bitplane is
+   authoritative both ways)." Two steps gate on the metatile version
+   accordingly:
+
+   - the tile base case is "guarded by `sourceMetatileVersion < 6 &&
+     !metanode.watertight`" (§10.5);
+   - the aggregation runs "for the same guard" (§10.5).
+
+   But the **submesh coverage** step is not gated. §10.5 lists it as
+   "computed during `MapSubmesh` parsing and stored on the submesh," and
+   §10.3 describes the boundary-edge analysis (degenerate-face scan plus
+   the per-edge flush test over external UVs) unconditionally, as work
+   done while `tmpExternalUVs` is still live. As written, that analysis
+   runs for **every** parsed submesh, v6 included — only the downstream
+   tile-level OR and the aggregation are skipped for v6.
+
+   So the spec asserts two contradictory things: "v6 pays nothing"
+   (§10.1/§10.5) versus a parse-time pass that every v6 submesh pays
+   (§10.3/§10.5). On a v6 surface — the steady state the whole rollout is
+   driving toward — that pass is dead work: computed, retained on the
+   submesh, and never read, because the v6 bitplane is authoritative and
+   the tile base case is guarded off. It also weakens the §10.6/§10.1
+   deletability claim: an ungated parse-time computation is not dead code
+   on v6 data, so "exists only while a pre-v6 surface does" is not true of
+   the parse path.
+
+   This is a text fix, not a redesign. Either gate the parse-time submesh
+   computation to pre-v6 as well, so the analysis is skipped entirely for
+   v6 meshes and "v6 pays nothing" holds at every stage (and say where the
+   version comes from at parse — the §10.7 q3 access question, extended to
+   the parse site); or, if the parse computation is meant to be
+   unconditional, drop "v6 pays nothing" from §10.1/§10.5 and state that v6
+   surfaces still pay a parse-time coverage pass whose result is
+   discarded, with a justification. The document currently claims both.
