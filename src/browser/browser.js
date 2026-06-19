@@ -420,6 +420,7 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
     case 'geodata':                this.config.geodata = value; break;
     case 'geojson':                this.config.geojson = value; break;
     case 'geojsonStyle':           this.config.geojsonStyle =  JSON.parse(value); break;
+    case 'transformRequest':       this.config.transformRequest = typeof value === 'function' ? value : null; break;
     case 'rotate':             
         this.config.autoRotate = utils.validateNumber(value, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, 0);
         if (legacyMap && this.autopilot) {
@@ -441,7 +442,7 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
     }
 
     if (ignoreCore) {
-        if ((key.indexOf('map') == 0 || key.indexOf('mario') == 0 || key.indexOf('authorization') == 0) && legacyMap) {
+        if (key.indexOf('map') == 0 && legacyMap) {
             legacyMap.setConfigParam(key, value);
         }
 
@@ -450,6 +451,10 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
         }
 
         if (key.indexOf('debug') == 0 && map) {
+            map.core.setConfigParam(key, value);
+        }
+
+        if (key == 'transformRequest' && map) {
             map.core.setConfigParam(key, value);
         }
 

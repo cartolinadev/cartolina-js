@@ -326,6 +326,46 @@ class Map {
         return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
+    /**
+     * Switches to a named legacy mapConfig view, or to a supplied view
+     * definition. Only valid for mapConfig-initialized maps.
+     *
+     * @param view named view id or legacy view definition
+     * @returns this map
+     */
+    setView(view: string | Record<string, unknown>): this {
+
+        this.assertAlive();
+        const legacyMap = this.core_.map;
+        if (!legacyMap) {
+            throw new Error('No map is loaded.');
+        }
+
+        legacyMap.setView(view);
+        return this;
+    }
+
+    /**
+     * Returns the current legacy mapConfig view definition, or `null`
+     * when no map is loaded.
+     */
+    getView(): Record<string, unknown> | null {
+
+        this.assertAlive();
+        const view = this.core_.map?.getView();
+        return view ? view as Record<string, unknown> : null;
+    }
+
+    /**
+     * Returns the named legacy mapConfig view ids available on the
+     * loaded map.
+     */
+    getNamedViews(): string[] {
+
+        this.assertAlive();
+        return this.core_.map?.getNamedViews() ?? [];
+    }
+
     // -----------------------------------------------------------------
     // Coordinate conversion and hit-testing
     // -----------------------------------------------------------------

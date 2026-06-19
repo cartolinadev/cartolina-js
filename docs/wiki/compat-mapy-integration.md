@@ -81,6 +81,9 @@ Methods already promoted to `Viewer`:
 |---|---|
 | `.getHitCoords(x, y, mode)` | `Viewer` ✓ |
 | `.convertCoordsFromNavToCanvas(pos, mode)` | `Viewer` ✓ |
+| `.getView()` | `Viewer.getView()` ✓ |
+| `.setView(viewName)` | `Viewer.setView(viewName)` ✓ |
+| named view ids | `Viewer.getNamedViews()` ✓ |
 
 Methods that currently exist on the legacy map object only:
 
@@ -102,12 +105,6 @@ Methods that currently exist on the legacy map object only:
 | `.addFreeLayer(name, freeLayer)` | Add a vector overlay |
 | `.removeFreeLayer(name)` | |
 | `.generateTrajectory(from, to, opts)` | Fly-to animation |
-| `.getView()` | Returns named mapConfig view |
-| `.setView(viewName)` | Switches named mapConfig view |
-
-`getView` / `setView` use the legacy mapConfig view system. That
-system is not a committed public API direction.
-
 `getCurrentGeometry` was specifically checked: it is **not** called
 by the mapy.com integration.
 

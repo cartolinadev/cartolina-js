@@ -746,6 +746,8 @@ MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null
     activeLayers.forEach((id) => {
 
         let layer = this.boundLayers[id];
+        if (!layer) return;
+
         let credits = layer.credits;
         for (let k = 0; k < credits.length; k++)
             this.imageryCredits[credits[k]] = layer.specificity;

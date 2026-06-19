@@ -32,7 +32,15 @@ var MapStylesheet = function(map, id, url, freeLayer) {
         }
 
         //load style directly
-        utils.loadJSON(this.url, this.onLoaded.bind(this), this.onLoadError.bind(this), null, (utils.useCredentials ? (this.url.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams);
+        utils.loadJSON(
+            this.url, this.onLoaded.bind(this), this.onLoadError.bind(this),
+            null,
+            (utils.useCredentials
+                ? (this.url.indexOf(this.map.url.baseUrl) != -1)
+                : false),
+            this.map.core.xhrParams,
+            this.map.core.config.transformRequest,
+            'Style');
         this.loadState = 1;
     }
 };
@@ -141,4 +149,3 @@ MapStylesheet.prototype.onLoaded = function(data) {
 //};
 
 export default MapStylesheet;
-

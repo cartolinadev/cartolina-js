@@ -69,8 +69,11 @@ var MapLoader = function(map, maxThreads) {
 
             this.processWorker.onmessage = this.onWorkerMessage.bind(this);
 
+            const workerConfig = { ...this.config };
+            delete workerConfig.transformRequest;
+
             this.processWorker.postMessage({'command':'config',
-                'data': this.config});
+                'data': workerConfig});
 
             return worker;
         });
@@ -160,6 +163,7 @@ MapLoader.prototype.onWorkerMessage = function(message, direct) {
 
 MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, responseType, kind, options) {
     var withCredentials = (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false);
+    var transformRequest = this.map.core.config.transformRequest;
 
     if (this.processWorker) {
 
@@ -190,10 +194,17 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
                 this.workerTask[path] = { onLoaded: onLoaded, onError: onError, kind: kind };
 
                 this.workerPromise.then(() => {
+                    var request = utils.transformResourceRequest(
+                        path, 'Tile', transformRequest);
+                    var requestWithCredentials =
+                        utils.resolveRequestWithCredentials(
+                            withCredentials, request.credentials);
 
                     //console.log("kind: " + kind + " " + "path: " + path);
                     this.processWorker.postMessage({'command':'load-binary',
-                        'path': path, 'withCredentials':withCredentials,
+                        'path': path, 'url': request.url,
+                        'headers': request.headers,
+                        'withCredentials':requestWithCredentials,
                         'xhrParams':this.map.core.xhrParams,
                         'responseType':responseType,
                         'kind': kind, 'options': options});
@@ -204,7 +215,10 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
 
             default:
                 // in-thread xhr helper
-                utils.loadBinary(path, onLoaded, onError, withCredentials, this.map.core.xhrParams, responseType);
+                utils.loadBinary(
+                    path, onLoaded, onError, withCredentials,
+                    this.map.core.xhrParams, responseType,
+                    transformRequest, 'Tile');
         }
 
     } else { // no process worker
@@ -214,7 +228,10 @@ MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, respon
         }
 
         // in-thread xhr helper
-        utils.loadBinary(path, onLoaded, onError, withCredentials, this.map.core.xhrParams, responseType);
+        utils.loadBinary(
+            path, onLoaded, onError, withCredentials,
+            this.map.core.xhrParams, responseType,
+            transformRequest, 'Tile');
     }
 };
 

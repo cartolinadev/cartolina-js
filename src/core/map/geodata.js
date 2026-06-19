@@ -115,7 +115,15 @@ MapGeodata.prototype.onLoad = function(url, onLoaded, onError) {
     if (this.map.config.mapGeodataBinaryLoad) {
         this.map.loader.processLoadBinary(url, this.onLoaded.bind(this), this.onLoadError.bind(this), null, 'geodata');
     } else {
-        utils.loadJSON(url, this.onLoaded.bind(this), this.onLoadError.bind(this), true, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams);
+        utils.loadJSON(
+            url, this.onLoaded.bind(this), this.onLoadError.bind(this),
+            true,
+            (utils.useCredentials
+                ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1)
+                : false),
+            this.map.core.xhrParams,
+            this.map.core.config.transformRequest,
+            'Tile');
     }
 
     return;
@@ -174,4 +182,3 @@ MapGeodata.prototype.onLoaded = function(data) {
 //};
 
 export default MapGeodata;
-

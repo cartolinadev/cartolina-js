@@ -508,8 +508,11 @@ function constrainMapPosition(browser, pos) {
         var hmax = Math.max(cameraConstrainDistance, (distance * Math.tan(math.radians(3.0))));
 
         var cameraHeight = camPos[2]; //this.cameraHeight() - this.cameraHeightOffset - this.cameraHeightOffset2;
+        var cameraHeightReliable =
+            isCameraHeightReliable(map, pos, cameraHeight);
 
-        if (cameraHeight < hmax) {
+        // Coarse legacy metatiles can report the query Z as terrain height.
+        if (cameraHeightReliable && cameraHeight < hmax) {
             o = pos.getOrientation();
 
             var getFinalOrientation = (function(start, end, level) {
@@ -536,6 +539,43 @@ function constrainMapPosition(browser, pos) {
     }
 
     return pos;
+}
+
+/**
+ * Returns true when the terrain sample can drive the under-terrain camera
+ * constraint.
+ *
+ * Some legacy v4 mapConfig stacks expose coarse metatiles whose node-only
+ * fallback estimates terrain height from the queried coordinate Z. That sample
+ * is useful as a broad draw fallback, but it makes the camera height above
+ * terrain read as zero. Reject samples outside the reference frame terrain
+ * range so the tilt clamp only runs on usable terrain data.
+ *
+ * @param map the legacy map object used by the browser observer
+ * @param pos candidate camera position
+ * @param cameraHeight camera height returned by `getPositionCameraCoords`
+ * @returns whether the camera height sample is usable for clamping
+ */
+function isCameraHeightReliable(map, pos, cameraHeight) {
+
+    if (!isFinite(cameraHeight)) return false;
+
+    var cameraFixedCoords = map.getPositionCameraCoords(pos, 'fix');
+    var lod = map.measure.getOptimalHeightLod(
+        cameraFixedCoords, pos.getViewExtent(),
+        map.config.mapNavSamplesPerViewExtent);
+    var surfaceHeight = map.measure.getSurfaceHeight(cameraFixedCoords, lod);
+
+    if (!surfaceHeight[2]) return false;
+
+    var heightRange = map.referenceFrame.getGlobalHeightRange();
+    var sampledHeight = surfaceHeight[0];
+    var heightOutOfRange =
+        sampledHeight < heightRange[0] || sampledHeight > heightRange[1];
+
+    if (heightOutOfRange) return false;
+
+    return true;
 }
 
 

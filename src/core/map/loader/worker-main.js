@@ -31,7 +31,10 @@ function postPackedMessage(message, transferables) {
     }
 }
 
-function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, responseType, kind, options) {
+function loadBinary(
+    path, url, onLoaded, onError, withCredentials, xhrParams,
+    responseType, kind, options, headers) {
+
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = (function (){
@@ -93,17 +96,24 @@ function loadBinary(path, onLoaded, onError, withCredentials, xhrParams, respons
         }
     }).bind(this);*/
 
-    xhr.open('GET', path, true);
+    xhr.open('GET', url, true);
     xhr.responseType = responseType ? responseType : 'arraybuffer';
     xhr.withCredentials = withCredentials;
 
-    if (options && options.size) {
-        xhr.setRequestHeader('Range', 'bytes=' + options.offset + '-' + (options.offset + options.size));
+    if (headers) {
+
+        for (var key in headers) {
+            xhr.setRequestHeader(key, headers[key]);
+        }
+
     }
 
-    if (xhrParams && xhrParams['token'] /*&& xhrParams["tokenHeader"]*/) {
-        //xhr.setRequestHeader(xhrParams["tokenHeader"], xhrParams["token"]); //old way
-        xhr.setRequestHeader('Accept', 'token/' + xhrParams['token'] + ', */*');
+    if (options && options.size) {
+
+        xhr.setRequestHeader(
+            'Range',
+            'bytes=' + options.offset + '-' + (options.offset + options.size));
+
     }
 
     xhr.send('');
@@ -138,7 +148,11 @@ self.onmessage = function (e) {
             break;
 
         case 'load-binary':
-            loadBinary(message['path'], true, true, message['withCredentials'], message['xhrParams'], message['responseType'], message['kind'], message['options']);
+            loadBinary(
+                message['path'], message['url'] || message['path'],
+                true, true, message['withCredentials'],
+                message['xhrParams'], message['responseType'],
+                message['kind'], message['options'], message['headers']);
             break;
 
     }

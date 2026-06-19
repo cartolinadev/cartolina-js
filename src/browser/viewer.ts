@@ -7,6 +7,7 @@ import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { MapRuntimeOptionValue } from './index';
+import type { TransformRequestCallback } from '../core/types';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
@@ -192,6 +193,40 @@ class Viewer {
 
         this.assertAlive();
         return this.legacyMap?.atmosphere?.getRuntimeParameters() ?? null;
+    }
+
+    /**
+     * Switches to a named legacy mapConfig view, or to a supplied view
+     * definition. Only valid for mapConfig-initialized maps.
+     *
+     * @param view named view id or legacy view definition
+     * @returns this viewer
+     */
+    setView(view: string | Record<string, unknown>): this {
+
+        this.assertAlive();
+        this.map_.setView(view);
+        return this;
+    }
+
+    /**
+     * Returns the current legacy mapConfig view definition, or `null`
+     * when no map is loaded.
+     */
+    getView(): Record<string, unknown> | null {
+
+        this.assertAlive();
+        return this.map_.getView();
+    }
+
+    /**
+     * Returns the named legacy mapConfig view ids available on the
+     * loaded map.
+     */
+    getNamedViews(): string[] {
+
+        this.assertAlive();
+        return this.map_.getNamedViews();
     }
 
     /**
@@ -761,13 +796,15 @@ namespace Viewer {
             | MapRuntimeOptionValue
             | MapPosition
             | MapStyle.StyleSpecification
+            | TransformRequestCallback
             | Record<string, unknown>
             | undefined;
 
         style?: MapStyle.StyleSpecification;
         map?: string | Record<string, unknown>;
         position?: MapPosition;
-        view?: Record<string, unknown>;
+        view?: string | Record<string, unknown>;
+        transformRequest?: TransformRequestCallback;
     };
 }
 

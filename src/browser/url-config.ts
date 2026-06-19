@@ -97,7 +97,6 @@ const BOOLEAN_KEYS = new Set([
     'mapNormalizeOctantTexelSize',
     'mapExposeFpsToWindow',
     'mapProfileGpu',
-    'mario',
     'rendererAntialiasing',
     'rendererAllowScreenshots'
 ]);
@@ -159,7 +158,6 @@ const STRING_KEYS = new Set([
     'mapLanguage',
     'mapDefaultFont',
     'mapFeaturesReduceMode',
-    'authorization',
     'sync',
     'syncServer',
     'syncId',

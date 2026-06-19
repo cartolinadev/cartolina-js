@@ -54,8 +54,11 @@ var MapGeodataProcessor = function(surface, listener) {
 
         this.processWorker.onmessage = this.onMessage.bind(this);
 
+        const workerConfig = { ...this.map.config };
+        delete workerConfig.transformRequest;
+
         this.processWorker.postMessage({'command':'config',
-            'data': this.map.config});
+            'data': workerConfig});
 
         this.ready = true;
 

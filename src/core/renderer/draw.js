@@ -1787,8 +1787,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             var viewExtent = renderer.viewExtent;
             job.vswitchIndex = 0;
 
-            for (i = 0, li = vswitch.length; i < li; i++) {
-                if (viewExtent <= vswitch[i][0] || i == (li-1)) {
+            for (i = 0, li = job.vswitch.length; i < li; i++) {
+                if (viewExtent <= job.vswitch[i][0] || i == (li-1)) {
                     job.vswitchIndex = i;
                     var slayers = job.vswitch[i];
 

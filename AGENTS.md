@@ -31,6 +31,10 @@ relevant information.
 - Temporary notes or in-progress state.
 - Trivial edits that do not change architecture, behavior, workflow, or
   non-obvious project knowledge.
+- Removed APIs, deleted branches, or no-longer-existing behavior. Do
+  not keep comparison baggage in current docs. Mention legacy code only
+  when that code still exists and must be maintained for compatibility;
+  once it is removed, describe the current behavior instead.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it

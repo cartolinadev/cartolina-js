@@ -54,7 +54,14 @@ var MapBoundLayer = function(map, json, id) {
         
         var onError = (function(){ }).bind(this);
 
-        utils.loadJSON(this.jsonUrl, onLoaded, onError, null, (utils.useCredentials ? (this.jsonUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams);
+        utils.loadJSON(
+            this.jsonUrl, onLoaded, onError, null,
+            (utils.useCredentials
+                ? (this.jsonUrl.indexOf(this.map.url.baseUrl) != -1)
+                : false),
+            this.map.core.xhrParams,
+            this.map.core.config.transformRequest,
+            'Source');
         //utils.loadJSON(this.url, onLoaded, onError, null, utils.useCredentials);
     } else {
         this.parseJson(json);
@@ -245,5 +252,4 @@ MapBoundLayer.prototype.getMaskUrl = function(id, skipBaseUrl) {
 
 
 export default MapBoundLayer;
-
 

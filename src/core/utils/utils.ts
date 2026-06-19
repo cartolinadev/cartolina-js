@@ -1,9 +1,101 @@
 
 import * as math from './math';
 import {utilsUrl} from './url';
+import type {
+    RequestResourceType,
+    RequestTransformResult,
+    TransformRequestCallback,
+} from '../types';
 
 
 export const useCredentials = false;
+
+type TransformedRequest = RequestTransformResult & {
+    headers: Record<string, string>;
+};
+
+
+/**
+ * Applies the application request hook and normalizes its return value.
+ *
+ * @param url original resource URL
+ * @param resourceType category of the requested resource
+ * @param transformRequest optional application callback
+ * @returns normalized request fields used by fetch, XHR, or image loading
+ */
+export function transformResourceRequest(
+    url: string,
+    resourceType: RequestResourceType,
+    transformRequest?: TransformRequestCallback,
+): TransformedRequest {
+
+    if (!transformRequest) {
+
+        return {
+            url,
+            headers: {},
+        };
+
+    }
+
+    const transformed = transformRequest(url, resourceType);
+    const transformError =
+        'transformRequest must return an object with a url string.';
+
+    if (!transformed) throw new Error(transformError);
+
+    if (typeof transformed.url !== 'string') throw new Error(transformError);
+
+    return {
+        url: transformed.url,
+        headers: transformed.headers ?? {},
+        credentials: transformed.credentials,
+    };
+}
+
+
+/**
+ * Converts the request hook credentials mode to XHR `withCredentials`.
+ *
+ * @param fallback existing caller decision for credentialed requests
+ * @param credentials credentials mode returned by `transformRequest`
+ * @returns XHR-compatible credential flag
+ */
+export function resolveRequestWithCredentials(
+    fallback: boolean,
+    credentials: RequestTransformResult['credentials'],
+): boolean {
+
+    switch (credentials) {
+
+    case 'include':
+        return true;
+    case 'omit':
+    case 'same-origin':
+        return false;
+    default:
+        return fallback;
+    }
+}
+
+
+/**
+ * Applies request hook headers to an XHR before it is sent.
+ *
+ * @param xhr request object being prepared
+ * @param headers header map returned by `transformRequest`
+ */
+function setRequestHeaders(
+    xhr: XMLHttpRequest,
+    headers: Record<string, string>,
+): void {
+
+    for (const [key, value] of Object.entries(headers)) {
+
+        xhr.setRequestHeader(key, value);
+
+    }
+}
 
 
 export function validateBool(value: unknown, defaultValue: boolean) {
@@ -277,13 +369,22 @@ export function loadXML(
 };
 
 
-export async function loadJson(path: string) {
+export async function loadJson(
+    path: string,
+    transformRequest?: TransformRequestCallback,
+    resourceType: RequestResourceType = 'Other',
+) {
 
     let retval: unknown;
 
     try {
 
-        let r = await fetch(path);
+        const request = transformResourceRequest(
+            path, resourceType, transformRequest);
+        let r = await fetch(request.url, {
+            headers: request.headers,
+            credentials: request.credentials,
+        });
         if (!r.ok) throw new Error(`HTTP ${r.status}.`);
         retval = await r.json();
 
@@ -300,8 +401,12 @@ export async function loadJson(path: string) {
 export function loadJSON(
     path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
     skipParse: boolean, withCredentials: boolean, xhrParams: XhrParams,
+    transformRequest?: TransformRequestCallback,
+    resourceType: RequestResourceType = 'Other',
 ) {
     var xhr = new XMLHttpRequest();
+    const request = transformResourceRequest(
+        path, resourceType, transformRequest);
 
     xhr.onreadystatechange = () => {
 
@@ -329,7 +434,7 @@ export function loadJSON(
                 } catch(e) {
                     // eslint-disable-next-line
                     const msg = e instanceof Error ? e.message : '';
-                    console.log('JSON Parse Error ('+path+'): ' + msg);
+                    console.log('JSON Parse Error ('+request.url+'): ' + msg);
 
                     if (onError) {
                         onError(xhr.status);
@@ -355,14 +460,11 @@ export function loadJSON(
         }
     }).bind(this);*/
 
-    xhr.open('GET',  path, true);
-    xhr.withCredentials = withCredentials;
+    xhr.open('GET', request.url, true);
+    xhr.withCredentials = resolveRequestWithCredentials(
+        withCredentials, request.credentials);
+    setRequestHeaders(xhr, request.headers);
     
-    if (xhrParams && xhrParams['token'] /*&& xhrParams["tokenHeader"]*/) {
-        //xhr.setRequestHeader(xhrParams["tokenHeader"], xhrParams["token"]); //old way
-        xhr.setRequestHeader('Accept', 'token/' + xhrParams['token'] + ', */*');
-    }
-
     if (xhrParams && xhrParams['charset']) {
         xhr.overrideMimeType('text/xml; charset=' + xhrParams['charset']);
         //xhr.setRequestHeader('Content-type', xhrParams['Content-type']);
@@ -376,8 +478,12 @@ export function loadBinary(
     path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
     withCredentials: boolean, xhrParams: XhrParams,
     responseType: XMLHttpRequestResponseType,
+    transformRequest?: TransformRequestCallback,
+    resourceType: RequestResourceType = 'Other',
 ) {
     var xhr = new XMLHttpRequest();
+    const request = transformResourceRequest(
+        path, resourceType, transformRequest);
 
     xhr.onreadystatechange = () => {
 
@@ -429,14 +535,11 @@ export function loadBinary(
         }
     }).bind(this);*/
 
-    xhr.open('GET', path, true);
+    xhr.open('GET', request.url, true);
     xhr.responseType = responseType ? responseType : 'arraybuffer';
-    xhr.withCredentials = withCredentials;
-
-    if (xhrParams && xhrParams['token'] /*&& xhrParams["tokenHeader"]*/) {
-        //xhr.setRequestHeader(xhrParams["tokenHeader"], xhrParams["token"]); //old way
-        xhr.setRequestHeader('Accept', 'token/' + xhrParams['token'] + ', */*');
-    }
+    xhr.withCredentials = resolveRequestWithCredentials(
+        withCredentials, request.credentials);
+    setRequestHeaders(xhr, request.headers);
 
     xhr.send('');
 };
@@ -445,8 +548,12 @@ export function loadBinary(
 export function headRequest(
     url: string, onLoaded: HeadCallback, onError: XhrErrCallback,
     withCredentials: boolean, xhrParams: XhrParams,
+    transformRequest?: TransformRequestCallback,
+    resourceType: RequestResourceType = 'Other',
 ) {
     var xhr = new XMLHttpRequest();
+    const request = transformResourceRequest(
+        url, resourceType, transformRequest);
 
     xhr.onreadystatechange = () => {
 
@@ -479,14 +586,11 @@ export function headRequest(
         }
     };
 
-    xhr.open('HEAD', url, true);
+    xhr.open('HEAD', request.url, true);
     //xhr.responseType = responseType ? responseType : "arraybuffer";
-    xhr.withCredentials = withCredentials;
-
-    if (xhrParams && xhrParams['token'] /*&& xhrParams["tokenHeader"]*/) {
-        //xhr.setRequestHeader(xhrParams["tokenHeader"], xhrParams["token"]); //old way
-        xhr.setRequestHeader('Accept', 'token/' + xhrParams['token'] + ', */*');
-    }
+    xhr.withCredentials = resolveRequestWithCredentials(
+        withCredentials, request.credentials);
+    setRequestHeaders(xhr, request.headers);
 
     xhr.send('');
 };
@@ -497,17 +601,27 @@ export function loadImage(
     onload: ((this: GlobalEventHandlers, ev: Event) => any) | null,
     onerror: OnErrorEventHandler,
     withCredentials: boolean,
-    direct: boolean,
+    direct?: boolean,
+    transformRequest?: TransformRequestCallback,
+    resourceType: RequestResourceType = 'Image',
 ) {
     var image = new Image();
+    const request = transformResourceRequest(
+        url, resourceType, transformRequest);
     image.onerror = onerror;
     image.onload = onload;
 
-    if (!direct){
-        image.crossOrigin = withCredentials ? 'use-credentials' : 'anonymous';
+    if (!direct) {
+
+        const requestWithCredentials = resolveRequestWithCredentials(
+            withCredentials, request.credentials);
+        image.crossOrigin = requestWithCredentials
+            ? 'use-credentials'
+            : 'anonymous';
+
     }
 
-    image.src = url;
+    image.src = request.url;
     return image;
 };
 
@@ -725,4 +839,3 @@ export function isIos(): boolean {
 
     return classicIOS || iPadOS13Plus;
 }
-

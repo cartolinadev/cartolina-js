@@ -156,8 +156,9 @@ hook that warns on every access.
 
 `Core` (`src/core/core.js`) is the legacy startup shell: map loading,
 configuration routing, the `requestAnimationFrame` callback (which now
-delegates straight to `Map.tick`), and auth headers. It is residual JS
-scheduled to dissolve into `Map`; not a load-bearing abstraction.
+delegates straight to `Map.tick`), and the `transformRequest` value
+used by resource loaders. It is residual JS scheduled to dissolve into
+`Map`; not a load-bearing abstraction.
 
 `LegacyMap` is the JS half of `Map` in `src/core/map/map.js`. It holds
 the parts of the map data model that have not been rewritten in

@@ -125,13 +125,12 @@ var Core = function(element, config) {
         mapFlagAtmosphere: true,
         mapFlagShadows: true,
         mapFlagLabels: true,
+        transformRequest: null,
 
         rendererAnisotropic : 0,
         rendererAntialiasing : true,
         rendererAllowScreenshots : false,
-        inspector : true,
-        authorization : null,
-        mario : false
+        inspector : true
     };
 
     this.configStorage = {};
@@ -140,8 +139,6 @@ var Core = function(element, config) {
     //this.options = options;
     this.listeners = [];
     this.listenerCounter = 0;
-    this.tokenCookieHost = null;
-    this.tokenIFrame = null;
     this.xhrParams = {};
     this.inspector = (Inspector != null) ? (new Inspector(this)) : null;
 
@@ -195,7 +192,8 @@ Core.prototype.loadMapFromStyle = async function(style) {
     if (typeof(style) === 'string') {
 
         path = utilsUrl.getProcessUrl(style, path);
-        style_ = await utils.loadJson(path);
+        style_ = await utils.loadJson(
+            path, this.config.transformRequest, 'Style');
 
     } else {
 
@@ -229,16 +227,11 @@ Core.prototype.loadMap = function(path) {
 
     path = utilsUrl.getProcessUrl(path, window.location.href);
 
-    this.tokenCookieLoaded = true;
     this.mapConfigData = null;
-    this.tokenExpiration = null;
-    this.tokenExpirationCallback = null;
-    this.tokenExpirationLoop = false;
-    this.tokenCanBeSkiped = true;
     this.mapRunnig = false;
 
     var onLoaded = (function() {
-        if (!(this.tokenCookieLoaded || this.tokenCanBeSkiped) || !this.mapConfigData || this.mapRunnig) {
+        if (!this.mapConfigData || this.mapRunnig) {
             return;
         }
 
@@ -273,95 +266,14 @@ Core.prototype.loadMap = function(path) {
     var onMapConfigError = (function() {
     }).bind(this);
 
-    //this.tokenLoaded = true;
-
-    var onAutorizationLoaded = (function(data) {
-        if (!data || (data && data['status'])) {
-            if (this.tokenCanBeSkiped) {
-                onLoadMapconfig(path);
-            }
-            return;
-        }
-
-        this.tokenLoaded = true;
-        this.xhrParams['token'] = data['token'];
-        this.xhrParams['tokenHeader'] = data['header'];
-        this.tokenExpiration = data['expires'] * 1000;
-        this.tokenExpirationCallback = (function(){
-            //this.tokenLoaded = false;
-            //this.tokenCookieLoaded = false;
-            this.tokenExpiration = null;
-            this.tokenExpirationLoop = true;
-            if (typeof this.config.authorization === 'string') {
-                utils.loadJSON(this.config.authorization, onAutorizationLoaded, onAutorizationError, null, utils.useCredentials, this.xhrParams);
-            } else {
-                this.config.authorization(onAutorizationLoaded);
-            }
-        }).bind(this);
-
-        if (!this.tokenExpirationLoop) {
-            onLoadMapconfig(path);
-        }
-
-        if (typeof this.config.authorization === 'string') {
-            onLoadImageCookie(data['cookieInjector'], this.config.authorization);
-        } else {
-            onLoadImageCookie(data['cookieInjector'], path);
-        }
-
-    }).bind(this);
-
-    var onAutorizationError = (function() {
-        // eslint-disable-next-line
-        console.log('auth token not loaded');
-
-        if (this.tokenCanBeSkiped) {
-            onLoadMapconfig(path);
-        }
-    }).bind(this);
-
-    var onImageCookieLoaded = (function() {
-        document.body.removeChild(this.tokenIFrame);
-        this.tokenIFrame = null;
-        this.tokenCookieLoaded = true;
-        onLoaded();
-    }).bind(this);
-
-    /*var onImageCookieError = (function() {
-        // eslint-disable-next-line
-        console.log('auth cookie not loaded');
-    }).bind(this);*/
-
-    //var baseUrl = path.split('?')[0].split('/').slice(0, -1).join('/')+'/';
-
     var onLoadMapconfig = (function(path) {
-        utils.loadJSON(path, onMapConfigLoaded, onMapConfigError, null, utils.useCredentials, this.xhrParams);
+        utils.loadJSON(
+            path, onMapConfigLoaded, onMapConfigError, null,
+            utils.useCredentials, null, this.config.transformRequest,
+            'MapConfig');
     }).bind(this);
 
-    var onLoadImageCookie = (function(url, originUrl) {
-        url = utilsUrl.getProcessUrl(url, originUrl);
-        this.tokenCookieHost = utilsUrl.getHost(url);
-        //utils.loadImage(url, onImageCookieLoaded, onImageCookieError);
-        var iframe = document.createElement('iframe');
-        this.tokenIFrame = iframe;
-        iframe.onload = onImageCookieLoaded;
-        iframe.src = url;
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-    }).bind(this);
-
-    //if (false && this.config.authorization) {
-    if (this.config.authorization) {
-        this.tokenCookieLoaded = false;
-
-        if (typeof this.config.authorization === 'string') {
-            utils.loadJSON(this.config.authorization, onAutorizationLoaded, onAutorizationError, null, utils.useCredentials, this.xhrParams);
-        } else {
-            this.config.authorization(onAutorizationLoaded);
-        }
-    } else {
-        onLoadMapconfig(path);
-    }
+    onLoadMapconfig(path);
 };
 
 
@@ -547,11 +459,13 @@ Core.prototype.setConfigParam = function(key, value, solveStorage) {
         this.config.mapLabelFreeMargins = utils.validateNumberArray(value, 4, [0,0,0,0], [Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER], [0,0,0,0]); break;
     case 'inspector':
         this.config.inspector = utils.validateBool(value, true); break;
-    case 'authorization':
-        this.config.authorization = ((typeof value === 'string') || (typeof value === 'function')) ? value : null;
-         break;
+    case 'transformRequest':
+        this.config.transformRequest = typeof value === 'function'
+            ? value
+            : null;
+        break;
     default:
-        if (key.indexOf('map') == 0 || key == 'mario') {
+        if (key.indexOf('map') == 0) {
 
             if (!solveStorage || (typeof this.configStorage[key] === 'undefined')) {
                 this.configStorage[key] = value;

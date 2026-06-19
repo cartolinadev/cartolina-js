@@ -1203,7 +1203,6 @@ Map.prototype.setConfigParam = function(key, value) {
     case 'mapExposeFpsToWindow':          this.config.mapExposeFpsToWindow = utils.validateBool(value, false); break;
     case 'mapProfileGpu':                 this.config.mapProfileGpu = utils.validateBool(value, false); break;
     case 'mapSplitSpace':                 this.config.mapSplitSpace = value; break;
-    case 'mario':                         this.config.mario = utils.validateBool(value, true); break;
     case 'mapFeaturesReduceMode':         
         value = utils.validateString(value, 'scr-count4');
         if (value == 'auto') value = 'scr-count2';
@@ -1297,7 +1296,6 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapBenevolentMargins':          return this.config.mapBenevolentMargins;
     case 'mapDMapSize':                   return this.config.mapDMapSize; 
     case 'mapDMapMode':                   return this.config.mapDMapMode;
-    case 'mario':                         return this.config.mario;
     }
 };
 
@@ -1651,14 +1649,6 @@ Map.prototype.addProcessingTask2 = function(task) {
  * `Map.tick` on the ready path, after `stats.begin` and before the
  * dirty-gated draw. */
 Map.prototype.tickBefore = function() {
-
-    // the obsolete token expiration check
-    if (this.core.tokenExpiration) {
-
-        if (Date.now() > (this.core.tokenExpiration - (1000 * 60))) {
-            this.core.tokenExpirationCallback();
-        }
-    }
 
     // promote pending requests to downloads
     this.loader.update();

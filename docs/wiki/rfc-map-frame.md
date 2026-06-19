@@ -84,9 +84,6 @@ frame entry point.
 - `withNavigationCamera` / `withSelectionCamera` — slated for removal
   by "REFACTOR: pass explicit draw contexts" in
   [backlog.md](backlog.md).
-- Per-frame `tokenExpiration` polling — slated for removal by
-  "REFACTOR: replace per-frame token expiry polling with a
-  `transformRequest`-style auth hook" in [backlog.md](backlog.md).
 - `MapInterface` deletion — completed independent track, see
   "REFACTOR: delete `MapInterface`" in [backlog.md](backlog.md).
   No design overlap with this RFC.

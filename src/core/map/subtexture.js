@@ -291,7 +291,10 @@ MapSubtexture.prototype.onLoad = function(header, url, onLoaded, onError) {
         //utils.loadBinary(url, this.onBinaryLoaded.bind(this), onerror, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams, 'blob');
         this.map.loader.processLoadBinary(url, this.onBinaryLoaded.bind(this), onerror, null, 'texture');
     } else {
-        this.image = utils.loadImage(url, onload, onerror, (this.map.core.tokenCookieHost ? (url.indexOf(this.map.core.tokenCookieHost) != -1) : false));
+        this.image = utils.loadImage(
+            url, onload, onerror, false, false,
+            this.map.core.config.transformRequest,
+            'Image');
     }
     //mapXhrImageLoad
 };
@@ -448,7 +451,14 @@ MapSubtexture.prototype.onLoadHead = function(downloadAll, url, onLoaded, onErro
         //utils.loadBinary(url, onload, onerror, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams, 'blob');
         this.map.loader.processLoadBinary(url, onLoad, onerror, null, 'texture');
     } else {
-        utils.headRequest(url, onload, onerror, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams, 'blob');
+        utils.headRequest(
+            url, onload, onerror,
+            (utils.useCredentials
+                ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1)
+                : false),
+            this.map.core.xhrParams,
+            this.map.core.config.transformRequest,
+            'Image');
     }
 };
 
@@ -659,4 +669,3 @@ MapSubtexture.prototype.getHeightMapValue = function(x, y) {
 };
 
 export default MapSubtexture;
-

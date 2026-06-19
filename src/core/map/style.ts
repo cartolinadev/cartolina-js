@@ -472,7 +472,11 @@ export class MapStyle {
                 const path = MapStyle.slapResource(
                     map.url.processUrl(sourceSpec.url), 'mapConfig.json');
 
-                let mc = await utils.loadJson(path) as SurfaceMapConfig;
+                let mc = await utils.loadJson(
+                    path,
+                    map.core.config.transformRequest,
+                    'MapConfig',
+                ) as SurfaceMapConfig;
 
                 // TODO: validation
                 //__DEV__ && console.log(mc);

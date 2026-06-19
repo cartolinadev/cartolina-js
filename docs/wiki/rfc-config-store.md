@@ -187,7 +187,7 @@ interface ViewerConfig {
     // --- Cross-cutting ---
     style: StyleSpecification | null;
     position: MapPosition | null;
-    authorization: AuthConfig | null;
+    transformRequest: TransformRequestCallback | null;
     // ...
 }
 ```
@@ -411,7 +411,7 @@ subsystems read it at construction. Confirm no other purpose for
    between runtime key checks and TypeScript, but the existing setters
    also normalize values from untyped sources: booleans, bounded
    numbers, fixed-length arrays, `MapPosition`, `geojsonStyle` JSON,
-   and authorization values. `ViewerConfig` types do not protect calls
+   and request-transform values. `ViewerConfig` types do not protect calls
    from JavaScript, URL params, style JSON, or `browserOptions`. The
    RFC should define where raw authored values become normalized store
    values and whether watchers may assume every value they receive has
@@ -467,7 +467,7 @@ subsystems read it at construction. Confirm no other purpose for
    working, but it does not update the separate `Core.config`,
    `LegacyMap.config`, or renderer config objects. Current
    `Browser.setConfigParam(key, value, true)` forwards `map*`,
-   `renderer*`, `debug*`, and `authorization` keys to the existing core
+   `renderer*`, `debug*`, and `transformRequest` keys to the existing core
    route so live `Viewer.setParam()` calls take effect. Until the
    corresponding watchers exist, the compatibility shim must keep
    forwarding those keys through the old route, or Step 3 must include

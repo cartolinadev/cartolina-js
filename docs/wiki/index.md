@@ -22,6 +22,9 @@ then branch into more specific documents as needed.
   `interactive: false`: factory call, position format, events,
   navigation, geodata overlays, and historical note on the
   removed `vts-core.js` build
+- [request-transform.md](request-transform.md) — MapLibre-style
+  `transformRequest` hook for URL rewrites, request headers,
+  credentials, and authentication
 - [compat-mapy-integration.md](compat-mapy-integration.md) — inventory
   of the API methods the mapy.com 3D integration consumes; reference
   for assessing migration impact when removing or changing those methods

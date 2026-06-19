@@ -2532,60 +2532,21 @@ incorrect: `map.camera.position` is the correct reference, and
 
 ---
 
-## REFACTOR: replace per-frame token expiry polling with a
-`transformRequest`-style auth hook
+## DONE: public `transformRequest` hook
 
 **Opened:** 2026-05-16
-**Status:** deferred
+**Status:** implemented 2026-06-19
 
-### Background
+### Resolution
 
-`src/core/core.js` contains a bespoke tile-auth mechanism inherited from
-the VTS/mapy.com era. On startup it fetches an authorization endpoint
-(`config.authorization`, a URL or callback) which returns
-`{ token, header, expires, cookieInjector }`. The token and header are
-injected into every subsequent XHR via `this.xhrParams`. A separate
-`cookieInjector` path handles image-tile fetches that cannot carry custom
-headers.
+`transformRequest(url, resourceType)` is now accepted by `map()` and
+`browser()`. It returns `{ url, headers?, credentials? }` and is applied
+to engine JSON, binary, HEAD, image, glyph, and worker-routed loader
+requests. Worker requests are transformed on the main thread before
+posting to the loader worker.
 
-`src/core/map/map.js` — `Map.prototype.update` — polls `tokenExpiration`
-on every animation frame. Once the token is within 60 seconds of expiry
-the callback fires, clears `tokenExpiration`, sets `tokenExpirationLoop`,
-and re-fetches the auth endpoint. Until the new token arrives the poller
-fires every frame (~60 calls/second), relying on `tokenExpiration` being
-`null` to suppress re-entry.
-
-### Why it should be replaced
-
-The two-channel scheme (XHR params + cookie injector) and the frame-loop
-poller are workarounds for the absence of a first-class request intercept
-hook. MapLibre GL JS solves this cleanly with `transformRequest`: a
-callback invoked for every outgoing resource request that can add headers
-or rewrite URLs. Token refresh is then a plain `setTimeout` registered
-when the token is first received — no render-loop involvement needed.
-
-### Suggested direction
-
-1. Add a `transformRequest` hook (signature mirrors MapLibre) that the
-   host app supplies instead of `config.authorization`.
-2. The hook receives `(url, resourceType)` and returns
-   `{ url, headers }`. It is responsible for token lifecycle, including
-   refresh scheduling via `setTimeout`.
-3. Remove `tokenExpiration`, `tokenExpirationCallback`,
-   `tokenExpirationLoop`, the `xhrParams` token fields, the cookie
-   injector path, and the per-frame check in `map.update`.
-4. Provide a helper (not required by the API) that wraps a token endpoint
-   URL and implements the 60-second pre-refresh logic via `setTimeout`,
-   returning a `transformRequest`-compatible function.
-
-### Relevant files
-
-| File | Note |
-|---|---|
-| `src/core/core.js:229–231` | `tokenExpiration`, `tokenExpirationCallback`, `tokenExpirationLoop` fields |
-| `src/core/core.js:275–308` | `onAutorizationLoaded` — sets up token and callback |
-| `src/core/core.js:351–357` | initial auth fetch |
-| `src/core/map/map.js:1451–1455` | per-frame expiry check in `update()` |
+Token lifecycle is host-application responsibility. Keep current tokens
+in application state and read them inside the request transform callback.
 
 
 ## BUG (tileserver): surface generator emits a zero-submesh mesh

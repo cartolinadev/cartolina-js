@@ -2,6 +2,41 @@ import type MapSrs from './map/srs';
 import type Renderer from './renderer/renderer';
 
 /**
+ * Resource category passed to `transformRequest`.
+ *
+ * `Source` covers style source and legacy surface or bound-layer JSON.
+ * `Tile` covers terrain, metadata, texture, and geodata tile payloads.
+ * `Glyph` covers binary font metadata and font atlas pages.
+ */
+export type RequestResourceType =
+    | 'MapConfig'
+    | 'Style'
+    | 'Source'
+    | 'Tile'
+    | 'Image'
+    | 'Glyph'
+    | 'Other';
+
+/** Request override returned by `TransformRequestCallback`. */
+export type RequestTransformResult = {
+    url: string;
+    headers?: Record<string, string>;
+    credentials?: 'include' | 'same-origin' | 'omit';
+};
+
+/**
+ * Callback invoked before cartolina-js loads an external resource.
+ *
+ * @param url original absolute or resolved resource URL
+ * @param resourceType category of the requested resource
+ * @returns URL, optional headers, and optional credentials mode
+ */
+export type TransformRequestCallback = (
+    url: string,
+    resourceType: RequestResourceType,
+) => RequestTransformResult;
+
+/**
  * Shared configuration object owned by the legacy core and passed to the
  * map and renderer layers.
  *
@@ -10,7 +45,13 @@ import type Renderer from './renderer/renderer';
  * typed code touches another key.
  */
 export interface CoreConfig {
-    [key: string]: boolean | number | string | number[] | undefined;
+    [key: string]:
+        | boolean
+        | number
+        | string
+        | number[]
+        | TransformRequestCallback
+        | undefined;
     rendererAllowScreenshots?: boolean;
     rendererAntialiasing?: boolean;
     rendererAnisotropic?: number;
@@ -41,6 +82,7 @@ export interface CoreConfig {
     mapFallbackCadence?: number;
     mapLabelFreeMargins?: [number, number, number, number];
     mapRefreshCycles?: number;
+    transformRequest?: TransformRequestCallback;
 }
 
 /** Height mode for coordinate conversions and hit-testing. */

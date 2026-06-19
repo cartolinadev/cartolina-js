@@ -79,13 +79,18 @@ The inherited `mapConfig.json` path remains for compatibility. It has
 limited functionality: it does not support the style terrain renderer,
 illumination model, atmosphere, or vertical exaggeration as first-class
 features. Do not add new features to the mapConfig path.
+Named mapConfig view switching is exposed only as flat `Viewer` methods
+for migration and compatibility tooling:
+
+- `viewer.setView(view)`
+- `viewer.getView()`
+- `viewer.getNamedViews()`
 
 Deprecated entry points and concepts:
 
 - `browser()` and the `map` config key for mapConfig loading
 - tileserver-injected `browserOptions`
 - views from vts-browser-js
-- `setView`, `getView`, `getViews`, and related legacy map methods
 - `addBoundLayer` promotion to `Viewer`
 
 Layer visibility in new code belongs in the style specification. Avoid
@@ -102,12 +107,18 @@ routes by key prefix:
 | `map*` | `LegacyMap.setConfigParam` or deferred storage |
 | `renderer*` | `Renderer.setConfigParam` |
 | `debug*` | `Inspector.setParameter` |
-| Structural | `map`, `style`, `position`, `view`, `authorization` |
+| Structural | `map`, `style`, `position`, `view`, `transformRequest` |
 
 `Viewer.setParam(key, value)` still passes through
 `Browser.setConfigParam` and reaches `Core.setConfigParam`.
 [rfc-config-store.md](rfc-config-store.md) describes the accepted
 replacement.
+
+`transformRequest(url, resourceType)` follows the MapLibre-style host
+application hook. It may return a rewritten URL, headers, and
+credentials mode for outgoing resource requests. See
+[request-transform.md](request-transform.md) for API shape, resource
+types, coverage, and authentication guidance.
 
 ### Style Config Block
 
@@ -124,11 +135,6 @@ The target split is:
 
 This has not been done because the config dictionary is still a flat
 untyped bag.
-
-### Obsolete Keys
-
-The `mario` key in `map.setConfigParam` and `map.js` is obsolete and
-safe to remove with any code it gates.
 
 ### URL Number Arrays
 

@@ -33,7 +33,9 @@ GpuFont.prototype.getSize = function(){ return this.size; };
 
 
 GpuFont.prototype.load = function(path) {
-    utils.loadBinary(path, this.onLoaded.bind(this), this.onError.bind(this));
+    utils.loadBinary(
+        path, this.onLoaded.bind(this), this.onError.bind(this),
+        false, null, null, this.core.config.transformRequest, 'Glyph');
 };
 
 GpuFont.prototype.onLoaded = function(data) {
@@ -65,7 +67,13 @@ GpuFont.prototype.areTexturesReady = function(files) {
         var index = files[i];//Math.round( (planes[i] - (planes[i] % 3)) );
 
         if (!this.textures[index]) {
-            utils.loadBinary(this.path + (index+2), this.onFileLoaded.bind(this, index), this.onFileLoadError.bind(this));
+            utils.loadBinary(
+                this.path + (index+2),
+                this.onFileLoaded.bind(this, index),
+                this.onFileLoadError.bind(this),
+                false, null, null,
+                this.core.config.transformRequest,
+                'Glyph');
             this.textures[index] = new GpuTexture(this.gpu, null, this.core);
             ready = false;
         } else {
@@ -85,5 +93,4 @@ GpuFont.prototype.getTexture = function(file) {
 };
 
 export default GpuFont;
-
 

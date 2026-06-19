@@ -1,5 +1,29 @@
 # Session log
 
+## 2026-06-19 — transformRequest and named-view compatibility
+
+Added a public `transformRequest(url, resourceType)` hook to the
+`map()` and `browser()` entry points. The hook returns a rewritten URL,
+optional headers, and optional credentials mode, and is applied to
+engine JSON, binary, HEAD, image, glyph, and worker-routed loader
+requests. Worker requests are transformed on the main thread before
+posting to the loader worker.
+
+Added [request-transform.md](request-transform.md) as the public
+integration guide for the hook and authentication model. Token
+lifecycle now belongs in the host callback. Promoted mapConfig
+named-view switching as flat `Viewer.setView`, `Viewer.getView`, and
+`Viewer.getNamedViews` for migration testing.
+
+Named-view testing also exposed two inherited visibility-switch edge
+cases: `RendererDraw.drawGpuJob` read an undefined `vswitch`
+instead of `job.vswitch`, and the mapConfig draw path assumed every
+active layer id still had a bound-layer entry while switching views.
+Both are now guarded so named-view changes do not throw during the
+transition.
+
+---
+
 ## 2026-06-19 — Defer shipping TypeScript types (backlog)
 
 ### Context
@@ -5335,8 +5359,7 @@ which was missing from the type declaration.
 / `rgb255ToHex` helpers instead of the old 0–1 converters.
 
 **`docs/wiki/architecture.md`** — added colour encoding convention
-note, style `config` block awkwardness note, and `mario` obsolete
-config key note.
+note and style `config` block awkwardness note.
 
 **`AGENTS.md`** — expanded documentation rules: adding JSDoc to
 existing non-trivial functions is encouraged; `@link` clarified to

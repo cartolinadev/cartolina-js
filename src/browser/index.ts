@@ -23,6 +23,11 @@ import {
     runtimeOptionsFromUrl as runtimeOptionsFromUrl_,
     UrlConfigOptions
 } from './url-config';
+import type {
+    RequestResourceType,
+    RequestTransformResult,
+    TransformRequestCallback,
+} from '../core/types';
 
 
 /** The canonical shared option value type used for cartolina runtime options. */
@@ -37,7 +42,16 @@ export type MapRuntimeOptionValue =
  * `container`, `style`, `map`, `position`, and `view`, which belong to
  * the entrypoint-specific wrappers.
  */
-export type MapRuntimeOptions = Record<string, MapRuntimeOptionValue>;
+export type {
+    RequestResourceType,
+    RequestTransformResult,
+    TransformRequestCallback,
+};
+
+export type MapRuntimeOptions = Record<
+    string,
+    MapRuntimeOptionValue | TransformRequestCallback | undefined
+>;
 
 /** The preferred style-based initialization options object. */
 
@@ -64,6 +78,9 @@ export type MapOptions = {
      * components (browser, core, renderer, etc.)
      */
     options?: MapRuntimeOptions,
+
+    /** Optional hook for rewriting resource URLs or adding request headers. */
+    transformRequest?: TransformRequestCallback,
 
     /**
      * When `false`, cartolina registers no mouse, keyboard, or touch
@@ -100,6 +117,10 @@ export function map(options: MapOptions): Viewer {
         ...dflts,
         ...options.options,
         position: options.position,
+        transformRequest: options.transformRequest
+            ?? (typeof options.options?.transformRequest === 'function'
+                ? options.options.transformRequest
+                : undefined),
         interactive: options.interactive ?? true,
     });
 
@@ -123,7 +144,10 @@ export type BrowserConfig = MapRuntimeOptions & {
     position?: MapPosition,
 
     /** The legacy view definition. */
-    view?: Record<string, unknown>
+    view?: string | Record<string, unknown>,
+
+    /** Optional hook for rewriting resource URLs or adding request headers. */
+    transformRequest?: TransformRequestCallback
 };
 
 

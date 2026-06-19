@@ -11,6 +11,7 @@ import type MapSurface from './surface';
 import type MapUrl from './url';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
+import type { Core } from '../core';
 import type TypedMap from '../map';
 import type {
     CoreConfig,
@@ -81,6 +82,7 @@ export default class Map {
      * Set by `Core` when the `LegacyMap` instance is created.
      */
     outerMap: TypedMap;
+    core: Core;
 
     renderer: Renderer;
     url: MapUrl;
@@ -167,6 +169,9 @@ export default class Map {
 
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
+    setView(view: string | Record<string, unknown>): void;
+    getView(): Record<string, unknown>;
+    getNamedViews(): string[];
 
     markDirty(): void;
     isReferenceFrameReady(): boolean;

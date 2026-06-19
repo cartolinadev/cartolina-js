@@ -916,7 +916,7 @@ var validateValue = function(layerId, key, value, type, arrayLength, min, max, h
             var vswitch = (key == 'visibility-switch');
             if (Array.isArray(value) && value.length > 0) {
 
-                for (i = 0; i < li; i++) {
+                for (i = 0, li2 = value.length; i < li2; i++) {
                     var valueItem = value[i];
 
                     if (!(typeof valueItem == 'object' &&
