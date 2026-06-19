@@ -1718,17 +1718,24 @@ external UVs therefore measures the same quantity the mask path already
 uses — and it is the client analogue of the server's leaf
 `maskMin == 255` base case.
 
-Computed during `MapSubmesh` parsing, while the original face indices
-and vertex-indexed `tmpExternalUVs` are still available, and stored as a
+Computed only when the owning tile's source metatile version is known
+and below 6. The parse entry reads that version from the tile metanode
+available through `MapMesh.tile`; if no metanode/version is available,
+or if the version is 6 or newer, the helper is skipped and no retained
+inferred-coverage field is written. When enabled, the helper runs during
+`MapSubmesh` parsing, while the original face indices and
+vertex-indexed `tmpExternalUVs` are still available, and stores a
 retained boolean on the submesh. This avoids depending on post-parse
 buffers: `faces` is only a count after parse, `tmpExternalUVs` is
 discarded, and the default retained `externalUVs` buffer is triangle
 soup rather than shared topology. The helper must be called from both
 submesh parse routines, `parseVerticesAndFaces` and
 `parseVerticesAndFaces2`, because each routine has its own face loop and
-the required `(v1, v2, v3)` indices exist only inside that loop.
-Edge-welding is **by parse-time vertex index**, so shared edges share
-indices exactly; there is no coordinate tolerance.
+the required `(v1, v2, v3)` indices exist only inside that loop. If mesh
+decoding is routed through the worker parser, the equivalent worker face
+loops use the same pre-v6 guard and return the retained boolean with the
+worker submesh payload. Edge-welding is **by parse-time vertex index**,
+so shared edges share indices exactly; there is no coordinate tolerance.
 
 A submesh fully covers its cell iff all hold:
 
@@ -1799,8 +1806,10 @@ never wrong.
 
 ### 10.5 Where it lives and when it runs
 
-- **Submesh coverage:** computed during `MapSubmesh` parsing and stored
-  on the submesh (§10.3).
+- **Submesh coverage:** computed during `MapSubmesh` parsing, or the
+  equivalent worker decode path, only when the source metatile version
+  is known and below 6. v6 pays nothing: the parse-time helper is not
+  called and no inferred coverage field is retained.
 - **Tile base case:** evaluated lazily at first rig-ready from retained
   submesh booleans, guarded by
   `sourceMetatileVersion < 6 && !metanode.watertight`. v6 pays nothing
@@ -1823,9 +1832,10 @@ unchanged: no new read sites, no traversal change.
 
 ### 10.6 Code surface and deletability
 
-- One parse-time helper called from both `MapSubmesh` face loops that
-  computes and stores `submesh.inferredFullCoverage` from the original
-  face/external-UV topology (§10.3).
+- One pre-v6-gated parse-time helper called from both `MapSubmesh` face
+  loops, and from equivalent worker decode loops if that path is used,
+  that computes and stores `submesh.inferredFullCoverage` from the
+  original face/external-UV topology (§10.3).
 - One tile helper that ORs the retained booleans by the conservative
   "any single full submesh" rule (§10.3).
 - One backtrack aggregation: all four children present and watertight
@@ -1837,10 +1847,10 @@ No new read paths, no consumer branches, and the v6 fast path is reused
 verbatim. The inferred value has one provenance boundary: it may only be
 written by the guarded compatibility helper and may only be read through
 the existing `metanode.watertight` consumers. When pre-v6 backends are
-no longer supported, deleting the parse-time helper, the retained
-submesh boolean, the tile helper, the aggregation helper, and the
-guarded write-back must leave the traversal algorithm unchanged. If an
-implementation needs broad traversal plumbing, mixed-provenance
+no longer supported, deleting the version probe, parse-time helper, the
+retained submesh boolean, the tile helper, the aggregation helper, and
+the guarded write-back must leave the traversal algorithm unchanged. If
+an implementation needs broad traversal plumbing, mixed-provenance
 persistent fields, or extra consumer conditionals, it has escaped this
 RFC's compatibility scope and should be redesigned.
 
@@ -1856,9 +1866,11 @@ RFC's compatibility scope and should be redesigned.
    child metanode flags (including culled-but-loaded children) with no
    new plumbing, and whether to evaluate it in `traverseNode` or as a
    small helper alongside the base-case write-back.
-3. **Rig-ready hook site.** The point that sees both `node` and the
-   owning metatile's version, for the tile-level write-back that ORs the
-   retained parse-time submesh booleans.
+3. **Version access and rig-ready hook sites.** The parse entry must see
+   the owning tile's source metatile version before invoking the submesh
+   helper. The tile-level write-back still needs the point that sees both
+   `node` and the owning metatile's version before ORing retained
+   pre-v6 submesh booleans.
 4. **Multi-submesh union.** Deferred. The compatibility bridge uses
    "any single full submesh" as a conservative rule. True union coverage
    needs a later change that also fixes the footprint path to expose all
@@ -3089,3 +3101,63 @@ the design.
    unconditional, drop "v6 pays nothing" from §10.1/§10.5 and state that v6
    surfaces still pay a parse-time coverage pass whose result is
    discarded, with a justification. The document currently claims both.
+
+   *Implemented.* §10.3 and §10.5 now gate the parse-time submesh
+   coverage helper on a known source metatile version below 6. For v6,
+   or when the version is unavailable, the helper is skipped and no
+   inferred field is retained. §10.3 names `MapMesh.tile` → tile
+   metanode as the version source and applies the same guard to the
+   equivalent worker decode path. §10.6 adds the version probe to the
+   deletion boundary, and §10.7 extends the hook-site question to the
+   parse entry.
+
+## Review round 13
+
+The round-12 fix is correct for the main-thread parse path, but the same
+fix names a version source the worker decode path cannot reach.
+
+1. The worker decode path cannot read the gate value §10.3 specifies, and
+   the version it does have is the wrong one.
+
+   §10.3 gives one version source — "the parse entry reads that version
+   from the tile metanode available through `MapMesh.tile`" — and then
+   asserts that "the equivalent worker face loops use the same pre-v6
+   guard." Those two statements are incompatible. Mesh decoding runs in a
+   separate thread (`new Worker(blobUrl)`,
+   [loader.js:23](../../src/core/map/loader/loader.js); dispatched via
+   `postMessage({'command':'load-binary', …})`,
+   [loader.js:204](../../src/core/map/loader/loader.js); decoded by
+   [worker-mesh.js](../../src/core/map/loader/worker-mesh.js) and handed
+   back through `MapMesh.parseWorkerData`,
+   [mesh.js:244](../../src/core/map/mesh.js)). A worker has no access to
+   the main-thread object graph, so `MapMesh.tile` → metanode — and the
+   metatile version on it — is not reachable inside the worker face loops.
+
+   Worse, the worker does carry *a* version: `mesh.version`
+   ([worker-mesh.js:43](../../src/core/map/loader/worker-mesh.js)). That
+   is the mesh **format** version (currently 1–3), a different namespace
+   from the **metatile** version the watertight gate keys on (`< 6`).
+   Gating the worker loop on the version that happens to be in scope would
+   gate on the wrong quantity and never match the `< 6` test as intended.
+
+   So as written, the worker branch either gates on the wrong version or,
+   lacking the right one, falls back to running the boundary-edge analysis
+   unconditionally — which reintroduces exactly the round-12 defect ("v6
+   pays nothing" violated) on the worker path, the path that actually
+   decodes meshes in the default configuration.
+
+   The fix stays a text fix and the plumbing is feasible: the main thread
+   knows the metatile version at dispatch time (it is issuing the load for
+   a known tile whose metanode is resident), so it can include the
+   metatile version — or a precomputed `inferPreV6Coverage: boolean` — in
+   the `load-binary` `postMessage` payload, and the worker gates on that.
+   §10.3/§10.5/§10.6 should stop saying the worker "uses the same guard
+   via `MapMesh.tile`" and instead state the two paths have two version
+   sources: the resident metanode on the main thread, and a value passed
+   into the worker request on the worker thread. §10.7's hook-site
+   question should record that the worker entry needs the version threaded
+   across the thread boundary, not read from a tile reference.
+
+This is the last open specification gap I see in §10; with the worker
+version source named, the addendum is internally consistent and
+implementable across both decode paths.
