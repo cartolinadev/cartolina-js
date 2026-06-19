@@ -1,5 +1,22 @@
 # Session log
 
+## 2026-06-19 — Multi-surface draw order from the surfaces array
+
+`Map.surfaceList()` derived the recursive draw traversal's back-to-front
+order from the active view's `surfaces` dictionary key order. In a map
+config the surface stack is fixed by the top-level `surfaces` array; a
+view is a dictionary and carries no order, so a config whose view emits
+surface keys in a non-stack order rendered with a scrambled stack: missing
+coverage and wrong occlusion between overlapping surfaces.
+
+`surfaceList()` now walks the `surfaces` array in order and keeps the
+surfaces the active view selects, so the stack order is the array order.
+Style-based maps are unchanged — they already encode order in the
+`terrain.sources` array. The defect stayed hidden because the recursive
+traversal had only been exercised against single-surface legacy configs.
+
+---
+
 ## 2026-06-19 — transformRequest and named-view compatibility
 
 Added a public `transformRequest(url, resourceType)` hook to the

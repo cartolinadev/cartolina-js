@@ -1233,10 +1233,15 @@ class Map {
     /**
      * Returns the surfaces the recursive draw traversal should render,
      * in back-to-front order (front surface at the last index). Plain
-     * surfaces only — glues and virtual surfaces are skipped. For
-     * map-config maps the set comes from the active view's surface
-     * keys; for style-based maps it comes from the style spec's
-     * terrain sources.
+     * surfaces only — glues and virtual surfaces are skipped.
+     *
+     * For map-config maps the stack order is fixed by the top-level
+     * `surfaces` array; the active view's `surfaces` is a dictionary and
+     * carries no order (a vts-vtsd legacy where glue stitching enforced
+     * a single server-side order, so views could never reorder). We
+     * therefore walk `surfaces` in array order and keep those the active
+     * view selects. For style-based maps the order comes from the style
+     * spec's terrain sources array.
      */
     surfaceList(): MapSurface[] {
 
@@ -1267,17 +1272,14 @@ class Map {
 
         } else {
 
-            // Map-config maps: the active view's surface keys are the
-            // full surface set, looked up by id.
+            // Map-config maps: the canonical `surfaces` array fixes the
+            // stack order; the view's `surfaces` dictionary only selects
+            // which of them are active (its key order is meaningless).
             const view = legacyMap.getCurrentView();
-            const byId = (key: string): MapSurface | undefined =>
-                legacyMap.surfaces.find(
-                    (s: MapSurface) => s.id === key);
+            const selected = view.surfaces ?? {};
 
-            surfaces = Object.keys(view.surfaces ?? {})
-                .map(byId)
-                .filter((s: MapSurface | undefined): s is MapSurface =>
-                    s != null);
+            surfaces = legacyMap.surfaces.filter(
+                (s: MapSurface) => s.id in selected);
         }
 
         return surfaces;
