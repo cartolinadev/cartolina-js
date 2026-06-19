@@ -35,6 +35,13 @@ relevant information.
   not keep comparison baggage in current docs. Mention legacy code only
   when that code still exists and must be maintained for compatibility;
   once it is removed, describe the current behavior instead.
+- Private scratchpad application names, private hostnames, customer or
+  partner names, proprietary dataset names, or third-party service names
+  learned from local/private integration work. Public documentation in
+  this repository must describe the software behavior in generic terms,
+  such as "legacy pre-v6 backend" or "private integration dataset,"
+  unless the name is already part of this public repository's committed
+  source or public project identity.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it

@@ -1,6 +1,6 @@
 # RFC 3: unified recursive draw traversal
 
-**Status:** Implemented
+**Status:** In review (§1–9 implemented; §10 addendum proposed)
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -53,9 +53,9 @@ resolution when surfaces differ in detail; and repacks UV texture
 atlases. This runs for every tile at every LOD across the seam boundary.
 For datasets with global or continent-scale seams the tile count is
 large and generation must be repeated whenever source data changes.
-The generated glue tilesets add storage proportional to seam area.
-Per user report: generating a glue between two planet-wide Viewfinder
-Panoramas DEMs (3 arc-second merged with 1 arc-second) took multiple
+The generated glue tilesets add storage proportional to seam area. In a
+global DEM seam case observed during development, generating glue
+between a 3 arc-second surface and a 1 arc-second surface took multiple
 days on a stock desktop machine using vts-tools.
 
 Glues introduce client-side complexity that exists solely to serve the
@@ -1636,6 +1636,226 @@ shown to affect current test scenes. Revisit only if a measured
 multi-surface regression demonstrates that the existing combined mask
 cannot be kept.
 
+## 10. Addendum: inferred watertight for pre-v6 metatiles
+
+**Status:** proposed (extends §4.0 and §6).
+**Context:** compatibility with legacy pre-v6 metatile backends.
+
+### 10.1 Motivation
+
+The watertight machinery in §4.0/§6 is gated on the v6 bitplane. A
+surface served as v4/v5 carries no watertight plane, so every node
+defaults to `metanode.watertight = false` (§4.5, phase 4) and the
+entire fast path is unavailable. Existing pre-v6 backends remain a
+near-term compatibility target, not a reason to reshape the library.
+
+Three benefits are lost on pre-v6 data, in priority order:
+
+1. **Performance.** Every tile pays the full footprint + OR + screen
+   sequence (≈3N draws, §6.1) and no back surface is ever skipped,
+   because nothing is watertight to deactivate it. This is the ≈1.2N
+   regime of §6.1 withheld from legacy data.
+2. **Descent pruning past high-LOD-only legacy surfaces.** `hasWatertightFit`
+   ([draw-traversal.ts:159](../../src/core/map/draw-traversal.ts)) cannot
+   fire, so the combined descent keeps chasing evolved surfaces that only
+   carry geometry at fine LODs even where a coarser surface already fits.
+3. **The mask-erosion leak (corollary).** With all coverage forced onto
+   the footprint path, a coarse back surface can leak through the eroded
+   interior margins of detail surfaces. Inferred watertight returns
+   interior coverage to the analytic rectangle path, which never
+   materializes or erodes.
+
+The design intent is explicitly **small, isolated, and deletable**: it
+exists only while a pre-v6 surface does. When every surface is v6 the
+guard below is dead code and removing it changes nothing else.
+
+### 10.2 What `watertight` means — an upward-only aggregation
+
+`metanode.watertight` is **not** "this tile's own mesh is hole-free,"
+and it is **not** a subtree-complete invariant either. It is a flag
+**built bottom-up**: the tiling pass computes it leaf-first
+([unified.cpp:687-762](../../../cartolina-tileserver/mapproxy/src/tiling/unified.cpp)),
+where the leaf base case is own-coverage (`watertight = (maskMin == 255)`)
+and every coarser node is the **AND of its four children**, a missing
+child forcing `false`:
+
+```cpp
+bool watertight(true);
+for (the 4 children) {
+    if (child out of range || !child.exists) { watertight = false; continue; }
+    watertight = watertight && child.watertight;     // recursive AND
+}
+parent.watertight = forceWatertight || watertight;
+```
+
+**The implication is one-directional.** Four watertight children make a
+watertight parent; a watertight parent does **not** imply watertight
+children. The flag aggregates upward and must never be read downward —
+this is the rule the §6 post-implementation note records ("watertight
+flags can aggregate upward and do not propagate downward; descendants
+repeat the check from their own metanodes"). Do not restate it as
+"subtree fully covered": that phrasing smuggles the downward direction
+back in.
+
+The four client consumers
+([draw-traversal.ts:159, 273, 315, 396](../../src/core/map/draw-traversal.ts))
+already read the v6 bitplane under the upward-only meaning. Inferred
+watertight must reproduce the **same upward aggregation** — an
+own-coverage base case plus a recursive AND, set bottom-up, never
+inferred top-down. Doing the same aggregation client-side is consistent
+with the server, not a corruption of the field.
+
+### 10.3 The base case — own-coverage from external UVs
+
+The base case is "does this tile's loaded mesh fully cover its cell."
+Mesh vertices are **localized geocentric** (physical SRS, see
+[reference-frames.md](reference-frames.md)), not coverage space — they
+cannot be tested against a unit cell. Coverage lives in the **external
+texture coordinates** (`aTexCoords2`), the per-vertex attribute that
+maps each vertex into the tile's geographic cell and the exact attribute
+`TileRenderRig.footprint()` rasterizes (§4.2, §5.6). Inferring from
+external UVs therefore measures the same quantity the mask path already
+uses — and it is the client analogue of the server's leaf
+`maskMin == 255` base case.
+
+Computed during `MapSubmesh` parsing, while the original face indices
+and `tmpExternalUVs` are still available, and stored as a retained
+boolean on the submesh. This avoids depending on post-parse buffers:
+`faces` is only a count after parse, `tmpExternalUVs` is discarded, and
+the default retained `externalUVs` buffer is triangle soup rather than
+shared topology. Edge-welding is **by parse-time vertex index**, so
+shared edges share indices exactly; there is no coordinate tolerance.
+
+A submesh fully covers its cell iff all hold:
+
+- it has at least one face (a meshless or zero-face submesh does not);
+- no face is degenerate (any repeated vertex index). This crude rule
+  also subsumes collapsed boundary triangles: a tile carrying any
+  degenerate triangle is simply not considered watertight;
+- every **mesh-boundary edge** (undirected edge used by exactly one
+  face) is flush to a single tile edge — both endpoints share one
+  extreme external-UV coordinate (`u==0`, `u==max`, `v==0`, or
+  `v==max`). Any boundary edge crossing the interior is the rim of a
+  hole or a partial-coverage data cut.
+
+The v1 tile base case is satisfied iff **any single submesh** covers the
+whole cell. This is conservative: multi-submesh union coverage can be
+watertight in the data model, but the first compatibility bridge does
+not classify it unless one submesh is full by itself. That matches the
+current footprint handoff, where `drawSurfaceTile()` may draw all ready
+submesh rigs but returns only one rig to the traversal footprint path.
+True union semantics require a later, broader change that inspects all
+submeshes for both inference and footprint generation.
+
+### 10.4 The aggregation — and why descent needs it
+
+Own-coverage alone is **sparse**: a mesh loads only where a tile renders
+(the fallback/fit frontier), so the base case sets `watertight` only
+there. The descent decision reads the flag *before* a node's own mesh
+exists — `hasWatertightFit` ([draw-traversal.ts:159](../../src/core/map/draw-traversal.ts))
+stops descent when an active surface is watertight and fits the SSE.
+With base-case-only marking, the flag is present only at frontier nodes,
+so descent can stop only there — and at `mapFallbackCadence = ∞`
+(fitonly) those intermediate fallback nodes do not exist at all. **This
+is the problem aggregation solves**, and it is exactly what the server
+does.
+
+Client aggregation mirrors [unified.cpp:720-762](../../../cartolina-tileserver/mapproxy/src/tiling/unified.cpp):
+
+```
+node.watertight = base case (own coverage, §10.3)
+               || (node has all four children
+                   && every child metanode is watertight)
+```
+
+A node bottoms out at the loaded frontier (own coverage) and the AND
+propagates that result up through intermediate nodes that never load a
+mesh. On the next frame, `hasWatertightFit` finds a marked ancestor and
+stops the descent *above* the frontier — including past legacy surfaces
+whose own geometry exists only at high LODs — without depending on a
+fallback mesh ever being loaded. The frontier where the AND bottoms out
+is the fit frontier, which is what the client actually renders, so
+"covered by the tiles we render" is precisely the right notion.
+
+**Aggregate from child metanode flags and child existence, never from
+the per-frame coverage result.** The traversal's `CoverageWatertight`
+early return folds in `emptyMask`, which is camera-dependent frustum
+culling ([draw-traversal.ts:307](../../src/core/map/draw-traversal.ts)) —
+a node can return watertight this frame only because children were
+off-screen. The metanode AND must instead require each quadrant to have
+a child (`hasChild`) whose metanode flag is set, ignoring culling, so
+the persisted value is camera-independent and matches the server's
+"missing child ⇒ not watertight" rule. An unloaded child is unknown, so
+the parent stays unmarked until a later frame fills it in — monotonic,
+never wrong.
+
+### 10.5 Where it lives and when it runs
+
+- **Submesh coverage:** computed during `MapSubmesh` parsing and stored
+  on the submesh (§10.3).
+- **Tile base case:** evaluated lazily at first rig-ready from retained
+  submesh booleans, guarded by
+  `sourceMetatileVersion < 6 && !metanode.watertight`. v6 pays nothing
+  (the bitplane is authoritative both ways — a v6 `false` is a
+  deliberate hole and is never second-guessed). v5 evaluates once.
+- **Aggregation:** evaluated on backtrack for the same guard, reading
+  the four child metanode flags (§10.4).
+
+Both write **monotonic true** to the loaded metanode. In the current
+client this state is cache-resident, not permanent: metatile cache
+eviction kills the `MapMetatile`, removes it from `metaresources`, and
+clears its nodes. The write is still safe because the metanode is
+writable and per loaded metatile; it is self-healing rather than
+durable. After refetch, the value is re-derived from parse-time submesh
+coverage and child flags, or remains unknown until those inputs are
+available again. If RFC 7 later provides a longer-lived metanode store
+for the affected data, the same monotonic write can move there without
+changing traversal semantics. The four existing consumers are reused
+unchanged: no new read sites, no traversal change.
+
+### 10.6 Code surface and deletability
+
+- One parse-time helper that computes and stores
+  `submesh.inferredFullCoverage` from the original face/external-UV
+  topology (§10.3).
+- One tile helper that ORs the retained booleans by the conservative
+  "any single full submesh" rule (§10.3).
+- One backtrack aggregation: all four children present and watertight
+  (§10.4), reusing the child lookups the traversal already performs.
+- One `version < 6` guarded monotonic write-back combining the tile
+  helper and the child aggregation (§10.5).
+
+No new read paths, no consumer branches, and the v6 fast path is reused
+verbatim. The inferred value has one provenance boundary: it may only be
+written by the guarded compatibility helper and may only be read through
+the existing `metanode.watertight` consumers. When pre-v6 backends are
+no longer supported, deleting the parse-time helper, the retained
+submesh boolean, the tile helper, the aggregation helper, and the
+guarded write-back must leave the traversal algorithm unchanged. If an
+implementation needs broad traversal plumbing, mixed-provenance
+persistent fields, or extra consumer conditionals, it has escaped this
+RFC's compatibility scope and should be redesigned.
+
+### 10.7 Implementation notes and remaining questions
+
+1. **Metanode mutability and lifetime.** Use the current cache-resident
+   metanode as the write target: it is per loaded metatile and writable,
+   but it is lost on metatile cache eviction. Treat refetch as a
+   self-healing recomputation, not as persistence. If RFC 7 later gives
+   the affected path a long-lived metanode store, the same monotonic
+   write can move there.
+2. **Aggregation site.** The backtrack point that can read all four
+   child metanode flags (including culled-but-loaded children) with no
+   new plumbing, and whether to evaluate it in `traverseNode` or as a
+   small helper alongside the base-case write-back.
+3. **Rig-ready hook site.** The point that sees both `node` and the
+   owning metatile's version, for the tile-level write-back that ORs the
+   retained parse-time submesh booleans.
+4. **Multi-submesh union.** Deferred. The compatibility bridge uses
+   "any single full submesh" as a conservative rule. True union coverage
+   needs a later change that also fixes the footprint path to expose all
+   relevant rigs, not only the last returned one.
+
 ## Review round 1
 
 1. The traversal needs a rule for surfaces whose LOD availability
@@ -2625,6 +2845,130 @@ and geodata fitted-frontier path are settled.
 
 ## Review round 10 — requested
 
-Post-acceptance rollout notes were added after completing phases 4 and
-5. The edits name the `mapTerrainTraversal` rollout switch in the phase
-list.
+§10 adds inferred watertight for pre-v6 metatiles. It reproduces the
+server's **upward-only** watertight aggregation
+([unified.cpp:687-762](../../../cartolina-tileserver/mapproxy/src/tiling/unified.cpp))
+on the client: an own-coverage base case derived from external texture
+coordinates (the analogue of the server's leaf `maskMin == 255`), plus a
+recursive AND of the four child metanode flags. The flag aggregates
+upward only — four watertight children imply a watertight parent, never
+the reverse (§10.2). The aggregation is required, not optional —
+base-case-only marking is sparse and would let descent stop only at
+fallback-LOD frontiers, which do not exist at `mapFallbackCadence = ∞`.
+Computed lazily for `version < 6`, written monotonically to the
+persistent metanode, reusing the §4.0/§6 consumers unchanged. Review
+focus: the four open questions in §10.7, chiefly metanode
+mutability/persistence and the aggregation site that can read
+culled-but-loaded child flags without new plumbing.
+
+(Supersedes a discarded earlier draft that wrongly modelled
+`metanode.watertight` as own-mesh-only and rejected aggregation; the
+server builds it bottom-up as an upward AND of children, so client
+aggregation is the consistent design.)
+
+## Review round 10
+
+1. §10.3's base-case algorithm depends on topology the client does not
+   retain.
+
+   The addendum says to compute own coverage on "indexed submesh
+   topology — `faces` plus `tmpExternalUVs` — before expansion to
+   triangle soup." In the current parser, `faces` is only a count
+   (`submesh.js:380`, `submesh.js:783`) and `tmpExternalUVs` is nulled
+   after parsing (`submesh.js:370-372`, `submesh.js:773-775`). In the
+   default non-indexed path, the retained `externalUVs` buffer is already
+   triangle soup, so the original shared-edge identity has been lost.
+   In the indexed path the retained `indices` buffer exists only under
+   `mapIndexBuffers && mapOnlyOneUVs`, and that is a runtime
+   configuration choice, not an invariant the RFC can rely on.
+
+   This matters because the proposed boundary-edge test is load-bearing:
+   if it runs on expanded triangles, every triangle edge is a boundary
+   edge and most watertight meshes will be rejected; if it assumes
+   `tmpExternalUVs`, there is no data to run on after parse. The RFC
+   needs to choose an implementable data source: retain enough original
+   face/external-UV topology in `MapSubmesh`, compute and store the
+   boolean during parsing before the temporaries are discarded, or define
+   a different test over the retained buffers. Without that, the base
+   case is not implementable as specified.
+
+   *Implemented.* §10.3 now makes parse-time computation the chosen
+   data source: compute the submesh boolean while original face indices
+   and `tmpExternalUVs` still exist, then retain only that boolean. §10.6
+   names the parse-time helper and retained submesh field.
+
+2. §10.5 overstates metanode persistence.
+
+   The metanode is writable and per loaded metatile, so the monotonic
+   write itself is safe. It is not currently "not cache-evicted." A
+   loaded metatile inserts a cache item (`metatile.js:207`), the cache
+   destructor calls `MapMetatile.kill(true)`, and `kill()` removes the
+   metatile from `metaresources` and clears `nodes = []`
+   (`metatile.js:25-40`, `cache.js:155-179`). Any inferred
+   `metanode.watertight = true` values stored only on those nodes are
+   lost with the metatile.
+
+   The design can still be valid if "self-healing after refetch" is the
+   intended behavior, but the RFC should state that inferred values live
+   only as long as the metatile cache entry unless RFC 7 has already
+   replaced this path for the affected data. It should also account for
+   the performance consequence: after metatile eviction, aggregation may
+   have to be rebuilt from still-resident meshes or wait for meshes to
+   be reloaded. The current text reads as if the inferred flag is a
+   long-lived per-map fact; in this client it is cache-resident state.
+
+   *Implemented.* §10.5 now states that inferred values are
+   cache-resident on the current `MapMetatile`, lost on metatile cache
+   eviction, and self-healing after refetch rather than durable. §10.7
+   was updated to keep the metanode question scoped to mutability and
+   cache lifetime.
+
+3. §10.3/§10.7 should settle multi-submesh semantics before
+   implementation, not leave them as a vague confirmation.
+
+   `drawSurfaceTile()` iterates all submeshes and draws every ready rig,
+   but returns only the last `rigToDraw` (`draw-tiles.js:137-230`).
+   The traversal's footprint path then receives one rig. §10.3 says the
+   tile base case is true iff any submesh covers, while also saying
+   coverage is a union. Those are different rules: "any full submesh"
+   is a conservative sufficient condition, whereas "union of submeshes"
+   may classify a tile as covered even when no single submesh covers the
+   whole cell.
+
+   Pick one rule explicitly. If the intended v1 implementation is "any
+   single submesh is full," say that it is conservative and may leave
+   multi-submesh tiles non-watertight. If true union semantics are
+   required, the implementation needs to inspect all submeshes for the
+   tile and the existing footprint return path probably needs the same
+   attention, because it currently exposes only one rig to
+   `maskPool.addFootprint()`.
+
+   *Implemented.* §10.3 now chooses the conservative v1 rule: any single
+   full submesh satisfies the tile base case, while true union coverage
+   is deferred because it would also need a footprint-path change. §10.7
+   records the union behavior as deferred rather than open for the first
+   implementation.
+
+4. The compatibility path must stay narrow, isolated, and removable.
+
+   The addendum has the right stated intent, but the implementation
+   plan should make that intent enforceable. This is a compatibility
+   bridge for pre-v6 metatiles, not a second watertight model. Keep the
+   inference behind a single `version < 6` guard and a small helper
+   surface; do not spread pre-v6 conditionals through the traversal
+   decision logic or create new read semantics for `metanode.watertight`.
+   The traversal should continue to consume one boolean with the same
+   meaning as the v6 bitplane.
+
+   The RFC should also name the removal boundary: when pre-v6 backends
+   are no longer supported, deleting the inference helper, its cached
+   state, and the guarded write-back must leave the traversal algorithm
+   unchanged. If the fix requires broad traversal plumbing, new
+   persistent fields with mixed provenance, or extra consumer branches,
+   it has escaped the compatibility scope and should be redesigned.
+
+   *Implemented.* §10.6 now gives the compatibility path one
+   `version < 6` guarded write-back, forbids new read semantics and
+   consumer branches, and names the deletion boundary: parse-time helper,
+   retained submesh boolean, tile helper, aggregation helper, and guarded
+   write-back must be removable without changing traversal.
