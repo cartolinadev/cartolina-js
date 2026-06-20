@@ -1,5 +1,6 @@
 
 import {globals as globals_} from './worker-globals.js';
+import * as preV6Watertight from '../pre-v6-watertight';
 
 //get rid of compiler mess
 var globals = globals_;
@@ -10,7 +11,7 @@ var flagsPerVertexUndulation =  4;
 var flagsTextureMode =  8;
 
 
-function parseMesh(stream) {
+function parseMesh(stream, options) {
     /*
     struct MapMesh {
         struct MapMeshHeader {
@@ -24,6 +25,8 @@ function parseMesh(stream) {
     */
 
     var mesh = {}, i, li, submesh;
+    mesh.inferPreV6Coverage =
+        !!(options && options.inferPreV6Coverage);
 
     //parase header
     var streamData = stream.data;
@@ -87,6 +90,7 @@ function parseMesh(stream) {
             'faces': submesh.faces,
             'flags': submesh.flags,
             'gpuSize': submesh.gpuSize,
+            'inferredFullCoverage': submesh.inferredFullCoverage,
             'indices': (submesh.indices) ? submesh.indices.buffer : null,
             'internalUVs': (submesh.internalUVs) ? submesh.internalUVs.buffer : null,
             'size': submesh.size,
@@ -331,6 +335,8 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
     var eUVs = tmpExternalUVs;
     var iUVs = tmpInternalUVs;
     var v1, v2, v3, vv1, vv2, vv3, sindex;
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        eUVs, mesh.inferPreV6Coverage);
 
     if (onlyExternalIndices) {
         vertices = tmpVertices;
@@ -346,6 +352,7 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
         v1 = (uint8Data[index] + (uint8Data[index + 1]<<8));
         v2 = (uint8Data[index+2] + (uint8Data[index + 3]<<8));
         v3 = (uint8Data[index+4] + (uint8Data[index + 5]<<8));
+        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -431,6 +438,11 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
     submesh.internalUVs = internalUVs;
     submesh.externalUVs = externalUVs;
     submesh.indices = indices;
+    if (coverage) {
+
+        submesh.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
 
     tmpVertices = null;
     tmpInternalUVs = null;
@@ -725,6 +737,8 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     var iUVs = tmpInternalUVs;
     var high = 0;
     var v1, v2, v3, vv1, vv2, vv3;
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        eUVs, mesh.inferPreV6Coverage);
     res[1] = index;
 
     for (i = 0; i < numFaces; i++) {
@@ -739,6 +753,7 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
         parseWord(uint8Data, res);
         v3 = high - res[0];
         if (!res[0]) { high++; }
+        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -840,6 +855,11 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     submesh.internalUVs = internalUVs;
     submesh.externalUVs = externalUVs;
     submesh.indices = indices;
+    if (coverage) {
+
+        submesh.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
 
     //tmpVertices = null;
     //tmpInternalUVs = null;
@@ -855,4 +875,3 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
 };
 
 export {parseMesh};
-

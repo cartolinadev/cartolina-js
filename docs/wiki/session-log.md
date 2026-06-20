@@ -1,5 +1,32 @@
 # Session log
 
+## 2026-06-20 — RFC 3 pre-v6 inferred watertight implementation
+
+Implemented the RFC 3 §10 compatibility bridge for pre-v6 metatiles.
+The mesh parser now computes a retained full-cell coverage boolean from
+parse-time external-UV topology only when the owning metatile is pre-v6.
+The loader passes that gate into the worker parser, so v6 meshes do not
+pay the compatibility analysis.
+
+The traversal still reads only `metanode.watertight`. On backtrack, a
+small TypeScript helper writes monotonic true for pre-v6 nodes from either
+a full-coverage submesh base case or the four-child upward AND. The
+traversal integration is two call sites; the compatibility code is
+contained in `src/core/map/pre-v6-watertight.ts` for later deletion.
+Multi-submesh union remains intentionally unimplemented because
+multi-submesh meshes are mostly a legacy artifact of glue-era generation;
+modern surfaces are expected to be single-submesh.
+
+Validation: `npx tsc --noEmit` passes. Browser validation against a
+legacy pre-v6 backend confirmed inferred watertight nodes and showed
+that the bridge removes fallback-mask framebuffer work. In the tested
+view, the original behavior produced thousands of FBO switches over a
+settled forced-redraw window; with inference enabled, that dropped to
+zero. Temporarily disabling the write-backs in the same scenario restored
+the heavy fallback-mask framebuffer activity.
+
+---
+
 ## 2026-06-19 — Multi-surface draw order from the surfaces array
 
 `Map.surfaceList()` derived the recursive draw traversal's back-to-front

@@ -16,6 +16,7 @@ var MapMesh = function(map, url, tile) {
     this.mapLoaderUrl  = url;
     this.tile = tile; // used only for stats
     this.use16bit = map.config.map16bitMeshes;
+    this.inferPreV6Coverage = shouldInferPreV6Coverage(tile);
 
     this.bbox = new BBox();
     this.size = 0;
@@ -172,7 +173,9 @@ MapMesh.prototype.onLoad = function(url, onLoaded, onError) {
     this.mapLoaderCallLoaded = onLoaded;
     this.mapLoaderCallError = onError;
 
-    this.map.loader.processLoadBinary(url, this.onLoaded.bind(this), this.onLoadError.bind(this), null, 'mesh');
+    this.map.loader.processLoadBinary(
+        url, this.onLoaded.bind(this), this.onLoadError.bind(this), null,
+        'mesh', { inferPreV6Coverage: this.inferPreV6Coverage });
     this.loadState = 1;
 };
 
@@ -262,6 +265,8 @@ MapMesh.prototype.parseWorkerData = function (data) {
         submesh.faces = submeshData['faces'];
         submesh.flags = submeshData['flags'];
         submesh.gpuSize = submeshData['gpuSize'];
+        submesh.inferredFullCoverage =
+            submeshData['inferredFullCoverage'];
         submesh.indices = submeshData['indices'];
         submesh.internalUVs = submeshData['internalUVs'];
         submesh.size = submeshData['size'];
@@ -370,3 +375,12 @@ MapMesh.prototype.buildGpuSubmeshes = function() {
 
 
 export default MapMesh;
+
+
+function shouldInferPreV6Coverage(tile) {
+    var version = tile && tile.metanode && tile.metanode.metatile
+        ? tile.metanode.metatile.version
+        : null;
+
+    return typeof version == 'number' && version < 6;
+}

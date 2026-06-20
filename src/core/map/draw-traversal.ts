@@ -8,6 +8,7 @@ import type MapSurfaceTile from './surface-tile';
 import type DrawTraversalMaskPool from './draw-traversal-mask';
 import type { TileRenderRig } from './tile-render-rig';
 import type { GpuDevice } from '../renderer/gpu/device';
+import * as preV6Watertight from './pre-v6-watertight';
 
 
 /**
@@ -220,6 +221,10 @@ function traverseNode(context: NodeContext): CoverageResult {
         }
     }
 
+    for (const entry of active) {
+            preV6Watertight.inferPreV6WatertightFromChildren(entry.tile);
+    }
+
     // No on-screen area anywhere below: this node contributes nothing.
     if (emptyMask === AllQuadrantsMask) return CoverageEmpty;
 
@@ -392,6 +397,7 @@ function renderSurface(
     if (!isRig(rig)) return CoverageGap;
 
     tile.drawCounter = legacyMap.draw.drawCounter;
+    preV6Watertight.inferPreV6WatertightFromTile(tile);
 
     if (node.watertight) {
         return CoverageWatertight;

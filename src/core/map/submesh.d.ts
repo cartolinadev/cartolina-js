@@ -23,6 +23,12 @@ export default class MapSubmesh {
     externalUVs: MeshArray | null;
 
     /**
+     * True when the pre-v6 parser proved this submesh covers the whole
+     * tile cell from external-UV topology.
+     */
+    inferredFullCoverage?: boolean;
+
+    /**
      * Build the model matrix that places this submesh relative to the camera.
      *
      * @param geoPos Current camera geographic position in world coordinates.

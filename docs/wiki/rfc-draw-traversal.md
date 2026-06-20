@@ -1,6 +1,6 @@
 # RFC 3: unified recursive draw traversal
 
-**Status:** §1–9 implemented; §10 addendum accepted — pending implementation
+**Status:** Implemented
 **Context:** REFACTOR: replace legacy map draw path in
 [backlog.md](backlog.md); surface metatile and glue background in
 [surface-metatile.md](surface-metatile.md),
@@ -1638,7 +1638,7 @@ cannot be kept.
 
 ## 10. Addendum: inferred watertight for pre-v6 metatiles
 
-**Status:** accepted — pending implementation (extends §4.0 and §6).
+**Status:** implemented (extends §4.0 and §6).
 **Context:** compatibility with legacy pre-v6 metatile backends.
 
 ### 10.1 Motivation
@@ -1889,6 +1889,62 @@ be redesigned.
    "any single full submesh" as a conservative rule. True union coverage
    needs a later change that also fixes the footprint path to expose all
    relevant rigs, not only the last returned one.
+
+**Post-implementation note — client compatibility bridge (2026-06-20).**
+
+Implemented in `src/core/map/pre-v6-watertight.ts`, with the legacy
+parser hooks kept to the minimum call sites needed to feed that
+TypeScript helper.
+
+Mesh parsing has two live paths. When `mapSeparateLoader` is false, or
+when `mapSeparateLoader` is true but `mapParseMeshInWorker` is false, the
+binary mesh is parsed on the main thread by `MapMesh.parseMapMesh()` and
+`MapSubmesh.parseSubmesh()`. When the loader worker exists and
+`mapParseMeshInWorker` is true, the binary mesh is parsed in
+`loader/worker-mesh.js`.
+
+The parse-time base case is therefore wired into both parser
+implementations. The main-thread path derives `inferPreV6Coverage` from
+`MapMesh.tile.metanode.metatile.version`; the worker path receives the
+same boolean through the existing loader request `options` object. The
+worker does not inspect `mesh.version`, which remains the mesh binary
+format version.
+
+The external-UV endpoint test uses fixed decoded full-cell endpoints:
+`0` and `65535` when the existing parser stores UVs as `Uint16Array`,
+`0` and `1` when it stores them as `Float32Array`. There is no
+coordinate tolerance. Edge identity comes from parse-time vertex
+indices, and endpoint equality is checked in the parser's decoded
+representation.
+
+The parser storage format is governed by the existing `map16bitMeshes`
+option. Its default `true` value retains parsed mesh coordinates and UVs
+as `Uint16Array` buffers; setting it to `false` materializes them as
+`Float32Array` buffers instead.
+
+The traversal integration is two monotonic write-back calls:
+
+- after a tile draws, `inferPreV6WatertightFromTile()` ORs retained
+  submesh booleans by the conservative "any single full submesh" rule;
+- on backtrack, `inferPreV6WatertightFromChildren()` applies the
+  four-child upward AND, requiring every child to exist and have a loaded
+  watertight metanode.
+
+Both helpers are guarded by `metatile.version < 6` and write only to the
+existing cache-resident `metanode.watertight` field. The traversal's
+four existing consumers remain unchanged. Browser validation against a
+legacy pre-v6 backend confirmed that inferred watertight nodes remove
+the fallback-mask framebuffer work. In the tested view, the original
+behavior produced thousands of FBO switches over a settled forced-redraw
+window; with inference enabled, that dropped to zero. Temporarily
+disabling the write-backs in the same scenario restored the heavy
+fallback-mask framebuffer activity.
+
+Multi-submesh union remains intentionally unimplemented. Multi-submesh
+meshes are mostly a legacy artifact of glue-era generation; modern
+surfaces are expected to be single-submesh. The compatibility bridge
+therefore classifies a tile as watertight only when one submesh covers
+the full cell.
 
 ## Review round 1
 

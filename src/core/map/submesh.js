@@ -4,6 +4,7 @@ import {mat4 as mat4_} from '../utils/matrix';
 import * as math from '../utils/math';
 import GpuMesh_ from '../renderer/gpu/mesh';
 import BBox_ from '../renderer/bbox';
+import * as preV6Watertight from './pre-v6-watertight';
 
 //get rid of compiler mess
 var mat4 = mat4_;
@@ -30,6 +31,7 @@ var MapSubmesh = function(mesh, stream) {
     this.faces = 0;
     this.uvArea = 0;
     this.uvAreaComputed = false;
+    this.inferredFullCoverage = undefined;
 
     this.flagsInternalTexcoords =  1;
     this.flagsExternalTexcoords =  2;
@@ -266,6 +268,8 @@ struct FacesBlock {
     var eUVs = this.tmpExternalUVs;
     var iUVs = this.tmpInternalUVs;
     var v1, v2, v3, vv1, vv2, vv3, sindex;
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        eUVs, this.mesh.inferPreV6Coverage);
 
     if (onlyExternalIndices) {
         vertices = this.tmpVertices;
@@ -281,6 +285,7 @@ struct FacesBlock {
         v1 = (uint8Data[index] + (uint8Data[index + 1]<<8));
         v2 = (uint8Data[index+2] + (uint8Data[index + 3]<<8));
         v3 = (uint8Data[index+4] + (uint8Data[index + 5]<<8));
+        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -366,6 +371,11 @@ struct FacesBlock {
     this.internalUVs = internalUVs;
     this.externalUVs = externalUVs;
     this.indices = indices;
+    if (coverage) {
+
+        this.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
 
     this.tmpVertices = null;
     this.tmpInternalUVs = null;
@@ -654,6 +664,8 @@ struct FacesBlock {
     var iUVs = this.tmpInternalUVs;
     var high = 0;
     var v1, v2, v3, vv1, vv2, vv3;
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        eUVs, this.mesh.inferPreV6Coverage);
     res[1] = index;
 
     for (i = 0; i < numFaces; i++) {
@@ -668,6 +680,7 @@ struct FacesBlock {
         this.parseWord(uint8Data, res);
         v3 = high - res[0];
         if (!res[0]) { high++; }
+        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -769,6 +782,11 @@ struct FacesBlock {
     this.internalUVs = internalUVs;
     this.externalUVs = externalUVs;
     this.indices = indices;
+    if (coverage) {
+
+        this.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
 
     this.tmpVertices = null;
     this.tmpInternalUVs = null;

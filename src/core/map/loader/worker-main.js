@@ -69,7 +69,8 @@ function loadBinary(
                         postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': bitmap, 'filesize': abuffer.size}, [bitmap]);                        
                     }).bind(this));
                 } else if (kind == 'direct-mesh') {
-                    var data = parseMesh({data:new DataView(abuffer), index:0});
+                    var data = parseMesh(
+                        {data:new DataView(abuffer), index:0}, options);
                     postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': data.mesh}, data.transferables);
                 } else {
                     postPackedMessage({'command' : 'on-loaded', 'path': path, 'data': abuffer}, [abuffer]);

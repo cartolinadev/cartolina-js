@@ -8,4 +8,7 @@ export default class MapMetatile {
 
     /** Metatile format version selected by the loader. */
     useVersion: number;
+
+    /** Metatile format version read from the binary header. */
+    version: number;
 }

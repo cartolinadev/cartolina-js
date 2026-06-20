@@ -42,6 +42,13 @@ relevant information.
   such as "legacy pre-v6 backend" or "private integration dataset,"
   unless the name is already part of this public repository's committed
   source or public project identity.
+- Private validation details from sibling scratchpad apps, including app
+  names, URLs, coordinates, view parameters, screenshots, performance
+  numbers tied to a private dataset, and proxy/backend hostnames. When
+  private validation informs public cartolina-js work, record only the
+  generic conclusion in this repository, such as "validated against a
+  private legacy pre-v6 integration." Keep the identifying details in the
+  private scratchpad repository, not in public-facing cartolina-js docs.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it
