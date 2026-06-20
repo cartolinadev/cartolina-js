@@ -219,13 +219,15 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
         text3 += 'Nodes: ' + (renderer.drawnNodes) +'<br/><br/>';
     }
 
-    text3 += 'Tiles: ' + (stats.drawnTiles) +'<br/>';
+    text3 += 'Tiles (attempted):' +'<br/>';
 
     for (var i =0, li = stats.renderedLods.length; i < li; i++) {
         if (stats.renderedLods[i]) {
             text3 += 'LOD ' + i + ': ' + (stats.renderedLods[i]) +'<br/>';
         }
     }
+
+    text3 += 'Total: ' + (stats.drawnTiles) +'<br/>';
 
     if (renderer) {
         var renderTarget = renderer.gpu.currentRenderTarget;
