@@ -41,6 +41,15 @@ export class MapSurfaceTile {
     /** Current screen-space texel error used by LOD traversal. */
     texelSize: number;
 
+    /**
+     * Pre-v6 compatibility (RFC 3 §10). Finite, fit-comparable descent
+     * estimate for a geometry-less node, used in place of the Infinity
+     * `texelSize` so legacy pre-v6 descent stays view-scale aware.
+     * Infinity for v6 nodes and for nodes that carry geometry. Remove
+     * with the pre-v6 bridge.
+     */
+    fallbackTexelSize: number;
+
     /** Camera-to-tile distance used for resource priority. */
     distance: number;
 

@@ -1,5 +1,40 @@
 # Session log
 
+## 2026-06-21 — Pre-v6 geometry-less descent estimate
+
+Fixed a recursive-traversal storm on legacy pre-v6 backends. A
+geometry-less metanode reports `texelSize = Infinity` to force descent,
+but that signal is not view-scale aware. A pre-v6 surface with geometry
+only at deep LODs is geometry-less at every coarse LOD, so on a wide view
+it dragged the combined descent down to those deep LODs, visiting a huge
+number of nodes per frame and sustaining itself because the loader stayed
+saturated and never closed the coverage holes that would let
+`hasWatertightFit` fire. The RFC 3 §10 inferred-watertight heals this only
+after the covering meshes load, which under the storm they do not.
+
+`MapSurfaceTile.fallbackTexelSize` now holds a finite, fit-comparable
+descent estimate for geometry-less nodes: a 256-density texel
+(`bbox.maxSize / 256`) projected through the same distance factor, so a
+deep node fits when it projects sub-pixel. The recursive descent gate in
+`draw-traversal.ts` substitutes it only when `texelSize` is Infinity, and
+only for the descent-need test — not for the watertight-fit stop, which
+must keep the Infinity contract (a geometry-less node can be watertight
+via the four-child AND and would otherwise stop descent where nothing can
+render). Gated on `metatile.version < 6`; Infinity for v6 nodes and for
+nodes with geometry; removable with the rest of the pre-v6 bridge. The
+estimate runs slightly coarser than a real measured `texelSize`, biasing
+toward marginally more descent — the safe direction.
+
+Validation: `npx tsc --noEmit` passes. On a legacy pre-v6 storm view the
+per-frame node count and max descent LOD both dropped sharply and the
+view settled to idle; both the coarse view and a zoomed-in view (still
+descending to deep LODs) render correctly. The standard terrain
+screenshot tests (simple/complex/full) show zero differing pixels against
+the production reference, confirming no effect on well-formed v5/v6 data.
+See [lod-selection.md](lod-selection.md).
+
+---
+
 ## 2026-06-20 — RFC 3 pre-v6 inferred watertight implementation
 
 Implemented the RFC 3 §10 compatibility bridge for pre-v6 metatiles.

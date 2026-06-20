@@ -199,6 +199,48 @@ reconstructs a projected sample size from a physical tile size and an
 assumed tile density.
 
 
+## Geometry-less Nodes And The Pre-v6 Descent Estimate
+
+A metanode with no geometry carries no sample length, so
+`updateTexelSize()` sets `texelSize` to `Infinity`. The recursive
+traversal reads that as "never fits" and always descends through such a
+node. That is fine on v6 data, where a watertight surface that fits the
+screen stops the combined descent before it reaches geometry-less
+branches (`rfc-draw-traversal.md`, `hasWatertightFit`). On pre-v6 data,
+which has no watertight bit, a surface with geometry only at deep LODs is
+geometry-less at every coarse LOD and forces the descent all the way down
+to that geometry even on far views, visiting a large number of nodes per
+frame. Inferred watertight (`rfc-draw-traversal.md` §10) heals this once
+the covering meshes load, but the descent storm can keep the loader from
+ever getting there.
+
+The pre-v6 bridge gives geometry-less nodes a finite, fit-comparable
+descent estimate, `MapSurfaceTile.fallbackTexelSize`, computed in
+`updateTexelSize()` and used **only** in the traversal's descent test
+(`draw-traversal.ts`). `texelSize` stays `Infinity`, so leaf detection,
+readiness, rendering, and the watertight-fit stop are unchanged. The
+estimate models the cell as a plane in the middle of its bbox textured at
+the 256-sample density the `applyDisplaySize` path assumes:
+
+```text
+fallbackTexelSize = distanceFactor * ndcToScreenPixel * (bbox.maxSize / 256)
+```
+
+where `distanceFactor` is the projection factor the geometry-less branch
+already computes. So a far node's synthetic texel projects sub-pixel and
+stops forcing descent near the LOD where a geometry-bearing surface fits,
+while a close node still exceeds `texelSizeFit` and descent proceeds. The
+estimate runs a little coarser than a real measured `texelSize`, biasing
+toward slightly more descent — the safe direction, so the bridge never
+stops descent above geometry that should load. Horizon degradation is not
+applied to it, which can only add descent, never remove it.
+
+Gated on `metatile.version < 6`; `Infinity` for v6 nodes and for nodes
+that carry geometry. It is one field, one guarded computation, and one
+descent-gate substitution, removable with the rest of the pre-v6 bridge
+(`rfc-draw-traversal.md` §10).
+
+
 ## Distance Estimates
 
 After `screenPixelSize` is known, `updateTexelSize()` picks one of two

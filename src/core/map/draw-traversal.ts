@@ -153,8 +153,18 @@ function traverseNode(context: NodeContext): CoverageResult {
 
     for (const entry of active) {
 
+        // Pre-v6 compatibility (RFC 3 §10): finite descent estimate for
+        // a geometry-less node, in place of the Infinity that would
+        // force descent regardless of view scale. See
+        // MapSurfaceTile.updateTexelSize for the rationale. Used only
+        // for the descent-need test below, not for the watertight-fit
+        // stop. Remove with the pre-v6 bridge.
+        const descentTexelSize = entry.tile.texelSize === Infinity
+            ? entry.tile.fallbackTexelSize
+            : entry.tile.texelSize;
+
         if (entry.tile.metanode!.hasChildren()
-                && entry.tile.texelSize > texelSizeFit)
+                && descentTexelSize > texelSizeFit)
             shouldDescend = true;
 
         if (entry.tile.metanode!.watertight
