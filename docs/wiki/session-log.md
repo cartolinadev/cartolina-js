@@ -10,7 +10,15 @@ This is meant to make surface priority independent of metatile arrival
 order and to supersede the `fallbackTexelSize` geometry-less workaround.
 
 Committed the RFC with reviewer round 1 as-is to preserve the reviewed
-state, then began the author response.
+state, then addressed all four notes as author: brought the traversal
+root under the metadata-first invariant (all configured roots are
+candidates, not-ready roots are pending); resolved the
+full-classification vs. priority-aware conflict in favour of full
+classification for v1 and named its cost; gated `fallbackTexelSize`
+removal on a validation run with a temporary switch and a fallback plan;
+and added an arrival-order priority-stability diagnostic to Validation.
+All four marked *Implemented.* RFC stays In review pending reviewer
+round 2 or sign-off.
 
 ## 2026-06-21 — Pre-v6 geometry-less descent estimate
 

@@ -80,8 +80,24 @@ as absent.
 A surface leaves the candidate set only when the parent metanode proves
 no child exists, or when the loaded child is culled for the current view.
 
-A fitted watertight surface may stop lower-priority work only when
-higher-priority candidate surfaces for the node have been classified.
+Under full candidate classification, a fitted watertight surface stops
+lower-priority work at a node only after the entire candidate set for that
+node has been classified. That set includes every higher-priority
+candidate, so the authored priority order is always respected. It also
+means a pending lower-priority candidate blocks the quadrant even when a
+higher-priority watertight surface already fits: one slow metanode can
+delay a fit the rest of the stack already proves. The first implementation
+accepts that cost; the prefix-completeness optimization below is the route
+to avoiding it.
+
+**Root rule.** The traversal root obeys the same invariant. All configured
+terrain surfaces are candidates at the root, and a surface whose root
+metanode is not ready is pending, not absent. The root is processed only
+after every configured surface root has been classified. Until then the
+traversal makes no LOD-0 decision, so first terrain paint waits for the
+configured roots. Roots are coarse and few, so this is a short, bounded
+delay, and it removes the last place where partial activation could
+reorder surface priority.
 
 ## Algorithm
 
@@ -89,6 +105,10 @@ The algorithm stays the RFC 3 recursive traversal. The major change is
 the child-quadrant readiness rule: descent waits for every still-candidate
 surface to be classified instead of building the child active set from
 the surfaces whose metanodes happened to be ready.
+
+The root is classified before any LOD-0 decision: all configured terrain
+surfaces are candidates and a not-ready root metanode counts as pending,
+so the traversal starts only once every root is classified.
 
 At each node:
 
@@ -122,12 +142,22 @@ lower-priority surface cannot claim a node merely because a
 higher-priority surface's metanode has not arrived yet.
 
 The pre-v6 geometry-less descent workaround based on
-`MapSurfaceTile.fallbackTexelSize` becomes unnecessary. Geometry-less
-nodes may continue to report `texelSize = Infinity`; metadata-first
-traversal prevents them from outrunning surfaces whose metadata has not
-yet been classified. RFC 9 supersedes that workaround rather than
-refining it: the implementation should remove `fallbackTexelSize` and
-the descent-gate substitution when metadata-first traversal lands.
+`MapSurfaceTile.fallbackTexelSize` is expected to become unnecessary.
+Geometry-less nodes may continue to report `texelSize = Infinity`;
+metadata-first traversal should prevent them from outrunning surfaces
+whose metadata has not yet been classified. The intent is that RFC 9
+supersedes the workaround rather than refines it.
+
+Removal is gated on validation, not on metadata-first landing. The
+fallback is today the only confirmed brake on the pre-v6 storm, while
+metadata-first without it is still an unvalidated hypothesis for that
+data. The safe sequence is: land metadata-first with the fallback
+retained; add a temporary switch that disables the fallback; validate the
+standard views, the private legacy pre-v6 cases, and the polar coverage
+case with the fallback off; then remove `fallbackTexelSize` and the
+descent-gate substitution only if metadata-first alone both prevents the
+storm and fills the coverage hole. If the hypothesis fails, keep the
+fallback and adopt the additional rule below.
 
 This is not, by itself, proof that the pre-v6 geometry-less storm is
 fixed. The pre-v6 descent barrier still depends on inferred watertight
@@ -159,6 +189,12 @@ arrival-order-dependent priority behavior.
 
 ## Implementation Notes
 
+`drawTerrainTraversal()` should build `rootActive` from all configured
+terrain surfaces, treating a not-ready root metanode as pending rather
+than skipping it, and should defer the LOD-0 decision until every root is
+classified. This brings the root under the same metadata-first invariant
+as child quadrants.
+
 `collectChildActive()` should stop treating an unloaded child metanode as
 absence. It should return a child state that distinguishes ready,
 pending, and empty/culled quadrants.
@@ -168,13 +204,15 @@ quadrants should leave coverage unresolved for this frame and rely on
 current-node rendering or ancestor fallback, as existing loading behavior
 already does.
 
-The implementation should remove `fallbackTexelSize` and the
-descent-gate substitution added for the pre-v6 geometry-less storm
-workaround.
+The implementation should keep `fallbackTexelSize` and the descent-gate
+substitution until the validation gate in Consequences is met, behind a
+temporary switch so validation can compare metadata-first with the
+fallback on and off. Remove them only once metadata-first alone passes
+that gate.
 
-The documentation in [lod-selection.md](lod-selection.md) should
-describe metadata-first traversal and remove the synthetic geometry-less
-descent estimate.
+The documentation in [lod-selection.md](lod-selection.md) should describe
+metadata-first traversal, and should drop the synthetic geometry-less
+descent estimate once the fallback is removed.
 
 ## Validation
 
@@ -186,7 +224,13 @@ Validate against:
   geometry-less descent;
 - a polar or edge-coverage view where stopping at synthetic fitted
   geometry-less nodes previously left missing terrain;
-- a close view that still needs deep descendant geometry.
+- a close view that still needs deep descendant geometry;
+- an arrival-order diagnostic that withholds or delays a higher-priority
+  surface's metanode for one or more frames while a comparable
+  lower-priority surface is ready, confirming the lower-priority surface
+  can neither render nor stop descent at that node until the
+  higher-priority candidate is classified, and that the settled result is
+  identical regardless of arrival order.
 
 The expected result is stable surface priority, no missing coverage
 caused by synthetic geometry-less fit, and no return to unbounded descent
@@ -214,6 +258,15 @@ caused by partial metanode arrival.
    priority bug. As written, the first node in the traversal is outside
    the new invariant.
 
+   *Implemented.* The root is now inside the invariant. A **Root rule**
+   paragraph in Design makes all configured terrain surfaces candidates at
+   the root and treats a not-ready root metanode as pending, not absent;
+   the root is processed only after every configured root is classified.
+   The Algorithm intro and an Implementation Notes bullet on
+   `drawTerrainTraversal()`/`rootActive` state the same rule. The named
+   cost is that first terrain paint waits for the configured roots, which
+   are coarse and few.
+
 2. The text conflicts on whether lower-priority pending metadata can
    block a higher-priority watertight fit.
 
@@ -234,6 +287,17 @@ caused by partial metanode arrival.
    to let a classified fitted watertight surface stop lower-priority
    pending candidates after all higher-priority candidates are known. The
    current text states both behaviours.
+
+   *Implemented.* Full candidate classification is the rule for the first
+   implementation, as the Design and the Deferred Optimization section
+   already stated. The conflicting sentence is reworded so the watertight
+   stop reads as a consequence of full classification rather than a
+   separate weaker rule: because the classified set includes every
+   higher-priority candidate, priority is always respected, and a pending
+   lower-priority candidate does block a higher-priority watertight fit
+   for that quadrant this frame. That cost is now named explicitly. The
+   priority-aware partial behaviour stays in the deferred
+   prefix-completeness section as the route to avoiding the cost later.
 
 3. Removing `fallbackTexelSize` is specified before the replacement has
    been validated.
@@ -257,6 +321,18 @@ caused by partial metanode arrival.
    RFC should state the validation gate and the fallback plan when the
    hypothesis fails.
 
+   *Implemented.* Removal is now gated on validation, not on
+   metadata-first landing. Consequences specifies the safe sequence: land
+   metadata-first with the fallback retained, add a temporary switch that
+   disables it, validate the standard views plus the private legacy pre-v6
+   and polar coverage cases with the fallback off, then remove
+   `fallbackTexelSize` and the descent-gate substitution only if
+   metadata-first alone both prevents the storm and fills the coverage
+   hole. The fallback plan when the hypothesis fails is stated: keep the
+   fallback and adopt the natural-leaf descent-pause rule. Implementation
+   Notes are updated to retain the fallback behind the switch until the
+   gate is met.
+
 4. The validation plan needs one direct priority-stability check.
 
    The listed views cover normal rendering, the geometry-less storm, the
@@ -268,3 +344,10 @@ caused by partial metanode arrival.
    until the higher-priority candidate has been classified. The expected
    output should be the same once all metadata is available, regardless
    of arrival order.
+
+   *Implemented.* Added that diagnostic to the Validation section: it
+   withholds or delays a higher-priority surface's metanode for one or
+   more frames while a comparable lower-priority surface is ready, and
+   checks that the lower-priority surface can neither render nor stop
+   descent at that node until the higher-priority candidate is classified,
+   with an identical settled result regardless of arrival order.
