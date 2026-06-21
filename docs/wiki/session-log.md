@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-06-22 — RFC 9 metadata-first traversal: review round 1
+
+Added RFC 9 (metadata-first terrain traversal) to the wiki and listed it
+in the index. The RFC proposes treating a missing child metanode as
+pending rather than absent, so combined terrain descent waits for every
+candidate surface to be classified before processing a child quadrant.
+This is meant to make surface priority independent of metatile arrival
+order and to supersede the `fallbackTexelSize` geometry-less workaround.
+
+Committed the RFC with reviewer round 1 as-is to preserve the reviewed
+state, then began the author response.
+
 ## 2026-06-21 — Pre-v6 geometry-less descent estimate
 
 Fixed a recursive-traversal storm on legacy pre-v6 backends. A

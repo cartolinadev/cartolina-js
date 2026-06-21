@@ -38,6 +38,9 @@ then branch into more specific documents as needed.
 RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
+- RFC 9 [rfc-metadata-first-traversal.md](rfc-metadata-first-traversal.md) —
+  make combined terrain descent metadata-first so missing metanodes stay
+  pending instead of removing surfaces from the child decision
 - RFC 8 [rfc-context-loss-recovery.md](rfc-context-loss-recovery.md) —
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
