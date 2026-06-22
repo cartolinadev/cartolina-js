@@ -103,8 +103,11 @@ MapSurfaceTree.prototype.draw = function() {
 
 
     // Terrain now draws through the recursive traversal on the typed
-    // Map; this legacy tree is reached only by free layers, which all
-    // use the fitted-frontier traversal for job collection and tiles.
+    // Map. This legacy tree is reached only by tiled-geodata free
+    // layers, which use the fitted-frontier traversal to collect their
+    // geodata jobs. Non-geodata free layers are not rendered: both
+    // free-layer sequence builders skip them (see Map.refreshFreelayes-
+    // InView and the style-based equivalent).
     this.drawSurfaceFit([0,0,0]);
 
     if (periodicity != null && periodicity.type == 'X') {

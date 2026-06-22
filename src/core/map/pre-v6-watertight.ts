@@ -6,29 +6,29 @@ import type MapSurfaceTile from './surface-tile';
 
 type MeshArray = Uint16Array | Float32Array;
 
-type CoverageEdge = {
-    a: number;
-    b: number;
-    count: number;
-};
+/**
+ * Width and height of the coverage grid each submesh footprint is
+ * rasterized into. 128 samples per axis resolve the real gaps in a
+ * footprint (courtyards, data cuts) while staying cheap enough to run on
+ * every pre-v6 submesh during parsing. A gap narrower than one grid cell
+ * (about the tile width divided by 128) is not sampled and so is not
+ * resolved.
+ */
+const COVERAGE_RESOLUTION = 128;
 
 /**
- * Mutable parse-time state for one conservative full-cell coverage test.
+ * Mutable parse-time state for one rasterized full-cell coverage test.
+ * Each parsed face is rasterized into `grid`; the tile fully covers its
+ * cell when every grid sample ends up set.
  */
 export type CoverageAccumulator = {
-    edgeCounts: Map<string, CoverageEdge>;
+    grid: Uint8Array;
     externalUVs: MeshArray;
-    failed: boolean;
-    faceCount: number;
-    hasMaxU: boolean;
-    hasMaxV: boolean;
-    hasMinU: boolean;
-    hasMinV: boolean;
-    fullCellMax: number;
+    gridScale: number;
 };
 
 /**
- * Starts a conservative full-cell coverage test for one submesh.
+ * Starts a rasterized full-cell coverage test for one submesh.
  *
  * @param externalUVs Vertex-indexed external UVs from the mesh parser.
  * @param enabled Whether the owning metatile is a pre-v6 metatile.
@@ -41,21 +41,21 @@ export function createFullCoverageAccumulator(
 
     if (!enabled || !externalUVs || externalUVs === true) return null;
 
+    // 16-bit submeshes span the cell as integers across 0..65535; float
+    // submeshes use the normalized 0..1 cell. Scaling both onto the grid
+    // lets the rasterizer treat them identically.
+    const cellRange = externalUVs instanceof Uint16Array ? 65536 : 1;
+
     return {
-        edgeCounts: new Map<string, CoverageEdge>(),
+        grid: new Uint8Array(COVERAGE_RESOLUTION * COVERAGE_RESOLUTION),
         externalUVs,
-        failed: false,
-        faceCount: 0,
-        hasMaxU: false,
-        hasMaxV: false,
-        hasMinU: false,
-        hasMinV: false,
-        fullCellMax: externalUVs instanceof Uint16Array ? 65535 : 1,
+        gridScale: COVERAGE_RESOLUTION / cellRange,
     };
 }
 
 /**
- * Adds one indexed face to a full-cell coverage test.
+ * Adds one indexed face to a full-cell coverage test by rasterizing its
+ * triangle into the coverage grid.
  *
  * @param acc Accumulator returned by `createFullCoverageAccumulator`.
  * @param v1 First vertex index.
@@ -71,45 +71,25 @@ export function addCoverageFace(
 
     if (!acc) return;
 
-    acc.faceCount++;
-
-    if (v1 === v2 || v2 === v3 || v1 === v3) {
-
-        acc.failed = true;
-        return;
-    }
-
-    recordCoverageVertex(acc, v1);
-    recordCoverageVertex(acc, v2);
-    recordCoverageVertex(acc, v3);
-
-    recordCoverageEdge(acc, v1, v2);
-    recordCoverageEdge(acc, v2, v3);
-    recordCoverageEdge(acc, v3, v1);
+    rasterizeTriangle(acc, v1, v2, v3);
 }
 
 /**
  * Finishes the coverage test for one parsed submesh.
  *
  * @param acc Accumulator returned by `createFullCoverageAccumulator`.
- * @returns True when a single submesh proves full-cell coverage.
+ * @returns True when the rasterized footprint leaves no grid sample
+ *     uncovered.
  */
 export function finishFullCoverage(acc: CoverageAccumulator | null): boolean {
 
-    if (!acc || acc.failed || acc.faceCount === 0) return false;
-    if (!acc.hasMinU || !acc.hasMaxU || !acc.hasMinV || !acc.hasMaxV)
-        return false;
+    if (!acc) return false;
 
-    for (const edge of acc.edgeCounts.values()) {
-
-        if (edge.count !== 1) {
-
-            if (edge.count > 2) return false;
-            continue;
-        }
-
-        if (!isFlushBoundaryEdge(acc, edge.a, edge.b)) return false;
-    }
+    // a single uncovered sample is a gap in the footprint, so the tile
+    // does not fully cover its cell
+    const grid = acc.grid;
+    for (let index = 0; index < grid.length; index++)
+        if (grid[index] === 0) return false;
 
     return true;
 }
@@ -169,61 +149,68 @@ export function inferPreV6WatertightFromChildren(
 }
 
 
-function recordCoverageVertex(
+/**
+ * Rasterizes one triangle into the accumulator's coverage grid. A grid
+ * sample is marked covered when its centre lies inside the triangle. A
+ * degenerate (zero-area) triangle covers nothing and is skipped, so
+ * overlapping geometry such as overhangs contributes coverage without
+ * leaving a boundary that looks like a hole.
+ */
+function rasterizeTriangle(
     acc: CoverageAccumulator,
-    vertex: number,
+    v1: number,
+    v2: number,
+    v3: number,
 ): void {
 
-    const uvIndex = vertex * 2;
-    const u = acc.externalUVs[uvIndex];
-    const v = acc.externalUVs[uvIndex + 1];
+    const uv = acc.externalUVs;
+    const scale = acc.gridScale;
+    const grid = acc.grid;
+    const resolution = COVERAGE_RESOLUTION;
 
-    if (u === 0) acc.hasMinU = true;
-    if (u === acc.fullCellMax) acc.hasMaxU = true;
-    if (v === 0) acc.hasMinV = true;
-    if (v === acc.fullCellMax) acc.hasMaxV = true;
-}
+    const ax = uv[v1 * 2] * scale;
+    const ay = uv[v1 * 2 + 1] * scale;
+    const bx = uv[v2 * 2] * scale;
+    const by = uv[v2 * 2 + 1] * scale;
+    const cx = uv[v3 * 2] * scale;
+    const cy = uv[v3 * 2 + 1] * scale;
 
+    // signed area of the triangle; a zero area is degenerate and covers
+    // no samples, so there is nothing to fill
+    const area = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+    if (area === 0) return;
 
-function recordCoverageEdge(
-    acc: CoverageAccumulator,
-    a: number,
-    b: number,
-): void {
+    const inverseArea = 1 / area;
 
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    const key = lo + ':' + hi;
-    let edge = acc.edgeCounts.get(key);
+    const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
+    const maxX = Math.min(resolution - 1, Math.ceil(Math.max(ax, bx, cx)));
+    const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)));
+    const maxY = Math.min(resolution - 1, Math.ceil(Math.max(ay, by, cy)));
 
-    if (edge) {
+    for (let pixelY = minY; pixelY <= maxY; pixelY++) {
 
-        edge.count++;
+        const sampleY = pixelY + 0.5;
 
-    } else {
+        for (let pixelX = minX; pixelX <= maxX; pixelX++) {
 
-        edge = { a: lo, b: hi, count: 1 };
-        acc.edgeCounts.set(key, edge);
+            const sampleX = pixelX + 0.5;
+
+            // barycentric weights of the sample point. All three are
+            // non-negative exactly when the point lies inside the
+            // triangle; dividing by the signed area keeps the test
+            // correct for either winding order.
+            const weightA = ((by - cy) * (sampleX - cx)
+                + (cx - bx) * (sampleY - cy)) * inverseArea;
+            if (weightA < 0) continue;
+
+            const weightB = ((cy - ay) * (sampleX - cx)
+                + (ax - cx) * (sampleY - cy)) * inverseArea;
+            if (weightB < 0) continue;
+
+            // the third weight is 1 - weightA - weightB
+            if (weightA + weightB > 1) continue;
+
+            grid[pixelY * resolution + pixelX] = 1;
+        }
     }
-}
-
-
-function isFlushBoundaryEdge(
-    acc: CoverageAccumulator,
-    a: number,
-    b: number,
-): boolean {
-
-    const uvA = a * 2;
-    const uvB = b * 2;
-    const uA = acc.externalUVs[uvA];
-    const vA = acc.externalUVs[uvA + 1];
-    const uB = acc.externalUVs[uvB];
-    const vB = acc.externalUVs[uvB + 1];
-    const fullCellMax = acc.fullCellMax;
-
-    return (uA === 0 && uB === 0)
-        || (uA === fullCellMax && uB === fullCellMax)
-        || (vA === 0 && vB === 0)
-        || (vA === fullCellMax && vB === fullCellMax);
 }

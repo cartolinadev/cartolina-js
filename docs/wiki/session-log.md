@@ -1,5 +1,37 @@
 # Session log
 
+## 2026-06-22 — Pre-v6 watertight: rasterized coverage base case
+
+Replaced the base-case test in `pre-v6-watertight.ts` (RFC 3 §10.3) with a
+128×128 footprint rasterization. The original edge-flush topology test
+asks that every mesh-boundary edge be flush to a tile edge; that is a
+correct proxy only for 2.5D height fields. True 3D photogrammetric tiles
+carry overhangs whose free edges float above already-covered ground —
+mesh boundaries that are not footprint holes — so the topology test
+wrongly classified fully-covering tiles as not watertight.
+
+The new base case rasterizes each face from its external UVs into a fixed
+128×128 grid (`COVERAGE_RESOLUTION`), the same space `footprint()` draws
+on the GPU, and reports full when every sample is covered. Degenerate
+triangles cover nothing and are skipped; overlapping overhang geometry
+re-covers samples. Resolution picked from a parse-time benchmark (~1 ms
+per submesh, worker-side).
+
+The swap is internal to `pre-v6-watertight.ts`: the create/add/finish
+accumulator interface, the §10.4 upward aggregation, the §10.5 gating, and
+all four parse call sites are unchanged, preserving §10.6 deletability.
+Documented in the RFC 3 post-implementation notes (accepted design text
+left untouched).
+
+Verified: `tsc` clean; `simple/complex/full-terrain` screenshots
+unchanged (the path is dead code on v6 data); on a pre-v6 photogrammetric
+scene the tiles the topology test left unmarked now infer full coverage
+and occlude the lower-priority detail surfaces that previously overdrew
+them (drawn tiles 110 → 42), with no coverage leaks.
+
+Also includes a benign comment-only clarification in `surface-tree.js`
+about which free layers reach the legacy tree.
+
 ## 2026-06-22 — Inspector: tiles broken down by surface id
 
 Added a "Tiles (by surface)" table to the inspector stats panel, placed

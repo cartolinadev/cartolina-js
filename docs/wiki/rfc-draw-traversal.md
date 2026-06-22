@@ -3260,3 +3260,38 @@ q4 (multi-submesh union) is deliberately deferred.
 No specification-level findings remain. §10 is ready to implement; the
 status line can advance from "proposed" to "accepted — pending
 implementation."
+
+## Post-implementation notes
+
+### 2026-06-22 — pre-v6 coverage base case is rasterized, not topological
+
+The §10.3 base case first shipped as the edge-flush topology test it
+describes: a submesh counts as full only when every mesh-boundary edge is
+flush to a tile edge. That test holds for 2.5D height-field surfaces, but
+it wrongly rejects true 3D photogrammetric tiles. Those meshes carry
+overhangs (eaves, balconies, walls) whose free edges float above
+already-covered ground; the edges are mesh boundaries but not holes in the
+footprint, so the topology test reported the tile as not covering its cell
+even though its footprint is solid. Rasterizing the footprint of such a
+tile returns 100% coverage.
+
+The base case now measures the footprint directly. Each face is rasterized
+from its external UVs into a fixed 128×128 coverage grid — the same space
+and triangles `TileRenderRig.footprint()` draws on the GPU — and the
+submesh is full when every grid sample is covered. This is the client
+analogue of the server's leaf `maskMin == 255` case and matches what the
+GPU actually draws: overlapping overhang geometry re-covers samples
+instead of cutting boundary edges. A gap narrower than one grid sample
+(about the tile width divided by 128) is not resolved, which is well below
+a visible gap at the LODs these legacy surfaces serve. The 128² grid was
+chosen from a parse-time cost benchmark — roughly 1 ms per submesh,
+worker-side and off the main thread.
+
+The change is confined to the base case in
+`src/core/map/pre-v6-watertight.ts`. The `create`/`add`/`finish`
+accumulator interface, the §10.4 upward aggregation, the §10.5 gating, and
+all four parse call sites are unchanged, so §10.6's deletability property
+is preserved. Verified on a pre-v6 photogrammetric scene: tiles the
+topology test left unmarked now infer full coverage and occlude the
+lower-priority detail surfaces that previously overdrew them, with no
+coverage leaks.
