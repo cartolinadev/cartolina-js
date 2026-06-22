@@ -1,6 +1,6 @@
 # RFC 9: metadata-first terrain traversal
 
-**Status:** In review
+**Status:** Failed
 
 ## Context
 
@@ -351,3 +351,85 @@ caused by partial metanode arrival.
    checks that the lower-priority surface can neither render nor stop
    descent at that node until the higher-priority candidate is classified,
    with an identical settled result regardless of arrival order.
+
+## Review round 2 — sign-off
+
+Round 1 is addressed. The root is now inside the metadata-first
+invariant, full candidate classification is the stated first
+implementation rule, fallback removal is gated on validation, and the
+validation plan includes a direct arrival-order priority diagnostic.
+
+No specification-level findings remain. One editorial clarification can
+be folded in during implementation: "configured terrain surfaces" in the
+root rule should mean the current traversal input surface stack, i.e. the
+surfaces returned by `surfaceList()` for the active style or mapConfig
+view, not every surface declared anywhere in the map configuration. That
+does not change the design.
+
+## Implementation attempt — failed
+
+A first implementation attempt landed in `src/core/map/draw-traversal.ts`
+and **failed every objective of this RFC**. The code is kept as a starting
+point for whoever takes this over; it is not a working implementation.
+This section records only what was verified, and states plainly where the
+cause is unknown. Private reproduction details — the test dataset, the
+camera, the viewport, and the specific tile traced — are kept out of this
+public document and recorded in the scratchpad repository.
+
+### What the attempt changed
+
+- `drawTerrainTraversal()` root rule: it iterates the `plainTrees` input
+  stack and returns from the whole frame as soon as any root metanode is
+  not ready, so no LOD-0 decision runs until every configured root is
+  classified.
+- `collectChildActive()` classifies each candidate at a child quadrant as
+  absent, pending, culled, or ready, and returns a `pending` flag when any
+  candidate has a child whose metanode is not loaded.
+- `traverseNode()` skips a pending quadrant (`if (child.pending) continue`)
+  instead of recursing it.
+- The pre-v6 `fallbackTexelSize` descent-gate substitution is gated by a
+  module-level `PreV6DescentFallback` constant, default on.
+
+### Objective failures (verified)
+
+1. **Stable surface priority — FAILED.** On a multi-surface view where a
+   higher-priority photogrammetric surface and a lower-priority
+   orthophoto-draped DEM cover the same ground, the settled image shows the
+   lower-priority surface painted over the whole frame; the higher-priority
+   surfaces do not appear except as transient artifacts during loading.
+   This is the same result as `main` (the bug RFC 9 set out to fix). The
+   implementation does not change the observed outcome.
+
+2. **Superseding the pre-v6 geometry-less descent fallback — NOT
+   ACHIEVED.** With `PreV6DescentFallback` disabled, the geometry-less
+   descent storm returns. The fallback is still required.
+
+### Key finding (verified, not explained)
+
+For the one tile traced to the failure, only the lower-priority surfaces
+(the base terrain and the orthophoto-draped DEM) ever issue data-tile
+requests. The higher-priority surfaces issue **no request at all** for that
+tile, so they can never draw and the lower-priority surface fills the cell.
+Their data is never asked for, so this is not a loading or server problem —
+the traversal stops requesting those surfaces at this position. Why it stops
+was not established. This is the concrete thing a successor should chase.
+
+### Also verified
+
+- The combined traversal in `draw-traversal.ts` (via
+  `Map.drawTerrainRecursive`) is the only terrain traversal path; free
+  layers use `MapSurfaceTree.draw` and are unrelated.
+- The pending rule does engage: tracing descent toward the failing tile
+  showed `traverseNode` skipping the child quadrant
+  (`child.pending === true`) when `collectChildActive` reported a candidate
+  pending. That changes where descent stops, not the result above.
+
+### For whoever takes over
+
+Start from the key finding: the higher-priority surfaces issue no request
+for the failing tile. Trace a single tracked tile and establish at which
+step those surfaces stop being requested, and why. Use instrumentation
+light enough not to perturb loading — per-node-per-frame logging during this
+attempt was heavy enough to choke the loader and produce unreliable state
+readings. The scratchpad note records the exact view, viewport, surface
+stack, and the tile address used for the trace.

@@ -1,5 +1,49 @@
 # Session log
 
+## 2026-06-22 — RFC 9 metadata-first traversal: implementation FAILED
+
+Implemented RFC 9 in `src/core/map/draw-traversal.ts` and the attempt
+failed every objective. The code is committed as a starting point for a
+successor; it is not a working implementation. RFC status set to `Failed`.
+
+What the attempt added: the root rule in `drawTerrainTraversal()` (defer
+the LOD-0 decision until every configured root metanode is classified);
+`collectChildActive()` classifying each candidate at a child quadrant as
+absent / pending / culled / ready and returning a `pending` flag;
+`traverseNode()` skipping a pending quadrant instead of recursing it; and
+the pre-v6 `fallbackTexelSize` descent substitution gated behind a
+`PreV6DescentFallback` module constant.
+
+Verified failures:
+
+1. Surface priority is not fixed. On a multi-surface view where a
+   higher-priority photogrammetric surface and a lower-priority
+   orthophoto-draped DEM cover the same ground, the settled image still
+   shows the lower-priority surface over the whole frame; the
+   higher-priority surfaces appear only as transient loading artifacts.
+   Same outcome as `main`.
+2. The pre-v6 fallback is not superseded. Disabling `PreV6DescentFallback`
+   brings back the geometry-less descent storm.
+
+Key finding (verified, not explained): for the one tile traced to the
+failure, only the lower-priority surfaces (the base terrain and the
+orthophoto-draped DEM) ever issue data-tile requests. The higher-priority
+surfaces issue no request at all for that tile, so they can never draw and
+the lower-priority surface fills the cell. Their data is never asked for,
+so this is not a loading or server problem — the traversal stops requesting
+those surfaces at this position. Why it stops was not established; that is
+the concrete thing a successor should chase.
+
+Also verified: the combined traversal is the only terrain path, and the
+pending rule does engage (descent skips the child quadrant when a candidate
+is reported pending) — but that changes where descent stops, not the result
+above.
+
+Earlier in the same session the RFC post-implementation notes and a
+`lod-selection.md` section claimed the implementation worked and passed a
+preliminary fallback-off check; those claims were wrong and have been
+removed. `lod-selection.md` is reverted to its pre-attempt state.
+
 ## 2026-06-22 — RFC 9 metadata-first traversal: review round 1
 
 Added RFC 9 (metadata-first terrain traversal) to the wiki and listed it

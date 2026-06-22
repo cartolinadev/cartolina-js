@@ -54,16 +54,26 @@ export function drawTerrainTraversal(
     const cameraPos = legacyMap.camera.position;
     const fallbackCadence = Number(legacyMap.config.mapFallbackCadence ?? 3);
 
-    // Activate every surface whose root metanode is ready, in view,
-    // and not culled. The order in `plainTrees` is back-to-front; we
-    // preserve it in the active set and reverse on render.
+    // Root rule (RFC 9): every configured terrain surface is a candidate
+    // at the root. A root whose metanode is not ready is pending, not
+    // absent; isMetanodeReady requests its load and keeps the map dirty, so
+    // the traversal retries when the metanode arrives. The whole LOD-0
+    // decision waits until every root is classified, so partial root
+    // arrival cannot reorder surface priority. The order in `plainTrees`
+    // is back-to-front; we preserve it in the active set and reverse on
+    // render.
     const rootActive: ActiveSurface[] = [];
 
     for (const tree of plainTrees) {
 
         const tile = tree.surfaceTree;
-        if (!tile.isMetanodeReady(tree, 0)) continue;
-        if (!tile.metanode) continue;
+
+        // A pending root leaves the frame undecided rather than letting the
+        // traversal run on a partial root set.
+        if (!tile.isMetanodeReady(tree, 0) || !tile.metanode) return;
+
+        // Classified root: off-screen is culled out of the active set, a
+        // visible one joins it.
         if (!tile.bboxVisible(tile.id, tile.metanode.bbox, cameraPos,
                 tile.metanode)) {
             continue;
@@ -158,10 +168,12 @@ function traverseNode(context: NodeContext): CoverageResult {
         // force descent regardless of view scale. See
         // MapSurfaceTile.updateTexelSize for the rationale. Used only
         // for the descent-need test below, not for the watertight-fit
-        // stop. Remove with the pre-v6 bridge.
-        const descentTexelSize = entry.tile.texelSize === Infinity
-            ? entry.tile.fallbackTexelSize
-            : entry.tile.texelSize;
+        // stop. Gated by PreV6DescentFallback and removed with the pre-v6
+        // bridge.
+        const descentTexelSize =
+            PreV6DescentFallback && entry.tile.texelSize === Infinity
+                ? entry.tile.fallbackTexelSize
+                : entry.tile.texelSize;
 
         if (entry.tile.metanode!.hasChildren()
                 && descentTexelSize > texelSizeFit)
@@ -189,6 +201,14 @@ function traverseNode(context: NodeContext): CoverageResult {
         for (let quadrant = 0; quadrant < 4; quadrant++) {
 
             const child = collectChildActive(context, quadrant);
+
+            // Metadata-first (RFC 9): a quadrant with any pending candidate
+            // is not recursed this frame. Skipping it without marking it
+            // empty or watertight leaves it an unresolved gap, so this node
+            // renders its natural leaves or fallback while the child
+            // metanode loads. collectChildActive already requested that
+            // load through getReadyChild.
+            if (child.pending) continue;
 
             if (child.active.length === 0) {
 
@@ -296,18 +316,25 @@ function traverseNode(context: NodeContext): CoverageResult {
 
 
 /**
- * Builds the active surface set for one child quadrant of the current
- * node: each active surface with a ready, in-frustum child at this
- * quadrant contributes that child.
+ * Classifies the active surface set against one child quadrant of the
+ * current node (RFC 9 metadata-first). Each candidate surface lands in
+ * one of four outcomes for this quadrant:
+ *   - absent: the parent metanode proves the surface has no child here;
+ *   - pending: the parent has the child but its metanode is not ready;
+ *   - culled: the child metanode is ready and the child is off-screen;
+ *   - ready: the child metanode is ready and visible, so it joins the
+ *     child active set.
  *
- * Also reports the quadrant as `culled` when every active surface with
- * known coverage here is loaded and frustum-culled — off-screen for the
- * whole active set. A missing child on a watertight parent is covered by
- * that parent; a missing child on a sparse parent is considered absent
- * coverage.
- * An unloaded child is not off-screen because visibility is unknown. The
- * caller folds a culled quadrant into a watertight result instead of
- * drawing a fallback nothing can see.
+ * `pending` is set on the quadrant when any candidate is pending. The
+ * caller does not recurse a pending quadrant: a not-ready candidate blocks
+ * descent for the frame so a slower surface cannot be skipped over. Its
+ * load is requested through `getReadyChild`.
+ *
+ * `culled` reports that every surface with known coverage here is loaded
+ * and off-screen for the whole active set. A missing child on a watertight
+ * parent is covered by that parent; a missing child on a sparse parent is
+ * absent coverage. The caller folds a culled quadrant into a watertight
+ * result instead of drawing a fallback nothing can see.
  */
 function collectChildActive(
     context: NodeContext,
@@ -321,6 +348,10 @@ function collectChildActive(
     // off-screen; each other case clears it (see the branches).
     let culled = true;
 
+    // Set when a candidate has a child here whose metanode has not loaded
+    // yet. One pending candidate blocks recursion into the quadrant.
+    let pending = false;
+
     for (const entry of active) {
 
         const node = entry.tile.metanode!;
@@ -330,13 +361,14 @@ function collectChildActive(
             if (node.watertight && node.hasGeometry()) {
                 culled = false;  // watertight parent covers this quadrant
             }
-            continue;
+            continue;            // absent: surface has no child here
         }
 
         const childTile = getReadyChild(entry.tree, entry.tile, quadrant);
 
         if (!childTile || !childTile.metanode) {
 
+            pending = true;      // child exists but its metanode is not ready
             culled = false;      // finer child not loaded; visibility unknown
             continue;
         }
@@ -344,7 +376,7 @@ function collectChildActive(
         if (!childTile.bboxVisible(childTile.id, childTile.metanode.bbox,
                 cameraPos, childTile.metanode)) {
 
-            continue;            // finer child loaded and off-screen
+            continue;            // finer child loaded and off-screen (culled)
         }
 
         culled = false;          // finer child visible; joins the active set
@@ -352,7 +384,7 @@ function collectChildActive(
         childActive.push({ tree: entry.tree, tile: childTile });
     }
 
-    return { active: childActive, culled };
+    return { active: childActive, culled, pending };
 }
 
 
@@ -481,10 +513,14 @@ type ActiveSurface = {
 };
 
 
-/** One quadrant's active children, and whether it is fully culled. */
+/**
+ * One quadrant's classified children: the ready set, plus whether the
+ * quadrant is fully culled or blocked by a pending candidate.
+ */
 type ChildQuadrant = {
     active: ActiveSurface[];
     culled: boolean;
+    pending: boolean;
 };
 
 
@@ -523,6 +559,12 @@ const CoveragePartial: CoverageResult = { kind: 'partial' };
 const CoverageWatertight: CoverageResult = { kind: 'watertight' };
 
 const AllQuadrantsMask = 0b1111;
+
+// RFC 9 validation switch: keep the pre-v6 geometry-less descent estimate
+// (`MapSurfaceTile.fallbackTexelSize`) gating descent until metadata-first
+// traversal is validated with the fallback off. Flip to false to compare;
+// removed with the pre-v6 bridge once the validation gate is met.
+const PreV6DescentFallback = true;
 
 
 const ReadinessFull: TileRenderRig.ReadinessLevels = {
