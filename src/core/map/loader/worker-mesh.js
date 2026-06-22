@@ -27,6 +27,8 @@ function parseMesh(stream, options) {
     var mesh = {}, i, li, submesh;
     mesh.inferPreV6Coverage =
         !!(options && options.inferPreV6Coverage);
+    mesh.tileWatertight =
+        !!(options && options.tileWatertight);
 
     //parase header
     var streamData = stream.data;
@@ -225,17 +227,14 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
 
     var internalUVs = null;
     var externalUVs = null;
-    var onlyOneUVs = globals.config.mapOnlyOneUVs && (submesh.flags & flagsInternalTexcoords);
     var tmpVertices, tmpExternalUVs, tmpInternalUVs;
 
     var vertices = use16bit ? (new Uint16Array(numVertices * 3)) : (new Float32Array(numVertices * 3));
 
+    // External UVs are always decoded here; whether the parsed mesh keeps
+    // them is decided per submesh at the face block below.
     if (submesh.flags & flagsExternalTexcoords) {
-        if (onlyOneUVs) {
-            externalUVs = true;
-        } else {
-            externalUVs = use16bit ? (new Uint16Array(numVertices * 2)) : (new Float32Array(numVertices * 2));
-        }
+        externalUVs = use16bit ? (new Uint16Array(numVertices * 2)) : (new Float32Array(numVertices * 2));
     }
 
     var uvfactor = use16bit ? 1.0 : (1.0 / 65535);
@@ -250,11 +249,9 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
         vindex += 3;
 
         if (externalUVs) {
-            if (!onlyOneUVs) {
-                externalUVs[uvindex] = (uint8Data[index+6] + (uint8Data[index + 7]<<8)) * uvfactor;
-                externalUVs[uvindex+1] = (65535 - (uint8Data[index+8] + (uint8Data[index + 9]<<8))) * uvfactor;
-                uvindex += 2;
-            }
+            externalUVs[uvindex] = (uint8Data[index+6] + (uint8Data[index + 7]<<8)) * uvfactor;
+            externalUVs[uvindex+1] = (65535 - (uint8Data[index+8] + (uint8Data[index + 9]<<8))) * uvfactor;
+            uvindex += 2;
             index += 10;
         } else {
             index += 6;
@@ -313,8 +310,41 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
     internalUVs = null;
     externalUVs = null;
 
+    // Coverage inference must finish before the layout below is chosen, so
+    // it reads the vertex indices of each face in its own pass; the
+    // geometry pass re-reads the same bytes from `index`.
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        tmpExternalUVs, mesh.inferPreV6Coverage);
+
+    if (coverage) {
+
+        var coverStride = (submesh.flags & flagsInternalTexcoords) ? 12 : 6;
+
+        for (i = 0; i < numFaces; i++) {
+
+            var ci = index + i * coverStride;
+
+            preV6Watertight.addCoverageFace(coverage,
+                uint8Data[ci] + (uint8Data[ci + 1] << 8),
+                uint8Data[ci + 2] + (uint8Data[ci + 3] << 8),
+                uint8Data[ci + 4] + (uint8Data[ci + 5] << 8));
+        }
+
+        submesh.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
+
+    // Drop external UVs only for a submesh that fully covers its cell; a
+    // partial submesh keeps them. The covered case then renders single-UV
+    // indexed. Own coverage comes from inference (pre-v6) or the metanode.
+    var ownCoverageFull = mesh.inferPreV6Coverage
+        ? (submesh.inferredFullCoverage === true)
+        : mesh.tileWatertight;
+    var dropExternalUVs = globals.config.mapOnlyOneUVs
+        && (submesh.flags & flagsInternalTexcoords) && ownCoverageFull;
+
     var onlyExternalIndices = (globals.config.mapIndexBuffers && globals.config.mapOnlyOneUVs && !(submesh.flags & flagsInternalTexcoords));
-    var onlyInternalIndices = (globals.config.mapIndexBuffers && globals.config.mapOnlyOneUVs && (submesh.flags & flagsInternalTexcoords));
+    var onlyInternalIndices = (globals.config.mapIndexBuffers && dropExternalUVs);
     var onlyIndices = onlyExternalIndices || onlyInternalIndices;
 
     if (onlyIndices) {
@@ -326,7 +356,7 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
             internalUVs = use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
 
-        if (!onlyOneUVs && (submesh.flags & flagsExternalTexcoords)) {
+        if (!dropExternalUVs && (submesh.flags & flagsExternalTexcoords)) {
             externalUVs = use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
     }
@@ -335,8 +365,6 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
     var eUVs = tmpExternalUVs;
     var iUVs = tmpInternalUVs;
     var v1, v2, v3, vv1, vv2, vv3, sindex;
-    var coverage = preV6Watertight.createFullCoverageAccumulator(
-        eUVs, mesh.inferPreV6Coverage);
 
     if (onlyExternalIndices) {
         vertices = tmpVertices;
@@ -352,7 +380,6 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
         v1 = (uint8Data[index] + (uint8Data[index + 1]<<8));
         v2 = (uint8Data[index+2] + (uint8Data[index + 3]<<8));
         v3 = (uint8Data[index+4] + (uint8Data[index + 5]<<8));
-        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -438,11 +465,6 @@ function parseVerticesAndFaces(mesh, submesh, stream) {
     submesh.internalUVs = internalUVs;
     submesh.externalUVs = externalUVs;
     submesh.indices = indices;
-    if (coverage) {
-
-        submesh.inferredFullCoverage =
-            preV6Watertight.finishFullCoverage(coverage);
-    }
 
     tmpVertices = null;
     tmpInternalUVs = null;
@@ -516,7 +538,6 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     var uint8Data = stream.uint8Data;
 
     var use16bit = globals.config.map16bitMeshes;
-    var onlyOneUVs = globals.config.mapOnlyOneUVs && (submesh.flags & flagsInternalTexcoords);
     var tmpVertices, tmpExternalUVs, tmpInternalUVs;
 
     var numVertices = data.getUint16(index, true); index += 2;
@@ -588,48 +609,41 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     
     index = res[1];
 
+    // External UVs are always decoded here; retention is decided at the
+    // face block below.
     if (submesh.flags & flagsExternalTexcoords) {
         quant = data.getUint16(index, true); index += 2;
         res[1] = index;
 
-        if (onlyOneUVs) {
+        multiplier = (use16bit) ? (65535 / quant) : (1.0 / quant);
+        externalUVs = use16bit ? (new Uint16Array(numVertices * 2)) : (new Float32Array(numVertices * 2));
+        x = 0, y = 0;
 
+        if (use16bit) {
             for (i = 0; i < numVertices; i++) {
                 parseDelta(uint8Data, res);
+                x += res[0];
                 parseDelta(uint8Data, res);
+                y += res[0];
+
+                var uvindex = i * 2;
+                t = x * multiplier;
+                if (t < 0) t = 0; if (t > 65535) t = 65535;
+                externalUVs[uvindex] = t;
+                t = y * multiplier;
+                if (t < 0) t = 0; if (t > 65535) t = 65535;
+                externalUVs[uvindex+1] = 65535 - t;
             }
-
         } else {
-            multiplier = (use16bit) ? (65535 / quant) : (1.0 / quant);
-            externalUVs = use16bit ? (new Uint16Array(numVertices * 2)) : (new Float32Array(numVertices * 2));
-            x = 0, y = 0;
+            for (i = 0; i < numVertices; i++) {
+                parseDelta(uint8Data, res);
+                x += res[0];
+                parseDelta(uint8Data, res);
+                y += res[0];
 
-            if (use16bit) {
-                for (i = 0; i < numVertices; i++) {
-                    parseDelta(uint8Data, res);
-                    x += res[0];
-                    parseDelta(uint8Data, res);
-                    y += res[0];
-
-                    var uvindex = i * 2;
-                    t = x * multiplier;
-                    if (t < 0) t = 0; if (t > 65535) t = 65535;
-                    externalUVs[uvindex] = t;
-                    t = y * multiplier;
-                    if (t < 0) t = 0; if (t > 65535) t = 65535;
-                    externalUVs[uvindex+1] = 65535 - t;
-                }
-            } else {
-                for (i = 0; i < numVertices; i++) {
-                    parseDelta(uint8Data, res);
-                    x += res[0];
-                    parseDelta(uint8Data, res);
-                    y += res[0];
-
-                    var uvindex = i * 2;
-                    externalUVs[uvindex] = x * multiplier;
-                    externalUVs[uvindex+1] = 1 - (y * multiplier);
-                }
+                var uvindex = i * 2;
+                externalUVs[uvindex] = x * multiplier;
+                externalUVs[uvindex+1] = 1 - (y * multiplier);
             }
         }
     }
@@ -714,8 +728,44 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     internalUVs = null;
     externalUVs = null;
 
+    // Coverage inference must finish before the layout below is chosen, so
+    // it decodes the vertex-index faces in its own pass; the geometry pass
+    // re-decodes them from `index` with its own high-water counter.
+    var coverage = preV6Watertight.createFullCoverageAccumulator(
+        tmpExternalUVs, mesh.inferPreV6Coverage);
+
+    if (coverage) {
+
+        var coverHigh = 0;
+        res[1] = index;
+
+        for (i = 0; i < numFaces; i++) {
+
+            parseWord(uint8Data, res);
+            var cf1 = coverHigh - res[0]; if (!res[0]) coverHigh++;
+            parseWord(uint8Data, res);
+            var cf2 = coverHigh - res[0]; if (!res[0]) coverHigh++;
+            parseWord(uint8Data, res);
+            var cf3 = coverHigh - res[0]; if (!res[0]) coverHigh++;
+
+            preV6Watertight.addCoverageFace(coverage, cf1, cf2, cf3);
+        }
+
+        submesh.inferredFullCoverage =
+            preV6Watertight.finishFullCoverage(coverage);
+    }
+
+    // Drop external UVs only for a submesh that fully covers its cell; a
+    // partial submesh keeps them. The covered case then renders single-UV
+    // indexed. Own coverage comes from inference (pre-v6) or the metanode.
+    var ownCoverageFull = mesh.inferPreV6Coverage
+        ? (submesh.inferredFullCoverage === true)
+        : mesh.tileWatertight;
+    var dropExternalUVs = globals.config.mapOnlyOneUVs
+        && (submesh.flags & flagsInternalTexcoords) && ownCoverageFull;
+
     var onlyExternalIndices = (globals.config.mapIndexBuffers && globals.config.mapOnlyOneUVs && !(submesh.flags & flagsInternalTexcoords));
-    var onlyInternalIndices = (globals.config.mapIndexBuffers && globals.config.mapOnlyOneUVs && (submesh.flags & flagsInternalTexcoords));
+    var onlyInternalIndices = (globals.config.mapIndexBuffers && dropExternalUVs);
     var onlyIndices = onlyExternalIndices || onlyInternalIndices;
 
     if (onlyIndices) {
@@ -727,7 +777,7 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
             internalUVs = use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
 
-        if (!onlyOneUVs && (submesh.flags & flagsExternalTexcoords)) {
+        if (!dropExternalUVs && (submesh.flags & flagsExternalTexcoords)) {
             externalUVs = use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
     }
@@ -737,8 +787,6 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     var iUVs = tmpInternalUVs;
     var high = 0;
     var v1, v2, v3, vv1, vv2, vv3;
-    var coverage = preV6Watertight.createFullCoverageAccumulator(
-        eUVs, mesh.inferPreV6Coverage);
     res[1] = index;
 
     for (i = 0; i < numFaces; i++) {
@@ -753,7 +801,6 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
         parseWord(uint8Data, res);
         v3 = high - res[0];
         if (!res[0]) { high++; }
-        preV6Watertight.addCoverageFace(coverage, v1, v2, v3);
 
         if (onlyIndices) {
             vindex = i * 3;
@@ -855,11 +902,6 @@ function parseVerticesAndFaces2(mesh, submesh, stream) {
     submesh.internalUVs = internalUVs;
     submesh.externalUVs = externalUVs;
     submesh.indices = indices;
-    if (coverage) {
-
-        submesh.inferredFullCoverage =
-            preV6Watertight.finishFullCoverage(coverage);
-    }
 
     //tmpVertices = null;
     //tmpInternalUVs = null;

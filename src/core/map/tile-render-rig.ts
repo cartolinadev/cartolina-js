@@ -359,6 +359,13 @@ export class TileRenderRig {
      */
     footprint() {
 
+        if (!this.rt.externalUVs) {
+
+            __DEV__ && utils.warnOnce(
+                `${this.logSign()}: footprint() without external UVs.`);
+            return;
+        }
+
         const program = this.renderer.programTileMaskFootprint();
         this.renderer.gpu.useProgram2(program);
 

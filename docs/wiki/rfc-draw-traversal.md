@@ -3295,3 +3295,24 @@ is preserved. Verified on a pre-v6 photogrammetric scene: tiles the
 topology test left unmarked now infer full coverage and occlude the
 lower-priority detail surfaces that previously overdrew them, with no
 coverage leaks.
+
+### 2026-06-23 — own-coverage now also gates external-UV retention
+
+The own-coverage result (§10.3, and the v6 metanode bit) is reused outside
+the traversal to fix an interaction with the `mapOnlyOneUVs` mesh
+optimization. That flag dropped external UVs from every internally-textured
+submesh, which both broke the footprint mask and starved this inference of
+the external UVs it reads. The mesh parser now always decodes external UVs
+and makes retention conditional: a submesh keeps them (de-indexed) when it
+does not fully cover its cell, and drops them (single-UV indexed) when it
+does. Coverage is the same own-coverage signal — parse-time inference for
+pre-v6, the metanode bit for v6 — so a watertight tile, which never
+rasterizes a footprint (the gate in `renderSurface` returns analytic
+coverage before `addFootprint`), keeps the memory win while partial tiles
+retain the UVs their footprint needs.
+
+This lives in the mesh parser (`submesh.js`, `worker-mesh.js`, both format
+versions) and `mesh.js` (forwarding the v6 bit to the worker), not in the
+pre-v6 helper, and it benefits v6 too, so it is outside §10's deletable
+compatibility surface. `TileRenderRig.footprint()` gained a `warnOnce`
+tripwire for the watertight-never-footprints invariant.

@@ -1,5 +1,40 @@
 # Task backlog
 
+## REFACTOR: unify the duplicated mesh parser (main thread + worker)
+
+**Opened:** 2026-06-23
+**Status:** deferred — fold into the JS→TS migration, ideally alongside a
+mesh-format change so both parsers move at once.
+**Related:** `src/core/map/submesh.js`, `src/core/map/loader/worker-mesh.js`,
+`src/core/map/mesh.js`.
+
+The mesh binary is decoded by two near-identical parsers. `submesh.js`
+parses on the main thread as `MapSubmesh` prototype methods; `worker-mesh.js`
+parses in the worker as standalone functions on plain objects (data crosses
+the worker boundary as transferable buffers). `MapMesh.onLoaded` selects one
+per load: `parseWorkerData` deserializes a worker result, `parseMapMesh`
+parses on the main thread. Each file carries the full pipeline — header,
+`parseVerticesAndFaces` (format < 3), `parseVerticesAndFaces2` (format 3),
+and the `parseWord`/`parseDelta` varint helpers — so the byte layout, the
+varint decode, and the index/de-index logic are duplicated (~1800 lines
+total, ~identical apart from idioms: methods vs functions, `this.map.config`
+vs `globals.config`, `this.flags` vs `submesh.flags`, instance fields vs
+plain-object fields).
+
+Cost: any parse change must be applied four times (two format versions ×
+two implementations), and the two can drift so the worker path and the main
+path behave differently under one config — a bug that hides per config. The
+watertight-gated UV retention change (2026-06-23) hit exactly this and was
+kept in lockstep by hand.
+
+Direction: extract the pure parse logic to operate on a neutral
+submesh-shaped object plus an explicit config, and have both `MapSubmesh`
+and the worker wrap that single core. Blocker today: the main-thread version
+writes straight into `this` and reads `this.map.config`, so unifying means
+threading config explicitly and parsing into a plain struct the `MapSubmesh`
+then adopts. Sizable hot-path refactor — land a parser unit test first (it
+also catches worker/main drift), and verify with the screenshot tests.
+
 ## TOOLING: ship TypeScript types (.d.ts emit + type-only npm package)
 
 **Opened:** 2026-06-18

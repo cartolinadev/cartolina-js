@@ -1,5 +1,38 @@
 # Session log
 
+## 2026-06-23 — Watertight-gated external-UV retention
+
+Decoupled `mapOnlyOneUVs` from external-UV decoding. The flag used to skip
+decoding the second UV set entirely, which stripped external UVs from every
+internally-textured submesh and broke both the footprint mask and the
+coverage inference on those tiles. Now the parser always decodes external
+UVs, and only *retention* is conditional: a submesh drops its external UVs
+(rendering single-UV indexed) only when it fully covers its cell; a partial
+submesh keeps them de-indexed. Own coverage comes from parse-time inference
+(pre-v6) or the metanode bit (v6+), the latter forwarded to the worker as a
+parse option (`tileWatertight`) alongside `inferPreV6Coverage`.
+
+Because coverage is needed before the index/UV layout is chosen, the
+inference now runs as a rewind pass over the face indices ahead of the
+geometry pass (in all four parse routines: `submesh.js` and
+`worker-mesh.js`, v2 and v3). The GPU side needs nothing: a null
+`externalUVs` already yields no `uv2` buffer.
+
+`TileRenderRig.footprint()` gains a `warnOnce` guard: if a rig reaches it
+without external UVs it warns and skips instead of issuing a broken draw.
+This backstops the invariant that a watertight tile (which drops its
+external UVs) never rasterizes a footprint — verified in the traversal,
+where `renderSurface` returns analytic coverage for a watertight node
+before reaching `addFootprint`.
+
+Verified: `tsc` clean; `simple/complex/full-terrain` unchanged (the change
+is inert when `mapOnlyOneUVs` is off). On a pre-v6 photogrammetric scene
+with `mapOnlyOneUVs` on: detail tiles infer full coverage and drop external
+UVs (mesh GPU memory stays at the optimized ~2.3 MB rather than the ~6.6 MB
+de-indexed form), the rare partial tile keeps its external UVs for its
+footprint, occlusion early-out is active (drawn tiles 110 -> 42), the
+footprint guard never fired, and the render is correct with no leaks.
+
 ## 2026-06-22 — Pre-v6 watertight: rasterized coverage base case
 
 Replaced the base-case test in `pre-v6-watertight.ts` (RFC 3 §10.3) with a
