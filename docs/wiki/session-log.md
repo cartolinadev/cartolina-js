@@ -1,5 +1,28 @@
 # Session log
 
+## 2026-06-22 — RFC 9 partially salvaged at watertight stops
+
+Diagnosed the failed RFC 9 priority case to the render fallback gate rather
+than to surface ordering. At the stopped node, higher-priority surfaces did
+reach the front-to-back render loop, but they were non-natural leaves and
+were tried as off-cadence no-load fallback probes. With no resident mesh,
+they produced no rig and issued no data request; the lower-priority fitted
+watertight surface then rendered and claimed the node.
+
+Changed `src/core/map/draw-traversal.ts` so off-cadence fallback draws keep
+`preventLoad = true` only while there is no fitted watertight stop. At a
+watertight-fit stop, front-to-back fallback candidates may load until the
+first watertight surface stops lower-priority rendering. This preserves the
+descent brake that prevents sparse-surface storms while letting
+higher-priority fallback content load at the node where descent ended.
+
+Validation: targeted private trace showed the higher-priority fallback
+surfaces switching to load-enabled attempts and eventually rendering at the
+stopped tile. `npx tsc --noEmit` passed, as did the standard screenshot
+entries `simple-terrain`, `complex-terrain`, and `full-terrain`. RFC 9 is
+now marked partially salvaged; the pre-v6 geometry-less fallback remains
+temporary compatibility code and is not superseded.
+
 ## 2026-06-22 — RFC 9 metadata-first traversal: implementation FAILED
 
 Implemented RFC 9 in `src/core/map/draw-traversal.ts` and the attempt

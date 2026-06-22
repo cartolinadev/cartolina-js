@@ -289,8 +289,10 @@ function traverseNode(context: NodeContext): CoverageResult {
 
         const readiness = naturalLeaf ? ReadinessFull : ReadinessFallback;
 
-        // off-cadence residence-only probe, see above
-        const preventLoad = !naturalLeaf && !fallbackLod;
+        // Load only natural leaves, cadence fallbacks, and fallback draws
+        // at a watertight-fit stop. Other off-cadence fallback draws only
+        // probe resources already resident while descent continues.
+        const preventLoad = !naturalLeaf && !fallbackLod && !hasWatertightFit;
 
         const renderedCoverage =
             renderSurface(

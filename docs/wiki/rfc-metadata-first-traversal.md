@@ -1,6 +1,6 @@
 # RFC 9: metadata-first terrain traversal
 
-**Status:** Failed
+**Status:** Partially salvaged
 
 ## Context
 
@@ -366,7 +366,45 @@ surfaces returned by `surfaceList()` for the active style or mapConfig
 view, not every surface declared anywhere in the map configuration. That
 does not change the design.
 
-## Implementation attempt — failed
+## Post-implementation notes — partially salvaged
+
+The first implementation was not a total loss. The metadata-first root
+rule and child-pending rule remain the intended traversal structure. The
+close-view priority failure came from a narrower render-gate error at the
+node where descent stopped.
+
+A later single-tile trace showed that the higher-priority surfaces reached
+the render loop before the lower-priority fitted watertight surface. They
+were non-natural leaves at the stopped node, so the off-cadence fallback
+rule treated them as no-load residence probes. With no mesh already
+resident, they produced no rig and issued no data request. The
+lower-priority fitted watertight surface then rendered and claimed the
+node.
+
+The salvaged fix keeps the combined-descent brake: any fitted watertight
+surface may still stop descent for the node. It changes only the render
+gate at such a stop. Off-cadence fallback draws normally keep
+`preventLoad = true`, but when `hasWatertightFit` is true the
+front-to-back render loop lets fallback candidates load until the first
+watertight surface stops lower-priority rendering. This lets
+higher-priority surfaces load and draw fallback content at the stopped
+node without allowing them to pull descent deeper.
+
+Verified after the change:
+
+- the previously failing private close-view trace requests and eventually
+  renders the higher-priority fallback surfaces at the stopped tile;
+- `npx tsc --noEmit` passes;
+- the standard screenshot entries `simple-terrain`, `complex-terrain`,
+  and `full-terrain` capture successfully.
+
+Still not salvaged: metadata-first traversal does not supersede the
+pre-v6 geometry-less fallback. Turning off `PreV6DescentFallback` is still
+expected to return the deep-descent storm. The fallback remains temporary
+compatibility code to be removed with the pre-v6 bridge, not a mechanism
+to refine further.
+
+## Implementation attempt — failed, then diagnosed
 
 A first implementation attempt landed in `src/core/map/draw-traversal.ts`
 and **failed every objective of this RFC**. The code is kept as a starting
@@ -404,7 +442,7 @@ public document and recorded in the scratchpad repository.
    ACHIEVED.** With `PreV6DescentFallback` disabled, the geometry-less
    descent storm returns. The fallback is still required.
 
-### Key finding (verified, not explained)
+### Key finding (verified, then explained)
 
 For the one tile traced to the failure, only the lower-priority surfaces
 (the base terrain and the orthophoto-draped DEM) ever issue data-tile
@@ -412,7 +450,13 @@ requests. The higher-priority surfaces issue **no request at all** for that
 tile, so they can never draw and the lower-priority surface fills the cell.
 Their data is never asked for, so this is not a loading or server problem —
 the traversal stops requesting those surfaces at this position. Why it stops
-was not established. This is the concrete thing a successor should chase.
+was not established during the failed attempt.
+
+The follow-up trace established the mechanism. The surfaces did not drop
+out of the active set, and the render loop did not skip their priority.
+They were rendered as off-cadence fallback probes with `preventLoad = true`
+at a node where a lower-priority fitted watertight surface had stopped
+descent. That no-load probe was the reason no tile data was requested.
 
 ### Also verified
 
@@ -426,10 +470,9 @@ was not established. This is the concrete thing a successor should chase.
 
 ### For whoever takes over
 
-Start from the key finding: the higher-priority surfaces issue no request
-for the failing tile. Trace a single tracked tile and establish at which
-step those surfaces stop being requested, and why. Use instrumentation
-light enough not to perturb loading — per-node-per-frame logging during this
-attempt was heavy enough to choke the loader and produce unreliable state
-readings. The scratchpad note records the exact view, viewport, surface
-stack, and the tile address used for the trace.
+Keep validation focused on whether the fallback-load exception introduces
+unexpected load growth in views where a sparse higher-priority surface has
+children but a lower-priority fitted watertight surface correctly stops
+descent. The private close-view failure is now explained; the remaining RFC
+risk is load discipline, especially while `PreV6DescentFallback` still
+exists.
