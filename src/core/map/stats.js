@@ -20,6 +20,7 @@ var MapStats = function(map) {
     this.lastFrameTime = 0;
     this.frameProfile = null; // FrameProfiler.Result; written by Map
     this.renderedLods = new Array(32);
+    this.renderedSurfaces = {};
     this.debugIds = {};
 
     this.recordGraphs = false;
@@ -128,7 +129,9 @@ MapStats.prototype.begin = function(dirty) {
 
         for (var i = 0, li = this.renderedLods.length; i < li; i++) {
             this.renderedLods[i] = 0;
-        } 
+        }
+
+        this.renderedSurfaces = {};
     }
 
     this.debugIds = {};

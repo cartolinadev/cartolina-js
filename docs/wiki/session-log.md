@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-06-22 — Inspector: tiles broken down by surface id
+
+Added a "Tiles (by surface)" table to the inspector stats panel, placed
+right after the existing "Tiles (attempted)" per-LOD table. It counts the
+same drawn tiles, keyed by surface id instead of LOD, so both tables sum to
+the same `Total` (`drawnTiles`).
+
+`stats.renderedSurfaces` is a plain object reset each frame in
+`MapStats.begin` alongside `renderedLods`, and incremented in
+`MapDrawTiles.drawSurfaceTile` at the same point as `renderedLods` and
+`drawnTiles`. Surfaces with no id (free-layer geodata surfaces carry no
+`id` in their json body) are shown honestly as `(no id)` rather than
+relabeled.
+
 ## 2026-06-22 — RFC 9 partially salvaged at watertight stops
 
 Diagnosed the failed RFC 9 priority case to the render fallback gate rather

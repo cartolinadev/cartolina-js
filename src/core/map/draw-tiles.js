@@ -49,6 +49,13 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 this.stats.renderedLods[tile.id[0]]++;
                 this.stats.drawnTiles++;
 
+                // mirror the per-LOD tile count, keyed by surface id, so
+                // the inspector can break the same total down by surface
+                var surfaceId = tile.surface.id || '(no id)';
+
+                this.stats.renderedSurfaces[surfaceId] =
+                    (this.stats.renderedSurfaces[surfaceId] || 0) + 1;
+
                 if (tile.surface.geodata && this.renderer.drawnGeodataTilesUsed) {    //used in scr-count2 !!! legacy mode, do not remove
 
                     var pp = this.renderer.project2(

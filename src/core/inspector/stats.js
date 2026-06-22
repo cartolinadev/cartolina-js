@@ -229,6 +229,17 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
 
     text3 += 'Total: ' + (stats.drawnTiles) +'<br/>';
 
+    text3 += '<br/>Tiles (by surface):' +'<br/>';
+
+    var surfaceIds = Object.keys(stats.renderedSurfaces).sort();
+
+    for (var s = 0, ls = surfaceIds.length; s < ls; s++) {
+        text3 += surfaceIds[s] + ': ' +
+            (stats.renderedSurfaces[surfaceIds[s]]) +'<br/>';
+    }
+
+    text3 += 'Total: ' + (stats.drawnTiles) +'<br/>';
+
     if (renderer) {
         var renderTarget = renderer.gpu.currentRenderTarget;
         var apparentSize = renderTarget.apparentSize;
