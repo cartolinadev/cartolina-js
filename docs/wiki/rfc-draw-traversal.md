@@ -3296,23 +3296,22 @@ topology test left unmarked now infer full coverage and occlude the
 lower-priority detail surfaces that previously overdrew them, with no
 coverage leaks.
 
-### 2026-06-23 — own-coverage now also gates external-UV retention
+### 2026-06-29 — cell UV is retained by every indexed layout
 
-The own-coverage result (§10.3, and the v6 metanode bit) is reused outside
-the traversal to fix an interaction with the `mapOnlyOneUVs` mesh
-optimization. That flag dropped external UVs from every internally-textured
-submesh, which both broke the footprint mask and starved this inference of
-the external UVs it reads. The mesh parser now always decodes external UVs
-and makes retention conditional: a submesh keeps them (de-indexed) when it
-does not fully cover its cell, and drops them (single-UV indexed) when it
-does. Coverage is the same own-coverage signal — parse-time inference for
-pre-v6, the metanode bit for v6 — so a watertight tile, which never
-rasterizes a footprint (the gate in `renderSurface` returns analytic
-coverage before `addFootprint`), keeps the memory win while partial tiles
-retain the UVs their footprint needs.
+External UV is the tile-cell coordinate used both to write a partial
+footprint and to read prior coverage. A watertight tile skips its own
+footprint pass, but a fallback still reads the mask accumulated from finer
+descendants or higher-priority surfaces before returning analytic coverage.
+Watertight status therefore cannot control UV retention.
 
-This lives in the mesh parser (`submesh.js`, `worker-mesh.js`, both format
-versions) and `mesh.js` (forwarding the v6 bit to the worker), not in the
-pre-v6 helper, and it benefits v6 too, so it is outside §10's deletable
-compatibility surface. `TileRenderRig.footprint()` gained a `warnOnce`
-tripwire for the watertight-never-footprints invariant.
+The v1-v3 parsers now retain external UV independently of coverage state.
+`mapIndexBuffers` alone selects indexed output. A mesh without internal UV
+keeps the native vertex/external-UV domain. A mesh with internal UV uses its
+texture-coordinate domain for the index buffer and copies both position and
+external UV into that domain. This is the same mapping used by the native
+VTS browser and preserves mask sampling at internal-UV seams.
+
+`mapOnlyOneUVs` and the `tileWatertight` worker parse option were removed.
+Pre-v6 own-coverage inference still reads the original face/external-UV
+topology before layout conversion. `TileRenderRig.footprint()` retains its
+missing-UV warning as a malformed-input guard.

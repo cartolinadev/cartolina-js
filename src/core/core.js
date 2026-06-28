@@ -81,8 +81,6 @@ var Core = function(element, config) {
         mapFeatureStickMode : [1,1],
 
         map16bitMeshes : true,
-        //mapOnlyOneUVs : true,
-        mapOnlyOneUVs : false,
         mapIndexBuffers : true,
         mapAsyncImageDecode : true,
 

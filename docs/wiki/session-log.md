@@ -1,5 +1,30 @@
 # Session log
 
+## 2026-06-29 — Indexed v1-v3 meshes retain cell UV
+
+Removed `mapOnlyOneUVs` and made `mapIndexBuffers` the sole v1-v3 layout
+switch, default-on. External-UV-only meshes now retain their native vertex
+indices instead of expanding to triangle soup. Meshes with internal UVs use
+the internal-UV index domain and copy both position and external UV into it,
+matching the native VTS browser. External UV is never dropped, because even
+a watertight fallback must sample coverage accumulated from finer children
+or higher-priority surfaces.
+
+The layout change was applied to the main-thread and worker parsers for both
+v2 and v3. The now-unused `tileWatertight` worker parse option was removed;
+pre-v6 coverage inference remains unchanged and still runs on original
+topology before layout conversion.
+
+A synthetic worker probe covered v2/v3 external-only and dual-UV meshes,
+including an internal-UV seam; every case retained an index buffer and the
+expected UV arrays. TypeScript and webpack builds passed. The three canonical
+terrain screenshot checks completed without console or network errors. The
+development renders were visually complete.
+
+Deferred terrain format v4 to the backlog. Its known scope includes one
+geometry object per tile, optional bundled KTX normals, one index domain,
+and possible optimized DEM encodings. It should become an RFC when scheduled.
+
 ## 2026-06-23 — Watertight-gated external-UV retention
 
 Decoupled `mapOnlyOneUVs` from external-UV decoding. The flag used to skip

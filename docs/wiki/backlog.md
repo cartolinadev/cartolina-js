@@ -1,5 +1,39 @@
 # Task backlog
 
+## FORMAT: design the v4 terrain-tile container
+
+**Opened:** 2026-06-29
+**Status:** deferred — expected future work, not an immediate priority.
+**Related:** `src/core/map/mesh.js`, `src/core/map/submesh.js`,
+`src/core/map/loader/worker-mesh.js`.
+
+The next terrain format revision has several known reasons to be a clean
+break rather than another adjustment to the v1-v3 vertex layout:
+
+- each tile will contain one geometry object instead of a submesh list;
+- a tile may bundle a KTX-encoded normal map;
+- geometry will use one GPU-ready index domain;
+- cell UV must remain available to coverage-mask rendering, either stored
+  explicitly or derived exactly by an optimized DEM encoding;
+- optimized DEM encodings may coexist with conventional quantized TINs.
+
+Treat v4 as a terrain-tile container with a versioned geometry encoding and
+length-delimited optional payloads, not only as a new face-index layout. The
+design must cover client-first rollout, URL/cache revision changes, and the
+scope of readers outside the browser.
+
+Current source findings reduce the encoder risk. The tileserver's in-memory
+mesh already carries per-vertex cell UV and a separate internal-UV face
+domain. Its cleanup step makes folding onto the internal-UV domain
+deterministic. Terrain generation, clipping, masks, and metatiles therefore
+do not need to change merely to emit one index domain. The current v3 writer
+is not the default and remains behind a legacy compression switch with an
+unresolved FIXME; validate it before reusing its delta codec in v4.
+
+Promote this entry to an RFC when v4 becomes scheduled. Until then v1-v3
+decoding retains all cell UVs and performs the required indexing in the
+client.
+
 ## REFACTOR: unify the duplicated mesh parser (main thread + worker)
 
 **Opened:** 2026-06-23
@@ -24,8 +58,8 @@ plain-object fields).
 Cost: any parse change must be applied four times (two format versions ×
 two implementations), and the two can drift so the worker path and the main
 path behave differently under one config — a bug that hides per config. The
-watertight-gated UV retention change (2026-06-23) hit exactly this and was
-kept in lockstep by hand.
+2026-06-29 indexed-layout correction had to update all four loops in
+lockstep.
 
 Direction: extract the pure parse logic to operate on a neutral
 submesh-shaped object plus an explicit config, and have both `MapSubmesh`

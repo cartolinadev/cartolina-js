@@ -265,17 +265,14 @@ struct FacesBlock {
             preV6Watertight.finishFullCoverage(coverage);
     }
 
-    // Drop external UVs only for a submesh that fully covers its cell; a
-    // partial submesh keeps them. The covered case then renders single-UV
-    // indexed. Own coverage comes from inference (pre-v6) or the metanode.
-    var ownCoverageFull = this.mesh.inferPreV6Coverage
-        ? (this.inferredFullCoverage === true)
-        : this.mesh.tileWatertight;
-    var dropExternalUVs = this.map.config.mapOnlyOneUVs
-        && (this.flags & this.flagsInternalTexcoords) && ownCoverageFull;
-
-    var onlyExternalIndices = (this.map.config.mapIndexBuffers && this.map.config.mapOnlyOneUVs && !(this.flags & this.flagsInternalTexcoords));
-    var onlyInternalIndices = (this.map.config.mapIndexBuffers && dropExternalUVs);
+    // Position and external UV share the mesh vertex index. Internal UVs have
+    // their own index, so indexed rendering folds position and external UV
+    // onto that domain. Both layouts retain external UV for coverage masks.
+    var hasInternalUVs = !!(this.flags & this.flagsInternalTexcoords);
+    var onlyExternalIndices = this.map.config.mapIndexBuffers
+        && !hasInternalUVs;
+    var onlyInternalIndices = this.map.config.mapIndexBuffers
+        && hasInternalUVs;
     var onlyIndices = onlyExternalIndices || onlyInternalIndices;
 
     if (onlyIndices) {
@@ -287,7 +284,7 @@ struct FacesBlock {
             internalUVs = this.use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
 
-        if (!dropExternalUVs && (this.flags & this.flagsExternalTexcoords)) {
+        if (this.flags & this.flagsExternalTexcoords) {
             externalUVs = this.use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
     }
@@ -305,6 +302,12 @@ struct FacesBlock {
     if (onlyInternalIndices) {
         vertices = this.use16bit ? (new Uint16Array((iUVs.length / 2) * 3)) : (new Float32Array((iUVs.length / 2) * 3));
         internalUVs = this.tmpInternalUVs;
+        if (eUVs) {
+
+            externalUVs = this.use16bit
+                ? new Uint16Array(iUVs.length)
+                : new Float32Array(iUVs.length);
+        }
     }
 
     for (i = 0; i < numFaces; i++) {
@@ -331,6 +334,16 @@ struct FacesBlock {
                 vertices[vv3*3] = vtmp[v3*3];
                 vertices[vv3*3+1] = vtmp[v3*3+1];
                 vertices[vv3*3+2] = vtmp[v3*3+2];
+
+                if (externalUVs) {
+
+                    externalUVs[vv1*2] = eUVs[v1*2];
+                    externalUVs[vv1*2+1] = eUVs[v1*2+1];
+                    externalUVs[vv2*2] = eUVs[v2*2];
+                    externalUVs[vv2*2+1] = eUVs[v2*2+1];
+                    externalUVs[vv3*2] = eUVs[v3*2];
+                    externalUVs[vv3*2+1] = eUVs[v3*2+1];
+                }
 
                 indices[vindex] = vv1;
                 indices[vindex+1] = vv2;
@@ -680,17 +693,14 @@ struct FacesBlock {
             preV6Watertight.finishFullCoverage(coverage);
     }
 
-    // Drop external UVs only for a submesh that fully covers its cell; a
-    // partial submesh keeps them. The covered case then renders single-UV
-    // indexed. Own coverage comes from inference (pre-v6) or the metanode.
-    var ownCoverageFull = this.mesh.inferPreV6Coverage
-        ? (this.inferredFullCoverage === true)
-        : this.mesh.tileWatertight;
-    var dropExternalUVs = this.map.config.mapOnlyOneUVs
-        && (this.flags & this.flagsInternalTexcoords) && ownCoverageFull;
-
-    var onlyExternalIndices = (this.map.config.mapIndexBuffers && this.map.config.mapOnlyOneUVs && !(this.flags & this.flagsInternalTexcoords));
-    var onlyInternalIndices = (this.map.config.mapIndexBuffers && dropExternalUVs);
+    // Position and external UV share the mesh vertex index. Internal UVs have
+    // their own index, so indexed rendering folds position and external UV
+    // onto that domain. Both layouts retain external UV for coverage masks.
+    var hasInternalUVs = !!(this.flags & this.flagsInternalTexcoords);
+    var onlyExternalIndices = this.map.config.mapIndexBuffers
+        && !hasInternalUVs;
+    var onlyInternalIndices = this.map.config.mapIndexBuffers
+        && hasInternalUVs;
     var onlyIndices = onlyExternalIndices || onlyInternalIndices;
 
     if (onlyIndices) {
@@ -702,7 +712,7 @@ struct FacesBlock {
             internalUVs = this.use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
 
-        if (!dropExternalUVs && (this.flags & this.flagsExternalTexcoords)) {
+        if (this.flags & this.flagsExternalTexcoords) {
             externalUVs = this.use16bit ? (new Uint16Array(numFaces * 3 * 2)) : (new Float32Array(numFaces * 3 * 2));
         }
     }
@@ -711,7 +721,7 @@ struct FacesBlock {
     var eUVs = this.tmpExternalUVs;
     var iUVs = this.tmpInternalUVs;
     var high = 0;
-    var v1, v2, v3, vv1, vv2, vv3;
+    var v1, v2, v3, vv1, vv2, vv3, ev1, ev2, ev3;
     res[1] = index;
 
     for (i = 0; i < numFaces; i++) {
@@ -769,6 +779,12 @@ struct FacesBlock {
     if (onlyInternalIndices) {
         vertices = this.use16bit ? (new Uint16Array((iUVs.length / 2) * 3)) : (new Float32Array((iUVs.length / 2) * 3));
         internalUVs = this.tmpInternalUVs;
+        if (eUVs) {
+
+            externalUVs = this.use16bit
+                ? new Uint16Array(iUVs.length)
+                : new Float32Array(iUVs.length);
+        }
     }
 
     high = 0;
@@ -790,6 +806,9 @@ struct FacesBlock {
             if (onlyInternalIndices) {
                 vindex = i * 3;
 
+                ev1 = indices[vindex] * 2;
+                ev2 = indices[vindex+1] * 2;
+                ev3 = indices[vindex+2] * 2;
                 vv1 = indices[vindex] * 3;
                 vv2 = indices[vindex+1] * 3;
                 vv3 = indices[vindex+2] * 3;
@@ -805,6 +824,16 @@ struct FacesBlock {
                 vertices[v3*3] = vtmp[vv3];
                 vertices[v3*3+1] = vtmp[vv3+1];
                 vertices[v3*3+2] = vtmp[vv3+2];
+
+                if (externalUVs) {
+
+                    externalUVs[v1*2] = eUVs[ev1];
+                    externalUVs[v1*2+1] = eUVs[ev1+1];
+                    externalUVs[v2*2] = eUVs[ev2];
+                    externalUVs[v2*2+1] = eUVs[ev2+1];
+                    externalUVs[v3*2] = eUVs[ev3];
+                    externalUVs[v3*2+1] = eUVs[ev3+1];
+                }
 
                 indices[vindex] = v1;
                 indices[vindex+1] = v2;

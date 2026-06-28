@@ -18,11 +18,6 @@ var MapMesh = function(map, url, tile) {
     this.use16bit = map.config.map16bitMeshes;
     this.inferPreV6Coverage = shouldInferPreV6Coverage(tile);
 
-    // Metanode watertight bit at load time, forwarded to the mesh parser
-    // as a parse option. Authoritative for v6+; pre-v6 meshes are
-    // classified by parse-time inference instead.
-    this.tileWatertight = !!(tile && tile.metanode && tile.metanode.watertight);
-
     this.bbox = new BBox();
     this.size = 0;
     this.gpuSize = 0;
@@ -181,8 +176,7 @@ MapMesh.prototype.onLoad = function(url, onLoaded, onError) {
     this.map.loader.processLoadBinary(
         url, this.onLoaded.bind(this), this.onLoadError.bind(this), null,
         'mesh', {
-            inferPreV6Coverage: this.inferPreV6Coverage,
-            tileWatertight: this.tileWatertight
+            inferPreV6Coverage: this.inferPreV6Coverage
         });
     this.loadState = 1;
 };
