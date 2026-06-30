@@ -1,10 +1,27 @@
 # Agent Guidelines — cartolina-js
 
-## Wiki
+## Documentation ownership
 
-The [docs/wiki/](docs/wiki/) directory is a shared knowledge base for
-agents and human contributors alike. Read it at the start of a session
-to orient yourself before touching unfamiliar code.
+Cartolina consists of the `cartolina-js` frontend in this repository and the
+`cartolina-tileserver` backend in its sister repository. Documentation is
+split by scope.
+
+The [docs/wiki/](docs/wiki/) directory contains documentation for the project
+as a whole. It also contains frontend documentation, frontend/backend
+interface documentation, all RFCs, the shared backlog, and work that spans
+both repositories. Read it at the start of a session to orient yourself
+before touching unfamiliar code.
+
+Documentation specific to the tileserver implementation belongs in the
+[cartolina-tileserver documentation][tileserver-documentation]. This includes
+operator guides, implementation notes, tool documentation, and the tileserver
+session log.
+
+Read the tileserver documentation index when work involves tileserver
+behavior. Record significant work confined to the tileserver in its session
+log. Record project-wide or cross-repository work in this wiki's session log.
+For work that materially changes both repositories, add concise entries to
+both logs and link them instead of duplicating the full account.
 
 While agents and humans do their best to keep the wiki up to date, it
 may drift from the code over time.
@@ -17,7 +34,9 @@ relevant information.
 
 **What belongs in the wiki:**
 
-- Architecture notes and non-obvious design decisions.
+- Project-wide architecture and non-obvious design decisions.
+- All RFCs, including RFCs for changes confined to the tileserver.
+- Frontend documentation and frontend/backend interface documentation.
 - Findings that are not obvious from reading the code — e.g. subtle
   runtime interactions, historical reasons for a design choice,
   gotchas discovered during debugging.
@@ -26,6 +45,8 @@ relevant information.
 
 **What does not belong:**
 
+- Mature documentation specific to `cartolina-tileserver`, including
+  operator guides, tool inventories, and implementation guides.
 - Transcripts of conversation or iterative back-and-forth.
 - Things that are obvious from reading the code or git history.
 - Temporary notes or in-progress state.
@@ -64,11 +85,12 @@ much it matters.
 Write wiki entries with a maximum line length of 80 characters. Tables
 and code blocks are exempt.
 
-Documentation must use repository-relative paths only. Do not write
-references to files or directories outside this working copy, including
-user-local absolute paths, temporary directories, editor paths, or agent
-scratch-plan locations. If an external local artifact informed the work,
-summarize the relevant conclusion without recording its path.
+Documentation must use repository-relative paths for files in this working
+copy and web links for files in other repositories. Do not write user-local
+absolute paths, temporary directories, editor paths, agent scratch-plan
+locations, or relative paths into a sibling checkout. If an external local
+artifact informed the work, summarize the relevant conclusion without
+recording its path.
 
 **Files:**
 
@@ -81,6 +103,10 @@ summarize the relevant conclusion without recording its path.
 - [session-log.md](docs/wiki/session-log.md) — record of significant
   work sessions, top-posted: the newest entry goes at the top of the
   file, directly under the `# Session log` heading.
+- [cartolina-tileserver documentation][tileserver-documentation] — entry
+  point for tileserver-specific documentation and its session log.
+
+[tileserver-documentation]: https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/index.md
 
 ### RFCs
 
@@ -176,6 +202,11 @@ The status line tracks the current state:
 
 
 ### Backlog hygiene
+
+Add new entries to [docs/wiki/backlog.md](docs/wiki/backlog.md) directly below
+its introduction, newest first. Work confined to `cartolina-tileserver`
+belongs in the tileserver backlog:
+<https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/backlog.md>.
 
 When closing a backlog entry, remove any working hypotheses that were
 not confirmed as the root cause. Keep only what remains true and

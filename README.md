@@ -189,6 +189,9 @@ annotations for API details.
 For architecture notes, subsystem details, and contributor-oriented project
 knowledge, start with the [wiki index](docs/wiki/index.md).
 
+Tileserver operator and implementation documentation starts at the
+[cartolina-tileserver documentation index](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/index.md).
+
 As a last resort, use the legacy
 [vts-browser-js documentation](https://github.com/melowntech/vts-browser-js/wiki).
 

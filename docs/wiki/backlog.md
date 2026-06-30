@@ -1,5 +1,10 @@
 # Task backlog
 
+Work confined to `cartolina-tileserver` is tracked in the
+[tileserver backlog](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/backlog.md).
+
+Add new entries directly below this introduction, newest first.
+
 ## FORMAT: design the v4 terrain-tile container
 
 **Opened:** 2026-06-29
@@ -333,7 +338,6 @@ Both are needed for dem1 to navigate correctly; they are independent
 
 ---
 
-
 ## REFACTOR/PERF: split tile rendering execution out of `TileRenderRig`
 
 **Opened:** 2026-06-06
@@ -507,7 +511,6 @@ discard-free passes.
 
 ---
 
-
 ## PERF: discard-free tile color shader for watertight tiles
 
 **Opened:** 2026-06-06
@@ -603,7 +606,6 @@ step 8) landed. `splitMask`, the `uClip` set, the `applyTileClip`
 quadrant clip, and `tile-clip.inc.glsl` are gone; `TileRenderRig.draw()`
 now selects on `!!maskTexture`, and the discarding program's only
 `discard` is the `uMaskEnabled` coverage test.
-
 
 ## PERF: draw-traversal — empty-quadrant fold
 
@@ -2239,293 +2241,6 @@ There is already tilt-aware runtime behavior in geodata reduction, so
 the renderer does have camera-angle information available. The missing
 piece is a render-time color / opacity path for geodata lines.
 
-## PERF: pre-built metatile index eliminating serve-time DEM warps
-
-**Opened:** 2026-05-16
-**Status:** implemented (2026-06-12) — RFC 7
-([rfc-metanode-store.md](rfc-metanode-store.md)) landed on
-`feature/metanode-store`; see its implementation notes for results
-(store-served metatiles ~25 ms vs ~700 ms warp on the test sample) and
-deviations. The notes here are retained as the originating discussion.
-
-### Goal
-
-Eliminate the GDAL DEM warp from the metatile request path by
-pre-computing all metatile data at resource setup time and serving
-it from a flat lookup.
-
-### Background
-
-See [tileserver-metatile-production.md](tileserver-metatile-production.md)
-for a full description of the current pipeline.
-
-The short version: each metatile request triggers a GDAL warp of
-the VRTWO (the virtual dataset with min/max-filtered overviews).
-This costs 100–500 ms per request on a warm server. The VRTWO and
-the tile index together already contain all the information a
-metatile carries — tile existence, watertight flags, and height
-ranges. The per-request warp re-derives that information instead
-of reading it from a pre-built store.
-
-The serve-time warp is separate from the client-side ping-pong
-problem (sequential metatile round-trips before geometry loading
-starts). Eliminating the warp reduces per-request latency; a
-manifest endpoint (a possible later stage) would reduce round-trip
-count. Both improvements are independent.
-
-### Proposal
-
-Extend the tile index format to carry per-node height range data,
-and extend `mapproxy-tiling` to populate it during the same walk
-it already does. The VRTWO min/max pyramids are already the input
-to the tiling step; sampling height range min/max per node adds
-one read from an already-open dataset. No separate pass is needed.
-
-At serve time, the metatile handler reads the extended tile index
-and serialises the result directly. No GDAL warp occurs.
-
-**CDN compatibility is preserved.** Metatile URLs remain keyed on
-tile ID and are stable. The only change is that the origin server
-answers cold misses in milliseconds instead of hundreds of
-milliseconds.
-
-### Extended tile index format
-
-The extended index must carry, per tile node:
-
-| Field | Source at generation time |
-|---|---|
-| Existence, child flags, watertight | Already in tile index (QTree) |
-| Height range min/max | VRTWO min/max pyramids, read during tiling |
-| Texel size | Analytical: LOD + reference frame resolution |
-| SDS horizontal extents | Analytical: tile ID + division node |
-
-The existing QTree binary format has no per-node payload beyond
-flags. The new format must support per-node numeric fields. This
-is a format version bump; backward compatibility requires the
-server to detect which format is present and fall back to the
-current on-the-fly warp path when only the old index exists.
-
-### Relation to mapproxy-tiling redesign
-
-`mapproxy-tiling` already takes days on large datasets due to
-per-tile GDAL warps against the VRTWO. Extending it to also record
-height ranges adds negligible cost to each node visit, since the
-VRTWO is already open and the min/max values come from the same
-sample grid the tool computes for coverage analysis.
-
-A deeper redesign of `mapproxy-tiling` — addressing its overall
-per-tile warp cost and serial bottlenecks — is a separate work
-item, but it shares the same data dependency and the same output
-format. A redesigned tool would produce the extended index
-naturally.
-
-### Staged rollout
-
-1. **Pre-built metatile index** (this item). No client changes.
-   Serve-time warp eliminated. CDN behaviour unchanged.
-
-2. **Manifest endpoint** (deferred). A position-parameterised
-   endpoint returning the full visible metatile tree in one
-   response. This busts CDN (each position is a unique key) and
-   is only viable if metatile generation is already fast — i.e.,
-   after stage 1 is complete. Requires client changes to issue
-   the manifest request at startup and fall back to per-tile
-   fetches for incremental camera movement.
-
-### Open questions
-
-- **Extended index format.** Exact binary layout, versioning
-  strategy, and whether the numeric payload section is
-  mmap-friendly. The format should carry a version field so the
-  server can detect old-format indexes and fall back to the
-  current warp path during a rolling upgrade.
-- **mapproxy-tiling redesign scope.** Extending the existing tool
-  to write height ranges is low-risk. Whether a broader redesign
-  of the tiling tool (addressing its overall per-tile warp cost)
-  is done first, in parallel, or after is an open sequencing
-  decision.
-
----
-
-## PERF/REDESIGN: coverage-mask `mapproxy-tiling`
-
-**Opened:** 2026-05-29
-**Status:** implemented (2026-06-12) as part of RFC 7
-([rfc-metanode-store.md](rfc-metanode-store.md) §4); the unified pass
-is the default `mapproxy-tiling` mode (legacy analysis behind
-`--legacy`). §4.5 assumptions verified on the test sample; residuals
-characterized in the RFC implementation notes. The notes here are
-retained as the originating discussion.
-
-### Goal
-
-Replace the per-tile, per-LOD GDAL warp in `mapproxy-tiling` with a
-single native-resolution coverage pass plus a bottom-up reduction.
-The tile index produced must be identical in meaning to today's
-output (existence, watertight, navtile flags).
-
-### Background
-
-See [tile-index.md](tile-index.md) for what the tile index carries and
-how `mapproxy-tiling` produces it today, and
-[tileserver-metatile-production.md](tileserver-metatile-production.md)
-for the pipeline cost.
-
-The current tool (`mapproxy/src/tiling/tiling.cpp`) warps a 129 × 129
-sample grid per tile and descends the whole tree, classifying each tile
-as whole / some / none. Its watertight seal engages only once the warp
-reaches native resolution, so a fully-covered but downsampled region is
-warped at every LOD down to the resolution floor. On a planet-scale
-dataset this runs for days to weeks. The only output is a per-tile
-flag bitmask; the warped raster is discarded.
-
-This redesign also retires the watertight-under-broadening limitation
-documented in [tile-index.md](tile-index.md): because truth is computed
-at native resolution and reduced upward, there is no coarse watertight
-value to over-trust.
-
-### Basis: the GDAL mask band (RFC 15)
-
-The mechanism rests on GDAL's per-band/per-dataset mask band, defined in
-GDAL RFC 15 — "RFC 15: Band masks"
-(<https://gdal.org/en/stable/development/rfc/rfc15_nodatabitmask.html>).
-`GetMaskBand()` always returns a `UInt8` band where **0 means nodata and
-255 means valid**, and GDAL **synthesizes** it when no explicit `.msk`
-file exists:
-
-- `GMF_NODATA` — generated on the fly from the source's nodata value;
-- `GMF_ALPHA` — the alpha band, which may hold values other than 0/255;
-- `GMF_ALL_VALID` — an all-255 fallback when the source declares no
-  nodata.
-
-So the data-availability layer is not something this tool derives — it
-is the mask band GDAL already produces. This is the entire basis of the
-existence / watertight test: warp the **mask band** (not the elevation),
-reduce min/max per output cell, and
-
-- `max > 0` ⇒ at least one valid source pixel ⇒ the tile **exists**;
-- `min > 0` ⇒ every source pixel valid ⇒ the tile is **watertight**.
-
-For a binary mask (`GMF_NODATA` or `GMF_ALL_VALID`) the values are
-strictly 0 or 255, so `min > 0` is identical to `min == 255` — exactly
-"fully covered." A gap-free source yields `GMF_ALL_VALID`, i.e. 255
-everywhere, so existence and watertight fall out with no scan of data
-values at all.
-
-**Design rule — warp the mask band with no nodata.** Do not pass
-`-srcnodata` and do not set a nodata value on the mask band being
-warped. A mask band has no *invalid* pixels — 0 and 255 are both valid
-mask *values* — so by default the warper excludes nothing and min/max
-see every pixel, including the 0s that signal holes. GDAL only excludes
-source pixels when told to, via `-srcnodata`, a band nodata value, or
-the band's own mask (which for a mask band is all-valid). Declaring 0 as
-nodata would make the warper drop exactly the hole pixels and report
-false watertight. The rule is simply not to do that.
-
-### Proposed algorithm
-
-1. Take the source **mask band** (`GetMaskBand`, RFC 15). No manual
-   0/1 derivation, no nodata bookkeeping — the mask band is the dense
-   availability raster by construction.
-2. Per reference-frame division node, warp that band into the node grid
-   at the resolution floor (the native-resolution LOD, which calipers
-   already computes from source GSD).
-3. Reduce two statistics per output cell during the warp, using GDAL's
-   min/max resampling (`GRA_Min` / `GRA_Max`):
-   - `max` over the cell → existence (any source pixel present);
-   - `min` over the cell → watertight (all source pixels present).
-   This can be one warp at sub-tile sampling reduced in code, or two
-   warps (one extra source read, still far cheaper than the current
-   tool). The destination is initialised to 0 so cells outside the
-   source extent reduce to not-existing / not-watertight.
-4. Build coarser LODs bottom-up with pure bit operations, no further
-   sampling:
-   - existence: `parent = OR(children)`;
-   - watertight: `parent = AND(children)`.
-   up to the root.
-5. AND in reference-frame node validity separately (the deliberate
-   fake-watertight in invalid areas). Positional flags — `navtile` at
-   the analysis minimum, `atlas` rules — are set by position, not by
-   sampling.
-
-### Why it is faster
-
-Every source pixel is read and resampled **once**, instead of being
-re-resampled at each pyramid level plus overview construction. That is
-the `O(levels × area)` → `O(area)` collapse where the current runtime
-goes. The coarser-LOD reduction touches no source data at all.
-
-### Parallelism
-
-Use CPU parallelism wherever available; the work is well suited to it.
-
-- **GDAL multi-threaded warping.** The native-resolution warp is the
-  dominant cost and GDAL can multi-thread a single warp across blocks
-  (`gdalwarp -multi`, warp option `NUM_THREADS=ALL_CPUS`, or the
-  equivalent `GDALWarpOptions`). Enable it.
-- **Across reference-frame nodes.** The per-node warps are independent
-  and can run concurrently.
-- **Block reduction.** The streamed blocks of the native-resolution
-  mask, and the bottom-up OR/AND reduction over quadrants, are
-  embarrassingly parallel; a parallel block pipeline overlaps warp I/O
-  with reduction.
-
-The current tool already parallelises its per-tile descent with OpenMP
-(`mapproxy/src/tiling/tiling.cpp` lines 178-183); the redesign should
-keep at least that level of CPU utilisation while removing the redundant
-work. If GDAL's own threading covers the warp, additional task
-parallelism need only cover the reduction and the per-node fan-out —
-confirm the two layers do not oversubscribe cores.
-
-### Assumptions to test before committing
-
-These are the load-bearing claims; the RFC should verify each
-empirically (e.g. `gdalwarp -r min` / `-r max` on a small DEM tile,
-diffed against the current tool's flags for the same extent):
-
-- **GDAL min/max resampling aggregates over the full destination
-  footprint** for a downsampling warp, not a subsample. Needs
-  confirmation at extreme downsample ratios.
-- **Boundary / straddle semantics**: whether a source pixel straddling
-  a tile edge is counted by overlap or by centre. This affects
-  watertight exactly at tile edges. Verify against a hand-reduced
-  reference.
-- **Alpha masks**: for `GMF_ALPHA` sources the mask may hold values
-  between 0 and 255, so `min > 0` no longer equals "fully valid." Such
-  sources need a threshold (e.g. `min == 255`) or explicit handling.
-  DEMs are typically `GMF_NODATA` / `GMF_ALL_VALID`, where this does not
-  arise.
-- **Read-once floor**: 1 px/tile output does not reduce source reads
-  (the warper still scans every source pixel); the saving over a
-  high-resolution mask is intermediate size and memory, not source I/O.
-  The saving over the current tool — reading the source once instead of
-  per level — is the real win and is unaffected.
-- **Empty-region pruning**: the current descent skips empty areas
-  (ocean) cheaply. A full-extent native pass must recover this, e.g.
-  bound by the source footprint and/or a coarse existence pre-pass, or
-  it will process empty area it does not need to.
-
-### Relation to other items
-
-This shares the data dependency and output format of **PERF: pre-built
-metatile index** (this file). The bottom-up reduction can carry per-node
-height-range min/max in the same pass — the VRTWO min/max pyramids are
-the input either way — producing the extended index that item needs.
-Sequencing of the two is open.
-
-### Open questions
-
-- Whether GDAL's stock min/max resampling is trustworthy enough or a
-  custom warp kernel (emitting both stats in one pass) is warranted.
-- Streaming strategy: the native-resolution coverage band for a planet
-  cannot be materialised whole; it must be processed in blocks reduced
-  into the pyramid, as overview construction already does.
-- Output format: whether to keep the current QTree format or move to
-  the extended per-node format from the pre-built metatile index item.
-
----
-
 ## BUG: `Viewer.checkVisibility()` depth comparison is broken
 
 **Opened:** 2026-04-14
@@ -2617,7 +2332,6 @@ posting to the loader worker.
 Token lifecycle is host-application responsibility. Keep current tokens
 in application state and read them inside the request transform callback.
 
-
 ## BUG (tileserver): surface generator emits a zero-submesh mesh
 
 **Opened:** 2026-06-06
@@ -2697,38 +2411,6 @@ normal-map, and watertight/multimesh paths must tolerate the empty case.
 | `mapproxy/src/mapproxy/generator/metatile.cpp` | metatile geometry flag from index + 8×8 sampling |
 | `mapproxy/src/mapproxy/support/mesh.cpp` | `addSubMesh`, `meshFromNode` |
 
-## PERF (tileserver): pool unified-pass warps across division nodes
-
-**Opened:** 2026-06-12
-**Status:** implemented 2026-06-12 — the earth-qsc planetary run
-(62m56s, six faces serialized) met the entry's own decision
-criterion. One pool over all (node, pass) warps, gated by
-`--warpConcurrency` (default min(12, hardware threads)), elevation
-passes scheduled first; reduce/emit stays sequential in node order,
-so artifacts are bit-identical (verified on the sample and on the
-earth-qsc planet). Measured 62m56s -> 53m38s at concurrency 6 on the
-dev laptop, limited there by per-warp `NUM_THREADS=ALL_CPUS`
-over-subscription rather than IO; capping per-warp threads when the
-pool is wide is the follow-up if planetary cadence demands more.
-
-The RFC 7 unified tiling pass runs its four filter passes (mask
-min/max, elevation min/max) concurrently *within* one reference-frame
-division node, but division nodes are processed sequentially. Treating
-all `(division node, pass)` warps as one task pool with a small
-concurrency cap (~6; the work is source-read/decompress bound, so more
-would queue on IO) would overlap the node tails — a bounded ~15-20%
-win on melown2015 (the pseudomerc node dominates, polar caps are
-small), but potentially much more on **earth-qsc**, whose six
-similar-sized QSC faces currently serialize. The refactor is
-contained: split `processNode` (`mapproxy/src/tiling/unified.cpp`)
-into a warp stage and a reduce/emit stage and gate the pool with a
-semaphore; per-node grids would coexist, so mind peak memory on
-planet-scale leaf grids (~0.7 GB per melown2015-sized node).
-
-Decide after measuring the earth-qsc planetary tiling wall time; if
-it is acceptably short, this stays deferred (premature-optimization
-rule).
-
 ## BUG/INVESTIGATE (tileserver): mesh content contradicts metatile flags at RF-validity boundaries
 
 **Opened:** 2026-06-12
@@ -2774,146 +2456,3 @@ viewfinder-dem3 tiling:
 Out of scope for RFC 7; flags-vs-mesh consistency is a pipeline-wide
 contract question.
 
-## PERF (tileserver): spatially varying bottom lod — prune subtrees beyond source resolution
-
-**Opened:** 2026-06-12
-**Status:** deferred; needs a per-resource opt-in design.
-
-Pseudomercator's sec(lat) inflation means same-lod tiles cover ~11x
-less ground at 85 deg than at the equator, so a global lodRange keeps
-high-latitude subtrees descending several lods past the source's
-native resolution. Both client and server then traverse, request, and
-generate tiles that add no terrain information (interpolated meshes,
-upsampled normals) — wasted bandwidth and cycles on both ends.
-
-Idea: prune the tile tree spatially during tiling — stop emitting
-children once per-tile sampling reaches the source resolution. The
-RFC 7 unified pass already computes the signal per tile (the
-`truescale` measure driving the navtile bit); the prune is a cutoff in
-the emission loop, and the metatile tree, tile index and store stay
-consistent by construction. Clients handle spatially varying leaf
-depth the same way they handle today's lodRange bottom.
-
-Design refinement: the bound-layer headroom is *relative*, not
-absolute. Draped imagery is textured per surface tile id, so an
-orthophoto finer than the DEM needs surface tiles past terrain-native
-resolution — but the imagery's tiles live on the same pseudomerc grid
-and stretch by the same sec(lat) factor, so the needed margin is a
-latitude-invariant number of extra lods. One per-resource parameter
-covers it: prune children where `truescale >= 2^k`, with `k` the
-configured resolution-margin lods (k = 0 prunes at terrain-native;
-today's behavior is k = infinity). The surface still cannot know what
-will be draped on it, so `k` is an operator setting in the resource
-definition.
-
-Remaining caveat: **leaf triangle budget** — mesh simplification
-budgets faces per tile, so a native-resolution leaf stretched over a
-close-up view renders coarser geometry than today's re-meshed
-interpolated children. May need a larger face budget on pruned
-leaves.
-
-## TOOLS (tileserver): per-node bottom lod for mapproxy-tiling
-
-**Opened:** 2026-06-13
-**Status:** open; small, well-scoped tool change.
-
-`mapproxy-tiling` takes a single `--lodRange`, so every spatial-division
-node descends to `--lodRange.max` regardless of its own native
-resolution. The leaf is global: `leafLod = lodRange_.max` for all nodes
-(`unified.cpp` `prepareNode`), with only the floor varying per node
-(`max(lodRange_.min, node.id.lod)`).
-
-`mapproxy-calipers` already computes the per-node bottom lod — it prints
-it as the first token of each `range<SRS>:` line — but the tiling
-command line has no slot for it. The second token (`LOD/tileRange`)
-becomes one `--tileRange`, and its LOD prefix is consumed only as a
-footprint anchor for rescaling during descent, not as a depth limit (see
-metanode-store-operations.md, "Reading calipers output into the command
-line"). The per-node bottom lod is therefore discarded, and nodes whose
-native resolution tops out shallower are tiled and stored one or more
-lods past their useful resolution. Concrete case: a melown2015 dataset
-where calipers gives `pseudomerc` lod 15 but the polar `steres`/`steren`
-nodes lod 14 — with `--lodRange 1,15` the poles still get a lod-15 leaf.
-
-Idea: let each `--tileRange` entry's leading LOD (or a separate
-`--nodeLodRange`-style option) cap that node's descent, defaulting to
-`--lodRange.max` when absent, and have calipers/setup-resource fill it
-from the per-node bottom lod. Implementation is a per-node `leafLod` in
-the unified pass instead of the single `lodRange_.max`.
-
-Relation to the spatially varying bottom lod entry above: this is the
-coarse, uniform-per-node version — one integer per node, no per-tile
-signal — and it lands the high-latitude savings directly from data
-calipers already produces. The spatial prune is the finer, latitude-
-varying refinement; per-node bottom lod is a strict subset of it and
-could be a stepping stone or be subsumed once the spatial prune ships.
-Same leaf-triangle-budget caveat applies, but only where a node's own
-native-resolution leaf is later viewed close up.
-
-## PERF (tileserver): generatevrtwo wrap halo scales as 3·2^levels
-
-**Opened:** 2026-06-13
-**Status:** open; needs a per-level wrap design.
-
-generatevrtwo's x-wrap padding scales with the overview count, not the
-seam width. mapproxy-calipers reports an *engaged* `wrapx` for any
-x-periodic source whose extent reaches ±180° — value 0 when the seam is
-exact, since both overhangs are 0. setup-resource forwards it
-(`config.wrapx = cm.xOverlap`), and generatevrtwo gates on
-`if (!config.wrapx)`: an engaged optional(0) is truthy, so it enters the
-wrap branch and pads the base by `xPlus = 3·2^(overview levels)` px per
-side regardless of the overlap value (the 0 only zeroes the sampling
-shift).
-
-The intent is sound — give the coarsest overview 3 px of lanczos wrap
-context — but projecting that need down to base resolution makes the
-halo grow with pyramid depth. A global source with N overviews gains
-3·2^N px of halo per side; on a deep pyramid this exceeds the data width
-itself, and the padded base and its whole overview pyramid are then
-stored and processed at the inflated width.
-
-Worked example: a seamless global source at 3 arc-sec (~432000 px wide)
-with 17 overviews gains 6·2^17 = 786432 px of padding — more than the
-data — to give a ~10 px top overview its 3 px margin, leaving the stored
-result ~2.8× the necessary size. Any source that runs through
-generatevrtwo with wrap enabled is affected; a source served as a plain
-VRT without generatevrtwo is not.
-
-A side effect: re-running calipers on a generatevrtwo output re-reads the
-baked halo as a large `wrapx`. That value is an artifact, not a
-mapproxy-tiling input, and must never be fed back into another
-generatevrtwo run, or the halo doubles.
-
-Idea: build the wrap halo per overview level — each level wraps 3 px from
-its own opposite edge — instead of padding the base by 3·2^levels, so the
-base carries only the actual seam overlap (often 0) plus a small fixed
-margin. Alternatively cap the padded levels, accepting a non-wrapped
-margin on the few coarsest overviews where 3 px already spans a large
-distance.
-
-## TOOLS: background-color keying does not reach the VRTWO mask band
-
-`generatevrtwo --background <color>` (mapproxy-setup-resource imagery
-path) is documented as keying out tiles that consist entirely of the
-background color. That keying currently affects only **overview tile
-emptiness**, not the base-resolution GDAL mask band: the `dataset`
-VRT's `GetMaskBand` still reports `255` (valid) over a solid
-background region. There is a standing `// TODO` at
-`generatevrtwo.cpp:697` ("we are using a background color: need to
-check content for ...").
-
-Discovered while verifying the RFC 7 imagery coverage-tiling mode
-(unified mask pass for orthophoto, store-less). Both the legacy tiling
-and the new coverage pass read the same VRTWO mask, so neither
-excludes background-keyed regions from the flag tile index — they
-agree, and the behavior is unchanged by the coverage work. It is
-harmless today because tms-raster applies background transparency
-per-pixel at tile-generation time, independent of the coverage index.
-
-It would matter only if coverage-driven existence is ever expected to
-honor background keying (e.g. to skip generating wholly-background
-tiles). The fix is to populate the per-dataset mask band from the same
-block/background comparison `generatevrtwo` already runs for overview
-emptiness, so `GetMaskBand` reflects keyed-out regions at base
-resolution. Verified with a synthetic black-background RGB cut: VRTWO
-mask = 255 over the keyed region.

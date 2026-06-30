@@ -1,5 +1,32 @@
 # Session log
 
+## 2026-06-30 — Split shared and tileserver documentation ownership
+
+Rewrote the metanode-store operator guide as a compact, example-driven
+runbook, then moved it with the tools inventory and metatile-production guide
+to the [cartolina-tileserver documentation][tileserver-docs]. Their old wiki
+paths are relocation stubs so historical references remain valid.
+
+The three-pyramid migration now requires an external backup of the legacy
+`tiling.<rf>` before `mapproxy-tiling` replaces it. It also separates the two
+rollback checkpoints: retain `dem.min` and `dem.max` during validation, then
+save and test restoration of a known-good
+`tiling.<rf>`/`metanodes.<rf>` pair before removing those legacy pyramids.
+
+Established the documentation boundary in both repositories' `AGENTS.md`
+files. Operator and implementation documentation specific to the tileserver
+and its session log live there. General architecture, all RFCs, the shared
+backlog, frontend documentation, and frontend/backend interface material
+remain in this wiki.
+
+Created a tileserver backlog and moved seven entries whose implementation and
+acceptance criteria are confined to that repository. Tasks involving client
+behavior or a frontend/backend contract remain in this shared backlog.
+Updated RFC 7's originating-backlog link to point to the moved entries while
+leaving its client-milestone backlog links in this wiki.
+
+[tileserver-docs]: https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/index.md
+
 ## 2026-06-29 — Indexed v1-v3 meshes retain cell UV
 
 Removed `mapOnlyOneUVs` and made `mapIndexBuffers` the sole v1-v3 layout

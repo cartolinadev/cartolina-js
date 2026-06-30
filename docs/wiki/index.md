@@ -16,6 +16,11 @@ then branch into more specific documents as needed.
 - [session-log.md](session-log.md) — chronological record of significant
   work sessions and non-obvious findings
 
+### Tileserver documentation
+
+- [cartolina-tileserver documentation][tileserver-docs] — tileserver
+  operator guides, implementation notes, resource reference, and session log
+
 ### Integration guides
 
 - [non-interactive.md](non-interactive.md) — non-interactive usage with
@@ -28,10 +33,6 @@ then branch into more specific documents as needed.
 - [compat-mapy-integration.md](compat-mapy-integration.md) — inventory
   of the API methods the mapy.com 3D integration consumes; reference
   for assessing migration impact when removing or changing those methods
-- [metanode-store-operations.md](metanode-store-operations.md) —
-  operator guide for metanode-store DEM resources (RFC 7): new-dataset
-  setup, migration from three-pyramid datasets, pairing validation,
-  rollback, and failure modes
 
 ### RFCs — active
 
@@ -65,12 +66,6 @@ in [AGENTS.md](../../AGENTS.md).
   generated, stored, and projected to screen-space error in
   `updateTexelSize`; distance functions, degrade-horizon logic, tree
   traversal, and comparisons with other renderers
-- [tileserver-tools.md](tileserver-tools.md) — inventory of the
-  tileserver executables: which package ships each tool and what it
-  is for
-- [tileserver-metatile-production.md](tileserver-metatile-production.md) —
-  how the tileserver generates metatiles on demand (VRTWO, tile index,
-  serve-time GDAL warp), where the cost lies, and the structural problem
 - [tile-index.md](tile-index.md) — what a VTS tile index carries (flag
   bits, quadtree structure, serialisation), how `mapproxy-tiling`
   produces one, how the served index is assembled, and LOD-range
@@ -174,15 +169,14 @@ main on-demand references:
   Documents the upstream fork. Useful when working with legacy code
   paths or inherited API concepts.
 
-For frontend/backend interface work, consult the backend repository:
+For the tileserver's internal workings and operation, consult the
+backend repository:
 
-- `cartolina-tileserver`
-  <https://github.com/cartolinadev/cartolina-tileserver>
-  Use this when working on features that involve the data or network
-  interface between the two projects.
-- `cartolina-tileserver/docs/resources.md`
-  This is the authoritative resource-definition documentation for the
-  tileserver-served resource types consumed by `cartolina-js`.
+- [cartolina-tileserver documentation][tileserver-docs]
+  contains tileserver operator guides, implementation notes, the resource
+  reference, and the backend session log.
+
+[tileserver-docs]: https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/index.md
 
 ## Writing guidelines
 

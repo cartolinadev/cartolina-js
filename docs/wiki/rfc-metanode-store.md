@@ -6,7 +6,8 @@ warp
 **Context:** subsumes two backlog items —
 **PERF: pre-built metatile index eliminating serve-time DEM warps** and
 **PERF/REDESIGN: coverage-mask `mapproxy-tiling`** in
-[backlog.md](backlog.md). Background in
+[the tileserver backlog](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/backlog.md).
+Background in
 [tileserver-metatile-production.md](tileserver-metatile-production.md),
 [tile-index.md](tile-index.md), [surface-metatile.md](surface-metatile.md),
 [reference-frames.md](reference-frames.md).
