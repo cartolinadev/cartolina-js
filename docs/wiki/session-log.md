@@ -1,5 +1,19 @@
 # Session log
 
+## 2026-07-02 — Reframed the VTS-to-Cartolina architecture
+
+Rewrote the architecture overview to describe the project evolution rather
+than inventorying removed VTS components. The section now presents
+`vts-browser-js` as the general-purpose viewer inherited from the wider VTS
+stack, then explains Cartolina's narrower terrain-cartography focus,
+style-based map authoring, client-side surface composition, WebGL2 renderer,
+and incremental TypeScript migration.
+
+The rewrite was checked against the original project README, the Cartolina
+website, and repository history. It removes the incorrect claim that
+Cartolina has no system registry and gives glue replacement its proper place
+as one consequence of the broader architectural change.
+
 ## 2026-06-30 — Split shared and tileserver documentation ownership
 
 Rewrote the metanode-store operator guide as a compact, example-driven

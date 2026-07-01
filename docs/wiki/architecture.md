@@ -9,7 +9,7 @@ format, renderer, and migration details.
 
 ## System Shape
 
-cartolina-js is the browser-side component of cartolina. The backend is
+cartolina-js is the browser-side component of Cartolina. The backend is
 `cartolina-tileserver`, a C++ daemon that serves tile resources and one
 `mapConfig.json` endpoint per terrain resource. The client fetches those
 resources, builds a terrain tile tree, and renders it with WebGL2.
@@ -58,41 +58,43 @@ The "Runtime Objects" section below shows the full ownership chain.
 
 ## From VTS To Cartolina
 
-cartolina-js is a heavily diverged fork of `vts-browser-js`, the browser
-client from VTS-geospatial. VTS-geospatial was a larger 3D geospatial
-stack built around server-side composition:
+cartolina-js is a heavily divergent fork of `vts-browser-js`, the browser
+client from vts-geospatial. `vts-browser-js` was a general-purpose viewer.
+The wider VTS stack assembled the data and described the map; the browser
+rendered terrain, photogrammetric city models, geodata, and other 3D
+content.
 
-- `mapproxy` streamed GIS sources as VTS tile resources.
-- `vtsd` served static tilesets and translated storage views into
-  `mapConfig.json`.
-- the `vts` CLI managed filesystem storages and generated glue tilesets
-  between overlapping surfaces.
-- `vts-registry` supplied reference frame and SRS definitions to all
-  components.
+Cartolina keeps the tiled terrain model, progressive loading, navigation,
+and other parts that provide a strong base for large terrain maps. It
+gives them a narrower purpose. Terrain cartography is the main subject
+rather than one kind of content among many.
 
-cartolina removed that model. It has no `vtsd`, storage views, storage
-CLI, encoder toolchain, browser-C++ client, or system-installed
-`vts-registry`. The tileserver serves independent resources; the browser
-decides how to combine them.
+In Cartolina, the application authors the map through a style, which is a
+complete map manifest. Styles have replaced the server-side map
+configurations used in vts-geospatial. The style chooses the terrain
+sources and their cartographic treatment, including imagery, lighting,
+atmosphere, and labels.
 
-There is no glue-tile system in cartolina. In VTS-geospatial,
-overlapping surfaces in one storage needed precomputed glue tilesets to
-render without gaps at the overlap. cartolina treats each surface as an
-independent source and does not blend between surfaces at overlap
-boundaries.
+The unwieldy server-side glue system has been abandoned and replaced by
+a real-time client mechanism with much more flexibility. Terrain
+resources can come from different tileservers, and the browser combines
+them while rendering the map. Surface order and presentation can
+therefore change without rebuilding the source data.
 
-The main replacement is the client-side style specification. A
-`style.json` lists sources, terrain sources, diffuse/bump/specular
-layers, illumination, atmosphere, and vertical exaggeration. This is the
-composition contract for new applications. The inherited mapConfig path
-still loads legacy maps, but no new authored feature should be added to
-it. See [api-and-lifecycle.md](api-and-lifecycle.md) for the
+The new cartographic focus also drove a new WebGL2 terrain renderer.
+Lighting, relief shading, physical atmosphere, and scale-dependent
+vertical exaggeration are some of the new features absent from
+vts-geospatial.
+
+The codebase has evolved in place rather than through a clean rewrite.
+It retains much of the original loading, navigation, and data machinery,
+with the WebGL2 renderer, style model, and typed public API introduced
+incrementally around that foundation.
+
+Legacy map configurations remain a compatibility path, not the design
+direction for new features. See
+[api-and-lifecycle.md](api-and-lifecycle.md) for the
 compatibility rules.
-
-Reference frames still come from the VTS model, but they are embedded in
-each surface `mapConfig.json` served by the tileserver. The client takes
-the reference frame from the first loaded surface. See
-[reference-frames.md](reference-frames.md).
 
 ## Build And Entry Point
 
@@ -220,7 +222,7 @@ async readiness, events, configuration routing, and teardown rules.
 
 ## Design References
 
-MapLibre GL JS is the primary API reference. cartolina follows its
+MapLibre GL JS is the primary API reference. Cartolina follows its
 single-map-object shape, event vocabulary where the concepts match, and
 style-oriented authoring model. Compatibility is not a goal.
 
