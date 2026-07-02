@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-07-02 — Moved tile-index.md to the tileserver docs
+
+The tile-index reference is a server-side document (index format,
+mapproxy-tiling production, served-index assembly), so it moved to the
+cartolina-tileserver docs next to the other tileserver-specific guides.
+Left a redirect stub here and dropped the entry from the wiki table of
+contents. Content updated on the way: the unified pass is now the default
+production path (the legacy TreeWalker detail is marked as such) and the
+watertight-under-broadening note reflects the current code, which clears
+the watertight flag on LOD broadening.
+
+
 ## 2026-07-02 — Reframed the VTS-to-Cartolina architecture
 
 Rewrote the architecture overview to describe the project evolution rather

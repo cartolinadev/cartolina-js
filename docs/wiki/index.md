@@ -66,10 +66,6 @@ in [AGENTS.md](../../AGENTS.md).
   generated, stored, and projected to screen-space error in
   `updateTexelSize`; distance functions, degrade-horizon logic, tree
   traversal, and comparisons with other renderers
-- [tile-index.md](tile-index.md) — what a VTS tile index carries (flag
-  bits, quadtree structure, serialisation), how `mapproxy-tiling`
-  produces one, how the served index is assembled, and LOD-range
-  broadening behaviour
 
 ### Geodata and labels
 
