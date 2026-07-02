@@ -1,5 +1,31 @@
 # Session log
 
+## 2026-07-02 — Clarified metanode watertight semantics
+
+Defined `metanode.watertight` as a property of declared tile geometry: the
+mesh covers its complete geographic cell, so watertight implies
+`geometryPresent`. Pre-v6 four-child inference now requires the parent to
+declare geometry. It retains the useful coherent-pyramid inference for
+unloaded parent meshes without storing descendant-only coverage on a
+geometry-less metanode. Recursive subtree coverage remains a transient draw
+result.
+
+Documented the corresponding legacy-warp exception: its independent triangle
+pass can clear geometry after copying watertight from tiling. Native
+metanode-store delivery preserves the invariant. The legacy path is scheduled
+for retirement, so the server records the discrepancy in code while the
+client keeps the defensive inference guard.
+
+V6 parsing now enforces the same invariant at the data boundary. A
+watertight bit on a geometry-less metanode emits a one-time warning with the
+first offending surface and tile ID, and is cleared before traversal can
+observe it.
+
+Validation passed TypeScript, the `simple-terrain`, `complex-terrain`, and
+`full-terrain` screenshot comparisons, and a private pre-v6 compatibility
+application. The compatibility application rendered, completed readiness,
+and switched named views without page errors.
+
 ## 2026-07-02 — Moved tile-index.md to the tileserver docs
 
 The tile-index reference is a server-side document (index format,

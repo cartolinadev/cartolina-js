@@ -81,11 +81,28 @@ during glue generation. See [glue-alien-flag.md](glue-alien-flag.md)
 for context.
 
 **Bitplane 1** is valid for v6+ metatiles and carries the
-**watertight flag**. A watertight tile fully covers the geographic cell
-allocated to the tile by the spatial division. The client writes it to
-`metanode.watertight` when parsing a v6 metatile. For v1–v5 metatiles
-`metanode.watertight` stays `false`, even if bitplane 1 appears in the
-header.
+**watertight flag**. A watertight metanode has geometry whose mesh covers
+the complete geographic cell allocated to that tile by the spatial
+division, with no footprint holes. It describes two-dimensional cell
+coverage, not a closed three-dimensional manifold, and implies
+`geometryPresent`. It does not say that the mesh resource is loaded or has
+drawn successfully.
+
+The client writes the flag to `metanode.watertight` when parsing a v6
+metatile. For v1–v5 metatiles the client may infer the same property from a
+loaded mesh footprint or, for a parent that declares geometry, from four
+existing watertight children. The latter assumes the ordinary coherence of
+the terrain LOD pyramid: four complete child cells safely establish that the
+declared parent mesh covers its cell. Child inference never marks a
+geometry-less parent watertight. Recursive draw coverage remains separate:
+four rendered child subtrees can cover a cell for the current frame without
+changing the meaning of the parent's mesh flag.
+
+When a v6 bitplane marks a geometry-less metanode watertight, the client
+warns once with the first offending surface and tile ID, then clears
+`metanode.watertight`. This sanitizes legacy warp metatiles that violate the
+invariant while leaving valid store-backed and stored-tileset metadata
+unchanged.
 
 Bitplanes for bits 2–5 are reserved.
 
@@ -234,6 +251,15 @@ See "Glue surface resolution" in the client usage section below.
 | 5 | `urChild` | upper-right child tile exists |
 | 6 | `llChild` | lower-left child tile exists |
 | 7 | `lrChild` | lower-right child tile exists |
+
+`watertight` is a separate bitplane flag rather than a bit in this byte.
+Its invariant is `watertight => geometryPresent`: the declared mesh for
+this metanode covers the complete tile cell. Child existence describes the
+available subtree and does not change that field's meaning.
+
+The client enforces the implication when applying the watertight bitplane:
+invalid `watertight && !geometryPresent` input emits a one-time warning with
+the first surface and tile ID, and is normalized to non-watertight.
 
 The alien and watertight flags are **not** in this byte. Alien lives in
 header bitplane 0. Watertight lives in header bitplane 1 for v6+

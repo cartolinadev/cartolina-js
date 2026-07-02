@@ -3263,6 +3263,29 @@ implementation."
 
 ## Post-implementation notes
 
+### 2026-07-02 — watertight remains a property of declared geometry
+
+Implementation and later legacy-warp validation clarify the accepted §10
+aggregation rule without changing its body. `metanode.watertight` means that
+the metanode declares geometry whose mesh covers its complete geographic
+cell. It implies `geometryPresent`; it is independent of mesh load and draw
+readiness. The term describes two-dimensional footprint coverage, not a
+closed three-dimensional manifold.
+
+For pre-v6 data, four existing watertight children may still infer a
+watertight parent under the terrain pyramid's coherence assumption, but only
+when the parent metanode declares geometry. The inference establishes a
+property of that parent mesh; it does not store descendant-only coverage in
+the metanode. Geometry-less parents remain non-watertight. Coverage returned
+by recursive child traversal is a separate, transient per-frame result.
+
+This guard also restores the wire-format invariant for client inference. A
+legacy warp metatile can violate the invariant because its independent
+triangle pass clears `geometryPresent` without clearing a watertight flag
+copied from tiling. Native metanode-store delivery preserves the invariant.
+The client therefore clears the flag and emits a one-time warning when a v6
+metatile reports `watertight && !geometryPresent`.
+
 ### 2026-06-22 — pre-v6 coverage base case is rasterized, not topological
 
 The §10.3 base case first shipped as the edge-flush topology test it

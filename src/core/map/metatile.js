@@ -4,6 +4,26 @@ import MapMetanode_ from './metanode';
 
 //get rid of compiler mess
 var MapMetanode = MapMetanode_;
+var invalidWatertightWarned = false;
+
+
+var applyWatertight = function(node) {
+
+    node.watertight = true;
+    if (node.hasGeometry()) return;
+
+    node.watertight = false;
+    if (invalidWatertightWarned) return;
+
+    invalidWatertightWarned = true;
+    var surfaceId = node.metatile.surface
+        ? node.metatile.surface.id : '(unknown)';
+    utils.warnOnce(
+        'Invalid metatile for surface "' + surfaceId + '": tile '
+        + node.id.join('-') + ' is watertight without geometryPresent; '
+        + 'ignoring its watertight flag.');
+
+};
 
 
 var MapMetatile = function(metaresources, surface, tile) {
@@ -362,7 +382,7 @@ MapMetatile.prototype.applyMetatatileBitplanes = function() {
                         switch(i) {
                         // bitplane 1 carries the watertight flag
                         case 1:
-                            this.nodes[y*this.sizex+x].watertight = true;
+                            applyWatertight(this.nodes[y*this.sizex+x]);
                             break;
                         }
                     }
@@ -392,7 +412,7 @@ MapMetatile.prototype.applyMetatanodeBitplanes = function(x, y) {
                 switch(i) {
                 // bitplane 1 carries the watertight flag
                 case 1:
-                    this.nodes[y*this.sizex+x].watertight = true;
+                    applyWatertight(this.nodes[y*this.sizex+x]);
                     break;
                 }
             }

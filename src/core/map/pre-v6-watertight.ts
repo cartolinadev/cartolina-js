@@ -121,7 +121,9 @@ export function inferPreV6WatertightFromTile(tile: MapSurfaceTile): boolean {
 }
 
 /**
- * Marks a pre-v6 parent watertight from four loaded watertight children.
+ * Marks a pre-v6 parent mesh watertight from four loaded watertight
+ * children. A coherent terrain pyramid lets four complete child cells
+ * establish full coverage for a parent that declares its own geometry.
  *
  * @param tile Parent tile checked on traversal backtrack.
  * @returns True when this call changed the metanode flag.
@@ -132,6 +134,7 @@ export function inferPreV6WatertightFromChildren(
 
     const node = tile.metanode;
     if (!node || node.watertight || node.metatile.version >= 6) return false;
+    if (!node.hasGeometry()) return false;
     if (!node.hasChildren()) return false;
 
     for (let quadrant = 0; quadrant < 4; quadrant++) {
