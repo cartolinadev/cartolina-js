@@ -1988,9 +1988,10 @@ open items.
 5. **Child flags come from the paired flag index, not store tree
    structure.** §3.2 derives child existence "from tree structure";
    the serve path keeps the existing `validSubtree` queries against
-   the (paired) delivery index, exactly as the warp path does. Same
-   answers by construction, zero extra page reads, and the parity
-   diff compares like with like.
+   the (paired) delivery index, exactly as the warp path does. This
+   avoids extra page reads, but does not materialize the bottom-up-closed
+   delivery hierarchy required by `skipPartial`; item 11 records that
+   post-review gap.
 6. **Pairing also covers the derived delivery index.** The §7
    pairing digest binds store ↔ tiling file, but mapproxy serves
    flags from `delivery.index`, a cached artifact derived from the
@@ -2025,6 +2026,21 @@ open items.
     their levels as consecutive level grids (each a collapsed 2D
     quadtree) rather than interleaved subtree DFS; payload identity
     across packagings is covered by the selftest.
+11. **Raw coverage vs delivery flags.** The store byte described in
+    §3.1 as mesh/watertight flags is raw source coverage with three
+    states: `none`, `partial`, and `full`. The paired tile index is the
+    policy-applied delivery view: mesh, watertight, navtile, and reachable
+    subtrees used to build client metanodes. This distinction became
+    load-bearing with `skipPartial`: suppression clears the delivery-index
+    entry while the store retains `partial`, allowing offline reflagging to
+    restore the mesh without another source warp. Pruning removes the raw
+    store node and therefore remains irreversible. The terminology changed
+    from `NodeData::flags` to `NodeData::coverage`; byte values and store
+    format are unchanged. Post-implementation review found that suppression
+    still needs a bottom-up closure pass during tiling and reflagging: retain
+    a geometry-less structural node only while it leads to deeper geometry,
+    remove geometry-less leaves, and propagate their removal upward. Until
+    that is implemented, `skipPartial` is not safe for client delivery.
 
 ### §9 verification checklist — disposition
 

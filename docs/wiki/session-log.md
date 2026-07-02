@@ -1,5 +1,17 @@
 # Session log
 
+## 2026-07-02 — Clarified metanode-store coverage ownership
+
+RFC 7 post-implementation notes now distinguish the metanode store's raw
+coverage (`none`, `partial`, `full`) and min/max height from the paired tile
+index's policy-applied delivery view (mesh, watertight, navtile and reachable
+subtrees). `skipPartial` clears only the delivery entry, so retained raw
+`partial` coverage supports offline restoration; pruning removes the store
+node and remains irreversible. The existing coverage byte values and store
+format are unchanged. Review also found a missing bottom-up closure step:
+tiling and reflagging must remove geometry-less leaves and propagate their
+removal upward before `skipPartial` is safe for client delivery.
+
 ## 2026-07-02 — Clarified metanode watertight semantics
 
 Defined `metanode.watertight` as a property of declared tile geometry: the
