@@ -2042,6 +2042,15 @@ open items.
     remove geometry-less leaves, and propagate their removal upward. Until
     that is implemented, `skipPartial` is not safe for client delivery.
 
+    *Superseded (2026-07-03).* The closure concern was resolved without a
+    materialized closure: metatile child flags are derived from the
+    delivery index per request (`validSubtree`), which never advertises
+    an all-zero subtree, so a suppressed branch with no geometry below is
+    unreachable by construction. A subsequent architecture review then
+    overturned the raw-vs-delivery framing itself — the coverage byte was
+    scrubbed and the store reframed as a pure height sidecar. See the
+    2026-07-03 addendum below.
+
 ### §9 verification checklist — disposition
 
 - **GDAL resampling assumptions (§4.5)** — verified in phase 3:
@@ -2188,3 +2197,55 @@ corner undulations of the metatile (~16 bytes), letting the client do
 the same bilinear shift for free instead of shipping a geoid grid;
 keeping the wire ellipsoidal remains the zero-client-cost
 alternative. Decide there.
+
+### Addendum (2026-07-03): the store is a height sidecar
+
+RFC 7 deliberately stored mesh and watertight beside heights while
+retaining the existing flag index; review recognized the resulting
+two-authority risk and added pairing. The implementation nevertheless
+sourced delivered flags and child existence from the paired index from
+the day it landed, so serving never read the store's partial/full
+distinction. `--reflag` later became the distinction's only functional
+reader, but the unified pass had made the re-tile it saves cheap
+(~1 h planetary), and that marginal feature did not justify the
+duplicate semantics. The following contract supersedes the original
+§3.1 design and deviation 11:
+
+> The flag tile index is the sole authority for tile existence and
+> delivered flags; the metanode store carries, for every node the index
+> serves, the source height range over its cell — including
+> geometry-less structural nodes under `skipPartial`, whose range bounds
+> every descendant mesh.
+
+The semantic scrub is format-neutral (still v2):
+
+- `NodeData::Coverage` is deleted from the code. The byte remains in
+  the v2 payload as a reserved constant — nonzero, because pre-scrub
+  readers test its truthiness as payload presence — and is ignored on
+  read; node presence is defined by the page codec's quadrant tags.
+  Dropping the byte (4-byte payload) is deferred until an actual
+  store-format change, recorded in the tileserver backlog ("make the
+  metanode store a pure height sidecar"). The shallow-subtree v7 wire
+  format does not itself force a store-format change.
+- The unified pass emits store payload for exactly the index-reachable
+  set (one reachability bit propagated up the mip ascent): a suppressed
+  tile with no geometry below is written to neither artifact, closing
+  the store side of the deviation-11 concern; the delivery side needs
+  no materialized closure because child flags are a serve-time
+  derivation over the index.
+- `--reflag` is deleted; changing `skipPartial` or prune policy means
+  re-tiling. `mapproxy-mnstore check` now verifies the pair: pairing
+  digest, payload ↔ index-reachability agreement in both directions,
+  parent-range containment, and the prune sibling rule.
+
+Verified on the RFC sample: a re-tiled pair has identical height
+payload and pairing to the pre-scrub artifacts (tile-index diff clean,
+node dump diff clean, same pairing digest), the tested pre-scrub
+ordinary stores pass the new check unchanged, a new `skipPartial` pair
+passes with the narrowed node set, and the serve gate is unchanged
+(store-served metatiles, no warp fallbacks). Old and new servers can
+serve both pre-scrub and post-scrub v2 stores; post-scrub stores do not
+preserve the deleted old-tool `--reflag` semantics. No re-tiles are
+required for serving. The new checker validates the post-scrub node-set
+contract, so a pre-scrub `skipPartial` store can report now-inert surplus
+payload.

@@ -3,7 +3,8 @@
 Work confined to `cartolina-tileserver` is tracked in the
 [tileserver backlog](https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/backlog.md).
 
-Add new entries directly below this introduction, newest first.
+**New entries go directly below this line, newest first — never below an
+existing entry, even one added earlier in the same session.**
 
 ## FORMAT: design the v4 terrain-tile container
 

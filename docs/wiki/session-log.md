@@ -1,5 +1,26 @@
 # Session log
 
+**New entries go directly below this line, newest first — never below an
+existing entry, even one added earlier in the same session.**
+
+## 2026-07-03 — RFC 7 height-sidecar semantic scrub
+
+An architecture review in the tileserver superseded the deviation-11
+raw-vs-delivery framing (see the 2026-07-02 entry below). RFC 7 had
+deliberately stored mesh and watertight beside heights while retaining
+the flag index; the implementation then sourced delivery flags from the
+index from the day it landed, and `--reflag` later became the stored
+distinction's only functional reader. The RFC 7 implementation notes now
+carry a 2026-07-03 addendum: the flag tile index is the sole authority
+for existence and delivered flags; the metanode store carries, for every
+node the index serves, the source height range over its cell. The scrub
+is format-neutral (the byte becomes a reserved constant; the store node
+set narrows to the index-reachable set; `--reflag` is deleted;
+`mapproxy-mnstore check` verifies the pair). The closure concern from
+2026-07-02 was resolved without materialization — serve-time child-flag
+derivation never advertises an all-zero subtree. The byte drop waits for
+an actual store-format change, tracked in the tileserver backlog.
+
 ## 2026-07-02 — Clarified metanode-store coverage ownership
 
 RFC 7 post-implementation notes now distinguish the metanode store's raw
