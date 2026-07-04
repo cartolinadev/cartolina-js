@@ -205,9 +205,14 @@ atmosphere stays datum-anchored and static.
 ## FORMAT: design the v4 terrain-tile container
 
 **Opened:** 2026-06-29
-**Status:** deferred — expected future work, not an immediate priority.
-**Related:** `src/map/mesh.js`, `src/map/submesh.js`,
-`src/map/loader/worker-mesh.js`.
+**Status:** promoted to
+[RFC 10](rfc-terrain-tile-container.md) on 2026-07-04. The container,
+the bundled KTX2 normal map, and the single-geometry model are designed
+there; the geometry re-encoding goals below (one GPU-ready index
+domain, optimized DEM encodings, explicit cell UV) remain future work,
+carried by a new payload type inside the RFC 10 container.
+**Related:** `src/core/map/mesh.js`, `src/core/map/submesh.js`,
+`src/core/map/loader/worker-mesh.js`.
 
 The next terrain format revision has several known reasons to be a clean
 break rather than another adjustment to the v1-v3 vertex layout:
@@ -239,10 +244,12 @@ client.
 ## REFACTOR: unify the duplicated mesh parser (main thread + worker)
 
 **Opened:** 2026-06-23
-**Status:** deferred — fold into the JS→TS migration, ideally alongside a
-mesh-format change so both parsers move at once.
-**Related:** `src/map/submesh.js`, `src/map/loader/worker-mesh.js`,
-`src/map/mesh.js`.
+**Status:** subsumed by
+[RFC 10](rfc-terrain-tile-container.md) on 2026-07-04 — its client
+milestone replaces both parsers with one shared TypeScript terrain-tile
+parser used from the worker and the main thread.
+**Related:** `src/core/map/submesh.js`, `src/core/map/loader/worker-mesh.js`,
+`src/core/map/mesh.js`.
 
 The mesh binary is decoded by two near-identical parsers. `submesh.js`
 parses on the main thread as `MapSubmesh` prototype methods; `worker-mesh.js`

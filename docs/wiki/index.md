@@ -39,7 +39,12 @@ then branch into more specific documents as needed.
 RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
-- RFC 8 [rfc8-context-loss-recovery.md](rfc8-context-loss-recovery.md) —
+- RFC 10 [rfc-terrain-tile-container.md](rfc10-terrain-tile-container.md) —
+  serve mesh and KTX2 normal map as one terrain-tile container file
+  (mesh format v4): one DEM warp and one fetch per shaded tile, direct
+  GPU upload, single-geometry client model, unified mesh parser
+
+- RFC 8 [rfc-context-loss-recovery.md](rfc8-context-loss-recovery.md) —
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate

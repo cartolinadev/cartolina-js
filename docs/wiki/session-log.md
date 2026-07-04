@@ -2244,6 +2244,38 @@ are visible at a glance while inspecting a live surface. The label
 also dropped its `JSON.stringify` quoting in favor of a plain string,
 matching the other debug labels in `drawTileInfo`.
 
+## 2026-07-04 — RFC 10 authored: the terrain-tile container
+
+Authored [RFC 10](rfc-terrain-tile-container.md) (Draft) on
+`feature/terrain-tile-container`: serve mesh and normal map as one
+terrain-tile container file — mesh format v4 with a payload table, the
+geometry payload as today's v2 stream (one submesh), the normal map as
+a KTX2 `R8G8_UNORM` payload the client uploads without any image
+decode. One fused DEM warp produces both payloads (grid-registered
+259² warp; mesh grid subsampled on the power-of-two ladder; the normal
+kernel's center-registered lattice derived by exact midpoint
+averaging). The two-file interface (`meshUrl`, `normalsUrl`) stays as
+the compatibility and diagnostics path; `tileUrl` is advertised when
+the new `tileContainer` resource option is set. The RFC also retires
+the client submesh data model (gated on an audit of legacy datasets
+for multi-submesh tiles) and replaces the duplicated main-thread and
+worker mesh parsers with one shared TypeScript parser; both backlog
+entries are cross-referenced. A producer survey (details in the
+private scratchpad) found no live producer of v1 meshes while v3 is
+in active production use, so the unified parser reads v2–v3 and drops
+v1. A prior-art section places the design against comparable engines
+(single-file terrain tiles with oct-encoded normals are the
+established shape; texture-space normals are this project's deliberate
+difference; Google's public traces — the WASM Earth port and the Basis
+Universal open-sourcing — point at single-container tiles plus
+transcoder-based GPU textures), and a deferred note bounds any future
+KTX2 use for diffuse imagery. Measured inputs recorded in the RFC:
+two serialized ~0.25–0.6 s warp-backed requests per shaded tile today,
+and a 1.4–3.2× normal-payload size increase for raw RG8 over lossless
+WebP (gzip/brotli), which the design addresses with a specified WebP
+payload type as the bandwidth escape hatch. Promoted from the backlog
+entry **FORMAT: design the v4 terrain-tile container**.
+
 ## 2026-07-03 — RFC 7 height-sidecar semantic scrub
 
 An architecture review in the tileserver superseded the deviation-11
