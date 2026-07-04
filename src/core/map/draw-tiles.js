@@ -453,7 +453,13 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     }
 
     if (debug.drawSurfaces || debug.drawSurfaces2) {
-        text = JSON.stringify(tile.surface.id);
+        text = '' + tile.surface.id;
+
+        // non-watertight tiles get their surface id parenthesized so
+        // gaps in coverage are visible at a glance in the overlay
+        if (!node.watertight) {
+            text = '(' + text + ')';
+        }
 
         if (debug.drawSurfaces2) {
             //c = utils.getHashColor(text);

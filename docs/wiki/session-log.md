@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-05 — Inspector overlay flags non-watertight surface ids
+
+The debug overlay's surface-id label (`drawSurfaces`/`drawSurfaces2`)
+now parenthesizes the id for a non-watertight tile, so coverage gaps
+are visible at a glance while inspecting a live surface. The label
+also dropped its `JSON.stringify` quoting in favor of a plain string,
+matching the other debug labels in `drawTileInfo`.
+
 ## 2026-07-03 — RFC 7 height-sidecar semantic scrub
 
 An architecture review in the tileserver superseded the deviation-11
