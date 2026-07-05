@@ -184,6 +184,41 @@ tile halves into four children in its local projected SRS, producing the
 same quadtree structure as Google Maps / OSM (for the pseudomerc
 subtree).
 
+#### How partitioning ranges act at run time
+
+The division nodes' physical extents overlap: each UPS cap node spans a
+square that reaches well below 85° latitude, under the Web Mercator
+belt. Ownership is decided not by the node extents but by the root's
+partitioning ranges. When the reference frame is parsed, each subtree
+root inherits its partitioning range as a *constraint* (extents in the
+partitioning node's SRS); vts-libs `NodeInfo` evaluates every tile
+against it. A tile completely outside the constraint is *invalid*, a
+tile crossing the boundary is *partial*, and a partial tile's valid
+area is the constraint's footprint within its cell.
+
+Delivery applies the constraint in two places:
+
+- **Existence filter.** Metatile assembly skips invalid division
+  blocks and gates each metanode's child flags on the child's
+  validity (mapproxy `metatileBlocks` and the store path's
+  `setChildren`), so tiles beyond the partition boundary are never
+  advertised and never requested.
+- **Geometric clip.** Mesh generation intersects a partial tile's
+  geometry with the node's constraint coverage mask
+  (`NodeInfo::coverageMask`), which is why polar-cap surface tiles end
+  exactly at the ±85.05° circle even though their cells continue past
+  it.
+
+This gives watertightness its precise meaning: a tile is watertight
+when its mesh covers the whole *valid* area of its cell, not the whole
+physical cell. A child missing because its cell lies wholly outside
+the constraint is not a coverage hole — nothing is ever served there.
+Producers and consumers that infer watertightness from child coverage
+(the tileserver's unified tiling pass, and this client's pre-v6
+metatile inference in `pre-v6-watertight.ts`) exempt such children;
+only missing children that intersect the valid area make the parent
+non-watertight and trigger fallback rendering.
+
 The `externalTexture: true` flag on LOD 1 nodes signals that the tiles
 in those subtrees have no internal texture coordinates; imagery is
 draped from bound layers instead.
