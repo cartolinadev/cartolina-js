@@ -3,8 +3,34 @@
  */
 
 import type MapSurfaceTile from './surface-tile';
+import type MapMetanode from './metanode';
 
 type MeshArray = Uint16Array | Float32Array;
+
+type SrsLike = {
+    convertCoordsTo(
+        coords: number[],
+        srs: SrsLike,
+        skipVerticalAdjust?: boolean,
+    ): number[];
+};
+
+type ExtentsLike = { ll: number[]; ur: number[] };
+
+/** Spatial division node fields consumed by the valid-area test; the
+ *  runtime object is the untyped MapDivisionNode. `preV6Constraint`
+ *  caches the resolved partition constraint on the node. */
+type DivisionNodeLike = {
+    id: number[];
+    srs: SrsLike;
+    extents: ExtentsLike;
+    partitioning: unknown;
+    preV6Constraint?: PartitionConstraint | null;
+};
+
+/** One subtree's partition range: extents in the SRS of the manually
+ *  partitioned parent division node. */
+type PartitionConstraint = { ll: number[]; ur: number[]; srs: SrsLike };
 
 /**
  * Width and height of the coverage grid each submesh footprint is
@@ -121,9 +147,13 @@ export function inferPreV6WatertightFromTile(tile: MapSurfaceTile): boolean {
 }
 
 /**
- * Marks a pre-v6 parent mesh watertight from four loaded watertight
- * children. A coherent terrain pyramid lets four complete child cells
+ * Marks a pre-v6 parent mesh watertight from its loaded watertight
+ * children. A coherent terrain pyramid lets complete child cells
  * establish full coverage for a parent that declares its own geometry.
+ * A child missing because its cell lies completely outside the
+ * reference frame's valid (partitioned) area is exempt: nothing is
+ * ever served there and the parent mesh is clipped to the same
+ * boundary.
  *
  * @param tile Parent tile checked on traversal backtrack.
  * @returns True when this call changed the metanode flag.
@@ -139,7 +169,11 @@ export function inferPreV6WatertightFromChildren(
 
     for (let quadrant = 0; quadrant < 4; quadrant++) {
 
-        if (!node.hasChild(quadrant)) return false;
+        if (!node.hasChild(quadrant)) {
+
+            if (quadrantOutsideValidArea(tile, quadrant)) continue;
+            return false;
+        }
 
         const child = tile.children[quadrant];
         const childNode = child?.metanode;
@@ -148,6 +182,156 @@ export function inferPreV6WatertightFromChildren(
     }
 
     node.watertight = true;
+    return true;
+}
+
+
+/**
+ * Samples per axis of the lattice a missing child's cell is tested
+ * on against its subtree's partition range. Samples sit half a step
+ * inside the cell edges, so a cell only touching the partition
+ * boundary along an edge still reads as outside; an intersection the
+ * lattice can miss is narrower than a sixteenth of the cell.
+ */
+const VALID_AREA_SAMPLES = 8;
+
+/**
+ * Resolves (and caches on the division node) the subtree's partition
+ * range: the extents its manually partitioned parent division node
+ * assigns to this subtree, in the parent's SRS. Null when the parent
+ * does not exist or does not partition manually — then the subtree
+ * has no constraint and every missing child counts.
+ */
+function subtreeConstraint(
+    tile: MapSurfaceTile,
+    division: DivisionNodeLike,
+): PartitionConstraint | null {
+
+    if (division.preV6Constraint !== undefined) {
+        return division.preV6Constraint;
+    }
+
+    let constraint: PartitionConstraint | null = null;
+    const nodes = (tile.map.referenceFrame as {
+        getSpatialDivisionNodes(): DivisionNodeLike[];
+    }).getSpatialDivisionNodes();
+
+    for (const parent of nodes) {
+
+        if (parent.id[0] !== division.id[0] - 1
+            || parent.id[1] !== (division.id[1] >> 1)
+            || parent.id[2] !== (division.id[2] >> 1)) continue;
+
+        const partitioning = parent.partitioning;
+        if (!partitioning || typeof partitioning !== 'object') break;
+
+        // partition ranges are keyed by the child's position under
+        // the parent: '<x><y>' with each coordinate 0 or 1
+        const key = '' + (division.id[1] & 1) + (division.id[2] & 1);
+        const extents =
+            (partitioning as Record<string, ExtentsLike>)[key];
+
+        if (extents && extents.ll && extents.ur) {
+            constraint = {
+                ll: extents.ll, ur: extents.ur, srs: parent.srs,
+            };
+        }
+        break;
+    }
+
+    division.preV6Constraint = constraint;
+    return constraint;
+}
+
+/**
+ * Tests whether one missing child's cell lies completely outside the
+ * subtree's partition range. The four-bit result for all quadrants is
+ * computed once and cached on the metanode.
+ */
+function quadrantOutsideValidArea(
+    tile: MapSurfaceTile,
+    quadrant: number,
+): boolean {
+
+    const node = tile.metanode as MapMetanode;
+    const division = node.divisionNode as DivisionNodeLike | null;
+    if (!division) return false;
+
+    let mask = node.preV6InvalidChildMask;
+    if (mask === undefined) {
+
+        mask = 0;
+        const constraint = subtreeConstraint(tile, division);
+        if (constraint) {
+            for (let q = 0; q < 4; q++) {
+                if (childCellOutside(node, division, constraint, q)) {
+                    mask |= 1 << q;
+                }
+            }
+        }
+        node.preV6InvalidChildMask = mask;
+    }
+
+    return (mask & (1 << quadrant)) !== 0;
+}
+
+/**
+ * Rasterized point-sampling test of one child cell against the
+ * partition range: every lattice sample is converted from the
+ * division node's SRS into the constraint's SRS and compared with the
+ * constraint extents. A sample that converts poorly (error or NaN) is
+ * treated as inside, keeping the test conservative.
+ */
+function childCellOutside(
+    node: MapMetanode,
+    division: DivisionNodeLike,
+    constraint: PartitionConstraint,
+    quadrant: number,
+): boolean {
+
+    const childLod = node.id[0] + 1;
+    const childX = node.id[1] * 2 + (quadrant & 1);
+    const childY = node.id[2] * 2 + (quadrant >> 1);
+
+    const shift = childLod - division.id[0];
+    const tiles = Math.pow(2, shift);
+    const ext = division.extents;
+    const cellWidth = (ext.ur[0] - ext.ll[0]) / tiles;
+    const cellHeight = (ext.ur[1] - ext.ll[1]) / tiles;
+
+    // the tile grid row grows downward from the node's upper edge
+    const x0 = ext.ll[0] + (childX - division.id[1] * tiles) * cellWidth;
+    const y1 = ext.ur[1] - (childY - division.id[2] * tiles) * cellHeight;
+
+    for (let j = 0; j < VALID_AREA_SAMPLES; j++) {
+
+        const y = y1 - ((j + 0.5) / VALID_AREA_SAMPLES) * cellHeight;
+
+        for (let i = 0; i < VALID_AREA_SAMPLES; i++) {
+
+            const x = x0 + ((i + 0.5) / VALID_AREA_SAMPLES) * cellWidth;
+
+            let point;
+            try {
+                point = division.srs.convertCoordsTo(
+                    [x, y, 0], constraint.srs, true);
+            } catch (error) {
+                return false;
+            }
+            if (!point
+                || Number.isNaN(point[0]) || Number.isNaN(point[1])) {
+                return false;
+            }
+
+            if (point[0] >= constraint.ll[0]
+                && point[0] <= constraint.ur[0]
+                && point[1] >= constraint.ll[1]
+                && point[1] <= constraint.ur[1]) {
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 

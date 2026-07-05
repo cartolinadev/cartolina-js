@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-05 — pre-v6 watertight inference honors rf partitioning; mechanism documented
+
+Documented how a reference frame's partitioning ranges act at run time
+(division-node extents overlap; the ranges are the subtree constraints
+that filter tile existence and clip partial tiles' meshes) in
+[reference-frames.md](reference-frames.md), and aligned the client's
+pre-v6 watertight inference with it: `inferPreV6WatertightFromChildren`
+no longer demands all four children when a missing child's cell lies
+completely outside its subtree's partition range — nothing is ever
+served there, so it is no coverage hole. The cell test derives the
+constraint generically from the division-node model (the manually
+partitioned parent's range, in that parent's SRS), samples the cell on
+an 8×8 half-step-inset lattice through proj4, and caches a per-node
+quadrant mask; conversion failures count as inside, keeping the test
+conservative. Validated the lattice standalone against the melown2015
+polar-cap circle (radius ≈ 550 km in the cap SRS at lat 85.0511°):
+outside, pole-adjacent, circle-crossing and just-outside cells all
+classify correctly. Not yet exercised against a live pre-v6 vtsd
+tileset. The tileserver's unified tiling pass received the matching
+producer-side fix (tileserver session log, 2026-07-05).
+
 ## 2026-07-05 — Inspector overlay flags non-watertight surface ids
 
 The debug overlay's surface-id label (`drawSurfaces`/`drawSurfaces2`)

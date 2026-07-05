@@ -7,6 +7,18 @@ export default class MapMetanode {
 
     metatile: MapMetatile;
 
+    /** Tile address: [lod, x, y]. */
+    id: [number, number, number];
+
+    /** Spatial division node (reference frame subtree root) governing
+     *  this tile; the runtime object is the untyped MapDivisionNode. */
+    divisionNode: unknown;
+
+    /** Lazily computed mask (bit per quadrant) of children lying
+     *  completely outside the reference frame's valid (partitioned)
+     *  area; see pre-v6-watertight.ts. */
+    preV6InvalidChildMask?: number;
+
     /** Axis-aligned height bbox used by pre-v4 metatile formats. */
     bbox: unknown;
 
