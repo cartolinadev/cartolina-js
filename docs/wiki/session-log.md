@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-06 — RFC 7 addendum: metatile packaging is not a resource-definition option
+
+Added a post-implementation addendum to
+[rfc-metanode-store.md](rfc-metanode-store.md) recording that the phase-2
+surface-level `metaBinaryOrder`/`metaDepth` resource-definition options were
+the wrong vehicle: packaging is fixed at tiling/repackaging time and the
+resource definition is consumed at serve time, so a serve-time knob can only
+agree with the already-bricked store or be rejected — the same mistake as
+putting the tiling `gsd` in the definition. The ownership conclusion
+(packaging is per-surface) stands; the store header remains the authority and
+already carries the values. When the shallow-subtree milestone needs
+non-default packaging it becomes a tiling-time parameter stamped into the
+store header, with serving and mapConfig sourced from there. Supersedes the
+phase-2 resource-parser plumbing in §6. Tileserver-side code removal and
+backlog entry are recorded in the tileserver logs (2026-07-06).
+
 ## 2026-07-05 — pre-v6 watertight inference honors rf partitioning; mechanism documented
 
 Documented how a reference frame's partitioning ranges act at run time

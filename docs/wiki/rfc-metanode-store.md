@@ -2249,3 +2249,33 @@ preserve the deleted old-tool `--reflag` semantics. No re-tiles are
 required for serving. The new checker validates the post-scrub node-set
 contract, so a pre-scrub `skipPartial` store can report now-inert surplus
 payload.
+
+### Addendum (2026-07-05): packaging is not a resource-definition option
+
+Phase 2 added surface-level `metaBinaryOrder`/`metaDepth` settings to the
+tileserver resource definition, per §6's "surface definitions are the
+right ownership boundary". The *ownership* conclusion stands — packaging
+is per-surface — but the resource *definition* is the wrong vehicle, for
+the same reason the tiling `gsd` is a tool parameter and not a definition
+field: packaging is fixed at tiling/repackaging time, and the resource
+definition is consumed at serve time, after the store exists. A serve-time
+knob cannot change a store that is already bricked; it can only agree with
+it or be rejected.
+
+The options were in fact inert. The serve/emit path addresses metatiles by
+`referenceFrame().metaBinaryOrder` directly (index build, `metaId` masking,
+`vts::MetaTile` construction); the store page codec reads packaging from its
+own header; and `checkPackaging()` threw unless the effective values equalled
+`(referenceFrame order, 1)`. The definition override reached nothing but the
+mapConfig advertisement and the store-header value written during the same
+generation run — and could only ever be `(5, 1)`.
+
+Resolution: the surface-definition `metaBinaryOrder`/`metaDepth` options are
+removed. Effective packaging is now the reference-frame order and depth 1;
+mapConfig advertises those, and the store header records them. The store
+header remains the authority (§7) and already carries the values. When the
+client shallow-subtree milestone genuinely needs non-default packaging, it
+is reintroduced as a **tiling-time parameter stamped into the store header**,
+with serving and mapConfig advertisement sourced from that header — not from
+a serve-time resource-definition field. Recorded in the tileserver backlog.
+This supersedes the phase-2 resource-parser plumbing in §6.

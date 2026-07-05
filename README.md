@@ -108,6 +108,8 @@ let map = cartolina.map({
 </script>
 ```
 
+### Minimal map style
+
 At a bare minimum, your `style.json` should include a terrain source and a terrain
 definition referring to that source. Illumination definition is optional, but you 
 probably want to use it in this context.
