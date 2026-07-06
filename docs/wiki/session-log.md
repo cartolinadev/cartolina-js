@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-06 — RFC 7 addendum: the store only holds bisection nodes
+
+Added a post-implementation addendum to
+[rfc-metanode-store.md](rfc-metanode-store.md). The tiling tool stores
+tiles only from bisection nodes, but the serve path was reading the
+store for manual nodes too (like the melown2015 root), finding nothing,
+and — once the warp fallback was removed — failing with "no page …
+with reachable tiles". The fix reads the store only for bisection
+nodes and serves manual and barren nodes with flags and children.
+Serve-side fix and verification are in the tileserver logs
+(2026-07-06).
+
 ## 2026-07-06 — RFC 7 addendum: metatile packaging is not a resource-definition option
 
 Added a post-implementation addendum to

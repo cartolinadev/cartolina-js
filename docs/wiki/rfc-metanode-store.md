@@ -2279,3 +2279,26 @@ is reintroduced as a **tiling-time parameter stamped into the store header**,
 with serving and mapConfig advertisement sourced from that header — not from
 a serve-time resource-definition field. Recorded in the tileserver backlog.
 This supersedes the phase-2 resource-parser plumbing in §6.
+
+### Addendum (2026-07-06): the store only holds bisection nodes
+
+A reference frame's division tree has three kinds of node that carry
+tiles: **bisection** (subdivides by halving its extents), **manual**
+(hands off to a new projection at fixed extents, like melown2015's eqc
+root `0-0-0`), and **barren** (an empty node that only connects the tree
+down to real ones). The tiling tool stores only bisection nodes;
+`mapproxy-mnstore check` verifies the store against that same set.
+
+The serve path, though, decided whether to read the store by asking
+`NodeInfo::productive()` — which is true for both bisection and manual
+nodes. So for a manual root it read the store, found nothing, and (once
+the warp fallback was removed) failed with "no page … with reachable
+tiles".
+
+Fix: read the store only for bisection nodes, matching what the tiling
+tool stores. Manual and barren nodes are served with flags and children
+only — which is all they ever carried, and already how barren nodes were
+served. Inside a bisection subtree, a tile that should have data but
+doesn't is still a hard error. `productive()` keeps its vts-libs meaning
+("this subtree may contain tiles"); it just isn't the right question for
+what the store holds.
