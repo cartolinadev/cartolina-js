@@ -307,7 +307,6 @@ export default class Map {
         useGeometricIntersection?: boolean,
         coordinateSpace?: Renderer.CoordinateSpace,
     ): [boolean, number];
-    isAtmospheric(): boolean;
 
     gpuCache: {
         /** phase-1: traversal toggles this around the descent. */

@@ -1,7 +1,6 @@
 
 import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import {grayPngDecodeAvailable} from '../utils/gray-png';
 import {platform} from '../utils/platform';
 import MapView from './view';
 import MapSurfaceTree from './surface-tree';
@@ -1752,29 +1751,5 @@ Map.prototype.tickDeferredEvents = function() {
     }
 };
 
-
-Map.prototype.isAtmospheric = function() {
-
-    // iOS color-manages decoded PNG pixels, which corrupts the density
-    // texture encoding (it rendered as concentric rings). The gray-png
-    // decoder returns the stored bytes verbatim; suppress the
-    // atmosphere only where that decoder cannot run (iOS before 16.4).
-    if (utils.isIos() && !grayPngDecodeAvailable()) return false;
-
-    // style based map - explicit atmosphere needed
-    if (this.style) {
-
-        if  (this.style.styleSpec.atmosphere && this.atmosphere)
-            return true;
-        else
-            return false;
-    }
-
-    // mapconfig based map - atmosphere rendered whenever available
-    if (this.atmosphere) return true;
-
-    // default
-    return false;
-}
 
 export default Map;

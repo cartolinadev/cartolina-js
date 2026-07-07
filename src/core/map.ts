@@ -16,6 +16,7 @@ import type {
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
+import { grayPngDecodeAvailable } from './utils/gray-png';
 import LegacyMap from './map/map';
 import FreezeCameraState from './map/freeze-camera-state';
 import { defaultOverrides, type Overrides } from './map/overrides';
@@ -886,8 +887,22 @@ class Map {
         else
             gpu.clearDepth();
 
+        // runtime atmosphere override falls back to the map
+        // configuration.
+        const atmosphereEnabled = this.overrides.flagAtmosphere
+            ?? legacyMap.config.mapFlagAtmosphere;
+
+        // iOS color-manages decoded PNG pixels, which corrupts the
+        // density texture encoding (it rendered as concentric rings).
+        // The gray-png decoder returns the stored bytes verbatim;
+        // suppress the atmosphere only where that decoder cannot run
+        // (iOS before 16.4).
+        const atmosphereSupported = !utils.isIos()
+            || grayPngDecodeAvailable();
+
         // draw background (skydome)
-        if (channel === 'color' && legacyMap.isAtmospheric())
+        if (channel === 'color' && atmosphereEnabled && atmosphereSupported
+            && legacyMap.atmosphere)
             renderer.drawBackground();
 
         // runtime label override falls back to the map configuration.

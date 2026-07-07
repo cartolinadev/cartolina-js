@@ -916,6 +916,17 @@ Keep inline comments concise and to the point:
   leave history and future plans to commit messages, the wiki, and
   the backlog.
 
+  **This means: never explain a fix by describing the bug it fixes.**
+  A comment that argues against code that no longer exists — "this
+  must match the other gate, or X stays broken", "unlike before, this
+  now also checks Y" — documents the patch, not the code. The reader
+  of the final file never saw the bug and has no use for its
+  rebuttal. Write the positive rule only: what this reads, and why
+  (if the why is a real hidden constraint). The bug narrative belongs
+  in the commit message and the session log, never in the comment
+  itself. This has been raised more than once — treat it as settled,
+  not a judgment call to make fresh each time.
+
 **Adding JSDoc to existing code is encouraged** when you encounter a
 function or method whose behaviour is non-trivial or not obvious from
 its name and signature, and where a JSDoc comment is absent. This

@@ -3,6 +3,31 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-07 — atmosphere diagnostic toggle now silences the background sky
+
+Fixed: the `Shift+F A` diagnostic (and `mapFlagAtmosphere: false`) turned
+off terrain haze but left the background sky shader visible. The
+background draw call in `Map.draw` ([map.ts](../../src/core/map.ts))
+was gated by `Map.isAtmospheric()`, a legacy helper
+([map.js](../../src/core/map/map.js)) that checked subsystem existence
+and the iOS gray-PNG decode bug but never consulted the atmosphere
+flag — the per-frame `renderFlags` check that gates the flag for the
+tile-shader haze layer has no equivalent on the background pass.
+
+Removed `Map.isAtmospheric()` rather than extending it: it conflated
+iOS decode support, subsystem existence, and (if extended) the flag,
+in one function, and its two call sites needed different subsets of
+those checks. `Map.draw` now inlines the flag, iOS decode support, and
+subsystem existence before calling `renderer.drawBackground()`. The
+haze-layer inclusion check in `TileRenderRig.buildLayerStack`
+([tile-render-rig.ts](../../src/core/map/tile-render-rig.ts)) inlines
+iOS decode support and subsystem existence only — the flag is already
+applied per-frame via `renderFlags`, so adding it at layer-build time
+(which runs once per rig, not per frame) would have made the haze
+layer unrecoverable if the rig were built while the flag was off.
+Closes the backlog entry ("`mapFlagAtmosphere: false` does not
+suppress the background sky shader").
+
 ## 2026-07-07 — atmosphere hole-fill follows exaggerated terrain (Mars limb gap)
 
 Fixed the dark band between a sunken planet limb and the atmosphere

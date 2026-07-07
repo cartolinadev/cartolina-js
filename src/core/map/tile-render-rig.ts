@@ -12,6 +12,7 @@ import GpuMesh from '../renderer/gpu/mesh';
 import GpuTexture from '../renderer/gpu/texture';
 import type { CoreConfig } from '../types';
 import Atmosphere from './atmosphere';
+import { grayPngDecodeAvailable } from '../utils/gray-png';
 import MapStyle from './style';
 
 import * as illumination from './illumination';
@@ -968,9 +969,16 @@ export class TileRenderRig {
         } // if (rt.illumination && speculars.length > 0)
 
         // add atmosphere
-        // we do not add atmosphere on iOs until the safari alighnment
-        // bug is fixed
-        if (tile.map.isAtmospheric()) {
+        //
+        // iOS color-manages decoded PNG pixels, which corrupts the
+        // density texture encoding (it rendered as concentric rings).
+        // The gray-png decoder returns the stored bytes verbatim;
+        // suppress the haze layer only where that decoder cannot run
+        // (iOS before 16.4).
+        const atmosphereSupported = !utils.isIos()
+            || grayPngDecodeAvailable();
+
+        if (atmosphereSupported && tile.map.atmosphere) {
 
             rt.layerStack.push({
                 target: 'color',

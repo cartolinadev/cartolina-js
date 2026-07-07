@@ -2020,24 +2020,38 @@ style declared.
 ## BUG: `mapFlagAtmosphere: false` does not suppress the background sky shader
 
 **Opened:** 2026-04-24
-**Status:** deferred
+**Status:** fixed 2026-07-07 — the background draw call in
+[map.ts](../../src/core/map.ts) now checks the same runtime override /
+config flag as the tile-shader haze layer before calling
+`renderer.drawBackground()`
 
 ### Symptom
 
 Setting `mapFlagAtmosphere: false` in the style config suppresses terrain haze
 but leaves the background sky shader active. The sky is always visible whenever
-the style has an `atmosphere` section, regardless of the flag.
+the style has an `atmosphere` section, regardless of the flag. The same gap
+also meant the `Shift+F A` diagnostic toggle silenced only the terrain haze,
+not the background sky.
 
-### Root cause (suspected)
+### Root cause
 
-The flag likely gates only the terrain haze pass. The background sky is a
-separate render pass that checks only whether an atmosphere subsystem exists,
-not the `mapFlagAtmosphere` flag.
+The flag only gated the terrain haze pass, via the per-frame `renderFlags`
+check in the tile shader. The background sky was drawn from a separate call
+site (`Map.draw` in map.ts) guarded only by `Map.isAtmospheric()`, a legacy
+helper that checked subsystem existence and the iOS gray-PNG decode bug but
+never consulted `mapFlagAtmosphere` or its runtime override.
 
-### Expected behaviour
+### Fix
 
-`mapFlagAtmosphere: false` should mean no atmosphere at all — no terrain haze
-and no background sky. The flag should control both components together.
+`Map.isAtmospheric()` was removed — it conflated three unrelated checks
+(iOS decode support, subsystem existence, and implicitly the flag it never
+checked). Both call sites now inline what they actually need:
+`Map.draw` in map.ts checks the runtime/config atmosphere flag, iOS decode
+support, and subsystem existence before drawing the background; the haze
+layer inclusion in `TileRenderRig`'s `buildLayerStack`
+([tile-render-rig.ts](../../src/core/map/tile-render-rig.ts)) checks iOS
+decode support and subsystem existence only, since the flag is already
+applied per-frame via `renderFlags`.
 
 ### Observed during
 
