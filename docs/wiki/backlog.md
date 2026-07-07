@@ -6,6 +6,53 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## FEATURE: make the atmosphere shell track vertical exaggeration
+
+**Opened:** 2026-07-07
+**Status:** deferred — no clean fix with the current density texture.
+**Related:** `src/core/map/atmosphere.ts`,
+`src/core/renderer/shaders/includes/atmosphere.inc.glsl`,
+`externals/vts-libs/.../vts/atmospheredensitytexture.cpp` (tileserver).
+
+The atmosphere shell is anchored to the datum with a fixed thickness.
+On bodies rendered with strong vertical exaggeration the exaggerated
+terrain can stand taller than the shell, so peaks stick out of the
+atmosphere. The reported artifact — a dark band between a sunken limb
+and the atmosphere edge — is now handled separately by the per-frame
+`solidBodyRadius` (the sky-ray hole-fill sphere follows the
+exaggerated `heightRange[0]`); this entry is only about the shell
+thickness not growing with exaggeration.
+
+Two inflation attempts were tried and rejected (session log
+2026-07-07):
+
+- A constant factor at construction time (thickness and visibility
+  scaled by the exaggeration at body-diameter extent). Because the
+  factor is fixed, it applies at every view: at planet scale Earth
+  became a uniform blue ball. A constant cannot track a
+  view-dependent ramp, and even where the shell was thick enough the
+  visible glow is only ~2-3 density scale heights, so peaks still
+  poked out.
+- A per-frame stretch of the shell geometry against the unchanged
+  texture. The density texture stores path integrals parameterized by
+  relative altitude and near-saturated over the lower shell, so
+  stretching the uv mapping stretches the saturated core: the planet
+  gained a fat opaque ring.
+
+The static density texture is the fundamental blocker. Two viable
+routes if this is picked up:
+
+- refetch the density texture per quantized exaggeration bucket (the
+  `def` query already parameterizes thickness; the tileserver
+  generates on demand; swap the gpu texture when the new one loads),
+  or
+- replace the texture with an in-shader analytic integral
+  (Chapman-function style), making thickness a free per-frame
+  uniform.
+
+Until then the dead constructor inflation lines are removed and the
+atmosphere stays datum-anchored and static.
+
 ## FORMAT: design the v4 terrain-tile container
 
 **Opened:** 2026-06-29

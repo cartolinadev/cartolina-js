@@ -58,10 +58,9 @@ class Atmosphere {
         // "sky color"
         //params.colorZenith = params.colorHorizon = [0.59, 0.75, 0.96, 1.0];
 
-        // we inflate atmosphere thickness and visibility
-        // by vertical exaggeration at view extent equal to body diameter
-        params.thickness *= this.renderer.getVeScaleFactor(2 * srsInfo.a);
-        params.visibility *= this.renderer.getVeScaleFactor(2 * srsInfo.a);
+        // the thickness stays as authored: the density texture is
+        // generated for a single thickness, so the shell cannot track
+        // vertical exaggeration without recomputing the texture
 
         // this is purely empirical. Note that visibility configured here is in
         // fact use only as upper limit on the visibility: see the calculation
@@ -265,6 +264,28 @@ class Atmosphere {
         if (params.edgeDistanceToEyeDistance)
             edgeDistance = params.edgeDistanceToEyeDistance * eyeToCenter;
 
+        // the solid-body radius: the deepest radius terrain can reach
+        // under the current vertical exaggeration, normalized by the
+        // major axis. The shaders treat the sphere of this radius as
+        // opaque ground when sky rays pass through the planet. The
+        // density texture stores ray integrals only down to
+        // 1 - boundaryThickness, which caps how deep the sphere may
+        // sink; the reference ellipsoid caps it from above.
+        const map = this.renderer.core.map;
+        const heightRange = map.referenceFrame?.getGlobalHeightRange();
+        let solidBodyRadius = 1.0;
+
+        if (heightRange) {
+
+            const minHeight = this.renderer.getSuperElevatedHeight(
+                heightRange[0], map.position);
+
+            solidBodyRadius = math.clamp(
+                1.0 + minHeight / params.bodyMajorRadius,
+                1.0 - params.boundaryThickness / params.bodyMajorRadius,
+                1.0);
+        }
+
         const horizontalExponent = - params.bodyMajorRadius
             * Math.log(params.visibilityQuantile) / visibility * 5.0;
         // times 5 as compensation for texture normalization factor
@@ -286,7 +307,7 @@ class Atmosphere {
             uniAtmCoefs: [
                 horizontalExponent,
                 params.colorGradientExponent,
-                0.0, 0.0],
+                solidBodyRadius, 0.0],
             uniAtmCameraPosition: eyePosNormalized
         };
 

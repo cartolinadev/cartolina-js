@@ -3,6 +3,52 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-07 — atmosphere hole-fill follows exaggerated terrain (Mars limb gap)
+
+Fixed the dark band between a sunken planet limb and the atmosphere
+edge on large-scale Mars views. The atmosphere shader
+([atmosphere.inc.glsl](../../src/core/renderer/shaders/includes/atmosphere.inc.glsl))
+terminated sky rays that miss terrain at the reference ellipsoid
+(normalized radius 1.0). With
+vertical exaggeration, terrain at a below-datum limb (Utopia Planitia,
+~-4500 m x ~5.5) renders tens of km inside the ellipsoid, so rays
+between the limb and the ellipsoid were cut as if the ellipsoid were
+rock — a dark gap. Any below-datum Earth terrain (bathymetry, Dead
+Sea) would show the same.
+
+Fix: a per-frame `solidBodyRadius` uniform (reserved `uniAtmCoefs.z`),
+computed in [atmosphere.ts](../../src/core/map/atmosphere.ts) as
+`clamp(1 + se(heightRange[0])/a, 1 - boundaryThickness/a, 1)` — the
+deepest
+radius terrain can reach at the current exaggeration, floored by what
+the density texture can answer and capped by the datum. The shader
+uses it only for sky-ray hole filling; terrain rays keep the
+ellipsoid approximation (a `skyRay = ts[1] > 1000.0` flag separates
+the two). Verified: Mars close and global views clean, gap gone;
+Earth `simple`/`full` pixel-identical, `complex` differs only in
+label jitter.
+
+Separately, the constructor's dead vertical-exaggeration thickness
+inflation was removed. It never engaged on the style path (the
+atmosphere was constructed before the style's exaggeration was
+installed), and both reintroduction attempts — a constant factor and a
+per-frame shell stretch — looked wrong because the density texture is
+baked for a single thickness. The atmosphere stays datum-anchored and
+static; the principled routes are captured as a
+[backlog](backlog.md) entry ("make the atmosphere shell track
+vertical exaggeration").
+
+Also exposed the demo viewer on `window.v` in
+[demos/map/index.html](../../demos/map/index.html) for console
+experiments.
+
+Known transient: in a hole-covered region the fill sphere renders a
+hard brightness ring at its silhouette (binary full-chord vs
+half-chord cut) with a smooth atmosphere gradient inside it. It only
+shows while tiles load, since the fill sphere is always below the
+terrain envelope. Feathering the cut with a `smoothstep` band was
+offered and deferred.
+
 ## 2026-07-06 — RFC 7 addendum: the store only holds bisection nodes
 
 Added a post-implementation addendum to

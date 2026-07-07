@@ -150,7 +150,8 @@ async function main() {
   position = posFromURL() || position;
   const style = await loadStyle(params);
 
-  cartolina.map({
+  // the viewer handle, exposed for console experiments
+  window.v = cartolina.map({
     container: 'map',
     style: style,
     position: position,

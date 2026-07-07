@@ -22,7 +22,8 @@ layout(std140) uniform uboAtm
     // uniAtmCoefs
     //     - horizontal exponent,
     //     - colorGradientExponent
-    //     - zw reserved
+    //     - solid-body radius (divided by major axis)
+    //     - w reserved
     highp vec4 uniAtmCoefs;
 
     // world position of camera (divided by major axis)
@@ -126,14 +127,22 @@ float atmDensityDir(vec3 fragDir, float fragDist)
     if (y > atmRad)
         return 0.0; // the ray does not cross the atmosphere
 
+    // the sphere treated as opaque ground when filling sky rays; sits
+    // below 1.0 when the reference frame admits terrain below the datum
+    float rSolid = uAtm.uniAtmCoefs[2];
+
+    // sky rays carry the far sentinel; terrain rays carry a real
+    // fragment distance
+    bool skyRay = ts[1] > 1000.0;
+
     float t1e = x - sqrt(1.0 - y2 + 1e-7); // t1 at ellipse
 
-    // fill holes in terrain if the ray passes through the planet
-    if (y < 0.998 && x >= 0.0 && ts[1] > 1000.0)
-        ts[1] = t1e;
+    // fill holes in terrain if the sky ray passes through solid ground
+    if (y < rSolid - 0.002 && x >= 0.0 && skyRay)
+        ts[1] = x - sqrt(rSolid * rSolid - y2 + 1e-7);
 
     // approximate the planet by the ellipsoid if the mesh is too rough
-    if (y <= 1.0)
+    if (y <= 1.0 && !skyRay)
         ts[1] = mix(ts[1], t1e, clamp(l * 10.0 - 14.0, 0.0, 1.0));
 
     //float lb = 90000 * uAtm.uniAtmSizes[2];
