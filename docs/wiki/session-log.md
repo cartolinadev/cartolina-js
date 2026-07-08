@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-08 — child culling requires an actual visibility rejection
+
+Corrected combined terrain traversal's empty-quadrant classification.
+`collectChildActive()` previously initialized its aggregate culling result
+to true, then used watertight parent geometry as a special case to clear it
+for absent children. This treated an all-absent child set as culled and
+could fold visible parent fallback coverage into `empty`.
+
+The collector now classifies a quadrant as culled only when the ready set is
+empty, no child metadata is pending, and at least one loaded child was
+actually rejected by frustum culling. An all-absent set remains a gap for
+parent fallback; pending metadata also remains a gap. This preserves the
+off-screen fallback optimization without using watertightness as a proxy for
+child visibility. TypeScript passes,
+and the two private multi-surface configurations that exposed the opposite
+failure modes both render correctly.
+
 ## 2026-07-07 — atmosphere diagnostic toggle now silences the background sky
 
 Fixed: the `Shift+F A` diagnostic (and `mapFlagAtmosphere: false`) turned

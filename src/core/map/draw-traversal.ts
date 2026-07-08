@@ -212,9 +212,12 @@ function traverseNode(context: NodeContext): CoverageResult {
 
             if (child.active.length === 0) {
 
-                // Culled (off-screen for every surface): nothing to cover,
-                // so fold it in. Otherwise a real gap, left for the draw.
-                if (child.culled) emptyMask |= 1 << quadrant;
+                // At least one loaded child was off-screen and every candidate
+                // was absent or culled. Nothing finer needs coverage here, so
+                // fold the quadrant in. With only absent children there is
+                // no visibility evidence; leave a gap for parent fallback.
+                if (child.culled)
+                    emptyMask |= 1 << quadrant;
                 continue;
             }
 
@@ -332,11 +335,11 @@ function traverseNode(context: NodeContext): CoverageResult {
  * descent for the frame so a slower surface cannot be skipped over. Its
  * load is requested through `getReadyChild`.
  *
- * `culled` reports that every surface with known coverage here is loaded
- * and off-screen for the whole active set. A missing child on a watertight
- * parent is covered by that parent; a missing child on a sparse parent is
- * absent coverage. The caller folds a culled quadrant into a watertight
- * result instead of drawing a fallback nothing can see.
+ * `culled` is the final quadrant classification. It is true only when there
+ * are no ready children, no child metadata is pending, and at least one
+ * loaded child was rejected as off-screen. Every surface's child is therefore
+ * either absent or culled. When every child is absent, `culled` remains false
+ * and the caller leaves a gap for parent fallback.
  */
 function collectChildActive(
     context: NodeContext,
@@ -346,9 +349,7 @@ function collectChildActive(
     const { active, cameraPos } = context;
     const childActive: ActiveSurface[] = [];
 
-    // Holds while every surface's finer child here is loaded and
-    // off-screen; each other case clears it (see the branches).
-    let culled = true;
+    let sawCulledChild = false;
 
     // Set when a candidate has a child here whose metanode has not loaded
     // yet. One pending candidate blocks recursion into the quadrant.
@@ -359,10 +360,6 @@ function collectChildActive(
         const node = entry.tile.metanode!;
 
         if (!node.hasChild(quadrant)) {
-
-            if (node.watertight && node.hasGeometry()) {
-                culled = false;  // watertight parent covers this quadrant
-            }
             continue;            // absent: surface has no child here
         }
 
@@ -371,20 +368,23 @@ function collectChildActive(
         if (!childTile || !childTile.metanode) {
 
             pending = true;      // child exists but its metanode is not ready
-            culled = false;      // finer child not loaded; visibility unknown
             continue;
         }
 
         if (!childTile.bboxVisible(childTile.id, childTile.metanode.bbox,
                 cameraPos, childTile.metanode)) {
 
+            sawCulledChild = true;
             continue;            // finer child loaded and off-screen (culled)
         }
 
-        culled = false;          // finer child visible; joins the active set
         childTile.updateTexelSize();
         childActive.push({ tree: entry.tree, tile: childTile });
     }
+
+    const culled = !pending
+        && childActive.length === 0
+        && sawCulledChild;
 
     return { active: childActive, culled, pending };
 }
@@ -516,8 +516,8 @@ type ActiveSurface = {
 
 
 /**
- * One quadrant's classified children: the ready set, plus whether the
- * quadrant is fully culled or blocked by a pending candidate.
+ * One quadrant's classified children: the ready set, final culling
+ * classification, and whether child metadata is still pending.
  */
 type ChildQuadrant = {
     active: ActiveSurface[];
