@@ -43,13 +43,10 @@ var MapSurfaceTile = function(map, parent, id) {
     this.texelSize2 = 1;
     this.distance = 1;
 
-    // Pre-v6 compatibility (RFC 3 §10). A geometry-less node sets
-    // texelSize to Infinity to force descent; that signal is not view-
-    // scale aware, so on legacy pre-v6 surfaces with geometry only at
-    // deep LODs it drags the recursive descent down hundreds of
-    // thousands of nodes. This holds a finite, fit-comparable descent
-    // estimate for those nodes (see updateTexelSize). Remove with the
-    // rest of the pre-v6 bridge.
+    // A geometry-less node sets texelSize to Infinity to force descent;
+    // that signal is not view-scale aware. This holds a finite,
+    // fit-comparable descent estimate for those nodes (see
+    // updateTexelSize).
     this.fallbackTexelSize = Number.POSITIVE_INFINITY;
     this.tiltAngle = 1;
     this.seCounter = 0;
@@ -691,32 +688,32 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
             pixelSize = this.getPixelSize(node.bbox, 1, cameraPos, cameraPos, true);
         }
 
-        // Pre-v6 compatibility (RFC 3 §10). A geometry-less node reports
-        // texelSize Infinity below, which forces descent regardless of
-        // view scale; on pre-v6 surfaces with geometry only at deep LODs
-        // that drags the recursive traversal down even on coarse views.
-        // Compute a finite, fit-comparable estimate instead: model the
-        // cell as a plane in the middle of its bbox textured at the
-        // 256-sample density the applyDisplaySize path uses (one texel of
-        // physical width bbox.maxSize / 256), projected through the
-        // distance factor just computed (pixelSize[0], from a unit-world-
-        // size getPixelSize call). The estimate runs a little coarser
-        // than a real measured texelSize, biasing toward slightly more
-        // descent - the safe direction, so it never stops descent above
-        // geometry that should load. Horizon degradation is not applied,
-        // which can only add descent. Remove with the pre-v6 bridge.
-        if (node.metatile.version < 6) {
-            var fallbackMaxSize = node.bbox
-                ? node.bbox.maxSize : node.bboxMaxSize;
-            var fallbackEstimate = pixelSize[0]
-                * draw.ndcToScreenPixel * (fallbackMaxSize / 256);
+        // A geometry-less node reports texelSize Infinity below, which
+        // forces descent regardless of view scale. Compute a finite,
+        // fit-comparable estimate instead: model the cell at a 256-sample
+        // density and project one sample through the distance factor just
+        // computed. Versions 1-4 carry a quantized physical bbox. Versions
+        // 5-6 removed it, so derive the corresponding maximum cell span
+        // from the physical bbox corners generated for culling.
+        var fallbackMaxSize;
 
-            this.fallbackTexelSize = Number.isFinite(fallbackEstimate)
-                ? fallbackEstimate : Number.POSITIVE_INFINITY;
-
+        if (node.metatile.version < 5) {
+            fallbackMaxSize = node.bbox.maxSize;
         } else {
-            this.fallbackTexelSize = Number.POSITIVE_INFINITY;
+
+            var fallbackBbox = node.bbox2;
+            fallbackMaxSize = Math.max(
+                vec3.distance2(fallbackBbox, 0, fallbackBbox, 3),
+                vec3.distance2(fallbackBbox, 3, fallbackBbox, 6),
+                vec3.distance2(fallbackBbox, 0, fallbackBbox, 12)
+            );
         }
+
+        var fallbackEstimate = pixelSize[0]
+            * draw.ndcToScreenPixel * (fallbackMaxSize / 256);
+
+        this.fallbackTexelSize = Number.isFinite(fallbackEstimate)
+            ? fallbackEstimate : Number.POSITIVE_INFINITY;
 
         pixelSize[0] = Number.POSITIVE_INFINITY;
     }

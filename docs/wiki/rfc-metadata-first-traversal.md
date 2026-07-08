@@ -1,6 +1,6 @@
 # RFC 9: metadata-first terrain traversal
 
-**Status:** Partially salvaged
+**Status:** Largely salvaged; implementation incomplete
 
 ## Context
 
@@ -35,11 +35,11 @@ metanodes are not ready yet, the traversal can chase deep geometry
 before the metadata frontier has established whether that work is
 needed.
 
-The current branch contains a local workaround for that storm:
-`MapSurfaceTile.fallbackTexelSize` gives pre-v6 geometry-less nodes a
-synthetic, finite descent estimate, and `draw-traversal.ts` substitutes
-that value only in the descent test. This stops coarse views from chasing
-deep geometry-less branches. It also changes the meaning of a fitted
+The current branch contains a configurable brake for that storm:
+`MapSurfaceTile.fallbackTexelSize` gives geometry-less nodes a synthetic,
+finite descent estimate, and `draw-traversal.ts` uses that value only in
+the descent test. This stops coarse views from chasing deep
+geometry-less branches. It also changes the meaning of a fitted
 geometry-less node: traversal can stop at a node that cannot render
 coverage. That is correct only when another surface covers the cell. If
 the geometry-less subtree is the only provider for that region, the
@@ -366,113 +366,99 @@ surfaces returned by `surfaceList()` for the active style or mapConfig
 view, not every surface declared anywhere in the map configuration. That
 does not change the design.
 
-## Post-implementation notes — partially salvaged
+## Addendum — 2026-06-22 — implementation attempt failed (`b5869add`)
 
-The first implementation was not a total loss. The metadata-first root
-rule and child-pending rule remain the intended traversal structure. The
-close-view priority failure came from a narrower render-gate error at the
-node where descent stopped.
+The first implementation landed the metadata-first structure:
 
-A later single-tile trace showed that the higher-priority surfaces reached
-the render loop before the lower-priority fitted watertight surface. They
-were non-natural leaves at the stopped node, so the off-cadence fallback
-rule treated them as no-load residence probes. With no mesh already
-resident, they produced no rig and issued no data request. The
-lower-priority fitted watertight surface then rendered and claimed the
-node.
+- `drawTerrainTraversal()` waited for every configured root metanode before
+  making an LOD-0 decision;
+- `collectChildActive()` classified each candidate child as absent,
+  pending, culled, or ready;
+- `traverseNode()` skipped a quadrant while any candidate child was
+  pending.
 
-The salvaged fix keeps the combined-descent brake: any fitted watertight
-surface may still stop descent for the node. It changes only the render
-gate at such a stop. Off-cadence fallback draws normally keep
-`preventLoad = true`, but when `hasWatertightFit` is true the
-front-to-back render loop lets fallback candidates load until the first
-watertight surface stops lower-priority rendering. This lets
-higher-priority surfaces load and draw fallback content at the stopped
-node without allowing them to pull descent deeper.
+Targeted traces confirmed that the pending rule engaged and that the
+combined traversal was the only terrain traversal path. The implementation
+nevertheless failed both objectives:
 
-Verified after the change:
+1. **Stable surface priority failed.** A lower-priority surface occupied
+   the settled view while higher-priority surfaces appeared only as
+   transient loading artifacts.
+2. **The geometry-less tile storm remained.** Disabling
+   `PreV6DescentFallback` returned the deep-descent storm.
 
-- the previously failing private close-view trace requests and eventually
-  renders the higher-priority fallback surfaces at the stopped tile;
-- `npx tsc --noEmit` passes;
-- the standard screenshot entries `simple-terrain`, `complex-terrain`,
-  and `full-terrain` capture successfully.
+The higher-priority surfaces issued no data request for the stopped tile.
+This located the failure inside traversal rather than loading or the server,
+but the reason for the missing requests was not yet established.
 
-Still not salvaged: metadata-first traversal does not supersede the
-pre-v6 geometry-less fallback. Turning off `PreV6DescentFallback` is still
-expected to return the deep-descent storm. The fallback remains temporary
-compatibility code to be removed with the pre-v6 bridge, not a mechanism
-to refine further.
+## Addendum — 2026-06-22 — partial salvage (`4b3dbb65`)
 
-## Implementation attempt — failed, then diagnosed
+A follow-up single-tile trace found that the higher-priority surfaces
+remained active and reached the render loop first. They were non-natural
+leaves at a node where a lower-priority fitted watertight surface had stopped
+descent. The off-cadence fallback rule therefore tried them with
+`preventLoad = true`; with no resident mesh, they produced no rig and issued
+no data request.
 
-A first implementation attempt landed in `src/core/map/draw-traversal.ts`
-and **failed every objective of this RFC**. The code is kept as a starting
-point for whoever takes this over; it is not a working implementation.
-This section records only what was verified, and states plainly where the
-cause is unknown. Private reproduction details — the test dataset, the
-camera, the viewport, and the specific tile traced — are kept out of this
-public document and recorded in the scratchpad repository.
+The fix retained the metadata-first root and child-pending rules and kept
+the fitted-watertight descent stop. It changed only the render gate at such a
+stop: off-cadence fallback candidates may load while `hasWatertightFit` is
+true, until the first watertight surface stops lower-priority rendering.
+Higher-priority fallback content can therefore load without pulling descent
+deeper.
 
-### What the attempt changed
+The failing close-view trace then requested and rendered the
+higher-priority fallback surfaces. TypeScript and the standard
+`simple-terrain`, `complex-terrain`, and `full-terrain` screenshots passed.
+Metadata-first traversal still did not supersede the pre-v6
+`fallbackTexelSize` brake. Load growth around the fallback-load exception
+remained the main validation risk.
 
-- `drawTerrainTraversal()` root rule: it iterates the `plainTrees` input
-  stack and returns from the whole frame as soon as any root metanode is
-  not ready, so no LOD-0 decision runs until every configured root is
-  classified.
-- `collectChildActive()` classifies each candidate at a child quadrant as
-  absent, pending, culled, or ready, and returns a `pending` flag when any
-  candidate has a child whose metanode is not loaded.
-- `traverseNode()` skips a pending quadrant (`if (child.pending) continue`)
-  instead of recursing it.
-- The pre-v6 `fallbackTexelSize` descent-gate substitution is gated by a
-  module-level `PreV6DescentFallback` constant, default on.
+## Addendum — 2026-07-08 — empty-quadrant culling (`43167db1`)
 
-### Objective failures (verified)
+RFC 9 requires absent and culled children to remain distinct outcomes.
+`collectChildActive()` had treated an all-absent child set as culled because
+its aggregate culling flag started true. That could fold a visible quadrant
+into `empty` and suppress required parent fallback coverage. The correction
+requires an actual loaded child to fail frustum culling before a quadrant is
+classified as culled. All-absent and pending child sets remain gaps for
+parent fallback. This restores the child-classification invariant; it does
+not change surface-priority stability or the geometry-less tile-storm brake.
 
-1. **Stable surface priority — FAILED.** On a multi-surface view where a
-   higher-priority photogrammetric surface and a lower-priority
-   orthophoto-draped DEM cover the same ground, the settled image shows the
-   lower-priority surface painted over the whole frame; the higher-priority
-   surfaces do not appear except as transient artifacts during loading.
-   This is the same result as `main` (the bug RFC 9 set out to fix). The
-   implementation does not change the observed outcome.
+## Addendum — 2026-07-08 — configurable structural descent brake
 
-2. **Superseding the pre-v6 geometry-less descent fallback — NOT
-   ACHIEVED.** With `PreV6DescentFallback` disabled, the geometry-less
-   descent storm returns. The fallback is still required.
+The geometry-less fallback was described as pre-v6 but its physical-span
+calculation used the quantized bbox available only in metatile versions 1-4.
+Versions 5-6 now derive the span from the physical `bbox2` corners generated
+for culling.
 
-### Key finding (verified, then explained)
+`mapStructuralDescentBrake` replaces the module-level fallback switch. It is
+clamped to 0-1 and defaults to 0.25. Geometry-less nodes descend while:
 
-For the one tile traced to the failure, only the lower-priority surfaces
-(the base terrain and the orthophoto-draped DEM) ever issue data-tile
-requests. The higher-priority surfaces issue **no request at all** for that
-tile, so they can never draw and the lower-priority surface fills the cell.
-Their data is never asked for, so this is not a loading or server problem —
-the traversal stops requesting those surfaces at this position. Why it stops
-was not established during the failed attempt.
+```text
+fallbackTexelSize > texelSizeFit * mapStructuralDescentBrake
+```
 
-The follow-up trace established the mechanism. The surfaces did not drop
-out of the active set, and the render loop did not skip their priority.
-They were rendered as off-cadence fallback probes with `preventLoad = true`
-at a node where a lower-priority fitted watertight surface had stopped
-descent. That no-load probe was the reason no tile data was requested.
+Zero is transparent and leaves structural descent unbounded. Positive values
+let the brake act only after the structural estimate fits more finely than
+normal measured geometry. A targeted sparse-v6 trace, runtime option checks,
+TypeScript, and the three standard screenshots passed.
 
-### Also verified
+Manual validation against a complex legacy pre-v6 surface stack showed that
+the structural brake bounds the initial geometry-less descent spike. The
+traversal may briefly visit thousands of tiles, but remains manageable until
+mesh loading supplies enough inferred watertight coverage to take over.
 
-- The combined traversal in `draw-traversal.ts` (via
-  `Map.drawTerrainRecursive`) is the only terrain traversal path; free
-  layers use `MapSurfaceTree.draw` and are unrelated.
-- The pending rule does engage: tracing descent toward the failing tile
-  showed `traverseNode` skipping the child quadrant
-  (`child.pending === true`) when `collectChildActive` reported a candidate
-  pending. That changes where descent stops, not the result above.
+The same policy is required for v6 surfaces whose production settings omit
+partial ancestors and leave a deep geometry-less child chain before the first
+mesh. Those chains can create a smaller version of the same request storm
+despite otherwise valid v6 metadata.
 
-### For whoever takes over
+The brake is therefore a cross-version structural safety policy rather than
+a temporary pre-v6 compatibility bridge. The default value of 0.25 preserves
+more descent before intervening; 0.5 is a more conservative setting for
+applications that prefer a lower transient tile count.
 
-Keep validation focused on whether the fallback-load exception introduces
-unexpected load growth in views where a sparse higher-priority surface has
-children but a lower-priority fitted watertight surface correctly stops
-descent. The private close-view failure is now explained; the remaining RFC
-risk is load discipline, especially while `PreV6DescentFallback` still
-exists.
+This addendum does not complete RFC 9. During loading, lower-priority
+surfaces can still appear transiently before higher-priority coverage becomes
+renderable. Stable surface priority throughout loading remains unresolved.

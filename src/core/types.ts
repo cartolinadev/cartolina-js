@@ -80,6 +80,7 @@ export interface CoreConfig {
     mapTraversalMaskThreshold?: number;
     mapTraversalMaskErosion?: number;
     mapFallbackCadence?: number;
+    mapStructuralDescentBrake?: number;
     mapLabelFreeMargins?: [number, number, number, number];
     mapRefreshCycles?: number;
     transformRequest?: TransformRequestCallback;

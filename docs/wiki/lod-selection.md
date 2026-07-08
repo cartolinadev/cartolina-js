@@ -199,46 +199,47 @@ reconstructs a projected sample size from a physical tile size and an
 assumed tile density.
 
 
-## Geometry-less Nodes And The Pre-v6 Descent Estimate
+## Geometry-less nodes and the structural descent brake
 
 A metanode with no geometry carries no sample length, so
-`updateTexelSize()` sets `texelSize` to `Infinity`. The recursive
-traversal reads that as "never fits" and always descends through such a
-node. That is fine on v6 data, where a watertight surface that fits the
-screen stops the combined descent before it reaches geometry-less
-branches (`rfc-draw-traversal.md`, `hasWatertightFit`). On pre-v6 data,
-which has no watertight bit, a surface with geometry only at deep LODs is
-geometry-less at every coarse LOD and forces the descent all the way down
-to that geometry even on far views, visiting a large number of nodes per
-frame. Inferred watertight (`rfc-draw-traversal.md` §10) heals this once
-the covering meshes load, but the descent storm can keep the loader from
-ever getting there.
+`updateTexelSize()` sets `texelSize` to `Infinity`. Following that value
+unconditionally can create a tile-request storm when geometry starts below
+a deep chain of structural nodes. This occurs while legacy coverage is still
+being inferred and in newer surfaces built without partial ancestors.
 
-The pre-v6 bridge gives geometry-less nodes a finite, fit-comparable
-descent estimate, `MapSurfaceTile.fallbackTexelSize`, computed in
-`updateTexelSize()` and used **only** in the traversal's descent test
-(`draw-traversal.ts`). `texelSize` stays `Infinity`, so leaf detection,
-readiness, rendering, and the watertight-fit stop are unchanged. The
-estimate models the cell as a plane in the middle of its bbox textured at
-the 256-sample density the `applyDisplaySize` path assumes:
+`MapSurfaceTile.fallbackTexelSize` is a finite structural estimate used
+only by the traversal's descent test. `texelSize` stays `Infinity`, so
+leaf detection, readiness, rendering, and the watertight-fit stop are
+unchanged. The estimate models the cell at a 256-sample density:
 
 ```text
-fallbackTexelSize = distanceFactor * ndcToScreenPixel * (bbox.maxSize / 256)
+fallbackTexelSize = distanceFactor * ndcToScreenPixel
+                  * (physicalCellSpan / 256)
 ```
 
-where `distanceFactor` is the projection factor the geometry-less branch
-already computes. So a far node's synthetic texel projects sub-pixel and
-stops forcing descent near the LOD where a geometry-bearing surface fits,
-while a close node still exceeds `texelSizeFit` and descent proceeds. The
-estimate runs a little coarser than a real measured `texelSize`, biasing
-toward slightly more descent — the safe direction, so the bridge never
-stops descent above geometry that should load. Horizon degradation is not
-applied to it, which can only add descent, never remove it.
+Versions 1-4 take `physicalCellSpan` from the stored quantized physical
+bbox. Versions 5-6 derive it from the physical bbox corners generated for
+culling.
 
-Gated on `metatile.version < 6`; `Infinity` for v6 nodes and for nodes
-that carry geometry. It is one field, one guarded computation, and one
-descent-gate substitution, removable with the rest of the pre-v6 bridge
-(`rfc-draw-traversal.md` §10).
+`mapStructuralDescentBrake` controls when this estimate may stop descent.
+It is a cross-version safety limit, not a format-compatibility switch. The
+value is clamped to 0-1 and defaults to 0.25:
+
+```text
+descend = fallbackTexelSize
+          > texelSizeFit * mapStructuralDescentBrake
+```
+
+Zero is transparent: the right-hand side is zero, so every valid positive
+structural estimate continues descending. A positive value stops structural
+descent later than the normal geometry fit: 0.5 requires half the normal fit
+threshold and 0.25 requires one quarter. When the estimate halves per LOD,
+those settings allow one and two extra levels respectively.
+
+The brake bounds speculative descent until real geometry or inferred
+watertight coverage can govern traversal. It does not resolve transient
+lower-priority surfaces during loading. Horizon degradation is not applied
+to the estimate.
 
 
 ## Distance Estimates

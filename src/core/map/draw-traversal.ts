@@ -144,8 +144,13 @@ export function drawTerrainTraversal(
  */
 function traverseNode(context: NodeContext): CoverageResult {
 
-    const { active, depth, maskPool, texelSizeFit, fallbackCadence } =
-        context;
+    const {
+        active,
+        depth,
+        maskPool,
+        texelSizeFit,
+        fallbackCadence,
+    } = context;
 
     if (active.length === 0) return CoverageEmpty;
 
@@ -163,20 +168,8 @@ function traverseNode(context: NodeContext): CoverageResult {
 
     for (const entry of active) {
 
-        // Pre-v6 compatibility (RFC 3 §10): finite descent estimate for
-        // a geometry-less node, in place of the Infinity that would
-        // force descent regardless of view scale. See
-        // MapSurfaceTile.updateTexelSize for the rationale. Used only
-        // for the descent-need test below, not for the watertight-fit
-        // stop. Gated by PreV6DescentFallback and removed with the pre-v6
-        // bridge.
-        const descentTexelSize =
-            PreV6DescentFallback && entry.tile.texelSize === Infinity
-                ? entry.tile.fallbackTexelSize
-                : entry.tile.texelSize;
-
         if (entry.tile.metanode!.hasChildren()
-                && descentTexelSize > texelSizeFit)
+                && needsFinerDetail(entry.tile, texelSizeFit))
             shouldDescend = true;
 
         if (entry.tile.metanode!.watertight
@@ -508,6 +501,27 @@ function isRig(value: TileRenderRig | boolean | null): value is TileRenderRig {
 }
 
 
+/**
+ * Tests whether a tile should force structural descent.
+ *
+ * Geometry-bearing nodes use measured screen-space error. Geometry-less
+ * nodes use the structural estimate against a fraction of the normal fit
+ * threshold. A zero brake makes that threshold zero, so structural descent
+ * remains unbounded.
+ */
+function needsFinerDetail(
+    tile: MapSurfaceTile,
+    texelSizeFit: number,
+): boolean {
+
+    if (tile.texelSize !== Infinity)
+        return tile.texelSize > texelSizeFit;
+
+    const brake = Number(tile.map.config.mapStructuralDescentBrake ?? 0.25);
+    return tile.fallbackTexelSize > texelSizeFit * brake;
+}
+
+
 /** One participating surface at a tile position during traversal. */
 type ActiveSurface = {
     tree: MapSurfaceTree;
@@ -561,13 +575,6 @@ const CoveragePartial: CoverageResult = { kind: 'partial' };
 const CoverageWatertight: CoverageResult = { kind: 'watertight' };
 
 const AllQuadrantsMask = 0b1111;
-
-// RFC 9 validation switch: keep the pre-v6 geometry-less descent estimate
-// (`MapSurfaceTile.fallbackTexelSize`) gating descent until metadata-first
-// traversal is validated with the fallback off. Flip to false to compare;
-// removed with the pre-v6 bridge once the validation gate is met.
-const PreV6DescentFallback = true;
-
 
 const ReadinessFull: TileRenderRig.ReadinessLevels = {
     minimum: 'fallback',

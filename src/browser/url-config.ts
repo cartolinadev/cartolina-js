@@ -125,6 +125,7 @@ const NUMBER_KEYS = new Set([
     'mapFeaturesPerSquareInch',
     'mapHysteresisWait',
     'mapFallbackCadence',
+    'mapStructuralDescentBrake',
     'mapTraversalMaskThreshold',
     'mapTraversalMaskErosion',
     'rendererAnisotropic'

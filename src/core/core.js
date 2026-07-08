@@ -60,6 +60,7 @@ var Core = function(element, config) {
         mapTraversalMaskThreshold : 0.5, // fallback-coverage discard cutoff
         mapTraversalMaskErosion : 1, // 0 disabled, 1 = protected 3x3
         mapFallbackCadence : 3, // 1 = topdown, large = fitonly
+        mapStructuralDescentBrake : 0.25,
         mapSplitSpace : null, // used octant spliting demo
         mapGridMode : 'linear', // 'flat'
         mapGridSurrogatez : false,

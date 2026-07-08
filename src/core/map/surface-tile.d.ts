@@ -42,11 +42,10 @@ export class MapSurfaceTile {
     texelSize: number;
 
     /**
-     * Pre-v6 compatibility (RFC 3 §10). Finite, fit-comparable descent
-     * estimate for a geometry-less node, used in place of the Infinity
-     * `texelSize` so legacy pre-v6 descent stays view-scale aware.
-     * Infinity for v6 nodes and for nodes that carry geometry. Remove
-     * with the pre-v6 bridge.
+     * Finite, fit-comparable descent estimate for a geometry-less node,
+     * used in place of the Infinity `texelSize` so descent stays
+     * view-scale aware. Infinity for nodes that carry geometry or whose
+     * physical span cannot be derived.
      */
     fallbackTexelSize: number;
 

@@ -1149,6 +1149,11 @@ Map.prototype.setConfigParam = function(key, value) {
         this.markDirty();
         break;
     case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
+    case 'mapStructuralDescentBrake':
+        this.config.mapStructuralDescentBrake =
+            utils.validateNumber(value, 0, 1, 0.25);
+        this.markDirty();
+        break;
     case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
     case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
     case 'mapGridTextureLevel':           this.config.mapGridTextureLevel = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, -1); break;
@@ -1246,6 +1251,8 @@ Map.prototype.getConfigParam = function(key) {
     case 'mapTraversalMaskErosion':
         return this.config.mapTraversalMaskErosion;
     case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
+    case 'mapStructuralDescentBrake':
+        return this.config.mapStructuralDescentBrake;
     case 'mapGridMode':                   return this.config.mapGridMode;
     case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
     case 'mapGridTextureLevel':           return this.config.mapGridTextureLevel;

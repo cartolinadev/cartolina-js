@@ -56,20 +56,20 @@ relevant information.
   not keep comparison baggage in current docs. Mention legacy code only
   when that code still exists and must be maintained for compatibility;
   once it is removed, describe the current behavior instead.
-- Private scratchpad application names, private hostnames, customer or
+- Private application names, private hostnames, customer or
   partner names, proprietary dataset names, or third-party service names
   learned from local/private integration work. Public documentation in
   this repository must describe the software behavior in generic terms,
   such as "legacy pre-v6 backend" or "private integration dataset,"
   unless the name is already part of this public repository's committed
   source or public project identity.
-- Private validation details from sibling scratchpad apps, including app
+- Private validation details from local integration apps, including app
   names, URLs, coordinates, view parameters, screenshots, performance
   numbers tied to a private dataset, and proxy/backend hostnames. When
   private validation informs public cartolina-js work, record only the
   generic conclusion in this repository, such as "validated against a
-  private legacy pre-v6 integration." Keep the identifying details in the
-  private scratchpad repository, not in public-facing cartolina-js docs.
+  private legacy pre-v6 integration." Do not copy identifying details into
+  public-facing cartolina-js docs.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it
@@ -168,6 +168,33 @@ accepted, with any remaining editorial notes that are not blockers.
 The reviewer then changes the status line to `Accepted`. The author
 does not respond to a sign-off section; it closes the review.
 
+**Post-acceptance addenda:**
+
+The signed-off design body and review rounds are immutable. Implementation
+history is appended after the sign-off as dated, atomic addenda in
+chronological order.
+
+Use `## Addendum — YYYY-MM-DD — title` headings. Append the implementing
+commit in parentheses when available.
+
+Atomic means that an addendum is closed when its commit lands. A later
+addendum may reference or supersede it, but must not change its text. If an
+addendum is materially wrong, append a dated correction addendum.
+
+- The first addendum is the implementation note. It records the implemented
+  result, validation, deviations from the accepted design, and the commit
+  when available.
+- Each later substantial implementation change gets its own dated addendum.
+  One addendum describes one logical change or one tightly coupled body of
+  work; include the implementing commit when available.
+- Do not reorganize, combine, or rewrite earlier addenda to incorporate later
+  events.
+- Addenda document implementation history. They must not introduce future
+  design changes or bypass review. A change to the signed-off design body
+  still reopens the RFC for review.
+- Append-only addenda do not invalidate sign-off. When implementation is
+  complete, change the status from `Accepted` to `Implemented`.
+
 The status line tracks the current state:
 
 | Status | Meaning |
@@ -182,19 +209,19 @@ The status line tracks the current state:
 - Before starting work that touches an area covered by an open RFC,
   read the RFC. It may override or constrain the approach that would
   otherwise seem natural from the code alone.
-- When implementation work resolves an open question in an RFC,
-  update the RFC to record the decision. Do not leave answered
-  questions marked as open.
-- When an implementation step from an RFC is completed, remove it
-  from the RFC's implementation steps list (or mark it done) so the
-  RFC accurately reflects remaining work.
+- Before sign-off, update the design body when work resolves an open
+  question or changes an implementation step.
+- After sign-off, record resolved questions, completed steps, deviations,
+  and validation in the current atomic addendum. Do not edit the accepted
+  design body to reflect later implementation history.
 - Do not create an RFC for routine feature work, bug fixes, or
   incremental refactoring. Use a backlog entry or session-log entry
   instead.
-- Do not leave an RFC in `Accepted` status after editing its body.
-  An accepted RFC is a signed-off design record; any change to it
-  invalidates the sign-off. When a change is needed, edit the body,
-  change the status back to `In review`, and add a new
+- Do not leave an RFC in `Accepted` status after editing its signed-off
+  design body. An accepted RFC is a signed-off design record; any change
+  to that body invalidates the sign-off. Append-only implementation addenda
+  are the exception described above. When a design change is needed, edit
+  the body, change the status back to `In review`, and add a new
   `## Review round N — requested` section describing what changed and
   why. This marks the section as an author request for renewed review,
   not as reviewer feedback.

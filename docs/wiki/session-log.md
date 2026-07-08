@@ -3,6 +3,41 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-08 — configurable structural descent brake
+
+Generalized the geometry-less descent estimate that prevents recursive
+tile storms on sparse terrain surfaces. The previous implementation was
+described as pre-v6 but depended on the quantized physical bbox available
+only in metatile versions 1-4; ordinary v5 geometry-less nodes silently
+retained an infinite fallback. Versions 5-6 now derive the corresponding
+physical cell span from the generated `bbox2` corners.
+
+Added `mapStructuralDescentBrake`, a numeric map option clamped to 0-1 and
+defaulting to 0.25. Geometry-bearing nodes retain normal screen-space error
+selection. Geometry-less nodes descend while their structural estimate is
+greater than `texelSizeFit` times the brake. Zero is transparent and keeps
+structural descent unbounded; positive values require the estimate to fit
+more finely before it may stop descent.
+
+A targeted v6 sparse-surface trace confirmed that a value of 0.5 stopped
+one level before the first deep geometry while retaining complete fallback
+coverage. Runtime URL parsing delivered values of 0 and 0.5 unchanged.
+TypeScript and the `simple-terrain`, `complex-terrain`, and `full-terrain`
+screenshot checks passed.
+
+Manual validation against a complex legacy pre-v6 surface stack showed that
+the brake keeps the initial geometry-less tile spike manageable until
+inferred watertight coverage takes over. The separate v6 validation showed
+why the policy cannot be version-gated: sparse production can leave deep
+geometry-less chains before the first mesh and produce the same failure
+class at lower severity. The brake is therefore retained as a permanent
+cross-version safety policy. The default 0.25 is permissive; 0.5 offers a
+more conservative transient tile bound.
+
+RFC 9 remains incomplete. Lower-priority surfaces can still appear
+transiently during loading before higher-priority coverage becomes
+renderable. Stable priority throughout loading remains unresolved.
+
 ## 2026-07-08 — child culling requires an actual visibility rejection
 
 Corrected combined terrain traversal's empty-quadrant classification.
