@@ -152,7 +152,9 @@ function traverseNode(context: NodeContext): CoverageResult {
         fallbackCadence,
     } = context;
 
-    if (active.length === 0) return CoverageEmpty;
+    // should not happen, 'empty' is just a filler for a state that
+    // should never happen
+    if (active.length === 0) return 'empty';
 
     // The bbox-visibility check has already been applied to every
     // entry of `active` by the caller (root setup or the child loop
@@ -220,21 +222,23 @@ function traverseNode(context: NodeContext): CoverageResult {
                 depth: depth + 1,
             };
 
+            // recurse into the child quadrant 
             const childCoverage = traverseNode(childContext);
 
-            if (childCoverage.kind === 'watertight') {
+            // classify coverage
+            if (childCoverage === 'watertight') {
 
                 watertightMask |= 1 << quadrant;
                 continue;
             }
 
-            if (childCoverage.kind === 'empty') {
+            if (childCoverage === 'off-screen') {
 
                 emptyMask |= 1 << quadrant;
                 continue;
             }
 
-            if (childCoverage.kind === 'partial') {
+            if (childCoverage === 'partial') {
 
                 // Fold the child's mask into this node's quadrant: its
                 // rectangles map up on the CPU, footprint coverage blits
@@ -243,8 +247,8 @@ function traverseNode(context: NodeContext): CoverageResult {
                 continue;
             }
 
-            // 'gap': on-screen and uncovered; nothing to fold.
-        }
+            // end quadrant processing
+        } 
     }
 
     for (const entry of active) {
@@ -252,12 +256,12 @@ function traverseNode(context: NodeContext): CoverageResult {
     }
 
     // No on-screen area anywhere below: this node contributes nothing.
-    if (emptyMask === AllQuadrantsMask) return CoverageEmpty;
+    if (emptyMask === AllQuadrantsMask) return 'off-screen';
 
     // Every on-screen quadrant is watertight (the rest are off-screen):
     // covered, no draw or mask needed, early return
     if ((watertightMask | emptyMask) === AllQuadrantsMask)
-        return CoverageWatertight;
+        return 'watertight';
 
     // Record watertight children as exact quadrant rectangles.
     if (watertightMask !== 0) maskPool.addQuadrantRects(depth, watertightMask);
@@ -305,10 +309,10 @@ function traverseNode(context: NodeContext): CoverageResult {
             );
 
         // A surface drawing watertight fully covers the node.
-        if (renderedCoverage.kind === 'watertight') return CoverageWatertight;
+        if (renderedCoverage === 'watertight') return 'watertight';
 
         // front surface failed to render; skip rendering the rest
-        if (renderedCoverage.kind === 'gap') break; // noRender = true;
+        if (renderedCoverage === 'loading') break;
 
         // A watertight metanode claims the node even before it draws, so
         // stop fetching and rendering lower-priority surfaces under it.
@@ -316,9 +320,9 @@ function traverseNode(context: NodeContext): CoverageResult {
     }
 
     // The node's coverage is whatever ended up in its mask: watertight
-    // rectangles, blitted child masks, or rendered footprints. An empty
-    // mask means an on-screen gap nothing has filled yet.
-    return maskPool.hasCoverage(depth) ? CoveragePartial : CoverageGap;
+    // rectangles, blitted child masks, or rendered footprints.
+    // 'structural' is infered here — only remaining case
+    return maskPool.hasCoverage(depth) ? 'partial' : 'structural';
 }
 
 
@@ -411,7 +415,11 @@ function renderSurface(
     const legacyMap = tree.map;
     const node = tile.metanode;
 
-    if (!node || !node.hasGeometry()) return CoverageGap;
+    // should not happen, but just in case
+    if (!node) return 'loading';
+
+    // structural node
+    if (!node.hasGeometry()) return 'structural';
 
     const priority = tile.id[0] * tile.distance;
 
@@ -441,19 +449,17 @@ function renderSurface(
             maskTexture,
         ));
 
-    if (!isRig(rig)) return CoverageGap;
+    if (!isRig(rig)) return 'loading';
 
     tile.drawCounter = legacyMap.draw.drawCounter;
     preV6Watertight.inferPreV6WatertightFromTile(tile);
 
-    if (node.watertight) {
-        return CoverageWatertight;
-    }
+    if (node.watertight) return 'watertight';
 
     // Non-watertight tile: its footprint joins this node's coverage so
     // the next (back) surface and the parent see it.
     maskPool.addFootprint(rig, depth);
-    return CoveragePartial;
+    return 'partial';
 }
 
 
@@ -569,20 +575,15 @@ type NodeContext = {
     fallbackCadence: number;
 };
 
-
-// `partial` is partial *coverage* (an arbitrary covered shape held in
-// the mask), unrelated to a partial *tile* (a non-watertight mesh).
+/** possible coverage results - these effect optimization during backtracking */
 type CoverageResult =
-    | { kind: 'empty' }       // no on-screen area — nothing to cover
-    | { kind: 'gap' }         // on-screen, nothing rendered yet (waiting)
-    | { kind: 'partial' }     // covered with an arbitrary shape, in a mask
-    | { kind: 'watertight' }; // on-screen cell fully covered, analytic
+    | 'watertight'      // fully covered
+    | 'partial'         // covered with an arbitrary shape, in a mask
+    | 'structural'      // structural node with no geometry
+    | 'loading'         // waiting for data
+    | 'off-screen'      // no on-sceen area (completely culled)
+    | 'empty';          // claims coverage but provides none (should not happen)
 
-
-const CoverageEmpty: CoverageResult = { kind: 'empty' };
-const CoverageGap: CoverageResult = { kind: 'gap' };
-const CoveragePartial: CoverageResult = { kind: 'partial' };
-const CoverageWatertight: CoverageResult = { kind: 'watertight' };
 
 const AllQuadrantsMask = 0b1111;
 
