@@ -3,6 +3,28 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-10 — guard bound-texture fallback against tiles with no parent
+
+Fixed a rare fatal crash (`Cannot read properties of null (reading
+'id')` in `texture.js`). The bound-layer metatile availability
+fallback walked `tile.parent` without a null check in three places in
+`MapTexture.isReady`. A null
+parent occurs on the tree root and on killed tiles
+(`MapSurfaceTile.kill()` clears the link). All three sites now log a
+one-shot warning and report the
+texture as not ready, leaving its state untouched so a live tile can
+re-claim it.
+
+Likely, unconfirmed origin: `ResourceNode.getTexture` returns cached
+textures without updating `extraInfo`, so after a tile kill/recreate
+cycle the texture still references the dead tile object. The cache now
+re-points `extraInfo`/`extraBound` at the caller's tile when the tile
+object changed. The crash itself was not reproducible; if the logged
+warning appears again, investigate further.
+
+TypeScript and the `simple-terrain`, `complex-terrain`, and
+`full-terrain` screenshot checks passed.
+
 ## 2026-07-08 — configurable structural descent brake
 
 Generalized the geometry-less descent estimate that prevents recursive

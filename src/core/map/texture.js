@@ -33,6 +33,7 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.fastHeaderCheck = false;
     this.fileSize = 0;
     this.bumpsApplied = [];
+    this.missingParentWarned = false;
 
     if (extraInfo && extraInfo.layer) {
         var layer = extraInfo.layer;
@@ -72,6 +73,23 @@ MapTexture.prototype.killImage = function() {
 MapTexture.prototype.noteBump = function(layerId) {
     this.bumpsApplied.push(layerId);
 }
+
+/**
+ * Log a tile whose parent link is missing, once per texture.
+ * The availability fallback walk cannot continue past such a
+ * tile; callers report the texture as not ready.
+ */
+MapTexture.prototype.warnMissingParent = function(tile) {
+    if (this.missingParentWarned) {
+        return;
+    }
+
+    this.missingParentWarned = true;
+
+    console.log('WARN: no parent link for tile '
+        + tile.id.join('-') + ' while checking bound texture '
+        + this.mapLoaderUrl);
+};
 
 MapTexture.prototype.killGpuTexture = function() {
     this.mainTexture.killGpuTexture();
@@ -140,6 +158,17 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                         return false;
                     }
                 } else if (this.extraBound.layer) {
+
+                    // a tile with a null parent link is the tree root
+                    // or no longer belongs to the tile tree; there is
+                    // no hierarchy to walk. Report not ready and keep
+                    // the state unchanged so a live tile can re-claim
+                    // this texture through the resource cache.
+                    if (!parent) {
+                        this.warnMissingParent(this.extraBound.sourceTile);
+                        return false;
+                    }
+
                     if (parent.id[0] < this.extraBound.layer.lodRange[0]) {
                         this.neverReady = true;
                         this.extraBound.tile.resetDrawCommands = true;
@@ -245,6 +274,17 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 if (!this.extraBound) {
 
                     parent = this.extraInfo.tile.parent;
+
+                    // a tile with a null parent link is the tree root
+                    // or no longer belongs to the tile tree; there is
+                    // no hierarchy to walk. Report not ready and keep
+                    // the state unchanged so a live tile can re-claim
+                    // this texture through the resource cache.
+                    if (!parent) {
+                        this.warnMissingParent(this.extraInfo.tile);
+                        return false;
+                    }
+
                     if (parent.id[0] < this.extraInfo.layer.lodRange[0]) {
                         this.neverReady = true;
                         this.extraInfo.tile.resetDrawCommands = true;
@@ -261,6 +301,17 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
                     // move up the hierarchy
                     parent = this.extraBound.sourceTile.parent;
+
+                    // a tile with a null parent link is the tree root
+                    // or no longer belongs to the tile tree; there is
+                    // no hierarchy to walk. Report not ready and keep
+                    // the state unchanged so a live tile can re-claim
+                    // this texture through the resource cache.
+                    if (!parent) {
+                        this.warnMissingParent(this.extraBound.sourceTile);
+                        return false;
+                    }
+
                     if (parent.id[0] < this.extraBound.layer.lodRange[0]) {
                         this.neverReady = true;
                         this.extraBound.tile.resetDrawCommands = true;

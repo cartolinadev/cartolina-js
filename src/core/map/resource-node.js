@@ -124,6 +124,18 @@ getTexture(path, type, extraBound, extraInfo, tile, internal) {
         if (!texture) {
             texture = new MapTexture(this.map, path, type, extraBound, extraInfo, tile, internal);
             this.textures[id] = texture;
+
+        } else if (!texture.extraInfo
+                   || texture.extraInfo.tile !== extraInfo.tile) {
+
+            // the cached texture outlives the tile it was created
+            // for: the tile tree kills and recreates tiles while this
+            // cache keeps the texture. A killed tile has its parent
+            // link set to null, so availability fallbacks walking up
+            // from it would fail. Re-point the texture at the
+            // caller's tile so the walks follow live parent links.
+            texture.extraInfo = extraInfo;
+            texture.extraBound = extraBound;
         }
     } else {
         texture = this.textures[path];
