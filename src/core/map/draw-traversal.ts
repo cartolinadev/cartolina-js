@@ -276,6 +276,11 @@ function traverseNode(context: NodeContext): CoverageResult {
     //    LOD a proactive fallback request.
     const fallbackLod = active[0].tile.id[0] % fallbackCadence === 0;
 
+    // we bailout from rendering on the first surface that does not render
+    // to prevent transient loading artifacts
+    let noRender = false;
+
+    // iterate through surfaces
     for (let i = active.length - 1; i >= 0; i--) {
 
         const entry = active[i];
@@ -295,14 +300,18 @@ function traverseNode(context: NodeContext): CoverageResult {
                 context,
                 entry,
                 readiness,
+                noRender,
                 preventLoad,
             );
 
         // A surface drawing watertight fully covers the node.
         if (renderedCoverage.kind === 'watertight') return CoverageWatertight;
 
+        // front surface failed to render; skip rendering the rest
+        if (renderedCoverage.kind === 'gap') break; // noRender = true;
+
         // A watertight metanode claims the node even before it draws, so
-        // stop rendering lower-priority surfaces under it.
+        // stop fetching and rendering lower-priority surfaces under it.
         if (node.watertight) break;
     }
 
@@ -393,6 +402,7 @@ function renderSurface(
     context: NodeContext,
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
+    noRender = false,
     preventLoad = false,
 ): CoverageResult {
 
@@ -424,7 +434,7 @@ function renderSurface(
             legacyMap.camera.position,
             tile.texelSize,
             priority,
-            false,
+            noRender,
             preventLoad,
             false,
             readiness,

@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.539-feature_metadata_first_traversal.43167db1';
+  return '2.49.540-feature_metatdata_first_front_to_back.9299487f';
 }
