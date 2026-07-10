@@ -67,6 +67,11 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
 
         var params, metanode = null, i, li, height;
 
+        // Set when a consulted tree could not answer conclusively (a
+        // metanode or navtile texture is still loading). The result is
+        // then marked provisional so callers query again.
+        var anyWaiting = false;
+
         // Iterate trees front-to-back (last index = front surface).
         for (var t = trees.length - 1; t >= 0; t--) {
 
@@ -87,6 +92,7 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
                 traceHeight : true,
                 waitingForNode : false,
                 finalNode : false,
+                sawGeometry : false,
                 bestHeightMap : 999
             };
 
@@ -94,9 +100,15 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
 
             metanode = params.metanode;
 
-            // Stop on the first tree that produced a navtile or a
-            // metanode — that surface owns the answer for this coord.
-            if (params.heightMap || metanode) break;
+            // A tree claims the answer only with terrain evidence at
+            // the coordinate: a navtile, or geometry along the traced
+            // path. A tree whose trace ends on structural routing
+            // nodes has nothing here, so the next surface back is
+            // consulted.
+            if (params.heightMap || (metanode && params.sawGeometry)) break;
+
+            anyWaiting = anyWaiting || params.waitingForNode;
+            metanode = null;
         }
 
         if (params.heightMap) {
@@ -144,15 +156,15 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
                 }
             }
 
-            return [height, res, true, null, null, arrayRes];
+            return [height, res, !anyWaiting, null, null, arrayRes];
 
         } else if (metanode /*&& metanode.id[0] == lod && !metanode.hasNavtile()*/){
             res = this.getSurfaceHeightNodeOnly(coords, lod + 8, storeStats, lod, null, node, nodeCoords, coordsArray);
 
-            //console.log("lod2: " + lod + " h: " + height[0]);  
+            //console.log("lod2: " + lod + " h: " + height[0]);
             //return [res[0], res[1], true, null, null, res[5]];
 
-            return [res[0], res[1], res[2], null, null, res[5]];
+            return [res[0], res[1], res[2] && !anyWaiting, null, null, res[5]];
         }
 
         /*
@@ -245,9 +257,13 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
 
         var params, metanode = null, center, center2;
 
-        // Iterate trees front-to-back; the first tree whose trace
-        // produces a metanode wins. For single-surface maps this is a
-        // single iteration, matching the original behaviour exactly.
+        // Set when a consulted tree could not answer conclusively; the
+        // result is then marked provisional so callers query again.
+        var anyWaiting = false;
+
+        // Iterate trees front-to-back; the first tree whose traced
+        // path carries geometry wins. For single-surface maps this is
+        // a single iteration.
         for (var t = trees.length - 1; t >= 0; t--) {
 
             var tree = trees[t];
@@ -267,13 +283,21 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
                 traceHeight : true,
                 waitingForNode : false,
                 finalNode : false,
+                sawGeometry : false,
                 bestHeightMap : 999
             };
 
             tree.traceHeight(root, params, true);
 
             metanode = params.metanode;
-            if (metanode != null) break;
+
+            // A tree claims the answer only when its traced path
+            // carries geometry; a purely structural path has no
+            // terrain at this coordinate.
+            if (metanode != null && params.sawGeometry) break;
+
+            anyWaiting = anyWaiting || params.waitingForNode;
+            metanode = null;
         }
 
         if (metanode != null) { // && metanode.id[0] == lod){
@@ -294,8 +318,17 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
             if (storeStats) {
                 stats.heightClass = 1;
                 stats.heightLod = statsLod;
-                stats.heightNode = metanode.id[0];                        
+                stats.heightNode = metanode.id[0];
             }
+
+            // reached: the traced node is fine enough for the request
+            // (or the tree has nothing finer). settled: the answer can
+            // no longer improve — nothing along the claiming path and
+            // no consulted tree is still loading.
+            var reached = metanode.id[0] >= Math.floor(lod)
+                || params.finalNode;
+            var settled = (!params.waitingForNode || reached)
+                && !anyWaiting;
 
             if (this.config.mapHeightLodBlend && metanode.id[0] > 0 &&
                 params.parent && params.parent.metanode) {
@@ -316,15 +349,13 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
                 //extetnts = params.extents;
                 //return [height, true, true, params.extents, metanode, arrayRes];
 
-                return [height, (metanode.id[0] >= Math.floor(lod) || params.finalNode), 
-                        (!params.waitingForNode || metanode.id[0] >= Math.floor(lod) || params.finalNode),
+                return [height, reached, settled,
                         params.extents, metanode, arrayRes];
-                                      
 
-                //console.log("lod: " + lod + " h1: " + center[2] + " h2: " + center2[2] + " h: " + height);  
+                //console.log("lod: " + lod + " h1: " + center[2] +
+                //    " h2: " + center2[2] + " h: " + height);
             } else {
-                return [center[2], (metanode.id[0] >= Math.floor(lod) || params.finalNode), 
-                        (!params.waitingForNode || metanode.id[0] >= Math.floor(lod) || params.finalNode),
+                return [center[2], reached, settled,
                         params.extents, metanode, arrayRes];
 
                 //return [center[2], true, true, params.extents, metanode, arrayRes];

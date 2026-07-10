@@ -3,6 +3,48 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-10 — multi-surface ownership for terrain height queries
+
+Fixed the long-standing wrong terrain heights during navigation on
+multi-surface maps (branch `feature/height-query-ownership`).
+`MapMeasure.getSurfaceHeight` and `getSurfaceHeightNodeOnly` iterated
+the per-surface helper trees front-to-back and stopped on the first
+tree that produced any metanode. A sparse front surface whose tree
+dead-ends on structural (geometry-less) routing nodes toward the
+queried coordinate therefore claimed the answer with no terrain data;
+the node-only fallback then returned a routing-node bbox centre, or
+the query coordinate's own height when the bbox was larger than the
+8000 m sanity limit. Camera float-height terrain following and
+float/fix conversion landed on arbitrary heights, fixed 0 in the worst
+case.
+
+A tree now claims the answer only with terrain evidence at the
+coordinate: a usable navtile, or geometry along the traced path
+(`sawGeometry`, set in the surface-tree trace functions). Structural
+paths fall through to the next surface back. Inconclusive trees
+(metanode or navtile texture still loading) mark the result
+provisional so callers converge over subsequent frames;
+`traceHeightTile` now sets `waitingForNode` only for genuinely missing
+metanodes instead of on every query.
+
+Navtile recovery: `traceHeightTileByMap` treats a navtile as absent
+when its metanode height range is inverted or lies outside the
+reference frame's global height range, and continues descending to
+finer valid navtiles. On the public viewfinder13 style over Etna the
+float-height resolution improves from ~33 km (poisoned viewfinder-dem1
+root navtile) to ~1.2 km. This matches the original navtile purpose:
+smooth navigation that follows the terrain surface, with the query
+preferring the front surface's navtile where one exists.
+
+Validated on the Etna case above and on a private legacy v4-metatile
+multi-surface integration where the sparse front surface previously
+produced fixed-0 and off-by-tens-of-metres landings; heights now come
+from the first surface with actual navtile coverage. TypeScript and
+the `simple-terrain`, `complex-terrain`, and `full-terrain` screenshot
+checks passed. Backlog: the partial-coverage (watertight-aware)
+refinement of the ownership rule remains open in the coverage-aware
+point terrain queries entry.
+
 ## 2026-07-10 — guard bound-texture fallback against tiles with no parent
 
 Fixed a rare fatal crash (`Cannot read properties of null (reading

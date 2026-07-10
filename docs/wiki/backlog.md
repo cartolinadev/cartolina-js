@@ -235,7 +235,8 @@ plan live in the RFC.
 ## BUG/DESIGN: coverage-aware point terrain queries
 
 **Opened:** 2026-06-08
-**Status:** open — front-to-back point queries need an ownership rule
+**Status:** first ownership rule implemented 2026-07-10 (see below) —
+the partial-coverage refinement remains open
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md),
 [nav-tiles.md](nav-tiles.md),
 [surface-metatile.md](surface-metatile.md)
@@ -243,19 +244,55 @@ plan live in the RFC.
 ### Symptom
 
 `MapMeasure.getSurfaceHeight()` and `getSurfaceHeightNodeOnly()` query
-the recursive path's per-surface helper trees front-to-back and return
-the first tree that yields a navtile or metanode. That is safe when the
-front surface fully owns the coordinate, but partial front-surface tiles
-can carry data while not covering every point in the tile. In that case
-a point query can stop on a partial front surface where rendering would
-use a lower-priority back surface for the visible terrain.
+the recursive path's per-surface helper trees front-to-back and used to
+return the first tree that yields a navtile or metanode. That is safe
+when the front surface fully owns the coordinate, but fails in two
+ways:
+
+- A sparse front surface whose tree dead-ends on structural
+  (geometry-less) routing nodes toward the coordinate claimed the
+  answer with no terrain data at all. The node-only fallback then
+  produced a bbox-centre or query-coordinate height, so camera
+  float-height navigation and `float`/`fix` conversion landed on
+  arbitrary values (fixed 0 in the worst case).
+- Partial front-surface tiles can carry data while not covering every
+  point in the tile. A point query can stop on a partial front surface
+  where rendering would use a lower-priority back surface for the
+  visible terrain.
 
 Affected callers include camera float-height navigation, `fix`/`float`
 coordinate conversion, public terrain-height queries, hit-coordinate
 conversion to `float`, and geodata draping through
 `geodata.processHeights()`.
 
-### Direction
+### Implemented 2026-07-10 — structural-path ownership rule
+
+The first failure mode is fixed on
+`feature/height-query-ownership`. A tree now claims the answer only
+with terrain evidence at the coordinate: a usable navtile, or geometry
+on the traced path (`params.sawGeometry`, set by the trace functions in
+[surface-tree.js](../../src/core/map/surface-tree.js)). A tree whose
+trace ends on structural routing nodes falls through to the next
+surface back. A consulted tree that could not answer conclusively
+(metanode or navtile texture still loading) marks the result
+provisional (`res[2] = false`) so callers query again.
+
+Two supporting changes landed with it:
+
+- `traceHeightTile` sets `waitingForNode` only when a metanode is
+  genuinely missing, so the provisional flag carries signal.
+- `traceHeightTileByMap` treats a navtile as absent when its metanode
+  height range is inverted or lies outside the reference frame's
+  global height range; descent continues to finer valid navtiles.
+  This lets the client recover from the poisoned coarse navtiles in
+  the viewfinder-dem1 entry below.
+
+Validated against the public viewfinder13 style over Etna
+(float-height resolution 33 km → 1.2 km) and a private legacy
+v4-metatile multi-surface integration where a sparse front surface
+previously produced fixed-0 and off-by-tens-of-metres landings.
+
+### Direction (remaining)
 
 Point terrain queries should use a coverage-aware ownership rule that
 matches the recursive terrain traversal closely enough for navigation
@@ -290,7 +327,13 @@ coverage.
 ## DATA/TOOLS: viewfinder-dem1 poisoned coarse navtiles + navtile-less LOD band
 
 **Opened:** 2026-06-07
-**Status:** open — fix lives in vts-tools / vts-libs, not cartolina-js
+**Status:** open — data fix lives in vts-tools / vts-libs. Since
+2026-07-10 the client recovers from the poisoned coarse navtiles:
+`traceHeightTileByMap` rejects navtiles whose metanode height range is
+inverted or outside the reference frame's global height range and
+descends to the finer valid navtiles instead (see the coverage-aware
+point terrain queries entry). Height queries on this dataset resolve
+correctly; the stored metatiles remain wrong.
 **Related:** [nav-tiles.md](nav-tiles.md),
 [tile-index.md](tile-index.md),
 [tileserver-metatile-production.md](tileserver-metatile-production.md)

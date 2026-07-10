@@ -569,10 +569,15 @@ MapSurfaceTree.prototype.traceHeightTile = function(tile, priority, nodeReadyOnl
         return;
     }
 
-    if (!tile.isMetanodeReady(this, 0) || nodeReadyOnly) {
+    // waitingForNode marks a genuinely missing metanode: the trace was
+    // cut short and the surface may still hold data below this tile, so
+    // the query result is provisional.
+    if (!tile.isMetanodeReady(this, 0)) {
         this.params.waitingForNode = true;
         return;
     }
+
+    if (nodeReadyOnly) return;
 
     tile.metanode.metatile.used();
 
@@ -643,6 +648,27 @@ MapSurfaceTree.prototype.traceHeightChild = function(tile, params) {
 };
 
 
+/**
+ * Tests whether a metanode's navtile height range is usable. A range
+ * that is inverted or lies entirely outside the reference frame's
+ * global height range cannot decode to valid elevations, so the
+ * navtile is treated as absent and the trace descends to finer
+ * navtiles instead.
+ */
+function isNavtileRangeValid(map, node) {
+
+    if (node.minHeight > node.maxHeight) return false;
+
+    var range = map.referenceFrame.getGlobalHeightRange();
+
+    // a span of one metre or less is the placeholder used when the
+    // map configuration declares no height range; it constrains nothing
+    if (!range || !(range[1] - range[0] > 1)) return true;
+
+    return node.maxHeight >= range[0] && node.minHeight <= range[1];
+}
+
+
 MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
     if (!tile || (tile.id[0] > params.desiredLod && params.heightMap)) {
         return false;
@@ -654,7 +680,11 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
         return false;
     }
 
-    if (node.hasNavtile()) {
+    // Geometry anywhere along the traced path marks the surface as a
+    // real terrain candidate at this coordinate.
+    if (node.hasGeometry()) params.sawGeometry = true;
+
+    if (node.hasNavtile() && isNavtileRangeValid(tile.map, node)) {
         params.bestHeightMap = tile.id[0];
 
         if (!tile.heightMap) {
@@ -669,7 +699,10 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
 
             var path = tile.resourceSurface.getNavUrl(tile.id);
             tile.heightMap = tile.resources.getTexture(path, true);
-            //}
+
+            // the navtile texture load has just been requested; the
+            // answer may improve once it arrives
+            params.waitingForNode = true;
         } else {
             if (tile.heightMap.isReady(null, null, true)) {
                 params.parent = {
@@ -677,7 +710,7 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
                     heightMap : params.heightMap,
                     heightMapExtents : params.heightMapExtents
                 };
-                
+
                 params.metanode =  node;
                 params.heightMap = tile.heightMap;
                 params.heightMapExtents = {
@@ -686,12 +719,15 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
                 };
                 return (tile.id[0] != params.desiredLod);
             }
+
+            // texture requested earlier and still loading
+            params.waitingForNode = true;
         }
     } else {
         if (!params.heightMap) {
             params.metanode =  node;
         }
-        
+
         return true;
     }
 
@@ -709,6 +745,10 @@ MapSurfaceTree.prototype.traceHeightTileByNodeOnly = function(tile, params) {
     if (!node) {
         return false;
     }
+
+    // Geometry anywhere along the traced path marks the surface as a
+    // real terrain candidate at this coordinate.
+    if (node.hasGeometry()) params.sawGeometry = true;
 
     params.parent = {
         metanode : params.metanode

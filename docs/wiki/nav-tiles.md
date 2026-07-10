@@ -70,19 +70,31 @@ the public `getTerrainHeightAt` API.
 The query path:
 
 1. `measure.getSurfaceHeight()` resolves the spatial division node
-   and calls `tree.traceHeight()` on each surface tree.
+   and iterates the per-surface helper trees front-to-back (the same
+   trees the recursive draw traversal descends), calling
+   `tree.traceHeight()` on each. A tree claims the answer only with
+   terrain evidence at the coordinate: a usable navtile, or geometry
+   somewhere along the traced path (`params.sawGeometry`). A tree
+   whose trace dead-ends on structural (geometry-less) routing nodes
+   has no terrain at the coordinate and falls through to the next
+   surface back. A consulted tree that could not answer conclusively —
+   a metanode or navtile texture is still loading — marks the result
+   provisional (third tuple element false) so callers query again.
 2. `MapSurfaceTree.prototype.traceHeightTileByMap()` in
    [surface-tree.js](../../src/core/map/surface-tree.js) descends the
    tile tree toward the desired LOD. At each level it checks
-   `node.hasNavtile()`. When set, it loads the navtile texture via
-   `tile.resourceSurface.getNavUrl(tile.id)` and stores it in
-   `tile.heightMap`.
+   `node.hasNavtile()`. When set and the node's `minHeight`/`maxHeight`
+   range is usable (not inverted, not outside the reference frame's
+   global height range — `isNavtileRangeValid`), it loads the navtile
+   texture via `tile.resourceSurface.getNavUrl(tile.id)` and stores it
+   in `tile.heightMap`. A navtile with a corrupt range is treated as
+   absent and the descent continues to finer navtiles.
 3. Once the texture is ready,
    `MapMeasure.prototype.getHeightmapValue()` bilinearly interpolates
    the red-channel pixels at the query coordinates to produce the
    navSRS elevation.
-4. If no navtile is available at any LOD in any tree, the fallback
-   path `getSurfaceHeightNodeOnly()` uses the metanode's `diskPos`
+4. If the claiming tree has no navtile at any LOD, the fallback path
+   `getSurfaceHeightNodeOnly()` uses the metanode's `diskPos`
    (the tile centre in physical SRS, converted to navigation SRS),
    yielding one altitude value per tile rather than a pixel-sampled one.
 
