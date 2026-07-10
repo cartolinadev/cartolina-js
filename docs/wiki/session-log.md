@@ -61,6 +61,12 @@ in any form, including generic allusions. Existing wiki text was
 brought in line: validation notes now cite only reproducible public
 cases or describe the mechanism from code.
 
+The policy also excludes private companion-repository references,
+production integration endpoints, proxy recipes, and integration-derived
+demo configuration. The pre-commit hook rejects these patterns in added
+lines without embedding private identifiers, and the publication checklist
+requires a whole-branch history audit.
+
 ## 2026-07-10 — multi-surface ownership for terrain height queries
 
 Fixed the long-standing wrong terrain heights during navigation on
@@ -88,15 +94,14 @@ metanodes instead of on every query.
 Navtile recovery: `traceHeightTileByMap` treats a navtile as absent
 when its metanode height range is inverted or lies outside the
 reference frame's global height range, and continues descending to
-finer valid navtiles. On the public viewfinder13 style over Etna the
-float-height resolution improves from ~33 km (poisoned viewfinder-dem1
-root navtile) to ~1.2 km. This matches the original navtile purpose:
-smooth navigation that follows the terrain surface, with the query
-preferring the front surface's navtile where one exists.
+finer valid navtiles instead of returning a poisoned coarse answer.
+This matches the original navtile purpose: smooth navigation that
+follows the terrain surface, with the query preferring the front
+surface's navtile where one exists.
 
-Validated on the Etna case above; heights now come from the first
-surface with terrain evidence at the coordinate. TypeScript and
-the `simple-terrain`, `complex-terrain`, and `full-terrain` screenshot
+Verified with `npx tsc --noEmit`; heights now come from the first
+surface with terrain evidence at the coordinate. The
+`simple-terrain`, `complex-terrain`, and `full-terrain` screenshot
 checks passed. Backlog: the partial-coverage (watertight-aware)
 refinement of the ownership rule remains open in the coverage-aware
 point terrain queries entry.
@@ -1667,11 +1672,12 @@ observed. That promoted erosion from opt-in to default-on.
 
 ## 2026-06-06 — legacy traversal: tolerate zero-submesh meshes
 
-`viewfinder-dem1` rendered nothing in `mapTerrainTraversal=legacy` while
-recursive rendered fine. Traced the descent: the melown2015 root `0-0-0`
-(no geometry of its own) splits at lod 1 into three division-node roots
-(pseudomerc, north UPS, south UPS). The north-UPS root `1-0-1` is flagged
-with geometry in the metatile but its mesh has zero submeshes (a valid
+A sparse global DEM surface rendered nothing in
+`mapTerrainTraversal=legacy` while recursive rendered fine. Traced the
+descent: the melown2015 root `0-0-0` (no geometry of its own) splits
+at lod 1 into three division-node roots (pseudomerc, north UPS, south
+UPS). The north-UPS root `1-0-1` is flagged with geometry in the
+metatile but its mesh has zero submeshes (a valid
 14-byte VTS header, `numSubmeshes = 0`). `drawSurfaceTile` returned
 not-ready for it forever (`if (!surfaceMesh.submeshes.length) return
 false`), and the legacy topdown `drawSurface` descends the root only when
@@ -1710,10 +1716,9 @@ each `sources[].url` via `new URL(url, absoluteStyleUrl)`, where
 unchanged. Scoped to `sources[].url`, the only field cartolina resolves
 relative to the style base; font URLs in styles are expected absolute.
 
-Verified with the `viewfinder-dem1` surface `style.json`
-(`melown2015/surface/topoearth/viewfinder-dem1/style.json`, served from
-the test backend) — relative `./` source now loads, terrain renders, no
-console errors — and
+Verified with a surface `style.json` using a relative `"url": "./"`
+source, served from the test backend — relative source now loads,
+terrain renders, no console errors — and
 `?style=simple&backend=test` (placeholder-expanded absolute URL still
 resolves to the test backend, no regression).
 
@@ -1726,13 +1731,15 @@ the conservative "not culled" result only when the current metanode is
 watertight and has geometry; sparse no-child quadrants are absent
 coverage, while unloaded children still keep visibility unknown.
 
-The bug was verified on the reported `viewfinder13.json` camera: sparse
-`viewfinder-dem1` no-child quadrants combined with frustum-culled
-`viewfinder-dem3` children made DEM3 LOD3 parents render as fallback
-coverage. After the fix the viewfinder case settles to 108 tiles, all at
-LOD13, with no LOD3 fallback draws. `simple.json` stays unchanged at
-84 LOD13 tiles and 0 framebuffer switches. Standard screenshots passed
-for `simple-terrain`, `complex-terrain`, and `full-terrain`.
+The bug was verified on a reported two-surface camera: sparse
+front-surface no-child quadrants combined with frustum-culled back-
+surface (`viewfinder-dem3`) children made the back surface's coarse
+LOD parents render as fallback coverage. After the fix the front
+surface's no-child quadrants are correctly treated as absent coverage,
+and the fallback draws from coarse back-surface parents disappear.
+`simple.json` stays unchanged at 84 LOD13 tiles and 0 framebuffer
+switches. Standard screenshots passed for `simple-terrain`,
+`complex-terrain`, and `full-terrain`.
 
 ## 2026-06-06 — Discard-free tile color shader
 
@@ -1973,10 +1980,10 @@ surface claims full node coverage, either through `node.watertight` or
 through drawn watertight coverage. Coverage propagation is unchanged:
 only a tile that actually draws can return watertight coverage upward.
 
-Checked the `viewfinder13` two-surface case at a 2560x1353 viewport.
-The duplicate `3-1-1` labels are expected for that position because
-`viewfinder-dem1` is the front surface and its `3-1-1` metanode is not
-watertight, so the back `viewfinder-dem3` tile still needs to render.
+Checked a two-surface case at a 2560x1353 viewport. The duplicate
+`3-1-1` labels are expected for that position because the front
+surface's `3-1-1` metanode is not watertight, so the back surface's
+tile still needs to render.
 
 Verification: `npx tsc --noEmit`.
 
@@ -2465,8 +2472,8 @@ independent places ignored the explicit `terrain.sources` array:
 - `Map.surfaceList` (map.ts), the input to the recursive
   draw-traversal, sorted surfaces alphabetically by id.
 
-For `viewfinder13.json` (`terrain.sources: [dem3, dem1]`,
-front-at-last-index) the alphabetical sort put `dem3` at the last
+For a two-surface style with `terrain.sources: [dem3, dem1]`
+(front-at-last-index) the alphabetical sort put `dem3` at the last
 index instead of `dem1`, so `dem3` was rendered as the front
 surface and dem1 was masked out.
 
@@ -6866,57 +6873,6 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 |---|---|
 | `getSeProgressionFactor` | `getVeScaleFactor` |
 | `setSuperElevationProgression` | `setVeScaleRampFromProgression` (deprecated) |
-
----
-
-## 2026-06-07 — viewfinder-dem1 garbage terrain height (data, not client)
-
-Investigated why `viewfinder-dem1` resolves a `float` camera position to
-~32696 m ASL instead of ~1103 m. Concluded it is a data defect in the
-bottom-up-rebuilt tileset; the cartolina-js client reads it faithfully.
-No client change. Full write-up in the new backlog entry
-[backlog.md](backlog.md) ("DATA/TOOLS: viewfinder-dem1 poisoned coarse
-navtiles + navtile-less LOD band") and in auto-memory.
-
-### How it was traced
-
-Temporary instrumentation in `MapMeasure.getSurfaceHeight`
-(`measure.js`, reverted) logged, per surface tree, the metanode the
-height trace lands on and its range. Raw `.meta` files were decoded with
-a standalone Python reader; the on-disk tileset was queried with
-`vts --tileindex-info … --tileId L-X-Y`.
-
-### Findings
-
-- The root navtile node `[1,0,0]` stores `minHeight=32725`,
-  `maxHeight=32667` — inverted and absurd. Raw bytes `D5 7F 9B 7F` at
-  offset 0x3F of `1-0-0.meta` confirm it is stored, not a parse error
-  (dem3 parses to sane ranges). The int16 nodata sentinel (~±32767/8)
-  leaked into the coarse navtile height-range aggregation
-  (`opencv::NavTile::heightRange()` over coverage-white pixels,
-  `InvalidHeight = -FLT_MAX`, unclamped float→int16 cast).
-- dem1's source is lod 13–15; coarse LODs 1–12 were generated bottom-up.
-  `vts --complete-tileindex-up` (vts-libs `tools/vts.cpp:2990`) only sets
-  `mesh|navtile` where coarsened coverage clears `meshThreshold = K/8`,
-  leaving a navtile-less band at lod 2–6 above sparse data. The metanode
-  tree itself is intact — those are content-less routing nodes (child
-  bits set), so rendering descends through them; only the navtile content
-  is missing.
-- The height query asks for a coarse LOD (~5, camera ~52 km). From the
-  root down to that LOD the only navtile is the poisoned root; the real
-  navtiles start at lod 7 (finer than `desiredLod`), so
-  `traceHeightTileByMap`'s `id>desiredLod && heightMap` guard stops
-  before reaching them. dem3 navigates fine (navtile at every LOD).
-- The two-surface `viewfinder13.json` case looked like a recursive-vs-
-  legacy regression only because the recursive height query takes the
-  frontmost surface (dem1) while legacy's merged tree lands on dem3.
-  Single-surface dem1 fails identically in both modes.
-
-### Fix location (out of scope here)
-
-vts-tools / vts-libs: complete the coarse navtile pyramid in
-`completeTileindexUp`, and mask nodata in coarse navtile range
-generation. Both are needed.
 
 ---
 

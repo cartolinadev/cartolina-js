@@ -916,9 +916,10 @@ to the other.
    rather than one tile.
 
    *Implemented (2026-06-12).* Harvested 848k nodes from warp-served
-   v6 metatiles of viewfinder-dem1 (melown2015) and viewfinder-dem3
-   (melown2015 + earth-qsc) — local viewfinder resources instead of
-   the prescribed GLO-30 cuts, same mountainous/flat coverage. The
+   v6 metatiles of a legacy pre-v6 test surface (melown2015) and
+   viewfinder-dem3 (melown2015 + earth-qsc) — local viewfinder
+   resources instead of the prescribed GLO-30 cuts, same
+   mountainous/flat coverage. The
    analytic planar texel alone matches the warp value within ±0.5%
    (p5–p95) for lods >= 7 in both frames: the warp's own 8x8 sampling
    barely encodes relief, so the correction is nearly moot. Fitted
@@ -2146,8 +2147,8 @@ open items.
   paths are stable now.
 - Masked resources (resource `mask` set) fall back to the warp path;
   teaching the unified pass to bake the mask would lift that.
-- The legacy `viewfinder-dem1-sample` baseline tiling files are kept
-  as `tiling-legacy.<rf>` beside the promoted unified artifacts.
+- The legacy baseline tiling files are kept as `tiling-legacy.<rf>`
+  beside the promoted unified artifacts.
 
 ### Addendum (2026-06-12, post-review): orthometric store (format v2)
 

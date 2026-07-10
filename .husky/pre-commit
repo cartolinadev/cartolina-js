@@ -28,6 +28,20 @@ fail_sensitive() {
 }
 
 if [ -z "$SKIP_SENSITIVE" ]; then
+  # Legacy demos are frozen against their reviewed public resources. Any URL
+  # addition needs an explicit hook bypass and human review.
+  if git diff --cached -- demos/legacy \
+      | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qiE 'https?://'; then
+    fail_sensitive "URL added to a legacy demo"
+  fi
+
+  if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
+      | grep -qiE \
+        'development proxy|proxy(Base|Url)|private (validation|trace|dataset|integration|counterpart|repository)'; then
+    fail_sensitive "private integration detail or validation reference"
+  fi
+
   # Email addresses
   if echo "$STAGED_DIFF" | grep -E '^\+' | grep -v '^\+\+\+' \
       | grep -qE '[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'; then

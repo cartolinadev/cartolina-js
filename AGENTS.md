@@ -74,6 +74,24 @@ relevant information.
   cases as evidence. Records of private validation belong in the
   private counterpart repository; when a finding rests solely on
   private data, this repository records only what the code shows.
+- Never name, link to, or describe the existence or layout of a private
+  companion repository. Public commits must stand alone; private material
+  is organized entirely from the private repository.
+- Do not copy production service URLs, proxy routes, request-rewrite recipes,
+  access workarounds, or data-source configuration from an integration into
+  this repository. This applies to demos, tests, documentation, comments,
+  commit messages, and configuration. A generic API example must use neutral
+  placeholders such as `https://tiles.example.com`, not a real third-party
+  endpoint.
+- Public demos may use only project-controlled public resources or resources
+  already approved in the public test configuration. Never make a legacy demo
+  work by replacing its source with an endpoint observed in another product.
+- Before publishing a branch informed by non-public work, inspect the complete
+  branch diff from its public merge base and search every added line for
+  private names, URLs, proxy logic, data descriptions, validation claims, and
+  companion-repository references. A clean tip is insufficient: if prohibited
+  material entered an unpublished commit, rewrite that commit and audit every
+  rewritten tree before pushing.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it

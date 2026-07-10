@@ -49,10 +49,10 @@ turns it on while visible and restores the previous setting on close, and
 the performance runner adds `mapProfileGpu=1`.
 
 GPU timer queries measure elapsed work on the GPU timeline, not
-JavaScript wall-clock time. Local probes on `complex2`, `simple`, and
-`viewfinder13` showed GPU-derived FPS limits matching independent RAF
-cadence on representative views, so GPU timing is the preferred
-bottleneck metric when enabled. With GPU timing disabled, `renderMs` and
+JavaScript wall-clock time. Local probes on `complex2` and `simple`
+showed GPU-derived FPS limits matching independent RAF cadence on
+representative views, so GPU timing is the preferred bottleneck metric
+when enabled. With GPU timing disabled, `renderMs` and
 `limitFps` are CPU-frame metrics. With GPU timing enabled and valid
 samples available, `renderMs` and `limitFps` report the CPU/GPU
 bottleneck while `cpuMs` and `gpuMs` expose the two components.
