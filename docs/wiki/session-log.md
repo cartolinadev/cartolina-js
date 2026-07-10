@@ -3,6 +3,21 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 9 implemented: stable metadata-first traversal
+
+Confirmed that the recent draw-traversal changes complete
+[rfc-metadata-first-traversal.md](rfc-metadata-first-traversal.md). The final
+missing behavior landed in `d6b9c123`: the front-to-back render loop stops
+when a higher-priority tile is loading, but continues past a classified
+structural tile so a lower surface can provide valid coverage. This removes
+the transient lower-priority rendering recorded by the previous RFC addendum.
+
+Changed RFC 9's status to `Implemented`, appended the implementation result,
+moved it from the active RFC list to [rfcs-implemented.md](rfcs-implemented.md),
+and updated [lod-selection.md](lod-selection.md). TypeScript and the canonical
+`simple-terrain`, `complex-terrain`, and `full-terrain` dev/production
+screenshot comparisons passed without console or network errors.
+
 ## 2026-07-10 - draw-traversal - streamline shapes and terminology
 
 Streamlined the shapes of return types in tree traversal: former

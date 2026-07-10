@@ -237,9 +237,11 @@ threshold and 0.25 requires one quarter. When the estimate halves per LOD,
 those settings allow one and two extra levels respectively.
 
 The brake bounds speculative descent until real geometry or inferred
-watertight coverage can govern traversal. It does not resolve transient
-lower-priority surfaces during loading. Horizon degradation is not applied
-to the estimate.
+watertight coverage can govern traversal. Loading readiness is tracked
+separately: a higher-priority tile waiting for resources stops the
+front-to-back render loop, while a classified structural tile lets lower
+surfaces provide coverage. Horizon degradation is not applied to the
+estimate.
 
 
 ## Distance Estimates

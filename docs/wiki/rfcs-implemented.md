@@ -2,6 +2,11 @@
 
 Archive of RFCs whose implementation is complete. Newest first.
 
+- RFC 9
+  [rfc-metadata-first-traversal.md](rfc-metadata-first-traversal.md) —
+  metadata-first combined terrain descent, stable front-to-back loading
+  order, and a bounded cross-version structural descent policy;
+  implemented 2026-07-11
 - RFC 7 [rfc-metanode-store.md](rfc-metanode-store.md) — precomputed
   metanode store replacing the serve-time DEM warp: paged mmapped
   orthometric `{flags, minZ, maxZ}` store paired with the flag tile

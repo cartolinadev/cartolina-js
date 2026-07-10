@@ -1,6 +1,6 @@
 # RFC 9: metadata-first terrain traversal
 
-**Status:** Largely salvaged; implementation incomplete
+**Status:** Implemented
 
 ## Context
 
@@ -462,3 +462,26 @@ applications that prefer a lower transient tile count.
 This addendum does not complete RFC 9. During loading, lower-priority
 surfaces can still appear transiently before higher-priority coverage becomes
 renderable. Stable surface priority throughout loading remains unresolved.
+
+## Addendum — 2026-07-11 — stable loading order (`d6b9c123`)
+
+The render loop now distinguishes a tile that is waiting for resources from a
+classified structural tile that has no geometry. A higher-priority loading
+tile stops the front-to-back loop before lower-priority surfaces can render at
+that node. A structural tile does not stop the loop, so a lower-priority
+surface may still provide valid coverage where the higher-priority surface has
+none.
+
+This closes the remaining surface-priority failure. Together with the root and
+child metadata classification from `b5869add`, the fallback-load correction
+from `4b3dbb65`, the absent/culled correction from `43167db1`, and the
+cross-version structural descent brake from `9299487f`, the traversal now
+satisfies RFC 9's two objectives: surface selection does not depend on
+metadata or resource arrival order, and structural child chains have a bounded
+descent policy.
+
+Validation on 2026-07-11 passed TypeScript and the canonical
+`simple-terrain`, `complex-terrain`, and `full-terrain` dev/production
+screenshot comparisons without console or network errors. Commit `1d45ec7d`
+subsequently separated tile-render and subtree-coverage result types without
+changing the selection policy.
