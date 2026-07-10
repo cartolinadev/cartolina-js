@@ -3,6 +3,38 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-10 — pan jitter fixed: lod-ranked height-query claim
+
+Probed the height query along two failing pan paths: per sample, each
+surface tree's traced node, navtile value, and flags, plus the
+rendered mesh height as ground truth. Two defects, both in the
+front-to-back claim order of `MapMeasure.getSurfaceHeight`:
+
+1. A front surface covering only part of a tile claimed with its
+   navtile. The pane spans the whole tile, so far from the covered
+   part it holds filler. The node-only fallback failed the same way
+   through that node's bbox-centre height.
+2. A front surface with no navtile at the requested lod claimed with
+   one found many lods finer, while a back surface had a navtile at
+   the requested lod. The winner changed with helper-tree depth, so
+   panning jumped between resolutions.
+
+Fix in `measure.js`: `getSurfaceHeight` consults every tree and picks
+the navtile answer by (1) sample lod closest to the requested lod,
+ties to the coarser, (2) answer inside the claiming node's geometry
+bbox, inflated by a quarter (`isHeightWithinNodeBounds_`), (3) stack
+order. Answers failing the bbox test are a last resort, so sparse
+single-surface maps still resolve. Geometry-only claims go to the
+node-only fallback only when no navtile answers; that path uses the
+same bbox test. Moved the duplicated node-centre code to
+`getNodeOnlyCenter_`; removed the write-only `bestHeightMap`.
+
+Both probed pairs now return the same series from both endpoint
+cameras, each from a single navtile at the requested lod, steps under
+0.3 m. Earlier height cases reproduce. Terrain screenshots and tsc
+clean. Filed in the tileserver backlog: delivered navtiles strip the
+stored coverage mask, and the navtile flag ignores watertightness.
+
 ## 2026-07-10 — pan jitter investigation; docs made self-contained
 
 Investigated altitude jitter while panning over high terrain on

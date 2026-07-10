@@ -685,7 +685,6 @@ MapSurfaceTree.prototype.traceHeightTileByMap = function(tile, params) {
     if (node.hasGeometry()) params.sawGeometry = true;
 
     if (node.hasNavtile() && isNavtileRangeValid(tile.map, node)) {
-        params.bestHeightMap = tile.id[0];
 
         if (!tile.heightMap) {
 

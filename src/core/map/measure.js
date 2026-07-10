@@ -38,11 +38,72 @@ MapMeasure.prototype.queryTrees_ = function() {
     return this.map.outerMap.surfaceTreesForQuery();
 };
 
+/**
+ * Tests whether a height answer lies inside the claiming metanode's
+ * geometry bbox, inflated by a quarter of its size. A navtile pane
+ * spans the whole tile even when the surface covers only part of it,
+ * and holds filler outside the covered part. The bbox is the only
+ * per-node coverage information in pre-v6 data. Metanodes without a
+ * bbox (v5+) pass.
+ *
+ * @param {Array<number>} coords navigation-space [lon, lat]
+ * @param {number} height the candidate height answer
+ * @param {Object} metanode the claiming metanode
+ * @returns {boolean}
+ */
+MapMeasure.prototype.isHeightWithinNodeBounds_ = function(
+    coords, height, metanode) {
+    var bbox = metanode.bbox;
+
+    if (!bbox) {
+        return true;
+    }
+
+    var point = this.convert.convertCoords(
+        [coords[0], coords[1], height], 'navigation', 'physical');
+
+    var margin = bbox.maxSize * 0.25;
+
+    return point[0] >= bbox.min[0] - margin &&
+           point[0] <= bbox.max[0] + margin &&
+           point[1] >= bbox.min[1] - margin &&
+           point[1] <= bbox.max[1] + margin &&
+           point[2] >= bbox.min[2] - margin &&
+           point[2] <= bbox.max[2] + margin;
+};
+
+
+/**
+ * Returns the navigation-space centre a node-only height answer is
+ * derived from: the metanode disk position (v5+), the geometry bbox
+ * centre (older versions, when the bbox is reasonably small), or the
+ * query coordinate's own height as a last resort.
+ *
+ * @param {Object} metanode
+ * @param {Array<number>} nodeCoords division-node inner coordinates
+ * @returns {Array<number>} navigation-space [lon, lat, height]
+ */
+MapMeasure.prototype.getNodeOnlyCenter_ = function(metanode, nodeCoords) {
+    if (metanode.metatile.version >= 5) {
+        return this.convert.convertCoords(
+            metanode.diskPos, 'physical', 'navigation');
+    }
+
+    // use the bbox only when it is reasonably small
+    if (metanode.bbox.maxSize < 8000) {
+        return this.convert.convertCoords(
+            metanode.bbox.center(), 'physical', 'navigation');
+    }
+
+    return [0, 0, nodeCoords[2]];
+};
+
+
 MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, nodeCoords, coordsArray, useNodeOnly) {
-    // Front-to-back query order: per-surface helper trees from the
-    // recursive traversal. The first tree whose `traceHeight` finds a
-    // heightMap or a metanode wins; only when every tree comes up empty
-    // do we return the not-found result.
+    // The candidates are the per-surface helper trees from the
+    // recursive traversal; the ranked loop below picks the answer.
+    // Only when every tree comes up empty do we return the not-found
+    // result.
     var trees = this.queryTrees_();
 
     if (trees.length === 0) {
@@ -72,6 +133,28 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
         // then marked provisional so callers query again.
         var anyWaiting = false;
 
+        // Navigation-space query coordinate for the bbox test.
+        var navCoords = coords || node.getOuterCoords(nodeCoords);
+
+        // Every tree is consulted and the best navtile answer wins.
+        // All surfaces model the same terrain, so navtiles at equal
+        // lods agree — but a much finer navtile carries detail the
+        // requested lod is meant to smooth away, and camera-height
+        // navigation then jitters. Ranking:
+        //
+        // 1. sample lod closest to the requested lod,
+        // 2. answer inside the claiming node's geometry bbox (the
+        //    only coverage signal in pre-v6 data; failing answers
+        //    are a last resort),
+        // 3. stack order, front-most first.
+        //
+        // Trees with geometry but no navtile feed the node-only
+        // fallback below, used when no navtile answers.
+        var best = null;
+        var bestLodDistance = 0;
+        var outOfBounds = null;
+        var geometryOnly = null;
+
         // Iterate trees front-to-back (last index = front surface).
         for (var t = trees.length - 1; t >= 0; t--) {
 
@@ -92,22 +175,55 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
                 traceHeight : true,
                 waitingForNode : false,
                 finalNode : false,
-                sawGeometry : false,
-                bestHeightMap : 999
+                sawGeometry : false
             };
 
             tree.traceHeight(root, params, false);
 
+            anyWaiting = anyWaiting || params.waitingForNode;
             metanode = params.metanode;
 
-            // A tree claims the answer only with terrain evidence at
-            // the coordinate: a navtile, or geometry along the traced
-            // path. A tree whose trace ends on structural
-            // (geometry-less) nodes has nothing here, so the next
-            // surface back is consulted.
-            if (params.heightMap || (metanode && params.sawGeometry)) break;
+            if (!params.heightMap) {
+                if (metanode && params.sawGeometry && !geometryOnly) {
+                    geometryOnly = params;
+                }
+                continue;
+            }
 
-            anyWaiting = anyWaiting || params.waitingForNode;
+            height = this.getHeightmapValue(
+                nodeCoords, metanode, params);
+
+            if (!this.isHeightWithinNodeBounds_(
+                    navCoords, height, metanode)) {
+                if (!outOfBounds) {
+                    outOfBounds = params;
+                }
+                continue;
+            }
+
+            var lodDistance = Math.abs(
+                metanode.id[0] - params.desiredLod);
+
+            // On equal distance prefer the coarser sample: coarser
+            // is smoother, finer jitters.
+            if (!best || lodDistance < bestLodDistance
+                    || (lodDistance === bestLodDistance
+                        && metanode.id[0] < best.metanode.id[0])) {
+                best = params;
+                bestLodDistance = lodDistance;
+            }
+        }
+
+        if (best) {
+            params = best;
+            metanode = params.metanode;
+        } else if (geometryOnly) {
+            params = geometryOnly;
+            metanode = params.metanode;
+        } else if (outOfBounds) {
+            params = outOfBounds;
+            metanode = params.metanode;
+        } else {
             metanode = null;
         }
 
@@ -261,6 +377,15 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
         // result is then marked provisional so callers query again.
         var anyWaiting = false;
 
+        // Front-most claim that failed the bbox test, used when no
+        // tree passes it.
+        var fallbackParams = null;
+        var fallbackCenter = null;
+
+        // Navigation-space query coordinate for the bbox test. Delta
+        // samples pass division-node inner coordinates only.
+        var navCoords = coords || node.getOuterCoords(nodeCoords);
+
         // Iterate trees front-to-back; the first tree whose traced
         // path carries geometry wins. For single-surface maps this is
         // a single iteration.
@@ -283,37 +408,47 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
                 traceHeight : true,
                 waitingForNode : false,
                 finalNode : false,
-                sawGeometry : false,
-                bestHeightMap : 999
+                sawGeometry : false
             };
 
             tree.traceHeight(root, params, true);
 
             metanode = params.metanode;
 
-            // A tree claims the answer only when its traced path
-            // carries geometry; a purely structural path has no
-            // terrain at this coordinate.
-            if (metanode != null && params.sawGeometry) break;
+            // A tree claims only when its traced path carries
+            // geometry and the answer lies inside the claiming
+            // node's bbox; a structural path has no terrain here, and
+            // a node whose geometry sits elsewhere in the tile is no
+            // evidence for this coordinate either.
+            if (metanode != null && params.sawGeometry) {
+                center = this.getNodeOnlyCenter_(metanode, nodeCoords);
+
+                if (this.isHeightWithinNodeBounds_(
+                        navCoords, center[2], metanode)) {
+                    break;
+                }
+
+                if (!fallbackParams) {
+                    fallbackParams = params;
+                    fallbackCenter = center;
+                }
+            }
 
             anyWaiting = anyWaiting || params.waitingForNode;
             metanode = null;
         }
 
+        // No claim passed the bbox test; answer from the front-most
+        // claim anyway so sparse data still resolves.
+        if (metanode == null && fallbackParams) {
+            params = fallbackParams;
+            metanode = params.metanode;
+            center = fallbackCenter;
+        }
+
         if (metanode != null) { // && metanode.id[0] == lod){
 
-            if (metanode.metatile.version >= 5) {
-                center = this.convert.convertCoords(metanode.diskPos, 'physical', 'navigation');
-            } else {
-                if (metanode.bbox.maxSize < 8000) { // use bbox only when bbox is reasonable small
-                    center = metanode.bbox.center();
-                    center = this.convert.convertCoords(center, 'physical', 'navigation');
-                } else {
-                    center = [0,0,nodeCoords[2]];
-                }
-            }
-
-            //console.log("lod2: " + lod + " nodelod: " + metanode.id[0] + " h: " + center[2]/1.55);  
+            //console.log("lod2: " + lod + " nodelod: " + metanode.id[0] + " h: " + center[2]/1.55);
 
             if (storeStats) {
                 stats.heightClass = 1;
@@ -333,15 +468,8 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
             if (this.config.mapHeightLodBlend && metanode.id[0] > 0 &&
                 params.parent && params.parent.metanode) {
 
-                if (params.parent.metanode.metatile.version >= 5) {
-                    center2 = this.convert.convertCoords(params.parent.metanode.diskPos, 'physical', 'navigation');
-                } else {
-                    if (params.parent.metanode.bbox.maxSize < 8000) { // use bbox only when bbox is reasonable small
-                        center2 = this.convert.convertCoords(params.parent.metanode.bbox.center(), 'physical', 'navigation');
-                    } else {
-                        center2 = [0,0,nodeCoords[2]];
-                    }
-                }
+                center2 = this.getNodeOnlyCenter_(
+                    params.parent.metanode, nodeCoords);
 
                 var factor = lod - Math.floor(lod);
                 height = center[2] + (center2[2] - center[2]) * factor;

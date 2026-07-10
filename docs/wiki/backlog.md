@@ -9,39 +9,63 @@ existing entry, even one added earlier in the same session.**
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10
-**Status:** open — cause not established
+**Status:** fixed 2026-07-10, pending interactive validation
 **Related:** [nav-tiles.md](nav-tiles.md), the coverage-aware point
-terrain queries entry below
+terrain queries entry below, the tileserver backlog entry "Navtiles on
+partial-coverage tiles are served without coverage"
 
-Panning over high terrain on multi-surface configurations shows
-noticeable sudden altitude changes. Panning converts the position to
-`float` (`map-observer.js`), so the camera altitude is
-`position height + getSurfaceHeight(coords)` recomputed every frame
-with no temporal smoothing; pan smoothness is exactly the continuity
-of the height sample series along the swept coordinate. Navtiles are
-smoothed heightfields, so a query that consistently samples one
-resident navtile pyramid produces a continuous series.
+Panning converts the position to `float` (`map-observer.js`), so the
+camera altitude re-samples `getSurfaceHeight` every frame. Any
+discontinuity in the height series along the pan path shows as a
+jump. Observed jumps ranged from tens to hundreds of metres.
 
-One hypothesis was tried and did not survive validation: making a
-navtile sample from a back surface outrank a geometry-only (node-only)
-claim from a front surface, on the theory that the series alternated
-between navtile samples and per-tile node-only constants while fine
-navtiles loaded. Interactive panning showed no improvement, so the
-change was dropped.
+### Causes
 
-Untested candidate mechanisms, for the next investigation:
+Both defects were in the front-to-back claim order of
+`MapMeasure.getSurfaceHeight`: the first tree with a navtile, or with
+geometry on the traced path, answered — regardless of sample quality.
 
-- The claiming surface flips between surfaces along the pan path;
-  adjacent surfaces' navtiles disagree by metres at the handover.
-- Navtile decode quantization: adjacent tiles decode 8-bit pixels
-  against different `minHeight`/`maxHeight` ranges, so tile borders
-  can step by up to range/255.
-- The query descends past `desiredLod` while no navtile sample exists
-  (the stop guard requires a loaded heightmap), so sample LOD varies
-  along the path with texture residency.
+1. **Coverage filler.** A navtile pane spans the whole tile. A front
+   surface covering only part of the tile still answered queries far
+   from its coverage, where the pane holds filler. The node-only
+   fallback failed the same way through that node's bbox centre.
+2. **Resolution flips.** A front surface without a navtile at the
+   requested lod answered with one many lods finer, while a back
+   surface had one at the requested lod. Which tree answered depended
+   on helper-tree depth, which follows the camera — so panning
+   flipped between resolutions that legitimately differ by tens of
+   metres.
 
-A per-frame trace of `heightClass`, claiming surface, node id, and
-returned height along a pan is the direct way to separate these.
+### Fix
+
+`getSurfaceHeight` consults every tree and ranks navtile answers:
+
+1. sample lod closest to the requested lod; ties prefer the coarser
+   sample (coarser is smoother, finer jitters);
+2. answer inside the claiming node's geometry bbox, inflated by a
+   quarter of its size (`isHeightWithinNodeBounds_`) — the only
+   coverage signal in pre-v6 data; failing answers are a last resort
+   so single-surface maps always resolve;
+3. stack order, front-most first.
+
+Geometry-only claims go to the node-only fallback only when no tree
+has a navtile answer; that path applies the same bbox test.
+
+Verified on both probed pan paths: the series is identical from both
+endpoint cameras, sampled from one navtile at the requested lod,
+steps under 0.3 m. Terrain screenshots and earlier height cases
+reproduce.
+
+### Known limits
+
+- The bbox test cannot reject filler when sparse geometry spans the
+  tile (a diagonal strip, a ring): the bbox covers the tile while the
+  coverage does not. Rejections are reliable; acceptances are not.
+  The real signal is coverage data — see the coverage-aware entry
+  below and the tileserver backlog entry.
+- Surfaces model the same terrain and agree at equal lods; where a
+  dataset's coarse navtiles are biased against its own finer lods,
+  the query returns that bias.
 
 ## FEATURE: make the atmosphere shell track vertical exaggeration
 
@@ -272,8 +296,9 @@ plan live in the RFC.
 ## BUG/DESIGN: coverage-aware point terrain queries
 
 **Opened:** 2026-06-08
-**Status:** first ownership rule implemented 2026-07-10 (see below) —
-the partial-coverage refinement remains open
+**Status:** ownership rule implemented 2026-07-10; lod-ranked claim
+with geometry-bbox bounds test added 2026-07-10 (see the pan jitter
+entry above) — the exact coverage-aware rule remains open
 **Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md),
 [nav-tiles.md](nav-tiles.md),
 [surface-metatile.md](surface-metatile.md)
@@ -332,7 +357,26 @@ centre — or, for a pre-v5 metanode whose bbox exceeds the 8000 m
 sanity limit, the query coordinate's own height, landing a
 zero-height float position at fixed 0.
 
+### Implemented 2026-07-10 — lod-ranked claim with bbox test
+
+The second failure mode (partial front-surface tiles) is mitigated by
+the ranked claim in `getSurfaceHeight`: sample-lod distance to the
+requested lod, then the geometry-bbox test
+(`isHeightWithinNodeBounds_`), then stack order; failing answers are
+a last resort. See the pan jitter entry above for causes,
+verification, and the diagonal-coverage limit that keeps this entry
+open.
+
 ### Direction (remaining)
+
+The bbox test approximates a coverage signal the data should carry: a
+covered-subtree flag — like watertight, but tracking coverage instead
+of mesh availability — stating that the node's existing subtree
+completely covers its pane. It can be stamped by the tileserver (v6
+metatiles) or partly inferred client-side while the surface tree
+builds: a missing child flag decides "not covered" within a level or
+two, but "covered" cannot be confirmed in v4 data, which has no
+watertight bit.
 
 Point terrain queries should use a coverage-aware ownership rule that
 matches the recursive terrain traversal closely enough for navigation
