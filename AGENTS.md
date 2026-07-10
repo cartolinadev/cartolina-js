@@ -63,13 +63,17 @@ relevant information.
   such as "legacy pre-v6 backend" or "private integration dataset,"
   unless the name is already part of this public repository's committed
   source or public project identity.
-- Private validation details from local integration apps, including app
-  names, URLs, coordinates, view parameters, screenshots, performance
-  numbers tied to a private dataset, and proxy/backend hostnames. When
-  private validation informs public cartolina-js work, record only the
-  generic conclusion in this repository, such as "validated against a
-  private legacy pre-v6 integration." Do not copy identifying details into
-  public-facing cartolina-js docs.
+- Any reference to private validation or private data, in any form.
+  This includes generic allusions ("validated against a private
+  integration", "a private trace confirmed", "an internal dataset
+  shows"), not just names, URLs, coordinates, screenshots, performance
+  numbers, and hostnames. Public documentation must be self-contained:
+  a reader with only this repository, its sister tileserver repository,
+  and public test data must be able to check every claim. State
+  mechanisms in terms of the code, and cite only reproducible public
+  cases as evidence. Records of private validation belong in the
+  private counterpart repository; when a finding rests solely on
+  private data, this repository records only what the code shows.
 
 Keep entries concise. A future engineer (or agent) should be able to
 read a page and immediately understand the decision, not reconstruct it

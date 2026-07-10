@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-10 — pan jitter investigation; docs made self-contained
+
+Investigated altitude jitter while panning over high terrain on
+multi-surface configurations. Established from source that panning
+converts the position to `float` and the camera altitude tracks
+`getSurfaceHeight` per frame with no temporal smoothing, so the jitter
+is discontinuity in the height sample series. A trial change made a
+back surface's navtile sample outrank a front surface's node-only
+claim; interactive validation showed no improvement, so the trial was
+dropped without landing. The symptom, the rejected hypothesis, and the
+untested candidate mechanisms are recorded in the new backlog entry
+"altitude jitter while panning over high terrain".
+
+Repository policy tightened in AGENTS.md: public documentation must be
+self-contained — no references to private validation or private data
+in any form, including generic allusions. Existing wiki text was
+brought in line: validation notes now cite only reproducible public
+cases or describe the mechanism from code.
+
 ## 2026-07-10 — multi-surface ownership for terrain height queries
 
 Fixed the long-standing wrong terrain heights during navigation on
@@ -36,10 +55,8 @@ root navtile) to ~1.2 km. This matches the original navtile purpose:
 smooth navigation that follows the terrain surface, with the query
 preferring the front surface's navtile where one exists.
 
-Validated on the Etna case above and on a private legacy v4-metatile
-multi-surface integration where the sparse front surface previously
-produced fixed-0 and off-by-tens-of-metres landings; heights now come
-from the first surface with actual navtile coverage. TypeScript and
+Validated on the Etna case above; heights now come from the first
+surface with terrain evidence at the coordinate. TypeScript and
 the `simple-terrain`, `complex-terrain`, and `full-terrain` screenshot
 checks passed. Backlog: the partial-coverage (watertight-aware)
 refinement of the ownership rule remains open in the coverage-aware
@@ -116,7 +133,7 @@ actually rejected by frustum culling. An all-absent set remains a gap for
 parent fallback; pending metadata also remains a gap. This preserves the
 off-screen fallback optimization without using watertightness as a proxy for
 child visibility. TypeScript passes,
-and the two private multi-surface configurations that exposed the opposite
+and the multi-surface configurations that exposed the opposite
 failure modes both render correctly.
 
 ## 2026-07-07 — atmosphere diagnostic toggle now silences the background sky
@@ -298,9 +315,9 @@ watertight bit on a geometry-less metanode emits a one-time warning with the
 first offending surface and tile ID, and is cleared before traversal can
 observe it.
 
-Validation passed TypeScript, the `simple-terrain`, `complex-terrain`, and
-`full-terrain` screenshot comparisons, and a private pre-v6 compatibility
-application. The compatibility application rendered, completed readiness,
+Validation passed TypeScript and the `simple-terrain`,
+`complex-terrain`, and `full-terrain` screenshot comparisons. The
+application that surfaced the crash rendered, completed readiness,
 and switched named views without page errors.
 
 ## 2026-07-02 — Moved tile-index.md to the tileserver docs
@@ -476,7 +493,7 @@ first watertight surface stops lower-priority rendering. This preserves the
 descent brake that prevents sparse-surface storms while letting
 higher-priority fallback content load at the node where descent ended.
 
-Validation: targeted private trace showed the higher-priority fallback
+Validation: a targeted trace showed the higher-priority fallback
 surfaces switching to load-enabled attempts and eventually rendering at the
 stopped tile. `npx tsc --noEmit` passed, as did the standard screenshot
 entries `simple-terrain`, `complex-terrain`, and `full-terrain`. RFC 9 is

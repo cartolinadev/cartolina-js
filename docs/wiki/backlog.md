@@ -6,6 +6,43 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## BUG: altitude jitter while panning over high terrain (multi-surface)
+
+**Opened:** 2026-07-10
+**Status:** open — cause not established
+**Related:** [nav-tiles.md](nav-tiles.md), the coverage-aware point
+terrain queries entry below
+
+Panning over high terrain on multi-surface configurations shows
+noticeable sudden altitude changes. Panning converts the position to
+`float` (`map-observer.js`), so the camera altitude is
+`position height + getSurfaceHeight(coords)` recomputed every frame
+with no temporal smoothing; pan smoothness is exactly the continuity
+of the height sample series along the swept coordinate. Navtiles are
+smoothed heightfields, so a query that consistently samples one
+resident navtile pyramid produces a continuous series.
+
+One hypothesis was tried and did not survive validation: making a
+navtile sample from a back surface outrank a geometry-only (node-only)
+claim from a front surface, on the theory that the series alternated
+between navtile samples and per-tile node-only constants while fine
+navtiles loaded. Interactive panning showed no improvement, so the
+change was dropped.
+
+Untested candidate mechanisms, for the next investigation:
+
+- The claiming surface flips between surfaces along the pan path;
+  adjacent surfaces' navtiles disagree by metres at the handover.
+- Navtile decode quantization: adjacent tiles decode 8-bit pixels
+  against different `minHeight`/`maxHeight` ranges, so tile borders
+  can step by up to range/255.
+- The query descends past `desiredLod` while no navtile sample exists
+  (the stop guard requires a loaded heightmap), so sample LOD varies
+  along the path with texture residency.
+
+A per-frame trace of `heightClass`, claiming surface, node id, and
+returned height along a pan is the direct way to separate these.
+
 ## FEATURE: make the atmosphere shell track vertical exaggeration
 
 **Opened:** 2026-07-07
@@ -288,9 +325,12 @@ Two supporting changes landed with it:
   the viewfinder-dem1 entry below.
 
 Validated against the public viewfinder13 style over Etna
-(float-height resolution 33 km → 1.2 km) and a private legacy
-v4-metatile multi-surface integration where a sparse front surface
-previously produced fixed-0 and off-by-tens-of-metres landings.
+(float-height resolution 33 km → 1.2 km). The failure mode is
+data-independent: whenever the front surface reaches a coordinate only
+through structural nodes, the old rule returned that node's bbox
+centre — or, for a pre-v5 metanode whose bbox exceeds the 8000 m
+sanity limit, the query coordinate's own height, landing a
+zero-height float position at fixed 0.
 
 ### Direction (remaining)
 
