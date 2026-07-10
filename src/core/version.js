@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.545-feature_height_query_ownership.bd5acebe';
+  return '2.49.546-feature_height_query_ownership.4c211137';
 }

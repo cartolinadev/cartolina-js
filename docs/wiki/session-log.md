@@ -3,6 +3,13 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-10 - draw-traversal - streamline shapes and terminology
+
+Streamlined the shapes of return types in tree traversal: former
+CoverageResults has been split to better reflect the peculiarities
+of local tile rendering and tree coverage, for a hopefully
+more readable and better maintainable outcome.
+
 ## 2026-07-10 — pan jitter fixed: lod-ranked height-query claim
 
 Probed the height query along two failing pan paths: per sample, each

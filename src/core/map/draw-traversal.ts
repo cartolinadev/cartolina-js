@@ -142,7 +142,7 @@ export function drawTerrainTraversal(
  *     current recursion depth.
  * @returns Coverage state for the subtree rooted at this node.
  */
-function traverseNode(context: NodeContext): CoverageResult {
+function traverseNode(context: NodeContext): NodeCoverageResult {
 
     const {
         active,
@@ -152,8 +152,7 @@ function traverseNode(context: NodeContext): CoverageResult {
         fallbackCadence,
     } = context;
 
-    // should not happen, 'empty' is just a filler for a state that
-    // should never happen
+    // this should not happen, but just in case
     if (active.length === 0) return 'empty';
 
     // The bbox-visibility check has already been applied to every
@@ -189,7 +188,7 @@ function traverseNode(context: NodeContext): CoverageResult {
     maskPool.resetCoverage(depth);
 
     let watertightMask = 0;
-    let emptyMask = 0;
+    let offScreenMask = 0;
 
     if (!hasWatertightFit && shouldDescend) {
 
@@ -212,7 +211,7 @@ function traverseNode(context: NodeContext): CoverageResult {
                 // fold the quadrant in. With only absent children there is
                 // no visibility evidence; leave a gap for parent fallback.
                 if (child.culled)
-                    emptyMask |= 1 << quadrant;
+                    offScreenMask |= 1 << quadrant;
                 continue;
             }
 
@@ -234,7 +233,7 @@ function traverseNode(context: NodeContext): CoverageResult {
 
             if (childCoverage === 'off-screen') {
 
-                emptyMask |= 1 << quadrant;
+                offScreenMask |= 1 << quadrant;
                 continue;
             }
 
@@ -256,11 +255,11 @@ function traverseNode(context: NodeContext): CoverageResult {
     }
 
     // No on-screen area anywhere below: this node contributes nothing.
-    if (emptyMask === AllQuadrantsMask) return 'off-screen';
+    if (offScreenMask === AllQuadrantsMask) return 'off-screen';
 
     // Every on-screen quadrant is watertight (the rest are off-screen):
     // covered, no draw or mask needed, early return
-    if ((watertightMask | emptyMask) === AllQuadrantsMask)
+    if ((watertightMask | offScreenMask) === AllQuadrantsMask)
         return 'watertight';
 
     // Record watertight children as exact quadrant rectangles.
@@ -300,7 +299,7 @@ function traverseNode(context: NodeContext): CoverageResult {
         const preventLoad = !naturalLeaf && !fallbackLod && !hasWatertightFit;
 
         const renderedCoverage =
-            renderSurface(
+            renderTile(
                 context,
                 entry,
                 readiness,
@@ -321,8 +320,7 @@ function traverseNode(context: NodeContext): CoverageResult {
 
     // The node's coverage is whatever ended up in its mask: watertight
     // rectangles, blitted child masks, or rendered footprints.
-    // 'structural' is infered here — only remaining case
-    return maskPool.hasCoverage(depth) ? 'partial' : 'structural';
+    return maskPool.hasCoverage(depth) ? 'partial' : 'empty';
 }
 
 
@@ -402,13 +400,13 @@ function collectChildActive(
  * can produce watertight coverage: a drawn watertight tile returns
  * analytic coverage instead of rasterizing its footprint into the mask.
  */
-function renderSurface(
+function renderTile(
     context: NodeContext,
     entry: ActiveSurface,
     readiness: TileRenderRig.ReadinessLevels,
     noRender = false,
     preventLoad = false,
-): CoverageResult {
+): TileRenderResult {
 
     const { tree, tile } = entry;
     const { depth, screenTarget, maskPool } = context;
@@ -575,15 +573,22 @@ type NodeContext = {
     fallbackCadence: number;
 };
 
-/** possible coverage results - these effect optimization during backtracking */
-type CoverageResult =
+/* results of rendering a single surface at a a given node - a single tile.
+ */
+type TileRenderResult =
     | 'watertight'      // fully covered
     | 'partial'         // covered with an arbitrary shape, in a mask
-    | 'structural'      // structural node with no geometry
-    | 'loading'         // waiting for data
-    | 'off-screen'      // no on-sceen area (completely culled)
-    | 'empty';          // claims coverage but provides none (should not happen)
+    | 'loading'         // not rendered, waiting for data
+    | 'structural';     // early exit, no geometry here to render or fetch
 
+/** node coverage results - the state of coverage after processing
+ *  the entire subtree. These effect optimization during backtracking 
+ */
+type NodeCoverageResult =
+    | 'watertight'      // fully covered
+    | 'partial'         // covered with an arbitrary shape, in a mask
+    | 'empty'           // no content rendered (yet)
+    | 'off-screen';     // no on-sceen area (completely culled)
 
 const AllQuadrantsMask = 0b1111;
 
