@@ -75,9 +75,9 @@ The query path:
    `tree.traceHeight()` on each. A tree claims the answer only with
    terrain evidence at the coordinate: a usable navtile, or geometry
    somewhere along the traced path (`params.sawGeometry`). A tree
-   whose trace dead-ends on structural (geometry-less) routing nodes
-   has no terrain at the coordinate and falls through to the next
-   surface back. A consulted tree that could not answer conclusively —
+   whose trace dead-ends on structural (geometry-less) nodes — see
+   [surface-metatile.md](surface-metatile.md) — has no terrain at the
+   coordinate and falls through to the next surface back. A consulted tree that could not answer conclusively —
    a metanode or navtile texture is still loading — marks the result
    provisional (third tuple element false) so callers query again.
 2. `MapSurfaceTree.prototype.traceHeightTileByMap()` in

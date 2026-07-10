@@ -102,9 +102,9 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
 
             // A tree claims the answer only with terrain evidence at
             // the coordinate: a navtile, or geometry along the traced
-            // path. A tree whose trace ends on structural routing
-            // nodes has nothing here, so the next surface back is
-            // consulted.
+            // path. A tree whose trace ends on structural
+            // (geometry-less) nodes has nothing here, so the next
+            // surface back is consulted.
             if (params.heightMap || (metanode && params.sawGeometry)) break;
 
             anyWaiting = anyWaiting || params.waitingForNode;

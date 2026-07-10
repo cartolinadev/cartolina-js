@@ -250,7 +250,7 @@ when the front surface fully owns the coordinate, but fails in two
 ways:
 
 - A sparse front surface whose tree dead-ends on structural
-  (geometry-less) routing nodes toward the coordinate claimed the
+  (geometry-less) nodes toward the coordinate claimed the
   answer with no terrain data at all. The node-only fallback then
   produced a bbox-centre or query-coordinate height, so camera
   float-height navigation and `float`/`fix` conversion landed on
@@ -272,7 +272,7 @@ The first failure mode is fixed on
 with terrain evidence at the coordinate: a usable navtile, or geometry
 on the traced path (`params.sawGeometry`, set by the trace functions in
 [surface-tree.js](../../src/core/map/surface-tree.js)). A tree whose
-trace ends on structural routing nodes falls through to the next
+trace ends on structural nodes falls through to the next
 surface back. A consulted tree that could not answer conclusively
 (metanode or navtile texture still loading) marks the result
 provisional (`res[2] = false`) so callers query again.
@@ -381,15 +381,15 @@ bottom-up.
 2. **A navtile-less coarse LOD band prevents correction.** The metanode
    TREE has no holes: along the descent to real data (Etna 15.05E
    37.77N: `1-0-0, 2-1-0, 3-2-1, 4-4-3, 5-8-6, 6-17-12, 7-34-24…`) the
-   intermediate nodes (2,1,0)..(6,17,12) exist as content-less ROUTING
-   nodes (geometry bit clear, navtile bit clear, child bits intact,
-   minH=1/maxH=0 = the no-navtile sentinel); the renderer descends
-   through them fine. What is missing is navtile (and mesh) CONTENT at
-   lod 2–6. `vts --complete-tileindex-up`
+   intermediate nodes (2,1,0)..(6,17,12) exist as content-less
+   STRUCTURAL nodes (geometry bit clear, navtile bit clear, child bits
+   intact, minH=1/maxH=0 = the no-navtile sentinel); the renderer
+   descends through them fine. What is missing is navtile (and mesh)
+   CONTENT at lod 2–6. `vts --complete-tileindex-up`
    (vts-libs `tools/vts.cpp:2990`, `VtsStorage::completeTileindexUp`)
    sets `mesh|navtile` only where coarsened coverage clears
    `meshThreshold = K/8`; a point-like data region is sub-1/8 of a coarse
-   tile, so its mid-LOD ancestors stay routing-only.
+   tile, so its mid-LOD ancestors stay structural-only.
 
    The height query asks for a coarse LOD (~5; camera ~52 km). From the
    root down to that LOD the ONLY navtile is the poisoned root (lod 1) —
@@ -407,7 +407,7 @@ Both are needed for dem1 to navigate correctly; they are independent
 - **Bottom-up pass (`completeTileindexUp`)** — must produce a complete,
   walkable navtile pyramid: do not leave a navtile-less band above real
   data. Either do not gate `navtile` on the `K/8` coverage threshold
-  (mark/generate a coarse navtile on every routing ancestor of real
+  (mark/generate a coarse navtile on every structural ancestor of real
   data), or otherwise guarantee a coarse height overview exists at each
   LOD down the chain.
 - **Coarse navtile generation** — must honor nodata: mask the int16

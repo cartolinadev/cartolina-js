@@ -10,9 +10,9 @@ multi-surface maps (branch `feature/height-query-ownership`).
 `MapMeasure.getSurfaceHeight` and `getSurfaceHeightNodeOnly` iterated
 the per-surface helper trees front-to-back and stopped on the first
 tree that produced any metanode. A sparse front surface whose tree
-dead-ends on structural (geometry-less) routing nodes toward the
+dead-ends on structural (geometry-less) nodes toward the
 queried coordinate therefore claimed the answer with no terrain data;
-the node-only fallback then returned a routing-node bbox centre, or
+the node-only fallback then returned a structural-node bbox centre, or
 the query coordinate's own height when the bbox was larger than the
 8000 m sanity limit. Camera float-height terrain following and
 float/fix conversion landed on arbitrary heights, fixed 0 in the worst

@@ -266,6 +266,34 @@ header bitplane 0. Watertight lives in header bitplane 1 for v6+
 metatiles. `applyMetatanodeBitplanes()` writes them to
 `metanode.alien` and `metanode.watertight`.
 
+### Structural metanodes
+
+A metanode whose `geometryPresent` bit is clear is a **structural**
+metanode: it carries no renderable mesh of its own and exists to
+advertise children on the way to deeper geometry. Older notes in this
+wiki call the same thing a *routing* node — the two terms are
+equivalent. **Structural** is the preferred term and the only one the
+[tileserver documentation][ts-tile-index] uses.
+
+The client's operational test is the geometry bit alone
+(`MapMetanode.hasGeometry()`): the recursive draw traversal classifies
+a geometry-less node as `'structural'` coverage and renders nothing
+for it, and terrain height queries do not let a surface claim a
+coordinate through a purely structural path (see
+[nav-tiles.md](nav-tiles.md)). A structural metanode served by the
+tileserver additionally carries no navtile and no watertight flag —
+only child bits and a stored height range that bounds every descendant
+mesh, so client-side culling can decide the descent. The format itself
+does not forbid a navtile on a geometry-less node; where one exists,
+height queries use it.
+
+Unrelated sense: [reference-frames.md](reference-frames.md) speaks of
+the LOD 0 division node as a "routing switch" and of "empty routing
+levels". That usage is about the reference frame dispatching subtrees
+into projections, not about metanodes.
+
+[ts-tile-index]: https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/tile-index.md
+
 
 ## Version history
 
