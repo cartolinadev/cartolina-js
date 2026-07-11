@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 1 implementation (in progress)
+
+Implementing [rfc-config-store.md](rfc-config-store.md) on
+`feature/rfc1-rfc2`, one commit per RFC step.
+
+- Step 1: `src/core/viewer-config.ts` — the flat `ViewerConfig`
+  interface cataloguing every valid runtime config key, plus
+  `defaultViewerConfig()`. Defaults preserve today's effective
+  behavior; deviations from the raw legacy values (the
+  `Number.MAXINTEGER` typo, keys that were undefined until set) are
+  listed in the commit message and will be summarized in the RFC's
+  implementation addendum.
+
 ## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
 
 Implemented [rfc-event-bus.md](rfc-event-bus.md) on
