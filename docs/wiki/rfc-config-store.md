@@ -487,10 +487,82 @@ LegacyMap, and Renderer config behavior during the migration, and the
 earlier validation, flush timing, renderer ownership, and numbering
 comments have been addressed.
 
-## Review round 4
+## Review round 4 — requested
 
 `mapFog` was removed as dead code (the fog tile system it controlled
 was replaced by `Atmosphere` and never drew in the `TileRenderRig`
 path). Three places in this document that used `mapFog` as a
 representative example have been updated to use `mapCache` instead.
 No design decisions changed; only the example key was replaced.
+
+---
+
+## Review round 4
+
+Not signed off yet. The requested example replacement is verified and
+accepted, but the delta since the round-3 sign-off is larger than the
+requested section describes, and one later commit rewrote reviewer
+text inside closed rounds. Editorial: the requested section above was
+retitled by the reviewer from `## Review round 4` to
+`## Review round 4 — requested`, the heading form the protocol
+prescribes for an author request; its text is untouched.
+
+- The `mapFog` claim is confirmed against the code. The fog tile
+  system and its `mapFog` key were removed in `89bfd044`; no live
+  reference remains in `src/` or `demos/`. `mapCache` is a live key
+  with a default in `core.js` and a setter and getter in
+  `map/map.js`. The three updated sites match: the §4.1
+  domain-knowledge sentence, the §4.2 `set()` example, and the §4.2
+  interface listing — where the change removes the `mapFog: boolean;`
+  line and the pre-existing `mapCache: number;` line becomes the
+  representative key. Accepted.
+
+- The requested section names only the `mapFog` replacement, but two
+  later commits also edited the signed-off body while the RFC sat in
+  review. `77704cb9` rewrote step 4 item 2 from "no terrain engine
+  involvement" to "no `Map` or `LegacyMap` involvement", following
+  the docs-wide retirement of the "terrain engine" label. `2dc6a183`
+  replaced the §4.2 cross-cutting key `authorization` (typed
+  `AuthConfig | null`) with `transformRequest` (typed
+  `TransformRequestCallback | null`). Both edits are verified correct
+  against the current tree: no `authorization` config key remains in
+  the source, and `transformRequest` is normalized in
+  `Browser.setConfigParam` and forwarded through
+  `Core.setConfigParam` (`browser.js`, `core.js`). A file-history
+  check confirms these two commits and the requested `mapFog` change
+  are the only body edits since sign-off (`ba486b46` changed only the
+  title, adding the RFC number). This note records the complete
+  delta; confirm below.
+
+- `2dc6a183` also rewrote reviewer text inside the closed rounds:
+  round 1 note 2 now reads "request-transform values" and round 2
+  note 1 now reads "`transformRequest` keys", where the signed-off
+  text (`31fc5301`) reads "authorization values" and "`authorization`
+  keys". The review protocol forbids altering the reviewer's note
+  text, and closed rounds are historical record. As rewritten, the
+  record shows the round-1 and round-2 reviewer citing a hook that
+  entered the tree on 2026-06-19, after sign-off; at sign-off the
+  code forwarded `authorization` keys and `Core` held an
+  `authorization` config value. Restore the original wording in both
+  notes; the rename is already recorded by the §4.2 body edit and by
+  this round. Blocker.
+
+- Same class as the requested change, one more stale example key:
+  §4.3 illustrates the subsystem pattern with
+  `store.get('atmosphere')` returning an object with `enabled` and
+  `density` fields. No `atmosphere` key exists; the live key is the
+  boolean `mapFlagAtmosphere` (`map/map.js`). The example also treats
+  one key as a nested group of values, which the flat-layout rule in
+  §4.2 excludes. Rework the example around real flat keys before
+  sign-off.
+
+- The rest of the body re-verified against the current tree and
+  holds: the three separate config objects (`Browser`, `Core`,
+  `LegacyMap`); prefix routing of `map*`, `renderer*`, and `debug*`
+  keys in `Browser.setConfigParam`; `Renderer.setConfigParam`
+  delegating to `Core.setRendererConfigParam` with the switch living
+  in `Core`; `configStorage` in `Core` with replay through
+  `setLoaderParams`; `Browser.initConfig()`; `CoreConfig` in
+  `src/core/types.ts`; `control-mode/map-observer.js` reading
+  `this.config` directly. The key counts hold to their stated
+  tolerance: 81 `map*` cases and 4 `renderer*` keys today.

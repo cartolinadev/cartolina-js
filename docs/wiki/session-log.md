@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 1 round 4: example fix accepted, record edit flagged
+
+Reviewed the round-4 request on
+[rfc-config-store.md](rfc-config-store.md). The requested change is
+accepted: `mapFog` was deleted with the fog tile system (`89bfd044`),
+`mapCache` is a live key, and the three example sites match.
+
+Not signed off, four notes open. The requested section under-reports
+the post-sign-off delta: `77704cb9` retired the "terrain engine"
+wording in step 4 and `2dc6a183` replaced the `authorization` key
+with `transformRequest` in §4.2 — both verified correct against the
+tree, now enumerated in the round record. Blocker: `2dc6a183` also
+rewrote the reviewer's closed round-1 and round-2 note text
+(`authorization` → `transformRequest`), which the protocol forbids;
+the original wording must be restored. Also flagged §4.3's
+never-existed `atmosphere` example key (live key:
+`mapFlagAtmosphere`) as the same class of stale example the round was
+opened for. Everything else in the body re-verified and holds. The
+author's request heading was retitled to the protocol's
+`— requested` form. RFC stays `In review`.
+
 ## 2026-07-11 — RFC 2 review round 5: signed off, accepted
 
 Reviewed the author's round-4 response on
