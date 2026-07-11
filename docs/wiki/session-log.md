@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 2 review round 5: signed off, accepted
+
+Reviewed the author's round-4 response on
+[rfc-event-bus.md](rfc-event-bus.md) and signed off. All notes
+resolved and re-verified against the tree: the five relocated events
+are correctly attributed to `Map.tick()` (`map-update` confirmed
+inside the dirty-draw branch), section 6.1 and step 4 match the
+current emit topology with `Core` down to `map-mapconfig-loaded` and
+`map-unloaded`, and the `ViewerEventMap` intro correction matches the
+round-3 resolution. One non-blocking editorial note recorded (section
+4A's "tile-tree pass" wording). Status changed to `Accepted` — ready
+to implement.
+
 ## 2026-07-11 — RFC 2 review round 4 processed
 
 Processed review round 4 in

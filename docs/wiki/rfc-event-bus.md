@@ -1,6 +1,6 @@
 # RFC 2: event bus — extraction and redesign
 
-**Status:** In review
+**Status:** Accepted
 **Context:** event bus section in [architecture.md](architecture.md);
 `core.js` suppression track in [backlog.md](backlog.md)
 
@@ -688,3 +688,19 @@ several emit sites, and the design body has not caught up.
   shapes, which match the `map.ts` emit sites field for field.
 
   *Author: accepted.*
+
+---
+
+## Review round 5 — sign-off
+
+All round-4 notes are resolved and verified against the tree. The
+section 2 Source column attributes the five relocated events to
+`Map.tick()` — confirmed, including `map-update` firing inside the
+dirty-draw branch after `draw()`. Section 6.1 and step 4 match the
+current emit topology: `Core` emits only `map-mapconfig-loaded` and
+`map-unloaded`, and the temporary `Core.bus` wiring is limited to those
+two. The section 2 intro correction — the `ViewerEventMap` rename is
+decided, not open — matches the round-3 resolution. Design accepted.
+
+One editorial note, not a blocker: section 4A still says `map-update`
+fires "on every tile-tree pass"; the current trigger is a dirty draw.
