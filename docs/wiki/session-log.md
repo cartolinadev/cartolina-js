@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 2 review round 4: `wait` removal accepted, body drift noted
+
+Reviewed the round-4 request on [rfc-event-bus.md](rfc-event-bus.md).
+The requested change is accepted: no source call site passes the third
+`wait` argument to `once` — `getSurfaceAreaGeometry` and the measure
+UI's `traceVolumeLine` loop were deleted in `e59f5fbb` with the volume
+measurement path, and the rewritten sections match the code.
+
+Not signed off. The same rollout moved emit sites the body still
+attributes to `Core.onUpdate()` and `LegacyMap.update()`: `tick`,
+`map-loaded`, `map-update`, and both position-change events now come
+from `Map.tick()` and the draw path in `map.ts`, leaving `Core` with
+only `map-mapconfig-loaded` and `map-unloaded`. The section 2 Source
+column and the section 6.1 temporary `Core.bus` wiring need updating
+before sign-off. All other body facts re-verified against the tree
+and hold.
+
 ## 2026-07-11 — backlog: tileserver entries handed back to the tileserver
 
 Removed the two tileserver-tagged entries from [backlog.md](backlog.md):

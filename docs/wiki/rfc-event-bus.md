@@ -637,3 +637,43 @@ This update changes the status back to `In review` because the accepted
 RFC body changed after sign-off. The design still removes `wait`; the
 implementation no longer needs to update those call sites because they
 no longer exist.
+
+---
+
+## Review round 4
+
+Not signed off yet. The requested `wait` change is verified and
+accepted, but the rollout that removed those call sites also moved
+several emit sites, and the design body has not caught up.
+
+- The `wait` claim is confirmed against the code. No call site in
+  `src/` or `demos/` passes a third argument to `once`. Both former
+  users — `getSurfaceAreaGeometry` and the measure UI's
+  `traceVolumeLine` loop — were deleted in `e59f5fbb` together with
+  the volume measurement path in `measure.js`. The rewritten section 1
+  bullet, section 3, section 6.3, and step 6 match the code. Accepted.
+
+- The event-source attributions in section 2 and the migration wiring
+  in section 6.1 are stale. `tick`, `map-loaded`, `map-update`,
+  `map-position-changed`, and `map-position-fixed-height-changed` are
+  no longer emitted by `Core.onUpdate()` / `LegacyMap.update()`; all
+  five are emitted from `Map` (`src/core/map.ts`, `tick()` and the
+  draw path) through `core.callListener(...)`. Of the four events
+  section 6.1 says `Core` still owns, `Core` emits only
+  `map-mapconfig-loaded` and `map-unloaded` today (`core.js`). Update
+  the Source column in the section 2 table and shrink the temporary
+  `Core.bus` wiring description in 6.1 accordingly: `Map`'s own emit
+  sites become direct `bus_.emit(...)` calls with no `Core`
+  involvement, which reduces the scope of step 4. This is the same
+  class of post-sign-off body drift that motivated this round; fix it
+  before sign-off.
+
+- Everything else in the body re-verified against the current tree
+  and holds: the `Browser.callListener` emission sites
+  (`map-observer.js`, `autopilot/autopilot.js`, `ui/control/loading.js`),
+  the geo-feature events in `LegacyMap` (`map/map.js`), the
+  gpu-context events in `GpuDevice` (`gpu/device.ts`, still via
+  `renderer.core.callListener`), the `fly-end` consumer in
+  `demos/waypoint/waypoint.js`, the dead `positionchanged`
+  subscription in `explore-bar.js`, and the section 6.2 payload
+  shapes, which match the `map.ts` emit sites field for field.
