@@ -5,6 +5,7 @@
 import type MapPosition from './map/position';
 import type MapStyle from './map/style';
 import type { TransformRequestCallback } from './types';
+import * as utils from './utils/utils';
 
 
 /**
@@ -373,3 +374,296 @@ export function defaultViewerConfig(): ViewerConfig {
         mapFlagLabels: true,
     };
 }
+
+
+/**
+ * Resolves a public config key to its canonical `ViewerConfig` key.
+ *
+ * Handles the legacy aliases (`pos` for `position`, `rotate` for
+ * `autoRotate`, `pan` for `autoPan`) and returns `null` for keys
+ * that are not catalogued, so untyped callers can be filtered at
+ * runtime.
+ */
+export function canonicalConfigKey(
+    key: string,
+): keyof ViewerConfig | null {
+
+    if (key in keyAliases) return keyAliases[key];
+    return key in normalizers ? key as keyof ViewerConfig : null;
+}
+
+
+/**
+ * Normalizes a raw authored value for one config key: type
+ * coercion, range clamping, and JSON parsing, mirroring the
+ * validation the legacy `setConfigParam` switches applied. The
+ * returned value satisfies the `ViewerConfig` type of the key and
+ * is safe to write to the store.
+ */
+export function normalizeConfigValue<K extends keyof ViewerConfig>(
+    key: K,
+    value: unknown,
+): ViewerConfig[K] {
+
+    return normalizers[key](value) as ViewerConfig[K];
+}
+
+
+// Local helpers for the normalizer table below.
+
+const MAX = Number.MAX_SAFE_INTEGER;
+
+const bool = (dflt: boolean) =>
+    (v: unknown) => utils.validateBool(v, dflt);
+
+const num = (min: number, max: number, dflt: number) =>
+    (v: unknown) => utils.validateNumber(v, min, max, dflt);
+
+const str = (dflt: string) =>
+    (v: unknown) => utils.validateString(v, dflt);
+
+const strOrNull = (v: unknown) => typeof v === 'string' ? v : null;
+
+const pair = (min: number[], max: number[], dflt: number[]) =>
+    (v: unknown) => utils.validateNumberArray(v, 2, min, max, dflt) as
+        [number, number];
+
+const triple = (min: number[], max: number[], dflt: number[]) =>
+    (v: unknown) => utils.validateNumberArray(v, 3, min, max, dflt) as
+        [number, number, number];
+
+const quad = (min: number[], max: number[], dflt: number[]) =>
+    (v: unknown) => utils.validateNumberArray(v, 4, min, max, dflt) as
+        [number, number, number, number];
+
+const raw = <T>() => (v: unknown) => v as T;
+
+const debugValue = (v: unknown) =>
+    typeof v === 'string' || typeof v === 'boolean' ? v : null;
+
+const keyAliases: Record<string, keyof ViewerConfig> = {
+    pos: 'position',
+    rotate: 'autoRotate',
+    pan: 'autoPan',
+};
+
+/**
+ * Per-key normalization, total over `ViewerConfig`. Bounds and
+ * fallback values mirror the legacy `setConfigParam` switches;
+ * constructor-only keys that had no switch case use bounds implied
+ * by their type and their catalogue default as the fallback.
+ */
+const normalizers: {
+    [K in keyof ViewerConfig]: (value: unknown) => ViewerConfig[K];
+} = {
+
+    // --- UI controls and navigation (browser layer) ---
+
+    interactive: bool(true),
+    panAllowed: bool(true),
+    rotationAllowed: bool(true),
+    zoomAllowed: bool(true),
+    jumpAllowed: bool(false),
+    sensitivity: triple([0, 0, 0], [10, 10, 10], [1, 0.12, 0.05]),
+    inertia: triple(
+        [0, 0, 0], [0.99, 0.99, 0.99], [0.85, 0.9, 0.7]),
+    timeNormalizedInertia: bool(false),
+    legacyInertia: bool(false),
+    positionInUrl: bool(false),
+    positionUrlHistory: bool(false),
+    constrainCamera: bool(true),
+    navigationMode: str('azimuthal'),
+    controlCompass: bool(true),
+    controlZoom: bool(true),
+    controlSpace: bool(false),
+    controlSearch: bool(false),
+    controlSearchSrs: strOrNull,
+    controlSearchUrl: strOrNull,
+    controlSearchFilter: bool(true),
+    controlSearchElement:
+        raw<string | HTMLElement | null>(),
+    controlSearchValue: strOrNull,
+    controlMeasure: bool(false),
+    controlMeasureLite: bool(false),
+    controlLink: bool(false),
+    controlGithub: bool(false),
+    controlScale: bool(true),
+    controlLayers: bool(false),
+    controlCredits: bool(true),
+    controlFullscreen: bool(true),
+    controlLoading: bool(true),
+    controlLogo: bool(false),
+    walkMode: bool(false),
+    fixedHeight: num(-MAX, MAX, 0),
+    geojson: raw<string | Record<string, unknown> | null>(),
+    geodata: raw<string | Record<string, unknown> | null>(),
+    geojsonStyle: (v) => {
+
+        if (typeof v === 'string')
+            return JSON.parse(v) as Record<string, unknown>;
+        if (v && typeof v === 'object')
+            return v as Record<string, unknown>;
+        return null;
+    },
+    tiltConstrainThreshold:
+        pair([0.5, 1], [Infinity, Infinity], [0.5, 1]),
+    bigScreenMargins: bool(false),
+    minViewExtent: num(0.01, MAX, 100),
+    maxViewExtent: num(0.01, MAX, MAX),
+    autoRotate: num(-Infinity, Infinity, 0),
+    autoPan: (v) => {
+
+        if (Array.isArray(v) && v.length == 2) {
+
+            return [
+                utils.validateNumber(v[0], -Infinity, Infinity, 0),
+                utils.validateNumber(v[1], -360, 360, 0),
+            ];
+        }
+        return [0, 0];
+    },
+
+    // --- Cross-cutting (map loading and shared services) ---
+
+    style: raw<string | MapStyle.StyleSpecification | null>(),
+    map: strOrNull,
+    position: raw<MapPosition | number[] | string | null>(),
+    view: raw<string | Record<string, unknown> | null>(),
+    transformRequest: (v) =>
+        typeof v === 'function' ? v as TransformRequestCallback : null,
+    inspector: bool(true),
+
+    // --- Renderer ---
+
+    rendererAnisotropic: num(-1, 2048, 0),
+    rendererAntialiasing: bool(true),
+    rendererAllowScreenshots: bool(false),
+    rendererCssDpi: num(1, 1200, 96),
+
+    // --- Inspector diagnostics (URL parameters) ---
+
+    debugMode: debugValue,
+    debugBBox: debugValue,
+    debugLBox: debugValue,
+    debugNoEarth: debugValue,
+    debugGridCells: debugValue,
+    debugRadar: debugValue,
+
+    // --- Terrain engine (LegacyMap) ---
+
+    mapCache: num(10, MAX, 900),
+    mapGPUCache: num(10, MAX, 360),
+    mapMetatileCache: num(10, MAX, 60),
+    mapTexelSizeFit: num(0.0001, MAX, 1.1),
+    mapMaxHiresLodLevels: num(0, MAX, 2),
+    mapDownloadThreads: num(1, MAX, 6),
+    mapMaxProcessingTime: num(1, MAX, 1000 / 20),
+    mapMaxGeodataProcessingTime: num(1, MAX, 10),
+    mapMobileMode: bool(false),
+    mapMobileModeAutodect: bool(false),
+    mapMobileDetailDegradation: num(0, MAX, 2),
+    mapNavSamplesPerViewExtent: num(0.00000000001, MAX, 4),
+    mapIgnoreNavtiles: bool(false),
+    mapAllowHires: bool(true),
+    mapAllowLowres: bool(true),
+    mapAllowSmartSwitching: bool(true),
+    mapDisableCulling: bool(false),
+    mapPreciseCulling: bool(false),
+    mapHeightLodBlend: bool(true),
+    mapHeightNodeBlend: bool(true),
+    mapBasicTileSequence: bool(true),
+    mapPreciseBBoxTest: bool(true),
+    mapPreciseDistanceTest: bool(false),
+    mapForceMetatileV3: bool(false),
+    mapSmartNodeParsing: bool(true),
+    mapLoadErrorRetryTime: num(0, MAX, 3000),
+    mapLoadErrorMaxRetryCount: num(0, MAX, 3),
+    mapSplitMargin: num(-MAX, MAX, 0.0025),
+    mapTraversalMaskResolution: (v) => {
+
+        // Mask textures must be power-of-two; fall back to the
+        // default when the supplied value would need silent rounding.
+        const resolution = utils.validateNumber(v, 16, 4096, 256);
+        const isPowerOfTwo = (resolution & (resolution - 1)) === 0;
+        return isPowerOfTwo ? resolution : 256;
+    },
+    mapTraversalMaskThreshold: num(0, 1, 0.5),
+    mapTraversalMaskErosion: num(0, 1, 1),
+    mapFallbackCadence: num(1, MAX, 3),
+    mapStructuralDescentBrake: num(0, 1, 0.25),
+    mapSplitSpace: raw<unknown>(),
+    mapGridMode: str('linear'),
+    mapGridSurrogatez: bool(false),
+    mapGridTextureLevel: num(-MAX, MAX, -1),
+    mapGridTextureLayer: strOrNull,
+    mapXhrImageLoad: bool(false),
+    mapRefreshCycles: num(0, MAX, 3),
+    mapSoftViewSwitch: bool(true),
+    mapSortHysteresis: bool(false),
+    mapHysteresisWait: num(0, MAX, 0),
+    mapSeparateLoader: bool(true),
+    mapGeodataBinaryLoad: bool(true),
+    mapPackLoaderEvents: bool(true),
+    mapParseMeshInWorker: bool(true),
+    mapPackGeodataEvents: bool(true),
+    mapCheckTextureSize: bool(false),
+    mapNormalizeOctantTexelSize: bool(true),
+    mapFeatureStickMode:
+        pair([0, 1], [Infinity, Infinity], [0, 1]),
+    map16bitMeshes: bool(false),
+    mapIndexBuffers: bool(false),
+    mapAsyncImageDecode: (v) =>
+        utils.validateBool(v, false)
+            && typeof createImageBitmap !== 'undefined',
+    mapFeatureGridCells: num(-MAX, MAX, 0),
+    mapFeaturesPerSquareInch: num(0.000001, MAX, 0),
+    mapFeaturesSortByTop: bool(false),
+    mapFeaturesReduceMode: (v) => {
+
+        let mode = utils.validateString(v, 'scr-count4');
+        if (mode == 'auto') mode = 'scr-count2';
+        if (mode == 'legacy') mode = 'scr-count2';
+        if (mode == 'gridcells') mode = 'scr-count4';
+        if (mode == 'singlepass') mode = 'scr-count5';
+        if (mode == 'margin') mode = 'scr-count6';
+        return mode;
+    },
+    mapFeaturesReduceParams: raw<number[]>(),
+    mapFeaturesReduceFactor: num(0, MAX, 1),
+    mapFeaturesReduceFactor2: num(0, MAX, 1),
+    mapExposeFpsToWindow: bool(false),
+    mapProfileGpu: bool(false),
+    mapDMapSize: num(16, MAX, 512),
+    mapDMapMode: num(1, MAX, 1),
+    mapDMapCopyIntervalMs: num(0, MAX, 1500),
+    mapDMapDilatePx: num(0, 8, 2),
+    mapDegradeHorizon: bool(true),
+    mapDegradeHorizonParams: quad(
+        [0, 1, 1, 1],
+        [Infinity, Infinity, Infinity, Infinity],
+        [1, 3000, 15000, 7000]),
+    mapDefaultFont: str(''),
+    mapNoTextures: bool(false),
+    mapNoNormalMaps: bool(false),
+    mapCollapseBumps: bool(true),
+    mapMetricUnits: bool(true),
+    mapLanguage: str('en'),
+    mapForceFrameTime: num(-1, MAX, 0),
+    mapLogGeodataStyles: bool(true),
+    mapBenevolentMargins: bool(false),
+    mapLabelFreeMargins: quad(
+        [0, 0, 0, 0],
+        [Infinity, Infinity, Infinity, Infinity],
+        [0, 0, 0, 0]),
+    mapShadingLambertian: bool(true),
+    mapShadingSlope: bool(false),
+    mapShadingAspect: bool(false),
+    mapFlagLighting: bool(true),
+    mapFlagNormalMaps: bool(true),
+    mapFlagDiffuseMaps: bool(true),
+    mapFlagSpecularMaps: bool(true),
+    mapFlagBumpMaps: bool(true),
+    mapFlagAtmosphere: bool(true),
+    mapFlagShadows: bool(true),
+    mapFlagLabels: bool(true),
+};

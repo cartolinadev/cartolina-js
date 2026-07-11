@@ -1,5 +1,11 @@
 
 import Map from '../core/map';
+import ConfigStore from '../core/config-store';
+import {
+    defaultViewerConfig,
+    canonicalConfigKey,
+    normalizeConfigValue,
+} from '../core/viewer-config';
 import {GpuDevice} from '../core/renderer/gpu/device';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
@@ -17,8 +23,12 @@ var Rois = Rois_;
 
 var Browser = function(element, config) {
     this.killed = false;
-    this.configStorage = {};
-    this.initConfig();
+
+    // the single normalized config store; `this.config` aliases its
+    // live value map so legacy readers share one object
+    this.configStore = new ConfigStore(defaultViewerConfig());
+    this.config = this.configStore.values;
+
     this.originalConfig = JSON.parse(JSON.stringify(config));
     
     this.element = (typeof element === 'string') ? document.getElementById(element) : element; 
@@ -290,61 +300,10 @@ Browser.prototype.onTick = function() {
 };
 
 
-Browser.prototype.initConfig = function() {
-    this.config = {
-        interactive : true,
-        panAllowed : true,
-        rotationAllowed : true,
-        zoomAllowed : true,
-        jumpAllowed : false,
-        sensitivity : [1, 0.06, 0.05],
-        inertia : [0.81, 0.9, 0.7],
-        timeNormalizedInertia : false, // legacy inertia [0.8,0.8,0.8] sensitivity [0.5,0.4]
-        legacyInertia : false, // legacy inertia [0.8,0.8,0.8] sensitivity [0.5,0.4]
-        positionInUrl : false,
-        positionUrlHistory : false,
-        constrainCamera : true,
-        navigationMode : 'azimuthal',
-        controlCompass : true,
-        controlZoom : true,
-        controlSpace : true,
-        controlSearch : true,
-        controlSearchSrs : null,
-        controlSearchUrl : null,
-        controlSearchFilter : false,
-        controlMeasure : false,
-        controlMeasureLite : false,
-        controlLink : false,
-        controlGithub : false,
-        controlScale : true,
-        controlLayers : false,
-        controlCredits : true,
-        controlFullscreen : false,
-        controlLoading : true,
-        searchElement : null,
-        searchValue : null,
-        walkMode : false,
-        fixedHeight : 0,
-        geojson : null,
-        tiltConstrainThreshold : [0.5,1],
-        bigScreenMargins : false, //75,
-        minViewExtent : 20, //75,
-        maxViewExtent : Number.MAXINTEGER,
-        autoRotate : 0,
-        autoPan : [0,0]
-    };
-};
-
-
 Browser.prototype.setConfigParams = function(params, ignoreCore) {
     if (typeof params === 'object' && params !== null) {
         for (var key in params) {
             this.setConfigParam(key, params[key], ignoreCore);
-
-            /*if (!(key == "pos" || key == "position" || key == "view" ||
-                key.indexOf("map") == 0 || key.indexOf("renderer") == 0)) {
-                this.configStorage[key] = params[key];
-            }*/
         }
     }
 };
@@ -363,6 +322,22 @@ Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
     var map = this.map;
     var legacyMap = map ? this.getMap() : null;
     var renderer = map ? this.getRenderer() : null;
+
+    // bridge shim: write the normalized value to the store first;
+    // the legacy switch below still runs and its raw writes win
+    // until each subsystem migrates to watch()
+    var canonical = canonicalConfigKey(key);
+    if (canonical) {
+        var patch = {};
+        patch[canonical] = normalizeConfigValue(canonical, value);
+
+        // legacy coupling: disabling textures also disables culling
+        if (canonical === 'mapNoTextures') {
+            patch.mapDisableCulling = patch.mapNoTextures;
+        }
+
+        this.configStore.set(patch);
+    }
 
     switch (key) {
     case 'pos':                

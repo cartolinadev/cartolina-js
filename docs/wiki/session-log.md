@@ -21,6 +21,14 @@ Implementing [rfc-config-store.md](rfc-config-store.md) on
   value map, so legacy readers can hold one shared normalized object
   during the migration. Unit-tested in
   `test/unit/config-store.test.js` (13 tests).
+- Step 3: store wired at Browser construction. `viewer-config.ts`
+  gains `canonicalConfigKey()` (resolves the `pos`/`rotate`/`pan`
+  aliases, filters unknown keys) and `normalizeConfigValue()`
+  mirroring the legacy switch validation. `Browser.initConfig()` is
+  deleted; `Browser.config` now aliases the store's live value map,
+  so the shim's store write and the still-running legacy switch feed
+  the same object and the old routing stays intact. Nothing watches
+  yet.
 
 ## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
 
