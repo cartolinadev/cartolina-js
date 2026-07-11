@@ -1,0 +1,119 @@
+/*
+ * viewer-config.test.js - unit tests for the config normalization in
+ * src/core/viewer-config.ts
+ *
+ * Run with `npm run test:unit`, which compiles the module under test
+ * to tmp/unit-build before mocha executes this file. Values are
+ * passed the way an untyped JavaScript call site would: arbitrary
+ * runtime values with no compile-time checking.
+ */
+
+const assert = require('assert');
+
+const {
+    canonicalConfigKey,
+    normalizeConfigPatch,
+    normalizeConfigValue,
+} = require('../../tmp/unit-build/src/core/viewer-config');
+
+describe('viewer-config normalization', function() {
+
+    it('resolves the legacy key aliases', function() {
+
+        assert.strictEqual(canonicalConfigKey('pos'), 'position');
+        assert.strictEqual(canonicalConfigKey('rotate'), 'autoRotate');
+        assert.strictEqual(canonicalConfigKey('pan'), 'autoPan');
+        assert.strictEqual(canonicalConfigKey('mapCache'), 'mapCache');
+        assert.strictEqual(canonicalConfigKey('noSuchKey'), null);
+    });
+
+    it('returns null patches for unknown keys', function() {
+
+        assert.strictEqual(normalizeConfigPatch('noSuchKey', 1), null);
+        assert.strictEqual(normalizeConfigPatch('container', 'map'), null);
+    });
+
+    it('coerces invalid booleans and clamps numbers', function() {
+
+        assert.strictEqual(
+            normalizeConfigValue('mapFlagLighting', 'yes'), true);
+        assert.strictEqual(
+            normalizeConfigValue('mapCache', 'bogus'), 900);
+        assert.strictEqual(
+            normalizeConfigValue('rendererCssDpi', 5000), 1200);
+    });
+
+    it('expands the mapNoTextures coupling', function() {
+
+        assert.deepStrictEqual(
+            normalizeConfigPatch('mapNoTextures', true),
+            { mapNoTextures: true, mapDisableCulling: true });
+    });
+
+    it('rejects malformed mapFeaturesReduceParams', function() {
+
+        const fallback = [0.05, 0.17, 11, 1, 1000];
+
+        assert.deepStrictEqual(
+            normalizeConfigValue('mapFeaturesReduceParams', 'x'),
+            fallback);
+        assert.deepStrictEqual(
+            normalizeConfigValue('mapFeaturesReduceParams', [1, 'x']),
+            fallback);
+        assert.deepStrictEqual(
+            normalizeConfigValue('mapFeaturesReduceParams', [1, 2, 3]),
+            [1, 2, 3]);
+    });
+
+    it('accepts only strings and plain objects for view, geojson, '
+        + 'geodata, and style', function() {
+
+        for (const key of ['view', 'geojson', 'geodata', 'style']) {
+
+            assert.strictEqual(
+                normalizeConfigValue(key, 'value'), 'value');
+            assert.deepStrictEqual(
+                normalizeConfigValue(key, { a: 1 }), { a: 1 });
+            assert.strictEqual(normalizeConfigValue(key, 42), null);
+            assert.strictEqual(
+                normalizeConfigValue(key, [1, 2]), null);
+        }
+    });
+
+    it('accepts strings, arrays, and MapPosition-like objects for '
+        + 'position', function() {
+
+        const positionArray =
+            ['obj', 15, 50, 'fix', 0, 0, 0, 0, 10000, 45];
+        const positionLike = { toArray: () => positionArray };
+
+        assert.strictEqual(
+            normalizeConfigValue('position', 'obj,15,50'), 'obj,15,50');
+        assert.deepStrictEqual(
+            normalizeConfigValue('position', positionArray),
+            positionArray);
+        assert.strictEqual(
+            normalizeConfigValue('position', positionLike),
+            positionLike);
+        assert.strictEqual(normalizeConfigValue('position', 42), null);
+        assert.strictEqual(
+            normalizeConfigValue('position', { lon: 15 }), null);
+    });
+
+    it('drops non-function transformRequest values', function() {
+
+        const hook = () => ({ url: 'https://tiles.example.com/' });
+
+        assert.strictEqual(
+            normalizeConfigValue('transformRequest', hook), hook);
+        assert.strictEqual(
+            normalizeConfigValue('transformRequest', 'hook'), null);
+    });
+
+    it('keeps debug values as strings or booleans only', function() {
+
+        assert.strictEqual(normalizeConfigValue('debugBBox', 'LP'), 'LP');
+        assert.strictEqual(normalizeConfigValue('debugLBox', true), true);
+        assert.strictEqual(normalizeConfigValue('debugRadar', 7), null);
+    });
+});

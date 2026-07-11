@@ -24,8 +24,17 @@ Addressed the branch code review of the RFC 1/2 implementation.
   annotated construction-only in `ViewerConfig`, and
   `api-and-lifecycle.md` documents the construction-only vs live
   distinction.
-- Normalization guards for the previously unchecked `raw` config
-  values follow in a separate commit.
+- Normalization guards replaced the unchecked `raw` casts: `view`,
+  `geojson`, `geodata`, and `style` accept strings and plain objects
+  only; `position` accepts strings, arrays, and `MapPosition`-like
+  objects; `controlSearchElement` accepts strings and `HTMLElement`;
+  `mapFeaturesReduceParams` must be an all-number array. The two
+  remaining shallow spots (`style` object shape, `mapSplitSpace`)
+  are annotated in `ViewerConfig`. Nine invalid-input unit tests run
+  `normalizeConfigPatch` from an untyped call site; the unit build
+  moved to `tsconfig.unit.json` so the normalization module compiles
+  with the project's settings. All three findings are recorded in an
+  addendum to [rfc-config-store.md](rfc-config-store.md).
 
 ## 2026-07-11 — RFC 1 implemented: ConfigStore, core.js deleted
 

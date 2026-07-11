@@ -680,3 +680,44 @@ correctly; Playwright probes confirmed gesture events, `setParam` /
 `mapFlagLighting` toggle redrawing the scene, and the
 mapConfig-path load (position and `browserOptions` application)
 rendering with no errors.
+
+---
+
+## Addendum — 2026-07-11 — branch review fixes
+
+A review of the implementation branch raised three findings; all
+are addressed.
+
+- `ConfigStore.flush()` cleared every dirty mark before dispatch,
+  so a `set()` from one callback to a key of another
+  already-scheduled watcher delivered the new value in the same
+  flush and fired that watcher again with the same values on the
+  next one. `flush()` now clears each watcher's mark at its own
+  invocation over a snapshot of the scheduled watchers: a mid-flush
+  write to a watcher that has not run yet is absorbed into its
+  pending delivery, and a write to a watcher that already ran
+  re-schedules it — exactly one callback per change, payloads
+  current at delivery time. An unsubscribe from an earlier callback
+  now also drops a pending delivery. The dispatch rules are pinned
+  by unit tests. No watcher in the tree writes the store during
+  dispatch, so no runtime behavior changed.
+- The normalized-store invariant was not enforced for the keys that
+  used an unchecked `raw` cast. Known shapes now have structural
+  guards: `view`, `geojson`, `geodata`, and `style` accept strings
+  and plain objects only; `position` accepts strings, arrays, and
+  `MapPosition`-like objects (identified structurally by `toArray`);
+  `controlSearchElement` accepts strings and `HTMLElement`;
+  `mapFeaturesReduceParams` must be a non-empty all-number array.
+  The two remaining shallow spots are annotated in `ViewerConfig`:
+  `style` object shapes are validated at style load, and
+  `mapSplitSpace` stays an unchecked legacy payload. Invalid-input
+  tests run `normalizeConfigPatch` from an untyped call site; the
+  unit build now compiles through `tsconfig.unit.json`.
+- The renderer watched all four renderer keys but could apply only
+  one. `rendererAntialiasing` and `rendererAllowScreenshots` are
+  WebGL-context-creation flags, and `rendererAnisotropic` is baked
+  into per-texture sampling parameters at texture creation, so a
+  live change cannot take effect without recreating those objects.
+  The watcher now covers only the live `rendererCssDpi`; the three
+  construction-only keys are annotated in `ViewerConfig` and the
+  distinction is documented in `api-and-lifecycle.md`.

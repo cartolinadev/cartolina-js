@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./tmp/unit-build",
+    "sourceMap": false,
+    "noEmit": false
+  },
+  "include": [
+    "src/core/event-bus.ts",
+    "src/core/config-store.ts",
+    "src/core/viewer-config.ts",
+    "src/types/**/*"
+  ]
+}

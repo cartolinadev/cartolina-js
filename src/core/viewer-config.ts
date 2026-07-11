@@ -19,7 +19,10 @@ import * as utils from './utils/utils';
  *
  * Values stored under these keys are already normalized (validated,
  * coerced, clamped). Watchers and readers may treat them as valid.
- * Defaults live in `defaultViewerConfig()` below.
+ * Two annotated exceptions are stored with shallow or no checks:
+ * `style` (object shape validated at style load) and
+ * `mapSplitSpace` (unchecked legacy payload). Defaults live in
+ * `defaultViewerConfig()` below.
  */
 export interface ViewerConfig {
 
@@ -71,6 +74,8 @@ export interface ViewerConfig {
 
     // --- Cross-cutting (map loading and shared services) ---
 
+    /** Normalized to a string or plain object only; the object's
+     * spec shape is validated at style load, not here. */
     style: string | MapStyle.StyleSpecification | null;
     map: string | null;
     position: MapPosition | number[] | string | null;
@@ -139,6 +144,8 @@ export interface ViewerConfig {
     mapTraversalMaskErosion: number;
     mapFallbackCadence: number;
     mapStructuralDescentBrake: number;
+
+    /** Unchecked legacy payload (octant-splitting demo hook). */
     mapSplitSpace: unknown;
     mapGridMode: string;
     mapGridSurrogatez: boolean;
@@ -462,6 +469,19 @@ const str = (dflt: string) =>
 
 const strOrNull = (v: unknown) => typeof v === 'string' ? v : null;
 
+const recordOrNull = (v: unknown) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+        ? v as Record<string, unknown> : null;
+
+const strOrRecord = (v: unknown) =>
+    typeof v === 'string' ? v : recordOrNull(v);
+
+const numberArray = (dflt: number[]) =>
+    (v: unknown) =>
+        Array.isArray(v) && v.length > 0
+            && v.every((n) => typeof n === 'number')
+                ? v as number[] : dflt;
+
 const pair = (min: number[], max: number[], dflt: number[]) =>
     (v: unknown) => utils.validateNumberArray(v, 2, min, max, dflt) as
         [number, number];
@@ -473,8 +493,6 @@ const triple = (min: number[], max: number[], dflt: number[]) =>
 const quad = (min: number[], max: number[], dflt: number[]) =>
     (v: unknown) => utils.validateNumberArray(v, 4, min, max, dflt) as
         [number, number, number, number];
-
-const raw = <T>() => (v: unknown) => v as T;
 
 const debugValue = (v: unknown) =>
     typeof v === 'string' || typeof v === 'boolean' ? v : null;
@@ -518,8 +536,14 @@ const normalizers: {
     controlSearchSrs: strOrNull,
     controlSearchUrl: strOrNull,
     controlSearchFilter: bool(true),
-    controlSearchElement:
-        raw<string | HTMLElement | null>(),
+    controlSearchElement: (v) => {
+
+        if (typeof v === 'string') return v;
+        if (typeof HTMLElement !== 'undefined'
+                && v instanceof HTMLElement)
+            return v;
+        return null;
+    },
     controlSearchValue: strOrNull,
     controlMeasure: bool(false),
     controlMeasureLite: bool(false),
@@ -533,8 +557,8 @@ const normalizers: {
     controlLogo: bool(false),
     walkMode: bool(false),
     fixedHeight: num(-MAX, MAX, 0),
-    geojson: raw<string | Record<string, unknown> | null>(),
-    geodata: raw<string | Record<string, unknown> | null>(),
+    geojson: strOrRecord,
+    geodata: strOrRecord,
     geojsonStyle: (v) => {
 
         if (typeof v === 'string')
@@ -563,10 +587,25 @@ const normalizers: {
 
     // --- Cross-cutting (map loading and shared services) ---
 
-    style: raw<string | MapStyle.StyleSpecification | null>(),
+    // string or plain object only; the spec shape is validated at
+    // style load
+    style: (v) =>
+        strOrRecord(v) as string | MapStyle.StyleSpecification | null,
     map: strOrNull,
-    position: raw<MapPosition | number[] | string | null>(),
-    view: raw<string | Record<string, unknown> | null>(),
+    position: (v) => {
+
+        if (typeof v === 'string' || Array.isArray(v))
+            return v as string | number[];
+
+        // a MapPosition instance, identified structurally so this
+        // module stays free of runtime map imports
+        if (v !== null && typeof v === 'object'
+                && typeof (v as MapPosition).toArray === 'function')
+            return v as MapPosition;
+
+        return null;
+    },
+    view: strOrRecord,
     transformRequest: (v) =>
         typeof v === 'function' ? v as TransformRequestCallback : null,
     inspector: bool(true),
@@ -629,7 +668,8 @@ const normalizers: {
     mapTraversalMaskErosion: num(0, 1, 1),
     mapFallbackCadence: num(1, MAX, 3),
     mapStructuralDescentBrake: num(0, 1, 0.25),
-    mapSplitSpace: raw<unknown>(),
+    // unchecked legacy payload; see the `ViewerConfig` note
+    mapSplitSpace: (v) => v,
     mapGridMode: str('linear'),
     mapGridSurrogatez: bool(false),
     mapGridTextureLevel: num(-MAX, MAX, -1),
@@ -666,7 +706,8 @@ const normalizers: {
         if (mode == 'margin') mode = 'scr-count6';
         return mode;
     },
-    mapFeaturesReduceParams: raw<number[]>(),
+    mapFeaturesReduceParams:
+        numberArray([0.05, 0.17, 11, 1, 1000]),
     mapFeaturesReduceFactor: num(0, MAX, 1),
     mapFeaturesReduceFactor2: num(0, MAX, 1),
     mapExposeFpsToWindow: bool(false),
