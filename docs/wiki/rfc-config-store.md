@@ -721,3 +721,39 @@ are addressed.
   The watcher now covers only the live `rendererCssDpi`; the three
   construction-only keys are annotated in `ViewerConfig` and the
   distinction is documented in `api-and-lifecycle.md`.
+
+---
+
+## Addendum — 2026-07-11 — re-review: deep normalization guards
+
+The re-review found the first-pass guards shallow: `[NaN, 2]`
+passed the number-array check, `position` accepted any array,
+`geojsonStyle` stored parsed non-record JSON and array objects, and
+the plain-object check accepted class instances such as `Date`.
+
+Fixed:
+
+- `numberArray` requires `Number.isFinite` per element.
+- `recordOrNull` checks the prototype (`Object.prototype` or
+  `null`), rejecting arrays, class instances, and DOM objects; the
+  `view`, `geojson`, `geodata`, and `style` guards inherit this.
+- Both `geojsonStyle` forms (JSON string and object) route through
+  `recordOrNull`.
+- `position` accepts only arrays whose elements are strings or
+  finite numbers — the legacy position vocabulary that
+  `MapPosition.validate` consumes — or a `MapPosition`-like object.
+  Its `ViewerConfig` type is corrected to
+  `MapPosition | (number | string)[] | null`: the previous
+  `number[]` was inaccurate (position arrays carry mode strings),
+  and the `string` member never worked — `MapPosition` treats
+  non-array input as empty, and the URL path parses `pos` strings
+  into arrays before they reach the store.
+  `LegacyMap.setPosition`'s declaration is corrected to match.
+- The `rendererAnisotropic` note now says the level is read once at
+  renderer creation and a change takes effect when the renderer is
+  recreated; the store no longer feeds `GpuDevice.anisoLevel` at
+  all, so the earlier "textures created afterwards" wording was
+  wrong.
+
+The reviewer's invalid examples are unit tests in
+`test/unit/viewer-config.test.js`.

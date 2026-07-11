@@ -78,16 +78,20 @@ export interface ViewerConfig {
      * spec shape is validated at style load, not here. */
     style: string | MapStyle.StyleSpecification | null;
     map: string | null;
-    position: MapPosition | number[] | string | null;
+
+    /** A legacy position array (mode strings and finite numbers) or
+     * a `MapPosition` instance. */
+    position: MapPosition | (number | string)[] | null;
     view: string | Record<string, unknown> | null;
     transformRequest: TransformRequestCallback | null;
     inspector: boolean;
 
     // --- Renderer ---
 
-    /** Construction-only: the anisotropic filtering level is baked
-     * into each texture's sampling parameters at texture creation;
-     * a later change reaches only textures created afterwards. */
+    /** Construction-only: the GPU device reads the level once at
+     * renderer creation and bakes it into each texture's sampling
+     * parameters; a change takes effect when the renderer is
+     * recreated. */
     rendererAnisotropic: number;
 
     /** Construction-only: WebGL context creation flag. */
@@ -469,9 +473,16 @@ const str = (dflt: string) =>
 
 const strOrNull = (v: unknown) => typeof v === 'string' ? v : null;
 
-const recordOrNull = (v: unknown) =>
-    v !== null && typeof v === 'object' && !Array.isArray(v)
+const recordOrNull = (v: unknown) => {
+
+    // plain objects only: reject arrays, class instances, DOM
+    // objects, and similar values
+    if (v === null || typeof v !== 'object') return null;
+
+    const prototype = Object.getPrototypeOf(v);
+    return prototype === Object.prototype || prototype === null
         ? v as Record<string, unknown> : null;
+};
 
 const strOrRecord = (v: unknown) =>
     typeof v === 'string' ? v : recordOrNull(v);
@@ -479,7 +490,7 @@ const strOrRecord = (v: unknown) =>
 const numberArray = (dflt: number[]) =>
     (v: unknown) =>
         Array.isArray(v) && v.length > 0
-            && v.every((n) => typeof n === 'number')
+            && v.every((n) => Number.isFinite(n))
                 ? v as number[] : dflt;
 
 const pair = (min: number[], max: number[], dflt: number[]) =>
@@ -562,10 +573,8 @@ const normalizers: {
     geojsonStyle: (v) => {
 
         if (typeof v === 'string')
-            return JSON.parse(v) as Record<string, unknown>;
-        if (v && typeof v === 'object')
-            return v as Record<string, unknown>;
-        return null;
+            return recordOrNull(JSON.parse(v));
+        return recordOrNull(v);
     },
     tiltConstrainThreshold:
         pair([0.5, 1], [Infinity, Infinity], [0.5, 1]),
@@ -594,12 +603,14 @@ const normalizers: {
     map: strOrNull,
     position: (v) => {
 
-        if (typeof v === 'string' || Array.isArray(v))
-            return v as string | number[];
+        // a legacy position array: mode strings and finite numbers
+        if (Array.isArray(v) && v.every((item) =>
+                typeof item === 'string' || Number.isFinite(item)))
+            return v as (number | string)[];
 
         // a MapPosition instance, identified structurally so this
         // module stays free of runtime map imports
-        if (v !== null && typeof v === 'object'
+        if (v !== null && typeof v === 'object' && !Array.isArray(v)
                 && typeof (v as MapPosition).toArray === 'function')
             return v as MapPosition;
 

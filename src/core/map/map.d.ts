@@ -174,7 +174,7 @@ export default class Map {
         ): NodeInformation | null;
     };
 
-    setPosition(position: MapPosition | number[]): void;
+    setPosition(position: MapPosition | (number | string)[]): void;
     getPosition(): MapPosition;
     setView(view: string | Record<string, unknown>): void;
     getView(): Record<string, unknown>;

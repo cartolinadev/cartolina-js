@@ -411,8 +411,7 @@ class Map {
 
         if (this.config.position) {
 
-            this.map!.setPosition(
-                this.config.position as MapPosition | number[]);
+            this.map!.setPosition(this.config.position);
             this.configStore_.set({ position: null });
         }
 
@@ -444,8 +443,7 @@ class Map {
 
         if (this.config.position) {
 
-            this.map!.setPosition(
-                this.config.position as MapPosition | number[]);
+            this.map!.setPosition(this.config.position);
             this.configStore_.set({ position: null });
         }
 

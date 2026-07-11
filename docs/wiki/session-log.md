@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — Re-review: deep normalization guards
+
+The re-review of the branch found the first-pass normalization
+guards shallow. Fixed: `numberArray` requires finite numbers;
+`recordOrNull` checks the prototype so class instances, arrays, and
+DOM objects are rejected (inherited by the `view` / `geojson` /
+`geodata` / `style` guards and both `geojsonStyle` forms);
+`position` accepts only arrays of mode strings and finite numbers or
+`MapPosition`-like objects, and its `ViewerConfig` type is corrected
+to `MapPosition | (number | string)[] | null` (the `string` member
+never worked; `LegacyMap.setPosition`'s declaration corrected to
+match). The `rendererAnisotropic` construction-only note is
+reworded per the review. The reviewer's invalid examples are pinned
+in `test/unit/viewer-config.test.js`; details in the RFC's
+re-review addendum.
+
 ## 2026-07-11 — Branch review fixes: flush contract, renderer keys
 
 Addressed the branch code review of the RFC 1/2 implementation.

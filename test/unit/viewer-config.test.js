@@ -61,6 +61,13 @@ describe('viewer-config normalization', function() {
             normalizeConfigValue('mapFeaturesReduceParams', [1, 'x']),
             fallback);
         assert.deepStrictEqual(
+            normalizeConfigValue('mapFeaturesReduceParams', [NaN, 2]),
+            fallback);
+        assert.deepStrictEqual(
+            normalizeConfigValue(
+                'mapFeaturesReduceParams', [1, Infinity]),
+            fallback);
+        assert.deepStrictEqual(
             normalizeConfigValue('mapFeaturesReduceParams', [1, 2, 3]),
             [1, 2, 3]);
     });
@@ -77,18 +84,35 @@ describe('viewer-config normalization', function() {
             assert.strictEqual(normalizeConfigValue(key, 42), null);
             assert.strictEqual(
                 normalizeConfigValue(key, [1, 2]), null);
+            assert.strictEqual(
+                normalizeConfigValue(key, new Date(0)), null);
         }
     });
 
-    it('accepts strings, arrays, and MapPosition-like objects for '
+    it('routes both geojsonStyle forms through the plain-object '
+        + 'check', function() {
+
+        assert.deepStrictEqual(
+            normalizeConfigValue('geojsonStyle', '{"a": 1}'), { a: 1 });
+        assert.deepStrictEqual(
+            normalizeConfigValue('geojsonStyle', { a: 1 }), { a: 1 });
+        assert.strictEqual(
+            normalizeConfigValue('geojsonStyle', '42'), null);
+        assert.strictEqual(
+            normalizeConfigValue('geojsonStyle', '[]'), null);
+        assert.strictEqual(
+            normalizeConfigValue('geojsonStyle', [1]), null);
+        assert.strictEqual(
+            normalizeConfigValue('geojsonStyle', new Date(0)), null);
+    });
+
+    it('accepts position arrays and MapPosition-like objects for '
         + 'position', function() {
 
         const positionArray =
             ['obj', 15, 50, 'fix', 0, 0, 0, 0, 10000, 45];
         const positionLike = { toArray: () => positionArray };
 
-        assert.strictEqual(
-            normalizeConfigValue('position', 'obj,15,50'), 'obj,15,50');
         assert.deepStrictEqual(
             normalizeConfigValue('position', positionArray),
             positionArray);
@@ -98,6 +122,10 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(normalizeConfigValue('position', 42), null);
         assert.strictEqual(
             normalizeConfigValue('position', { lon: 15 }), null);
+        assert.strictEqual(
+            normalizeConfigValue('position', [{}]), null);
+        assert.strictEqual(
+            normalizeConfigValue('position', ['obj', NaN, 50]), null);
     });
 
     it('drops non-function transformRequest values', function() {
