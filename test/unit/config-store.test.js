@@ -177,4 +177,73 @@ describe('ConfigStore', function() {
         store.flush();
         assert.deepStrictEqual(seen, [['a', 10], ['b', 20]]);
     });
+
+    it('a mid-flush write to a scheduled watcher that has not run '
+        + 'yet is absorbed into one delivery', function() {
+
+        const store = new ConfigStore({ a: 1, b: 2 });
+        const seen = [];
+
+        store.watch(['a'], (values) => {
+            seen.push(['a', values.a]);
+            store.set({ b: 20 });
+        });
+        store.watch(['b'], (values) => seen.push(['b', values.b]));
+
+        // both watchers are dirty before the flush starts
+        store.set({ a: 10, b: 19 });
+        store.flush();
+
+        assert.deepStrictEqual(seen, [['a', 10], ['b', 20]]);
+
+        store.flush();
+        assert.deepStrictEqual(seen, [['a', 10], ['b', 20]]);
+    });
+
+    it('a mid-flush write to a watcher that already ran fires once '
+        + 'on the next flush', function() {
+
+        const store = new ConfigStore({ a: 1, b: 2 });
+        const seen = [];
+
+        // registration order makes the b watcher run first
+        store.watch(['b'], (values) => seen.push(['b', values.b]));
+        store.watch(['a'], (values) => {
+            seen.push(['a', values.a]);
+            store.set({ b: 20 });
+        });
+
+        store.set({ a: 10, b: 19 });
+        store.flush();
+
+        assert.deepStrictEqual(seen, [['b', 19], ['a', 10]]);
+
+        store.flush();
+        assert.deepStrictEqual(
+            seen, [['b', 19], ['a', 10], ['b', 20]]);
+
+        store.flush();
+        assert.deepStrictEqual(
+            seen, [['b', 19], ['a', 10], ['b', 20]]);
+    });
+
+    it('a watcher unsubscribed during a flush is not invoked',
+        function() {
+
+        const store = new ConfigStore({ a: 1, b: 2 });
+        const seen = [];
+        let unsubscribeSecond;
+
+        store.watch(['a'], (values) => {
+            seen.push(['a', values.a]);
+            unsubscribeSecond();
+        });
+        unsubscribeSecond =
+            store.watch(['b'], (values) => seen.push(['b', values.b]));
+
+        store.set({ a: 10, b: 20 });
+        store.flush();
+
+        assert.deepStrictEqual(seen, [['a', 10]]);
+    });
 });

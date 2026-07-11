@@ -3,6 +3,30 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — Branch review fixes: flush contract, renderer keys
+
+Addressed the branch code review of the RFC 1/2 implementation.
+
+- `ConfigStore.flush()` now clears each watcher's dirty mark at its
+  own invocation over a snapshot of the scheduled watchers. A `set()`
+  from inside a callback is absorbed into the pending delivery of a
+  scheduled watcher that has not run yet and re-schedules one that
+  already ran — exactly one callback per change, with values current
+  at delivery time. Previously a mid-flush write to an
+  already-scheduled watcher delivered the new value and then fired
+  the same watcher again on the next flush. Unsubscribes from inside
+  a callback now also drop pending deliveries. Three unit tests pin
+  the dispatch rules.
+- Renderer's config watcher shrank to `rendererCssDpi`, its only
+  live key. `rendererAntialiasing` and `rendererAllowScreenshots`
+  are WebGL-context-creation flags and `rendererAnisotropic` is
+  baked into per-texture sampling parameters; all three are now
+  annotated construction-only in `ViewerConfig`, and
+  `api-and-lifecycle.md` documents the construction-only vs live
+  distinction.
+- Normalization guards for the previously unchecked `raw` config
+  values follow in a separate commit.
+
 ## 2026-07-11 — RFC 1 implemented: ConfigStore, core.js deleted
 
 Implemented [rfc-config-store.md](rfc-config-store.md) on

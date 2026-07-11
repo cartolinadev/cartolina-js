@@ -441,13 +441,12 @@ constructor(core: Core, div: HTMLElement, config: Readonly<ViewerConfig>) {
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
-    // renderer key changes require a redraw; the values themselves
-    // are read from the shared config object
+    // rendererCssDpi is the only live renderer key (read per frame
+    // by the scale computations); the other renderer keys are fixed
+    // at WebGL context or texture creation — see their notes in
+    // `ViewerConfig`
     this.unwatchConfig_ = core.configStore.watch(
-        [
-            'rendererAnisotropic', 'rendererAntialiasing',
-            'rendererAllowScreenshots', 'rendererCssDpi',
-        ],
+        ['rendererCssDpi'],
         () => { this.core.map?.markDirty(); },
     );
 };

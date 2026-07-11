@@ -19,6 +19,12 @@
  * reconfigures mid-frame. A watcher is marked dirty on every `set`
  * of one of its keys, whether or not the value differs.
  *
+ * A `set()` from inside a callback delivers exactly one callback
+ * per affected watcher: a watcher scheduled in the current flush
+ * that has not run yet absorbs the write into its pending delivery;
+ * a watcher that already ran (or is not scheduled) fires on the
+ * next flush. Payloads carry the values current at delivery time.
+ *
  * Reads are immediate: `get()` and `values` always return the
  * current value with no flush required, so construction-time reads
  * see every value written before the subsystem was built.
@@ -102,24 +108,27 @@ class ConfigStore<T extends object> {
 
     /**
      * Fires every dirty watcher once with the current values of its
-     * watched keys, then clears the dirty marks. Keys set from
-     * inside a callback mark watchers dirty for the next flush; the
-     * current flush does not revisit them.
+     * watched keys. Each watcher's dirty mark is cleared at its own
+     * invocation, so a `set()` from a callback is absorbed into the
+     * pending delivery of a watcher that has not run yet and
+     * re-schedules a watcher that already has — one callback per
+     * change either way.
      */
     flush(): void {
 
-        const dirty: Watcher<T>[] = [];
+        const scheduled: Watcher<T>[] = [];
 
         for (const watcher of this.watchers_) {
 
-            if (watcher.dirty) {
-
-                watcher.dirty = false;
-                dirty.push(watcher);
-            }
+            if (watcher.dirty) scheduled.push(watcher);
         }
 
-        for (const watcher of dirty) {
+        for (const watcher of scheduled) {
+
+            // dropped by an unsubscribe from an earlier callback
+            if (!this.watchers_.has(watcher)) continue;
+
+            watcher.dirty = false;
 
             const picked: Partial<T> = {};
             for (const key of watcher.keys)

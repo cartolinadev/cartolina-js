@@ -80,9 +80,19 @@ export interface ViewerConfig {
 
     // --- Renderer ---
 
+    /** Construction-only: the anisotropic filtering level is baked
+     * into each texture's sampling parameters at texture creation;
+     * a later change reaches only textures created afterwards. */
     rendererAnisotropic: number;
+
+    /** Construction-only: WebGL context creation flag. */
     rendererAntialiasing: boolean;
+
+    /** Construction-only: sets `preserveDrawingBuffer` at WebGL
+     * context creation. */
     rendererAllowScreenshots: boolean;
+
+    /** Live: read per frame by the scale computations. */
     rendererCssDpi: number;
 
     // --- Inspector diagnostics (URL parameters) ---

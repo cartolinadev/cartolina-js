@@ -121,6 +121,13 @@ parameters). `Map.tick` flushes the store at the start of every
 frame, so watchers fire once per batch of changes and never
 mid-frame. `Viewer.getParam(key)` reads `store.get()`.
 
+Not every accepted key has a live effect. Keys consumed only at
+construction time (the WebGL context flags `rendererAntialiasing`
+and `rendererAllowScreenshots`, the per-texture
+`rendererAnisotropic`) accept writes but change nothing until the
+consuming object is next created. The construction-only keys are
+annotated in `ViewerConfig` (`src/core/viewer-config.ts`).
+
 A loaded mapConfig's `browserOptions` apply through
 `Map.applyBrowserOptions_`, which skips keys the caller configured
 explicitly, so user settings always win.
