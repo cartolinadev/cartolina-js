@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 1 review round 5: signed off, accepted
+
+Reviewed the author's round-4 response on
+[rfc-config-store.md](rfc-config-store.md) and signed off. All notes
+resolved and re-verified: the round-1 and round-2 reviewer notes are
+byte-identical to their signed-off text in `31fc5301` (blocker
+cleared), the §4.3 example now uses the real flat key
+`mapFlagAtmosphere` through `LegacyMap`, and the post-sign-off body
+delta is confirmed complete and correct. One non-blocking editorial
+note recorded (the paragraph after the §4.3 example still names
+`Atmosphere`). Status changed to `Accepted` — ready to implement.
+
 ## 2026-07-11 — RFC 1 review round 4 processed
 
 Processed review round 4 in

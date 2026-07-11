@@ -1,6 +1,6 @@
 # RFC 1: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** In review  
+**Status:** Accepted  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -580,3 +580,23 @@ prescribes for an author request; its text is untouched.
 
   *Author: implemented. No further body change is required for the
   re-verified material.*
+
+---
+
+## Review round 5 — sign-off
+
+All round-4 notes are resolved and verified against the tree. The
+round-1 and round-2 reviewer notes are byte-identical to the
+signed-off text in `31fc5301` — the "authorization values" and
+"`authorization` keys" wording is restored, which clears the round-4
+blocker. The §4.3 example now reads and watches the real flat boolean
+key `mapFlagAtmosphere` through `LegacyMap`, matching the live setter
+in `map/map.js`. The post-sign-off body delta is confirmed complete
+and correct: the `mapFog` → `mapCache` example replacement, the
+step 4 terminology fix, and the §4.2 `authorization` →
+`transformRequest` key replacement all describe the current code.
+Design accepted.
+
+One editorial note, not a blocker: the paragraph after the §4.3
+example still says "Nothing else needs to know that `Atmosphere`
+exists or which keys it uses"; the example class is now `LegacyMap`.
