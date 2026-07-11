@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — Re-review follow-up: PositionInput type unified
+
+The corrected position type now reaches the public API: new
+`PositionInput` (`MapPosition | (number | string)[]`) in
+`src/core/types.ts` is used by `ViewerConfig`, `MapOptions`, the
+`browser()` config, `Viewer.Config`, `Viewer.setPosition`, and the
+`LegacyMap` declarations; re-exported as `Map.PositionInput` and
+from the package index. Previously the public surfaces declared
+`MapPosition` or `MapPosition | number[]` and rejected the
+documented array form.
+
 ## 2026-07-11 — Re-review: deep normalization guards
 
 The re-review of the branch found the first-pass normalization

@@ -1718,6 +1718,7 @@ function resolveMaskResolution(value: number | undefined): number {
  * Same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
 
+    export type PositionInput = import('./types').PositionInput;
     export type ViewerConfig = import('./viewer-config').ViewerConfig;
     export type ViewerEventMap = import('./types').ViewerEventMap;
     export type HeightMode = import('./types').HeightMode;

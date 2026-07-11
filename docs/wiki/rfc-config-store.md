@@ -757,3 +757,19 @@ Fixed:
 
 The reviewer's invalid examples are unit tests in
 `test/unit/viewer-config.test.js`.
+
+---
+
+## Addendum — 2026-07-11 — PositionInput on the public surfaces
+
+Follow-up to the re-review: the corrected position type had not
+reached the public API, which still declared `MapPosition` (or
+`MapPosition | number[]`) and therefore rejected the documented
+array form. `PositionInput` in `src/core/types.ts` is now the one
+definition — `MapPosition | (number | string)[]` — used by
+`ViewerConfig`, `MapOptions`, the `browser()` config,
+`Viewer.Config`, `Viewer.setPosition`, and the `LegacyMap`
+declarations (`setPosition`, `convertPositionHeightMode`). It is
+re-exported as `Map.PositionInput` and from the package index. The
+exact ten-component tuple stays deferred until the position module
+is typed precisely.

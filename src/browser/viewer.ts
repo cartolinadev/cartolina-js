@@ -144,7 +144,7 @@ class Viewer {
      * @param position a 10-component vts-geospatial position array or
      *   `MapPosition` instance
      */
-    setPosition(position: MapPosition | number[]): this {
+    setPosition(position: Map.PositionInput): this {
 
         this.assertAlive();
         this.legacyMap?.setPosition(position);
@@ -793,7 +793,7 @@ namespace Viewer {
 
         [key: string]:
             | MapRuntimeOptionValue
-            | MapPosition
+            | Map.PositionInput
             | MapStyle.StyleSpecification
             | TransformRequestCallback
             | Record<string, unknown>
@@ -801,7 +801,7 @@ namespace Viewer {
 
         style?: MapStyle.StyleSpecification;
         map?: string | Record<string, unknown>;
-        position?: MapPosition;
+        position?: Map.PositionInput;
         view?: string | Record<string, unknown>;
         transformRequest?: TransformRequestCallback;
     };

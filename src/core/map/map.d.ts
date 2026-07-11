@@ -17,6 +17,7 @@ import type {
     HeightMode,
     Lod,
     NodeInformation,
+    PositionInput,
 } from '../types';
 import type { vec3 } from '../utils/math';
 import type EventBus from '../event-bus';
@@ -174,7 +175,7 @@ export default class Map {
         ): NodeInformation | null;
     };
 
-    setPosition(position: MapPosition | (number | string)[]): void;
+    setPosition(position: PositionInput): void;
     getPosition(): MapPosition;
     setView(view: string | Record<string, unknown>): void;
     getView(): Record<string, unknown>;
@@ -246,7 +247,7 @@ export default class Map {
     createGeodata(): unknown;
 
     convertPositionHeightMode(
-        position: MapPosition | number[],
+        position: PositionInput,
         mode: HeightMode,
         noPrecisionCheck?: boolean,
     ): MapPosition;

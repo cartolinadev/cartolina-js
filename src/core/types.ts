@@ -1,4 +1,5 @@
 import type MapSrs from './map/srs';
+import type MapPosition from './map/position';
 import type Renderer from './renderer/renderer';
 
 /**
@@ -35,6 +36,13 @@ export type TransformRequestCallback = (
     url: string,
     resourceType: RequestResourceType,
 ) => RequestTransformResult;
+
+/**
+ * A camera position accepted by the public API: a `MapPosition`
+ * instance or a legacy ten-component position array, which carries
+ * mode strings at indices 0 and 3 and numbers elsewhere.
+ */
+export type PositionInput = MapPosition | (number | string)[];
 
 /** Height mode for coordinate conversions and hit-testing. */
 export type HeightMode = 'fix' | 'float';

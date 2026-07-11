@@ -4,7 +4,7 @@
 
 import type MapPosition from './map/position';
 import type MapStyle from './map/style';
-import type { TransformRequestCallback } from './types';
+import type { PositionInput, TransformRequestCallback } from './types';
 import * as utils from './utils/utils';
 
 
@@ -81,7 +81,7 @@ export interface ViewerConfig {
 
     /** A legacy position array (mode strings and finite numbers) or
      * a `MapPosition` instance. */
-    position: MapPosition | (number | string)[] | null;
+    position: PositionInput | null;
     view: string | Record<string, unknown> | null;
     transformRequest: TransformRequestCallback | null;
     inspector: boolean;

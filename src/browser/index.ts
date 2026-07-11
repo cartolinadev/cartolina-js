@@ -8,7 +8,6 @@ import './presenter/css/subtitles.css';
 import Viewer from './viewer';
 export type { default as Map } from './viewer';
 import MapStyle from '../core/map/style';
-import MapPosition from '../core/map/position';
 import getVersion from '../core/version.js';
 
 import proj4 from 'proj4';
@@ -24,6 +23,7 @@ import {
     UrlConfigOptions
 } from './url-config';
 import type {
+    PositionInput,
     RequestResourceType,
     RequestTransformResult,
     TransformRequestCallback,
@@ -43,6 +43,7 @@ export type MapRuntimeOptionValue =
  * the entrypoint-specific wrappers.
  */
 export type {
+    PositionInput,
     RequestResourceType,
     RequestTransformResult,
     TransformRequestCallback,
@@ -71,7 +72,7 @@ export type MapOptions = {
      * vantage point. If not provided, cartolina will try to find a
      * suitable default.
      */
-    position: MapPosition,
+    position: PositionInput,
 
     /**
      * Any of the valid options controling the various rendering
@@ -141,7 +142,7 @@ export type BrowserConfig = MapRuntimeOptions & {
      * The 10-component vts-geospatial position, specifying the initial
      * vantage point.
      */
-    position?: MapPosition,
+    position?: PositionInput,
 
     /** The legacy view definition. */
     view?: string | Record<string, unknown>,
