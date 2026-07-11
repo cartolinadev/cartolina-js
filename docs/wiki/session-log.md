@@ -8,6 +8,24 @@ existing entry, even one added earlier in the same session.**
 Implementing [rfc-config-store.md](rfc-config-store.md) on
 `feature/rfc1-rfc2`, one commit per RFC step.
 
+- Step 6: `core.js` and `core.d.ts` deleted; `Map` absorbed the
+  shell. `Map` now owns the animation-frame loop, map loading
+  (`loadMap`, the style path, `applyBrowserOptions_`), the `ready`
+  promise, `destroyMap_`, and the constructed `Renderer` and
+  `Inspector`. The ~150 legacy `this.core.X` references keep working
+  because the `Map` instance is now what flows into those `core`
+  back-references and exposes the reached members (`map`,
+  `renderer`, `inspector`, `config`, `configStore`, `bus`,
+  `contextLost`, `killed`, `xhrParams`, `element`, `getMap()`,
+  `getRenderer()`, `markDirty()`). The deprecated `Map.core` getter
+  is gone; `CoreConfig` is deleted from `types.ts` with typed
+  modules now on `Readonly<ViewerConfig>`; `getCoreVersion` moved to
+  `browser/index.ts`; the dead rAF/performance.now vendor shims and
+  the dead `getCoreInterface`/`getRendererInterface` were dropped.
+  Verified: tsc clean, 22 unit tests, three screenshot URLs, gesture
+  events, live-config redraw, and a mapConfig-path load probe
+  (browserOptions, position) rendering correctly with no errors.
+
 - Step 1: `src/core/viewer-config.ts` — the flat `ViewerConfig`
   interface cataloguing every valid runtime config key, plus
   `defaultViewerConfig()`. Defaults preserve today's effective

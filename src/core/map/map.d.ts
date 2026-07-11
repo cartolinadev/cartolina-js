@@ -11,10 +11,9 @@ import type MapSurface from './surface';
 import type MapUrl from './url';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
-import type { Core } from '../core';
 import type TypedMap from '../map';
+import type { ViewerConfig } from '../viewer-config';
 import type {
-    CoreConfig,
     HeightMode,
     Lod,
     NodeInformation,
@@ -69,7 +68,7 @@ export default class Map {
     constructor(
         core: unknown,
         path: string,
-        config: CoreConfig,
+        config: Readonly<ViewerConfig>,
         bus: EventBus<ViewerEventMap>,
     );
 
@@ -84,7 +83,10 @@ export default class Map {
      * Set by `Core` when the `LegacyMap` instance is created.
      */
     outerMap: TypedMap;
-    core: Core;
+
+    /** The typed `Map` that owns this legacy half. The historical
+     * field name is kept because every legacy module reads it. */
+    core: TypedMap;
 
     /** Event bus owned by the typed `Map`; geo-feature events publish
      * through it. */
@@ -92,7 +94,7 @@ export default class Map {
 
     renderer: Renderer;
     url: MapUrl;
-    config: CoreConfig;
+    config: Readonly<ViewerConfig>;
     stats: {
         frameTime: number;
         drawnGeodataTilesPerLayer: number;
@@ -180,6 +182,9 @@ export default class Map {
 
     markDirty(): void;
     isReferenceFrameReady(): boolean;
+
+    /** Releases map-owned resources; the shared renderer stays alive. */
+    kill(): void;
 
     /**
      * Pre-draw residual work owned by `LegacyMap`. Called by `Map.tick`

@@ -58,7 +58,6 @@ var Map = function(core, path, config, bus) {
             ],
             this.markDirty.bind(this)),
     ];
-    this.coreConfig = core.coreConfig;
     this.killed = false;
     this.config = config || {};
     this.loaderSuspended = false;
@@ -184,16 +183,6 @@ Map.prototype.setupCache = function() {
     this.resourcesCache.setMaxCost(this.config.mapCache*1024*1024*factor);
     this.gpuCache.setMaxCost(this.config.mapGPUCache*1024*1024*factor);
     this.metatileCache.setMaxCost(this.config.mapMetatileCache*1024*1024*(factor < 0.8 ? 0.5 : 1));
-};
-
-
-Map.prototype.getCoreInterface = function() {
-    return this.core.interface;
-};
-
-
-Map.prototype.getRendererInterface = function() {
-    return this.core.interface.getRendererInterface();
 };
 
 

@@ -136,7 +136,7 @@ Browser.prototype.getMap = function() {
 
 
 Browser.prototype.getRenderer = function() {
-    return this.map.core.renderer;
+    return this.map.renderer;
 };
 
 

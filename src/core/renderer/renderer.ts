@@ -21,7 +21,7 @@ import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../event-bus';
 import type ConfigStore from '../config-store';
 import type { ViewerConfig } from '../viewer-config';
-import type { CoreConfig, ViewerEventMap } from '../types';
+import type { ViewerEventMap } from '../types';
 import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
@@ -85,7 +85,7 @@ import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 
 export class Renderer {
 
-    config: CoreConfig;
+    config: Readonly<ViewerConfig>;
     core: Core;
     div: HTMLElement;
 
@@ -381,7 +381,7 @@ export class Renderer {
     disposed_ = false;
 
 
-constructor(core: Core, div: HTMLElement, config : CoreConfig) {
+constructor(core: Core, div: HTMLElement, config: Readonly<ViewerConfig>) {
 
     this.config = config; // || {};
     this.core = core;
@@ -533,7 +533,7 @@ private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
 
     let atmBindings = {}
 
-    if (this.core.map.atmosphere) {
+    if (this.core.map!.atmosphere) {
 
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
     }
@@ -558,7 +558,7 @@ programBackground() : GpuProgram {
 
     let atmBindings = {}
 
-    if (this.core.map.atmosphere) {
+    if (this.core.map!.atmosphere) {
 
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
 
@@ -816,7 +816,7 @@ createBuffers() {
         this.uboFrame);
 
     // uboAtmosphere initialized in the atmosphere object
-    if (this.core.map.atmosphere) this.core.map.atmosphere.createBuffers();
+    if (this.core.map!.atmosphere) this.core.map!.atmosphere.createBuffers();
 
     // uboLayers not initialized here: each submesh keeps its own
 
@@ -831,7 +831,7 @@ createBuffers() {
  */
 initFrame(): void {
 
-    const map = this.core.map;
+    const map = this.core.map!;
     const config = map.config;
     const overrides = map.outerMap.overrides;
 
@@ -847,8 +847,10 @@ initFrame(): void {
             ? forcedFrameTime
             : 0;
 
+        // consume-once: reset through the store so the shared value
+        // map stays consistent
         if (forcedFrameTime !== -1) {
-            config.mapForceFrameTime = -1;
+            this.core.configStore.set({ mapForceFrameTime: -1 });
         }
 
     } else {
@@ -899,7 +901,7 @@ initFrame(): void {
  */
 syncCameraState(): void {
 
-    const map = this.core.map;
+    const map = this.core.map!;
     const camera = map.camera;
     const position = map.position;
 
@@ -950,7 +952,7 @@ updateBuffers(
     let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagNone;
 
     // map
-    let map = this.core.map;
+    let map = this.core.map!;
 
     // one backing buffer, two typed views.
     const buf = new ArrayBuffer(UboFrameSize);
@@ -965,7 +967,7 @@ updateBuffers(
 
     // obtain the data: body params and vertical exaggeration
     let se = this.getSuperElevation(position);
-    let srsInfo = this.core.map.getPhysicalSrs().getSrsInfo();
+    let srsInfo = this.core.map!.getPhysicalSrs().getSrsInfo();
     let majorAxis = srsInfo.a;
     let minorAxis = srsInfo.b;
 
@@ -1051,8 +1053,8 @@ updateBuffers(
 
     // clip params; y carries the fallback-coverage discard threshold
     data.clipParams = [
-        this.core.map.config.mapSplitMargin,
-        this.core.map.config.mapTraversalMaskThreshold,
+        this.core.map!.config.mapSplitMargin,
+        this.core.map!.config.mapTraversalMaskThreshold,
         0,
         0,
     ];
@@ -1131,14 +1133,14 @@ updateBuffers(
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
     // the uboAtm buffer
-    if (this.core.map.atmosphere) {
+    if (this.core.map!.atmosphere) {
 
         let [view2ecef, _, eyePos] = this.calcEcefCamParams();
 
         //console.log(this.core.map.camera.position);
         //console.log(view2ecef);
 
-        this.core.map.atmosphere.updateBuffers(
+        this.core.map!.atmosphere.updateBuffers(
             eyePos,
             map.position.getViewDistance(),
             view2ecef as math.mat4);
@@ -1148,7 +1150,7 @@ updateBuffers(
 
 drawBackground() {
 
-    let atmosphere = this.core.map.atmosphere;
+    let atmosphere = this.core.map!.atmosphere;
 
     if (atmosphere && atmosphere.isReady()) {
 
@@ -1164,7 +1166,7 @@ private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
     // true physical world coordinates - they are translated relative to
     // camera center to avoid quantization errors. Hence this.
     let view2ecef = mat4.translate(mat4.identity(mat4.create()),
-                                       this.core.map.camera.position);
+                                       this.core.map!.camera.position);
     let clip2ecef = [...view2ecef];
 
     mat4.multiply(view2ecef, this.camera.modelviewinverse);
@@ -1173,7 +1175,7 @@ private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
     return [
         view2ecef as math.mat4,
         clip2ecef as math.mat4,
-        this.core.map.camera.position as math.vec3];
+        this.core.map!.camera.position as math.vec3];
 }
 
 
@@ -1403,7 +1405,7 @@ setIllumination(definition: Renderer.IlluminationDef) {
 
     if (this.core.map?.position) {
 
-        this.updateIllumination(this.core.map.position);
+        this.updateIllumination(this.core.map!.position);
     }
 
     this.core.map?.markDirty();
@@ -2654,9 +2656,14 @@ type Illumination = {
     useLighting: boolean;
 }
 
+/**
+ * The slice of the typed `Map` this renderer works with. The name
+ * survives from the retired `core.js` shell; the object behind it is
+ * the `Map` instance.
+ */
 type Core = {
 
-    map: LegacyMap;
+    map: LegacyMap | null;
     contextLost: boolean;
     bus: EventBus<ViewerEventMap>;
     configStore: ConfigStore<ViewerConfig>;

@@ -475,7 +475,7 @@ export class MapStyle {
 
                 let mc = await utils.loadJson(
                     path,
-                    map.core.config.transformRequest,
+                    map.core.config.transformRequest ?? undefined,
                     'MapConfig',
                 ) as SurfaceMapConfig;
 

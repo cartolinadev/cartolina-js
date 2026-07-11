@@ -39,11 +39,11 @@ class Viewer {
     private disposed_ = false;
 
     private get legacyMap(): LegacyMap | null {
-        return this.map_.core.map;
+        return this.map_.legacyMap;
     }
 
     private get _renderer(): Renderer {
-        return this.map_.core.renderer;
+        return this.map_.renderer;
     }
 
 

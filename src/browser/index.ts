@@ -9,7 +9,7 @@ import Viewer from './viewer';
 export type { default as Map } from './viewer';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
-import {getCoreVersion} from '../core/core';
+import getVersion from '../core/version.js';
 
 import proj4 from 'proj4';
 import earcut from 'earcut';
@@ -171,6 +171,14 @@ export function browser(
 
     var vi = new Viewer(element, config);
     return vi;
+}
+
+/**
+ * Returns the core library version.
+ * @return the core library version
+ */
+function getCoreVersion(full?: boolean): string {
+    return (full ? 'Core: ' : '') + getVersion();
 }
 
 /**

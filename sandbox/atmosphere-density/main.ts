@@ -7,8 +7,7 @@
 // - Atmosphere helper: Atmosphere.decodeAtmosphereDensity(img: ImageData)
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
-import {Core} from '../../src/core/core.js';
-import EventBus from '../../src/core/event-bus';
+import Map from '../../src/core/map';
 import ConfigStore from '../../src/core/config-store';
 import {defaultViewerConfig} from '../../src/core/viewer-config';
 import Atmosphere from '../../src/core/map/atmosphere';
@@ -91,15 +90,14 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   const right = document.getElementById('right')!;
   const info = document.getElementById('info')!;
 
-  // 1) Fetch and parse mapConfig.json via Cartolina's core object
+  // 1) Fetch and parse mapConfig.json via Cartolina's map object
   let div = document.createElement('div');
   div.style.width = '10px';
   div.style.height = '10px';
 
   const store = new ConfigStore(defaultViewerConfig());
   store.set({map: MAP_CONFIG_URL});
-  const core =
-      new Core(div, {'map': MAP_CONFIG_URL}, new EventBus(), store);
+  const core = new Map(div, {'map': MAP_CONFIG_URL}, store);
   await core.ready;
   console.log('Core ready');
 

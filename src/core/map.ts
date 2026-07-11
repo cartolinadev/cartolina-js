@@ -2,15 +2,15 @@
  * map.ts — typed map data model and frame-loop owner
  */
 
-import { Core } from './core';
 import Atmosphere from './map/atmosphere';
-import type Renderer from './renderer/renderer';
+import Renderer from './renderer/renderer';
+import Inspector from './inspector/inspector';
 import MapPosition from './map/position';
 import EventBus from './event-bus';
 import type ConfigStore from './config-store';
-import type { ViewerConfig } from './viewer-config';
+import { normalizeConfigPatch, type ViewerConfig }
+    from './viewer-config';
 import type {
-    CoreConfig,
     HeightMode,
     Lod,
     OverlayContext,
@@ -19,6 +19,8 @@ import type {
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
+import { utilsUrl } from './utils/url';
+import { platform } from './utils/platform';
 import { grayPngDecodeAvailable } from './utils/gray-png';
 import LegacyMap from './map/map';
 import FreezeCameraState from './map/freeze-camera-state';
@@ -37,18 +39,20 @@ import { drawTerrainTraversal } from './map/draw-traversal';
 
 
 /**
- * The map data model — cartolina's central object. The typed,
- * graphics-library- and UI-independent representation of a loaded
- * map together with the logic that operates on it. Holds the
- * reference frame, surfaces, free layers, atmosphere, named views,
- * current position, and registered overlays; exposes the per-frame
- * tick, the canvas-target draw, coordinate conversion, and hit-
- * testing.
+ * The map data model — cartolina's central object. The typed
+ * representation of a loaded map together with the logic that
+ * operates on it. Holds the reference frame, surfaces, free layers,
+ * atmosphere, named views, current position, and registered
+ * overlays; exposes the per-frame tick, the canvas-target draw,
+ * coordinate conversion, and hit-testing. It also owns the engine
+ * lifecycle: the animation-frame loop, map loading and unloading,
+ * the event bus, and the constructed `Renderer` and `Inspector`
+ * (absorbed from the retired `core.js` shell).
  *
- * The other two layers are built around `Map`. UI-facing concerns
- * live on `Viewer` (`src/browser/viewer.ts`); the GPU and shader
- * layer lives on `Renderer` (`src/core/renderer/renderer.ts`).
- * `Map` is neither — it is the model both of them work with.
+ * UI-facing concerns live on `Viewer` (`src/browser/viewer.ts`);
+ * the GPU and shader work lives on `Renderer`
+ * (`src/core/renderer/renderer.ts`). Legacy modules still reach
+ * this instance through their `core` back-references.
  *
  * Map-model state and behaviour that still lives in JavaScript
  * sit on `LegacyMap` (`src/core/map/map.js`); they absorb into
@@ -64,12 +68,92 @@ class Map {
     // Fields
     // -----------------------------------------------------------------
 
-    private core_: Core;
     private disposed_ = false;
 
     /**
+     * The loaded legacy map, or `null` before a map has loaded and
+     * between loads.
+     *
+     * @internal The legacy field name is kept because the JS map,
+     *   renderer, and inspector modules reach the loaded map as
+     *   `core.map`, where `core` is this instance. Typed code should
+     *   read `legacyMap`.
+     */
+    map: LegacyMap | null = null;
+
+    /**
+     * The WebGL2 renderer owned by this map.
+     *
+     * @internal Reached as `core.renderer` by the legacy modules.
+     */
+    renderer!: Renderer;
+
+    /**
+     * The diagnostics inspector, or `null` when its module is
+     * excluded from the build.
+     *
+     * @internal
+     */
+    inspector: Inspector | null = null;
+
+    /**
+     * Set by `GpuDevice` when the WebGL context is lost; stops the
+     * frame loop.
+     *
+     * @internal
+     */
+    contextLost = false;
+
+    /**
+     * Legacy alias of the disposed state; checked by async resource
+     * callbacks (`GpuTexture`) before touching the object.
+     *
+     * @internal
+     */
+    killed = false;
+
+    /**
+     * Request parameters for legacy binary loads.
+     *
+     * @internal
+     */
+    xhrParams: Record<string, unknown> = {};
+
+    /**
+     * The container element the canvas renders into; `null` after
+     * disposal.
+     *
+     * @internal
+     */
+    element: HTMLElement | null;
+
+    /**
+     * The caller's raw options, kept so mapConfig `browserOptions`
+     * never override explicit user configuration.
+     *
+     * @internal
+     */
+    initialConfig: Record<string, unknown>;
+
+    /**
+     * The live, normalized config value map — the single config
+     * object shared by the map, renderer, and browser layers.
+     *
+     * @internal
+     */
+    config: Readonly<ViewerConfig>;
+
+    private readyPromise_: Promise<void>;
+    private readyResolved_ = false;
+    private resolveReady_: (() => void) | null = null;
+
+    // async mapConfig load state
+    private mapConfigData_: unknown = null;
+    private mapRunning_ = false;
+
+    /**
      * The event bus behind `on`, `once`, and `emit`. Handed to the
-     * legacy emitters (`Core`, `LegacyMap`, `GpuDevice`) at their
+     * legacy emitters (`LegacyMap`, `GpuDevice`) at their
      * construction; they publish through it directly.
      */
     private bus_: EventBus<ViewerEventMap> = new EventBus();
@@ -88,8 +172,9 @@ class Map {
      * this object; all flag reads in a frame see the same snapshot.
      *
      * `draw*` fields default to `false`. `flag*` fields default to
-     * `undefined`, which defers to the corresponding `CoreConfig` value.
-     * See `Overrides` in `src/core/map/overrides.ts` for the full list.
+     * `undefined`, which defers to the corresponding `ViewerConfig`
+     * value. See `Overrides` in `src/core/map/overrides.ts` for the
+     * full list.
      */
     overrides: Overrides = { ...defaultOverrides };
 
@@ -159,19 +244,41 @@ class Map {
 
     /**
      * @param element canvas element to render into
-     * @param config map configuration
+     * @param config the caller's raw options; the normalized values
+     *   are read from `configStore`
      * @param configStore runtime config store, already seeded with
      *   the caller's normalized options
      */
     constructor(
         element: HTMLElement,
-        config: Partial<CoreConfig>,
+        config: Record<string, unknown>,
         configStore: ConfigStore<ViewerConfig>,
     ) {
 
         this.configStore_ = configStore;
-        this.core_ = new Core(element, config, this.bus_, configStore);
-        this.core_.outerMap = this;
+        this.config = configStore.values;
+        this.initialConfig = config || {};
+        this.element = element;
+
+        this.readyPromise_ = new Promise((resolve) => {
+            this.resolveReady_ = resolve;
+        });
+
+        this.inspector = Inspector != null ? new Inspector(this) : null;
+        this.renderer = new Renderer(this, element, this.config);
+
+        platform.init();
+
+        if (this.config.style) {
+
+            this.loadMapFromStyle(this.config.style);
+
+        } else if (this.config.map) {
+
+            this.loadMap(this.config.map);
+        }
+
+        window.requestAnimationFrame(this.onUpdate_.bind(this));
     }
 
     /**
@@ -187,7 +294,10 @@ class Map {
         if (this.disposed_) return;
         this.disposeOverlays();
         this.disposeTerrainMaskPool();
-        this.core_.destroy();
+        this.destroyMap_();
+        this.renderer.kill();
+        this.element = null;
+        this.killed = true;
         this.disposed_ = true;
     }
 
@@ -205,7 +315,7 @@ class Map {
     get ready(): Promise<void> {
 
         this.assertAlive();
-        return this.core_.ready;
+        return this.readyPromise_;
     }
 
     /**
@@ -217,7 +327,29 @@ class Map {
 
         this.assertAlive();
         this.mapLoadedFired_ = false;
-        this.core_.loadMap(path);
+
+        if (this.map != null) this.destroyMap_();
+        if (path == null) return;
+
+        path = utilsUrl.getProcessUrl(path, window.location.href);
+
+        this.mapConfigData_ = null;
+        this.mapRunning_ = false;
+
+        utils.loadJSON(
+            path,
+            (data: unknown) => {
+
+                this.mapConfigData_ = data;
+                this.onMapConfigLoaded_(path);
+            },
+            () => { /* load errors leave the map unloaded */ },
+            false,
+            utils.useCredentials,
+            null,
+            this.config.transformRequest ?? undefined,
+            'MapConfig',
+        );
     }
 
     /**
@@ -229,7 +361,171 @@ class Map {
         this.assertAlive();
         this.mapLoadedFired_ = false;
         this.disposeTerrainMaskPool();
-        this.core_.destroyMap();
+        this.destroyMap_();
+    }
+
+    /** Frame-loop entry: ticks, then schedules the next frame. */
+    private onUpdate_(): void {
+
+        if (this.killed || this.contextLost) return;
+
+        this.tick();
+        window.requestAnimationFrame(this.onUpdate_.bind(this));
+    }
+
+    /**
+     * Resolves the `ready` Promise. Called once per map load by
+     * `tick` when the reference frame first becomes ready.
+     */
+    private markReady_(): void {
+
+        if (this.readyResolved_) return;
+        this.readyResolved_ = true;
+        if (this.resolveReady_) this.resolveReady_();
+    }
+
+    /** Kills and detaches the loaded legacy map, if any. */
+    private destroyMap_(): void {
+
+        if (!this.map) return;
+
+        this.map.kill();
+        this.map = null;
+        this.freeze = null;
+        this.bus_.emit('map-unloaded', {});
+    }
+
+    /** Continues `loadMap` once the mapConfig JSON has arrived. */
+    private onMapConfigLoaded_(path: string): void {
+
+        if (!this.mapConfigData_ || this.mapRunning_) return;
+
+        this.mapRunning_ = true;
+        const data = this.mapConfigData_;
+
+        this.bus_.emit(
+            'map-mapconfig-loaded', data as Record<string, unknown>);
+
+        this.createMapFromMapConfig(data, path);
+        this.applyBrowserOptions_(this.map!.browserOptions);
+
+        if (this.config.position) {
+
+            this.map!.setPosition(
+                this.config.position as MapPosition | number[]);
+            this.configStore_.set({ position: null });
+        }
+
+        if (this.config.view) {
+
+            this.map!.setView(this.config.view);
+            this.configStore_.set({ view: null });
+        }
+
+        this.renderer.createBuffers();
+    }
+
+    /** Loads a map from a style URL or parsed style object. */
+    private async loadMapFromStyle(
+        style: string | MapStyle.StyleSpecification,
+    ): Promise<void> {
+
+        let styleSpec: unknown = style;
+        let path = window.location.href;
+
+        if (typeof style === 'string') {
+
+            path = utilsUrl.getProcessUrl(style, path);
+            styleSpec = await utils.loadJson(
+                path, this.config.transformRequest ?? undefined, 'Style');
+        }
+
+        await this.createMapFromStyle(styleSpec, path);
+
+        if (this.config.position) {
+
+            this.map!.setPosition(
+                this.config.position as MapPosition | number[]);
+            this.configStore_.set({ position: null });
+        }
+
+        // initialize ubos
+        this.renderer.createBuffers();
+    }
+
+    /**
+     * Writes the loaded mapConfig's `browserOptions` to the config
+     * store. Keys the caller configured explicitly are skipped, so
+     * mapConfig options never override user settings. Position and
+     * view flow into the store and are consumed by the load path
+     * right after this call.
+     */
+    private applyBrowserOptions_(options: unknown): void {
+
+        if (typeof options !== 'object' || options === null) return;
+
+        for (const [key, value] of Object.entries(options)) {
+
+            if (this.initialConfig[key] !== undefined) continue;
+
+            const patch = normalizeConfigPatch(key, value);
+            if (patch) this.configStore_.set(patch);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Legacy accessors
+    // -----------------------------------------------------------------
+
+    /**
+     * Returns the loaded legacy map, or `null`.
+     *
+     * @internal Legacy calling convention used by the JS modules.
+     */
+    getMap(): LegacyMap | null {
+
+        return this.map;
+    }
+
+    /**
+     * Returns the renderer.
+     *
+     * @internal Legacy calling convention used by the JS modules.
+     */
+    getRenderer(): Renderer {
+
+        return this.renderer;
+    }
+
+    /**
+     * Marks the loaded map dirty, forcing a redraw.
+     *
+     * @internal Legacy calling convention used by the JS modules.
+     */
+    markDirty(): void {
+
+        this.map?.markDirty();
+    }
+
+    /**
+     * The event bus. Legacy emitters and subscribers reach it as
+     * `core.bus`.
+     *
+     * @internal
+     */
+    get bus(): EventBus<ViewerEventMap> {
+
+        return this.bus_;
+    }
+
+    /**
+     * The runtime config store.
+     *
+     * @internal
+     */
+    get configStore(): ConfigStore<ViewerConfig> {
+
+        return this.configStore_;
     }
 
     // -----------------------------------------------------------------
@@ -296,14 +592,14 @@ class Map {
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
         this.assertAlive();
-        this.core_.renderer.setRenderingOptions(options);
+        this.renderer.setRenderingOptions(options);
     }
 
     /** Returns the current renderer feature flags. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
         this.assertAlive();
-        return this.core_.renderer.getRenderingOptions();
+        return this.renderer.getRenderingOptions();
     }
 
     /**
@@ -314,14 +610,14 @@ class Map {
     setIllumination(spec: Renderer.IlluminationDef): void {
 
         this.assertAlive();
-        this.core_.renderer.setIllumination(spec);
+        this.renderer.setIllumination(spec);
     }
 
     /** Returns the current renderer illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
         this.assertAlive();
-        return this.core_.renderer.getIllumination();
+        return this.renderer.getIllumination();
     }
 
     /**
@@ -334,14 +630,14 @@ class Map {
     ): void {
 
         this.assertAlive();
-        this.core_.renderer.setVerticalExaggeration(spec);
+        this.renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration ramps. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
         this.assertAlive();
-        return this.core_.renderer.getVerticalExaggeration();
+        return this.renderer.getVerticalExaggeration();
     }
 
     /**
@@ -352,14 +648,14 @@ class Map {
     setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
         this.assertAlive();
-        this.core_.map?.atmosphere?.setRuntimeParameters(spec);
+        this.map?.atmosphere?.setRuntimeParameters(spec);
     }
 
     /** Returns live atmosphere parameters from the loaded map. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
         this.assertAlive();
-        return this.core_.map?.atmosphere?.getRuntimeParameters() ?? null;
+        return this.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
     /**
@@ -372,7 +668,7 @@ class Map {
     setView(view: string | Record<string, unknown>): this {
 
         this.assertAlive();
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (!legacyMap) {
             throw new Error('No map is loaded.');
         }
@@ -388,7 +684,7 @@ class Map {
     getView(): Record<string, unknown> | null {
 
         this.assertAlive();
-        const view = this.core_.map?.getView();
+        const view = this.map?.getView();
         return view ? view as Record<string, unknown> : null;
     }
 
@@ -399,7 +695,7 @@ class Map {
     getNamedViews(): string[] {
 
         this.assertAlive();
-        return this.core_.map?.getNamedViews() ?? [];
+        return this.map?.getNamedViews() ?? [];
     }
 
     // -----------------------------------------------------------------
@@ -421,7 +717,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.convertCoordsFromPublicToNav(
+        return this.map?.convertCoordsFromPublicToNav(
             pos, mode, lod) ?? null;
     }
 
@@ -442,7 +738,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.convertCoordsFromNavToCanvas(
+        return this.map?.convertCoordsFromNavToCanvas(
             pos, mode, lod) ?? null;
     }
 
@@ -461,7 +757,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.convertCoordsFromNavToPublic(
+        return this.map?.convertCoordsFromNavToPublic(
             pos, mode, lod) ?? null;
     }
 
@@ -481,7 +777,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.convertCoordsFromNavToPhys(
+        return this.map?.convertCoordsFromNavToPhys(
             pos, mode, lod, includeSE) ?? null;
     }
 
@@ -493,7 +789,7 @@ class Map {
     convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.convertCoordsFromPhysToCameraSpace(pos) ?? null;
+        return this.map?.convertCoordsFromPhysToCameraSpace(pos) ?? null;
     }
 
     /**
@@ -512,7 +808,7 @@ class Map {
     ): vec3 | null {
 
         this.assertAlive();
-        return this.core_.map?.getHitCoords(
+        return this.map?.getHitCoords(
             screenX, screenY, mode, lod) ?? null;
     }
 
@@ -543,7 +839,7 @@ class Map {
     ): [boolean, number] | null {
 
         this.assertAlive();
-        return this.core_.map?.getScreenDepth(
+        return this.map?.getScreenDepth(
             screenX,
             screenY,
             dilate,
@@ -567,7 +863,7 @@ class Map {
      */
     getNavigationPosition(): MapPosition | null {
 
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (legacyMap == null) return null;
         return this.freeze
             ? (this.freeze.getNavigationPosition() ?? legacyMap.position)
@@ -585,7 +881,7 @@ class Map {
      */
     getSelectionPosition(): MapPosition | null {
 
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (legacyMap == null) return null;
         return this.freeze
             ? (this.freeze.getSelectionPosition() ?? legacyMap.position)
@@ -644,7 +940,7 @@ class Map {
     createGeodata(): unknown {
 
         this.assertAlive();
-        return this.core_.map?.createGeodata() ?? null;
+        return this.map?.createGeodata() ?? null;
     }
 
     /**
@@ -656,7 +952,7 @@ class Map {
     addFreeLayer(id: string, layer: unknown): void {
 
         this.assertAlive();
-        this.core_.map?.addFreeLayer(id, layer);
+        this.map?.addFreeLayer(id, layer);
     }
 
     /**
@@ -667,7 +963,7 @@ class Map {
     removeFreeLayer(id: string): void {
 
         this.assertAlive();
-        this.core_.map?.removeFreeLayer(id);
+        this.map?.removeFreeLayer(id);
     }
 
     // -----------------------------------------------------------------
@@ -744,8 +1040,7 @@ class Map {
         // deliver pending config changes before any frame work
         this.configStore_.flush();
 
-        const core = this.core_;
-        const legacyMap = core.map;
+        const legacyMap = this.map;
 
         // No map loaded (async style load or post-`destroyMap`).
         if (legacyMap == null) {
@@ -761,7 +1056,7 @@ class Map {
             this.mapLoadedFired_ = true;
             this.bus_.emit('map-loaded',
                 { browserOptions: legacyMap.browserOptions ?? {} });
-            core.markReady_({ browserOptions: legacyMap.browserOptions });
+            this.markReady_();
         }
 
         // Reference frame still loading: only let the loader make
@@ -799,7 +1094,7 @@ class Map {
         camera.lastTerrainHeight = camera.terrainHeight;
 
         // Canvas size change forces a redraw.
-        if (core.renderer.ensureCanvasRenderTarget()) {
+        if (this.renderer.ensureCanvasRenderTarget()) {
             legacyMap.dirty = true;
         }
 
@@ -813,12 +1108,8 @@ class Map {
         if (dirty) {
 
             if (legacyMap.dirty) {
-                /* `mapRefreshCycles` always resolves to a number at
-                 * runtime (Core ctor seeds it with 3); the cast is
-                 * needed because the CoreConfig index signature
-                 * widens reads to the full union. */
                 legacyMap.dirtyCountdown =
-                    (legacyMap.config.mapRefreshCycles ?? 3) as number;
+                    legacyMap.config.mapRefreshCycles;
             } else {
                 legacyMap.dirtyCountdown--;
             }
@@ -862,7 +1153,7 @@ class Map {
 
         if (!this.frameProfiler_) {
 
-            this.frameProfiler_ = new FrameProfiler(this.core_.renderer.gpu);
+            this.frameProfiler_ = new FrameProfiler(this.renderer.gpu);
         }
 
         return this.frameProfiler_;
@@ -878,7 +1169,7 @@ class Map {
 
         if ((this.profileWrite_++ % 15) !== 0) return;
 
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (!legacyMap) return;
 
         const profile = this.frameProfiler_!.result();
@@ -907,8 +1198,8 @@ class Map {
      */
     draw(): void {
 
-        const legacyMap = this.core_.map!;
-        const renderer = this.core_.renderer;
+        const legacyMap = this.map!;
+        const renderer = this.renderer;
         const mapDraw = legacyMap.draw;
         const gpu = renderer.gpu;
         const channel = this.drawChannel;
@@ -1006,7 +1297,7 @@ class Map {
         } // if (this.overrides.drawEarth)
 
         // draw freeze frustum, if applicable
-        const inspector = this.core_.inspector;
+        const inspector = this.inspector;
         if (channel === 'color'
                 && inspector
                 && inspector.hasFreezeFrustum()) {
@@ -1045,7 +1336,7 @@ class Map {
     ): Promise<void> {
 
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, this.bus_);
+            this, path, this.config, this.bus_);
         legacyMap.outerMap = this;
 
         legacyMap.setLoaderParams(null);
@@ -1076,7 +1367,7 @@ class Map {
         this.freeze = new FreezeCameraState(legacyMap);
         legacyMap.draw.setupDetailDegradation();  // probably not needed
 
-        this.core_.map = legacyMap;
+        this.map = legacyMap;
     }
 
     private createMapFromMapConfig(
@@ -1085,7 +1376,7 @@ class Map {
     ): void {
 
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, this.bus_);
+            this, path, this.config, this.bus_);
         legacyMap.outerMap = this;
 
         legacyMap.setLoaderParams(mapConfig);
@@ -1131,7 +1422,7 @@ class Map {
                 legacyMap);
         }
 
-        this.core_.map = legacyMap;
+        this.map = legacyMap;
     }
 
     // -----------------------------------------------------------------
@@ -1149,7 +1440,7 @@ class Map {
     /** Resets map-owned per-frame state. Called at the top of `draw`. */
     private initFrame(): void {
 
-        const legacyMap = this.core_.map!;
+        const legacyMap = this.map!;
 
         if (this.drawChannel !== 'depth') {
 
@@ -1173,7 +1464,7 @@ class Map {
 
     private overlayContext(): OverlayContext {
 
-        return { renderer: this.core_.renderer };
+        return { renderer: this.renderer };
     }
 
     /**
@@ -1204,8 +1495,8 @@ class Map {
 
     /**
      * Fires `onRemove` for every added overlay in registration-reverse
-     * order. Called from `[Symbol.dispose]` before tearing down `Core`
-     * so overlays can still draw through the live renderer.
+     * order. Called from `[Symbol.dispose]` before tearing down the
+     * renderer so overlays can still draw through it.
      */
     private disposeOverlays(): void {
 
@@ -1243,7 +1534,7 @@ class Map {
     private drawTerrainRecursive(): void {
 
         const resolution = resolveMaskResolution(
-            this.core_.map?.config.mapTraversalMaskResolution);
+            this.map?.config.mapTraversalMaskResolution);
 
         if (this.terrainMaskPool_
                 && this.terrainMaskPool_.resolution !== resolution) {
@@ -1255,7 +1546,7 @@ class Map {
 
         if (!this.terrainMaskPool_) {
             this.terrainMaskPool_ = new DrawTraversalMaskPool(
-                this.core_.renderer, resolution);
+                this.renderer, resolution);
         }
 
         const trees = this.resolveSurfaceTrees();
@@ -1296,7 +1587,7 @@ class Map {
      */
     surfaceList(): MapSurface[] {
 
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (!legacyMap) return [];
 
         let surfaces: MapSurface[];
@@ -1343,7 +1634,7 @@ class Map {
      */
     private resolveSurfaceTrees(): MapSurfaceTree[] {
 
-        const legacyMap = this.core_.map;
+        const legacyMap = this.map;
         if (!legacyMap) return [];
 
         const cache = this.surfaceTrees_;
@@ -1388,38 +1679,17 @@ class Map {
     // -----------------------------------------------------------------
 
     /**
-     * Migration shim exposing legacy JS internals to code that has
-     * not been promoted to the `Map` public surface yet.
-     *
-     * @internal
-     * @deprecated Access internals through `Map` public methods
-     *   instead. This getter goes away when `LegacyMap` is fully
-     *   absorbed into `Map`.
-     */
-    get core(): Core {
-
-        __DEV__ && utils.warnOnce(
-            '[Map] .core is a migration shim and will be removed. '
-            + 'Access internals through Map public methods instead.',
-            1,
-        );
-        this.assertAlive();
-        return this.core_;
-    }
-
-    /**
      * The underlying legacy map, or `null` before a map has loaded.
      *
      * @internal Internal browser infrastructure (inspector, control
-     *   modes) still drives the full legacy map surface. Unlike `.core`,
-     *   this does not warn, because these call sites are migration
-     *   scaffolding rather than external consumers. Goes away with the
-     *   legacy map.
+     *   modes) still drives the full legacy map surface. These call
+     *   sites are migration scaffolding rather than external
+     *   consumers. Goes away with the legacy map.
      */
     get legacyMap(): LegacyMap | null {
 
         this.assertAlive();
-        return this.core_.map;
+        return this.map;
     }
 }
 
@@ -1438,7 +1708,7 @@ type OverlayEntry = {
  * Resolves the configured mask resolution. The config setter enforces
  * power-of-two and bounds; this only guards startup-race / undefined.
  */
-function resolveMaskResolution(value: CoreConfig[string]): number {
+function resolveMaskResolution(value: number | undefined): number {
 
     return typeof value === 'number' ? value : 256;
 }
@@ -1450,7 +1720,7 @@ function resolveMaskResolution(value: CoreConfig[string]): number {
  * Same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
 
-    export type CoreConfig = import('./types').CoreConfig;
+    export type ViewerConfig = import('./viewer-config').ViewerConfig;
     export type ViewerEventMap = import('./types').ViewerEventMap;
     export type HeightMode = import('./types').HeightMode;
     export type Lod = import('./types').Lod;

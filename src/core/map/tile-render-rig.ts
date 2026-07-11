@@ -10,7 +10,7 @@ import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
 import GpuTexture from '../renderer/gpu/texture';
-import type { CoreConfig } from '../types';
+import type { ViewerConfig } from '../viewer-config';
 import Atmosphere from './atmosphere';
 import { grayPngDecodeAvailable } from '../utils/gray-png';
 import MapStyle from './style';
@@ -50,7 +50,7 @@ import * as vts from '../constants';
 
 export class TileRenderRig {
 
-    private readonly config!: CoreConfig;
+    private readonly config!: Readonly<ViewerConfig>;
     private readonly tile!: MapSurfaceTile;
     private readonly renderer!: Renderer;
 
@@ -102,7 +102,8 @@ export class TileRenderRig {
      */
 
     constructor(submeshIndex: number, style: MapStyle.StyleSpecification,
-        tile: MapSurfaceTile, renderer: Renderer, config: CoreConfig) {
+        tile: MapSurfaceTile, renderer: Renderer,
+        config: Readonly<ViewerConfig>) {
 
         this.tile = tile;
         this.renderer = renderer;
