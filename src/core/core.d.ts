@@ -8,6 +8,8 @@ import type Inspector from './inspector/inspector';
 import type Renderer from './renderer/renderer';
 import type Map from './map';
 import type EventBus from './event-bus';
+import type ConfigStore from './config-store';
+import type { ViewerConfig } from './viewer-config';
 import type { CoreConfig, ViewerEventMap } from './types';
 
 
@@ -28,6 +30,7 @@ export class Core {
         element: HTMLElement,
         config: Partial<CoreConfig>,
         bus: EventBus<ViewerEventMap>,
+        configStore: ConfigStore<ViewerConfig>,
     );
 
     /**
@@ -45,6 +48,18 @@ export class Core {
      * it. Disappears when those emit sites move out of `Core`.
      */
     bus: EventBus<ViewerEventMap>;
+
+    /**
+     * Runtime config store owned by the browser layer. `config`
+     * aliases its live value map.
+     */
+    configStore: ConfigStore<ViewerConfig>;
+
+    /**
+     * The caller's raw options, kept so mapConfig `browserOptions`
+     * never override explicit user configuration.
+     */
+    initialConfig: Record<string, unknown>;
 
     config: CoreConfig;
     killed: boolean;
@@ -66,9 +81,6 @@ export class Core {
     destroy(): void;
     destroyMap(): void;
     loadMap(path: string): void;
-
-    setRendererConfigParam(key: string, value: unknown): void;
-    getRendererConfigParam(key: string): unknown;
 
     /**
      * Resolves the typed `Map.ready` Promise. Called by `Map.tick`

@@ -1,14 +1,13 @@
 import Inspector from './inspector/inspector';
 import Renderer from './renderer/renderer';
 
-import MapPosition from './map/position';
+import { normalizeConfigPatch } from './viewer-config';
 import * as utils from './utils/utils';
 import {utilsUrl} from './utils/url';
 import {platform} from './utils/platform';
 import getVersion from './version.js';
 
-var Core = function(element, config, bus) {
-    var lang = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
+var Core = function(element, config, bus, configStore) {
     this.killed = false;
 
     /* Event bus owned by the typed `Map`. Temporary wiring: `Core`
@@ -20,6 +19,21 @@ var Core = function(element, config, bus) {
      *     import('./types').ViewerEventMap>}
      */
     this.bus = bus;
+
+    /* Runtime config store owned by the browser layer, already seeded
+     * with the caller's normalized options. `this.config` aliases its
+     * live value map; the legacy readers across core, map, and
+     * renderer code share that one object.
+     *
+     * @type {import('./config-store').default<
+     *     import('./viewer-config').ViewerConfig>}
+     */
+    this.configStore = configStore;
+    this.config = configStore.values;
+
+    // the caller's raw options; consulted so mapConfig browserOptions
+    // never override explicit user configuration
+    this.initialConfig = config || {};
 
     /* Back-pointer to the typed `Map` wrapper. Set by the `Map`
      * constructor immediately after `new Core(...)`, so it is non-null
@@ -36,121 +50,9 @@ var Core = function(element, config, bus) {
     var self = this;
     this.ready = new Promise(function(resolve) { self._resolveReady = resolve; });
 
-    this.config = {
-        map : null,
-        mapCache : 1100, //old value 900
-        mapGPUCache : 600, //old value 500, 360
-        mapMetatileCache : 60,
-        mapTexelSizeFit : 1.1,
-        mapMaxHiresLodLevels : 2,
-        mapDownloadThreads : 20, // 20,
-        mapMaxProcessingTime : 10, //1000*20,
-        mapMaxGeodataProcessingTime : 10,
-        mapMobileMode : false,
-        mapMobileModeAutodect : true,
-        mapMobileDetailDegradation : 0,
-        mapNavSamplesPerViewExtent : 4,
-        mapIgnoreNavtiles : false,
-        mapAllowHires : true,
-        mapAllowLowres : true,
-        mapAllowSmartSwitching : true,
-        mapDisableCulling : false,
-        mapPreciseCulling : true,
-        mapHeightLodBlend : true,
-        mapHeightNodeBlend : true,
-        mapBasicTileSequence : false,
-        mapPreciseBBoxTest : false,
-        mapPreciseDistanceTest : false,
-        mapForceMetatileV3 : false,
-        mapSmartNodeParsing : true,
-        mapLoadErrorRetryTime : 3000,
-        mapLoadErrorMaxRetryCount : 3,
-        mapSplitMargin : 0.0025, // used for topdown load mode
-        mapTraversalMaskResolution : 256,
-        mapTraversalMaskThreshold : 0.5, // fallback-coverage discard cutoff
-        mapTraversalMaskErosion : 1, // 0 disabled, 1 = protected 3x3
-        mapFallbackCadence : 3, // 1 = topdown, large = fitonly
-        mapStructuralDescentBrake : 0.25,
-        mapSplitSpace : null, // used octant spliting demo
-        mapGridMode : 'linear', // 'flat'
-        mapGridSurrogatez : false,
-        mapGridTextureLevel: -1,
-        mapGridTextureLayer: null, // 'bing",
-        mapXhrImageLoad : true,
-        mapRefreshCycles : 3,
-        mapSoftViewSwitch : true,
-        mapSortHysteresis : true,
-        mapHysteresisWait : 0,
-        mapSeparateLoader : true,
-        mapGeodataBinaryLoad : true,
-        mapPackLoaderEvents : true,
-        mapParseMeshInWorker : true,
-        mapPackGeodataEvents : true,
-        mapCheckTextureSize : false,
-        mapNormalizeOctantTexelSize : true,
-
-        mapFeatureStickMode : [1,1],
-
-        map16bitMeshes : true,
-        mapIndexBuffers : true,
-        mapAsyncImageDecode : true,
-
-        mapFeatureGridCells : 31,
-        mapFeaturesPerSquareInch : 0.25, //0.6614,
-        mapFeaturesSortByTop : false,
-
-        mapFeaturesReduceMode : 'scr-count7',
-        mapFeaturesReduceParams : [ 0.050000000000000003, 0.17000000000000001, 11, 1, 1000 ],
-        mapFeaturesReduceFactor : 1,
-        mapFeaturesReduceFactor2 : 1,
-
-        mapExposeFpsToWindow: false,
-        mapProfileGpu: false, // opt-in GPU timer queries in FrameProfiler
-
-        mapDMapSize : 512,
-        mapDMapMode : 3, // changing this to anything below 3 with scr-count7 is a performance showstopper
-        mapDMapCopyIntervalMs : 1500, // minimum interval between expensive hitmap copy reads - throttling
-        mapDMapDilatePx : 2, // depth map dilation on sampling
-
-        mapDegradeHorizon : false,
-        mapDegradeHorizonParams : [1, 1500, 97500, 3500], //[1, 3000, 15000, 7000],
-        mapDefaultFont : 'https://cdn.tspl.re/libs/vtsjs/fonts/noto-extended/1.0.0/noto.fnt',
-        //mapDefaultFont : '../fonts/basic.fnt',
-        mapNoTextures: false,
-        mapMetricUnits : !(lang == 'en' || lang.indexOf('en-') == 0),
-        mapLanguage : lang,
-        mapForceFrameTime: 0,
-        mapLogGeodataStyles: true,
-        mapBenevolentMargins: false,
-        mapLabelFreeMargins: [30, 30, 30, 30],
-        mapShadingLambertian: true,
-        mapShadingSlope: false,
-        mapShadingAspect: false,
-        mapFlagLighting: true,
-        mapFlagNormalMaps: true,
-        mapFlagDiffuseMaps: true,
-        mapFlagSpecularMaps: true,
-        mapFlagBumpMaps: true,
-        mapFlagAtmosphere: true,
-        mapFlagShadows: true,
-        mapFlagLabels: true,
-        transformRequest: null,
-
-        rendererAnisotropic : 0,
-        rendererAntialiasing : true,
-        rendererAllowScreenshots : false,
-        inspector : true
-    };
-
-    this.configStorage = {};
     this.element = element;
-    //this.coreInterface = coreInterface;
-    //this.options = options;
     this.xhrParams = {};
     this.inspector = (Inspector != null) ? (new Inspector(this)) : null;
-
-    this.setConfigParams(config);
-    this.config.style = config.style;
 
     this.map = null;
     this.renderer = new Renderer(this, this.element, this.config);
@@ -212,11 +114,9 @@ Core.prototype.loadMapFromStyle = async function(style) {
     // create map
     await this.outerMap.createMapFromStyle(style_, path);
 
-    this.setConfigParams(this.configStorage);
-
     if (this.config.position) {
         this.map.setPosition(this.config.position);
-        this.config.position = null;
+        this.configStore.set({ position: null });
     }
 
     // initialize ubos
@@ -248,17 +148,16 @@ Core.prototype.loadMap = function(path) {
         this.bus.emit('map-mapconfig-loaded', data);
 
         this.outerMap.createMapFromMapConfig(data, path);
-        this.setConfigParams(this.map.browserOptions, true);
-        this.setConfigParams(this.configStorage);
+        this.applyBrowserOptions(this.map.browserOptions);
 
         if (this.config.position) {
             this.map.setPosition(this.config.position);
-            this.config.position = null;
+            this.configStore.set({ position: null });
         }
 
         if (this.config.view) {
             this.map.setView(this.config.view);
-            this.config.view = null;
+            this.configStore.set({ view: null });
         }
 
         this.renderer.createBuffers();
@@ -281,6 +180,28 @@ Core.prototype.loadMap = function(path) {
     }).bind(this);
 
     onLoadMapconfig(path);
+};
+
+
+/* Writes the loaded mapConfig's browserOptions to the config store.
+ * Keys the caller configured explicitly are skipped, so mapConfig
+ * options never override user settings. Position and view flow into
+ * the store and are consumed by the load path right after this call. */
+Core.prototype.applyBrowserOptions = function(options) {
+    if (typeof options !== 'object' || options === null) {
+        return;
+    }
+
+    for (var key in options) {
+        if (typeof this.initialConfig[key] !== 'undefined') {
+            continue;
+        }
+
+        var patch = normalizeConfigPatch(key, options[key]);
+        if (patch) {
+            this.configStore.set(patch);
+        }
+    }
 };
 
 
@@ -318,17 +239,6 @@ Core.prototype.getRenderer = function() {
 };
 
 
-
-
-
-Core.prototype.getOption = function(/*key, value*/) {
-};
-
-
-Core.prototype.setOption = function(/*key, value*/) {
-};
-
-
 Core.prototype.markDirty = function() {
     if (this.map != null) {
         this.map.markDirty();
@@ -356,133 +266,6 @@ Core.prototype.markReady_ = function(payload) {
     if (this._resolveReady) this._resolveReady(payload);
 };
 
-
-Core.prototype.setConfigParams = function(params, solveStorage) {
-    if (typeof params === 'object' && params !== null) {
-        for (var key in params) {
-            this.setConfigParam(key, params[key], solveStorage);
-        }
-    }
-};
-
-
-Core.prototype.setConfigParam = function(key, value, solveStorage) {
-    switch(key) {
-    case 'pos':
-    case 'position':
-    case 'view':
-
-        if (this.getMap()) {
-            if (key == 'view') {
-                this.getMap().setView(value);
-            } else {
-                this.getMap().setPosition(new MapPosition(value));
-            }
-            if (this.configStorage[key]) {
-                delete this.configStorage[key];
-            }
-        } else {
-            this.configStorage[key] = value;
-        }
-        break;
-
-    case 'map':
-        this.config.map = utils.validateString(value, null); break;
-    case 'style':
-        this.config.style = utils.validateString(value, null); break;
-    case 'mapShadingLambertian':
-        this.config.mapShadingLambertian = utils.validateBool(value, true); break;
-    case 'mapShadingSlope':
-        this.config.mapShadingSlope = utils.validateBool(value, false); break;
-    case 'mapShadingAspect':
-        this.config.mapShadingAspect = utils.validateBool(value, false); break;
-    case 'mapDMapSize':
-        this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER); break;
-    case 'mapDMapMode':
-        this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER); break;
-    case 'mapDMapCopyIntervalMs':
-        this.config.mapDMapCopyIntervalMs = utils.validateNumber(value, 0, Number.MAXINTEGER); break;
-    case 'mapDMapDilatePx':
-        this.config.mapDMapDilatePx = utils.validateNumber(value, 0, 8); break;
-    case 'map16bitMeshes':
-        this.config.map16bitMeshes = utils.validateBool(value, false); break;
-    case 'mapLabelFreeMargins':
-        this.config.mapLabelFreeMargins = utils.validateNumberArray(value, 4, [0,0,0,0], [Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER,Number.MAXINTEGER], [0,0,0,0]); break;
-    case 'inspector':
-        this.config.inspector = utils.validateBool(value, true); break;
-    case 'transformRequest':
-        this.config.transformRequest = typeof value === 'function'
-            ? value
-            : null;
-        break;
-    default:
-        if (key.indexOf('map') == 0) {
-
-            if (!solveStorage || (typeof this.configStorage[key] === 'undefined')) {
-                this.configStorage[key] = value;
-            }
-
-            if (this.getMap() != null) {
-                this.getMap().setConfigParam(key, value);
-            }
-        }
-
-        if (key.indexOf('renderer') == 0) {
-            if (!solveStorage || (typeof this.configStorage[key] === 'undefined')) {
-                this.configStorage[key] = value;
-            }
-
-            this.setRendererConfigParam(key, value);
-        }
-
-        if (key.indexOf('debug') == 0) {
-            this.configStorage[key] = value;
-            if (this.getMap() != null) {
-                this.inspector.setParameter(key, value);
-            }
-        }
-
-        break;
-    }
-
-};
-
-
-Core.prototype.getConfigParam = function(key) {
-    if (key == 'map') {
-        return this.config.map;
-    } else if (key == 'inspector') {
-        return this.config.inspector;
-    } else {
-        if (key.indexOf('map') == 0 && this.getMap() != null) {
-            return this.getMap().getConfigParam(key);
-        }
-
-        if (key.indexOf('renderer') == 0) {
-            return this.getRendererConfigParam(key);
-        }
-    }
-};
-
-
-Core.prototype.setRendererConfigParam = function(key, value) {
-    switch (key) {
-    case 'rendererAnisotropic':        this.config.rendererAnisotropic = utils.validateNumber(value, -1, 2048, 0); if (this.rederer) this.rederer.gpu.setAniso(this.config.rendererAnisotropic); break;
-    case 'rendererAntialiasing':       this.config.rendererAntialiasing = utils.validateBool(value, true); break;
-    case 'rendererAllowScreenshots':   this.config.rendererAllowScreenshots = utils.validateBool(value, false); break;
-    case 'rendererCssDpi':             this.config.rendererCssDpi = utils.validateNumber(value, 1, 1200, 96); break;
-    }
-};
-
-
-Core.prototype.getRendererConfigParam = function(key) {
-    switch (key) {
-    case 'rendererAnisotropic':        return this.config.rendererAnisotropic;
-    case 'rendererAntialiasing':       return this.config.rendererAntialiasing;
-    case 'rendererAllowScreenshots':   return this.config.rendererAllowScreenshots;
-    case 'rendererCssDpi':             return this.config.rendererCssDpi;
-    }
-};
 
 /*
 string getCoreVersion()

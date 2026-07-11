@@ -19,6 +19,8 @@ import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
 import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../event-bus';
+import type ConfigStore from '../config-store';
+import type { ViewerConfig } from '../viewer-config';
 import type { CoreConfig, ViewerEventMap } from '../types';
 import { TextureBlend } from './textureblend';
 
@@ -373,6 +375,9 @@ export class Renderer {
     draw: any = null;
     nmblender!: TextureBlend;
 
+    /** Unsubscribes the renderer-key config watcher on dispose. */
+    private unwatchConfig_!: () => void;
+
     disposed_ = false;
 
 
@@ -435,6 +440,16 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
     this.nmblender = new TextureBlend(this.gpu.gl, 256, 256);
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
+
+    // renderer key changes require a redraw; the values themselves
+    // are read from the shared config object
+    this.unwatchConfig_ = core.configStore.watch(
+        [
+            'rendererAnisotropic', 'rendererAntialiasing',
+            'rendererAllowScreenshots', 'rendererCssDpi',
+        ],
+        () => { this.core.map?.markDirty(); },
+    );
 };
 
 
@@ -1682,28 +1697,6 @@ getScaleDenominator(extent: number): number {
     return this.currentScaleDenominator(extent);
 }
 
-setConfigParams(params: Record<string, unknown>) {
-
-    if (!params || typeof params !== 'object') {
-        return;
-    }
-
-    for (const [key, value] of Object.entries(params)) {
-        this.setConfigParam(key, value);
-    }
-}
-
-setConfigParam(key: string, value: unknown) {
-
-    this.core.setRendererConfigParam(key, value);
-    this.core.map?.markDirty();
-}
-
-getConfigParam(key: string) {
-
-    return this.core.getRendererConfigParam(key);
-}
-
 /** Compute scale denominator from a view extent value. */
 private currentScaleDenominator(extent: number): number {
 
@@ -2573,6 +2566,8 @@ drawLineString(options: any): void {
     if (this.disposed_) return;
     this.disposed_ = true;
 
+    this.unwatchConfig_();
+
     this.heightmapTexture?.[Symbol.dispose]();
     this.hitmapTexture?.[Symbol.dispose]();
     this.geoHitmapTexture?.[Symbol.dispose]();
@@ -2664,9 +2659,7 @@ type Core = {
     map: LegacyMap;
     contextLost: boolean;
     bus: EventBus<ViewerEventMap>;
-
-    setRendererConfigParam(key: string, value: unknown): void;
-    getRendererConfigParam(key: string): unknown;
+    configStore: ConfigStore<ViewerConfig>;
 
 }
 

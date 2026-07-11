@@ -346,7 +346,7 @@ class Viewer {
     setParam(key: string, value: MapRuntimeOptionValue): this {
 
         this.assertAlive();
-        this._browser.setConfigParam(key, value, true);
+        this._browser.setConfigParam(key, value);
         return this;
     }
 
@@ -358,7 +358,7 @@ class Viewer {
     getParam(key: string): MapRuntimeOptionValue {
 
         this.assertAlive();
-        return this._browser.getConfigParam(key);
+        return this._browser.getConfigParam(key) as MapRuntimeOptionValue;
     }
 
     // -------------------------------------------------------------------------

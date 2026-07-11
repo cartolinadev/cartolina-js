@@ -1,6 +1,7 @@
 
 import type LegacyMap from '../map/map';
 
+import { normalizeConfigPatch } from '../viewer-config';
 import MapRefFrame from '../map/refframe';
 import MapSrs from '../map/srs';
 import MapBody from '../map/body';
@@ -598,9 +599,14 @@ export class MapStyle {
         }
 
         // options
-        if (styleSpec.config)
-            for (const [key, value] of Object.entries(styleSpec.config))
-                map.setConfigParam(key, value);
+        if (styleSpec.config) {
+
+            for (const [key, value] of Object.entries(styleSpec.config)) {
+
+                const patch = normalizeConfigPatch(key, value);
+                if (patch) map.core.configStore.set(patch);
+            }
+        }
 
         // done
         //__DEV__ && console.log(map);

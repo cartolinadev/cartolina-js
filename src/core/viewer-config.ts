@@ -409,6 +409,34 @@ export function normalizeConfigValue<K extends keyof ViewerConfig>(
 }
 
 
+/**
+ * Builds the store patch for one public config key: alias
+ * resolution, value normalization, and the coupled-key expansion
+ * (`mapNoTextures` also drives `mapDisableCulling`).
+ *
+ * @returns the patch to pass to `ConfigStore.set`, or `null` when
+ *   the key is not catalogued
+ */
+export function normalizeConfigPatch(
+    key: string,
+    value: unknown,
+): Partial<ViewerConfig> | null {
+
+    const canonical = canonicalConfigKey(key);
+    if (!canonical) return null;
+
+    const patch: Partial<ViewerConfig> = {
+        [canonical]: normalizeConfigValue(canonical, value),
+    };
+
+    // legacy coupling: disabling textures also disables culling
+    if (canonical === 'mapNoTextures')
+        patch.mapDisableCulling = patch.mapNoTextures;
+
+    return patch;
+}
+
+
 // Local helpers for the normalizer table below.
 
 const MAX = Number.MAX_SAFE_INTEGER;

@@ -29,6 +29,25 @@ Implementing [rfc-config-store.md](rfc-config-store.md) on
   so the shim's store write and the still-running legacy switch feed
   the same object and the old routing stays intact. Nothing watches
   yet.
+- Steps 4–5 (one commit): all `setConfigParam` switches deleted. The
+  store's live value map is now the one shared config object —
+  `Core.config`, `LegacyMap.config`, `Renderer.config`, and
+  `Browser.config` all alias it, so every legacy reader keeps
+  working unchanged. Value propagation is solely
+  `normalizeConfigPatch()` + `store.set()`; side effects moved to
+  `watch()` groups: LegacyMap (`setupCache`, `setupMobileMode`,
+  `markDirty` keys; unsubscribed in `kill()`), Renderer (`markDirty`
+  on renderer keys), Browser (UI panel refresh per control key,
+  autopilot on `autoRotate`/`autoPan`), Inspector (debug keys, plus
+  re-apply on `map-loaded`). `Map.tick` flushes the store at frame
+  start. `Core.configStorage` is gone: LegacyMap reads current
+  values at construction; mapConfig `browserOptions` apply through
+  `Core.applyBrowserOptions()`, which skips keys the caller set
+  (`Core.initialConfig`); `setLoaderParams` keeps the same
+  precedence for the five loader keys. `style.ts` writes style
+  `config` sections through the store. Verified: tsc clean, 22 unit
+  tests, three screenshot URLs, gesture events, and a live
+  `setParam('mapFlagLighting')` toggle redrawing the scene.
 
 ## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
 

@@ -7,6 +7,8 @@ import Atmosphere from './map/atmosphere';
 import type Renderer from './renderer/renderer';
 import MapPosition from './map/position';
 import EventBus from './event-bus';
+import type ConfigStore from './config-store';
+import type { ViewerConfig } from './viewer-config';
 import type {
     CoreConfig,
     HeightMode,
@@ -71,6 +73,14 @@ class Map {
      * construction; they publish through it directly.
      */
     private bus_: EventBus<ViewerEventMap> = new EventBus();
+
+    /**
+     * The runtime config store. Owned by `Browser`, which seeds it
+     * with the caller's options before constructing this `Map`;
+     * `Map.tick` flushes it at the start of every frame so watchers
+     * reconfigure before the draw.
+     */
+    private configStore_: ConfigStore<ViewerConfig>;
 
     /**
      * Runtime rendering overrides: diagnostic draw flags and per-frame
@@ -150,10 +160,17 @@ class Map {
     /**
      * @param element canvas element to render into
      * @param config map configuration
+     * @param configStore runtime config store, already seeded with
+     *   the caller's normalized options
      */
-    constructor(element: HTMLElement, config: Partial<CoreConfig>) {
+    constructor(
+        element: HTMLElement,
+        config: Partial<CoreConfig>,
+        configStore: ConfigStore<ViewerConfig>,
+    ) {
 
-        this.core_ = new Core(element, config, this.bus_);
+        this.configStore_ = configStore;
+        this.core_ = new Core(element, config, this.bus_, configStore);
         this.core_.outerMap = this;
     }
 
@@ -724,6 +741,9 @@ class Map {
 
         if (this.disposed_) return;
 
+        // deliver pending config changes before any frame work
+        this.configStore_.flush();
+
         const core = this.core_;
         const legacyMap = core.map;
 
@@ -1024,12 +1044,11 @@ class Map {
         path: string,
     ): Promise<void> {
 
-        const configStorage = (this.core_ as any).configStorage;
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, configStorage, this.bus_);
+            this.core_, path, this.core_.config, this.bus_);
         legacyMap.outerMap = this;
 
-        legacyMap.setLoaderParams(null, configStorage);
+        legacyMap.setLoaderParams(null);
 
         // load style
         await MapStyle.loadStyle(legacyMap,
@@ -1065,12 +1084,11 @@ class Map {
         path: string,
     ): void {
 
-        const configStorage = (this.core_ as any).configStorage;
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, configStorage, this.bus_);
+            this.core_, path, this.core_.config, this.bus_);
         legacyMap.outerMap = this;
 
-        legacyMap.setLoaderParams(mapConfig, configStorage);
+        legacyMap.setLoaderParams(mapConfig);
 
         // most of initialization happens here
         const mapCfg = new MapConfig(legacyMap, mapConfig);

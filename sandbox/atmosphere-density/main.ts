@@ -9,6 +9,8 @@
 
 import {Core} from '../../src/core/core.js';
 import EventBus from '../../src/core/event-bus';
+import ConfigStore from '../../src/core/config-store';
+import {defaultViewerConfig} from '../../src/core/viewer-config';
 import Atmosphere from '../../src/core/map/atmosphere';
 
 const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
@@ -94,7 +96,10 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   div.style.width = '10px';
   div.style.height = '10px';
 
-  const core = new Core(div, {'map': MAP_CONFIG_URL}, new EventBus());
+  const store = new ConfigStore(defaultViewerConfig());
+  store.set({map: MAP_CONFIG_URL});
+  const core =
+      new Core(div, {'map': MAP_CONFIG_URL}, new EventBus(), store);
   await core.ready;
   console.log('Core ready');
 

@@ -32,6 +32,10 @@ var Inspector = function(core) {
         this.input.diagnosticMode = true;
         this.enableInspector();
     }
+
+    // debug* values apply once a map is loaded and on live changes
+    core.bus.on('map-loaded', this.applyDebugParams.bind(this));
+    core.configStore.watch(debugKeys, this.applyDebugParams.bind(this));
 };
 
 
@@ -60,6 +64,30 @@ Inspector.prototype.enableInspector = function() {
 
 Inspector.prototype.setParameter = function(key, value) {
     this.input.setParameter(key, value);
+};
+
+
+// the debug* keys routed to this inspector
+var debugKeys = [
+    'debugMode', 'debugBBox', 'debugLBox', 'debugNoEarth',
+    'debugGridCells', 'debugRadar'
+];
+
+
+/* Applies every non-null debug* value from the config store to the
+ * loaded map. Called when a map finishes loading and whenever a
+ * debug* key changes; no-op while no map is loaded. */
+Inspector.prototype.applyDebugParams = function() {
+    if (!this.core.getMap()) {
+        return;
+    }
+
+    for (var i = 0; i < debugKeys.length; i++) {
+        var value = this.core.configStore.get(debugKeys[i]);
+        if (value != null) {
+            this.setParameter(debugKeys[i], value);
+        }
+    }
 };
 
 Inspector.prototype.addStyle = function(string) {

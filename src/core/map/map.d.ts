@@ -70,7 +70,6 @@ export default class Map {
         core: unknown,
         path: string,
         config: CoreConfig,
-        configStorage: unknown,
         bus: EventBus<ViewerEventMap>,
     );
 
@@ -173,8 +172,6 @@ export default class Map {
         ): NodeInformation | null;
     };
 
-    setConfigParam(key: string, value: unknown): void;
-
     setPosition(position: MapPosition | number[]): void;
     getPosition(): MapPosition;
     setView(view: string | Record<string, unknown>): void;
@@ -199,7 +196,7 @@ export default class Map {
      */
     tickDeferredEvents(): void;
 
-    setLoaderParams(mapConfig: unknown, configStorage: unknown): void;
+    setLoaderParams(mapConfig: unknown): void;
 
     /** True when the navigation SRS is geocentric (non-projected). */
     isGeocent: boolean;

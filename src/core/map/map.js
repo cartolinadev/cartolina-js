@@ -1,6 +1,7 @@
 
 import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
+import {normalizeConfigPatch} from '../viewer-config';
 import {platform} from '../utils/platform';
 import MapView from './view';
 import MapSurfaceTree from './surface-tree';
@@ -25,15 +26,38 @@ import MapSurface from './surface';
 import MapGeodataBuilder from './geodata-builder';
 
 
-var Map = function(core, path, config, configStorage, bus) {
+var Map = function(core, path, config, bus) {
 
+    // the store's live value map, shared with core and renderer;
+    // values arrive already normalized
     this.config = config || {};
-    this.setConfigParams(config);
     this.core = core;
 
     // event bus owned by the typed `Map`; geo-feature events publish
     // through it
     this.bus = bus;
+
+    // config watchers cover the side effects the removed
+    // setConfigParam switch used to run on live key changes;
+    // unsubscribed in kill()
+    this.configUnsubscribes = [
+        core.configStore.watch(
+            ['mapCache', 'mapGPUCache', 'mapMetatileCache'],
+            this.setupCache.bind(this)),
+        core.configStore.watch(
+            ['mapMobileMode'],
+            this.setupMobileMode.bind(this)),
+        core.configStore.watch(
+            [
+                'mapTraversalMaskThreshold', 'mapTraversalMaskErosion',
+                'mapStructuralDescentBrake', 'mapShadingLambertian',
+                'mapShadingSlope', 'mapShadingAspect', 'mapFlagLighting',
+                'mapFlagNormalMaps', 'mapFlagDiffuseMaps',
+                'mapFlagSpecularMaps', 'mapFlagBumpMaps',
+                'mapFlagAtmosphere', 'mapFlagShadows', 'mapFlagLabels',
+            ],
+            this.markDirty.bind(this)),
+    ];
     this.coreConfig = core.coreConfig;
     this.killed = false;
     this.config = config || {};
@@ -112,6 +136,11 @@ var Map = function(core, path, config, configStorage, bus) {
 
 Map.prototype.kill = function() {
     this.killed = true;
+
+    for (var i = 0; i < this.configUnsubscribes.length; i++) {
+        this.configUnsubscribes[i]();
+    }
+    this.configUnsubscribes = [];
 
     for (var key in this.freeLayers) {
         var layer = this.freeLayers[key];
@@ -1070,240 +1099,32 @@ Map.prototype.getGeodataSelection = function() {
 };
 
 
-Map.prototype.setLoaderParams = function(mapConfig, configStorage) {
-    var sources = [];
+Map.prototype.setLoaderParams = function(mapConfig) {
+    var options = (mapConfig && mapConfig['browserOptions']) || {};
+    var userConfig = this.core.initialConfig || {};
 
-    if (mapConfig && mapConfig['browserOptions']) {
-        sources.push(mapConfig['browserOptions']);
-    }
+    var loaderKeys = [
+        'mapSeparateLoader', 'mapGeodataBinaryLoad',
+        'mapPackLoaderEvents', 'mapParseMeshInWorker',
+        'mapPackGeodataEvents'
+    ];
 
-    if (configStorage) {
-        sources.push(configStorage);
-    }
+    for (var i = 0; i < loaderKeys.length; i++) {
+        var key = loaderKeys[i];
 
-    for (var i = 0, li = sources.length; i < li; i++) {
-        var source = sources[i];
-        for (var key in source) {
-            switch(key) {
-                case 'mapSeparateLoader':
-                case 'mapGeodataBinaryLoad':
-                case 'mapPackLoaderEvents':
-                case 'mapParseMeshInWorker':
-                case 'mapPackGeodataEvents':
-                    this.setConfigParam(key, source[key]);
-                    break;
-            }
+        if (typeof options[key] === 'undefined') {
+            continue;
         }
-    }
-};
 
-
-Map.prototype.setConfigParams = function(params) {
-    if (typeof params === 'object' && params !== null) {
-        for (var key in params) {
-            this.setConfigParam(key, params[key]);
+        // explicit user configuration wins over mapConfig options
+        if (typeof userConfig[key] !== 'undefined') {
+            continue;
         }
-    }
-};
 
-
-Map.prototype.setConfigParam = function(key, value) {
-    switch (key) {
-    case 'map':                           this.config.map = utils.validateString(value, null); break;
-    case 'mapCache':                      this.config.mapCache = utils.validateNumber(value, 10, Number.MAXINTEGER, 900); this.setupCache(); break;
-    case 'mapGPUCache':                   this.config.mapGPUCache = utils.validateNumber(value, 10, Number.MAXINTEGER, 360); this.setupCache(); break;
-    case 'mapMetatileCache':              this.config.mapMetatileCache = utils.validateNumber(value, 10, Number.MAXINTEGER, 60); this.setupCache(); break;
-    case 'mapTexelSizeFit':               this.config.mapTexelSizeFit = utils.validateNumber(value, 0.0001, Number.MAXINTEGER, 1.1); break;
-    case 'mapDownloadThreads':            this.config.mapDownloadThreads = utils.validateNumber(value, 1, Number.MAXINTEGER, 6); break;
-    case 'mapMaxProcessingTime':          this.config.mapMaxProcessingTime = utils.validateNumber(value, 1, Number.MAXINTEGER, 1000/20); break;
-    case 'mapMaxGeodataProcessingTime':   this.config.mapMaxGeodataProcessingTime = utils.validateNumber(value, 1, Number.MAXINTEGER, 10); break;
-    case 'mapMobileMode':                 this.config.mapMobileMode = utils.validateBool(value, false); this.setupMobileMode(); break;
-    case 'mapMobileModeAutodect':         this.config.mapMobileModeAutodect = utils.validateBool(value, false); break;
-    case 'mapMobileDetailDegradation':    this.config.mapMobileDetailDegradation = utils.validateNumber(value, 0, Number.MAXINTEGER, 2); break;
-    case 'mapNavSamplesPerViewExtent':    this.config.mapNavSamplesPerViewExtent = utils.validateNumber(value, 0.00000000001, Number.MAXINTEGER, 4); break;
-    case 'mapIgnoreNavtiles':             this.config.mapIgnoreNavtiles = utils.validateBool(value, false); break;
-    case 'mapAllowHires':                 this.config.mapAllowHires = utils.validateBool(value, true); break;
-    case 'mapAllowLowres':                this.config.mapAllowLowres = utils.validateBool(value, true); break;
-    case 'mapAllowSmartSwitching':        this.config.mapAllowSmartSwitching = utils.validateBool(value, true); break;
-    case 'mapDisableCulling':             this.config.mapDisableCulling = utils.validateBool(value, false); break;
-    case 'mapPreciseCulling':             this.config.mapPreciseCulling = utils.validateBool(value, false); break;
-    case 'mapHeightLodBlend':             this.config.mapHeightLodBlend = utils.validateBool(value, true); break;
-    case 'mapHeightNodeBlend':            this.config.mapHeightNodeBlend = utils.validateBool(value, true); break;
-    case 'mapBasicTileSequence':          this.config.mapBasicTileSequence = utils.validateBool(value, true); break;
-    case 'mapSmartNodeParsing':           this.config.mapSmartNodeParsing = utils.validateBool(value, true); break;
-    case 'mapXhrImageLoad':               this.config.mapXhrImageLoad = utils.validateBool(value, false); break;
-    case 'mapTraversalMaskResolution': {
-
-        // Mask textures must be power-of-two; fall back to the default
-        // when the supplied value would otherwise need silent rounding.
-        var resolution = utils.validateNumber(value, 16, 4096, 256);
-        var isPowerOfTwo = (resolution & (resolution - 1)) === 0;
-        this.config.mapTraversalMaskResolution =
-            isPowerOfTwo ? resolution : 256;
-        break;
-    }
-    case 'mapTraversalMaskThreshold':
-        this.config.mapTraversalMaskThreshold =
-            utils.validateNumber(value, 0, 1, 0.5);
-        this.markDirty();
-        break;
-    case 'mapTraversalMaskErosion':
-        this.config.mapTraversalMaskErosion =
-            utils.validateNumber(value, 0, 1, 1);
-        this.markDirty();
-        break;
-    case 'mapFallbackCadence':            this.config.mapFallbackCadence = utils.validateNumber(value, 1, Number.MAXINTEGER, 3); break;
-    case 'mapStructuralDescentBrake':
-        this.config.mapStructuralDescentBrake =
-            utils.validateNumber(value, 0, 1, 0.25);
-        this.markDirty();
-        break;
-    case 'mapGridMode':                   this.config.mapGridMode = utils.validateString(value, 'linear'); break;
-    case 'mapGridSurrogatez':             this.config.mapGridSurrogatez = utils.validateBool(value, false); break;
-    case 'mapGridTextureLevel':           this.config.mapGridTextureLevel = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, -1); break;
-    case 'mapGridTextureLayer':           this.config.mapGridTextureLayer = utils.validateString(value, ''); break;
-    case 'mapPreciseBBoxTest':            this.config.mapPreciseBBoxTest = utils.validateBool(value, true); break;
-    case 'mapPreciseDistanceTest':        this.config.mapPreciseDistanceTest = utils.validateBool(value, false); break;
-    case 'mapForceMetatileV3':            this.config.mapForceMetatileV3 = utils.validateBool(value, false); break;
-    case 'mapDegradeHorizon':             this.config.mapDegradeHorizon = utils.validateBool(value, true); break;
-    case 'mapDegradeHorizonParams':       this.config.mapDegradeHorizonParams = utils.validateNumberArray(value, 4, [0,1,1,1], [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE], [1, 3000, 15000, 7000]); break;
-    case 'mapRefreshCycles':              this.config.mapRefreshCycles = utils.validateNumber(value, 0, Number.MAXINTEGER, 3); break;
-    case 'mapDefaultFont':                this.config.mapDefaultFont = utils.validateString(value, ''); break;
-    case 'mapMetricUnits':                this.config.mapMetricUnits = utils.validateBool(value, true); break;
-    case 'mapShadingLambertian':         this.config.mapShadingLambertian = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapShadingSlope':              this.config.mapShadingSlope = utils.validateBool(value, false); this.markDirty(); break;
-    case 'mapShadingAspect':             this.config.mapShadingAspect = utils.validateBool(value, false); this.markDirty(); break;
-    case 'mapFlagLighting':              this.config.mapFlagLighting = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagNormalMaps':            this.config.mapFlagNormalMaps = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagDiffuseMaps':           this.config.mapFlagDiffuseMaps = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagSpecularMaps':          this.config.mapFlagSpecularMaps = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagBumpMaps':              this.config.mapFlagBumpMaps = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagAtmosphere':            this.config.mapFlagAtmosphere = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagShadows':               this.config.mapFlagShadows = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapFlagLabels':                this.config.mapFlagLabels = utils.validateBool(value, true); this.markDirty(); break;
-    case 'mapCollapseBumps':             this.config.mapCollapseBumps = utils.validateBool(value, true); break;
-    case 'mapLanguage':                   this.config.mapLanguage = utils.validateString(value, 'en'); break;
-    case 'mapNoTextures':                 this.config.mapNoTextures = this.config.mapDisableCulling = utils.validateBool(value, false); break;
-    case 'mapForceFrameTime':             this.config.mapForceFrameTime = utils.validateNumber(value, -1, Number.MAXINTEGER, 0); break;
-    case 'mapFeatureGridCells':           this.config.mapFeatureGridCells = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
-    case 'mapFeaturesPerSquareInch':      this.config.mapFeaturesPerSquareInch = utils.validateNumber(value, 0.000001, Number.MAXINTEGER, 0); break;
-    case 'mapFeaturesSortByTop':          this.config.mapFeaturesSortByTop = utils.validateBool(value, false); break;
-    case 'mapFeaturesReduceParams':       this.config.mapFeaturesReduceParams = value; break;
-    case 'mapLogGeodataStyles':           this.config.mapLogGeodataStyles = utils.validateBool(value, true); break;
-    case 'map16bitMeshes':                this.config.map16bitMeshes = utils.validateBool(value, false); break;
-    case 'mapIndexBuffers':               this.config.mapIndexBuffers = utils.validateBool(value, false); break;
-    case 'mapSoftViewSwitch':             this.config.mapSoftViewSwitch = utils.validateBool(value, true); break;
-    case 'mapAsyncImageDecode':           this.config.mapAsyncImageDecode = (utils.validateBool(value, false) && (typeof createImageBitmap !== 'undefined')) ? true : false; break;
-    case 'mapFeatureStickMode':           this.config.mapFeatureStickMode = utils.validateNumberArray(value, 2, [0,1], [Number.MAX_VALUE, Number.MAX_VALUE], [0, 1]); break;
-    case 'mapSeparateLoader':             this.config.mapSeparateLoader = utils.validateBool(value, true); break;
-    case 'mapGeodataBinaryLoad':          this.config.mapGeodataBinaryLoad = utils.validateBool(value, true); break;
-    case 'mapPackLoaderEvents':           this.config.mapPackLoaderEvents = utils.validateBool(value, true); break;
-    case 'mapParseMeshInWorker':          this.config.mapParseMeshInWorker = utils.validateBool(value, true); break;
-    case 'mapPackGeodataEvents':          this.config.mapPackGeodataEvents = utils.validateBool(value, true); break;
-    case 'mapSortHysteresis':             this.config.mapSortHysteresis = utils.validateBool(value, false); break;
-    case 'mapHysteresisWait':             this.config.mapHysteresisWait = utils.validateNumber(value, 0, Number.MAXINTEGER, 0); break;
-    case 'mapBenevolentMargins':          this.config.mapBenevolentMargins = utils.validateBool(value, false); break;
-    case 'mapCheckTextureSize':           this.config.mapCheckTextureSize = utils.validateBool(value, false); break;
-    case 'mapNormalizeOctantTexelSize':   this.config.mapNormalizeOctantTexelSize = utils.validateBool(value, true); break;
-    case 'mapDMapSize':                   this.config.mapDMapSize = utils.validateNumber(value, 16, Number.MAXINTEGER, 512); break; 
-    case 'mapDMapMode':                   this.config.mapDMapMode = utils.validateNumber(value, 1, Number.MAXINTEGER, 1); break;
-    case 'mapExposeFpsToWindow':          this.config.mapExposeFpsToWindow = utils.validateBool(value, false); break;
-    case 'mapProfileGpu':                 this.config.mapProfileGpu = utils.validateBool(value, false); break;
-    case 'mapSplitSpace':                 this.config.mapSplitSpace = value; break;
-    case 'mapFeaturesReduceMode':         
-        value = utils.validateString(value, 'scr-count4');
-        if (value == 'auto') value = 'scr-count2';
-        if (value == 'legacy') value = 'scr-count2';
-        if (value == 'gridcells') value = 'scr-count4';
-        if (value == 'singlepass') value = 'scr-count5';
-        if (value == 'margin') value = 'scr-count6';
-        //if (value == 'margin') value = 'scr-count7';
-        this.config.mapFeaturesReduceMode = value;
-        break;
-
-    }
-};
-
-
-Map.prototype.getConfigParam = function(key) {
-    switch (key) {
-    case 'map':                           return this.config.map;
-    case 'mapCache':                      return this.config.mapCache;
-    case 'mapGPUCache':                   return this.config.mapGPUCache;
-    case 'mapMetatileCache':              return this.config.mapMetatileCache;
-    case 'mapTexelSizeFit':               return this.config.mapTexelSizeFit;
-    case 'mapDownloadThreads':            return this.config.mapDownloadThreads;
-    case 'mapMaxProcessingTime':          return this.config.mapMaxProcessingTime;
-    case 'mapMaxGeodataProcessingTime':   return this.config.mapMaxGeodataProcessingTime;
-    case 'mapMobileMode':                 return this.config.mapMobileMode;
-    case 'mapMobileModeAutodect':         return this.config.mapMobileModeAutodect;
-    case 'mapMobileDetailDegradation':    return this.config.mapMobileDetailDegradation;
-    case 'mapNavSamplesPerViewExtent':    return this.config.mapNavSamplesPerViewExtent;
-    case 'mapIgnoreNavtiles':             return this.config.mapIgnoreNavtiles;
-    case 'mapAllowHires':                 return this.config.mapAllowHires;
-    case 'mapAllowLowres':                return this.config.mapAllowLowres;
-    case 'mapAllowSmartSwitching':        return this.config.mapAllowSmartSwitching;
-    case 'mapDisableCulling':             return this.config.mapDisableCulling;
-    case 'mapPreciseCulling':             return this.config.mapPreciseCulling;
-    case 'mapHeightLodBlend':             return this.config.mapHeightLodBlend;
-    case 'mapHeightNodeBlend':            return this.config.mapHeightNodeBlend;
-    case 'mapBasicTileSequence':          return this.config.mapBasicTileSequence;
-    case 'mapSmartNodeParsing':           return this.config.mapSmartNodeParsing;
-    case 'mapXhrImageLoad':               return this.config.mapXhrImageLoad;
-    case 'mapTraversalMaskResolution':    return this.config.mapTraversalMaskResolution;
-    case 'mapTraversalMaskThreshold':     return this.config.mapTraversalMaskThreshold;
-    case 'mapTraversalMaskErosion':
-        return this.config.mapTraversalMaskErosion;
-    case 'mapFallbackCadence':            return this.config.mapFallbackCadence;
-    case 'mapStructuralDescentBrake':
-        return this.config.mapStructuralDescentBrake;
-    case 'mapGridMode':                   return this.config.mapGridMode;
-    case 'mapGridSurrogatez':             return this.config.mapGridSurrogatez;
-    case 'mapGridTextureLevel':           return this.config.mapGridTextureLevel;
-    case 'mapGridTextureLayer':           return this.config.mapGridTextureLayer;
-    case 'mapPreciseBBoxTest':            return this.config.mapPreciseBBoxTest;
-    case 'mapPreciseDistanceTest':        return this.config.mapPreciseDistanceTest;
-    case 'mapForceMetatileV3':            return this.config.mapForceMetatileV3;
-    case 'mapDegradeHorizon':             return this.config.mapDegradeHorizon;
-    case 'mapDegradeHorizonParams':       return this.config.mapDegradeHorizonParams;
-    case 'mapRefreshCycles':              return this.config.mapRefreshCycles;
-    case 'mapDefaultFont':                return this.config.mapDefaultFont;
-    case 'mapMetricUnits':                return this.config.mapMetricUnits;
-    case 'mapShadingLambertian':         return this.config.mapShadingLambertian;
-    case 'mapShadingSlope':              return this.config.mapShadingSlope;
-    case 'mapShadingAspect':             return this.config.mapShadingAspect;
-    case 'mapFlagLighting':              return this.config.mapFlagLighting;
-    case 'mapFlagNormalMaps':            return this.config.mapFlagNormalMaps;
-    case 'mapFlagDiffuseMaps':           return this.config.mapFlagDiffuseMaps;
-    case 'mapFlagSpecularMaps':          return this.config.mapFlagSpecularMaps;
-    case 'mapFlagBumpMaps':              return this.config.mapFlagBumpMaps;
-    case 'mapFlagAtmosphere':            return this.config.mapFlagAtmosphere;
-    case 'mapFlagShadows':               return this.config.mapFlagShadows;
-    case 'mapFlagLabels':                return this.config.mapFlagLabels;
-    case 'mapLanguage':                   return this.config.mapLanguage;
-    case 'mapNoTextures':                 return this.config.mapNoTextures;
-    case 'mapForceFrameTime':             return this.config.mapForceFrameTime;
-    case 'mapFeatureGridCells':           return this.config.mapFeatureGridCells;
-    case 'mapFeaturesPerSquareInch':      return this.config.mapFeaturesPerSquareInch;
-    case 'mapFeaturesSortByTop':          return this.config.mapFeaturesSortByTop;
-    case 'mapFeaturesReduceMode':         return this.config.mapFeaturesReduceMode;
-    case 'mapFeaturesReduceParams':       return this.config.mapFeaturesReduceParams;
-    case 'mapLogGeodataStyles':           return this.config.mapLogGeodataStyles;
-    case 'map16bitMeshes':                return this.config.map16bitMeshes;
-    case 'mapIndexBuffers':               return this.config.mapIndexBuffers;
-    case 'mapSoftViewSwitch':             return this.config.mapSoftViewSwitch;
-    case 'mapAsyncImageDecode':           return this.config.mapAsyncImageDecode;
-    case 'mapFeatureStickMode':           return this.config.mapFeatureStickMode;
-    case 'mapSeparateLoader':             return this.config.mapSeparateLoader;
-    case 'mapGeodataBinaryLoad':          return this.config.mapGeodataBinaryLoad;
-    case 'mapPackLoaderEvents':           return this.config.mapPackLoaderEvents;
-    case 'mapParseMeshInWorker':          return this.config.mapParseMeshInWorker;
-    case 'mapPackGeodataEvents':          return this.config.mapPackGeodataEvents;
-    case 'mapSortHysteresis':             return this.config.mapSortHysteresis;
-    case 'mapHysteresisWait':             return this.config.mapHysteresisWait;
-    case 'mapBenevolentMargins':          return this.config.mapBenevolentMargins;
-    case 'mapDMapSize':                   return this.config.mapDMapSize; 
-    case 'mapDMapMode':                   return this.config.mapDMapMode;
+        var patch = normalizeConfigPatch(key, options[key]);
+        if (patch) {
+            this.core.configStore.set(patch);
+        }
     }
 };
 

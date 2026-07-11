@@ -4,7 +4,7 @@ import ConfigStore from '../core/config-store';
 import {
     defaultViewerConfig,
     canonicalConfigKey,
-    normalizeConfigValue,
+    normalizeConfigPatch,
 } from '../core/viewer-config';
 import {GpuDevice} from '../core/renderer/gpu/device';
 import * as utils from '../core/utils/utils';
@@ -39,7 +39,7 @@ var Browser = function(element, config) {
         this.element.style.position = 'relative';
     }
 
-    this.setConfigParams(config, true);
+    this.setConfigParams(config);
 
     if (!GpuDevice.checkSupport()) {
         throw new Error('cartolina-js requires WebGL2.');
@@ -49,8 +49,8 @@ var Browser = function(element, config) {
 
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
-    this.map = new Map(this.ui.getMapControl().getMapElement().getElement(), config);
-    
+    this.map = new Map(this.ui.getMapControl().getMapElement().getElement(), config, this.configStore);
+
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
     this.mapLoaded = false;
@@ -74,6 +74,42 @@ var Browser = function(element, config) {
         this.on('map-position-zoomed', this.onMapPositionZoomed.bind(this)),
         this.on('tick', this.onTick.bind(this))
     ];
+
+    this.watchConfig();
+};
+
+
+// UI control visibility keys; each change refreshes its panel
+var uiControlKeys = [
+    'controlCompass', 'controlZoom', 'controlMeasure', 'controlScale',
+    'controlLayers', 'controlSpace', 'controlSearch',
+    'controlSearchElement', 'controlSearchValue', 'controlLink',
+    'controlGithub', 'controlMeasureLite', 'controlLogo',
+    'controlFullscreen', 'controlCredits', 'controlLoading'
+];
+
+
+/* Registers the browser-layer config watchers: UI panel refreshes for
+ * the control* keys and autopilot updates for autoRotate / autoPan.
+ * Unsubscribe closures join `this.unsubscribes`. */
+Browser.prototype.watchConfig = function() {
+    var self = this;
+
+    uiControlKeys.forEach(function(key) {
+        self.unsubscribes.push(self.configStore.watch([key], function() {
+            self.updateUI(key);
+        }));
+    });
+
+    this.unsubscribes.push(this.configStore.watch(
+        ['autoRotate', 'autoPan'],
+        function(values) {
+            if (self.getMap() && self.autopilot) {
+                self.autopilot.setAutorotate(values.autoRotate);
+                self.autopilot.setAutopan(
+                    values.autoPan[0], values.autoPan[1]);
+            }
+        }));
 };
 
 
@@ -300,10 +336,10 @@ Browser.prototype.onTick = function() {
 };
 
 
-Browser.prototype.setConfigParams = function(params, ignoreCore) {
+Browser.prototype.setConfigParams = function(params) {
     if (typeof params === 'object' && params !== null) {
         for (var key in params) {
-            this.setConfigParam(key, params[key], ignoreCore);
+            this.setConfigParam(key, params[key]);
         }
     }
 };
@@ -318,198 +354,41 @@ Browser.prototype.updateUI = function(key) {
 };
 
 
-Browser.prototype.setConfigParam = function(key, value, ignoreCore) {
-    var map = this.map;
-    var legacyMap = map ? this.getMap() : null;
-    var renderer = map ? this.getRenderer() : null;
-
-    // bridge shim: write the normalized value to the store first;
-    // the legacy switch below still runs and its raw writes win
-    // until each subsystem migrates to watch()
-    var canonical = canonicalConfigKey(key);
-    if (canonical) {
-        var patch = {};
-        patch[canonical] = normalizeConfigValue(canonical, value);
-
-        // legacy coupling: disabling textures also disables culling
-        if (canonical === 'mapNoTextures') {
-            patch.mapDisableCulling = patch.mapNoTextures;
-        }
-
-        this.configStore.set(patch);
+Browser.prototype.setConfigParam = function(key, value) {
+    var patch = normalizeConfigPatch(key, value);
+    if (!patch) {
+        return;
     }
 
-    switch (key) {
-    case 'pos':                
-    case 'position':
-        this.config.position = value;
-        if (legacyMap) {
-            legacyMap.setPosition(this.config.position);
-        }
-        break;
-            
-    case 'view':
-        this.config.view = value;
-        if (legacyMap) {
-            legacyMap.setView(this.config.view);
-        }
-        break;
+    this.configStore.set(patch);
 
-    case 'interactive':            this.config.interactive = utils.validateBool(value, true);          break;
-    case 'panAllowed':             this.config.panAllowed = utils.validateBool(value, true);           break;
-    case 'rotationAllowed':        this.config.rotationAllowed = utils.validateBool(value, true);      break;
-    case 'zoomAllowed':            this.config.zoomAllowed = utils.validateBool(value, true);          break;
-    case 'jumpAllowed':            this.config.jumpAllowed = utils.validateBool(value, false);         break;
-    case 'constrainCamera':        this.config.constrainCamera = utils.validateBool(value, true);      break;
-    case 'navigationMode':         this.config.navigationMode = value;                                 break;
-    case 'positionInUrl':          this.config.positionInUrl = utils.validateBool(value, false);       break;
-    case 'positionUrlHistory':     this.config.positionUrlHistory = utils.validateBool(value, false);  break;
-    case 'controlCompass':         this.config.controlCompass = utils.validateBool(value, true); this.updateUI(key);    break;
-    case 'controlZoom':            this.config.controlZoom = utils.validateBool(value, true); this.updateUI(key);       break;
-    case 'controlMeasure':         this.config.controlMeasure = utils.validateBool(value, false); this.updateUI(key);   break;
-    case 'controlScale':           this.config.controlScale = utils.validateBool(value, true); this.updateUI(key);      break;
-    case 'controlLayers':          this.config.controlLayers = utils.validateBool(value, false); this.updateUI(key);    break;
-    case 'controlSpace':           this.config.controlSpace = utils.validateBool(value, false); this.updateUI(key);     break;
-    case 'controlSearch':          this.config.controlSearch = utils.validateBool(value, false); this.updateUI(key);    break;
-    case 'controlSearchUrl':       this.config.controlSearchUrl = value;    break;
-    case 'controlSearchSrs':       this.config.controlSearchSrs = value;    break;
-    case 'controlSearchFilter':    this.config.controlSearchFilter = utils.validateBool(value, true);  break;
-    case 'controlSearchElement':   this.config.controlSearchElement = value; this.updateUI(key);  break;
-    case 'controlSearchValue':     this.config.controlSearchValue = /*utils.validateString(*/value/*, null)*/; this.updateUI(key); break;
-    case 'controlLink':            this.config.controlLink = utils.validateBool(value, false); this.updateUI(key);        break;
-    case 'controlGithub':          this.config.controlGithub = utils.validateBool(value, false); this.updateUI(key);      break;
-    case 'controlMeasure':         this.config.controlMeasure = utils.validateBool(value, false); this.updateUI(key);     break;
-    case 'controlMeasureLite':     this.config.controlMeasureLite = utils.validateBool(value, false); this.updateUI(key); break;
-    case 'controlLogo':            this.config.controlLogo = utils.validateBool(value, false); this.updateUI(key);        break;
-    case 'controlFullscreen':      this.config.controlFullscreen = utils.validateBool(value, true); this.updateUI(key);   break;
-    case 'controlCredits':         this.config.controlCredits = utils.validateBool(value, true); this.updateUI(key);      break;
-    case 'controlLoading':         this.config.controlLoading = utils.validateBool(value, true); this.updateUI(key);      break;
-    case 'minViewExtent':          this.config.minViewExtent = utils.validateNumber(value, 0.01, Number.MAXINTEGER, 100); break;
-    case 'maxViewExtent':          this.config.maxViewExtent = utils.validateNumber(value, 0.01, Number.MAXINTEGER, Number.MAXINTEGER); break;
-    case 'sensitivity':            this.config.sensitivity = utils.validateNumberArray(value, 3, [0,0,0], [10, 10, 10], [1, 0.12, 0.05]); break;
-    case 'inertia':                this.config.inertia = utils.validateNumberArray(value, 3, [0,0,0], [0.99, 0.99, 0.99], [0.85, 0.9, 0.7]); break;
-    case 'legacyInertia':          this.config.legacyInertia = utils.validateBool(value, false); break;
-    case 'timeNormalizedInertia':  this.config.timeNormalizedInertia = utils.validateBool(value, false); break;
-    case 'bigScreenMargins':       this.config.bigScreenMargins = utils.validateBool(value, false); break;
-    case 'tiltConstrainThreshold': this.config.tiltConstrainThreshold = utils.validateNumberArray(value, 2, [0.5,1], [-Number.MAXINTEGER, -Number.MAXINTEGER], [Number.MAXINTEGER, Number.MAXINTEGER]); break;
-    case 'walkMode':               this.config.walkMode = utils.validateBool(value, false); break;
-    case 'fixedHeight':            this.config.fixedHeight = utils.validateNumber(value, -Number.MAXINTEGER, Number.MAXINTEGER, 0); break;
-    case 'geodata':                this.config.geodata = value; break;
-    case 'geojson':                this.config.geojson = value; break;
-    case 'geojsonStyle':           this.config.geojsonStyle =  JSON.parse(value); break;
-    case 'transformRequest':       this.config.transformRequest = typeof value === 'function' ? value : null; break;
-    case 'rotate':             
-        this.config.autoRotate = utils.validateNumber(value, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, 0);
-        if (legacyMap && this.autopilot) {
-            this.autopilot.setAutorotate(this.config.autoRotate);
+    // position and view are commands: they act on the loaded map
+    // immediately instead of waiting for a watcher flush
+    var legacyMap = this.map ? this.getMap() : null;
+    if (legacyMap) {
+        if ('position' in patch && patch.position != null) {
+            legacyMap.setPosition(patch.position);
         }
-        break;
-    case 'pan':
-        if (Array.isArray(value) && value.length == 2){
-            this.config.autoPan = [
-                utils.validateNumber(value[0], Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, 0),
-                utils.validateNumber(value[1], -360, 360, 0)
-            ];
+        if ('view' in patch && patch.view != null) {
+            legacyMap.setView(patch.view);
         }
-
-        if (legacyMap && this.autopilot) {
-            this.autopilot.setAutorotate(this.config.autoRotate);
-        }
-        break;
-    }
-
-    if (ignoreCore) {
-        if (key.indexOf('map') == 0 && legacyMap) {
-            legacyMap.setConfigParam(key, value);
-        }
-
-        if (key.indexOf('renderer') == 0 && renderer) {
-            renderer.setConfigParam(key, value);
-        }
-
-        if (key.indexOf('debug') == 0 && map) {
-            map.core.setConfigParam(key, value);
-        }
-
-        if (key == 'transformRequest' && map) {
-            map.core.setConfigParam(key, value);
-        }
-
     }
 };
 
 
 Browser.prototype.getConfigParam = function(key) {
-    var map = this.getMap();
+    var map = this.map ? this.getMap() : null;
 
-    switch (key) {
-    case 'pos':
-    case 'position':
-        
-        if (map) {
-            map.getPosition();
-        } else {
-            return this.config.position;
-        }
-            
-        break;
-        
-    case 'view':               
-
-        if (map) {
-            return map.getView();
-        } else {
-            return this.config.view;
-        }
-            
-    case 'panAllowed':             return this.config.panAllowed;
-    case 'rotationAllowed':        return this.config.rotationAllowed;
-    case 'zoomAllowed':            return this.config.zoomAllowed;
-    case 'jumpAllowed':            return this.config.jumpAllowed;
-    case 'sensitivity':            return this.config.sensitivity;
-    case 'inertia':                return this.config.inertia;
-    case 'legacyInertia':          return this.config.legacyInertia;
-    case 'timeNormalizedInertia':  return this.config.timeNormalizedInertia;
-    case 'bigScreenMargins':       return this.config.bigScreenMargins;
-    case 'navigationMode':         return this.config.navigationMode;
-    case 'constrainCamera':        return this.config.constrainCamera;
-    case 'positionInUrl':          return this.config.positionInUrl;
-    case 'positionUrlHistory':     return this.config.positionUrlHistory;
-    case 'controlCompass':         return this.config.controlCompass;
-    case 'controlZoom':            return this.config.controlZoom;
-    case 'controlMeasure':         return this.config.controlMeasure;
-    case 'controlScale':           return this.config.controlScale;
-    case 'controlLayers':          return this.config.controlLayers;
-    case 'controlSpace':           return this.config.controlSpace;
-    case 'controlSearch':          return this.config.controlSearch;
-    case 'controlLink':            return this.config.controlLink;
-    case 'controlGithub':          return this.config.controlGithub;
-    case 'controlMeasure':         return this.config.controlMeasure;
-    case 'controlMeasureLite':     return this.config.controlMeasureLite;
-    case 'controlLogo':            return this.config.controlLogo;
-    case 'controlFullscreen':      return this.config.controlFullscreen;
-    case 'controlCredits':         return this.config.controlCredits;
-    case 'controlLoading':         return this.config.controlLoading;
-    case 'controlSearchElement':   return this.config.controlSearchElement;
-    case 'controlSearchValue':     return this.config.controlSearchValue;
-    case 'controlSearchUrl':       return this.config.controlSearchUrl;
-    case 'controlSearchSrs':       return this.config.controlSearchSrs;
-    case 'controlSearchFilter':    return this.config.controlSearchFilter;
-    case 'minViewExtent':          return this.config.minViewExtent;
-    case 'maxViewExtent':          return this.config.maxViewExtent;
-    case 'rotate':                 return this.config.autoRotate;
-    case 'pan':                    return this.config.autoPan;
+    // position and view read live from the loaded map
+    if (key == 'pos' || key == 'position') {
+        return map ? map.getPosition() : this.config.position;
+    }
+    if (key == 'view') {
+        return map ? map.getView() : this.config.view;
     }
 
-    //if (ignoreCore) {
-    if (key.indexOf('map') == 0 && map) {
-        return map.getConfigParam(key);
-    }
-
-    if (key.indexOf('renderer') == 0) {
-        return map.getConfigParam(key);
-    }
-    //}
+    var canonical = canonicalConfigKey(key);
+    return canonical ? this.configStore.get(canonical) : undefined;
 };
 
 
