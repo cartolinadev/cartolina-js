@@ -28,8 +28,10 @@ viewer.on('map-loaded', () => {
 
 `Map` in `src/core/map.ts` is internal. It is the typed boundary between
 `Browser` and the engine objects. Methods move from `Map` to `Viewer`
-as feature work touches them. The `Map.core` getter exposes internals
-only while `Core` and `LegacyMap` are being absorbed.
+as feature work touches them. `Map` exposes internal fields such as
+`map`, `renderer`, and `configStore` only while `LegacyMap` is being
+absorbed; legacy modules reach the `Map` instance through their `core`
+back-references.
 
 ## Legacy Wrapper State
 
@@ -47,7 +49,7 @@ That pattern is partly gone:
 | `CoreInterface` | Legacy public wrapper | Deleted |
 | `MapInterface` | Thin legacy delegation wrapper | Deleted |
 | `RendererInterface` | Legacy renderer wrapper | Deleted |
-| `Core` | Legacy startup / animation-frame shell | Dissolves into `Map` |
+| `Core` | Legacy startup / animation-frame shell | Absorbed into `Map` |
 | `LegacyMap` | JS half of `Map` (unfinished) | Moves into `Map` |
 | `Renderer` | WebGL2 renderer; public draw helpers | Stays separate |
 
@@ -97,22 +99,31 @@ Layer visibility in new code belongs in the style specification. Avoid
 new branches that split behaviour by "style or mapConfig" unless the
 branch is deleting or isolating the mapConfig path.
 
-## Configuration Routing
+## Configuration
 
-`Core.setConfigParam(key, value)` is the inherited universal setter. It
-routes by key prefix:
+Runtime configuration lives in one `ConfigStore<ViewerConfig>`
+(`src/core/config-store.ts`), implemented by
+[rfc-config-store.md](rfc-config-store.md). The `ViewerConfig`
+interface (`src/core/viewer-config.ts`) is the authoritative
+catalogue of valid keys; `defaultViewerConfig()` supplies the
+initial values and `normalizeConfigPatch()` validates every write.
 
-| Prefix | Destination |
-|---|---|
-| `map*` | `LegacyMap.setConfigParam` or deferred storage |
-| `renderer*` | `Renderer.setConfigParam` |
-| `debug*` | `Inspector.setParameter` |
-| Structural | `map`, `style`, `position`, `view`, `transformRequest` |
+The store's live value map is the single config object: `Map.config`,
+`LegacyMap.config`, `Renderer.config`, and `Browser.config` all alias
+it, so reads anywhere see the same normalized values immediately.
 
-`Viewer.setParam(key, value)` still passes through
-`Browser.setConfigParam` and reaches `Core.setConfigParam`.
-[rfc-config-store.md](rfc-config-store.md) describes the accepted
-replacement.
+`Viewer.setParam(key, value)` reaches `Browser.setConfigParam`, which
+normalizes the value and writes it to the store; `position` and
+`view` additionally act on the loaded map at once. Subsystems declare
+`store.watch(keys, fn)` for the side effects a change requires
+(cache resizing, redraws, UI refresh, autopilot, inspector debug
+parameters). `Map.tick` flushes the store at the start of every
+frame, so watchers fire once per batch of changes and never
+mid-frame. `Viewer.getParam(key)` reads `store.get()`.
+
+A loaded mapConfig's `browserOptions` apply through
+`Map.applyBrowserOptions_`, which skips keys the caller configured
+explicitly, so user settings always win.
 
 `transformRequest(url, resourceType)` follows the MapLibre-style host
 application hook. It may return a rewritten URL, headers, and
@@ -122,8 +133,9 @@ types, coverage, and authentication guidance.
 
 ### Style Config Block
 
-The `config` block in `StyleSpecification` passes key-value pairs
-verbatim to `map.setConfigParam`. This is pragmatic but too permissive:
+The `config` block in `StyleSpecification` writes key-value pairs
+through the config store at style load. This is pragmatic but too
+permissive:
 the style can currently set UI options such as compass visibility and
 search bar visibility.
 
@@ -155,21 +167,21 @@ array:
 
 ## Async Initialization
 
-`Core.map` is `null` at construction time. It is set after the style or
-mapConfig is fetched and parsed:
+`Map.map` (the loaded `LegacyMap`) is `null` at construction time. It
+is set after the style or mapConfig is fetched and parsed:
 
-1. `Core` starts `loadMapFromStyle` or `loadMap`.
-2. On success, `Core.map` is assigned.
-3. `Map.tick` emits `map-loaded` after the reference frame is ready and
-   calls `Core.markReady_()` to resolve the one-shot `ready` Promise.
+1. The `Map` constructor starts the style load or `loadMap`.
+2. On success, `Map.map` is assigned.
+3. `Map.tick` emits `map-loaded` after the reference frame is ready
+   and resolves the one-shot `ready` Promise.
 
-Viewer methods that reach into `_map` guard with optional chaining, so
-they are no-ops before `ready` resolves.
+Viewer methods that reach into the legacy map guard with optional
+chaining, so they are no-ops before `ready` resolves.
 
 ## Render Loop
 
-`Core.onUpdate` is a thin `requestAnimationFrame` callback. Each frame
-it calls `Map.tick()` through `Core.outerMap`; `Map.tick()` then:
+`Map` owns the `requestAnimationFrame` loop. Each frame it flushes
+the config store and runs `Map.tick()`, which:
 
 1. emits public `tick` and returns if no `LegacyMap` is loaded
 2. emits `map-loaded` once per loaded `LegacyMap` after the reference
@@ -190,10 +202,12 @@ The event bus is a typed `EventBus<ViewerEventMap>`
 both return an unsubscribe function; both are surfaced on `Viewer`.
 `Map.emit` is internal — applications only subscribe.
 
-The legacy emitters receive the bus instance at construction and
-publish through it directly: `Core` (for `map-mapconfig-loaded` and
-`map-unloaded`), `LegacyMap` (geo-feature events), and `GpuDevice`
-(context-loss events). Browser-layer code emits through `Map.emit`.
+`Map` emits its own lifecycle events (`tick`, `map-loaded`,
+`map-mapconfig-loaded`, `map-unloaded`, `map-update`, the
+position-change pair). The legacy emitters receive the bus instance
+at construction and publish through it directly: `LegacyMap`
+(geo-feature events) and `GpuDevice` (context-loss events).
+Browser-layer code emits through `Map.emit`.
 
 Dispatch is per event name: `emit` visits only listeners registered
 for the emitted name and returns without allocation when none are
@@ -236,15 +250,15 @@ Event names and payload types are defined by `ViewerEventMap` in
 `kill()` is the inherited lifecycle convention used by engine objects,
 map resources, GPU resources, and tile resources.
 
-Engine objects such as `Core`, `LegacyMap`, `Browser`, and `Viewer`
-hold a `killed` flag. After `destroy()` or `kill()`, the animation
-frame callback and pending async callbacks check that flag before
-touching the object.
+Engine objects such as `Map`, `LegacyMap`, and `Browser` hold a
+`killed` flag. After disposal or `kill()`, the animation frame
+callback and pending async callbacks check that flag before touching
+the object.
 
-`LegacyMap.kill()` releases map-owned resources but does not destroy the
-shared `Renderer`. `Core.destroyMap()` may unload one map and later load
-another through the same `Renderer`; `Core.destroy()` owns final renderer
-teardown.
+`LegacyMap.kill()` releases map-owned resources but does not destroy
+the shared `Renderer`. `Map.unloadMap()` may unload one map and later
+load another through the same `Renderer`; `Map[Symbol.dispose]()`
+owns final renderer teardown.
 
 The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing
@@ -260,7 +274,7 @@ canonical teardown hook:
 |---|---|---|
 | `Map` | no | no JS callers |
 | `Viewer` | no | no JS callers |
-| `Renderer` | yes | `map.js`, `core.js` |
+| `Renderer` | no | no JS callers |
 | `GpuTexture` | yes | `subtexture.js` |
 | `GpuMesh` | yes | `mesh.js` |
 | `GpuDevice` | no | no JS callers |
@@ -272,7 +286,7 @@ carries a comment naming the JS file. Remove it once that file is
 migrated to TypeScript.
 
 `Renderer` uses `disposed_` as its guard field. The legacy `killed`
-name is retained on `Core`, `LegacyMap`, `Browser`, and their JS
+name is retained on `Map`, `LegacyMap`, `Browser`, and their JS
 resource callbacks.
 
 New classes and major refactors should prefer modern forms:

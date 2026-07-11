@@ -1,6 +1,6 @@
 # RFC 1: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** Accepted  
+**Status:** Implemented  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -600,3 +600,83 @@ Design accepted.
 One editorial note, not a blocker: the paragraph after the §4.3
 example still says "Nothing else needs to know that `Atmosphere`
 exists or which keys it uses"; the example class is now `LegacyMap`.
+
+---
+
+## Addendum — 2026-07-11 — implementation note
+
+All six implementation steps are done, in four commits (steps 1, 2,
+3, 4+5, and 6). `ViewerConfig` and `defaultViewerConfig()` live in
+`src/core/viewer-config.ts`; `ConfigStore<T>` in
+`src/core/config-store.ts` with a mocha suite in
+`test/unit/config-store.test.js`. `Map.tick` flushes the store at
+the start of every frame. The `setConfigParam` switches in
+`Browser`, `Core`, and `LegacyMap`, `Core.setRendererConfigParam`,
+`Browser.initConfig`, and `Core.configStorage` are deleted, and
+step 6 removed `core.js` and `core.d.ts` entirely: `Map` absorbed
+the frame loop, map loading, `browserOptions` application, the
+`ready` promise, and construction of `Renderer` and `Inspector`.
+The legacy `core` back-references now hold the `Map` instance.
+
+Deviations from the accepted design:
+
+- Steps 4 and 5 landed as one commit. The §4.4 bridge shim's
+  dual-write and per-key-group forwarding existed only during
+  step 3: from step 4 on, the store's live value map (exposed as
+  `ConfigStore.values`, an extension over the §4.1 signature) *is*
+  the config object — `Map.config`, `LegacyMap.config`,
+  `Renderer.config`, and `Browser.config` all alias it. That keeps
+  every legacy reader and the direct config writes in
+  `control-mode/map-observer.js` working with no migration window,
+  and eliminates the three separate stores in one move.
+- Step 5's "remove `this.config` from Browser and Core" is
+  fulfilled in substance, not in letter: the fields remain as
+  aliases of the store's value map because roughly ten browser-layer
+  modules and twenty map modules read them on hot paths.
+- Normalization is centralized in `normalizeConfigValue()` /
+  `normalizeConfigPatch()` (`viewer-config.ts`) rather than living
+  in the shim: the same functions serve `Browser.setConfigParam`,
+  `Map.applyBrowserOptions_`, and the style `config` block.
+  `canonicalConfigKey()` resolves the legacy `pos`, `rotate`, and
+  `pan` aliases and filters unknown keys; `mapNoTextures` expands to
+  also set `mapDisableCulling`.
+- `position` and `view` stay command-like: the shim and the load
+  path apply them to the loaded map immediately and null them in
+  the store; watchers do not deliver them.
+- `Core.configStorage` (Q4) is gone. Its replay role is covered by
+  `LegacyMap` reading current store values at construction; its
+  user-precedence role by `applyBrowserOptions_` skipping keys
+  present in the caller's original options, and by
+  `setLoaderParams` applying the same precedence for the five
+  loader keys.
+- The store is constructed by `Browser` (per step 3) and handed to
+  `Map`, which owns flushing; `Map` does not construct it because
+  `Browser` must normalize the caller options before `Map` starts
+  loading.
+- Behavior fixes bundled with the migration: live `pan` changes now
+  reach `Autopilot.setAutopan` (the old switch re-applied
+  autorotate instead); `Browser.getConfigParam('position')` returns
+  the live position (the old switch dropped the return); the
+  renderer's consume-once `mapForceFrameTime` reset writes through
+  the store. Default-value reconciliations (the `Number.MAXINTEGER`
+  typo, keys that were undefined until set, dead
+  `searchElement`/`searchValue` defaults) are listed in the step-1
+  commit message.
+- `CoreConfig` in `src/core/types.ts` is deleted per §4.2; typed
+  modules use `Readonly<ViewerConfig>`.
+
+Open questions resolved: Q1 — runtime key filtering via
+`canonicalConfigKey` plus central normalization; watchers receive
+normalized values. Q2 — construction-time reads use `get()`/the
+value map, as §4.1 specified; no post-construction full flush was
+needed. Q3 — `LegacyMap` reaches the store through its `core`
+reference, registers its watchers in the constructor, and
+unsubscribes them in `kill()`. Q4 — confirmed and deleted.
+
+Validation: `npx tsc --noEmit` clean; 22 unit tests; the
+`simple-terrain`, `complex-terrain`, and `full-terrain` URLs render
+correctly; Playwright probes confirmed gesture events, `setParam` /
+`getParam` round-trips with clamping and aliases, a live
+`mapFlagLighting` toggle redrawing the scene, and the
+mapConfig-path load (position and `browserOptions` application)
+rendering with no errors.

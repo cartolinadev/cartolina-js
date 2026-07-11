@@ -2586,9 +2586,6 @@ drawLineString(options: any): void {
     this.gpu[Symbol.dispose]();
 }
 
-// map.js and core.js call this directly; remove once both are TS.
-kill() { this[Symbol.dispose](); }
-
 } // export class Renderer
 
 // local types

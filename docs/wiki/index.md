@@ -43,9 +43,6 @@ in [AGENTS.md](../../AGENTS.md).
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate
-- RFC 1 [rfc-config-store.md](rfc-config-store.md) — reactive
-  ConfigStore to replace stringly-typed config routing; prerequisite
-  for core.js suppression
 
 ### Data model
 

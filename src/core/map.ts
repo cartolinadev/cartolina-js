@@ -295,7 +295,7 @@ class Map {
         this.disposeOverlays();
         this.disposeTerrainMaskPool();
         this.destroyMap_();
-        this.renderer.kill();
+        this.renderer[Symbol.dispose]();
         this.element = null;
         this.killed = true;
         this.disposed_ = true;

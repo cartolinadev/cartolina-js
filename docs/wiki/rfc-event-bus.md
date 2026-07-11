@@ -757,3 +757,15 @@ console or network errors; a Playwright interaction probe confirmed
 `map-position-panned`, `map-position-zoomed`, and
 `map-position-changed` fire through `Viewer.on` during mouse pan and
 wheel zoom with no page errors.
+
+---
+
+## Addendum — 2026-07-11 — temporary Core.bus wiring retired
+
+RFC 1 step 6 removed `core.js`; the `map-mapconfig-loaded` and
+`map-unloaded` emit sites moved into `Map` (`loadMap` continuation
+and map teardown), which emits them through its own `bus_`. The
+temporary `Core.bus` field described in section 6.1 and the
+implementation note no longer exists. `inspector.js` now subscribes
+through the same field on the `Map` instance its `core` reference
+holds.

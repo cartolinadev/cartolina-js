@@ -3,10 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
-## 2026-07-11 — RFC 1 implementation (in progress)
+## 2026-07-11 — RFC 1 implemented: ConfigStore, core.js deleted
 
-Implementing [rfc-config-store.md](rfc-config-store.md) on
-`feature/rfc1-rfc2`, one commit per RFC step.
+Implemented [rfc-config-store.md](rfc-config-store.md) on
+`feature/rfc1-rfc2`, one commit per RFC step (steps 4–5 combined).
+All six steps done; status set to Implemented; deviations recorded
+in the RFC's implementation addendum. `architecture.md` and
+`api-and-lifecycle.md` updated for the new configuration flow and
+the removal of `Core`.
 
 - Step 6: `core.js` and `core.d.ts` deleted; `Map` absorbed the
   shell. `Map` now owns the animation-frame loop, map loading

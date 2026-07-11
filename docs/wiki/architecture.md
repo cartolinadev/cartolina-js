@@ -37,7 +37,7 @@ worker concerns, or scheduled to absorb into one of them.
 | Class | File | Role |
 |---|---|---|
 | `Viewer` | [src/browser/viewer.ts](../../src/browser/viewer.ts) | The public API. Flat, typed, MapLibre-style method surface. The object `cartolina.map()` returns. |
-| `Map` | [src/core/map.ts](../../src/core/map.ts) | The typed map data model and logic, graphics-library-independent. Owns the frame loop (per [rfc-map-frame.md](rfc-map-frame.md)), lifecycle, and the state that is map-model in nature. Not the public API class. |
+| `Map` | [src/core/map.ts](../../src/core/map.ts) | The typed map data model and logic. Owns the frame loop (per [rfc-map-frame.md](rfc-map-frame.md)), map loading, lifecycle, the event bus, and the constructed `Renderer` and `Inspector`. Not the public API class. |
 | `Renderer` | [src/core/renderer/renderer.ts](../../src/core/renderer/renderer.ts) | The WebGL2 graphics class. Owns the GL context, render targets, shader programs, and draw calls. Also serves as the public surface for custom drawing from inside overlay callbacks (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`). |
 
 The split is by concern: `Viewer` is the consumer-facing API and the
@@ -47,12 +47,11 @@ whose concern it matches. New public API belongs on `Viewer`. New map
 data model state and per-frame state belongs on `Map`. New graphics
 work belongs on `Renderer`.
 
-Several other classes exist as residual or transitional structures:
+Two other classes exist as residual or transitional structures:
 `Browser` holds legacy UI helpers being absorbed into `Viewer`;
-`Core` is residual JS scheduled to dissolve into `Map`; `LegacyMap`
-is the JS half of `Map` being absorbed. None of these is a separate
-subsystem of the architecture; they are work-in-progress on the way to
-the three-class shape.
+`LegacyMap` is the JS half of `Map` being absorbed. Neither is a
+separate subsystem of the architecture; they are work-in-progress on
+the way to the three-class shape.
 
 The "Runtime Objects" section below shows the full ownership chain.
 
@@ -133,11 +132,10 @@ Viewer                         public API
       Autopilot                  camera animation
       Presenter                  tour playback
       ControlMode                input handling
-      Map                        typed map data model and logic
-        Core                     legacy startup / animation-frame shell
-          LegacyMap              JS half of Map (being absorbed)
-          Renderer               WebGL2 renderer
-            GpuDevice            GL context and render targets
+      Map                        typed map data model and engine owner
+        LegacyMap                JS half of Map (being absorbed)
+        Renderer                 WebGL2 renderer
+          GpuDevice              GL context and render targets
 ```
 
 `Viewer` is the public API. It exposes a flat MapLibre-like method
@@ -149,18 +147,15 @@ internal `Map` object so public methods do not repeatedly walk through
 handling, camera animation, and presenter playback. It is private to
 `Viewer` and is being absorbed into it as feature work touches that code.
 
-`Map` in `src/core/map.ts` is the typed map data model and logic,
-graphics-library-independent. It is not the public API class — that is
-`Viewer`. `Map` owns the event methods, the `ready` Promise, lifecycle
-disposal, and (post-[rfc-map-frame.md](rfc-map-frame.md)) the per-frame
-entry point and frame state. Its `core` getter is a temporary migration
-hook that warns on every access.
-
-`Core` (`src/core/core.js`) is the legacy startup shell: map loading,
-configuration routing, the `requestAnimationFrame` callback (which now
-delegates straight to `Map.tick`), and the `transformRequest` value
-used by resource loaders. It is residual JS scheduled to dissolve into
-`Map`; not a load-bearing abstraction.
+`Map` in `src/core/map.ts` is the typed map data model and logic.
+It is not the public API class — that is `Viewer`. `Map` owns the
+event bus, the `ready` Promise, lifecycle disposal, the
+`requestAnimationFrame` loop and per-frame entry point
+(post-[rfc-map-frame.md](rfc-map-frame.md)), map loading, and the
+constructed `Renderer` and `Inspector` (absorbed from the retired
+`core.js` shell per [rfc-config-store.md](rfc-config-store.md)).
+Legacy JS modules reach this instance through their `core`
+back-references.
 
 `LegacyMap` is the JS half of `Map` in `src/core/map/map.js`. It holds
 the parts of the map data model that have not been rewritten in
@@ -210,11 +205,10 @@ method when a capability needs to be public.
 
 The remaining migration direction is:
 
-- route `Viewer` methods through `Map`, then remove the `Map.core`
-  escape hatch
+- route `Viewer` methods through `Map`
 - move `Browser` behaviour into `Viewer`
-- move `Core` and `LegacyMap` behaviour into `Map` when feature work
-  already touches that area
+- move `LegacyMap` behaviour into `Map` when feature work already
+  touches that area
 - keep `Renderer` as the owner of GPU state
 
 See [api-and-lifecycle.md](api-and-lifecycle.md) for construction,
