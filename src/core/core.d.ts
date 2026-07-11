@@ -7,15 +7,16 @@ import type LegacyMap from './map/map';
 import type Inspector from './inspector/inspector';
 import type Renderer from './renderer/renderer';
 import type Map from './map';
-import type { CoreConfig, CoreEventMap } from './types';
+import type EventBus from './event-bus';
+import type { CoreConfig, ViewerEventMap } from './types';
 
 
 /**
  * Legacy initialisation and animation-frame plumbing. Holds the
  * renderer, the loaded map (`LegacyMap | null`), the optional
- * inspector, the event-listener table, and the
- * `requestAnimationFrame` entry point (`onUpdate`), which delegates
- * to typed `Map.tick` through `outerMap`.
+ * inspector, and the `requestAnimationFrame` entry point
+ * (`onUpdate`), which delegates to typed `Map.tick` through
+ * `outerMap`.
  *
  * Not a load-bearing abstraction: a transitional shell that
  * dissolves as its responsibilities migrate onto typed `Map` and
@@ -23,7 +24,11 @@ import type { CoreConfig, CoreEventMap } from './types';
  */
 export class Core {
 
-    constructor(element: HTMLElement, config: Partial<CoreConfig>);
+    constructor(
+        element: HTMLElement,
+        config: Partial<CoreConfig>,
+        bus: EventBus<ViewerEventMap>,
+    );
 
     /**
      * Back-pointer to the typed `Map` wrapper. Set by the `Map`
@@ -33,6 +38,13 @@ export class Core {
      * null during async style loading and after `destroyMap()`.
      */
     outerMap: Map;
+
+    /**
+     * Event bus owned by the typed `Map`. Temporary wiring: `Core`
+     * publishes only `map-mapconfig-loaded` and `map-unloaded` through
+     * it. Disappears when those emit sites move out of `Core`.
+     */
+    bus: EventBus<ViewerEventMap>;
 
     config: CoreConfig;
     killed: boolean;
@@ -54,25 +66,6 @@ export class Core {
     destroy(): void;
     destroyMap(): void;
     loadMap(path: string): void;
-
-    on<K extends keyof CoreEventMap>(
-        name: K,
-        listener: (event: CoreEventMap[K]) => void,
-        wait?: number,
-        once?: boolean,
-    ): (() => void) | undefined;
-
-    once<K extends keyof CoreEventMap>(
-        name: K,
-        listener: (event: CoreEventMap[K]) => void,
-        wait?: number,
-    ): void;
-
-    callListener<K extends keyof CoreEventMap>(
-        name: K,
-        event: CoreEventMap[K],
-        log?: boolean,
-    ): void;
 
     setRendererConfigParam(key: string, value: unknown): void;
     getRendererConfigParam(key: string): unknown;

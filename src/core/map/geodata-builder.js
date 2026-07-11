@@ -1562,7 +1562,7 @@ MapGeodataBuilder.prototype.processHeights = function(heightsSource, precision, 
 
     } else {
         if (!this.updateCallback) {
-            this.updateCallback = this.map.core.on("map-update", this.processHeights.bind(this, this.heightsSource, this.heightsLod, onProcessed));
+            this.updateCallback = this.map.bus.on("map-update", this.processHeights.bind(this, this.heightsSource, this.heightsLod, onProcessed));
         }
     }
 

@@ -8,6 +8,7 @@
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
 import {Core} from '../../src/core/core.js';
+import EventBus from '../../src/core/event-bus';
 import Atmosphere from '../../src/core/map/atmosphere';
 
 const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
@@ -93,7 +94,7 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   div.style.width = '10px';
   div.style.height = '10px';
 
-  const core = new Core(div, {'map': MAP_CONFIG_URL}); 
+  const core = new Core(div, {'map': MAP_CONFIG_URL}, new EventBus());
   await core.ready;
   console.log('Core ready');
 

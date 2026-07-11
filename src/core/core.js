@@ -7,9 +7,19 @@ import {utilsUrl} from './utils/url';
 import {platform} from './utils/platform';
 import getVersion from './version.js';
 
-var Core = function(element, config) {
+var Core = function(element, config, bus) {
     var lang = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
     this.killed = false;
+
+    /* Event bus owned by the typed `Map`. Temporary wiring: `Core`
+     * publishes only `map-mapconfig-loaded` and `map-unloaded` through
+     * it; the field disappears when those emit sites move out of
+     * `Core`.
+     *
+     * @type {import('./event-bus').default<
+     *     import('./types').ViewerEventMap>}
+     */
+    this.bus = bus;
 
     /* Back-pointer to the typed `Map` wrapper. Set by the `Map`
      * constructor immediately after `new Core(...)`, so it is non-null
@@ -136,8 +146,6 @@ var Core = function(element, config) {
     this.element = element;
     //this.coreInterface = coreInterface;
     //this.options = options;
-    this.listeners = [];
-    this.listenerCounter = 0;
     this.xhrParams = {};
     this.inspector = (Inspector != null) ? (new Inspector(this)) : null;
 
@@ -237,7 +245,7 @@ Core.prototype.loadMap = function(path) {
         this.mapRunnig = true;
         var data = this.mapConfigData;
 
-        this.callListener('map-mapconfig-loaded', data);
+        this.bus.emit('map-mapconfig-loaded', data);
 
         this.outerMap.createMapFromMapConfig(data, path);
         this.setConfigParams(this.map.browserOptions, true);
@@ -295,7 +303,7 @@ Core.prototype.destroyMap = function() {
         this.map.kill();
         this.map = null;
         if (this.outerMap) this.outerMap.freeze = null;
-        this.callListener('map-unloaded', {});
+        this.bus.emit('map-unloaded', {});
     }
 };
 
@@ -320,62 +328,6 @@ Core.prototype.getOption = function(/*key, value*/) {
 Core.prototype.setOption = function(/*key, value*/) {
 };
 
-
-Core.prototype.on = function(name, listener, wait, once) {
-    if (this.killed) { // || this.renderer == null) {
-        return;
-    }
-
-    if (listener == null) {
-        return;
-    }
-
-    this.listenerCounter++;
-    this.listeners.push({ name : name, listener : listener, id : this.listenerCounter, once: once, wait: wait ? wait : 0 });
-
-    return (function(id){ this.removeListener(id); }).bind(this, this.listenerCounter);
-};
-
-
-Core.prototype.once = function(name, listener, wait) {
-    this.on(name, listener, wait, true);
-};
-
-
-// private
-Core.prototype.callListener = function(name, event, log) {
-    for (var i = 0; i < this.listeners.length; i++) {
-        if (this.listeners[i].name == name) {
-            var listener = this.listeners[i];
-
-            if (listener.wait > 0) {
-                listener.wait--;
-            } else {
-                listener.listener(event);
-                if (listener.once) {
-                    this.listeners.splice(i, 1);
-                    i--;
-                }
-            }
-        }
-    }
-
-    if (log) {
-        // eslint-disable-next-line
-        console.log('event ' + name + ': ' + JSON.stringify(event));
-    }
-};
-
-// private
-Core.prototype.removeListener = function(id) {
-    for (var i = 0; i < this.listeners.length; i++) {
-        if (this.listeners[i].id == id) {
-            //this.listeners[i].splice(i, 1);
-            this.listeners.splice(i, 1);
-            return;
-        }
-    }
-};
 
 Core.prototype.markDirty = function() {
     if (this.map != null) {

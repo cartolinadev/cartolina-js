@@ -27,13 +27,6 @@ ExploreBar.prototype.init = function() {
     // check browser
     // read config
     // prepare UI
-    // hook on
-    this.browser.on('positionchanged', this.positionChanged.bind(this));
-};
-
-
-ExploreBar.prototype.positionChanged = function(event) {
-
 };
 
 

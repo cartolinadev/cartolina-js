@@ -152,23 +152,56 @@ export type OverlaySpec = {
 };
 
 /**
- * Map from event name to its payload type.
+ * Map from event name to its payload type. All events are public and
+ * reachable through `Viewer.on()`.
  *
- * Payloads from the legacy JS core are typed as `unknown` until the
- * underlying JS is migrated to TypeScript.
+ * Known payload fields carry concrete types; `unknown` remains only
+ * where the source is still untyped ES5 and the shape cannot be
+ * verified without migrating that file.
  */
-export interface CoreEventMap {
-    'map-mapconfig-loaded': unknown;
-    'map-loaded': unknown;
-    'map-unloaded': unknown;
-    'map-update': unknown;
-    'map-position-changed': unknown;
-    'map-position-fixed-height-changed': unknown;
-    'tick': unknown;
-    'gpu-context-lost': unknown;
-    'gpu-context-restored': unknown;
-    'geo-feature-enter': unknown;
-    'geo-feature-leave': unknown;
-    'geo-feature-hover': unknown;
-    'geo-feature-click': unknown;
+export interface ViewerEventMap {
+    'map-mapconfig-loaded': Record<string, unknown>;
+    'map-loaded': { browserOptions: Record<string, unknown> };
+    'map-unloaded': Record<string, never>;
+    'map-update': Record<string, never>;
+    'map-position-changed': {
+        position: number[];
+        'last-position': number[];
+    };
+    'map-position-fixed-height-changed': {
+        height: number;
+        'last-height': number;
+    };
+    'map-position-panned': Record<string, never>;
+    'map-position-rotated': Record<string, never>;
+    'map-position-zoomed': Record<string, never>;
+    'tick': Record<string, never>;
+    'gpu-context-lost': Record<string, never>;
+    'gpu-context-restored': Record<string, never>;
+    'geo-feature-enter': GeoFeatureEvent;
+    'geo-feature-leave': GeoFeatureEvent;
+    'geo-feature-hover': GeoFeatureEvent;
+    'geo-feature-click': GeoFeatureEvent;
+    'autorotate-changed': { autorotate: number };
+    'fly-start': {
+        startPosition: unknown;
+        endPosition: unknown;
+        options: unknown;
+    };
+    'fly-final-phase': { position: unknown };
+    'fly-progress': { position: unknown; progress: number };
+    'fly-end': { position: unknown };
+    'loading-screen-hidden': Record<string, never>;
+}
+
+/**
+ * Payload of the `geo-feature-*` pointer events emitted by
+ * `LegacyMap` (`src/core/map/map.js`).
+ */
+export interface GeoFeatureEvent {
+    feature: unknown;           // typed once LegacyMap migrates to TS
+    'canvas-coords': number[];
+    'physical-coords': number[];
+    state: unknown;
+    element: unknown;
 }

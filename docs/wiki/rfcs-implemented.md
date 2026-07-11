@@ -2,6 +2,11 @@
 
 Archive of RFCs whose implementation is complete. Newest first.
 
+- RFC 2 [rfc-event-bus.md](rfc-event-bus.md) — typed
+  `EventBus<ViewerEventMap>` owned by `Map` replacing the `Core`
+  listener array; browser-layer events promoted into the typed map;
+  `wait` parameter removed; `Browser.kill()` leak fixed; implemented
+  2026-07-11
 - RFC 9
   [rfc-metadata-first-traversal.md](rfc-metadata-first-traversal.md) —
   metadata-first combined terrain descent, stable front-to-back loading

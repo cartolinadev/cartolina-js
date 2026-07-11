@@ -46,9 +46,6 @@ in [AGENTS.md](../../AGENTS.md).
 - RFC 1 [rfc-config-store.md](rfc-config-store.md) — reactive
   ConfigStore to replace stringly-typed config routing; prerequisite
   for core.js suppression
-- RFC 2 [rfc-event-bus.md](rfc-event-bus.md) — extract the event bus
-  from `core.js` to a typed `EventBus<EventMap>` class as part of the
-  `core.js` suppression track; `EventTarget` evaluated and rejected
 
 ### Data model
 

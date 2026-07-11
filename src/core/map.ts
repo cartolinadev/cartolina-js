@@ -6,13 +6,14 @@ import { Core } from './core';
 import Atmosphere from './map/atmosphere';
 import type Renderer from './renderer/renderer';
 import MapPosition from './map/position';
+import EventBus from './event-bus';
 import type {
     CoreConfig,
-    CoreEventMap,
     HeightMode,
     Lod,
     OverlayContext,
     OverlaySpec,
+    ViewerEventMap,
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
@@ -53,7 +54,7 @@ import { drawTerrainTraversal } from './map/draw-traversal';
  *
  * Public types are re-exported under `Map.*` via declaration
  * merging at the bottom of this file. Consumers should write
- * `Map.OverlaySpec`, `Map.CoreEventMap`, etc.
+ * `Map.OverlaySpec`, `Map.ViewerEventMap`, etc.
  */
 class Map {
 
@@ -63,6 +64,13 @@ class Map {
 
     private core_: Core;
     private disposed_ = false;
+
+    /**
+     * The event bus behind `on`, `once`, and `emit`. Handed to the
+     * legacy emitters (`Core`, `LegacyMap`, `GpuDevice`) at their
+     * construction; they publish through it directly.
+     */
+    private bus_: EventBus<ViewerEventMap> = new EventBus();
 
     /**
      * Runtime rendering overrides: diagnostic draw flags and per-frame
@@ -145,7 +153,7 @@ class Map {
      */
     constructor(element: HTMLElement, config: Partial<CoreConfig>) {
 
-        this.core_ = new Core(element, config);
+        this.core_ = new Core(element, config, this.bus_);
         this.core_.outerMap = this;
     }
 
@@ -218,18 +226,13 @@ class Map {
      * @param callback invoked each time the event fires
      * @returns unsubscribe function
      */
-    on<K extends keyof CoreEventMap>(
+    on<K extends keyof ViewerEventMap & string>(
         eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
+        callback: (event: ViewerEventMap[K]) => void,
     ): (() => void) {
 
         this.assertAlive();
-        const unsubscribe = this.core_.on(eventName, callback);
-        if (unsubscribe == null) {
-            throw new Error('Map event subscription failed.');
-        }
-
-        return unsubscribe;
+        return this.bus_.on(eventName, callback);
     }
 
     /**
@@ -237,16 +240,31 @@ class Map {
      *
      * @param eventName event to subscribe to
      * @param callback invoked once when the event fires
-     * @param wait number of matching events to skip before invocation
+     * @returns unsubscribe function
      */
-    once<K extends keyof CoreEventMap>(
+    once<K extends keyof ViewerEventMap & string>(
         eventName: K,
-        callback: (event: CoreEventMap[K]) => void,
-        wait?: number,
-    ): void {
+        callback: (event: ViewerEventMap[K]) => void,
+    ): (() => void) {
 
         this.assertAlive();
-        this.core_.once(eventName, callback, wait);
+        return this.bus_.once(eventName, callback);
+    }
+
+    /**
+     * Fires a named map event to all subscribed listeners.
+     *
+     * @internal Emission is reserved for the library; applications
+     *   only subscribe.
+     * @param eventName event to fire
+     * @param event payload passed to each listener
+     */
+    emit<K extends keyof ViewerEventMap & string>(
+        eventName: K,
+        event: ViewerEventMap[K],
+    ): void {
+
+        this.bus_.emit(eventName, event);
     }
 
     // -----------------------------------------------------------------
@@ -712,7 +730,7 @@ class Map {
         // No map loaded (async style load or post-`destroyMap`).
         if (legacyMap == null) {
 
-            core.callListener('tick', {});
+            this.bus_.emit('tick', {});
             return;
         }
 
@@ -721,8 +739,8 @@ class Map {
 
             legacyMap.srsReady = true;
             this.mapLoadedFired_ = true;
-            core.callListener(
-                'map-loaded', { browserOptions: legacyMap.browserOptions });
+            this.bus_.emit('map-loaded',
+                { browserOptions: legacyMap.browserOptions ?? {} });
             core.markReady_({ browserOptions: legacyMap.browserOptions });
         }
 
@@ -733,7 +751,7 @@ class Map {
         if (!legacyMap.srsReady) {
 
             legacyMap.loader.update();
-            core.callListener('tick', {});
+            this.bus_.emit('tick', {});
             return;
         }
 
@@ -742,7 +760,7 @@ class Map {
         const lastPosition = legacyMap.lastPosition;
         if (!position.isSame(lastPosition)) {
 
-            core.callListener('map-position-changed', {
+            this.bus_.emit('map-position-changed', {
                 'position': position.toArray(),
                 'last-position': lastPosition.toArray(),
             });
@@ -751,7 +769,7 @@ class Map {
         const camera = legacyMap.camera;
         if (camera.lastTerrainHeight !== camera.terrainHeight) {
 
-            core.callListener('map-position-fixed-height-changed', {
+            this.bus_.emit('map-position-fixed-height-changed', {
                 'height': camera.terrainHeight,
                 'last-height': camera.lastTerrainHeight,
             });
@@ -810,13 +828,13 @@ class Map {
              * waiting one extra animation frame. */
             legacyMap.loader.update();
 
-            core.callListener('map-update', {});
+            this.bus_.emit('map-update', {});
         }
 
         legacyMap.tickDeferredEvents();
         // fps clock stops
         legacyMap.stats.end(dirty);
-        core.callListener('tick', {});
+        this.bus_.emit('tick', {});
     }
 
     /** The frame profiler, created on first use once the device exists. */
@@ -1008,7 +1026,7 @@ class Map {
 
         const configStorage = (this.core_ as any).configStorage;
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, configStorage);
+            this.core_, path, this.core_.config, configStorage, this.bus_);
         legacyMap.outerMap = this;
 
         legacyMap.setLoaderParams(null, configStorage);
@@ -1049,7 +1067,7 @@ class Map {
 
         const configStorage = (this.core_ as any).configStorage;
         const legacyMap = new LegacyMap(
-            this.core_, path, this.core_.config, configStorage);
+            this.core_, path, this.core_.config, configStorage, this.bus_);
         legacyMap.outerMap = this;
 
         legacyMap.setLoaderParams(mapConfig, configStorage);
@@ -1410,12 +1428,12 @@ function resolveMaskResolution(value: CoreConfig[string]): number {
 
 /* Declaration merging: re-export public types under `Map.*`. Consumers
  * (`Viewer`, demos) should reference them as `Map.OverlaySpec`,
- * `Map.CoreEventMap`, etc. rather than reaching into `core/types`.
+ * `Map.ViewerEventMap`, etc. rather than reaching into `core/types`.
  * Same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
 
     export type CoreConfig = import('./types').CoreConfig;
-    export type CoreEventMap = import('./types').CoreEventMap;
+    export type ViewerEventMap = import('./types').ViewerEventMap;
     export type HeightMode = import('./types').HeightMode;
     export type Lod = import('./types').Lod;
     export type OverlayContext = import('./types').OverlayContext;

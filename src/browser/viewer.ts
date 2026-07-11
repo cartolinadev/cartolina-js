@@ -102,15 +102,15 @@ class Viewer {
 
     /**
      * Subscribes to a named map event.
-     * See `Map.CoreEventMap` for available event names.
+     * See `Map.ViewerEventMap` for available event names.
      *
      * @param eventName the event to subscribe to
      * @param callback invoked each time the event fires
      * @returns an unsubscribe function
      */
-    on<K extends keyof Map.CoreEventMap>(
+    on<K extends keyof Map.ViewerEventMap & string>(
         eventName: K,
-        callback: (event: Map.CoreEventMap[K]) => void,
+        callback: (event: Map.ViewerEventMap[K]) => void,
     ): (() => void) {
 
         this.assertAlive();
@@ -119,20 +119,19 @@ class Viewer {
 
     /**
      * Subscribes to a named map event for a single invocation.
-     * See `Map.CoreEventMap` for available event names.
+     * See `Map.ViewerEventMap` for available event names.
      *
      * @param eventName the event to subscribe to
      * @param callback invoked once when the event fires
-     * @param wait number of events to skip before invoking the callback
+     * @returns an unsubscribe function
      */
-    once<K extends keyof Map.CoreEventMap>(
+    once<K extends keyof Map.ViewerEventMap & string>(
         eventName: K,
-        callback: (event: Map.CoreEventMap[K]) => void,
-        wait?: number,
-    ): void {
+        callback: (event: Map.ViewerEventMap[K]) => void,
+    ): (() => void) {
 
         this.assertAlive();
-        this.map_.once(eventName, callback, wait);
+        return this.map_.once(eventName, callback);
     }
 
     // -------------------------------------------------------------------------

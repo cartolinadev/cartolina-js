@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
+
+Implemented [rfc-event-bus.md](rfc-event-bus.md) on
+`feature/rfc1-rfc2`. New `EventBus<M>` in `src/core/event-bus.ts`;
+`CoreEventMap` renamed to `ViewerEventMap` with typed payloads and
+the nine browser-layer events promoted into it. `Map` owns the bus
+and exposes `on` / `once` (both return unsubscribe) and internal
+`emit`; `Core`, `LegacyMap`, and `GpuDevice` receive the instance at
+construction. `Core`'s listener array, `wait`, and
+`Browser.callListener` are gone; `Browser.kill()` now drains its
+unsubscribe closures; the dead `positionchanged` subscription is
+removed. New `npm run test:unit` mocha suite covers the bus dispatch
+semantics. Deviations (GeoFeatureEvent payload shape, `fly-start`
+`options` field, LegacyMap wiring) are recorded in the RFC's
+implementation addendum. Validated: tsc clean, three screenshot
+URLs render correctly, Playwright interaction probe confirms the
+gesture events fire with no page errors. RFC 1 (ConfigStore)
+implementation is next, committed separately.
+
 ## 2026-07-11 — RFC 1 review round 5: signed off, accepted
 
 Reviewed the author's round-4 response on

@@ -185,23 +185,28 @@ it calls `Map.tick()` through `Core.outerMap`; `Map.tick()` then:
 
 ## Event Bus
 
-The current event bus is a listener array on `Core`, not `EventTarget`
-or `EventEmitter`. `Core.on` returns an unsubscribe function. `Core.once`
-removes itself after firing. Both are surfaced on `Viewer` through
-`Map`.
+The event bus is a typed `EventBus<ViewerEventMap>`
+(`src/core/event-bus.ts`) owned by `Map`. `Map.on` and `Map.once`
+both return an unsubscribe function; both are surfaced on `Viewer`.
+`Map.emit` is internal — applications only subscribe.
 
-The accepted replacement is a typed `EventBus<EventMap>` owned by `Map`
-and passed to engine objects that emit events. `EventTarget` was
-rejected because it does not match the MapLibre-style `on()` / `once()`
-API, allocates `CustomEvent` objects for frequent events, and still
-needs an adapter. See [rfc-event-bus.md](rfc-event-bus.md).
+The legacy emitters receive the bus instance at construction and
+publish through it directly: `Core` (for `map-mapconfig-loaded` and
+`map-unloaded`), `LegacyMap` (geo-feature events), and `GpuDevice`
+(context-loss events). Browser-layer code emits through `Map.emit`.
 
-`once` accepts an optional `wait` parameter that skips the first N
-firings. No current source call site passes `wait`; the parameter is a
-legacy compatibility surface slated for removal by
-[rfc-event-bus.md](rfc-event-bus.md).
+Dispatch is per event name: `emit` visits only listeners registered
+for the emitted name and returns without allocation when none are
+registered. `emit` iterates a snapshot of the listener set; listeners
+added during an emit do not receive it, listeners removed during an
+emit still do. A throwing listener aborts the remaining listeners in
+the same emit call. `EventTarget` was rejected because it does not
+match the MapLibre-style `on()` / `once()` API, allocates
+`CustomEvent` objects for frequent events, and still needs an
+adapter. See [rfc-event-bus.md](rfc-event-bus.md).
 
-Known events:
+Event names and payload types are defined by `ViewerEventMap` in
+`src/core/types.ts`:
 
 - `map-mapconfig-loaded`
 - `map-loaded`
@@ -209,6 +214,9 @@ Known events:
 - `map-update`
 - `map-position-changed`
 - `map-position-fixed-height-changed`
+- `map-position-panned`
+- `map-position-rotated`
+- `map-position-zoomed`
 - `tick`
 - `gpu-context-lost`
 - `gpu-context-restored`
@@ -216,6 +224,12 @@ Known events:
 - `geo-feature-leave`
 - `geo-feature-hover`
 - `geo-feature-click`
+- `autorotate-changed`
+- `fly-start`
+- `fly-final-phase`
+- `fly-progress`
+- `fly-end`
+- `loading-screen-hidden`
 
 ## Teardown
 
@@ -236,9 +250,8 @@ The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing
 results, so evicted resources are discarded.
 
-Known gap: `Browser.kill()` does not unsubscribe its `tick` listener
-from `Core.on`. The callback keeps firing and hitting the flag until
-`Core` is garbage collected.
+`Browser.kill()` drains the unsubscribe closures stored for every
+listener registered at construction.
 
 The following TypeScript classes implement `[Symbol.dispose]()` as the
 canonical teardown hook:

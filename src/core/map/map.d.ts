@@ -20,6 +20,8 @@ import type {
     NodeInformation,
 } from '../types';
 import type { vec3 } from '../utils/math';
+import type EventBus from '../event-bus';
+import type { ViewerEventMap } from '../types';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -69,6 +71,7 @@ export default class Map {
         path: string,
         config: CoreConfig,
         configStorage: unknown,
+        bus: EventBus<ViewerEventMap>,
     );
 
     /**
@@ -83,6 +86,10 @@ export default class Map {
      */
     outerMap: TypedMap;
     core: Core;
+
+    /** Event bus owned by the typed `Map`; geo-feature events publish
+     * through it. */
+    bus: EventBus<ViewerEventMap>;
 
     renderer: Renderer;
     url: MapUrl;
@@ -118,8 +125,9 @@ export default class Map {
     bestGeodataTexelSize: number;
 
     /** Initial `browserOptions` payload from the loaded mapConfig;
-     * forwarded with the `map-loaded` event and the ready Promise. */
-    browserOptions: unknown;
+     * forwarded with the `map-loaded` event and the ready Promise.
+     * Undefined for style-initialized maps, which have no mapConfig. */
+    browserOptions: Record<string, unknown> | undefined;
     /** Becomes true once the reference frame and any geoid grids have
      * finished loading. Gates the ready path inside `Map.tick`. */
     srsReady: boolean;

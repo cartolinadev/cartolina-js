@@ -22,7 +22,7 @@ var Autopilot = function(browser) {
 
 Autopilot.prototype.setAutorotate = function(speed) {
     if (this.autoRotate != speed) {
-        this.browser.callListener('autorotate-changed', { 'autorotate' : speed});
+        this.browser.map.emit('autorotate-changed', { 'autorotate' : speed});
     }
 
     this.autoRotate = speed;
@@ -100,7 +100,7 @@ Autopilot.prototype.setTrajectory = function(trajectory, sampleDuration, options
     this.finalPhaseFired = false;
     //this.
     
-    this.browser.callListener('fly-start', { 'startPosition' : this.trajectory[0],
+    this.browser.map.emit('fly-start', { 'startPosition' : this.trajectory[0],
         'endPosition' : this.trajectory[this.trajectory.length - 1],
         'options' : options
     });
@@ -155,10 +155,10 @@ Autopilot.prototype.tick = function() {
 
         if (!this.finalPhaseFired && sampleIndex >= this.finalPhaseSample) {
             this.finalPhaseFired = true;
-            this.browser.callListener('fly-final-phase', { 'position': this.trajectory[sampleIndex] });
+            this.browser.map.emit('fly-final-phase', { 'position': this.trajectory[sampleIndex] });
         }
 
-        this.browser.callListener('fly-progress', { 'position' : this.trajectory[sampleIndex],
+        this.browser.map.emit('fly-progress', { 'position' : this.trajectory[sampleIndex],
             'progress' : 100 * (sampleIndex / totalSamples)
         });
 
@@ -168,7 +168,7 @@ Autopilot.prototype.tick = function() {
     } 
     
     if (sampleIndex >= this.trajectory.length) {
-        this.browser.callListener('fly-end', { 'position' : this.trajectory[totalSamples] });
+        this.browser.map.emit('fly-end', { 'position' : this.trajectory[totalSamples] });
 
         this.browser.getControlMode().setCurrentControlMode(this.lastControlMode);
         this.finished = true;

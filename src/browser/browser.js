@@ -51,20 +51,27 @@ var Browser = function(element, config) {
     this.controlMode = new ControlMode(this, this.ui);
     this.presenter = new Presenter(this, config);
 
-    this.on('map-loaded', this.onMapLoaded.bind(this));
-    this.on('map-unloaded', this.onMapUnloaded.bind(this));
-    this.on('map-update', this.onMapUpdate.bind(this));
-    this.on('map-position-changed', this.onMapPositionChanged.bind(this));
-    this.on('map-position-fixed-height-changed', this.onMapPositionFixedHeightChanged.bind(this));
-    this.on('map-position-panned', this.onMapPositionPanned.bind(this));
-    this.on('map-position-rotated', this.onMapPositionRotated.bind(this));
-    this.on('map-position-zoomed', this.onMapPositionZoomed.bind(this));
-        
-    this.on('tick', this.onTick.bind(this));
+    // unsubscribe closures for every listener registered below;
+    // drained in kill()
+    this.unsubscribes = [
+        this.on('map-loaded', this.onMapLoaded.bind(this)),
+        this.on('map-unloaded', this.onMapUnloaded.bind(this)),
+        this.on('map-update', this.onMapUpdate.bind(this)),
+        this.on('map-position-changed', this.onMapPositionChanged.bind(this)),
+        this.on('map-position-fixed-height-changed', this.onMapPositionFixedHeightChanged.bind(this)),
+        this.on('map-position-panned', this.onMapPositionPanned.bind(this)),
+        this.on('map-position-rotated', this.onMapPositionRotated.bind(this)),
+        this.on('map-position-zoomed', this.onMapPositionZoomed.bind(this)),
+        this.on('tick', this.onTick.bind(this))
+    ];
 };
 
 
 Browser.prototype.kill = function() {
+    for (var i = 0; i < this.unsubscribes.length; i++) {
+        this.unsubscribes[i]();
+    }
+    this.unsubscribes = [];
     this.ui.kill();
     this.killed = true;
 };
@@ -105,11 +112,6 @@ Browser.prototype.getControlMode = function() {
 
 Browser.prototype.on = function(name, listener) {
     return this.map.on(name, listener);
-};
-
-
-Browser.prototype.callListener = function(name, event) {
-    this.map.core.callListener(name, event);
 };
 
 

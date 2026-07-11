@@ -58,7 +58,7 @@ ControlModeMapObserver.prototype.drag = function(event) {
 
             sensitivity = config.sensitivity[1] * this.retinaFactor;
             this.orientationDeltas.push([delta[0] * sensitivity,  -delta[1] * sensitivity, 0]);
-            this.browser.callListener('map-position-rotated', {});
+            this.browser.map.emit('map-position-rotated', {});
 
         } else if (event.getTouchParameter('touchMode') == 'zoom' && config.zoomAllowed) {
 
@@ -74,7 +74,7 @@ ControlModeMapObserver.prototype.drag = function(event) {
                     this.updateDeltas(false, false, true);
                 }
 
-                this.browser.callListener('map-position-zoomed', {});
+                this.browser.map.emit('map-position-zoomed', {});
             }
         }
 
@@ -103,7 +103,7 @@ ControlModeMapObserver.prototype.drag = function(event) {
                 this.updateDeltas(true);
             }
 
-            this.browser.callListener('map-position-panned', {});
+            this.browser.map.emit('map-position-panned', {});
         }
     } else if (((touches <= 1 && event.getDragButton('right')) || event.getDragButton('middle') || modifierKey)  && config.rotationAllowed) { //rotate
 
@@ -114,7 +114,7 @@ ControlModeMapObserver.prototype.drag = function(event) {
             this.updateDeltas(false, true);
         }
 
-        this.browser.callListener('map-position-rotated', {});
+        this.browser.map.emit('map-position-rotated', {});
     }
 };
 
@@ -170,7 +170,7 @@ ControlModeMapObserver.prototype.wheel = function(event) {
 
         this.viewExtentDeltas.push(factor);
         this.reduceFloatingHeight(0.8);
-        this.browser.callListener('map-position-zoomed', {});
+        this.browser.map.emit('map-position-zoomed', {});
     }
 };
 

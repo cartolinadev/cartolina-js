@@ -52,7 +52,7 @@ Inspector.prototype.enableInspector = function() {
                 );
         }
 
-        this.core.on('map-update', this.onMapUpdate.bind(this));
+        this.core.bus.on('map-update', this.onMapUpdate.bind(this));
         this.enabled = true;
     }
 };

@@ -18,7 +18,8 @@ import * as IlluminationMath from '../map/illumination';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/map';
 import { defaultOverrides, type Overrides } from '../map/overrides';
-import type { CoreConfig } from '../types';
+import type EventBus from '../event-bus';
+import type { CoreConfig, ViewerEventMap } from '../types';
 import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
@@ -418,7 +419,8 @@ constructor(core: Core, div: HTMLElement, config : CoreConfig) {
     this.gpu = new GpuDevice(this, div,
         !! this.config.rendererAllowScreenshots,
         !! this.config.rendererAntialiasing,
-        this.config.rendererAnisotropic ?? 0);
+        this.config.rendererAnisotropic ?? 0,
+        core.bus);
 
     const canvasTarget = this.gpu.updateCanvasRenderTarget();
     this.setProjection(canvasTarget.apparentSize);
@@ -2661,8 +2663,8 @@ type Core = {
 
     map: LegacyMap;
     contextLost: boolean;
+    bus: EventBus<ViewerEventMap>;
 
-    callListener(name: string, event: any, log?: boolean): void;
     setRendererConfigParam(key: string, value: unknown): void;
     getRendererConfigParam(key: string): unknown;
 

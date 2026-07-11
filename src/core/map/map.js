@@ -25,11 +25,15 @@ import MapSurface from './surface';
 import MapGeodataBuilder from './geodata-builder';
 
 
-var Map = function(core, path, config, configStorage) {
+var Map = function(core, path, config, configStorage, bus) {
 
     this.config = config || {};
     this.setConfigParams(config);
     this.core = core;
+
+    // event bus owned by the typed `Map`; geo-feature events publish
+    // through it
+    this.bus = bus;
     this.coreConfig = core.coreConfig;
     this.killed = false;
     this.config = config || {};
@@ -1702,17 +1706,17 @@ Map.prototype.tickDeferredEvents = function() {
                 };
 
                 if (event[0] === 'enter')
-                    this.core.callListener('geo-feature-enter', payload);
+                    this.bus.emit('geo-feature-enter', payload);
 
                 if (event[0] === 'leave')
-                    this.core.callListener('geo-feature-leave', payload);
+                    this.bus.emit('geo-feature-leave', payload);
             }
         }
 
         if (result[1] && result[0] != null) {
 
             p = result[0][1];
-            this.core.callListener('geo-feature-hover', {
+            this.bus.emit('geo-feature-hover', {
                 'feature': result[0][0],
                 'canvas-coords': renderer.project2(
                     result[0][1], renderer.camera.mvp, camPos),
@@ -1740,7 +1744,7 @@ Map.prototype.tickDeferredEvents = function() {
         if (result[1] && result[0] != null) {
 
             p = result[0][1];
-            this.core.callListener('geo-feature-click', {
+            this.bus.emit('geo-feature-click', {
                 'feature': result[0][0],
                 'canvas-coords': renderer.project2(
                     result[0][1], renderer.camera.mvp, camPos),

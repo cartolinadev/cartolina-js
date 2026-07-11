@@ -2,6 +2,8 @@
 import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
+import type EventBus from '../../event-bus';
+import type { ViewerEventMap } from '../../types';
 import * as utils from '../../utils/utils';
 
 
@@ -30,6 +32,12 @@ export class GpuDevice {
      * Renderer that owns this WebGL context.
      */
     renderer!: Renderer;
+
+    /**
+     * Event bus owned by the typed `Map`; context-loss events publish
+     * through it.
+     */
+    bus!: EventBus<ViewerEventMap>;
 
     /**
      * DOM container that receives the managed canvas.
@@ -136,16 +144,19 @@ export class GpuDevice {
  * contents for screenshots.
  * @param antialias Whether to request an antialiased WebGL context.
  * @param aniso Requested anisotropic filtering level.
+ * @param bus Event bus for the context-loss events.
  */
 constructor(
     renderer: Renderer,
     div: HTMLElement,
     keepFrameBuffer: boolean,
     antialias: boolean,
-    aniso: GLfloat
+    aniso: GLfloat,
+    bus: EventBus<ViewerEventMap>
 ) {
 
     this.renderer = renderer;
+    this.bus = bus;
     this.div = div;
     this.keepFrameBuffer = keepFrameBuffer;
     this.antialias = antialias;
@@ -256,13 +267,13 @@ contextLost(event: Event) {
     console.error('WebGL context lost', new Date().toISOString());
     event.preventDefault();
     this.renderer.core.contextLost = true;
-    this.renderer.core.callListener('gpu-context-lost', {});
+    this.bus.emit('gpu-context-lost', {});
 };
 
 
 contextRestored(): void {
 
-    this.renderer.core.callListener('gpu-context-restored', {});
+    this.bus.emit('gpu-context-restored', {});
 };
 
 

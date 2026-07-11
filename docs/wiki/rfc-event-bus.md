@@ -1,6 +1,6 @@
 # RFC 2: event bus — extraction and redesign
 
-**Status:** Accepted
+**Status:** Implemented
 **Context:** event bus section in [architecture.md](architecture.md);
 `core.js` suppression track in [backlog.md](backlog.md)
 
@@ -704,3 +704,56 @@ decided, not open — matches the round-3 resolution. Design accepted.
 
 One editorial note, not a blocker: section 4A still says `map-update`
 fires "on every tile-tree pass"; the current trigger is a dirty draw.
+
+---
+
+## Addendum — 2026-07-11 — implementation note
+
+All ten implementation steps are done. `EventBus<M>` lives in
+`src/core/event-bus.ts`; `Map` owns the instance and exposes `on`,
+`once`, and the internal `emit`. `Core` keeps a temporary `bus` field
+for its two remaining emit sites. `LegacyMap` and `GpuDevice` receive
+the bus at construction. All `Browser.callListener` emission sites go
+through `Map.emit`; the method is deleted. `Core.on`, `Core.once`,
+`Core.callListener`, `Core.removeListener`, the `listeners` array,
+`listenerCounter`, and the `wait` parameter are removed.
+`Browser.kill()` drains stored unsubscribe closures. The dead
+`positionchanged` subscription is removed together with its empty
+handler.
+
+Deviations from the accepted design:
+
+- `GeoFeatureEvent` is typed after the payload actually emitted in
+  `map/map.js`: `feature`, `canvas-coords`, `physical-coords`,
+  `state`, `element`. The design body's shape (`world-coords`, three
+  fields) does not match any emit site.
+- The `fly-start` emit in `autopilot.js` also carries an `options`
+  field; it is included in the typed payload as `unknown`.
+- `browserOptions` is undefined for style-initialized maps, which
+  have no mapConfig. `Map.tick` emits `browserOptions ?? {}` so the
+  `map-loaded` payload always carries an object.
+- `LegacyMap` receives the bus as a fifth constructor argument from
+  `Map`, which constructs it — not from `Core` as section 6.1
+  assumed.
+- Two subscription sites used `Core.on` directly and had to be
+  rerouted when it was removed: `inspector.js` now subscribes through
+  the temporary `Core.bus`; `geodata-builder.js` through
+  `LegacyMap.bus`.
+- `sandbox/atmosphere-density/main.ts` constructs `Core` directly and
+  was updated for the new constructor arity.
+
+The open question (exception isolation in `emit`) is resolved as
+designed in section 4C: no isolation; a throwing listener aborts the
+remaining listeners, matching the previous `callListener` behavior.
+
+Unit tests: `npm run test:unit` compiles `event-bus.ts` and runs the
+mocha suite in `test/unit/event-bus.test.js` covering
+snapshot-at-dispatch, `once` auto-removal, unsubscribe, and the
+throw semantics.
+
+Validation: `npx tsc --noEmit` clean; `simple-terrain`,
+`complex-terrain`, and `full-terrain` render correctly with no
+console or network errors; a Playwright interaction probe confirmed
+`map-position-panned`, `map-position-zoomed`, and
+`map-position-changed` fire through `Viewer.on` during mouse pan and
+wheel zoom with no page errors.
