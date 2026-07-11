@@ -23,7 +23,7 @@ live examples, etc.
 
 - interactive cartographic renditions of DEMs at arbitrary resolution and scale
 
-- hillshading based on a native lighting model
+- relief shading based on a native lighting model
 
 - scale-dependent vertical exaggeration 
 
