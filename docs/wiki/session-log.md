@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 2 review round 4 processed
+
+Processed review round 4 in
+[rfc-event-bus.md](rfc-event-bus.md) as author. Accepted the verified
+`wait` removal and updated the body drift found by the reviewer: section
+2 now attributes the five relocated events to `Map.tick()`, section 6.1
+has `Map` emit them directly through its bus, and temporary `Core.bus`
+wiring is limited to `map-mapconfig-loaded` and `map-unloaded`. Step 4
+now matches that narrower migration. Also corrected section 2's stale
+claim that the already-decided `ViewerEventMap` rename remained open.
+The RFC remains `In review` pending reviewer sign-off.
+
 ## 2026-07-11 — RFC 2 review round 4: `wait` removal accepted, body drift noted
 
 Reviewed the round-4 request on [rfc-event-bus.md](rfc-event-bus.md).

@@ -63,20 +63,19 @@ between `CoreEventMap` events and events emitted only via
 decision. All events belong in the typed map.
 
 The type is currently named `CoreEventMap`. Once the bus moves to `Map`,
-the name is a misnomer; renaming to `ViewerEventMap` is tracked in the
-open questions.
+the name is a misnomer; this RFC renames it to `ViewerEventMap`.
 
 ### Currently in `CoreEventMap`
 
 | Event | Source | Frequency |
 |---|---|---|
 | `map-mapconfig-loaded` | `Core.loadMap()` — legacy mapConfig path | once |
-| `map-loaded` | `Core.onUpdate()` — first `srsReady` frame | once |
+| `map-loaded` | `Map.tick()` — first `srsReady` frame | once |
 | `map-unloaded` | `Core` unload path | rare |
-| `map-update` | `LegacyMap.update()` — every tile tree pass | high |
-| `map-position-changed` | `LegacyMap` — camera move | medium |
-| `map-position-fixed-height-changed` | `LegacyMap` — terrain height | medium |
-| `tick` | `Core.onUpdate()` — every rAF frame | 60 Hz |
+| `map-update` | `Map.tick()` — every dirty draw | high |
+| `map-position-changed` | `Map.tick()` — camera move | medium |
+| `map-position-fixed-height-changed` | `Map.tick()` — terrain height | medium |
+| `tick` | `Map.tick()` — every rAF frame | 60 Hz |
 | `gpu-context-lost` | `GpuDevice` via `renderer.core.callListener` | rare |
 | `gpu-context-restored` | `GpuDevice` via `renderer.core.callListener` | rare |
 | `geo-feature-enter` | `LegacyMap` — cursor enters feature | medium |
@@ -363,11 +362,12 @@ class Map {
 }
 ```
 
-`Map` constructs `Core` and passes the `EventBus` instance at
-construction time. `Core` stores it as `this.bus` and calls
-`this.bus.emit(...)` for the events it still owns (`tick`, `map-loaded`,
-`map-unloaded`, `map-mapconfig-loaded`). As those responsibilities are
-absorbed into `Map`, the `Core.bus` field disappears with them.
+`Map` emits its own events (`tick`, `map-loaded`, `map-update`, and the
+two position-change events) directly through `this.bus_.emit(...)`.
+It passes the `EventBus` instance to `Core` at construction time only
+for the two events `Core` still owns: `map-mapconfig-loaded` and
+`map-unloaded`. The temporary `Core.bus` field disappears when those
+remaining responsibilities move out of `Core`.
 
 `LegacyMap` and `GpuDevice` also receive the bus at construction time
 from `Core` and `Renderer` respectively, replacing their
@@ -452,10 +452,11 @@ untyped ES5 objects; they will be tightened when `autopilot.js` migrates.
 3. Add `bus_: EventBus<ViewerEventMap>` to `Map`. Implement `Map.on()`,
    `Map.once()`, `Map.emit()` delegating to `bus_`. Change return types
    of `Map.once()` and `Viewer.once()` to `() => void`.
-4. Pass the bus to `Core` at construction. Replace `Core.on` /
-   `Core.once` / `Core.callListener` / `Core.removeListener` with
-   direct `this.bus.emit(...)` calls at the emission sites. Remove the
-   `listeners` array and `listenerCounter` from `Core`.
+4. Replace `Map.tick()` emissions of its five event types with direct
+   `this.bus_.emit(...)` calls. Pass the bus to `Core` at construction
+   for its `map-mapconfig-loaded` and `map-unloaded` emit sites. Remove
+   `Core.on`, `Core.once`, `Core.callListener`, `Core.removeListener`,
+   the `listeners` array, and `listenerCounter`.
 5. Pass the bus to `LegacyMap` and `GpuDevice` at construction.
    Replace `this.core.callListener(...)` call sites with
    `this.bus.emit(...)`.
@@ -653,6 +654,8 @@ several emit sites, and the design body has not caught up.
   the volume measurement path in `measure.js`. The rewritten section 1
   bullet, section 3, section 6.3, and step 6 match the code. Accepted.
 
+  *Author: accepted. No body change is needed for this note.*
+
 - The event-source attributions in section 2 and the migration wiring
   in section 6.1 are stale. `tick`, `map-loaded`, `map-update`,
   `map-position-changed`, and `map-position-fixed-height-changed` are
@@ -668,6 +671,12 @@ several emit sites, and the design body has not caught up.
   class of post-sign-off body drift that motivated this round; fix it
   before sign-off.
 
+  *Author: implemented. The section 2 Source column now attributes all
+  five events to `Map.tick()`, including `map-update` after a dirty draw.
+  Section 6.1 now sends those events directly through `Map.bus_` and
+  limits temporary `Core.bus` ownership to `map-mapconfig-loaded` and
+  `map-unloaded`. Step 4 now reflects that narrower migration.*
+
 - Everything else in the body re-verified against the current tree
   and holds: the `Browser.callListener` emission sites
   (`map-observer.js`, `autopilot/autopilot.js`, `ui/control/loading.js`),
@@ -677,3 +686,5 @@ several emit sites, and the design body has not caught up.
   `demos/waypoint/waypoint.js`, the dead `positionchanged`
   subscription in `explore-bar.js`, and the section 6.2 payload
   shapes, which match the `map.ts` emit sites field for field.
+
+  *Author: accepted.*
