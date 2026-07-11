@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — backlog: tileserver entries handed back to the tileserver
+
+Removed the two tileserver-tagged entries from [backlog.md](backlog.md):
+the zero-submesh mesh entry moved verbatim to the tileserver backlog,
+and the RF-validity flags-vs-mesh entry was closed as resolved by the
+2026-07-05 unified-tiling contract decision. Details in the tileserver
+session log, same date.
+
 ## 2026-07-11 — RFC 9 implemented: stable metadata-first traversal
 
 Confirmed that the recent draw-traversal changes complete
