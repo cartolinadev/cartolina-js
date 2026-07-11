@@ -15,6 +15,12 @@ Implementing [rfc-config-store.md](rfc-config-store.md) on
   `Number.MAXINTEGER` typo, keys that were undefined until set) are
   listed in the commit message and will be summarized in the RFC's
   implementation addendum.
+- Step 2: `src/core/config-store.ts` — `ConfigStore<T>` with
+  immediate `get()`/`values` reads and deferred watcher dispatch on
+  `flush()`. Beyond the RFC signature it exposes `values`, the live
+  value map, so legacy readers can hold one shared normalized object
+  during the migration. Unit-tested in
+  `test/unit/config-store.test.js` (13 tests).
 
 ## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
 

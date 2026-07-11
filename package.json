@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.550-feature_rfc1_rfc2.7289d7a8",
+  "version": "2.49.551-feature_rfc1_rfc2.bf960012",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
   "engines": {
@@ -15,7 +15,7 @@
     "prepare": "ts-patch install && husky install",
     "perf:install": "npx playwright install chromium",
     "test": "npm run test:perf:headed",
-    "test:unit": "node_modules/.bin/tsc src/core/event-bus.ts --strict --target es2020 --module commonjs --moduleResolution node --outDir tmp/unit-build && node_modules/.bin/mocha test/unit/*.test.js",
+    "test:unit": "node_modules/.bin/tsc src/core/event-bus.ts src/core/config-store.ts --strict --target es2020 --module commonjs --moduleResolution node --outDir tmp/unit-build && node_modules/.bin/mocha test/unit/*.test.js",
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
     "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",
