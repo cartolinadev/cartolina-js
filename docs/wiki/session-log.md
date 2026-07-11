@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-11 — RFC 1 review round 4 processed
+
+Processed review round 4 in
+[rfc-config-store.md](rfc-config-store.md) as author. Confirmed and
+retained the complete set of correct post-sign-off body edits. Restored
+the original `authorization` wording in the closed round-1 and round-2
+reviewer notes. Replaced §4.3's nonexistent nested `atmosphere` example
+with `LegacyMap` reading and watching the real flat boolean key
+`mapFlagAtmosphere`. Responded to every reviewer note. The RFC remains
+`In review` pending reviewer sign-off.
+
 ## 2026-07-11 — RFC 1 round 4: example fix accepted, record edit flagged
 
 Reviewed the round-4 request on

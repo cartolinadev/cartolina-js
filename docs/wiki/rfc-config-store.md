@@ -208,14 +208,12 @@ Each subsystem that cares about config takes a `ConfigStore` at
 construction and calls `watch()` for the keys it owns:
 
 ```typescript
-class Atmosphere {
+class LegacyMap {
     constructor(store: ConfigStore<ViewerConfig>) {
-        const init = store.get('atmosphere');
-        this.enabled = init.enabled;
-        this.density = init.density;
+        this.config.mapFlagAtmosphere = store.get('mapFlagAtmosphere');
 
-        store.watch(['atmosphere'], ({ atmosphere }) => {
-            this.apply(atmosphere);
+        store.watch(['mapFlagAtmosphere'], ({ mapFlagAtmosphere }) => {
+            this.config.mapFlagAtmosphere = mapFlagAtmosphere;
         });
     }
 }
@@ -411,7 +409,7 @@ subsystems read it at construction. Confirm no other purpose for
    between runtime key checks and TypeScript, but the existing setters
    also normalize values from untyped sources: booleans, bounded
    numbers, fixed-length arrays, `MapPosition`, `geojsonStyle` JSON,
-   and request-transform values. `ViewerConfig` types do not protect calls
+   and authorization values. `ViewerConfig` types do not protect calls
    from JavaScript, URL params, style JSON, or `browserOptions`. The
    RFC should define where raw authored values become normalized store
    values and whether watchers may assume every value they receive has
@@ -467,7 +465,7 @@ subsystems read it at construction. Confirm no other purpose for
    working, but it does not update the separate `Core.config`,
    `LegacyMap.config`, or renderer config objects. Current
    `Browser.setConfigParam(key, value, true)` forwards `map*`,
-   `renderer*`, `debug*`, and `transformRequest` keys to the existing core
+   `renderer*`, `debug*`, and `authorization` keys to the existing core
    route so live `Viewer.setParam()` calls take effect. Until the
    corresponding watchers exist, the compatibility shim must keep
    forwarding those keys through the old route, or Step 3 must include
@@ -517,6 +515,8 @@ prescribes for an author request; its text is untouched.
   line and the pre-existing `mapCache: number;` line becomes the
   representative key. Accepted.
 
+  *Author: implemented. The accepted `mapFog` replacement is retained.*
+
 - The requested section names only the `mapFog` replacement, but two
   later commits also edited the signed-off body while the RFC sat in
   review. `77704cb9` rewrote step 4 item 2 from "no terrain engine
@@ -534,6 +534,10 @@ prescribes for an author request; its text is untouched.
   title, adding the RFC number). This note records the complete
   delta; confirm below.
 
+  *Author: implemented. The complete post-sign-off body delta is
+  confirmed. Both additional edits describe the current code and are
+  retained.*
+
 - `2dc6a183` also rewrote reviewer text inside the closed rounds:
   round 1 note 2 now reads "request-transform values" and round 2
   note 1 now reads "`transformRequest` keys", where the signed-off
@@ -547,6 +551,10 @@ prescribes for an author request; its text is untouched.
   notes; the rename is already recorded by the §4.2 body edit and by
   this round. Blocker.
 
+  *Author: implemented. The round-1 and round-2 reviewer notes now use
+  their original signed-off wording: "authorization values" and
+  "`authorization` keys".*
+
 - Same class as the requested change, one more stale example key:
   §4.3 illustrates the subsystem pattern with
   `store.get('atmosphere')` returning an object with `enabled` and
@@ -555,6 +563,9 @@ prescribes for an author request; its text is untouched.
   one key as a nested group of values, which the flat-layout rule in
   §4.2 excludes. Rework the example around real flat keys before
   sign-off.
+
+  *Author: implemented. The example now shows `LegacyMap` reading and
+  watching the real flat boolean key `mapFlagAtmosphere`.*
 
 - The rest of the body re-verified against the current tree and
   holds: the three separate config objects (`Browser`, `Core`,
@@ -566,3 +577,6 @@ prescribes for an author request; its text is untouched.
   `src/core/types.ts`; `control-mode/map-observer.js` reading
   `this.config` directly. The key counts hold to their stated
   tolerance: 81 `map*` cases and 4 `renderer*` keys today.
+
+  *Author: implemented. No further body change is required for the
+  re-verified material.*
