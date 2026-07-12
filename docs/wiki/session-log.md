@@ -3,6 +3,38 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — RFC 11 mapConfig-to-style design
+
+Drafted [rfc-mapconfig-to-style.md](rfc-mapconfig-to-style.md). The design
+keeps mapConfig as an input format but converts it before map creation, so
+style loading becomes the only internal path. It replaces Views with typed
+Viewer-level visibility profiles over terrain-aware layer visibility and
+Cartolina terrain selection, adds a style default position, and specifies
+removal of the mapConfig branches from `Viewer`, `Map`, and `LegacyMap`.
+Source inspection showed that conversion must preserve per-surface
+bound-layer ordering and view-level illumination or superelevation, not only
+visibility booleans.
+The public `tacoma-fitonly` dev/prod pair established the reference
+decomposition for external free-layer stylesheets. RFC 11 specifies a
+linker pass that coalesces equal shared symbols, qualifies conflicting
+constants, fonts, and bitmaps, rewrites references, and emits structured
+warnings for deterministic best-effort recovery.
+The target style contains no profile registry and no VTS layer categories.
+All drawable content is a style layer with one id, ordering, visibility, and
+terrain-applicability contract. Visibility profiles exist only on `Viewer`,
+which expands them into primitive layer visibility changes; core `Map` does
+not know about profiles.
+Both Viewer API levels remain available. Profiles are complete, one-time
+atomic writes rather than persistent modes: later direct changes override
+individual values, and reapplying a profile overwrites those changes.
+The public `browser()` factory is removed from the design. Applications
+await `mapConfigToStyle()` outside the viewer lifecycle, then pass the
+resulting style to the single style-based public class constructor.
+The conversion result preserves original and translated named-view data.
+A compatibility Browser wrapper was considered and rejected because it
+would add a second readiness, delegation, and teardown lifecycle; a concrete
+integration may provide one later as a separate optional legacy adapter.
+
 ## 2026-07-13 — vts-era Browser config accessors removed
 
 `Browser.setConfigParam` / `setConfigParams` / `getConfigParam`

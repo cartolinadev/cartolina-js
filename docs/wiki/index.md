@@ -43,6 +43,9 @@ in [AGENTS.md](../../AGENTS.md).
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate
+- RFC 11 [rfc-mapconfig-to-style.md](rfc-mapconfig-to-style.md) — convert
+  legacy mapConfigs to styles before initialization, replace Views with
+  Viewer-level visibility profiles, and delete the second internal map model
 
 ### Data model
 
