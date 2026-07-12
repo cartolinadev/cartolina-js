@@ -167,6 +167,19 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(isPublicRuntimeConfigKey('debugMode'), false);
         assert.strictEqual(isPublicRuntimeConfigKey('position'), false);
 
+        // keys consumed only when their UI control is built
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('controlLoading'), false);
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('controlSearchElement'), false);
+
+        // keys removed from the catalogue as dead configuration
+        assert.strictEqual(
+            canonicalConfigKey('mapFeaturesPerSquareInch'), null);
+        assert.strictEqual(
+            canonicalConfigKey('positionUrlHistory'), null);
+        assert.strictEqual(canonicalConfigKey('controlGithub'), null);
+
         // legacy aliases stay confined to compatibility ingestion
         assert.strictEqual(isPublicRuntimeConfigKey('pos'), false);
         assert.strictEqual(isPublicRuntimeConfigKey('rotate'), false);

@@ -38,7 +38,6 @@ export interface ViewerConfig {
     timeNormalizedInertia: boolean;
     legacyInertia: boolean;
     positionInUrl: boolean;
-    positionUrlHistory: boolean;
     constrainCamera: boolean;
     navigationMode: string;
     controlCompass: boolean;
@@ -53,7 +52,6 @@ export interface ViewerConfig {
     controlMeasure: boolean;
     controlMeasureLite: boolean;
     controlLink: boolean;
-    controlGithub: boolean;
     controlScale: boolean;
     controlLayers: boolean;
     controlCredits: boolean;
@@ -172,7 +170,6 @@ export interface ViewerConfig {
     mapIndexBuffers: boolean;
     mapAsyncImageDecode: boolean;
     mapFeatureGridCells: number;
-    mapFeaturesPerSquareInch: number;
     mapFeaturesSortByTop: boolean;
     mapFeaturesReduceMode: string;
     mapFeaturesReduceParams: number[];
@@ -240,7 +237,6 @@ export function defaultViewerConfig(): ViewerConfig {
         timeNormalizedInertia: false,
         legacyInertia: false,
         positionInUrl: false,
-        positionUrlHistory: false,
         constrainCamera: true,
         navigationMode: 'azimuthal',
         controlCompass: true,
@@ -255,7 +251,6 @@ export function defaultViewerConfig(): ViewerConfig {
         controlMeasure: false,
         controlMeasureLite: false,
         controlLink: false,
-        controlGithub: false,
         controlScale: true,
         controlLayers: false,
         controlCredits: true,
@@ -356,7 +351,6 @@ export function defaultViewerConfig(): ViewerConfig {
         mapIndexBuffers: true,
         mapAsyncImageDecode: typeof createImageBitmap !== 'undefined',
         mapFeatureGridCells: 31,
-        mapFeaturesPerSquareInch: 0.25,
         mapFeaturesSortByTop: false,
         mapFeaturesReduceMode: 'scr-count7',
         mapFeaturesReduceParams: [0.05, 0.17, 11, 1, 1000],
@@ -405,8 +399,11 @@ export function defaultViewerConfig(): ViewerConfig {
  * interaction, UI controls, cartographic appearance, units and
  * language, or resource budgets.
  *
- * Deliberately absent: construction-only keys, keys consumed only
- * at map or style load (`mapDefaultFont`, `geojson`, `geodata`,
+ * Deliberately absent: construction-only keys (including the UI
+ * keys read once when their control is built —
+ * `controlSearchElement`, `controlSearchValue`, `controlMeasureLite`,
+ * `controlLoading`, `bigScreenMargins`), keys consumed only at map
+ * or style load (`mapDefaultFont`, `geojson`, `geodata`,
  * `geojsonStyle`), structural and command keys with dedicated
  * methods or construction options (`style`, `map`, `position`,
  * `view`, `transformRequest`), inspector debug keys and
@@ -425,7 +422,6 @@ export const publicRuntimeConfigKeys = [
     'sensitivity',
     'inertia',
     'positionInUrl',
-    'positionUrlHistory',
     'constrainCamera',
     'navigationMode',
     'controlCompass',
@@ -435,22 +431,16 @@ export const publicRuntimeConfigKeys = [
     'controlSearchSrs',
     'controlSearchUrl',
     'controlSearchFilter',
-    'controlSearchElement',
-    'controlSearchValue',
     'controlMeasure',
-    'controlMeasureLite',
     'controlLink',
-    'controlGithub',
     'controlScale',
     'controlLayers',
     'controlCredits',
     'controlFullscreen',
-    'controlLoading',
     'controlLogo',
     'walkMode',
     'fixedHeight',
     'tiltConstrainThreshold',
-    'bigScreenMargins',
     'minViewExtent',
     'maxViewExtent',
     'autoRotate',
@@ -473,7 +463,6 @@ export const publicRuntimeConfigKeys = [
     'mapMobileDetailDegradation',
     'mapLoadErrorRetryTime',
     'mapLoadErrorMaxRetryCount',
-    'mapFeaturesPerSquareInch',
     'mapDegradeHorizon',
     'mapDegradeHorizonParams',
     'mapLabelFreeMargins',
@@ -503,6 +492,40 @@ export const publicRuntimeConfigKeys = [
  */
 export type PublicRuntimeConfig =
     Pick<ViewerConfig, (typeof publicRuntimeConfigKeys)[number]>;
+
+
+/**
+ * The public construction configuration map: the keys accepted by
+ * the factory option bags (`MapOptions.options` and the
+ * `browser()` config). It covers every public runtime key plus the
+ * deliberately public keys that are consumed at construction, at
+ * map or style load, or when their UI control is built. Internal
+ * tuning keys, diagnostics, and debug keys are not part of the
+ * typed factory surface; the permissive ingestion paths (parsed
+ * URLs, legacy callers) still accept the full catalogue at runtime.
+ */
+export type PublicConstructionConfig = Partial<Pick<ViewerConfig,
+    | (typeof publicRuntimeConfigKeys)[number]
+
+    // interaction registration and UI controls built once
+    | 'interactive'
+    | 'bigScreenMargins'
+    | 'controlSearchElement'
+    | 'controlSearchValue'
+    | 'controlMeasureLite'
+    | 'controlLoading'
+
+    // WebGL context and texture creation flags
+    | 'rendererAnisotropic'
+    | 'rendererAntialiasing'
+    | 'rendererAllowScreenshots'
+
+    // consumed at map or style load
+    | 'mapDefaultFont'
+    | 'geojson'
+    | 'geodata'
+    | 'geojsonStyle'
+>>;
 
 
 // backs the runtime membership guard below
@@ -663,7 +686,6 @@ const normalizers: {
     timeNormalizedInertia: bool(false),
     legacyInertia: bool(false),
     positionInUrl: bool(false),
-    positionUrlHistory: bool(false),
     constrainCamera: bool(true),
     navigationMode: str('azimuthal'),
     controlCompass: bool(true),
@@ -685,7 +707,6 @@ const normalizers: {
     controlMeasure: bool(false),
     controlMeasureLite: bool(false),
     controlLink: bool(false),
-    controlGithub: bool(false),
     controlScale: bool(true),
     controlLayers: bool(false),
     controlCredits: bool(true),
@@ -831,7 +852,6 @@ const normalizers: {
         utils.validateBool(v, false)
             && typeof createImageBitmap !== 'undefined',
     mapFeatureGridCells: num(-MAX, MAX, 0),
-    mapFeaturesPerSquareInch: num(0.000001, MAX, 0),
     mapFeaturesSortByTop: bool(false),
     mapFeaturesReduceMode: (v) => {
 

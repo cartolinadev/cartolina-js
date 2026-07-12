@@ -42,7 +42,10 @@ var Map = function(core, path, config, bus) {
     // unsubscribed in kill()
     this.configUnsubscribes = [
         core.configStore.watch(
-            ['mapCache', 'mapGPUCache', 'mapMetatileCache'],
+            [
+                'mapCache', 'mapGPUCache', 'mapMetatileCache',
+                'mapMobileDetailDegradation',
+            ],
             this.setupCache.bind(this)),
         core.configStore.watch(
             ['mapMobileMode'],
@@ -55,8 +58,15 @@ var Map = function(core, path, config, bus) {
                 'mapFlagNormalMaps', 'mapFlagDiffuseMaps',
                 'mapFlagSpecularMaps', 'mapFlagBumpMaps',
                 'mapFlagAtmosphere', 'mapFlagShadows', 'mapFlagLabels',
+                'mapTexelSizeFit', 'mapDegradeHorizon',
+                'mapDegradeHorizonParams',
             ],
             this.markDirty.bind(this)),
+        // units and language are baked into worker-generated label
+        // text; re-send the stylesheets so processors rebuild it
+        core.configStore.watch(
+            ['mapMetricUnits', 'mapLanguage'],
+            this.refreshGeodataStylesheets.bind(this)),
     ];
     this.killed = false;
     this.config = config || {};
@@ -628,6 +638,24 @@ Map.prototype.setStylesheetData = function(id, data) {
         
     //TODO: reset geodatview in free layers
 };
+
+/* Re-sends every free layer's stylesheet to its geodata processor
+ * and invalidates processed geodata, so the worker rebuilds label
+ * text from the current config (units, language). */
+Map.prototype.refreshGeodataStylesheets = function() {
+    this.renderer.draw.clearJobHBuffer();
+
+    for (var key in this.freeLayers) {
+        var freeLayer = this.getFreeLayer(key);
+        if (freeLayer && freeLayer.geodata && freeLayer.geodataProcessor) {
+            freeLayer.geodataProcessor.setStylesheet(freeLayer.stylesheet);
+            freeLayer.geodataCounter++;
+        }
+    }
+
+    this.markDirty();
+};
+
 
 Map.prototype.getCurrentView = function() {
 

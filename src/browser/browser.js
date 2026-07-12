@@ -80,12 +80,11 @@ var Browser = function(element, config) {
 
 
 // UI control visibility keys; each change refreshes its panel
+// through the matching `UI.setParam` case
 var uiControlKeys = [
     'controlCompass', 'controlZoom', 'controlMeasure', 'controlScale',
-    'controlLayers', 'controlSpace', 'controlSearch',
-    'controlSearchElement', 'controlSearchValue', 'controlLink',
-    'controlGithub', 'controlMeasureLite', 'controlLogo',
-    'controlFullscreen', 'controlCredits', 'controlLoading'
+    'controlLayers', 'controlSpace', 'controlSearch', 'controlLink',
+    'controlLogo', 'controlFullscreen', 'controlCredits'
 ];
 
 

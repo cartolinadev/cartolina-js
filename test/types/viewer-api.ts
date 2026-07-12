@@ -4,9 +4,15 @@
  */
 
 import Viewer from '../../src/browser/viewer';
+import { map } from '../../src/browser/index';
+import type MapStyle from '../../src/core/map/style';
+import type { PositionInput } from '../../src/core/types';
 import type { PublicRuntimeConfig } from '../../src/core/viewer-config';
 
 declare const viewer: Viewer;
+declare const container: HTMLElement;
+declare const style: MapStyle.StyleSpecification;
+declare const position: PositionInput;
 
 // The namespace re-export and the core definition are the same type.
 declare const runtimeConfig: Viewer.PublicRuntimeConfig;
@@ -37,6 +43,10 @@ viewer.setParam('mapProfileGpu', true);
 // @ts-expect-error a construction-only key is rejected
 viewer.setParam('rendererAntialiasing', false);
 
+// @ts-expect-error a UI key read only when its control is built is
+// rejected
+viewer.setParam('controlLoading', true);
+
 // @ts-expect-error a command key with a dedicated method is rejected
 viewer.setParam('position', null);
 
@@ -60,3 +70,38 @@ void wrongType;
 
 // @ts-expect-error a misspelled key is rejected on reads as well
 viewer.getParam('mapFlagLigthing');
+
+// The factory options bag accepts runtime and construction keys.
+void map({
+    container, style, position,
+    options: {
+        mapFlagLighting: false,
+        rendererAntialiasing: false,
+        controlLoading: true,
+        controlSearchElement: container,
+    },
+});
+
+void map({
+    container, style, position,
+    // @ts-expect-error a misspelled factory option is rejected
+    options: { mapFlagLigthing: false },
+});
+
+void map({
+    container, style, position,
+    // @ts-expect-error a wrong-typed factory option value is rejected
+    options: { mapFlagLighting: 123 },
+});
+
+void map({
+    container, style, position,
+    // @ts-expect-error an internal-only key is rejected
+    options: { mapProfileGpu: true },
+});
+
+void map({
+    container, style, position,
+    // @ts-expect-error a debug key is rejected
+    options: { debugMode: true },
+});

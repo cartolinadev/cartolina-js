@@ -115,19 +115,29 @@ it, so reads anywhere see the same normalized values immediately.
 `Viewer.setParam(key, value)` and `Viewer.getParam(key)` are typed
 over `Viewer.PublicRuntimeConfig` (`src/core/viewer-config.ts`), the
 deliberate public subset of `ViewerConfig`: live, application-facing
-keys only. Key and value types correlate, so a typed caller gets key
-completion, value checking, and key-specific return types; a key
-outside the subset throws at runtime, so a JavaScript typo fails
-loudly. `setParam` reaches `Browser.setConfigParam`, which
-normalizes the value and writes it to the store; `getParam` reads
-`store.get()`. The contract is pinned by compile-time tests in
-`test/types/viewer-api.ts`, run by `npm run test:unit`.
+keys only. Every key in the subset is verified live — covered by a
+watcher with the required side effect, or read from the store's
+value map at time of use. Key and value types correlate, so a typed
+caller gets key completion, value checking, and key-specific return
+types; a key outside the subset throws at runtime, so a JavaScript
+typo fails loudly. `setParam` reaches `Browser.setConfigParam`,
+which normalizes the value and writes it to the store; `getParam`
+reads `store.get()`. The contract is pinned by compile-time tests
+in `test/types/viewer-api.ts`, run by `npm run test:unit`.
+
+The factory option bags (`MapOptions.options` and the `browser()`
+config) are typed by `PublicConstructionConfig`: the public runtime
+keys plus the deliberately public construction and load-time keys.
+The bag has no index signature, so a misspelled or internal-only
+factory option fails compilation.
 
 The permissive ingestion paths accept the full catalogue and the
 legacy `pos` / `rotate` / `pan` aliases, and filter unknown keys
-silently: URL parameters, construction option bags, the style
-`config` block, and legacy `Browser.setConfigParam` callers, where
-`position` and `view` additionally act on the loaded map at once.
+silently: URL parameters, the style `config` block, and legacy
+`Browser.setConfigParam` callers, where `position` and `view`
+additionally act on the loaded map at once. The URL helpers declare
+the public types, but the query-string vocabulary is wider; parsed
+internal or debug keys still apply at runtime.
 
 Subsystems declare `store.watch(keys, fn)` for the side effects a
 change requires (cache resizing, redraws, UI refresh, autopilot,

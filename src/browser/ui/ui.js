@@ -80,7 +80,6 @@ UI.prototype.init = function() {
     this.space = new UIControlSpace(this, (!loading && this.config.controlSpace), loading);
     this.search = new UIControlSearch(this, (!loading && this.config.controlSearch), loading);
     this.link = new UIControlLink(this, (!loading && this.config.controlLink), loading);
-    //this.github = new UIControlGithub(this, (!loading && this.config.controlGithub), loading);
     this.measure = new UIControlMeasure(this, (!loading && this.config.controlMeasure), loading);
     this.measure2 = new UIControlMeasureLite(this, (!loading && this.config.controlMeasureLite), loading);
     //this.navigator = new UIControlNavigation(this, this.config.controlNavigator);

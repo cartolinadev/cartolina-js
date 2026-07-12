@@ -441,13 +441,18 @@ constructor(core: Core, div: HTMLElement, config: Readonly<ViewerConfig>) {
     this.rmap = new RendererRMap(this, 50);
     this.draw = new RenderDraw(this);
 
-    // rendererCssDpi is the only live renderer key (read per frame
-    // by the scale computations); the other renderer keys are fixed
-    // at WebGL context or texture creation — see their notes in
-    // `ViewerConfig`
+    // rendererCssDpi is read per frame by the scale computations;
+    // mapLabelFreeMargins is copied into the renderer field the
+    // label passes read. The other renderer keys are fixed at WebGL
+    // context or texture creation — see their notes in
+    // `ViewerConfig`.
     this.unwatchConfig_ = core.configStore.watch(
-        ['rendererCssDpi'],
-        () => { this.core.map?.markDirty(); },
+        ['rendererCssDpi', 'mapLabelFreeMargins'],
+        (values) => {
+
+            this.labelFreeMargins = values.mapLabelFreeMargins;
+            this.core.map?.markDirty();
+        },
     );
 };
 

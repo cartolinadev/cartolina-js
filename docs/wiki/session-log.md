@@ -3,6 +3,34 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-12 — Factory typing and config live-subset audit
+
+Second review round on the typed public boundary raised two
+blockers; both verified against the code and fixed (RFC 1 stays
+`Implemented`, recorded as an addendum):
+
+- `PublicConstructionConfig` now types `MapOptions.options` and
+  `BrowserConfig`; the untyped `MapRuntimeOptions` record and
+  `MapRuntimeOptionValue` are removed. No index signature, so
+  factory-option typos fail compilation; compile-time factory
+  tests added to `test/types/viewer-api.ts`. Permissive records
+  remain only at the URL parsers and the `Viewer.Config` glue.
+- Every public runtime key audited against its consumer. Dead keys
+  deleted (`mapFeaturesPerSquareInch`, `positionUrlHistory`,
+  `controlGithub`); construction-only UI keys demoted out of the
+  runtime subset and their no-op watchers removed; missing
+  propagation added (`mapMobileDetailDegradation` → cache watcher;
+  `mapTexelSizeFit`, `mapDegradeHorizon`, `mapDegradeHorizonParams`
+  → redraw watcher; `mapLabelFreeMargins` → renderer watcher;
+  `mapMetricUnits` / `mapLanguage` → new
+  `LegacyMap.refreshGeodataStylesheets` re-sending stylesheets to
+  the geodata workers). Runtime subset is now 58 verified keys.
+
+Validation: tsc clean, 37 unit tests, three regression URLs render
+correctly, live probes confirmed the units toggle rebuilding labels
+(ft → m) and a texel-size change redrawing a settled map. Details
+in the RFC's second 2026-07-12 addendum.
+
 ## 2026-07-12 — Typed public runtime boundary on Viewer
 
 A post-implementation review of RFC 1 found `Viewer.setParam` /

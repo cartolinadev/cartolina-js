@@ -28,20 +28,9 @@ import type {
     RequestTransformResult,
     TransformRequestCallback,
 } from '../core/types';
+import type { PublicConstructionConfig } from '../core/viewer-config';
 
 
-/** The canonical shared option value type used for cartolina runtime options. */
-export type MapRuntimeOptionValue =
-    boolean | number | number[] | string | string[] | null;
-
-/**
- * The canonical shared options object for browser, core, renderer, and
- * debug runtime settings.
- *
- * This type intentionally excludes structural initialization fields such as
- * `container`, `style`, `map`, `position`, and `view`, which belong to
- * the entrypoint-specific wrappers.
- */
 export type {
     PositionInput,
     RequestResourceType,
@@ -50,16 +39,16 @@ export type {
 };
 
 /**
- * The public runtime configuration map accepted and returned by
- * `Viewer.setParam` and `Viewer.getParam`. Also reachable as
- * `Map.PublicRuntimeConfig` through the exported `Map` alias.
+ * `PublicRuntimeConfig` is the runtime configuration map accepted
+ * and returned by `Viewer.setParam` and `Viewer.getParam`;
+ * `PublicConstructionConfig` is the wider option bag accepted by
+ * the factory functions. Both are also reachable through the
+ * exported `Map` alias.
  */
-export type { PublicRuntimeConfig } from '../core/viewer-config';
-
-export type MapRuntimeOptions = Record<
-    string,
-    MapRuntimeOptionValue | TransformRequestCallback | undefined
->;
+export type {
+    PublicRuntimeConfig,
+    PublicConstructionConfig,
+} from '../core/viewer-config';
 
 /** The preferred style-based initialization options object. */
 
@@ -82,10 +71,10 @@ export type MapOptions = {
     position: PositionInput,
 
     /**
-     * Any of the valid options controling the various rendering
-     * components (browser, core, renderer, etc.)
+     * Runtime and construction configuration values; the valid keys
+     * and their types are defined by `PublicConstructionConfig`.
      */
-    options?: MapRuntimeOptions,
+    options?: PublicConstructionConfig,
 
     /** Optional hook for rewriting resource URLs or adding request headers. */
     transformRequest?: TransformRequestCallback,
@@ -125,10 +114,7 @@ export function map(options: MapOptions): Viewer {
         ...dflts,
         ...options.options,
         position: options.position,
-        transformRequest: options.transformRequest
-            ?? (typeof options.options?.transformRequest === 'function'
-                ? options.options.transformRequest
-                : undefined),
+        transformRequest: options.transformRequest,
         interactive: options.interactive ?? true,
     });
 
@@ -140,7 +126,7 @@ export function map(options: MapOptions): Viewer {
  *
  * Prefer the style-based `map` API for new code.
  */
-export type BrowserConfig = MapRuntimeOptions & {
+export type BrowserConfig = PublicConstructionConfig & {
 
     /** The legacy vts-geospatial mapConfig, usually as a URL. */
     map: string | Record<string, unknown>,
@@ -207,7 +193,12 @@ export function getBrowserVersion(): string {
  *
  * Unlike `configFromUrl`, this helper removes structural fields
  * such as `map`, `position`, `pos`, `view`, `style`, and `container`,
- * so the result can be explicitly typed as `MapRuntimeOptions`.
+ * so the result can be passed as the `map()` factory's `options`.
+ *
+ * The URL vocabulary is wider than `PublicConstructionConfig`: the
+ * query string is a permissive ingestion boundary, and parsed
+ * internal or debug keys still apply at runtime even though the
+ * returned type does not declare them.
  *
  * @param defaults initial runtime option values to merge with URL parameters
  * @param url the URL to parse, defaults to `window.location.href`
@@ -215,11 +206,14 @@ export function getBrowserVersion(): string {
  * @return runtime options parsed from the query string
  */
 export function runtimeOptionsFromUrl(
-    defaults?: MapRuntimeOptions,
+    defaults?: PublicConstructionConfig,
     url?: string,
     options?: UrlConfigOptions
-): MapRuntimeOptions {
-    return runtimeOptionsFromUrl_(defaults, url, options) as MapRuntimeOptions;
+): PublicConstructionConfig {
+
+    return runtimeOptionsFromUrl_(
+        defaults as Record<string, unknown>, url, options
+    ) as PublicConstructionConfig;
 }
 
 /**
@@ -229,7 +223,9 @@ export function runtimeOptionsFromUrl(
  * This helper parses the same runtime option vocabulary as
  * `runtimeOptionsFromUrl`, but it also preserves legacy structural
  * fields such as `map`, `position`, and `view` when present in the URL
- * or defaults.
+ * or defaults. The same permissive-boundary note applies: parsed
+ * internal or debug keys still apply at runtime even though the
+ * returned type does not declare them.
  *
  * @param defaults initial values to merge with URL parameters
  * @param url the URL to parse, defaults to `window.location.href`
@@ -237,12 +233,14 @@ export function runtimeOptionsFromUrl(
  * @return config object with parsed query parameter values
  */
 export function configFromUrl(
-    defaults?: MapRuntimeOptions & Partial<BrowserConfig>,
+    defaults?: Partial<BrowserConfig>,
     url?: string,
     options?: UrlConfigOptions
-): MapRuntimeOptions & Partial<BrowserConfig> {
-    return configFromUrl_(defaults, url, options) as
-        MapRuntimeOptions & Partial<BrowserConfig>;
+): Partial<BrowserConfig> {
+
+    return configFromUrl_(
+        defaults as Record<string, unknown>, url, options
+    ) as Partial<BrowserConfig>;
 }
 
 export {vec2, vec3, vec4, mat3, mat4, math, utils, getCoreVersion,

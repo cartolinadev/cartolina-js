@@ -825,3 +825,75 @@ configs; 37 unit tests; the `simple-terrain`, `complex-terrain`,
 and `full-terrain` URLs render correctly with no console or network
 errors; a live probe confirmed typed round-trips with clamping,
 chaining, and the unknown-key, non-public-key, and alias throws.
+
+---
+
+## Addendum — 2026-07-12 — factory typing and live-subset audit
+
+The second post-implementation review raised two blockers: the
+factory option bags remained untyped records, and several
+`PublicRuntimeConfig` keys were not verified against their runtime
+consumers. Both are addressed; every reviewer claim was confirmed
+against the code before changing it.
+
+Factory boundary:
+
+- `PublicConstructionConfig` (`src/core/viewer-config.ts`) types
+  the factory bags: every public runtime key plus the deliberately
+  public construction keys (`interactive`, the three renderer
+  creation flags, the UI keys read once when their control is
+  built — `controlSearchElement`, `controlSearchValue`,
+  `controlMeasureLite`, `controlLoading`, `bigScreenMargins` — and
+  the load-time keys `mapDefaultFont`, `geojson`, `geodata`,
+  `geojsonStyle`). `MapOptions.options` and `BrowserConfig` use it;
+  the untyped `MapRuntimeOptions` record and `MapRuntimeOptionValue`
+  are removed. The typed bag has no index signature, so a
+  misspelled, wrong-typed, or internal-only factory option fails
+  compilation.
+- Permissive records remain only at the ingestion boundaries: the
+  URL parser internals and the `Viewer.Config` constructor glue.
+  The URL helpers now declare the public types, with a documented
+  note that the URL vocabulary is wider and parsed internal or
+  debug keys still apply at runtime.
+
+Live-subset audit — every key checked against its consumer:
+
+- Dead configuration removed from the catalogue, defaults,
+  normalizers, and URL vocabulary: `mapFeaturesPerSquareInch` (the
+  label density in effect comes from `mapFeaturesReduceParams`
+  slots), `positionUrlHistory` (no consumer), and `controlGithub`
+  (every read was commented out; those lines are deleted).
+- Demoted from the runtime subset to construction-only:
+  `controlSearchElement`, `controlSearchValue`,
+  `controlMeasureLite`, and `controlLoading` (read once when their
+  control is built; their watchers had no `UI.setParam` case and
+  are removed from `Browser.watchConfig`), and `bigScreenMargins`
+  (applied only when a control's visibility next changes).
+- Missing propagation added: `mapMobileDetailDegradation` joins
+  the cache watcher (`LegacyMap.setupCache` reads it);
+  `mapTexelSizeFit`, `mapDegradeHorizon`, and
+  `mapDegradeHorizonParams` join the redraw watcher (they are read
+  during drawing, which a settled map skips);
+  `mapLabelFreeMargins` is copied into `Renderer.labelFreeMargins`
+  by the renderer watcher (previously copied once at renderer
+  construction); `mapMetricUnits` and `mapLanguage` get a watcher
+  calling the new `LegacyMap.refreshGeodataStylesheets`, which
+  re-sends each free layer's stylesheet to its geodata processor
+  and bumps `geodataCounter`, so the worker rebuilds label text
+  with the current units and language.
+- The runtime subset is now 58 keys, each verified live: covered
+  by a watcher with the required side effect, or read from the
+  store's value map at time of use (per input event, per frame,
+  per loader run, or per search query).
+
+Compile-time factory tests join `test/types/viewer-api.ts`: a
+valid mixed bag is accepted; a misspelled option, a wrong-typed
+value, an internal-only key, and a debug key each fail to compile.
+Unit tests pin the demotions and catalogue removals.
+
+Validation: `npx tsc` clean on all three configs; 37 unit tests;
+the three regression URLs render correctly with no console or
+network errors; live probes on a settled map confirmed the units
+toggle rebuilding every label (`12461 ft` → `3798 m`), a
+`mapTexelSizeFit` change redrawing at coarser detail, and the
+accessor round-trips and throws unchanged.

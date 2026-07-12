@@ -6,7 +6,6 @@ import Browser from './browser';
 import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
-import type { MapRuntimeOptionValue } from './index';
 import type { TransformRequestCallback } from '../core/types';
 import { isPublicRuntimeConfigKey } from '../core/viewer-config';
 import MapStyle from '../core/map/style';
@@ -827,13 +826,9 @@ namespace Viewer {
      */
     export type Config = {
 
-        [key: string]:
-            | MapRuntimeOptionValue
-            | Map.PositionInput
-            | MapStyle.StyleSpecification
-            | TransformRequestCallback
-            | Record<string, unknown>
-            | undefined;
+        // permissive ingestion glue: every value is normalized by
+        // `Browser.setConfigParams` before it reaches the store
+        [key: string]: unknown;
 
         style?: MapStyle.StyleSpecification;
         map?: string | Record<string, unknown>;
