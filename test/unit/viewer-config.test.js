@@ -11,10 +11,12 @@
 const assert = require('assert');
 
 const {
+    assertCataloguedConfigKeys,
     canonicalConfigKey,
     isPublicRuntimeConfigKey,
     normalizeConfigPatch,
     normalizeConfigValue,
+    publicConstructionConfigKeys,
     publicRuntimeConfigKeys,
 } = require('../../tmp/unit-build/src/core/viewer-config');
 
@@ -191,5 +193,27 @@ describe('viewer-config normalization', function() {
         for (const key of publicRuntimeConfigKeys) {
             assert.strictEqual(canonicalConfigKey(key), key);
         }
+
+        for (const key of publicConstructionConfigKeys) {
+            assert.strictEqual(canonicalConfigKey(key), key);
+        }
+    });
+
+    it('factory bags reject unknown keys and accept the '
+        + 'catalogue', function() {
+
+        assert.throws(
+            () => assertCataloguedConfigKeys({ mapFlagLigthing: false }),
+            /not a known configuration key/);
+        assert.throws(
+            () => assertCataloguedConfigKeys({ entirelyInvented: true }),
+            /not a known configuration key/);
+
+        // catalogued internals and aliases flow through the factory
+        assert.doesNotThrow(() => assertCataloguedConfigKeys({
+            mapFlagLighting: false,
+            mapExposeFpsToWindow: true,
+            rotate: 1,
+        }));
     });
 });

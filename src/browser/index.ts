@@ -28,7 +28,10 @@ import type {
     RequestTransformResult,
     TransformRequestCallback,
 } from '../core/types';
-import type { PublicConstructionConfig } from '../core/viewer-config';
+import {
+    assertCataloguedConfigKeys,
+    type PublicConstructionConfig,
+} from '../core/viewer-config';
 
 
 export type {
@@ -58,17 +61,17 @@ export type MapOptions = {
     container: HTMLElement | string,
 
     /**
-     * The map style, conforming to the style specification. Either a JSON
-     * or a URL pointing to such an object.
+     * The map style, conforming to the style specification. Either a
+     * parsed style object or a URL pointing to one.
      */
-    style: MapStyle.StyleSpecification,
+    style: string | MapStyle.StyleSpecification,
 
     /**
      * The 10-component vts-geospatial position, specifying the intial
      * vantage point. If not provided, cartolina will try to find a
      * suitable default.
      */
-    position: PositionInput,
+    position?: PositionInput,
 
     /**
      * Runtime and construction configuration values; the valid keys
@@ -96,6 +99,10 @@ export type MapOptions = {
  */
 
 export function map(options: MapOptions): Viewer {
+
+    // reject typos and invented keys loudly; catalogued keys
+    // outside the typed surface pass (query-string vocabulary)
+    if (options.options) assertCataloguedConfigKeys(options.options);
 
     // all browser controls are disabled by default on the style api
     let dflts = {

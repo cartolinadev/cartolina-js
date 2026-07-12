@@ -3,6 +3,29 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-12 — Factory runtime guard and MapOptions shape
+
+Third review round on the config boundary; both findings fixed
+(RFC 1 addendum, status unchanged):
+
+- `map()` now throws at construction for option keys not in the
+  config catalogue (`assertCataloguedConfigKeys`), closing the
+  typo inconsistency with `setParam`. Deviation from the review's
+  construction-set guard, verified: the documented
+  `options: runtimeOptionsFromUrl()` pattern carries catalogued
+  internals (`mapExposeFpsToWindow` in every test URL), so only
+  non-catalogued keys throw. `runtimeOptionsFromUrl` filters to
+  catalogued keys; six dead URL vocabulary entries removed;
+  `browser()` stays permissive for compatibility.
+- `MapOptions` matches its documentation: `style` accepts a URL
+  string or a parsed spec (per README and `Map.loadMapFromStyle`),
+  `position` is optional. `publicConstructionConfigKeys` is a
+  runtime array and `PublicConstructionConfig` derives from it.
+
+Validation: tsc clean, 38 unit tests, three regression URLs render
+correctly, live probe confirmed both factory throws and the URL
+filtering. Details in the RFC's third 2026-07-12 addendum.
+
 ## 2026-07-12 — Factory typing and config live-subset audit
 
 Second review round on the typed public boundary raised two

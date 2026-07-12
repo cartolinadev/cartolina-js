@@ -897,3 +897,50 @@ network errors; live probes on a settled map confirmed the units
 toggle rebuilding every label (`12461 ft` → `3798 m`), a
 `mapTexelSizeFit` change redrawing at coarser detail, and the
 accessor round-trips and throws unchanged.
+
+---
+
+## Addendum — 2026-07-12 — factory runtime guard, MapOptions shape
+
+The third review round raised two findings: JavaScript factory
+typos still failed silently (the typed bag does not constrain
+untyped callers), and `MapOptions` contradicted its own
+documentation by rejecting the README's string-style form and by
+requiring `position`. Addressed:
+
+- `publicConstructionConfigKeys` is a runtime `const` array,
+  parallel to `publicRuntimeConfigKeys`, and
+  `PublicConstructionConfig` is derived from it.
+- `map()` validates its options bag before construction:
+  `assertCataloguedConfigKeys` throws for any key that is not in
+  the config catalogue after alias resolution. This deviates from
+  the review's proposition to validate against the construction
+  set, for a verified reason: the documented
+  `map({ options: runtimeOptionsFromUrl() })` pattern carries
+  catalogued internals — every `test/urls.json` template sets
+  `mapExposeFpsToWindow` — so a construction-set guard would break
+  the required test URLs. The review's failing cases (misspelled
+  and invented keys) throw either way, which closes the
+  inconsistency with `setParam`.
+- `runtimeOptionsFromUrl` keeps catalogued keys only: query strings
+  carry arbitrary parameters, and the result feeds the strict
+  factory. Six dead URL vocabulary entries with no consumer in the
+  tree are removed (`screenshot`, `sync`, `syncServer`, `syncId`,
+  `debugShader`, `debugHeightmap`).
+- The deprecated `browser()` factory stays permissive, as the
+  compatibility side of the decided split.
+- `MapOptions.style` is `string | MapStyle.StyleSpecification`,
+  matching its JSDoc, the README example, and
+  `Map.loadMapFromStyle`; `MapOptions.position` is optional (the
+  load path picks a default). `Viewer.Config.style` matches.
+- Tests: the compile-time suite gains the README construction form
+  and a rejected non-style value; unit tests pin the guard
+  (misspelled and invented keys throw, catalogued internals and
+  aliases pass); a live probe confirms the factory throw and the
+  URL filtering.
+
+Validation: `npx tsc` clean on all three configs; 38 unit tests;
+the three regression URLs render correctly with no console or
+network errors; a live probe confirmed both factory throw cases
+and `runtimeOptionsFromUrl` dropping unknown query parameters
+while keeping catalogued keys and aliases.

@@ -495,37 +495,69 @@ export type PublicRuntimeConfig =
 
 
 /**
- * The public construction configuration map: the keys accepted by
- * the factory option bags (`MapOptions.options` and the
- * `browser()` config). It covers every public runtime key plus the
- * deliberately public keys that are consumed at construction, at
- * map or style load, or when their UI control is built. Internal
- * tuning keys, diagnostics, and debug keys are not part of the
- * typed factory surface; the permissive ingestion paths (parsed
- * URLs, legacy callers) still accept the full catalogue at runtime.
+ * The keys accepted by the factory option bags
+ * (`MapOptions.options` and the `browser()` config): every public
+ * runtime key plus the deliberately public keys that are consumed
+ * at construction, at map or style load, or when their UI control
+ * is built. Internal tuning keys, diagnostics, and debug keys are
+ * not part of the typed factory surface.
  */
-export type PublicConstructionConfig = Partial<Pick<ViewerConfig,
-    | (typeof publicRuntimeConfigKeys)[number]
+export const publicConstructionConfigKeys = [
+
+    ...publicRuntimeConfigKeys,
 
     // interaction registration and UI controls built once
-    | 'interactive'
-    | 'bigScreenMargins'
-    | 'controlSearchElement'
-    | 'controlSearchValue'
-    | 'controlMeasureLite'
-    | 'controlLoading'
+    'interactive',
+    'bigScreenMargins',
+    'controlSearchElement',
+    'controlSearchValue',
+    'controlMeasureLite',
+    'controlLoading',
 
     // WebGL context and texture creation flags
-    | 'rendererAnisotropic'
-    | 'rendererAntialiasing'
-    | 'rendererAllowScreenshots'
+    'rendererAnisotropic',
+    'rendererAntialiasing',
+    'rendererAllowScreenshots',
 
     // consumed at map or style load
-    | 'mapDefaultFont'
-    | 'geojson'
-    | 'geodata'
-    | 'geojsonStyle'
->>;
+    'mapDefaultFont',
+    'geojson',
+    'geodata',
+    'geojsonStyle',
+
+] as const satisfies readonly (keyof ViewerConfig)[];
+
+
+/**
+ * The public construction configuration map: the typed shape of
+ * the factory option bags, derived from
+ * `publicConstructionConfigKeys`.
+ */
+export type PublicConstructionConfig = Partial<Pick<ViewerConfig,
+    (typeof publicConstructionConfigKeys)[number]>>;
+
+
+/**
+ * Throws when a factory option bag contains a key that is not in
+ * the config catalogue (after alias resolution), so a JavaScript
+ * typo in `map()` options fails loudly instead of disappearing.
+ * Catalogued keys outside the typed factory surface pass: the
+ * query-string vocabulary documented on `runtimeOptionsFromUrl`
+ * flows through the factory at runtime.
+ */
+export function assertCataloguedConfigKeys(
+    bag: Record<string, unknown>,
+): void {
+
+    for (const key of Object.keys(bag)) {
+
+        if (canonicalConfigKey(key) === null) {
+
+            throw new Error(
+                `'${key}' is not a known configuration key.`);
+        }
+    }
+}
 
 
 // backs the runtime membership guard below

@@ -105,3 +105,9 @@ void map({
     // @ts-expect-error a debug key is rejected
     options: { debugMode: true },
 });
+
+// The README construction form: a style URL string, no position.
+void map({ container: 'map', style: './style.json' });
+
+// @ts-expect-error a non-style value is rejected
+void map({ container: 'map', style: 42 });

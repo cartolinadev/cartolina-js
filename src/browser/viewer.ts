@@ -830,7 +830,7 @@ namespace Viewer {
         // `Browser.setConfigParams` before it reaches the store
         [key: string]: unknown;
 
-        style?: MapStyle.StyleSpecification;
+        style?: string | MapStyle.StyleSpecification;
         map?: string | Record<string, unknown>;
         position?: Map.PositionInput;
         view?: string | Record<string, unknown>;

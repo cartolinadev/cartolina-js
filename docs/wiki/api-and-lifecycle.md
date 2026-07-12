@@ -129,15 +129,19 @@ The factory option bags (`MapOptions.options` and the `browser()`
 config) are typed by `PublicConstructionConfig`: the public runtime
 keys plus the deliberately public construction and load-time keys.
 The bag has no index signature, so a misspelled or internal-only
-factory option fails compilation.
+factory option fails compilation. At runtime, `map()` rejects any
+option key that is not in the catalogue (after alias resolution),
+so a JavaScript typo throws at construction; catalogued keys
+outside the typed surface pass, because the query-string vocabulary
+flows through the factory. `runtimeOptionsFromUrl` keeps catalogued
+keys only, dropping arbitrary query parameters before they reach
+the factory guard.
 
-The permissive ingestion paths accept the full catalogue and the
-legacy `pos` / `rotate` / `pan` aliases, and filter unknown keys
-silently: URL parameters, the style `config` block, and legacy
-`Browser.setConfigParam` callers, where `position` and `view`
-additionally act on the loaded map at once. The URL helpers declare
-the public types, but the query-string vocabulary is wider; parsed
-internal or debug keys still apply at runtime.
+The remaining permissive ingestion paths accept the full catalogue
+and the legacy `pos` / `rotate` / `pan` aliases, and filter unknown
+keys silently: the deprecated `browser()` factory, the style
+`config` block, and legacy `Browser.setConfigParam` callers, where
+`position` and `view` additionally act on the loaded map at once.
 
 Subsystems declare `store.watch(keys, fn)` for the side effects a
 change requires (cache resizing, redraws, UI refresh, autopilot,

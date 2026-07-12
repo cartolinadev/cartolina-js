@@ -1,4 +1,5 @@
 import * as utils from '../core/utils/utils';
+import { canonicalConfigKey } from '../core/viewer-config';
 
 
 export type UrlConfigOptions = {
@@ -41,7 +42,6 @@ const BOOLEAN_KEYS = new Set([
     'controlFullscreen',
     'controlCredits',
     'controlLoading',
-    'screenshot',
     'legacyInertia',
     'timeNormalizedInertia',
     'bigScreenMargins',
@@ -155,14 +155,9 @@ const STRING_KEYS = new Set([
     'mapLanguage',
     'mapDefaultFont',
     'mapFeaturesReduceMode',
-    'sync',
-    'syncServer',
-    'syncId',
     'debugBBox',
     'debugLBox',
     'debugNoEarth',
-    'debugShader',
-    'debugHeightmap',
     'debugRadar',
     'view'
 ]);
@@ -297,8 +292,10 @@ export function runtimeOptionsFromUrl(
     const config = configFromUrl(defaults, url, options);
     const runtimeOptions: ParsedConfig = {};
 
+    // keep catalogued keys only: query strings carry arbitrary
+    // parameters, and the result feeds the strict `map()` factory
     for (const key in config) {
-        if (!STRUCTURAL_KEYS.has(key)) {
+        if (!STRUCTURAL_KEYS.has(key) && canonicalConfigKey(key) !== null) {
             runtimeOptions[key] = config[key];
         }
     }
