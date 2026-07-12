@@ -91,6 +91,13 @@ export type MapOptions = {
     interactive?: boolean,
 }
 
+// the modern factory's complete public shape; a top-level key
+// outside this set throws so a JavaScript typo fails loudly
+const mapOptionKeys = new Set([
+    'container', 'style', 'position', 'options',
+    'transformRequest', 'interactive',
+]);
+
 /**
  * The style based API for map initialization.
  *
@@ -99,6 +106,13 @@ export type MapOptions = {
  */
 
 export function map(options: MapOptions): Viewer {
+
+    for (const key of Object.keys(options)) {
+
+        if (!mapOptionKeys.has(key)) {
+            throw new Error(`'${key}' is not a valid map() option.`);
+        }
+    }
 
     // reject typos and invented keys loudly; catalogued keys
     // outside the typed surface pass (query-string vocabulary)

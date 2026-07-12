@@ -3,6 +3,26 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-12 — Own-property config lookups, top-level map() guard
+
+Fourth review round on the config boundary; blocker reproduced and
+fixed (RFC 1 addendum, status unchanged):
+
+- `canonicalConfigKey` and the url-config `KEY_ALIASES` lookup used
+  `in` / bare property access, so inherited names (`toString`,
+  `constructor`, `__proto__`, `hasOwnProperty`) passed the factory
+  guard and crashed the normalizer. Both now use own-property
+  checks; the four names are unit-tested to resolve `null` and
+  throw the public unknown-key error.
+- `map()` validates its top-level keys (`container`, `style`,
+  `position`, `options`, `transformRequest`, `interactive`);
+  a misspelled `postion` now throws instead of silently using the
+  default position. All eight in-repo `map()` callers conform.
+
+Validation: tsc clean, 39 unit tests, three regression URLs render
+correctly, live probe confirmed both new throws. Details in the
+RFC's fourth 2026-07-12 addendum.
+
 ## 2026-07-12 — Factory runtime guard and MapOptions shape
 
 Third review round on the config boundary; both findings fixed

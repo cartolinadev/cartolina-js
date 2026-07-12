@@ -216,4 +216,19 @@ describe('viewer-config normalization', function() {
             rotate: 1,
         }));
     });
+
+    it('treats inherited object-property names as unknown '
+        + 'keys', function() {
+
+        const inheritedNames =
+            ['toString', 'constructor', '__proto__', 'hasOwnProperty'];
+
+        for (const name of inheritedNames) {
+
+            assert.strictEqual(canonicalConfigKey(name), null);
+            assert.throws(
+                () => assertCataloguedConfigKeys({ [name]: true }),
+                /not a known configuration key/);
+        }
+    });
 });

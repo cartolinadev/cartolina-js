@@ -578,20 +578,27 @@ export function isPublicRuntimeConfigKey(
 }
 
 
+// own-property lookup: `in` would also find inherited
+// Object.prototype names such as `toString` or `constructor`
+const hasOwn = (dict: object, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(dict, key);
+
+
 /**
  * Resolves a public config key to its canonical `ViewerConfig` key.
  *
  * Handles the legacy aliases (`pos` for `position`, `rotate` for
  * `autoRotate`, `pan` for `autoPan`) and returns `null` for keys
  * that are not catalogued, so untyped callers can be filtered at
- * runtime.
+ * runtime. Inherited object-property names (`toString`,
+ * `constructor`, `__proto__`, ...) are not catalogued keys.
  */
 export function canonicalConfigKey(
     key: string,
 ): keyof ViewerConfig | null {
 
-    if (key in keyAliases) return keyAliases[key];
-    return key in normalizers ? key as keyof ViewerConfig : null;
+    if (hasOwn(keyAliases, key)) return keyAliases[key];
+    return hasOwn(normalizers, key) ? key as keyof ViewerConfig : null;
 }
 
 

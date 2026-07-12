@@ -944,3 +944,37 @@ the three regression URLs render correctly with no console or
 network errors; a live probe confirmed both factory throw cases
 and `runtimeOptionsFromUrl` dropping unknown query parameters
 while keeping catalogued keys and aliases.
+
+---
+
+## Addendum — 2026-07-12 — own-property lookups, top-level guard
+
+The fourth review round found one blocker and one gap; the blocker
+reproduced exactly as reported.
+
+- `canonicalConfigKey` used `key in keyAliases` and
+  `key in normalizers`, so inherited object-property names
+  (`toString`, `constructor`, `__proto__`, `hasOwnProperty`) were
+  treated as catalogued keys. The factory guard accepted them and
+  `normalizeConfigValue` then crashed calling the inherited value
+  as a normalizer. Both lookups now use an own-property check
+  (`Object.prototype.hasOwnProperty.call`; `Object.hasOwn` is
+  unavailable under the es2020 lib target). The same defect class
+  existed in `url-config.ts`, where `KEY_ALIASES[rawKey] ||
+  rawKey` resolved a `toString` query key to the inherited
+  function; it uses the own-property check as well. The four names
+  are unit-tested to resolve to `null` and to throw the public
+  unknown-key error from the factory guard.
+- `map()` now validates its top-level keys against the complete
+  public shape (`container`, `style`, `position`, `options`,
+  `transformRequest`, `interactive`) before reading the object, so
+  a misspelled top-level key such as `postion` throws instead of
+  silently falling back to the default. All eight `map()` callers
+  in the repository pass keys within this set. `browser()` remains
+  permissive as the deprecated compatibility factory.
+
+Validation: `npx tsc` clean on all three configs; 39 unit tests;
+the three regression URLs render correctly with no console or
+network errors; a live probe confirmed the `constructor` options
+key and the `postion` top-level key both throwing, with the
+earlier typo, invented-key, and URL-filtering behavior unchanged.

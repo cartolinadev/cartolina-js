@@ -265,7 +265,11 @@ export function configFromUrl(
     }, options || {});
 
     for (const rawKey in params) {
-        const key = KEY_ALIASES[rawKey] || rawKey;
+        // own-property lookup: a query key such as `toString` must
+        // not resolve to an inherited Object.prototype member
+        const key =
+            Object.prototype.hasOwnProperty.call(KEY_ALIASES, rawKey)
+                ? KEY_ALIASES[rawKey] : rawKey;
         initialConfig[key] = parseConfigParamValue(key, params[rawKey]);
     }
 

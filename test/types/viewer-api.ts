@@ -111,3 +111,6 @@ void map({ container: 'map', style: './style.json' });
 
 // @ts-expect-error a non-style value is rejected
 void map({ container: 'map', style: 42 });
+
+// @ts-expect-error a misspelled top-level factory key is rejected
+void map({ container: 'map', style: './style.json', postion: [] });
