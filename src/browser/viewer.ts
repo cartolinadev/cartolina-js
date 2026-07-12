@@ -8,6 +8,7 @@ import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { MapRuntimeOptionValue } from './index';
 import type { TransformRequestCallback } from '../core/types';
+import { isPublicRuntimeConfigKey } from '../core/viewer-config';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
@@ -337,15 +338,28 @@ class Viewer {
     /**
      * Sets a single runtime configuration parameter.
      *
-     * Parameters prefixed with `renderer*` are routed to the renderer;
-     * those prefixed with `map*` are routed to the map.
+     * Valid keys and their value types are defined by
+     * `Viewer.PublicRuntimeConfig`. The value is normalized
+     * (coerced, clamped) before it is stored; the change takes
+     * effect at the next frame boundary.
      *
      * @param key parameter key
      * @param value parameter value
+     * @throws when `key` is not a public runtime parameter
      */
-    setParam(key: string, value: MapRuntimeOptionValue): this {
+    setParam<K extends keyof Viewer.PublicRuntimeConfig>(
+        key: K,
+        value: Viewer.PublicRuntimeConfig[K],
+    ): this {
 
         this.assertAlive();
+
+        if (!isPublicRuntimeConfigKey(key)) {
+
+            throw new Error(
+                `'${String(key)}' is not a public runtime parameter.`);
+        }
+
         this._browser.setConfigParam(key, value);
         return this;
     }
@@ -353,12 +367,26 @@ class Viewer {
     /**
      * Returns the current value of a runtime configuration parameter.
      *
+     * Valid keys and the key-specific return types are defined by
+     * `Viewer.PublicRuntimeConfig`.
+     *
      * @param key parameter key
+     * @throws when `key` is not a public runtime parameter
      */
-    getParam(key: string): MapRuntimeOptionValue {
+    getParam<K extends keyof Viewer.PublicRuntimeConfig>(
+        key: K,
+    ): Viewer.PublicRuntimeConfig[K] {
 
         this.assertAlive();
-        return this._browser.getConfigParam(key) as MapRuntimeOptionValue;
+
+        if (!isPublicRuntimeConfigKey(key)) {
+
+            throw new Error(
+                `'${String(key)}' is not a public runtime parameter.`);
+        }
+
+        return this._browser.getConfigParam(key) as
+            Viewer.PublicRuntimeConfig[K];
     }
 
     // -------------------------------------------------------------------------
@@ -779,6 +807,14 @@ class Viewer {
 }
 
 namespace Viewer {
+
+    /**
+     * The public runtime configuration map accepted and returned by
+     * `setParam` and `getParam`: a deliberate subset of the config
+     * catalogue restricted to live, application-facing keys.
+     */
+    export type PublicRuntimeConfig =
+        import('../core/viewer-config').PublicRuntimeConfig;
 
     /**
      * The internal config shape passed into `Viewer`.

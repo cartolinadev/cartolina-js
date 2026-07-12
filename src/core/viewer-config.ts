@@ -398,6 +398,132 @@ export function defaultViewerConfig(): ViewerConfig {
 
 
 /**
+ * The keys of `ViewerConfig` exposed through `Viewer.setParam` and
+ * `Viewer.getParam`. A key is listed when it is live — a change
+ * after construction takes effect, through a watcher or a read of
+ * the store's value map at time of use — and application-facing:
+ * interaction, UI controls, cartographic appearance, units and
+ * language, or resource budgets.
+ *
+ * Deliberately absent: construction-only keys, keys consumed only
+ * at map or style load (`mapDefaultFont`, `geojson`, `geodata`,
+ * `geojsonStyle`), structural and command keys with dedicated
+ * methods or construction options (`style`, `map`, `position`,
+ * `view`, `transformRequest`), inspector debug keys and
+ * diagnostics, loader and traversal internals, legacy payloads,
+ * and the `pos` / `rotate` / `pan` aliases, which remain
+ * compatibility ingestion only.
+ */
+export const publicRuntimeConfigKeys = [
+
+    // --- UI controls and navigation (browser layer) ---
+
+    'panAllowed',
+    'rotationAllowed',
+    'zoomAllowed',
+    'jumpAllowed',
+    'sensitivity',
+    'inertia',
+    'positionInUrl',
+    'positionUrlHistory',
+    'constrainCamera',
+    'navigationMode',
+    'controlCompass',
+    'controlZoom',
+    'controlSpace',
+    'controlSearch',
+    'controlSearchSrs',
+    'controlSearchUrl',
+    'controlSearchFilter',
+    'controlSearchElement',
+    'controlSearchValue',
+    'controlMeasure',
+    'controlMeasureLite',
+    'controlLink',
+    'controlGithub',
+    'controlScale',
+    'controlLayers',
+    'controlCredits',
+    'controlFullscreen',
+    'controlLoading',
+    'controlLogo',
+    'walkMode',
+    'fixedHeight',
+    'tiltConstrainThreshold',
+    'bigScreenMargins',
+    'minViewExtent',
+    'maxViewExtent',
+    'autoRotate',
+    'autoPan',
+
+    // --- Renderer ---
+
+    'rendererCssDpi',
+
+    // --- Terrain engine ---
+
+    'mapCache',
+    'mapGPUCache',
+    'mapMetatileCache',
+    'mapTexelSizeFit',
+    'mapDownloadThreads',
+    'mapMaxProcessingTime',
+    'mapMaxGeodataProcessingTime',
+    'mapMobileMode',
+    'mapMobileDetailDegradation',
+    'mapLoadErrorRetryTime',
+    'mapLoadErrorMaxRetryCount',
+    'mapFeaturesPerSquareInch',
+    'mapDegradeHorizon',
+    'mapDegradeHorizonParams',
+    'mapLabelFreeMargins',
+    'mapMetricUnits',
+    'mapLanguage',
+    'mapShadingLambertian',
+    'mapShadingSlope',
+    'mapShadingAspect',
+    'mapFlagLighting',
+    'mapFlagNormalMaps',
+    'mapFlagDiffuseMaps',
+    'mapFlagSpecularMaps',
+    'mapFlagBumpMaps',
+    'mapFlagAtmosphere',
+    'mapFlagShadows',
+    'mapFlagLabels',
+
+] as const satisfies readonly (keyof ViewerConfig)[];
+
+
+/**
+ * The public runtime configuration map: the subset of
+ * `ViewerConfig` accepted and returned by `Viewer.setParam` and
+ * `Viewer.getParam`. Key and value types correlate, so a typed
+ * caller gets key completion, value checking, and key-specific
+ * `getParam` return types.
+ */
+export type PublicRuntimeConfig =
+    Pick<ViewerConfig, (typeof publicRuntimeConfigKeys)[number]>;
+
+
+// backs the runtime membership guard below
+const publicRuntimeKeySet: ReadonlySet<string> =
+    new Set(publicRuntimeConfigKeys);
+
+
+/**
+ * Returns whether `key` belongs to the public runtime subset of
+ * `ViewerConfig`. The public accessors use this to reject unknown
+ * or non-public keys from untyped callers.
+ */
+export function isPublicRuntimeConfigKey(
+    key: string,
+): key is keyof PublicRuntimeConfig {
+
+    return publicRuntimeKeySet.has(key);
+}
+
+
+/**
  * Resolves a public config key to its canonical `ViewerConfig` key.
  *
  * Handles the legacy aliases (`pos` for `position`, `rotate` for

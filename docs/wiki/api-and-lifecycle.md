@@ -112,21 +112,37 @@ The store's live value map is the single config object: `Map.config`,
 `LegacyMap.config`, `Renderer.config`, and `Browser.config` all alias
 it, so reads anywhere see the same normalized values immediately.
 
-`Viewer.setParam(key, value)` reaches `Browser.setConfigParam`, which
-normalizes the value and writes it to the store; `position` and
-`view` additionally act on the loaded map at once. Subsystems declare
-`store.watch(keys, fn)` for the side effects a change requires
-(cache resizing, redraws, UI refresh, autopilot, inspector debug
-parameters). `Map.tick` flushes the store at the start of every
-frame, so watchers fire once per batch of changes and never
-mid-frame. `Viewer.getParam(key)` reads `store.get()`.
+`Viewer.setParam(key, value)` and `Viewer.getParam(key)` are typed
+over `Viewer.PublicRuntimeConfig` (`src/core/viewer-config.ts`), the
+deliberate public subset of `ViewerConfig`: live, application-facing
+keys only. Key and value types correlate, so a typed caller gets key
+completion, value checking, and key-specific return types; a key
+outside the subset throws at runtime, so a JavaScript typo fails
+loudly. `setParam` reaches `Browser.setConfigParam`, which
+normalizes the value and writes it to the store; `getParam` reads
+`store.get()`. The contract is pinned by compile-time tests in
+`test/types/viewer-api.ts`, run by `npm run test:unit`.
+
+The permissive ingestion paths accept the full catalogue and the
+legacy `pos` / `rotate` / `pan` aliases, and filter unknown keys
+silently: URL parameters, construction option bags, the style
+`config` block, and legacy `Browser.setConfigParam` callers, where
+`position` and `view` additionally act on the loaded map at once.
+
+Subsystems declare `store.watch(keys, fn)` for the side effects a
+change requires (cache resizing, redraws, UI refresh, autopilot,
+inspector debug parameters). `Map.tick` flushes the store at the
+start of every frame, so watchers fire once per batch of changes
+and never mid-frame.
 
 Not every accepted key has a live effect. Keys consumed only at
 construction time (the WebGL context flags `rendererAntialiasing`
 and `rendererAllowScreenshots`, the per-texture
-`rendererAnisotropic`) accept writes but change nothing until the
-consuming object is next created. The construction-only keys are
-annotated in `ViewerConfig` (`src/core/viewer-config.ts`).
+`rendererAnisotropic`) accept writes through the ingestion paths
+but change nothing until the consuming object is next created. The
+construction-only keys are annotated in `ViewerConfig`
+(`src/core/viewer-config.ts`) and excluded from
+`PublicRuntimeConfig`.
 
 A loaded mapConfig's `browserOptions` apply through
 `Map.applyBrowserOptions_`, which skips keys the caller configured

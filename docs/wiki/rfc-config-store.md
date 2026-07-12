@@ -773,3 +773,55 @@ declarations (`setPosition`, `convertPositionHeightMode`). It is
 re-exported as `Map.PositionInput` and from the package index. The
 exact ten-component tuple stays deferred until the position module
 is typed precisely.
+
+---
+
+## Addendum — 2026-07-12 — typed public runtime boundary
+
+A post-implementation review found the public accessors untyped:
+`Viewer.setParam(key: string, value: MapRuntimeOptionValue)` erased
+the type information `ViewerConfig` introduced — no key discovery,
+no key-specific value or return types, no typo detection — unknown
+keys were silently ignored, and the `setParam` JSDoc still
+described the removed `map*` / `renderer*` prefix routing.
+Addressed:
+
+- `PublicRuntimeConfig` (`src/core/viewer-config.ts`) is the
+  deliberate public subset of `ViewerConfig`: 66 keys that are live
+  (a change after construction takes effect, through a watcher or a
+  read of the store's value map at time of use) and
+  application-facing (interaction, UI controls, cartographic
+  appearance, units and language, resource budgets). The subset is
+  a `const` key array checked against `ViewerConfig` by
+  `satisfies`; `Pick` derives the type and a `Set` backs the
+  runtime guard `isPublicRuntimeConfigKey`. Deliberately absent:
+  construction-only keys, keys consumed only at map or style load
+  (`mapDefaultFont`, `geojson`, `geodata`, `geojsonStyle`),
+  structural and command keys with dedicated methods or
+  construction options (`style`, `map`, `position`, `view`,
+  `transformRequest`), debug keys and diagnostics, loader and
+  traversal internals, and legacy payloads.
+- `Viewer.setParam` and `Viewer.getParam` are typed with correlated
+  key and value generics over the subset, surfaced as
+  `Viewer.PublicRuntimeConfig` and exported from the package index.
+  Keys outside the subset throw, so a JavaScript typo fails loudly.
+  The permissive ingestion paths are unchanged and keep filtering
+  silently through `canonicalConfigKey`: URL parameters,
+  construction option bags, the style `config` block, and legacy
+  `Browser.setConfigParam` callers. The `pos` / `rotate` / `pan`
+  aliases are thereby confined to compatibility ingestion.
+- The `setParam` prefix-routing JSDoc is replaced by the typed
+  contract; callers see one flat surface with no subsystem
+  ownership.
+- Compile-time tests (`test/types/viewer-api.ts`, compiled by
+  `tsconfig.types.json` inside `npm run test:unit`) pin the
+  contract: a mistyped value, a misspelled key, a non-public key,
+  and an alias all fail to compile, and `getParam` infers the
+  key-specific return type. Unit tests in
+  `test/unit/viewer-config.test.js` pin the runtime guard.
+
+Validation: `npx tsc` clean on the typecheck, unit, and types
+configs; 37 unit tests; the `simple-terrain`, `complex-terrain`,
+and `full-terrain` URLs render correctly with no console or network
+errors; a live probe confirmed typed round-trips with clamping,
+chaining, and the unknown-key, non-public-key, and alias throws.

@@ -49,6 +49,13 @@ export type {
     TransformRequestCallback,
 };
 
+/**
+ * The public runtime configuration map accepted and returned by
+ * `Viewer.setParam` and `Viewer.getParam`. Also reachable as
+ * `Map.PublicRuntimeConfig` through the exported `Map` alias.
+ */
+export type { PublicRuntimeConfig } from '../core/viewer-config';
+
 export type MapRuntimeOptions = Record<
     string,
     MapRuntimeOptionValue | TransformRequestCallback | undefined

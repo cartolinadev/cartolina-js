@@ -3,6 +3,34 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-12 — Typed public runtime boundary on Viewer
+
+A post-implementation review of RFC 1 found `Viewer.setParam` /
+`getParam` still stringly typed: no key discovery or typo
+detection, unknown keys silently ignored, and JSDoc describing the
+removed `map*` / `renderer*` prefix routing. Implemented and
+recorded as an RFC 1 addendum; the RFC stays `Implemented` by
+maintainer decision — no design reopen:
+
+- `PublicRuntimeConfig` in `src/core/viewer-config.ts`: a deliberate
+  66-key public subset of `ViewerConfig` (live and
+  application-facing keys; construction-only, load-time, structural,
+  command, debug, diagnostic, internal, and legacy keys excluded).
+  A `const` key array checked by `satisfies` derives the type via
+  `Pick` and backs the `isPublicRuntimeConfigKey` runtime guard.
+- `Viewer.setParam` / `getParam` typed with correlated key and value
+  generics; keys outside the subset throw. Surfaced as
+  `Viewer.PublicRuntimeConfig`, exported from the package index.
+  Ingestion paths (URL, option bags, style `config` block) are
+  unchanged and keep the `pos` / `rotate` / `pan` aliases.
+- Compile-time contract tests in `test/types/viewer-api.ts`
+  (`tsconfig.types.json`, run inside `npm run test:unit`); runtime
+  guard tests in `test/unit/viewer-config.test.js`.
+
+Validation: tsc clean; 37 unit tests; the three regression URLs
+render correctly; live probe confirmed round-trips, clamping, and
+the throws. Details in the RFC's 2026-07-12 addendum.
+
 ## 2026-07-11 — Re-review follow-up: PositionInput type unified
 
 The corrected position type now reaches the public API: new

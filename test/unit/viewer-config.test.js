@@ -12,8 +12,10 @@ const assert = require('assert');
 
 const {
     canonicalConfigKey,
+    isPublicRuntimeConfigKey,
     normalizeConfigPatch,
     normalizeConfigValue,
+    publicRuntimeConfigKeys,
 } = require('../../tmp/unit-build/src/core/viewer-config');
 
 describe('viewer-config normalization', function() {
@@ -143,5 +145,38 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(normalizeConfigValue('debugBBox', 'LP'), 'LP');
         assert.strictEqual(normalizeConfigValue('debugLBox', true), true);
         assert.strictEqual(normalizeConfigValue('debugRadar', 7), null);
+    });
+
+    it('accepts only canonical catalogued keys as public runtime '
+        + 'keys', function() {
+
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('mapFlagLighting'), true);
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('rendererCssDpi'), true);
+
+        // a misspelled key
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('mapFlagLigthing'), false);
+
+        // catalogued keys outside the public subset
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('rendererAntialiasing'), false);
+        assert.strictEqual(
+            isPublicRuntimeConfigKey('mapProfileGpu'), false);
+        assert.strictEqual(isPublicRuntimeConfigKey('debugMode'), false);
+        assert.strictEqual(isPublicRuntimeConfigKey('position'), false);
+
+        // legacy aliases stay confined to compatibility ingestion
+        assert.strictEqual(isPublicRuntimeConfigKey('pos'), false);
+        assert.strictEqual(isPublicRuntimeConfigKey('rotate'), false);
+        assert.strictEqual(isPublicRuntimeConfigKey('pan'), false);
+    });
+
+    it('lists only canonical catalogued keys as public', function() {
+
+        for (const key of publicRuntimeConfigKeys) {
+            assert.strictEqual(canonicalConfigKey(key), key);
+        }
     });
 });
