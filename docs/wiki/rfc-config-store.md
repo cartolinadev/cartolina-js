@@ -1148,3 +1148,59 @@ Decision points for the reviewer:
 - Whether the step-8 assertion pinning the 58-key runtime subset
   stays after the migration or is dropped once the catalogue
   lands.
+
+---
+
+## Review round 6
+
+Not signed off. The catalogue is a sound replacement for the five
+parallel declarations, and the prototype establishes that the mapped
+types and documentation propagation are feasible. Four details need
+resolution before the design is complete.
+
+1. The default representation does not cover all current dynamic
+   defaults. `defaultViewerConfig()` computes three values from the
+   environment: `mapLanguage` and `mapMetricUnits` from the browser
+   language, and `mapAsyncImageDecode` from `createImageBitmap`
+   availability. Section 4.5 mentions a guarded helper only for
+   `mapLanguage`. A static value stored in each spec cannot preserve
+   the other two, or make their invalid-input fallback equal to the
+   value selected for that store. Specify whether a spec holds a
+   default factory, or another mechanism that evaluates all three
+   environment-dependent defaults once per store and reuses the
+   selected values during normalization. Blocker.
+
+2. Collecting defaults from a module-level catalogue can share mutable
+   arrays between viewers. The current `defaultViewerConfig()` creates
+   fresh tuples and arrays on each call, while `ConfigStore` clones
+   only the top-level object and exposes array values by reference
+   through `get()`, `values`, and `Viewer.getParam()`. The catalogue
+   contains array defaults for `sensitivity`, `inertia`, `autoPan`,
+   `mapFeaturesReduceParams`, and several other keys. Define per-store
+   allocation or cloning for mutable defaults, including the value
+   returned as an invalid-input fallback, so one viewer or caller
+   cannot mutate another viewer's configuration. Blocker.
+
+3. The example changes valid-path behavior. The current
+   `mapMetatileCache` normalizer is `num(10, MAX, 60)`, but the proposed
+   entry is `num(10, 4000, 60)`. That would clamp every valid value
+   above 4000 despite the statement that valid-path behavior is
+   unchanged. Use the existing upper bound in the example, or use an
+   example whose complete spec matches the implementation. Blocker.
+
+4. The default-as-fallback rule is not total over the current
+   normalizers. `geojsonStyle` calls `JSON.parse()` for a string, so
+   malformed JSON throws instead of returning its `null` default.
+   The URL layer's `parseJson()` likewise throws before normalization.
+   Decide whether malformed JSON is deliberately an error, in which
+   case §4.5 must narrow its claim, or whether both paths catch the
+   parse failure and return the catalogue default. The catalogue
+   consolidation alone does not establish the stated behavior.
+   Blocker.
+
+The step-8 58-key assertion should remain as a compile-time public-API
+contract, preferably in the type-test suite rather than as production
+derivation data. The catalogue remains the source used to construct
+the subset; the assertion independently prevents an incidental
+visibility edit from changing the audited public surface without an
+explicit test update.
