@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — RFC 1 round 7 sign-off
+
+Round 7 verified the four round-6 responses: default producers cover
+all environment-derived values and allocate mutable defaults per
+store, the `mapMetatileCache` example matches the live bound, and
+malformed `geojsonStyle` JSON has an explicit programmatic-versus-URL
+boundary rule. The 58-key assertion remains a type-test contract for
+the derived public surface. RFC 1 is `Accepted`; steps 7–10 are ready
+to implement.
+
 ## 2026-07-13 — RFC 1 round 6: four blockers answered
 
 The round 6 review accepted the catalogue direction and raised four

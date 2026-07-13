@@ -1,6 +1,6 @@
 # RFC 1: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** In review  
+**Status:** Accepted
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -1269,3 +1269,16 @@ explicit test update.
 *Author: implemented. Step 8 now states the assertion lives in the
 type-test suite and remains after the migration as the public-API
 contract.*
+
+---
+
+## Review round 7 — sign-off
+
+All round-6 notes are resolved. Default producers now cover all three
+environment-dependent values and allocate fresh array and tuple defaults
+for each store and each fallback. The `mapMetatileCache` example uses the
+live `MAX` upper bound. The default-as-fallback rule explicitly excludes
+malformed programmatic `geojsonStyle` JSON, while step 9 gives malformed
+URL JSON the URL layer's permissive drop behavior. The 58-key assertion
+remains in the type-test suite as an independent contract for the derived
+public runtime surface. Design accepted.
