@@ -1354,3 +1354,29 @@ parses to `true`, the `mapCache` fallback returns 1100, clamping
 and the unknown-key, non-public-key, and alias throws are
 unchanged, and stored fallback arrays are not shared between
 writes.
+
+---
+
+## Addendum — 2026-07-13 — URL drop warning for config-prefixed keys
+
+A misspelled config key in a query string
+(`mapStructuralDescentBreak=0.5`) was dropped with no trace on
+every URL path: `runtimeOptionsFromUrl` filters uncatalogued keys
+before the strict factory guard can see them, so the `map()` typo
+throw never fires for URL input. Silence is still right for the
+shared query-string namespace (analytics tags, application
+parameters), but not for keys that carry a config prefix.
+
+`runtimeOptionsFromUrl` now logs a console warning for a dropped
+uncatalogued key starting with `map`, `renderer`, `control`, or
+`debug`, and keeps dropping it. Other unknown keys stay silent.
+`mapConfig` joins the structural exclusion set — it is the query
+parameter the demo applications read themselves — so legacy-style
+URLs do not warn. `url-config.ts` joins the unit build; the new
+suite pins the warning, the silent drops, the structural
+exclusions, the `zoomAlowed` alias, and the malformed-JSON drop.
+
+Validation: `npx tsc` clean on all three configs; 50 unit tests; a
+live probe on a demo URL carrying the misspelled key and
+`utm_source` showed exactly one warning naming the misspelled key
+and no page errors.

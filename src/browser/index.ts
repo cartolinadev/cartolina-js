@@ -219,7 +219,10 @@ export function getBrowserVersion(): string {
  * The URL vocabulary is wider than `PublicConstructionConfig`: the
  * query string is a permissive ingestion boundary, and parsed
  * internal or debug keys still apply at runtime even though the
- * returned type does not declare them.
+ * returned type does not declare them. An uncatalogued query key
+ * carrying a config prefix (`map`, `renderer`, `control`, `debug`)
+ * is dropped with a console warning; other unknown query keys are
+ * dropped silently.
  *
  * @param defaults initial runtime option values to merge with URL parameters
  * @param url the URL to parse, defaults to `window.location.href`

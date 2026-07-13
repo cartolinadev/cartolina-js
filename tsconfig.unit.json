@@ -11,6 +11,7 @@
     "src/core/event-bus.ts",
     "src/core/config-store.ts",
     "src/core/viewer-config.ts",
+    "src/browser/url-config.ts",
     "src/types/**/*"
   ]
 }

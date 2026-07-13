@@ -14,15 +14,25 @@ type ParsedConfigValue =
 type ParsedConfig = Record<string, ParsedConfigValue>;
 
 // keys the runtime-options filter excludes: structural inputs with
-// dedicated factory options
+// dedicated factory options, plus `mapConfig`, the query parameter
+// the demo applications read themselves
 const STRUCTURAL_KEYS = new Set([
     'map',
+    'mapConfig',
     'position',
     'pos',
     'view',
     'style',
     'container'
 ]);
+
+// a dropped query key carrying one of these prefixes is almost
+// certainly a misspelled config key, so the drop is logged; keys
+// without them (analytics tags, application parameters) stay silent
+const CONFIG_KEY_PREFIXES = ['map', 'renderer', 'control', 'debug'];
+
+const looksLikeConfigKey = (key: string): boolean =>
+    CONFIG_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
 
 // URL-layer aliases for historic query-parameter misspellings; the
 // canonical `pos` / `rotate` / `pan` aliases resolve in
@@ -165,8 +175,15 @@ export function runtimeOptionsFromUrl(
     // keep catalogued keys only: query strings carry arbitrary
     // parameters, and the result feeds the strict `map()` factory
     for (const key in config) {
-        if (!STRUCTURAL_KEYS.has(key) && canonicalConfigKey(key) !== null) {
+
+        if (STRUCTURAL_KEYS.has(key)) continue;
+
+        if (canonicalConfigKey(key) !== null) {
             runtimeOptions[key] = config[key];
+        } else if (looksLikeConfigKey(key)) {
+            console.warn(
+                `Unknown configuration key '${key}' in the URL; `
+                + 'ignored.');
         }
     }
 

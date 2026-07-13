@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — URL ingestion warns on config-prefixed typos
+
+A misspelled query key (`mapStructuralDescentBreak=0.5`) was
+silently dropped on every URL path — the runtime-options filter
+discards uncatalogued keys before the `map()` factory guard can
+throw. `runtimeOptionsFromUrl` now warns on the console for a
+dropped uncatalogued key with a config prefix (`map`, `renderer`,
+`control`, `debug`) and stays silent for other query parameters;
+`mapConfig` joins the structural exclusions so legacy-style demo
+URLs do not warn. `url-config.ts` joins the unit build with its
+own suite (50 unit tests total); a live probe confirmed one
+warning for the misspelled key, silence for `utm_source`, and no
+page errors. RFC 1 addendum records the change.
+
 ## 2026-07-13 — retired-terminology cleanup in the catalogue
 
 Review of the landed catalogue caught two wording defects, both
