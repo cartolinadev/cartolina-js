@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — drop warning extended to the browser() path
+
+The URL-typo warning did not fire on the deprecated `browser()`
+path: `configFromUrl` keeps unknown keys raw and
+`Browser.setConfigParam` returned silently on a null patch. The
+config-prefix test moved into the catalogue module as
+`looksLikeConfigKey()` (with the `mapConfig` exemption baked in),
+shared by `runtimeOptionsFromUrl` and `Browser.setConfigParam`,
+which now warns before dropping. Data-authored paths
+(`applyBrowserOptions_`, style `config`) are unaffected, except
+that `browser()` applies mapConfig `browserOptions` through
+`setConfigParams`, so retired keys in legacy mapConfigs
+(`mapLoadMode`, `mapOnlyOneUVs`, `mapTexelSizeTolerance` in the
+mapy.com scenes) warn once per load — consistent with the
+existing ignored-option compatibility notices. 51 unit tests;
+live probe on a `browser()`-path application confirmed the typo
+warning and the three retired-key warnings with rendering
+unaffected. RFC 1 addendum records the change.
+
 ## 2026-07-13 — URL ingestion warns on config-prefixed typos
 
 A misspelled query key (`mapStructuralDescentBreak=0.5`) was

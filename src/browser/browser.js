@@ -4,6 +4,7 @@ import ConfigStore from '../core/config-store';
 import {
     defaultViewerConfig,
     canonicalConfigKey,
+    looksLikeConfigKey,
     normalizeConfigPatch,
 } from '../core/viewer-config';
 import {GpuDevice} from '../core/renderer/gpu/device';
@@ -356,6 +357,12 @@ Browser.prototype.updateUI = function(key) {
 Browser.prototype.setConfigParam = function(key, value) {
     var patch = normalizeConfigPatch(key, value);
     if (!patch) {
+        // a dropped key carrying a config prefix is probably a
+        // misspelling; unrelated bag entries stay silent
+        if (looksLikeConfigKey(key)) {
+            console.warn('Unknown configuration key \'' + key
+                + '\'; ignored.');
+        }
         return;
     }
 

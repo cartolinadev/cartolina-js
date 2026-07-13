@@ -1168,3 +1168,24 @@ export function urlParseKind(key: string): UrlParseKind | null {
     const canonical = canonicalConfigKey(key);
     return canonical === null ? null : catalogue[canonical].urlKind;
 }
+
+
+// the catalogue's key-name prefixes; `mapConfig` is exempt because
+// the demo applications read that query parameter themselves
+const CONFIG_KEY_PREFIXES = ['map', 'renderer', 'control', 'debug'];
+
+
+/**
+ * Returns whether an uncatalogued key looks like a config key — it
+ * carries one of the catalogue's name prefixes. The permissive
+ * ingestion boundaries use this to log dropped keys that are
+ * probably misspellings while unrelated query-string or option-bag
+ * entries stay silent.
+ */
+export function looksLikeConfigKey(key: string): boolean {
+
+    if (key === 'mapConfig') return false;
+
+    return CONFIG_KEY_PREFIXES.some(
+        (prefix) => key.startsWith(prefix));
+}

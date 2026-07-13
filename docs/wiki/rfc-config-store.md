@@ -1380,3 +1380,35 @@ Validation: `npx tsc` clean on all three configs; 50 unit tests; a
 live probe on a demo URL carrying the misspelled key and
 `utm_source` showed exactly one warning naming the misspelled key
 and no page errors.
+
+---
+
+## Addendum — 2026-07-13 — drop warning on the browser() path
+
+The previous addendum's warning did not cover the deprecated
+`browser()` ingestion: `configFromUrl` keeps unknown keys raw, and
+`Browser.setConfigParam` dropped them silently when
+`normalizeConfigPatch` returned `null`, so an application built on
+`browser(id, configFromUrl(...))` still saw nothing for a
+misspelled query key.
+
+The config-prefix test is now `looksLikeConfigKey()` in
+`viewer-config.ts` — the catalogue module owns what a config key
+looks like, with the `mapConfig` exemption baked in — shared by
+`runtimeOptionsFromUrl` and `Browser.setConfigParam`, which warns
+before its silent return. The data-authored ingestion paths
+(`Map.applyBrowserOptions_`, the style `config` block) call
+`normalizeConfigPatch` directly and are unaffected, with one
+deliberate exception: the `browser()` path applies mapConfig
+`browserOptions` through `setConfigParams`, so retired keys stored
+in a legacy mapConfig (`mapLoadMode`, `mapOnlyOneUVs`,
+`mapTexelSizeTolerance` in the mapy.com scenes) now produce one
+warning each per load. That matches the existing compatibility
+notices: the client states which authored options it ignores.
+
+Validation: `npx tsc` clean on all three configs; 51 unit tests
+(the shared helper is pinned, including the `mapConfig`
+exemption); a live probe on a `browser()`-path application
+loading the mapy.com scenes mapConfig showed the warning naming
+the misspelled query key plus the three retired `browserOptions`
+keys, with rendering unaffected.

@@ -15,6 +15,7 @@ const {
     canonicalConfigKey,
     defaultViewerConfig,
     isPublicRuntimeConfigKey,
+    looksLikeConfigKey,
     normalizeConfigPatch,
     normalizeConfigValue,
     publicConstructionConfigKeys,
@@ -115,6 +116,19 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(urlParseKind('transformRequest'), 'none');
         assert.strictEqual(urlParseKind('noSuchKey'), null);
         assert.strictEqual(urlParseKind('toString'), null);
+    });
+
+    it('flags config-prefixed keys as config-like, exempting '
+        + 'mapConfig', function() {
+
+        assert.strictEqual(
+            looksLikeConfigKey('mapStructuralDescentBreak'), true);
+        assert.strictEqual(looksLikeConfigKey('rendererFoo'), true);
+        assert.strictEqual(looksLikeConfigKey('controlFoo'), true);
+        assert.strictEqual(looksLikeConfigKey('debugFoo'), true);
+        assert.strictEqual(looksLikeConfigKey('mapConfig'), false);
+        assert.strictEqual(looksLikeConfigKey('utm_source'), false);
+        assert.strictEqual(looksLikeConfigKey('container'), false);
     });
 
     it('keeps the audited public subset sizes', function() {

@@ -1,5 +1,5 @@
 import * as utils from '../core/utils/utils';
-import { canonicalConfigKey, urlParseKind }
+import { canonicalConfigKey, looksLikeConfigKey, urlParseKind }
     from '../core/viewer-config';
 
 
@@ -26,13 +26,6 @@ const STRUCTURAL_KEYS = new Set([
     'container'
 ]);
 
-// a dropped query key carrying one of these prefixes is almost
-// certainly a misspelled config key, so the drop is logged; keys
-// without them (analytics tags, application parameters) stay silent
-const CONFIG_KEY_PREFIXES = ['map', 'renderer', 'control', 'debug'];
-
-const looksLikeConfigKey = (key: string): boolean =>
-    CONFIG_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
 
 // URL-layer aliases for historic query-parameter misspellings; the
 // canonical `pos` / `rotate` / `pan` aliases resolve in
