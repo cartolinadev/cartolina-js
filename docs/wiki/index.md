@@ -39,6 +39,13 @@ then branch into more specific documents as needed.
 RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
+- RFC 1 [rfc-config-store.md](rfc-config-store.md) — single
+  `ConfigStore<ViewerConfig>` replacing the three config objects and
+  the stringly-typed `setConfigParam` routing; steps 1–6 implemented
+  (`core.js` deleted, typed public boundaries); reopened in round 6
+  to collapse the per-key artifacts into a single spec catalogue
+  deriving types, defaults, normalization, public subsets, URL
+  parsing, and per-key documentation
 - RFC 8 [rfc-context-loss-recovery.md](rfc-context-loss-recovery.md) —
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile

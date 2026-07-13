@@ -3,6 +3,24 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — RFC 1 reopened: single-source config catalogue
+
+An architectural review of the RFC 1/2 branch found the config half
+one refactor short: a key is declared in up to five places (the
+`ViewerConfig` interface, `defaultViewerConfig()`, the `normalizers`
+table, a public-subset key array, and a `url-config.ts` key-type
+set), and 29 of 146 keys have divergent default vs invalid-input
+fallback values. RFC 1's design body is edited per the protocol
+(§4.2 authority sentence, new §4.5, §6 steps 7–10), status moved to
+`In review`, and a round 6 request appended with the divergence
+table and the feasibility evidence: a strict-mode prototype verified
+the derived types (tuples preserved, exact subset key unions, typed
+`normalizeConfigValue` returns) and, via a language-service probe,
+that doc comments on catalogue entries propagate to the derived
+`ViewerConfig` and public-subset properties. Documenting every
+option is implementation scope (step 10). RFC 1 moved from the
+implemented archive back to the active list in `index.md`.
+
 ## 2026-07-12 — Own-property config lookups, top-level map() guard
 
 Fourth review round on the config boundary; blocker reproduced and

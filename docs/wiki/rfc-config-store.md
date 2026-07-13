@@ -1,6 +1,6 @@
 # RFC 1: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** Implemented  
+**Status:** In review  
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -193,8 +193,8 @@ interface ViewerConfig {
 ```
 
 Exact key names, types, and defaults are a separate cataloguing
-task (see §6, step 1). The interface is the authoritative
-definition; no key exists unless it is declared here.
+task (see §6, step 1). The interface is derived from the key
+catalogue (§4.5); no key exists unless the catalogue declares it.
 
 Values in the store are already normalized. Typed `Map` public
 methods normalize in the method body before calling `store.set()`.
@@ -259,6 +259,71 @@ indefinitely through the shim.
 This resolves the incremental-migration concern: the routing
 complexity is eliminated in one PR (when the store is wired up),
 regardless of how many legacy call sites remain.
+
+### 4.5 Single-source key catalogue
+
+The surface implemented by steps 1–6 declares each key in up to
+five places: the `ViewerConfig` interface, the
+`defaultViewerConfig()` literal, the `normalizers` table, a
+public-subset key array (all in `viewer-config.ts`), and a
+key-type set in `url-config.ts` that restates the key's parse
+type for URL values. The declared default also diverges from the
+normalizer's invalid-input fallback for 29 of the 146 keys
+(see round 6).
+
+This revision collapses all five into one `catalogue` object.
+Each entry is built by a typed spec constructor and carries every
+per-key fact, with the entry's doc comment serving as the key's
+documentation:
+
+```ts
+const catalogue = {
+
+    /** Enables pan gestures. Ignored while `interactive`
+     *  is false. */
+    panAllowed: bool(true),
+
+    /** Metatile cache budget in megabytes. */
+    mapMetatileCache: num(10, 4000, 60),
+
+    /** The WebGL context is created with antialiasing.
+     *  Read once at renderer construction. */
+    rendererAntialiasing: bool(true, 'construction'),
+} as const;
+```
+
+A spec holds the value type, the default, the normalizer, the URL
+parse kind, and a visibility class: `runtime`, `construction`,
+`structural`, `internal`, or `debug`. Everything else is derived:
+
+- `ViewerConfig` becomes a mapped type over the catalogue. Doc
+  comments propagate: hovering a `ViewerConfig` or public-subset
+  property shows the catalogue entry's comment.
+- `defaultViewerConfig()` collects the specs' defaults.
+- `normalizeConfigValue` dispatches to the spec's normalizer.
+- `PublicRuntimeConfig` and `PublicConstructionConfig`, with
+  their runtime key arrays, filter by visibility at the type
+  level and at runtime: `runtime` keys form the runtime subset,
+  `runtime` plus `construction` the construction subset;
+  `structural`, `internal`, and `debug` keys are on neither
+  public surface.
+- `url-config.ts` parses a query value through the spec's URL
+  parse kind; its five key-type sets are deleted.
+  `STRUCTURAL_KEYS`, the positional `pos` parser, and the alias
+  table remain, as URL-layer concerns.
+
+One value per key: the catalogue default is also the fallback for
+invalid input. Valid-path behavior is unchanged — the divergent
+legacy fallbacks fire only when a caller writes an invalid value,
+and such a write now yields the key's documented default. The
+alternative — rejecting the invalid write and keeping the current
+value — is a `setParam` behavior change and is not adopted.
+
+Deliberately outside the catalogue: the `keyAliases` table, the
+`mapNoTextures` expansion in `normalizeConfigPatch`, and the
+navigator-derived `mapLanguage` default, computed by a helper
+guarded for non-browser environments so the unit build still
+loads the module.
 
 ---
 
@@ -350,6 +415,31 @@ legacy JS call sites exist.
 With routing gone, `Core`'s constructor reduces to subsystem
 instantiation. It can be absorbed into `Map` cleanly. This is the
 `core.js` suppression step.
+
+**Step 7 — Fold defaults into the normalizer table (catalogue)**
+
+Merge the `defaultViewerConfig()` values into the `normalizers`
+entries, forming the catalogue of §4.5. Reconcile the 29 keys
+whose default and invalid-input fallback diverge to the catalogue
+default; enumerate them in the implementing commit message.
+
+**Step 8 — Derive the types and subsets**
+
+Replace the hand-written `ViewerConfig` interface and the
+public-subset key arrays with derivations from the catalogue. A
+compile-time assertion pins the derived runtime-subset key union
+to the audited 58-key list from the live-subset audit.
+
+**Step 9 — Derive URL parsing**
+
+Replace the five key-type sets in `url-config.ts` with lookups of
+the specs' URL parse kinds.
+
+**Step 10 — Document every key**
+
+Write a doc comment for every catalogue entry stating what the
+key does, checkable against the consumer that reads it. Keys
+already documented in the interface keep their text.
 
 ---
 
@@ -978,3 +1068,83 @@ the three regression URLs render correctly with no console or
 network errors; a live probe confirmed the `constructor` options
 key and the `postion` top-level key both throwing, with the
 earlier typo, invented-key, and URL-filtering behavior unchanged.
+
+---
+
+## Review round 6 — requested
+
+The design body is edited after implementation; status returns to
+`In review` per the RFC protocol. The change: §4.2's authority
+sentence now defers to the new §4.5, which collapses the per-key
+configuration artifacts into a single spec catalogue, and §6
+gains steps 7–10. Documenting every option (step 10) is part of
+the implementation scope. Motivation and evidence:
+
+- After steps 1–6, a config key is declared in up to five places:
+  the `ViewerConfig` interface, `defaultViewerConfig()`, the
+  `normalizers` table, a public-subset key array, and a
+  `url-config.ts` key-type set.
+- The catalogue default and the normalizer's invalid-input
+  fallback disagree for 29 of the 146 keys. The fallbacks mirror
+  the legacy switch defaults by design (per the `normalizers`
+  table's own comment); the divergence list was produced by
+  comparing `defaultViewerConfig()` against
+  `normalizeConfigValue(key, invalid)` for every key over the
+  compiled unit build:
+
+  | Key | Default | Legacy fallback |
+  |---|---|---|
+  | `sensitivity` | [1, 0.06, 0.05] | [1, 0.12, 0.05] |
+  | `inertia` | [0.81, 0.9, 0.7] | [0.85, 0.9, 0.7] |
+  | `controlSpace` | true | false |
+  | `controlSearch` | true | false |
+  | `controlSearchFilter` | false | true |
+  | `controlFullscreen` | false | true |
+  | `minViewExtent` | 20 | 100 |
+  | `mapCache` | 1100 | 900 |
+  | `mapGPUCache` | 600 | 360 |
+  | `mapDownloadThreads` | 20 | 6 |
+  | `mapMaxProcessingTime` | 10 | 50 |
+  | `mapMobileModeAutodect` | true | false |
+  | `mapMobileDetailDegradation` | 0 | 2 |
+  | `mapPreciseCulling` | true | false |
+  | `mapBasicTileSequence` | false | true |
+  | `mapPreciseBBoxTest` | false | true |
+  | `mapXhrImageLoad` | true | false |
+  | `mapSortHysteresis` | true | false |
+  | `mapFeatureStickMode` | [1, 1] | [0, 1] |
+  | `map16bitMeshes` | true | false |
+  | `mapIndexBuffers` | true | false |
+  | `mapFeatureGridCells` | 31 | 0 |
+  | `mapFeaturesReduceMode` | 'scr-count7' | 'scr-count4' |
+  | `mapDMapMode` | 3 | 1 |
+  | `mapDegradeHorizon` | false | true |
+  | `mapDegradeHorizonParams` | [1,1500,97500,3500] | [1,3000,15000,7000] |
+  | `mapDefaultFont` | the noto.fnt CDN URL | '' |
+  | `mapMetricUnits` | false | true |
+  | `mapLabelFreeMargins` | [30, 30, 30, 30] | [0, 0, 0, 0] |
+
+  `mapSplitSpace` also differs under this probe, but its
+  normalizer is the identity pass-through for the unchecked
+  legacy payload, not a fallback; it is excluded. `mapLanguage`
+  additionally falls back to `'en'` where its default is
+  navigator-derived; under the one-value rule its fallback
+  becomes the navigator-derived default.
+
+- Feasibility is verified on a standalone prototype compiled with
+  the repository's TypeScript in strict mode: the derived
+  `ViewerConfig` preserves exact value types including tuples;
+  visibility filtering yields exact key unions at the type level;
+  `normalizeConfigValue` keeps its per-key return type; and a
+  language-service probe confirms the doc comment on a catalogue
+  entry appears when hovering the derived `ViewerConfig` and
+  public-subset properties.
+
+Decision points for the reviewer:
+
+- Invalid-write semantics: §4.5 adopts default-as-fallback.
+  The alternative (reject the write, keep the current value)
+  changes `setParam` behavior and is not adopted.
+- Whether the step-8 assertion pinning the 58-key runtime subset
+  stays after the migration or is dropped once the catalogue
+  lands.
