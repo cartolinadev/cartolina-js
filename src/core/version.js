@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.571-feature_rfc1_rfc2.42541db6';
+  return '2.49.572-feature_rfc1_rfc2.39013033';
 }

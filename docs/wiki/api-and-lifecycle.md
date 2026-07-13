@@ -143,14 +143,15 @@ keys only, dropping arbitrary query parameters before they reach
 the factory guard.
 
 The remaining permissive ingestion paths accept the full catalogue
-and the legacy `pos` / `rotate` / `pan` aliases: the deprecated
-`browser()` factory bag and the mapConfig `browserOptions`
-(`Browser.applyConfigParams`, where `position` and `view`
-additionally act on the loaded map at once), and the style `config`
-block. Unknown keys are dropped; a dropped key carrying a config
-prefix (`map`, `renderer`, `control`, `debug`) is logged. The
-vts-era `Browser.setConfigParam` / `getConfigParam` accessors are
-removed; no repository or documented integration called them.
+and the legacy `pos` / `rotate` / `pan` aliases. The deprecated
+`browser()` factory bag and mapConfig `browserOptions` flow through
+`Browser.applyConfigParams`; `position` and `view` additionally act
+on the loaded map at once. Unknown keys are dropped, and a dropped
+key carrying a config prefix (`map`, `renderer`, `control`, `debug`)
+is logged. The style `config` block also accepts the full catalogue
+and aliases, but drops unknown keys without logging. The vts-era
+`Browser.setConfigParam` / `getConfigParam` accessors are removed;
+no repository or documented integration called them.
 
 Subsystems declare `store.watch(keys, fn)` for the side effects a
 change requires (cache resizing, redraws, UI refresh, autopilot,

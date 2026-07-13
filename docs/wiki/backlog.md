@@ -6,32 +6,6 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
-## Retire Browser.setConfigParam / getConfigParam with browser()
-
-**Opened:** 2026-07-13
-**Status:** done 2026-07-13 — removed ahead of the `browser()`
-retirement; every caller was in-repo. `Viewer.setParam` / `getParam`
-now write and read the store directly; the bag ingestion is the
-internal `Browser.applyConfigParams`. Recorded in the RFC 1
-addendum and [compat-mapy-integration.md](compat-mapy-integration.md).
-**Related:** [rfc-config-store.md](rfc-config-store.md),
-[api-and-lifecycle.md](api-and-lifecycle.md)
-
-The vts-era accessors on `Browser` are no longer a parallel public
-API; they are the shared ingestion funnel. Their callers today are
-the typed `Viewer.setParam` / `getParam` (which delegate after
-their own key guard), the `browser()` construction bag, the
-mapConfig `browserOptions` application on load, and the autopilot
-re-reads. No demo or mapy.com integration calls them.
-
-They keep their names and prototype placement only because they
-were public API on the upstream `vts-browser-js` `browser()`
-object, and RFC 1 §4.4 keeps the shim alive while legacy call
-sites may exist. When `Browser` dissolves, `Viewer.setParam`
-should write `normalizeConfigPatch` results to the store directly
-and the vts-era names retire together with the `browser()`
-factory.
-
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10
@@ -2440,4 +2414,3 @@ posting to the loader worker.
 
 Token lifecycle is host-application responsibility. Keep current tokens
 in application state and read them inside the request transform callback.
-

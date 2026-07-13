@@ -9,7 +9,7 @@
  *
  * Owned by `Map` (`src/core/map.ts`), which exposes `on`/`once` on
  * its public surface and hands the instance to the legacy emitters
- * (`Core`, `LegacyMap`, `GpuDevice`) at construction.
+ * (`LegacyMap`, `GpuDevice`) at construction.
  *
  * Dispatch semantics:
  *
