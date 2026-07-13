@@ -284,7 +284,7 @@ const catalogue = {
     panAllowed: bool(true),
 
     /** Metatile cache budget in megabytes. */
-    mapMetatileCache: num(10, 4000, 60),
+    mapMetatileCache: num(10, MAX, 60),
 
     /** The WebGL context is created with antialiasing.
      *  Read once at renderer construction. */
@@ -312,6 +312,19 @@ parse kind, and a visibility class: `runtime`, `construction`,
   `STRUCTURAL_KEYS`, the positional `pos` parser, and the alias
   table remain, as URL-layer concerns.
 
+A spec stores its default as a producer function. Scalar
+constants are wrapped trivially; array and tuple defaults are
+copied on every production, so each store — and each
+invalid-input fallback — receives a fresh allocation, and no two
+viewers share a mutable default. Environment-dependent defaults
+(`mapLanguage` and `mapMetricUnits` from the browser language,
+`mapAsyncImageDecode` from `createImageBitmap` availability) pass
+an explicit factory reading that state. The reads are pure and
+stable within a session, so a fallback produced during
+normalization equals the value selected when the store was
+constructed. The factories are guarded for non-browser
+environments, so the unit build still loads the module.
+
 One value per key: the catalogue default is also the fallback for
 invalid input. Valid-path behavior is unchanged — the divergent
 legacy fallbacks fire only when a caller writes an invalid value,
@@ -319,11 +332,17 @@ and such a write now yields the key's documented default. The
 alternative — rejecting the invalid write and keeping the current
 value — is a `setParam` behavior change and is not adopted.
 
-Deliberately outside the catalogue: the `keyAliases` table, the
-`mapNoTextures` expansion in `normalizeConfigPatch`, and the
-navigator-derived `mapLanguage` default, computed by a helper
-guarded for non-browser environments so the unit build still
-loads the module.
+One deliberate exception to default-as-fallback: a `geojsonStyle`
+value that is a malformed JSON string throws from programmatic
+normalization, matching current behavior — a loud failure at the
+typed boundary, like the unknown-key throw. The URL layer instead
+catches the parse failure and drops the parameter, consistent
+with its permissive contract of silently filtering unknown keys;
+today a malformed JSON query parameter aborts startup, which
+step 9 corrects.
+
+Deliberately outside the catalogue: the `keyAliases` table and
+the `mapNoTextures` expansion in `normalizeConfigPatch`.
 
 ---
 
@@ -428,12 +447,18 @@ default; enumerate them in the implementing commit message.
 Replace the hand-written `ViewerConfig` interface and the
 public-subset key arrays with derivations from the catalogue. A
 compile-time assertion pins the derived runtime-subset key union
-to the audited 58-key list from the live-subset audit.
+to the audited 58-key list from the live-subset audit. The
+assertion lives in the type-test suite (`test/types/`) and
+remains after the migration as the public-API contract: an
+incidental visibility edit cannot change the audited public
+surface without an explicit test update.
 
 **Step 9 — Derive URL parsing**
 
 Replace the five key-type sets in `url-config.ts` with lookups of
-the specs' URL parse kinds.
+the specs' URL parse kinds. The JSON parse kind catches a
+malformed value and drops the parameter instead of letting the
+parse failure abort startup.
 
 **Step 10 — Document every key**
 
@@ -1170,6 +1195,18 @@ resolution before the design is complete.
    environment-dependent defaults once per store and reuses the
    selected values during normalization. Blocker.
 
+   *Author: implemented. §4.5 now specifies that every spec stores
+   its default as a producer function; the three
+   environment-dependent keys pass explicit factories reading the
+   browser language and `createImageBitmap` availability. A
+   per-store snapshot is not adopted: the environment reads are
+   pure and stable within a session, so a producer evaluated at
+   normalization time yields the value selected at store
+   construction. The current `mapAsyncImageDecode` normalizer
+   already re-probes `createImageBitmap` on every call
+   (`viewer-config.ts`); the producer mechanism generalizes that
+   pattern to all three keys.*
+
 2. Collecting defaults from a module-level catalogue can share mutable
    arrays between viewers. The current `defaultViewerConfig()` creates
    fresh tuples and arrays on each call, while `ConfigStore` clones
@@ -1181,12 +1218,26 @@ resolution before the design is complete.
    returned as an invalid-input fallback, so one viewer or caller
    cannot mutate another viewer's configuration. Blocker.
 
+   *Author: implemented, by the same producer mechanism as note 1.
+   Spec constructors copy array and tuple defaults on every
+   production — both when `defaultViewerConfig()` assembles a
+   store's initial values and when a normalizer returns a
+   fallback — so no allocation is shared between stores. The
+   `ConfigStore` shallow copy and by-reference reads are
+   unchanged; the guarantee added is per-store ownership of every
+   default and fallback allocation.*
+
 3. The example changes valid-path behavior. The current
    `mapMetatileCache` normalizer is `num(10, MAX, 60)`, but the proposed
    entry is `num(10, 4000, 60)`. That would clamp every valid value
    above 4000 despite the statement that valid-path behavior is
    unchanged. Use the existing upper bound in the example, or use an
    example whose complete spec matches the implementation. Blocker.
+
+   *Author: implemented. The example now shows the live spec
+   `num(10, MAX, 60)`. The 4000 bound was an invented example
+   value, not a proposed change; no bound changes are part of this
+   revision.*
 
 4. The default-as-fallback rule is not total over the current
    normalizers. `geojsonStyle` calls `JSON.parse()` for a string, so
@@ -1198,9 +1249,23 @@ resolution before the design is complete.
    consolidation alone does not establish the stated behavior.
    Blocker.
 
+   *Author: implemented, with a boundary split. Programmatic
+   normalization keeps the throw for a malformed `geojsonStyle`
+   JSON string — current behavior, and consistent with the typed
+   boundary's unknown-key throw. The URL layer catches the parse
+   failure and drops the parameter, consistent with its permissive
+   contract of silently filtering unknown keys; the current abort
+   of startup on a malformed JSON query parameter is corrected in
+   step 9. §4.5 now states the exception explicitly, so the
+   default-as-fallback claim is narrowed rather than total.*
+
 The step-8 58-key assertion should remain as a compile-time public-API
 contract, preferably in the type-test suite rather than as production
 derivation data. The catalogue remains the source used to construct
 the subset; the assertion independently prevents an incidental
 visibility edit from changing the audited public surface without an
 explicit test update.
+
+*Author: implemented. Step 8 now states the assertion lives in the
+type-test suite and remains after the migration as the public-API
+contract.*

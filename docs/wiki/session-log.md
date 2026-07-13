@@ -3,6 +3,31 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — RFC 1 round 6: four blockers answered
+
+The round 6 review accepted the catalogue direction and raised four
+blockers; each claim was verified against the code before the design
+was amended:
+
+- Dynamic defaults: `mapMetricUnits` and `mapAsyncImageDecode` are
+  environment-derived like `mapLanguage`. §4.5 now stores every
+  spec default as a producer function; the three
+  environment-dependent keys pass explicit factories, pure and
+  stable within a session.
+- Mutable defaults: producers copy array and tuple values on every
+  production, so stores never share a default or fallback
+  allocation (the `ConfigStore` constructor copies shallowly).
+- The §4.5 example's `mapMetatileCache` bound is corrected to the
+  live `num(10, MAX, 60)`; 4000 was an invented example value.
+- Malformed `geojsonStyle` JSON: programmatic normalization keeps
+  the throw; the URL layer catches and drops the parameter instead
+  of aborting startup (step 9). The default-as-fallback claim in
+  §4.5 is narrowed accordingly.
+
+The step-8 58-key assertion is pinned to the type-test suite and
+survives the migration as the public-API contract. Status stays
+`In review`, awaiting the reviewer.
+
 ## 2026-07-13 — RFC 1 reopened: single-source config catalogue
 
 An architectural review of the RFC 1/2 branch found the config half
