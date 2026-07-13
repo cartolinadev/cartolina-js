@@ -1,12 +1,7 @@
 
 import Map from '../core/map';
 import ConfigStore from '../core/config-store';
-import {
-    defaultViewerConfig,
-    canonicalConfigKey,
-    looksLikeConfigKey,
-    normalizeConfigPatch,
-} from '../core/viewer-config';
+import * as viewerConfig from '../core/viewer-config';
 import {GpuDevice} from '../core/renderer/gpu/device';
 import * as utils from '../core/utils/utils';
 import UI_ from './ui/ui';
@@ -27,7 +22,7 @@ var Browser = function(element, config) {
 
     // the single normalized config store; `this.config` aliases its
     // live value map so legacy readers share one object
-    this.configStore = new ConfigStore(defaultViewerConfig());
+    this.configStore = new ConfigStore(viewerConfig.defaultViewerConfig());
     this.config = this.configStore.values;
 
     this.originalConfig = JSON.parse(JSON.stringify(config));
@@ -355,11 +350,11 @@ Browser.prototype.updateUI = function(key) {
 
 
 Browser.prototype.setConfigParam = function(key, value) {
-    var patch = normalizeConfigPatch(key, value);
+    var patch = viewerConfig.normalizeConfigPatch(key, value);
     if (!patch) {
         // a dropped key carrying a config prefix is probably a
         // misspelling; unrelated bag entries stay silent
-        if (looksLikeConfigKey(key)) {
+        if (viewerConfig.looksLikeConfigKey(key)) {
             console.warn('Unknown configuration key \'' + key
                 + '\'; ignored.');
         }
@@ -393,7 +388,7 @@ Browser.prototype.getConfigParam = function(key) {
         return map ? map.getView() : this.config.view;
     }
 
-    var canonical = canonicalConfigKey(key);
+    var canonical = viewerConfig.canonicalConfigKey(key);
     return canonical ? this.configStore.get(canonical) : undefined;
 };
 

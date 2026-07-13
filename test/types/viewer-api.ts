@@ -7,7 +7,7 @@ import Viewer from '../../src/browser/viewer';
 import { map } from '../../src/browser/index';
 import type MapStyle from '../../src/core/map/style';
 import type { PositionInput } from '../../src/core/types';
-import type { PublicRuntimeConfig } from '../../src/core/viewer-config';
+import type * as viewerConfig from '../../src/core/viewer-config';
 
 declare const viewer: Viewer;
 declare const container: HTMLElement;
@@ -16,7 +16,7 @@ declare const position: PositionInput;
 
 // The namespace re-export and the core definition are the same type.
 declare const runtimeConfig: Viewer.PublicRuntimeConfig;
-const sameType: PublicRuntimeConfig = runtimeConfig;
+const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
 // The audited 58-key public runtime subset, pinned as a lasting
@@ -29,7 +29,7 @@ type Eq<A, B> =
         (<X>() => X extends B ? 1 : 2) ? true : false;
 
 type _publicRuntimeSubsetPin = Expect<Eq<
-    keyof PublicRuntimeConfig,
+    keyof viewerConfig.PublicRuntimeConfig,
     | 'panAllowed' | 'rotationAllowed' | 'zoomAllowed'
     | 'jumpAllowed' | 'sensitivity' | 'inertia' | 'positionInUrl'
     | 'constrainCamera' | 'navigationMode' | 'controlCompass'

@@ -8,8 +8,7 @@ import Inspector from './inspector/inspector';
 import MapPosition from './map/position';
 import EventBus from './event-bus';
 import type ConfigStore from './config-store';
-import { normalizeConfigPatch, type ViewerConfig }
-    from './viewer-config';
+import * as viewerConfig from './viewer-config';
 import type {
     HeightMode,
     Lod,
@@ -141,7 +140,7 @@ class Map {
      *
      * @internal
      */
-    config: Readonly<ViewerConfig>;
+    config: Readonly<viewerConfig.ViewerConfig>;
 
     private readyPromise_: Promise<void>;
     private readyResolved_ = false;
@@ -164,7 +163,7 @@ class Map {
      * `Map.tick` flushes it at the start of every frame so watchers
      * reconfigure before the draw.
      */
-    private configStore_: ConfigStore<ViewerConfig>;
+    private configStore_: ConfigStore<viewerConfig.ViewerConfig>;
 
     /**
      * Runtime rendering overrides: diagnostic draw flags and per-frame
@@ -252,7 +251,7 @@ class Map {
     constructor(
         element: HTMLElement,
         config: Record<string, unknown>,
-        configStore: ConfigStore<ViewerConfig>,
+        configStore: ConfigStore<viewerConfig.ViewerConfig>,
     ) {
 
         this.configStore_ = configStore;
@@ -466,7 +465,7 @@ class Map {
 
             if (this.initialConfig[key] !== undefined) continue;
 
-            const patch = normalizeConfigPatch(key, value);
+            const patch = viewerConfig.normalizeConfigPatch(key, value);
             if (patch) this.configStore_.set(patch);
         }
     }
@@ -521,7 +520,7 @@ class Map {
      *
      * @internal
      */
-    get configStore(): ConfigStore<ViewerConfig> {
+    get configStore(): ConfigStore<viewerConfig.ViewerConfig> {
 
         return this.configStore_;
     }

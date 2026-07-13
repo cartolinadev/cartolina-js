@@ -20,7 +20,7 @@ import type LegacyMap from '../map/map';
 import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../event-bus';
 import type ConfigStore from '../config-store';
-import type { ViewerConfig } from '../viewer-config';
+import type * as viewerConfig from '../viewer-config';
 import type { ViewerEventMap } from '../types';
 import { TextureBlend } from './textureblend';
 
@@ -85,7 +85,7 @@ import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 
 export class Renderer {
 
-    config: Readonly<ViewerConfig>;
+    config: Readonly<viewerConfig.ViewerConfig>;
     core: Core;
     div: HTMLElement;
 
@@ -381,7 +381,7 @@ export class Renderer {
     disposed_ = false;
 
 
-constructor(core: Core, div: HTMLElement, config: Readonly<ViewerConfig>) {
+constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerConfig>) {
 
     this.config = config; // || {};
     this.core = core;
@@ -2667,7 +2667,7 @@ type Core = {
     map: LegacyMap | null;
     contextLost: boolean;
     bus: EventBus<ViewerEventMap>;
-    configStore: ConfigStore<ViewerConfig>;
+    configStore: ConfigStore<viewerConfig.ViewerConfig>;
 
 }
 

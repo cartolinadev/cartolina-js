@@ -855,7 +855,14 @@ follows this structure.
 
 Modules that export only free functions and types (no primary class) use
 regular named exports, as in
-[illumination.ts](src/core/map/illumination.ts).
+[illumination.ts](src/core/map/illumination.ts). Consumers import such a
+module as a namespace and call through the qualifier —
+`import * as utils from './utils/utils'`,
+`import * as viewerConfig from './viewer-config'` — never through named
+imports. The point is the same as for the class namespaces: no
+unqualified symbols enter the local namespace, and every call site
+names its origin. Fix named imports of function modules whenever the
+importing file is already being changed.
 
 ### Order of declarations in a class module
 

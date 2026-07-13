@@ -7,7 +7,7 @@ import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
 import type { TransformRequestCallback } from '../core/types';
-import { isPublicRuntimeConfigKey } from '../core/viewer-config';
+import * as viewerConfig from '../core/viewer-config';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
@@ -353,7 +353,7 @@ class Viewer {
 
         this.assertAlive();
 
-        if (!isPublicRuntimeConfigKey(key)) {
+        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
 
             throw new Error(
                 `'${String(key)}' is not a public runtime parameter.`);
@@ -378,7 +378,7 @@ class Viewer {
 
         this.assertAlive();
 
-        if (!isPublicRuntimeConfigKey(key)) {
+        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
 
             throw new Error(
                 `'${String(key)}' is not a public runtime parameter.`);

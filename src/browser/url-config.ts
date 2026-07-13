@@ -1,6 +1,5 @@
 import * as utils from '../core/utils/utils';
-import { canonicalConfigKey, looksLikeConfigKey, urlParseKind }
-    from '../core/viewer-config';
+import * as viewerConfig from '../core/viewer-config';
 
 
 export type UrlConfigOptions = {
@@ -103,7 +102,7 @@ export function parseConfigParamValue(
         return value.map((item) => parseConfigParamValue(key, item));
     }
 
-    switch (urlParseKind(key)) {
+    switch (viewerConfig.urlParseKind(key)) {
         case 'position': return parsePosition(value);
         case 'boolean': return parseBoolean(value);
         case 'number': return parseNumber(value);
@@ -171,9 +170,9 @@ export function runtimeOptionsFromUrl(
 
         if (STRUCTURAL_KEYS.has(key)) continue;
 
-        if (canonicalConfigKey(key) !== null) {
+        if (viewerConfig.canonicalConfigKey(key) !== null) {
             runtimeOptions[key] = config[key];
-        } else if (looksLikeConfigKey(key)) {
+        } else if (viewerConfig.looksLikeConfigKey(key)) {
             console.warn(
                 `Unknown configuration key '${key}' in the URL; `
                 + 'ignored.');

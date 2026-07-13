@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — function-module imports go through namespaces
+
+`viewer-config.ts` was consumed through named imports in twelve
+files, polluting local namespaces with unqualified symbols —
+against the practice every other function module (`utils`, `math`,
+`constants`, `illumination`) already follows. All twelve consumers
+now use `import * as viewerConfig` (type-only where applicable),
+and AGENTS.md codifies the import side of the function-module
+rule: namespace import, qualified call sites, fix named imports
+whenever the importing file is being changed anyway. tsc clean on
+all three configs; 51 unit tests.
+
 ## 2026-07-13 — drop warning extended to the browser() path
 
 The URL-typo warning did not fire on the deprecated `browser()`

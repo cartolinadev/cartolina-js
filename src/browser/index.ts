@@ -28,10 +28,7 @@ import type {
     RequestTransformResult,
     TransformRequestCallback,
 } from '../core/types';
-import {
-    assertCataloguedConfigKeys,
-    type PublicConstructionConfig,
-} from '../core/viewer-config';
+import * as viewerConfig from '../core/viewer-config';
 
 
 export type {
@@ -77,7 +74,7 @@ export type MapOptions = {
      * Runtime and construction configuration values; the valid keys
      * and their types are defined by `PublicConstructionConfig`.
      */
-    options?: PublicConstructionConfig,
+    options?: viewerConfig.PublicConstructionConfig,
 
     /** Optional hook for rewriting resource URLs or adding request headers. */
     transformRequest?: TransformRequestCallback,
@@ -116,7 +113,8 @@ export function map(options: MapOptions): Viewer {
 
     // reject typos and invented keys loudly; catalogued keys
     // outside the typed surface pass (query-string vocabulary)
-    if (options.options) assertCataloguedConfigKeys(options.options);
+    if (options.options)
+        viewerConfig.assertCataloguedConfigKeys(options.options);
 
     // all browser controls are disabled by default on the style api
     let dflts = {
@@ -147,7 +145,7 @@ export function map(options: MapOptions): Viewer {
  *
  * Prefer the style-based `map` API for new code.
  */
-export type BrowserConfig = PublicConstructionConfig & {
+export type BrowserConfig = viewerConfig.PublicConstructionConfig & {
 
     /** The legacy vts-geospatial mapConfig, usually as a URL. */
     map: string | Record<string, unknown>,
@@ -230,14 +228,14 @@ export function getBrowserVersion(): string {
  * @return runtime options parsed from the query string
  */
 export function runtimeOptionsFromUrl(
-    defaults?: PublicConstructionConfig,
+    defaults?: viewerConfig.PublicConstructionConfig,
     url?: string,
     options?: UrlConfigOptions
-): PublicConstructionConfig {
+): viewerConfig.PublicConstructionConfig {
 
     return runtimeOptionsFromUrl_(
         defaults as Record<string, unknown>, url, options
-    ) as PublicConstructionConfig;
+    ) as viewerConfig.PublicConstructionConfig;
 }
 
 /**

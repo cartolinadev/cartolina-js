@@ -1,7 +1,7 @@
 
 import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import {normalizeConfigPatch} from '../viewer-config';
+import * as viewerConfig from '../viewer-config';
 import {platform} from '../utils/platform';
 import MapView from './view';
 import MapSurfaceTree from './surface-tree';
@@ -1138,7 +1138,7 @@ Map.prototype.setLoaderParams = function(mapConfig) {
             continue;
         }
 
-        var patch = normalizeConfigPatch(key, options[key]);
+        var patch = viewerConfig.normalizeConfigPatch(key, options[key]);
         if (patch) {
             this.core.configStore.set(patch);
         }

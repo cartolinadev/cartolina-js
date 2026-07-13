@@ -12,7 +12,7 @@ import type MapUrl from './url';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
 import type TypedMap from '../map';
-import type { ViewerConfig } from '../viewer-config';
+import type * as viewerConfig from '../viewer-config';
 import type {
     HeightMode,
     Lod,
@@ -69,7 +69,7 @@ export default class Map {
     constructor(
         core: unknown,
         path: string,
-        config: Readonly<ViewerConfig>,
+        config: Readonly<viewerConfig.ViewerConfig>,
         bus: EventBus<ViewerEventMap>,
     );
 
@@ -95,7 +95,7 @@ export default class Map {
 
     renderer: Renderer;
     url: MapUrl;
-    config: Readonly<ViewerConfig>;
+    config: Readonly<viewerConfig.ViewerConfig>;
     stats: {
         frameTime: number;
         drawnGeodataTilesPerLayer: number;
