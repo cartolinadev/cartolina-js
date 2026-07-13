@@ -359,7 +359,8 @@ class Viewer {
                 `'${String(key)}' is not a public runtime parameter.`);
         }
 
-        this._browser.setConfigParam(key, value);
+        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        if (patch) this._browser.configStore.set(patch);
         return this;
     }
 
@@ -384,7 +385,7 @@ class Viewer {
                 `'${String(key)}' is not a public runtime parameter.`);
         }
 
-        return this._browser.getConfigParam(key) as
+        return this._browser.configStore.get(key) as
             Viewer.PublicRuntimeConfig[K];
     }
 
@@ -827,7 +828,7 @@ namespace Viewer {
     export type Config = {
 
         // permissive ingestion glue: every value is normalized by
-        // `Browser.setConfigParams` before it reaches the store
+        // `Browser.applyConfigParams` before it reaches the store
         [key: string]: unknown;
 
         style?: string | MapStyle.StyleSpecification;

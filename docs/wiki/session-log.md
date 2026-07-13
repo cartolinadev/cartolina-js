@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — vts-era Browser config accessors removed
+
+`Browser.setConfigParam` / `setConfigParams` / `getConfigParam`
+had no remaining external callers: a survey of this repository,
+cartolina.dev, and the mapy.com integration inventory found only
+`Viewer.setParam` / `getParam` and `Browser`'s own ingestion.
+Removed ahead of the `browser()` retirement: `Viewer.setParam`
+normalizes and writes the store directly, `getParam` reads
+`store.get()`, and the bag ingestion (browser() config, mapConfig
+`browserOptions`, position/view commands, unknown-key warning)
+is the internal `Browser.applyConfigParams` / `applyConfigParam`.
+The autopilot URL-link reads go straight to the store. Closes
+RFC 1 §4.4's "shim remains while call sites exist" clause;
+recorded in the RFC addendum, `api-and-lifecycle.md`,
+`compat-mapy-integration.md` ("No longer existent"), and the
+backlog entry (done). Validation: tsc x3 clean, 51 unit tests,
+three regression URLs render correctly, live probe confirmed the
+typed round-trips, clamping, and all three accessor throws.
+
 ## 2026-07-13 — function-module imports go through namespaces
 
 `viewer-config.ts` was consumed through named imports in twelve

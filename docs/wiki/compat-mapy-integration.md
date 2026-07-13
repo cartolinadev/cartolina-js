@@ -134,6 +134,16 @@ behavioural no-op. The overlay runs once per frame, after the engine
 draws to the canvas, and is skipped on the depth/hit pass — fixing a
 latent bug where custom slots ran in the hitmap pass.
 
+`browser.setConfigParam(key, value)`, `browser.setConfigParams(...)`,
+`browser.getConfigParam(key)` — **removed 2026-07-13**. The observed
+mapy.com call surface does not include them (they are absent from
+the inventory above). Replacement for applications: the typed
+`Viewer.setParam` / `Viewer.getParam` over the public runtime
+subset; construction-time values go through the factory option
+bags. Ingestion of the `browser()` config bag and of mapConfig
+`browserOptions` continues internally through
+`Browser.applyConfigParams`.
+
 ---
 
 ## Legacy renderer object

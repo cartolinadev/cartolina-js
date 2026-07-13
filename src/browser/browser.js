@@ -35,7 +35,7 @@ var Browser = function(element, config) {
         this.element.style.position = 'relative';
     }
 
-    this.setConfigParams(config);
+    this.applyConfigParams(config);
 
     if (!GpuDevice.checkSupport()) {
         throw new Error('cartolina-js requires WebGL2.');
@@ -168,7 +168,7 @@ Browser.prototype.onMapLoaded = function(event) {
         } 
     }    
     
-    this.setConfigParams(options);
+    this.applyConfigParams(options);
 
     if (this.config.geojson || this.config.geodata) {
         var data = this.config.geojson || this.config.geodata;
@@ -221,11 +221,11 @@ Browser.prototype.getLinkWithCurrentPos = function() {
     params['pos'] = s;
 
     if (this.mapInteracted) {
-        if (params['rotate'] || this.getConfigParam('rotate')) {
+        if (params['rotate'] || this.configStore.get('autoRotate')) {
             params['rotate'] = '0';
         }
         
-        var pan = this.getConfigParam('pan');
+        var pan = this.configStore.get('autoPan');
         if (params['pan'] || (pan && (pan[0] || pan[1]))) {
             params['pan'] = '0,0';
         }
@@ -331,10 +331,14 @@ Browser.prototype.onTick = function() {
 };
 
 
-Browser.prototype.setConfigParams = function(params) {
+/**
+ * Applies a bag of raw config inputs (caller options, mapConfig
+ * browserOptions) through applyConfigParam.
+ */
+Browser.prototype.applyConfigParams = function(params) {
     if (typeof params === 'object' && params !== null) {
         for (var key in params) {
-            this.setConfigParam(key, params[key]);
+            this.applyConfigParam(key, params[key]);
         }
     }
 };
@@ -349,7 +353,11 @@ Browser.prototype.updateUI = function(key) {
 };
 
 
-Browser.prototype.setConfigParam = function(key, value) {
+/**
+ * Applies one raw config input: alias resolution, normalization,
+ * the store write, and the position / view commands.
+ */
+Browser.prototype.applyConfigParam = function(key, value) {
     var patch = viewerConfig.normalizeConfigPatch(key, value);
     if (!patch) {
         // a dropped key carrying a config prefix is probably a
@@ -376,21 +384,6 @@ Browser.prototype.setConfigParam = function(key, value) {
     }
 };
 
-
-Browser.prototype.getConfigParam = function(key) {
-    var map = this.map ? this.getMap() : null;
-
-    // position and view read live from the loaded map
-    if (key == 'pos' || key == 'position') {
-        return map ? map.getPosition() : this.config.position;
-    }
-    if (key == 'view') {
-        return map ? map.getView() : this.config.view;
-    }
-
-    var canonical = viewerConfig.canonicalConfigKey(key);
-    return canonical ? this.configStore.get(canonical) : undefined;
-};
 
 
 export default Browser;

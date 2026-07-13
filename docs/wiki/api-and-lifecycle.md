@@ -124,10 +124,11 @@ watcher with the required side effect, or read from the store's
 value map at time of use. Key and value types correlate, so a typed
 caller gets key completion, value checking, and key-specific return
 types; a key outside the subset throws at runtime, so a JavaScript
-typo fails loudly. `setParam` reaches `Browser.setConfigParam`,
-which normalizes the value and writes it to the store; `getParam`
-reads `store.get()`. The contract is pinned by compile-time tests
-in `test/types/viewer-api.ts`, run by `npm run test:unit`.
+typo fails loudly. `setParam` normalizes the value
+(`normalizeConfigPatch`) and writes the patch to the store;
+`getParam` reads `store.get()`. The contract is pinned by
+compile-time tests in `test/types/viewer-api.ts`, run by
+`npm run test:unit`.
 
 The factory option bags (`MapOptions.options` and the `browser()`
 config) are typed by `PublicConstructionConfig`: the public runtime
@@ -142,10 +143,14 @@ keys only, dropping arbitrary query parameters before they reach
 the factory guard.
 
 The remaining permissive ingestion paths accept the full catalogue
-and the legacy `pos` / `rotate` / `pan` aliases, and filter unknown
-keys silently: the deprecated `browser()` factory, the style
-`config` block, and legacy `Browser.setConfigParam` callers, where
-`position` and `view` additionally act on the loaded map at once.
+and the legacy `pos` / `rotate` / `pan` aliases: the deprecated
+`browser()` factory bag and the mapConfig `browserOptions`
+(`Browser.applyConfigParams`, where `position` and `view`
+additionally act on the loaded map at once), and the style `config`
+block. Unknown keys are dropped; a dropped key carrying a config
+prefix (`map`, `renderer`, `control`, `debug`) is logged. The
+vts-era `Browser.setConfigParam` / `getConfigParam` accessors are
+removed; no repository or documented integration called them.
 
 Subsystems declare `store.watch(keys, fn)` for the side effects a
 change requires (cache resizing, redraws, UI refresh, autopilot,

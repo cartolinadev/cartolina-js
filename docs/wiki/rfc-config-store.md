@@ -1412,3 +1412,32 @@ exemption); a live probe on a `browser()`-path application
 loading the mapy.com scenes mapConfig showed the warning naming
 the misspelled query key plus the three retired `browserOptions`
 keys, with rendering unaffected.
+
+---
+
+## Addendum — 2026-07-13 — vts-era config accessors removed
+
+§4.4's closing rule — "`setConfigParam` remains as the
+normalization shim for as long as legacy JS call sites exist" —
+is fulfilled and closed: no call site remains. A survey of every
+owned consumer (this repository's source, demos, and sandbox; the
+cartolina.dev repository; the mapy.com integration inventory in
+`compat-mapy-integration.md`) found the accessors called only by
+`Viewer.setParam` / `getParam` and by `Browser`'s own ingestion.
+
+Removed: `Browser.setConfigParam`, `Browser.setConfigParams`, and
+`Browser.getConfigParam`. `Viewer.setParam` now normalizes
+(`normalizeConfigPatch`) and writes the store directly;
+`Viewer.getParam` reads `store.get()`. The bag ingestion — the
+`browser()` config and mapConfig `browserOptions`, including the
+`position` / `view` commands and the unknown-key warning — is the
+internal `Browser.applyConfigParams` / `applyConfigParam`. The
+removal is recorded in `compat-mapy-integration.md` under "No
+longer existent".
+
+Validation: `npx tsc` clean on all three configs; 51 unit tests;
+the three regression URLs render correctly; live probes confirmed
+`setParam` / `getParam` round-trips with clamping and the
+unknown-key, non-public-key, and alias throws, the URL typo
+warning on both ingestion paths, and the autopilot URL-link reads
+(`autoRotate` / `autoPan`) unchanged.

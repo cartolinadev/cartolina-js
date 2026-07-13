@@ -9,6 +9,11 @@ existing entry, even one added earlier in the same session.**
 ## Retire Browser.setConfigParam / getConfigParam with browser()
 
 **Opened:** 2026-07-13
+**Status:** done 2026-07-13 — removed ahead of the `browser()`
+retirement; every caller was in-repo. `Viewer.setParam` / `getParam`
+now write and read the store directly; the bag ingestion is the
+internal `Browser.applyConfigParams`. Recorded in the RFC 1
+addendum and [compat-mapy-integration.md](compat-mapy-integration.md).
 **Related:** [rfc-config-store.md](rfc-config-store.md),
 [api-and-lifecycle.md](api-and-lifecycle.md)
 

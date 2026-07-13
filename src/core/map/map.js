@@ -37,8 +37,7 @@ var Map = function(core, path, config, bus) {
     // through it
     this.bus = bus;
 
-    // config watchers cover the side effects the removed
-    // setConfigParam switch used to run on live key changes;
+    // config watchers apply the side effects of live key changes;
     // unsubscribed in kill()
     this.configUnsubscribes = [
         core.configStore.watch(
