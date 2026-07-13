@@ -33,7 +33,7 @@ export class FreezeMode {
     /**
      * Snapshot the current selection camera at the live navigation position.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      */
     freeze(map: LegacyMap): void {
 
@@ -50,7 +50,7 @@ export class FreezeMode {
     /**
      * Disable frozen selection and remove its persistent controls.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      */
     unfreeze(map: LegacyMap | null): void {
 
@@ -71,7 +71,7 @@ export class FreezeMode {
     /**
      * Toggle frozen selection at the current live navigation position.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      */
     toggleFrozen(map: LegacyMap | null): void {
 
@@ -90,7 +90,7 @@ export class FreezeMode {
     /**
      * Restore the live navigation camera to the frozen position.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      */
     resetView(map: LegacyMap | null): void {
 
@@ -103,7 +103,7 @@ export class FreezeMode {
     /**
      * Toggle the frozen-camera frustum pyramid.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      * @param renderer renderer used to sample the current viewport size
      */
     toggleFrustum(map: LegacyMap | null, renderer: Renderer): void {
@@ -127,7 +127,7 @@ export class FreezeMode {
     /**
      * Show or hide the freeze command strip.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      */
     setControlsActive(map: LegacyMap | null, active: boolean): void {
 
@@ -147,7 +147,7 @@ export class FreezeMode {
     /**
      * Compute the frozen-camera pyramid from the hitmap's farthest depth.
      *
-     * @param map legacy terrain engine for the current loaded map
+     * @param map the loaded `LegacyMap` instance
      * @param renderer renderer used to sample the current viewport size
      */
     captureFrustum(map: LegacyMap, renderer: Renderer): void {

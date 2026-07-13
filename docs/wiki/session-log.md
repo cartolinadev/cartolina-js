@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — retired-terminology cleanup in the catalogue
+
+Review of the landed catalogue caught two wording defects, both
+amended into the catalogue commit: the map* group header still
+said "Terrain engine (LegacyMap)" — retired terminology that the
+propagating doc comments would have surfaced on the public API —
+and the spec-constructor comment justified its bounds against the
+deleted `setConfigParam` switches instead of stating what the
+constructors do. A follow-up commit retires the last seven
+"legacy terrain engine" `@param` docs in `inspector/freeze.ts`
+(pre-existing; they now name the `LegacyMap` parameter type
+directly). `src/` no longer contains the phrase.
+
 ## 2026-07-13 — RFC 1 steps 7–10: single-source catalogue landed
 
 The accepted round-6 design is implemented and RFC 1 is closed
