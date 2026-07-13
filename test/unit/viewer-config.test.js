@@ -13,11 +13,13 @@ const assert = require('assert');
 const {
     assertCataloguedConfigKeys,
     canonicalConfigKey,
+    defaultViewerConfig,
     isPublicRuntimeConfigKey,
     normalizeConfigPatch,
     normalizeConfigValue,
     publicConstructionConfigKeys,
     publicRuntimeConfigKeys,
+    urlParseKind,
 } = require('../../tmp/unit-build/src/core/viewer-config');
 
 describe('viewer-config normalization', function() {
@@ -42,9 +44,83 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(
             normalizeConfigValue('mapFlagLighting', 'yes'), true);
         assert.strictEqual(
-            normalizeConfigValue('mapCache', 'bogus'), 900);
+            normalizeConfigValue('mapCache', 'bogus'), 1100);
         assert.strictEqual(
             normalizeConfigValue('rendererCssDpi', 5000), 1200);
+    });
+
+    it('falls back to the catalogue default on invalid input',
+        function() {
+
+        // reconciled keys whose legacy switch fallback diverged
+        // from the catalogue default (rfc-config-store.md, step 7)
+        const defaults = defaultViewerConfig();
+        const reconciled = {
+            mapCache: 'bogus',
+            mapDownloadThreads: null,
+            mapMaxProcessingTime: {},
+            minViewExtent: 'x',
+            controlSpace: 7,
+            controlSearch: 7,
+            controlSearchFilter: 7,
+            controlFullscreen: 7,
+            mapFeaturesReduceMode: 42,
+            mapDefaultFont: false,
+        };
+
+        for (const key of Object.keys(reconciled)) {
+            assert.deepStrictEqual(
+                normalizeConfigValue(key, reconciled[key]),
+                defaults[key],
+                key);
+        }
+    });
+
+    it('produces fresh array allocations per store and per '
+        + 'fallback', function() {
+
+        const first = defaultViewerConfig();
+        const second = defaultViewerConfig();
+
+        assert.notStrictEqual(first.sensitivity, second.sensitivity);
+        assert.notStrictEqual(
+            first.mapFeaturesReduceParams,
+            second.mapFeaturesReduceParams);
+
+        const fallback1 = normalizeConfigValue('sensitivity', 'x');
+        const fallback2 = normalizeConfigValue('sensitivity', 'x');
+
+        assert.deepStrictEqual(fallback1, first.sensitivity);
+        assert.notStrictEqual(fallback1, fallback2);
+        assert.notStrictEqual(fallback1, first.sensitivity);
+    });
+
+    it('throws from programmatic normalization for malformed '
+        + 'geojsonStyle JSON', function() {
+
+        assert.throws(
+            () => normalizeConfigValue('geojsonStyle', '{bad json'));
+    });
+
+    it('resolves URL parse kinds through the catalogue', function() {
+
+        assert.strictEqual(urlParseKind('mapFlagLighting'), 'boolean');
+        assert.strictEqual(urlParseKind('mapCache'), 'number');
+        assert.strictEqual(urlParseKind('sensitivity'), 'numberArray');
+        assert.strictEqual(urlParseKind('mapLanguage'), 'string');
+        assert.strictEqual(urlParseKind('geojsonStyle'), 'json');
+        assert.strictEqual(urlParseKind('pos'), 'position');
+        assert.strictEqual(urlParseKind('rotate'), 'number');
+        assert.strictEqual(urlParseKind('pan'), 'numberArray');
+        assert.strictEqual(urlParseKind('transformRequest'), 'none');
+        assert.strictEqual(urlParseKind('noSuchKey'), null);
+        assert.strictEqual(urlParseKind('toString'), null);
+    });
+
+    it('keeps the audited public subset sizes', function() {
+
+        assert.strictEqual(publicRuntimeConfigKeys.length, 58);
+        assert.strictEqual(publicConstructionConfigKeys.length, 71);
     });
 
     it('expands the mapNoTextures coupling', function() {

@@ -1,6 +1,6 @@
 # RFC 1: ConfigStore — reactive configuration for cartolina-js
 
-**Status:** Accepted
+**Status:** Implemented
 **Context:** core.js suppression; see [architecture.md](architecture.md)
 
 ---
@@ -1282,3 +1282,75 @@ malformed programmatic `geojsonStyle` JSON, while step 9 gives malformed
 URL JSON the URL layer's permissive drop behavior. The 58-key assertion
 remains in the type-test suite as an independent contract for the derived
 public runtime surface. Design accepted.
+
+---
+
+## Addendum — 2026-07-13 — steps 7–10 implemented
+
+The single-source catalogue of §4.5 is implemented. Each of the 146
+keys is one entry in the `catalogue` object in
+`src/core/viewer-config.ts`, carrying its doc comment, producer
+default, normalizer, URL parse kind, and visibility class.
+Everything else derives from it: `ViewerConfig` (a mapped type over
+the producers' return types; doc comments propagate to the derived
+properties), `defaultViewerConfig()`, `normalizeConfigValue`, both
+public subset types and key arrays (visibility-filtered at the type
+level and at runtime), and the new `urlParseKind()` consumed by
+`url-config.ts`, whose five hand-written key-type sets are deleted.
+Every key is documented (step 10); keys with no live consumer say
+so explicitly instead of inventing behavior.
+
+Reconciliations (step 7) — one value per key, the catalogue default
+winning over the divergent legacy switch fallback, as accepted in
+round 6: `sensitivity`, `inertia`, `controlSpace`, `controlSearch`,
+`controlSearchFilter`, `controlFullscreen`, `minViewExtent`,
+`mapCache`, `mapGPUCache`, `mapDownloadThreads`,
+`mapMaxProcessingTime`, `mapMobileModeAutodect`,
+`mapMobileDetailDegradation`, `mapPreciseCulling`,
+`mapBasicTileSequence`, `mapPreciseBBoxTest`, `mapXhrImageLoad`,
+`mapSortHysteresis`, `mapFeatureStickMode`, `map16bitMeshes`,
+`mapIndexBuffers`, `mapFeatureGridCells`, `mapFeaturesReduceMode`,
+`mapDMapMode`, `mapDegradeHorizon`, `mapDegradeHorizonParams`,
+`mapDefaultFont`, `mapMetricUnits`, `mapLabelFreeMargins`; plus the
+two environment-conditional fallbacks, `mapLanguage` (browser
+language instead of `'en'`) and `mapAsyncImageDecode`
+(`createImageBitmap` availability instead of `false`). All fire on
+invalid input only.
+
+Deviations from the accepted design:
+
+- The visibility parameter on the spec constructors is required,
+  not optional as the §4.5 example sketch implied. An omitted
+  visibility cannot silently default a key into a public surface.
+- The step-8 assertion is implemented as a type-level equality pin
+  on `keyof PublicRuntimeConfig` in `test/types/viewer-api.ts`
+  (per the round-6 reviewer note), plus runtime size pins (58 and
+  71 keys) in the unit suite.
+- Spec-driven URL parsing covers catalogued keys that the deleted
+  hand-written sets missed, so these now parse from query strings
+  instead of arriving as raw strings that normalized to defaults:
+  `interactive`, `autoRotate`, `autoPan`, `rendererCssDpi`,
+  `mapMaxHiresLodLevels`, `mapLoadErrorRetryTime`,
+  `mapLoadErrorMaxRetryCount`, `mapSplitMargin`,
+  `mapTraversalMaskResolution`, `mapSmartNodeParsing`,
+  `mapNoTextures`, `mapNoNormalMaps`, `mapFeaturesReduceFactor`,
+  `mapFeaturesReduceFactor2`. Uncatalogued `debug*`-prefixed query
+  keys lose their string parse; they were discarded by the
+  catalogue filters either way.
+
+Size: `viewer-config.ts` went from 944 to 1169 lines while gaining
+a doc comment on every key; `url-config.ts` shrank from 308 to 174.
+The five per-key declaration sites are one.
+
+Validation: `npx tsc` clean on the typecheck, unit, and types
+configs; 44 unit tests, including the reconciled fallbacks, fresh
+allocations per store and per fallback, the `geojsonStyle` throw,
+and the URL kind resolution; the `simple-terrain`,
+`complex-terrain`, and `full-terrain` URLs render correctly on a
+freshly restarted dev server with no console or network errors; a
+live probe confirmed a malformed `geojsonStyle` query parameter is
+dropped (startup completes with no page errors), `mapFlagLighting=1`
+parses to `true`, the `mapCache` fallback returns 1100, clamping
+and the unknown-key, non-public-key, and alias throws are
+unchanged, and stored fallback arrays are not shared between
+writes.

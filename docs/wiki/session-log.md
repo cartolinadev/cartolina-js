@@ -3,6 +3,35 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-13 — RFC 1 steps 7–10: single-source catalogue landed
+
+The accepted round-6 design is implemented and RFC 1 is closed
+(status `Implemented`, moved back to the archive list):
+
+- `viewer-config.ts` now holds one `catalogue` object with one
+  entry per key (doc comment, producer default, normalizer, URL
+  parse kind, visibility); `ViewerConfig`, defaults, normalization,
+  both public subsets, and URL parsing all derive from it. Doc
+  comments propagate to the derived types.
+- 29 divergent legacy fallbacks reconciled to the catalogue
+  defaults, plus the environment-conditional `mapLanguage` and
+  `mapAsyncImageDecode`; invalid-input paths only.
+- Every one of the 146 keys is documented; keys with no live
+  consumer say so.
+- `url-config.ts` lost its five hand-written key-type sets
+  (308 → 174 lines); malformed JSON query parameters are dropped
+  instead of aborting startup.
+- The 58-key runtime subset is pinned as a compile-time equality
+  in `test/types/viewer-api.ts`; runtime size pins in the unit
+  suite (58 runtime, 71 construction).
+
+Validation: tsc clean on all three configs; 44 unit tests; the
+three regression URLs render correctly after a dev-server restart;
+live probes confirmed the dropped malformed JSON parameter, URL
+boolean parsing, the reconciled `mapCache` fallback, fresh
+fallback allocations, and unchanged accessor throws. Details in
+the RFC's 2026-07-13 addendum.
+
 ## 2026-07-13 — RFC 1 round 7 sign-off
 
 Round 7 verified the four round-6 responses: default producers cover

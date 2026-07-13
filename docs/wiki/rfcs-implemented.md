@@ -2,6 +2,15 @@
 
 Archive of RFCs whose implementation is complete. Newest first.
 
+- RFC 1 [rfc-config-store.md](rfc-config-store.md) — single
+  `ConfigStore<ViewerConfig>` replacing the three config objects and
+  the stringly-typed `setConfigParam` routing; subsystems watch their
+  keys; `core.js` deleted with its shell absorbed into `Map`; typed
+  public `setParam` / `getParam` and factory-option boundaries; the
+  round-6 revision collapsed the per-key artifacts into one spec
+  catalogue deriving types, producer defaults, normalization, public
+  subsets, URL parsing, and per-key documentation; implemented
+  2026-07-13
 - RFC 2 [rfc-event-bus.md](rfc-event-bus.md) — typed
   `EventBus<ViewerEventMap>` owned by `Map` replacing the `Core`
   listener array; browser-layer events promoted into the typed map;

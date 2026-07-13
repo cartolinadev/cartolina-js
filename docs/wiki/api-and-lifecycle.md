@@ -103,10 +103,14 @@ branch is deleting or isolating the mapConfig path.
 
 Runtime configuration lives in one `ConfigStore<ViewerConfig>`
 (`src/core/config-store.ts`), implemented by
-[rfc-config-store.md](rfc-config-store.md). The `ViewerConfig`
-interface (`src/core/viewer-config.ts`) is the authoritative
-catalogue of valid keys; `defaultViewerConfig()` supplies the
-initial values and `normalizeConfigPatch()` validates every write.
+[rfc-config-store.md](rfc-config-store.md). The single-source
+`catalogue` object (`src/core/viewer-config.ts`) declares every
+valid key exactly once — doc comment, producer default,
+normalizer, URL parse kind, and visibility class — and the
+`ViewerConfig` type, `defaultViewerConfig()`,
+`normalizeConfigPatch()`, the public subsets, and the URL parsing
+all derive from it. Invalid input falls back to the key's
+catalogue default, produced fresh for array values.
 
 The store's live value map is the single config object: `Map.config`,
 `LegacyMap.config`, `Renderer.config`, and `Browser.config` all alias

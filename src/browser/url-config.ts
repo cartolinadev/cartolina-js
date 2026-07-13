@@ -1,5 +1,6 @@
 import * as utils from '../core/utils/utils';
-import { canonicalConfigKey } from '../core/viewer-config';
+import { canonicalConfigKey, urlParseKind }
+    from '../core/viewer-config';
 
 
 export type UrlConfigOptions = {
@@ -8,9 +9,12 @@ export type UrlConfigOptions = {
     requireMap?: boolean;
 };
 
-type ParsedConfigValue = boolean | number | number[] | string | string[] | null | unknown;
+type ParsedConfigValue =
+    boolean | number | number[] | string | string[] | null | unknown;
 type ParsedConfig = Record<string, ParsedConfigValue>;
 
+// keys the runtime-options filter excludes: structural inputs with
+// dedicated factory options
 const STRUCTURAL_KEYS = new Set([
     'map',
     'position',
@@ -20,152 +24,9 @@ const STRUCTURAL_KEYS = new Set([
     'container'
 ]);
 
-
-const BOOLEAN_KEYS = new Set([
-    'panAllowed',
-    'rotationAllowed',
-    'zoomAllowed',
-    'jumpAllowed',
-    'constrainCamera',
-    'positionInUrl',
-    'controlCompass',
-    'controlZoom',
-    'controlMeasure',
-    'controlScale',
-    'controlLayers',
-    'controlSpace',
-    'controlSearch',
-    'controlSearchFilter',
-    'controlLink',
-    'controlMeasureLite',
-    'controlLogo',
-    'controlFullscreen',
-    'controlCredits',
-    'controlLoading',
-    'legacyInertia',
-    'timeNormalizedInertia',
-    'bigScreenMargins',
-    'walkMode',
-    'map16bitMeshes',
-    'inspector',
-    'mapMobileMode',
-    'mapMobileModeAutodect',
-    'mapIgnoreNavtiles',
-    'mapAllowHires',
-    'mapAllowLowres',
-    'mapAllowSmartSwitching',
-    'mapDisableCulling',
-    'mapPreciseCulling',
-    'mapHeightLodBlend',
-    'mapHeightNodeBlend',
-    'mapBasicTileSequence',
-    'mapXhrImageLoad',
-    'mapGridSurrogatez',
-    'mapPreciseBBoxTest',
-    'mapPreciseDistanceTest',
-    'mapForceMetatileV3',
-    'mapDegradeHorizon',
-    'mapMetricUnits',
-    'mapFeaturesSortByTop',
-    'mapLogGeodataStyles',
-    'mapIndexBuffers',
-    'mapShadingLambertian',
-    'mapShadingSlope',
-    'mapShadingAspect',
-    'mapFlagLighting',
-    'mapFlagNormalMaps',
-    'mapFlagDiffuseMaps',
-    'mapFlagSpecularMaps',
-    'mapFlagBumpMaps',
-    'mapFlagAtmosphere',
-    'mapCollapseBumps',
-    'mapFlagShadows',
-    'mapFlagLabels',
-    'mapSoftViewSwitch',
-    'mapAsyncImageDecode',
-    'mapSeparateLoader',
-    'mapGeodataBinaryLoad',
-    'mapPackLoaderEvents',
-    'mapParseMeshInWorker',
-    'mapPackGeodataEvents',
-    'mapSortHysteresis',
-    'mapBenevolentMargins',
-    'mapCheckTextureSize',
-    'mapNormalizeOctantTexelSize',
-    'mapExposeFpsToWindow',
-    'mapProfileGpu',
-    'rendererAntialiasing',
-    'rendererAllowScreenshots'
-]);
-
-const NUMBER_KEYS = new Set([
-    'rotate',
-    'fixedHeight',
-    'minViewExtent',
-    'maxViewExtent',
-    'mapDMapSize',
-    'mapDMapMode',
-    'mapDMapCopyIntervalMs',
-    'mapDMapDilatePx',
-    'mapCache',
-    'mapGPUCache',
-    'mapMetatileCache',
-    'mapTexelSizeFit',
-    'mapDownloadThreads',
-    'mapMaxProcessingTime',
-    'mapMaxGeodataProcessingTime',
-    'mapMobileDetailDegradation',
-    'mapNavSamplesPerViewExtent',
-    'mapGridTextureLevel',
-    'mapRefreshCycles',
-    'mapForceFrameTime',
-    'mapFeatureGridCells',
-    'mapHysteresisWait',
-    'mapFallbackCadence',
-    'mapStructuralDescentBrake',
-    'mapTraversalMaskThreshold',
-    'mapTraversalMaskErosion',
-    'rendererAnisotropic'
-]);
-
-const NUMBER_ARRAY_KEYS = new Set([
-    'pan',
-    'sensitivity',
-    'inertia',
-    'tiltConstrainThreshold',
-    'mapLabelFreeMargins',
-    'mapDegradeHorizonParams',
-    'mapFeaturesReduceParams',
-    'mapFeatureStickMode',
-    'mapSplitSpace'
-]);
-
-const STRING_KEYS = new Set([
-    'map',
-    'style',
-    'navigationMode',
-    'controlSearchUrl',
-    'controlSearchSrs',
-    'controlSearchElement',
-    'controlSearchValue',
-    'geodata',
-    'geojson',
-    'mapGridMode',
-    'mapGridTextureLayer',
-    'mapLanguage',
-    'mapDefaultFont',
-    'mapFeaturesReduceMode',
-    'debugBBox',
-    'debugLBox',
-    'debugNoEarth',
-    'debugRadar',
-    'view'
-]);
-
-const JSON_KEYS = new Set([
-    'geojsonStyle'
-]);
-
+// URL-layer aliases for historic query-parameter misspellings; the
+// canonical `pos` / `rotate` / `pan` aliases resolve in
+// `canonicalConfigKey`
 const KEY_ALIASES: Record<string, string> = {
     zoomAlowed: 'zoomAllowed',
     mapMobileDeatailDegradation: 'mapMobileDetailDegradation'
@@ -213,40 +74,41 @@ function parseString(value: unknown): string | null {
 
 
 function parseJson(value: unknown): unknown {
-    return JSON.parse(decodeURIComponent(String(value)));
+
+    // permissive ingestion: a malformed JSON query parameter is
+    // dropped (the undefined result is skipped by configFromUrl)
+    // rather than aborting startup
+    try {
+        return JSON.parse(decodeURIComponent(String(value)));
+    } catch {
+        return undefined;
+    }
 }
 
 
-export function parseConfigParamValue(key: string, value: unknown): ParsedConfigValue {
+/**
+ * Parses one query-string value by the URL parse kind of its
+ * catalogue spec. Uncatalogued keys pass through unparsed; they
+ * are filtered later by the catalogue guards.
+ */
+export function parseConfigParamValue(
+    key: string,
+    value: unknown,
+): ParsedConfigValue {
+
     if (Array.isArray(value)) {
         return value.map((item) => parseConfigParamValue(key, item));
     }
 
-    if (key === 'pos' || key === 'position') {
-        return parsePosition(value);
+    switch (urlParseKind(key)) {
+        case 'position': return parsePosition(value);
+        case 'boolean': return parseBoolean(value);
+        case 'number': return parseNumber(value);
+        case 'numberArray': return parseNumberArray(value);
+        case 'json': return parseJson(value);
+        case 'string': return parseString(value);
+        default: return value;
     }
-
-    if (BOOLEAN_KEYS.has(key)) {
-        return parseBoolean(value);
-    }
-
-    if (NUMBER_KEYS.has(key)) {
-        return parseNumber(value);
-    }
-
-    if (NUMBER_ARRAY_KEYS.has(key)) {
-        return parseNumberArray(value);
-    }
-
-    if (JSON_KEYS.has(key)) {
-        return parseJson(value);
-    }
-
-    if (STRING_KEYS.has(key) || key.indexOf('debug') === 0) {
-        return parseString(value);
-    }
-
-    return value;
 }
 
 
@@ -270,11 +132,15 @@ export function configFromUrl(
         const key =
             Object.prototype.hasOwnProperty.call(KEY_ALIASES, rawKey)
                 ? KEY_ALIASES[rawKey] : rawKey;
-        initialConfig[key] = parseConfigParamValue(key, params[rawKey]);
+
+        const parsed = parseConfigParamValue(key, params[rawKey]);
+        if (parsed !== undefined) initialConfig[key] = parsed;
     }
 
     if (settings.requireMap && !initialConfig[settings.mapParam]) {
-        throw new Error(`Use query parameter "${settings.mapParam}" to specify the mapConfig location`);
+        throw new Error(
+            `Use query parameter "${settings.mapParam}" to specify `
+            + 'the mapConfig location');
     }
 
     const map = initialConfig[settings.mapParam];

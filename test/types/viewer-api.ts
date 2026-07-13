@@ -19,6 +19,44 @@ declare const runtimeConfig: Viewer.PublicRuntimeConfig;
 const sameType: PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
+// The audited 58-key public runtime subset, pinned as a lasting
+// compile-time contract (rfc-config-store.md, step 8): an
+// incidental visibility edit in the catalogue fails here and
+// requires an explicit test update.
+type Expect<T extends true> = T;
+type Eq<A, B> =
+    (<X>() => X extends A ? 1 : 2) extends
+        (<X>() => X extends B ? 1 : 2) ? true : false;
+
+type _publicRuntimeSubsetPin = Expect<Eq<
+    keyof PublicRuntimeConfig,
+    | 'panAllowed' | 'rotationAllowed' | 'zoomAllowed'
+    | 'jumpAllowed' | 'sensitivity' | 'inertia' | 'positionInUrl'
+    | 'constrainCamera' | 'navigationMode' | 'controlCompass'
+    | 'controlZoom' | 'controlSpace' | 'controlSearch'
+    | 'controlSearchSrs' | 'controlSearchUrl'
+    | 'controlSearchFilter' | 'controlMeasure' | 'controlLink'
+    | 'controlScale' | 'controlLayers' | 'controlCredits'
+    | 'controlFullscreen' | 'controlLogo' | 'walkMode'
+    | 'fixedHeight' | 'tiltConstrainThreshold' | 'minViewExtent'
+    | 'maxViewExtent' | 'autoRotate' | 'autoPan' | 'rendererCssDpi'
+    | 'mapCache' | 'mapGPUCache' | 'mapMetatileCache'
+    | 'mapTexelSizeFit' | 'mapDownloadThreads'
+    | 'mapMaxProcessingTime' | 'mapMaxGeodataProcessingTime'
+    | 'mapMobileMode' | 'mapMobileDetailDegradation'
+    | 'mapLoadErrorRetryTime' | 'mapLoadErrorMaxRetryCount'
+    | 'mapDegradeHorizon' | 'mapDegradeHorizonParams'
+    | 'mapLabelFreeMargins' | 'mapMetricUnits' | 'mapLanguage'
+    | 'mapShadingLambertian' | 'mapShadingSlope'
+    | 'mapShadingAspect' | 'mapFlagLighting' | 'mapFlagNormalMaps'
+    | 'mapFlagDiffuseMaps' | 'mapFlagSpecularMaps'
+    | 'mapFlagBumpMaps' | 'mapFlagAtmosphere' | 'mapFlagShadows'
+    | 'mapFlagLabels'
+>>;
+
+const subsetPinHolds: _publicRuntimeSubsetPin = true;
+void subsetPinHolds;
+
 // Valid keys accept values of their declared type and chain.
 const chained: Viewer = viewer
     .setParam('mapFlagLighting', false)
