@@ -1,6 +1,6 @@
 # RFC 11: retire mapConfig maps from the runtime
 
-**Status:** Draft
+**Status:** In review
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -1316,3 +1316,367 @@ benefit of the change.
 [maplibre-style-root]: https://maplibre.org/maplibre-style-spec/root/
 [maplibre-map-options]:
   <https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MapOptions/>
+
+## Review round 1
+
+The direction is accepted: mapConfig should become an import format, and no
+mapConfig or View state should survive in the map runtime. The findings below
+concern the compatibility boundary and the new public contracts, not that
+decision.
+
+1. RFC 11 deletes mapConfig. It does not redesign style.
+
+   Style is the surviving public contract. MapConfig is legacy input accepted
+   temporarily through a removable converter. The two models are not peers,
+   and this RFC must not merge them into a common model.
+
+   The design boundary is:
+
+   ```text
+   mapConfig -> converter -> existing style v2 + construction values
+   existing style v2 -----------------------> one style runtime
+   ```
+
+   Apply these rules to the entire RFC:
+
+   - Every existing version-2 style remains valid and renders unchanged.
+   - The converter emits the existing style schema, source discriminators, and
+     semantics. It does not rename or reinterpret them.
+   - Position, viewer options, visibility profiles, and warnings stay beside
+     the style in the conversion result. They do not become style fields.
+   - Return named `VisibilityProfile` values directly. Do not return legacy
+     view definitions or a `ConvertedMapConfigView` replacement.
+   - Generated layers receive stable ids. Existing anonymous authored layers
+     remain valid.
+   - Do not add style or runtime fields for unsupported legacy options. Warn,
+     or fail in strict mode.
+   - Extend style only when a named corpus input cannot otherwise convert and
+     the extension is independently valid style functionality. The extension
+     must be additive and non-breaking. Inline source data may qualify; a new
+     home for every legacy field does not.
+   - Once the corpus converts through the style loader, delete the mapConfig
+     parser, View model, and all mapConfig runtime branches. The converter must
+     remain removable without changing style or runtime code.
+   - Browser dissolution is separate work unless deleting the mapConfig path
+     cannot be completed without it.
+
+   Anything that makes style resemble mapConfig is out of scope. Compatibility
+   is implemented in the converter, not in the surviving model. Rewrite Goals,
+   Non-goals, the public API, and migration phases to enforce this boundary
+   before implementation starts.
+
+2. The supported compatibility contract is not bounded tightly enough.
+
+   The RFC says both that historical documents remain usable and that the
+   converter need not preserve every VTS extension. That leaves the
+   implementer deciding which unsupported forms deserve code. The conversion
+   corpus should be the normative compatibility contract: fields and grammar
+   forms exercised by those inputs must convert exactly; a field absent from
+   the corpus gets no new runtime or style representation merely because dead
+   parser code recognizes it. Encountering such a field should produce a
+   structured unsupported-field warning, promoted to an error by strict mode.
+
+   State this rule in Goals, Non-goals, and Validation. It is the guard against
+   rebuilding the union model inside the converter.
+
+3. `depthOffset` and `maxLod` should not enter the new source schema.
+
+   An audit of all four public conversion inputs finds neither field anywhere
+   in their mapConfigs. The proposed source fields therefore preserve dormant
+   parser capability, not corpus behavior. They also model the old semantics
+   incorrectly: `refreshFreelayesInView()` reads both values from the active
+   view whenever it switches, so they are not immutable source properties.
+
+   Remove the fields from phases 1 and 3 and from the conversion result. If a
+   future input contains either field, emit the unsupported-field warning
+   defined by note 2. Do not add runtime mutation or duplicated sources for an
+   unexercised compatibility feature.
+
+4. Named-view illumination and vertical exaggeration are also wider than the
+   corpus contract, and the proposed optional fields cannot preserve the old
+   transition semantics in any case.
+
+   The public corpus has no named view carrying either option. Initial-view
+   illumination and superelevation are exercised and should become root style
+   state as specified. There is no corpus basis for
+   `ConvertedMapConfigView.illumination` or
+   `ConvertedMapConfigView.verticalExaggeration`.
+
+   The distinction matters because old `setView()` actively disables
+   superelevation when the next view omits it. An optional converted field plus
+   an "apply when present" example leaves the previous exaggeration enabled.
+   Remove these named-view fields and warn when a non-initial view supplies
+   rendering options. If broader support is retained, the result needs an
+   explicit disabled value and a public operation that can apply it; absence
+   is not enough.
+
+5. `viewerOptions: Partial<PublicConstructionConfig>` cannot carry the
+   browser options required by the public corpus.
+
+   The current mapConfig path accepts every catalogued key and then gives
+   caller input precedence. Public corpus mapConfigs contain active internal
+   label-reduction keys, and `tacoma-fitonly` also contains internal or removed
+   keys. `PublicConstructionConfig` deliberately excludes internal keys. The
+   converter therefore cannot both preserve current behavior and satisfy its
+   declared return type.
+
+   Classify every browser option found in the corpus. Options that still affect
+   style-map rendering need a deliberate typed destination; dead and retired
+   options produce warnings. Do not return a value typed as
+   `PublicConstructionConfig` while hiding extra internal properties in it by
+   assertion. The migration example and precedence tests must use the final
+   typed result without a cast.
+
+6. The stylesheet linker is missing a layer-symbol pass.
+
+   VTS layer ids are a symbol space as well as output style ids. Several
+   modules can define the same layer id differently, and layer properties can
+   refer to other layer ids through `inherit`, `next-pass`, `selected-layer`,
+   `selected-hover-layer`, `hover-layer`, and `visibility-switch`. Qualifying
+   only constants, fonts, and bitmaps can either create duplicate Cartolina
+   ids or leave those references bound to a layer from the wrong module.
+
+   Specify deterministic qualification for conflicting layer ids and rewrite
+   every typed layer reference transitively. The converter also needs a stable
+   one-to-many mapping when one legacy presentation produces several target
+   layers. Add focused tests for collisions combined with inheritance and
+   visibility-switch references.
+
+7. Mixed VTS rules should not be split into `lines` and `labels` layers.
+
+   No stylesheet selected by the conversion corpus mixes line drawing with
+   point or label drawing in one rule. The proposed split is therefore
+   speculative. It is not behavior-neutral in the current processor: every
+   stylesheet rule is evaluated over the feature collection, while
+   inheritance, multipass, selection, hover, events, packing, and visibility
+   switches refer to rule identity. Turning one rule into two changes that
+   identity graph unless every property and reference has defined split
+   semantics.
+
+   Accept rules that classify cleanly as the `lines` or `labels` shapes used by
+   the corpus. Emit an unsupported-rule warning for a mixed rule and fail in
+   strict mode. This removes a sizeable compatibility subsystem with no
+   supported input.
+
+8. Lossless symbol qualification must be an exact conversion, not a warning
+   that strict mode promotes to failure.
+
+   The public `a-3d-mountain-map` input selects two stylesheets with a
+   conflicting `@name` definition. The RFC says a fully rewritable collision
+   emits a warning, while strict mode promotes every warning to an error and
+   phase 6 runs the corpus strictly. Those rules make a required, losslessly
+   converted corpus case fail by design.
+
+   Separate informational diagnostics from degraded conversion. A collision
+   whose definitions and all references are qualified without semantic loss
+   belongs to the `exact` outcome. Strict mode should reject only a recovery
+   that can change behavior or omit output. Snapshot the deterministic rename
+   without classifying it as loss.
+
+9. URL provenance through `transformRequest` needs an explicit rule.
+
+   A request transform changes transport details; it must not silently change
+   the document URL used to resolve relative references. Resolve a referenced
+   source or stylesheet against the logical URL of its containing document,
+   then apply `transformRequest` to the resulting request. Store logical,
+   canonical URLs in the emitted style, not proxy or credential-bearing
+   transport URLs.
+
+   The construction example also needs to pass the hook to both
+   `mapConfigToStyle()` and `map()`. Conversion-time requests and later tile,
+   image, and glyph requests are separate. Add a test where the hook rewrites
+   the document request and that document contains a relative dependency.
+
+10. The camera precedence rule requires pre-readiness state that does not exist
+   today.
+
+   The RFC gives application camera state established before style readiness
+   precedence over the style position. Today `Viewer.setPosition()` reaches
+   `this.legacyMap?` and is a no-op until `createMapFromStyle()` assigns the
+   loaded map. Adding `style.position` without a pending camera request would
+   claim MapLibre precedence while discarding the application call.
+
+   Specify where the pending requested position lives, when it is consumed,
+   and whether several pre-ready calls use last-write-wins behavior. Test a
+   constructor position, a `setPosition()` call made before `ready`, style
+   position, and fallback as four distinct cases.
+
+11. Inline terrain sources need one deterministic metadata and base-URL
+    contract.
+
+    The proposal copies reference frame, SRS, body, service, and credit data
+    into every inline terrain source, but does not define how the loader
+    reconciles those repeated global tables. It must not keep the first source
+    silently or let terrain order select global map metadata. Require equal
+    frame and shared definitions, define credit conflict handling, and reject
+    inconsistent sources before constructing map objects.
+
+    A single `baseUrl` is also insufficient if copied fields originated in a
+    different document from the terrain definition unless conversion first
+    canonicalizes every embedded URL. Either make the inline payload a fully
+    normalized converter output with absolute resource URLs, or carry typed
+    provenance for each merged document. State which form authored styles may
+    use.
+
+12. The target vocabulary conflicts with intrinsic terrain textures.
+
+    `legacy-benatky` is explicitly in the public corpus because one terrain
+    surface carries internal textures. `TileRenderRig` draws such a texture
+    directly from `resourceSurface.textureUrl`; it has no style layer id and is
+    not controlled by `setLayerVisibility()`. The claim that every drawable or
+    styleable item is a layer is therefore false under the proposed design.
+
+    Choose and document one model. The smaller one is to call the internal
+    texture intrinsic terrain material, outside the authored layer stack and
+    visibility API. The alternative is an explicit generated layer with an id.
+    Do not leave a public invariant contradicted by a required regression case.
+
+13. `setLayerVisibility()` consumes and returns terrain applicability, not
+    visibility in the MapLibre sense.
+
+    This spends the durable `visibility` method name on a `string[]` property
+    and leaves no natural name for ordinary visible/hidden state later. Rename
+    the primitives to describe what they mutate, for example
+    `setLayerTerrainSources()` and `getLayerTerrainSources()`. A profile may
+    still use an empty terrain list to make a layer inactive.
+
+    Specify the getter's exact return type as well. In particular, define
+    whether an authored omitted `terrain` is returned as an expanded snapshot
+    of every declared terrain source or as an omitted/default sentinel. A
+    complete profile and stable round-trip require one normalized answer.
+
+14. Browser dissolution is both mandatory and optional in the current text.
+
+    Goals, invariants, removal completeness, and Expected Result require
+    `src/browser/browser.js` to be gone. Section 6.6 then says dissolution can
+    land as an independent follow-up without reopening the design. Those are
+    different RFC completion criteria.
+
+    Keep dissolution in this RFC only if `Implemented` requires phase 5. If it
+    may follow independently, remove it from this RFC's invariants and track it
+    as separate accepted work. In either case, specify Viewer ownership and
+    disposal order for UI, control mode, autopilot, presenter, ROI, config
+    watchers, map listeners, core `Map`, and DOM. Include rollback when a
+    constructor throws after UI creation; moving glue into TypeScript does not
+    by itself preserve the construction and teardown lifecycle.
+
+15. Inline `cartolina-freelayer` data must include monolithic geodata.
+
+    The RFC currently defines this source as tiled geodata in sections 2.5 and
+    7.1. The public `a-3d-mountain-map` conversion input selects
+    `peaklist-org-ultras`, whose free-layer definition has `type: "geodata"`
+    and one monolithic `geodata` URL. It is therefore part of the normative
+    corpus, not a dormant compatibility form.
+
+    This does not require another public source type or runtime path. The
+    existing style loader constructs a `MapSurface` for
+    `cartolina-freelayer`; `MapSurface` accepts both `geodata` and
+    `geodata-tiles`; and the draw loop already sends the former through
+    `drawMonoliticGeodata()` and the latter through the tile tree. Extend the
+    existing `cartolina-freelayer` specification with additive inline data
+    typed as a union of monolithic and tiled geodata definitions. Keep that
+    internal dispatch behind the existing source discriminator.
+
+    Add a focused conversion snapshot and browser assertion for
+    `peaklist-org-ultras`. The test must verify the monolithic request and its
+    rendered labels; a generic `a-3d-mountain-map` screenshot can otherwise
+    pass using only its other geodata source.
+
+16. "Cartolina source" is not defined precisely.
+
+    The intended meaning appears to be one entry in the style root's
+    `sources` dictionary, keyed by a unique style source id. Its descriptor
+    selects a loader through `type` and supplies that loader either a URL for
+    a source definition or equivalent inline definition data. That needs to
+    be stated before the term is used.
+
+    Define the relationships as part of the target vocabulary:
+
+    - a terrain source is selected and ordered by `terrain.sources` and
+      supplies terrain geometry plus the metadata needed to interpret it;
+    - a raster source supplies tiled raster data and becomes visible only
+      through a style layer that references its id;
+    - a geodata source supplies monolithic or tiled geodata and becomes visible
+      only through one or more style layers that reference its id;
+    - several layers may share one raster or geodata source without creating
+      several source or GPU-resource instances.
+
+    Use distinct terms for the three shapes involved: **source
+    specification** for the style entry, **source definition** for the fetched
+    or inline data, and **source instance** for the runtime loader object. Use
+    "style source" rather than "Cartolina source" elsewhere unless the latter
+    names a separate concept. Also show the complete `sources` dictionary
+    shape around `SourceLocation<T>`; the location union alone does not show a
+    reader where the id and `type` live.
+
+17. The proposed source discriminator rename is an unversioned style-schema
+    redesign, not part of mapConfig conversion.
+
+    The current version-2 style schema and loader define
+    `cartolina-surface`, `cartolina-tms`, and `cartolina-freelayer`. Section
+    2.5 replaces those discriminators with `cartolina-terrain`,
+    `cartolina-raster`, and `cartolina-geodata`, and migration phase 1 requires
+    every authored style to be rewritten. These strings are source type
+    discriminators; they are not the source ids stored as keys in `sources`.
+    The RFC currently presents the replacement terms as the existing
+    Cartolina model, which hides the breaking change.
+
+    MapConfig conversion does not require this rename. The converter can emit
+    the three existing variants, and URL-or-inline locations can extend their
+    specifications. The current loader distinction is also concrete:
+    `cartolina-surface` loads a surface mapConfig, `cartolina-tms` loads a
+    bound-layer definition, and `cartolina-freelayer` loads a monolithic or
+    tiled free-layer definition. Replacing loader/package names with broad
+    data-category names creates a second `terrain` vocabulary and obscures
+    the inner definition type without reducing the number of concepts or code
+    paths.
+
+    Remove the rename from RFC 11 and keep the existing discriminators. If
+    different public names are ever wanted, consider non-breaking aliases in a
+    separate style proposal with explicit canonicalization and serialization
+    rules. Do not increment the style version, rewrite authored styles, or add
+    aliases as part of mapConfig conversion.
+
+18. `ConvertedMapConfigView` retains a View-shaped public data model instead
+    of returning visibility profiles directly.
+
+    The RFC does not put named views in `StyleSpecification`, but the
+    conversion result exposes `views: Record<string,
+    ConvertedMapConfigView>`. Each value retains the original legacy view and
+    wraps its profile with optional rendering state. This contradicts goal 11,
+    which says conversion returns Viewer-level visibility profiles without
+    retaining the View data model.
+
+    The corpus requires named visibility presets, not a second public View
+    DTO. Return `profiles: Record<string, VisibilityProfile>` directly. The
+    selected initial view is already compiled into the returned style and
+    construction values. Remove `original`, `ConvertedMapConfigView`, and the
+    `views` wrapper. A conversion caller already owns the input document if
+    migration tooling needs to inspect its original view definitions.
+
+19. Root `position` is an unnecessary style-spec extension.
+
+    The current style contract has no position, while `map()` already accepts
+    one. `MapConfigConversion` is deliberately wider than a style, so it can
+    return the converted initial `position` beside `style`, `viewerOptions`,
+    and `profiles`; the construction example can pass that value to `map()`.
+    Conversion therefore does not require a new style field or new camera
+    precedence state.
+
+    Remove `StyleSpecification.position` and its migration work from RFC 11.
+    A future proposal may add authored style camera defaults if applications
+    need them, but similarity to MapLibre and making the conversion result one
+    field smaller do not justify changing this contract.
+
+20. Requiring ids on every version-2 style layer is breaking.
+
+    `LetteringLayerBase` requires an id today, but tile texture and constant
+    layers do not. Existing authored styles use anonymous tile layers. Making
+    `LayerBase.id` mandatory would reject those styles even though conversion
+    can give every generated layer an explicit stable id.
+
+    Keep existing version-2 styles valid. Require the converter to emit ids
+    for its generated layers, then specify a non-breaking normalization for
+    anonymous authored layers if the new mutation API must address them. The
+    loader must not mutate the caller's style object, and existing anonymous
+    layers must retain their current rendering when no mutation API is used.

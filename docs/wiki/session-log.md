@@ -3,6 +3,29 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-17 — RFC 11 review round 1
+
+Opened review round 1 on
+[RFC 11](rfc11-mapconfig-to-style.md) after auditing the current style loader,
+the four public mapConfig conversion inputs, and their selected stylesheets.
+The review accepts mapConfig-to-style conversion but records 20 findings that
+must be resolved before sign-off.
+
+The first blocker makes redesign of the existing version-2 style contract an
+explicit non-goal. The proposed replacement of `cartolina-surface`,
+`cartolina-tms`, and `cartolina-freelayer` would invalidate every current
+style-based map without helping conversion. A required extension must instead
+be demonstrated by a corpus input, be additive, and preserve existing style
+rendering. The review also makes the conversion corpus normative: dormant
+legacy fields receive a structured warning rather than new schema or runtime
+state.
+
+Other findings cover layer-symbol linking, exact versus degraded conversion,
+logical and transport URL separation, pre-ready camera precedence, inline
+terrain metadata reconciliation, intrinsic terrain textures, terrain-layer
+API naming, Browser-removal scope, and monolithic geodata. The RFC remains
+`In review`; no implementation was changed.
+
 ## 2026-07-16 — RFC 11 scope revision; RFC filenames carry numbers
 
 Rebased `design/rfc11-mapconfig-to-style` onto main and revised the
