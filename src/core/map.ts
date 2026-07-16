@@ -227,7 +227,7 @@ class Map {
 
     /**
      * Per-surface helper trees used by the recursive draw traversal
-     * (rfc-draw-traversal.md §2.1). Keyed by surface id. Each tree is
+     * (rfc3-draw-traversal.md §2.1). Keyed by surface id. Each tree is
      * a single-surface `MapSurfaceTree` constructed with the surface
      * as its `freeLayerSurface`, so every tile binds directly to that
      * surface. The cache is refreshed against
@@ -1526,7 +1526,7 @@ class Map {
      * the combined-descent traversal in `draw-traversal.ts` with the
      * current `surfaceList()` and the cached per-surface helper trees.
      * Glues and virtual surfaces are excluded — see
-     * `rfc-draw-traversal.md` §7.
+     * `rfc3-draw-traversal.md` §7.
      */
     private drawTerrainRecursive(): void {
 

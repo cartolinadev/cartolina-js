@@ -5,7 +5,7 @@ existing entry, even one added earlier in the same session.**
 
 ## 2026-07-13 — RFC 11 mapConfig-to-style design
 
-Drafted [rfc-mapconfig-to-style.md](rfc-mapconfig-to-style.md). The design
+Drafted [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md). The design
 keeps mapConfig as an input format but converts it before map creation, so
 style loading becomes the only internal path. It replaces Views with typed
 Viewer-level visibility profiles over terrain-aware layer visibility and
@@ -351,11 +351,11 @@ Addressed the branch code review of the RFC 1/2 implementation.
   `normalizeConfigPatch` from an untyped call site; the unit build
   moved to `tsconfig.unit.json` so the normalization module compiles
   with the project's settings. All three findings are recorded in an
-  addendum to [rfc-config-store.md](rfc-config-store.md).
+  addendum to [rfc1-config-store.md](rfc1-config-store.md).
 
 ## 2026-07-11 — RFC 1 implemented: ConfigStore, core.js deleted
 
-Implemented [rfc-config-store.md](rfc-config-store.md) on
+Implemented [rfc1-config-store.md](rfc1-config-store.md) on
 `feature/rfc1-rfc2`, one commit per RFC step (steps 4–5 combined).
 All six steps done; status set to Implemented; deviations recorded
 in the RFC's implementation addendum. `architecture.md` and
@@ -423,7 +423,7 @@ the removal of `Core`.
 
 ## 2026-07-11 — RFC 2 implemented: typed EventBus owned by Map
 
-Implemented [rfc-event-bus.md](rfc-event-bus.md) on
+Implemented [rfc2-event-bus.md](rfc2-event-bus.md) on
 `feature/rfc1-rfc2`. New `EventBus<M>` in `src/core/event-bus.ts`;
 `CoreEventMap` renamed to `ViewerEventMap` with typed payloads and
 the nine browser-layer events promoted into it. `Map` owns the bus
@@ -443,7 +443,7 @@ implementation is next, committed separately.
 ## 2026-07-11 — RFC 1 review round 5: signed off, accepted
 
 Reviewed the author's round-4 response on
-[rfc-config-store.md](rfc-config-store.md) and signed off. All notes
+[rfc1-config-store.md](rfc1-config-store.md) and signed off. All notes
 resolved and re-verified: the round-1 and round-2 reviewer notes are
 byte-identical to their signed-off text in `31fc5301` (blocker
 cleared), the §4.3 example now uses the real flat key
@@ -455,7 +455,7 @@ note recorded (the paragraph after the §4.3 example still names
 ## 2026-07-11 — RFC 1 review round 4 processed
 
 Processed review round 4 in
-[rfc-config-store.md](rfc-config-store.md) as author. Confirmed and
+[rfc1-config-store.md](rfc1-config-store.md) as author. Confirmed and
 retained the complete set of correct post-sign-off body edits. Restored
 the original `authorization` wording in the closed round-1 and round-2
 reviewer notes. Replaced §4.3's nonexistent nested `atmosphere` example
@@ -466,7 +466,7 @@ with `LegacyMap` reading and watching the real flat boolean key
 ## 2026-07-11 — RFC 1 round 4: example fix accepted, record edit flagged
 
 Reviewed the round-4 request on
-[rfc-config-store.md](rfc-config-store.md). The requested change is
+[rfc1-config-store.md](rfc1-config-store.md). The requested change is
 accepted: `mapFog` was deleted with the fog tile system (`89bfd044`),
 `mapCache` is a live key, and the three example sites match.
 
@@ -487,7 +487,7 @@ author's request heading was retitled to the protocol's
 ## 2026-07-11 — RFC 2 review round 5: signed off, accepted
 
 Reviewed the author's round-4 response on
-[rfc-event-bus.md](rfc-event-bus.md) and signed off. All notes
+[rfc2-event-bus.md](rfc2-event-bus.md) and signed off. All notes
 resolved and re-verified against the tree: the five relocated events
 are correctly attributed to `Map.tick()` (`map-update` confirmed
 inside the dirty-draw branch), section 6.1 and step 4 match the
@@ -500,7 +500,7 @@ to implement.
 ## 2026-07-11 — RFC 2 review round 4 processed
 
 Processed review round 4 in
-[rfc-event-bus.md](rfc-event-bus.md) as author. Accepted the verified
+[rfc2-event-bus.md](rfc2-event-bus.md) as author. Accepted the verified
 `wait` removal and updated the body drift found by the reviewer: section
 2 now attributes the five relocated events to `Map.tick()`, section 6.1
 has `Map` emit them directly through its bus, and temporary `Core.bus`
@@ -511,7 +511,7 @@ The RFC remains `In review` pending reviewer sign-off.
 
 ## 2026-07-11 — RFC 2 review round 4: `wait` removal accepted, body drift noted
 
-Reviewed the round-4 request on [rfc-event-bus.md](rfc-event-bus.md).
+Reviewed the round-4 request on [rfc2-event-bus.md](rfc2-event-bus.md).
 The requested change is accepted: no source call site passes the third
 `wait` argument to `once` — `getSurfaceAreaGeometry` and the measure
 UI's `traceVolumeLine` loop were deleted in `e59f5fbb` with the volume
@@ -537,7 +537,7 @@ session log, same date.
 ## 2026-07-11 — RFC 9 implemented: stable metadata-first traversal
 
 Confirmed that the recent draw-traversal changes complete
-[rfc-metadata-first-traversal.md](rfc-metadata-first-traversal.md). The final
+[rfc9-metadata-first-traversal.md](rfc9-metadata-first-traversal.md). The final
 missing behavior landed in `d6b9c123`: the front-to-back render loop stops
 when a higher-priority tile is loading, but continues past a classified
 structural tile so a lower surface can provide valid coverage. This removes
@@ -800,7 +800,7 @@ offered and deferred.
 ## 2026-07-06 — RFC 7 addendum: the store only holds bisection nodes
 
 Added a post-implementation addendum to
-[rfc-metanode-store.md](rfc-metanode-store.md). The tiling tool stores
+[rfc7-metanode-store.md](rfc7-metanode-store.md). The tiling tool stores
 tiles only from bisection nodes, but the serve path was reading the
 store for manual nodes too (like the melown2015 root), finding nothing,
 and — once the warp fallback was removed — failing with "no page …
@@ -812,7 +812,7 @@ Serve-side fix and verification are in the tileserver logs
 ## 2026-07-06 — RFC 7 addendum: metatile packaging is not a resource-definition option
 
 Added a post-implementation addendum to
-[rfc-metanode-store.md](rfc-metanode-store.md) recording that the phase-2
+[rfc7-metanode-store.md](rfc7-metanode-store.md) recording that the phase-2
 surface-level `metaBinaryOrder`/`metaDepth` resource-definition options were
 the wrong vehicle: packaging is fixed at tiling/repackaging time and the
 resource definition is consumed at serve time, so a serve-time knob can only
@@ -1541,7 +1541,7 @@ texelSize calibration spike. The review ran six rounds.
 ## 2026-06-12 — RFC 7 review round 5 processed
 
 Processed review round 5 in
-[rfc-metanode-store.md](rfc-metanode-store.md). All three notes
+[rfc7-metanode-store.md](rfc7-metanode-store.md). All three notes
 implemented. Note 1 (protocol): moved the round-4 note-1 author
 annotation below the complete note, restoring the `heightFunction` and
 full-footprint bullets to the reviewer's contiguous constraint list.
@@ -1579,7 +1579,7 @@ on the test dataset.
 ## 2026-06-12 — RFC 7 review round 4 processed
 
 Processed review round 4 in
-[rfc-metanode-store.md](rfc-metanode-store.md). The generation design now
+[rfc7-metanode-store.md](rfc7-metanode-store.md). The generation design now
 matches the subsumed coverage-mask backlog item: per reference-frame
 division node, the tiling tool creates one-pixel-per-tile leaf rasters
 with GDAL min/max warp resampling, using four passes (mask min, mask
@@ -1633,7 +1633,7 @@ round 4 expected to be a sign-off.
 
 ## 2026-06-12 — RFC 7 review round 2 processed
 
-Processed round 2 in [rfc-metanode-store.md](rfc-metanode-store.md).
+Processed round 2 in [rfc7-metanode-store.md](rfc7-metanode-store.md).
 The RFC now states the current-client compatibility rule numerically:
 DEM resources for cartolina-js must use effective
 `metaBinaryOrder = 5` and `metaDepth = 1` until the client consumes
@@ -1698,7 +1698,7 @@ old tile index out only after staging, validation, fsync, and atomic
 rename of the new pair.
 
 Added `## Additional topics for review round 2` to
-[rfc-metanode-store.md](rfc-metanode-store.md), so the reviewer sees the
+[rfc7-metanode-store.md](rfc7-metanode-store.md), so the reviewer sees the
 compatibility matrix, the full-pair-only backfill rule, and the atomic
 publication/rollback contract as added scope for the next review. The
 operator migration guide is now listed as an implementation deliverable,
@@ -1733,7 +1733,7 @@ uses those terms in goals, non-goals, and store layout.
 ## 2026-06-11 — RFC 7 review round 1 responses
 
 Processed review round 1 in
-[rfc-metanode-store.md](rfc-metanode-store.md) on
+[rfc7-metanode-store.md](rfc7-metanode-store.md) on
 `feature/metanode-store`. The reviewed state was already preserved by
 commit `f3729ea0`, so no empty snapshot commit was added.
 
@@ -1752,7 +1752,7 @@ height claim with the actual SRS conversion rule.
 
 ## 2026-06-11 — RFC 7 metanode store: review round 1
 
-Reviewed [rfc-metanode-store.md](rfc-metanode-store.md); status moved
+Reviewed [rfc7-metanode-store.md](rfc7-metanode-store.md); status moved
 to In review on branch `feature/metanode-store`. Source claims checked
 against `metatile.cpp`, `tileop.hpp`, `referenceframe.hpp`,
 `metanode.js`, and the registry (`metaBinaryOrder` is 5 in every
@@ -1854,7 +1854,7 @@ valid. Existing RFCs were assigned 1–7 by git creation date
 map-frame, metanode-store).
 
 Drafted [RFC 8: recover from WebGL context loss]
-(rfc-context-loss-recovery.md), promoting the 2026-06-10 backlog
+(rfc8-context-loss-recovery.md), promoting the 2026-06-10 backlog
 entry. Map-level design: on `webglcontextrestored` the same context
 object becomes valid again, so recovery is a gpu-cache flush (the
 destructors and lazy re-download machinery already exist and are
@@ -2018,7 +2018,7 @@ Verified: screenshot checks passed for `simple-terrain`,
 
 ## 2026-06-08 — draw traversal: mark RFC implemented
 
-Closed out [rfc-draw-traversal.md](rfc-draw-traversal.md) after reviewing
+Closed out [rfc3-draw-traversal.md](rfc3-draw-traversal.md) after reviewing
 the step-8 diff (`d7a9e58a..HEAD`): the deletions match the step-8 notes,
 no removed symbol is still referenced (the surviving `surfaceSequence`
 bound-layer path, `drawGridCells` debug feature, and unconsumed
@@ -2047,7 +2047,7 @@ prod and the multi-surface benatky scene visually indistinguishable.
 
 ## 2026-06-08 — draw traversal: remove legacy main tree
 
-Completed the final step of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+Completed the final step of [rfc3-draw-traversal.md](rfc3-draw-traversal.md):
 the surviving `legacyMap.tree` main tree is gone. The old tree was kept
 only for the legacy measure control's Volume tool, which gathered terrain
 meshes through `getSurfaceAreaGeometry()` and `traceAreaTiles()`. That
@@ -2062,7 +2062,7 @@ Removed the Volume button and cut/fill computation from
 map factories and the `LegacyMap.tree` declaration / kill path.
 
 `MapSurfaceTree` remains only for per-surface query helper trees and
-free-layer geodata traversal. Updated [rfc-event-bus.md](rfc-event-bus.md)
+free-layer geodata traversal. Updated [rfc2-event-bus.md](rfc2-event-bus.md)
 because the deleted volume path also removed the only source call sites
 that used the third `wait` argument to `once`; that RFC moved back to
 `In review` with a review-request section as required after editing an
@@ -2568,7 +2568,7 @@ errors. `docs/wiki/lod-selection.md` updated to match.
 
 ## 2026-06-03 — draw traversal watertight fast path
 
-Implemented step 6 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+Implemented step 6 of [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 with corrected watertight semantics. A watertight metanode no longer
 deactivates lower-priority surfaces for descendants; descendants repeat
 the check from their own metanodes.
@@ -2653,7 +2653,7 @@ the URL above; `test/screenshot.js simple-terrain`,
 
 ## 2026-06-01 — draw traversal rollout notes
 
-Updated [rfc-draw-traversal.md](rfc-draw-traversal.md) after completing
+Updated [rfc3-draw-traversal.md](rfc3-draw-traversal.md) after completing
 rollout stages 4 and 5. The rollout now names `mapTerrainTraversal` as
 the URL/config switch between `recursive` and `legacy`, with
 `Map.overrides.terrainTraversal` as the per-frame override.
@@ -2664,7 +2664,7 @@ documentation change.
 
 ## 2026-06-01 — server v6 metatile emission (RFC stage 5)
 
-Implemented stage 5 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+Implemented stage 5 of [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 across `cartolina-tileserver` and `vts-vtsd` (shared `vts-libs`):
 metatile VERSION 5→6, `MetaTileFlag::watertightPlane`, `flagMapping`,
 `MetaNode::Flag::watertight`, and `ti2metaFlags()` in the DEM and
@@ -2707,7 +2707,7 @@ Documented in [vts-vtsd-archeology.md](vts-vtsd-archeology.md).
 
 ## 2026-06-01 — client metatile v6 watertight parsing
 
-Implemented step 4 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+Implemented step 4 of [rfc3-draw-traversal.md](rfc3-draw-traversal.md):
 the client now accepts metatile version 6 and maps header bitplane 1 to
 `metanode.watertight`. Version 5 and older metatiles keep the default
 `false` value, so existing servers stay on the conservative
@@ -2889,7 +2889,7 @@ ready yet, then fall all the way back to the nearest cadence LOD such as
 LOD 6. `draw-tiles.js` now returns before creating a mesh resource when
 the no-load probe reaches terrain that has no `surfaceMesh` object yet.
 
-Updated `rfc-draw-traversal.md` step 3 with the corrected cadence
+Updated `rfc3-draw-traversal.md` step 3 with the corrected cadence
 semantics, added a backlog item for a post-rollout audit of the legacy
 negative readiness flags, and recorded in `AGENTS.md` that in-block
 comments use `//` lines.
@@ -3068,7 +3068,7 @@ the other texture types still carry their per-type filter defaults
 pending a separate audit.
 
 Phase 2 post-implementation notes in
-[rfc-draw-traversal.md](rfc-draw-traversal.md) carry the full
+[rfc3-draw-traversal.md](rfc3-draw-traversal.md) carry the full
 explanation; the RFC body is unchanged (the RFC is signed off, so
 findings land in the rollout notes).
 
@@ -3214,7 +3214,7 @@ for the legacy path.
 
 ## 2026-05-27 — implement draw traversal phase 2 (combined descent)
 
-Implemented phase 2 of [rfc-draw-traversal.md](rfc-draw-traversal.md):
+Implemented phase 2 of [rfc3-draw-traversal.md](rfc3-draw-traversal.md):
 combined recursive descent over plain surfaces.
 
 - `surface-sequence.ts` now also produces `tree.plainSurfaceList`
@@ -3356,7 +3356,7 @@ runs after child blits have already populated the mask.
 ## 2026-05-26 — phase 1 cleanup: typed-Map ownership
 
 Aligned the recursive terrain draw with the structural rules in
-[rfc-draw-traversal.md](rfc-draw-traversal.md) §8. The dispatch is no
+[rfc3-draw-traversal.md](rfc3-draw-traversal.md) §8. The dispatch is no
 longer in `MapSurfaceTree.draw()`; it lives in `Map.draw()` as
 `drawTerrainRecursive_`, a private method on the typed `Map` that
 wraps the descent in one `withNavigationCamera` call. The mask pool
@@ -3410,7 +3410,7 @@ Verified with `npx tsc --noEmit` (clean).
 
 ## 2026-05-26 — implement draw traversal phase 1
 
-Implemented phase 1 of [rfc-draw-traversal.md](rfc-draw-traversal.md)
+Implemented phase 1 of [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 for the default terrain path. `MapSurfaceTree.draw()` now routes
 topdown terrain rendering through `src/core/map/draw-traversal.ts`,
 which recursively descends the legacy-selected terrain surface and
@@ -3436,7 +3436,7 @@ Production comparison requests had transient upstream tile failures.
 
 ## 2026-05-26 — process draw traversal RFC review round 8
 
-Processed [rfc-draw-traversal.md](rfc-draw-traversal.md) review round
+Processed [rfc3-draw-traversal.md](rfc3-draw-traversal.md) review round
 8 as author. Verified the notes against the current code and wiki.
 Accepted the active-surface propagation model, virtual-surface bypass
 for the new path, client-first/server-later watertight rollout,
@@ -3448,7 +3448,7 @@ the modern `TileRenderRig` path also still carries `uClip` through
 
 ## 2026-05-26 — preserve draw traversal RFC review round 8
 
-Reopened [rfc-draw-traversal.md](rfc-draw-traversal.md) by changing
+Reopened [rfc3-draw-traversal.md](rfc3-draw-traversal.md) by changing
 its status from `Accepted` to `In review` and appended
 `Review round 8`. The round preserves reviewer feedback before any
 author-side processing: virtual-surface handling, combined traversal
@@ -3635,7 +3635,7 @@ cross-module types under the class namespace.
 ## 2026-05-25 — implement rfc-map-frame
 
 Landed all six steps of
-[rfc-map-frame.md](rfc-map-frame.md) in one pass; status moved to
+[rfc6-map-frame.md](rfc6-map-frame.md) in one pass; status moved to
 `Implemented`.
 
 - `Core` and `LegacyMap` gained an `outerMap` back-pointer to typed
@@ -3684,7 +3684,7 @@ and the `onAdd` / `render` lifecycle messages.
 
 ## 2026-05-25 — accept rfc-map-frame
 
-Signed off [rfc-map-frame.md](rfc-map-frame.md) after review round 3
+Signed off [rfc6-map-frame.md](rfc6-map-frame.md) after review round 3
 and changed its status to `Accepted`.
 
 The accepted design moves the frame owner to typed `Map.tick`, keeps
@@ -3698,7 +3698,7 @@ promotion, and deferred geodata event ordering.
 ## 2026-05-25 — rfc-map-frame review round 2 responses
 
 Processed three reviewer notes on
-[rfc-map-frame.md](rfc-map-frame.md):
+[rfc6-map-frame.md](rfc6-map-frame.md):
 
 1. No-map branch preserved through a `Core.outerMap` back-pointer.
    `Core.onUpdate` calls `this.outerMap.tick()` (not through
@@ -3724,7 +3724,7 @@ RFC status remains `In review` until the reviewer signs off.
 ## 2026-05-25 — rfc-map-frame review round 1 responses
 
 Processed five reviewer notes on
-[rfc-map-frame.md](rfc-map-frame.md):
+[rfc6-map-frame.md](rfc6-map-frame.md):
 
 1. Named the `Core.onUpdate` call route as a `rAF` shim that calls
    `map.outerMap.tick()`. No new state on `Core`.
@@ -3754,7 +3754,7 @@ RFC status remains `In review` until the reviewer signs off.
 
 ## 2026-05-25 — submit rfc-map-frame; correct API-surface framing
 
-Wrote [rfc-map-frame.md](rfc-map-frame.md) promoting step 2 of the
+Wrote [rfc6-map-frame.md](rfc6-map-frame.md) promoting step 2 of the
 "replace legacy map draw path with `TileRenderRig`" backlog item to
 a full design. The RFC moves the per-frame entry point from
 `LegacyMap.update` to typed `Map.tick`, relocates `MapDraw.drawMap`
@@ -3853,7 +3853,7 @@ Started `geodata-rendering.md` to record how geodata is drawn today.
 the queued jobs. Tiled `geodata-tiles` layers and monolithic `geodata`
 layers both use this job-buffer handoff.
 
-Reopened `rfc-draw-traversal.md` to mark geodata rendering out of
+Reopened `rfc3-draw-traversal.md` to mark geodata rendering out of
 scope. The mask-based unified traversal applies to terrain rendering
 through `TileRenderRig`; geodata still needs tree traversal for fitted
 tile selection, resource loading, and job collection until it has a
@@ -4037,7 +4037,7 @@ CDN tile-fetch errors.
 
 ## 2026-05-23 — OGC 3D Tiles and tile shader removal implemented
 
-Implemented [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md). Deleted the
+Implemented [rfc5-remove-3dtiles.md](rfc5-remove-3dtiles.md). Deleted the
 client-side OGC 3D Tiles / VTS octree import path, including the
 `config.tiles3d` browser entry point, `direct-3dtiles` loader worker
 branch, node-shaped geodata dispatch, `GpuGroup` octree traversal,
@@ -4059,7 +4059,7 @@ octree config/debug flags, and removable shader names; `npx tsc
 
 ## 2026-05-23 — OGC 3D Tiles RFC accepted
 
-`docs/wiki/rfc-remove-3dtiles.md` status set to `Accepted` by reviewer
+`docs/wiki/rfc5-remove-3dtiles.md` status set to `Accepted` by reviewer
 after round 3. Implementation (`§3.1`–`§3.2` deletion pass, then
 `§3.3` shader-family pass) is next.
 
@@ -4145,7 +4145,7 @@ and no `b3dm` output.
 (`view.js`) is a legitimate defensive fix independent of the 3D Tiles
 removal.
 
-**RFC filed:** `docs/wiki/rfc-remove-3dtiles.md` — covers deletion of
+**RFC filed:** `docs/wiki/rfc5-remove-3dtiles.md` — covers deletion of
 `3dtiles.js`, `3dtiles2.js`, `vts-tree.js`, `pointcloud.js`, and the
 node-shaped geodata path through `geodata-view.js`, `group.js`,
 `geodata-builder.js`, `loader.js`, and `constants.ts`. Follow-on §3.3
@@ -4215,7 +4215,7 @@ shader strings, their shell mesh, and the dead `RendererDraw.drawBall*`
 helpers were removed after source search showed no callers outside their
 own initialization path.
 
-**Docs:** `rfc-config-store.md` updated to remove `mapFog` from the
+**Docs:** `rfc1-config-store.md` updated to remove `mapFog` from the
 example `ViewerConfig` interface; status set to `In review` per
 AGENTS.md since the accepted document body was changed.
 
@@ -4389,7 +4389,7 @@ geometry), the nonlinearity problem when blending encoded values, and how
 `TextureBlend` alongside the existing trivial mode (selected via
 `init(mode)`), restoring the fold step for z < 0. Updated
 `collapseNormalStack` to call `nmb.init('oct-normal')`. Moved
-`rfc-bump-bake.md` to the Implemented section of the wiki index.
+`rfc4-bump-bake.md` to the Implemented section of the wiki index.
 Removed the completed bump-bake backlog entry; updated the legacy
 pipeline deletion entry to reflect that `nmblender` is already on
 `Renderer` (not being moved as part of that refactor).
@@ -4410,7 +4410,7 @@ throughout; `mapNoNormalMaps` migrated into `CoreConfig` alongside
 
 ## 2026-05-21 — Implement bump-layer collapse RFC
 
-Implemented [rfc-bump-bake.md](rfc-bump-bake.md) across three files.
+Implemented [rfc4-bump-bake.md](rfc4-bump-bake.md) across three files.
 `nmblender` moved from `MapDraw` (`draw.js`) to `Renderer`
 (`renderer.ts`); `MapDraw` now accesses it as
 `this.renderer.nmblender`. `TileRenderRig` gains a private `collapsed`
@@ -4430,7 +4430,7 @@ screenshot tests pass.
 
 ## 2026-05-21 — Bump collapse flag split
 
-Reopened [rfc-bump-bake.md](rfc-bump-bake.md) after acceptance to
+Reopened [rfc4-bump-bake.md](rfc4-bump-bake.md) after acceptance to
 remove `useNormalMaps` and `useBumpMaps` from the collapse decision.
 The RFC now treats collapse as rig-local texture preprocessing governed
 by the layer stack, texture residency, and `mapCollapseBumps`. Render
@@ -4445,7 +4445,7 @@ call sites that create hitmap or caller-provided textures now use
 
 ## 2026-05-21 — RFC: bump-layer collapse inside TileRenderRig
 
-Wrote [rfc-bump-bake.md](rfc-bump-bake.md) covering the design for
+Wrote [rfc4-bump-bake.md](rfc4-bump-bake.md) covering the design for
 collapsing bump-map layers into the normal map inside `TileRenderRig`.
 Key decisions: collapse happens in `optimizeStack()` before UBO
 encoding; the result is rig-local (shared `MapTexture` untouched);
@@ -5045,7 +5045,7 @@ Recorded as §3 Prior art in the RFC.
 
 ## 2026-05-16 — RFC: unified recursive draw traversal
 
-Drafted `rfc-draw-traversal.md`. Key design decisions recorded:
+Drafted `rfc3-draw-traversal.md`. Key design decisions recorded:
 
 - Replaces four iterative traversal variants (`topdown`, `downtop`,
   `fit`, `fitonly`) with one recursive depth-first function; mode
@@ -5191,7 +5191,7 @@ Write an RFC for the event bus migration, elevated from the backlog.
 
 ### What changed
 
-`docs/wiki/rfc-event-bus.md` created. Covers motivation (bus must move
+`docs/wiki/rfc2-event-bus.md` created. Covers motivation (bus must move
 as part of `core.js` suppression), full event inventory, the `wait`
 mechanism, three alternatives (native `EventTarget`, `EventTarget`-backed
 wrapper, typed `EventBus<EventMap>` class) with a performance comparison
@@ -5481,7 +5481,7 @@ construction and call `watch()` for the keys they own. The existing
 logic in one step while allowing legacy JS call sites to continue
 working indefinitely.
 
-RFC written at `docs/wiki/rfc-config-store.md`. RFC lifecycle rules
+RFC written at `docs/wiki/rfc1-config-store.md`. RFC lifecycle rules
 and agent responsibilities added to `AGENTS.md`.
 
 ---
@@ -7426,7 +7426,7 @@ uses this field instead of `this.css()[1] * this.visibleScale_[1]`.
 
 **Branch:** feature/draw-traversal-v1
 
-Wrote a draft RFC ([rfc-metanode-store.md](rfc-metanode-store.md))
+Wrote a draft RFC ([rfc7-metanode-store.md](rfc7-metanode-store.md))
 eliminating the serve-time DEM warp on the metatile critical path by
 precomputing per-node values into a separate, paged, mmapped quadtree —
 the **metanode store**. Design discussion only; no code.

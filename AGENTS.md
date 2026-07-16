@@ -139,14 +139,15 @@ migration plan. They are functional documentation: they remain
 authoritative until the feature is fully implemented, then become
 historical record.
 
-RFC files live in `docs/wiki/` and are named `rfc-<slug>.md`.
-They are listed in the **RFCs** section of `index.md`.
+RFC files live in `docs/wiki/` and are named `rfc<N>-<slug>.md`,
+where `<N>` is the RFC number. They are listed in the **RFCs**
+section of `index.md`.
 
 RFCs are numbered in a single plain-integer sequence in order of
-creation. A new RFC takes the next unused integer. The number appears
-in the document title (`# RFC 7: ...`) and in the index listings; the
-filename stays `rfc-<slug>.md`, without the number, so existing
-cross-references remain valid.
+creation. A new RFC takes the next unused integer, counting RFCs
+that exist only on unmerged design branches. The number appears in
+the filename, in the document title (`# RFC 7: ...`), and in the
+index listings.
 
 **Lifecycle:**
 

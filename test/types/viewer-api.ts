@@ -20,7 +20,7 @@ const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
 // The audited 58-key public runtime subset, pinned as a lasting
-// compile-time contract (rfc-config-store.md, step 8): an
+// compile-time contract (rfc1-config-store.md, step 8): an
 // incidental visibility edit in the catalogue fails here and
 // requires an explicit test update.
 type Expect<T extends true> = T;

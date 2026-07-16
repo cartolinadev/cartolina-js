@@ -100,9 +100,9 @@ The next design target is:
 - `Viewer` remains the flat public API
 - legacy sub-objects remain private until they are deleted
 
-[rfc-draw-traversal.md](rfc-draw-traversal.md) describes the accepted
+[rfc3-draw-traversal.md](rfc3-draw-traversal.md) describes the accepted
 traversal replacement.
-[rfc-bump-bake.md](rfc-bump-bake.md) records the implemented
+[rfc4-bump-bake.md](rfc4-bump-bake.md) records the implemented
 bump-layer collapse.
 
 ## Renderer Responsibilities

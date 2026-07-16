@@ -54,7 +54,7 @@ describe('viewer-config normalization', function() {
         function() {
 
         // reconciled keys whose legacy switch fallback diverged
-        // from the catalogue default (rfc-config-store.md, step 7)
+        // from the catalogue default (rfc1-config-store.md, step 7)
         const defaults = defaultViewerConfig();
         const reconciled = {
             mapCache: 'bogus',

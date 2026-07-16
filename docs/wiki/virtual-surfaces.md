@@ -8,7 +8,7 @@ See [index.md](index.md) for the wiki table of contents.
 > `sourceReference` redirection, the glue/`surfaceSequence` seam
 > machinery, and `checkSurface`'s multi-surface source selection. The
 > recursive terrain traversal renders plain surfaces directly via mask
-> compositing ([rfc-draw-traversal.md](rfc-draw-traversal.md)). The
+> compositing ([rfc3-draw-traversal.md](rfc3-draw-traversal.md)). The
 > mapConfig `virtualSurfaces` and `glue` arrays are no longer parsed by
 > cartolina-js. This page is retained as a record of the VTS concept,
 > which still exists server-side and may be revived in modified form.

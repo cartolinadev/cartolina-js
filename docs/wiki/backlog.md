@@ -233,7 +233,7 @@ the URL-loaded-ESM model the project already uses.
 **Opened:** 2026-06-12
 **Status:** open — depends on RFC 7 implementation and client
 surface-packaging support
-**Related:** [rfc-metanode-store.md](rfc-metanode-store.md),
+**Related:** [rfc7-metanode-store.md](rfc7-metanode-store.md),
 [surface-metatile.md](surface-metatile.md)
 
 Current cartolina-js does not consume configured metatile packaging
@@ -259,7 +259,7 @@ values.
 **Opened:** 2026-06-12
 **Status:** open — awaiting promotion to its own RFC, per RFC 7 §8
 phase 9 and the round-2 review disposition.
-**Related:** [rfc-metanode-store.md](rfc-metanode-store.md);
+**Related:** [rfc7-metanode-store.md](rfc7-metanode-store.md);
 "replace hardcoded metatile aggregation order" above (one ingredient
 of this milestone).
 
@@ -287,7 +287,7 @@ versus keeping the wire ellipsoidal at zero client cost.
 
 **Opened:** 2026-06-10
 **Status:** promoted to
-[RFC 8](rfc-context-loss-recovery.md) on 2026-06-11
+[RFC 8](rfc8-context-loss-recovery.md) on 2026-06-11
 
 After a context loss the map stays blank permanently;
 `contextRestored()` only fires an event. Design and implementation
@@ -299,7 +299,7 @@ plan live in the RFC.
 **Status:** ownership rule implemented 2026-07-10; lod-ranked claim
 with geometry-bbox bounds test added 2026-07-10 (see the pan jitter
 entry above) — the exact coverage-aware rule remains open
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md),
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md),
 [nav-tiles.md](nav-tiles.md),
 [surface-metatile.md](surface-metatile.md)
 
@@ -670,7 +670,7 @@ routes legacy clipped tiles to the discarding program and is removed
 with the legacy traversal, leaving a plain `maskTexture` check.
 `drawDepth()`/`footprint()` are unchanged (single-sample targets).
 
-**Update 2026-06-08:** the legacy-traversal removal (rfc-draw-traversal
+**Update 2026-06-08:** the legacy-traversal removal (rfc3-draw-traversal
 step 8) landed. `splitMask`, the `uClip` set, the `applyTileClip`
 quadrant clip, and `tile-clip.inc.glsl` are gone; `TileRenderRig.draw()`
 now selects on `!!maskTexture`, and the discarding program's only
@@ -683,7 +683,7 @@ now selects on `!!maskTexture`, and the discarding program's only
 split; on `simple.json` `recursive` now matches `legacy` exactly (mask
 draws 50→0, framebuffer switches 100→0, drawn tiles 193→170, GPU
 parity). See the §2.1 post-implementation note and the session log.
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 
 **Update 2026-06-04:** deferred-rectangle coverage has landed (see the
 session log and the §5.1 post-implementation note). It carries the
@@ -884,7 +884,7 @@ After the legacy traversal is removed:
 
 **Opened:** 2026-05-31
 **Status:** deferred
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 
 ### Goal
 
@@ -924,7 +924,7 @@ screen-space estimate of visual inaccuracy and loading quality.
 **Opened:** 2026-05-31
 **Status:** fixed 2026-05-31 (per-node factor invalidation); verified in
 browser — all drawn LOD-15 tiles match the reload bake after a zoom-in
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 
 ### Symptom
 
@@ -1082,7 +1082,7 @@ The metatile version is readable from the first two bytes after the
 **Opened:** 2026-05-27
 **Status:** resolved 2026-05-28 — `rt.externalUVs` and `rt.internalUVs`
 made data-based in `TileRenderRig`; benatky regression confirmed clean
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md);
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md);
 [BUG: draw-traversal — black flashes when zooming into city surface](#bug-draw-traversal--black-flashes-when-zooming-into-city-surface)
 and
 [BUG: draw-traversal — aborted descents at very high LODs](#bug-draw-traversal--aborted-descents-at-very-high-lods)
@@ -1135,7 +1135,7 @@ tile indices where coarser tiles seep into finer-LOD areas.
 **Opened:** 2026-05-27
 **Status:** resolved 2026-05-28 — confirmed manifestation of mask bug;
 resolved by same fix
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 
 ### User report (verbatim)
 
@@ -1160,7 +1160,7 @@ DEM (`topoearth-copernicus-dem-glo30` + `benatky-nad-jizerou2015`).
 **Opened:** 2026-05-27
 **Status:** resolved 2026-05-28 — confirmed manifestation of mask bug;
 resolved by same fix
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md)
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 
 ### User report (verbatim)
 
@@ -1185,7 +1185,7 @@ inspect high-LOD tiles over the city.
 
 **Opened:** 2026-05-27
 **Status:** resolved 2026-05-28 — mask filter switched to LINEAR
-**Related:** [rfc-draw-traversal.md](rfc-draw-traversal.md) phase 2
+**Related:** [rfc3-draw-traversal.md](rfc3-draw-traversal.md) phase 2
 
 ### User report (verbatim)
 
@@ -1221,7 +1221,7 @@ Mask textures now use `LINEAR` filtering
 argument is honoured. The tile shader compares the sampled coverage
 against configurable `mapTraversalMaskThreshold`, default `0.65`, to
 keep a narrow fallback overlap band at mask edges. See phase 2
-post-implementation notes in [rfc-draw-traversal.md](rfc-draw-traversal.md)
+post-implementation notes in [rfc3-draw-traversal.md](rfc3-draw-traversal.md)
 for the full explanation and the discard-threshold tuning knob.
 
 ---
@@ -1476,7 +1476,7 @@ semantics: draw from `view`, but derive vertical exaggeration from
 ## REFACTOR: remove OGC 3D Tiles streaming mechanism
 
 **Opened:** 2026-05-21
-**Status:** implemented by [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
+**Status:** implemented by [rfc5-remove-3dtiles.md](rfc5-remove-3dtiles.md)
 
 ### Goal
 
@@ -1521,7 +1521,7 @@ the public custom-mesh demos no longer keep `Renderer.drawMesh()` alive.
 ## REFACTOR: delete legacy tile shader family
 
 **Opened:** 2026-05-21
-**Status:** implemented by [rfc-remove-3dtiles.md](rfc-remove-3dtiles.md)
+**Status:** implemented by [rfc5-remove-3dtiles.md](rfc5-remove-3dtiles.md)
 (§3.3)
 
 ### Goal
@@ -1636,7 +1636,7 @@ only to delete them on the other side.
 
 **Opened:** 2026-05-16
 **Status:** step 1 done; step 2 promoted to
-[rfc-map-frame.md](rfc-map-frame.md); steps 3–4 pending
+[rfc6-map-frame.md](rfc6-map-frame.md); steps 3–4 pending
 
 ### Goal
 
@@ -1661,7 +1661,7 @@ scheduled for deletion.
    and a typed clear/readback API.
 
 2. ~~Move the map draw function and the frame loop onto typed `Map`.~~
-   **Done** (2026-05-26) — see [rfc-map-frame.md](rfc-map-frame.md).
+   **Done** (2026-05-26) — see [rfc6-map-frame.md](rfc6-map-frame.md).
 
    `MapDraw.drawMap` moved into `Map.draw`;
    `LegacyMap.update` moved into `Map.tick`, with a residual
@@ -1671,7 +1671,7 @@ scheduled for deletion.
    `initFrame`, position accessors). `MapInterface` deletion completed
    as an independent track — see the dedicated entry below.
 
-3. Implement the new unified traversal per [rfc-draw-traversal.md](rfc-draw-traversal.md).
+3. Implement the new unified traversal per [rfc3-draw-traversal.md](rfc3-draw-traversal.md).
 
 4. Delete obsolete rendering code.
 
@@ -1684,8 +1684,8 @@ scheduled for deletion.
 
 After this refactor reaches the deletion pass, continue with:
 
-1. [rfc-event-bus.md](rfc-event-bus.md)
-2. [rfc-config-store.md](rfc-config-store.md)
+1. [rfc2-event-bus.md](rfc2-event-bus.md)
+2. [rfc1-config-store.md](rfc1-config-store.md)
 3. Removing the `Map.core` escape hatch from `Viewer`
 4. Designing a style-era runtime overlay API
 
@@ -1739,7 +1739,7 @@ Background on the legacy stack:
 
 **Opened:** 2026-05-25
 **Status:** done — 2026-05-26, no design overlap with
-[rfc-map-frame.md](rfc-map-frame.md)
+[rfc6-map-frame.md](rfc6-map-frame.md)
 
 ### Goal
 
@@ -1766,7 +1766,7 @@ at runtime by the browser UI. Added in a follow-up commit.
 
 The deletion was mechanical but not small. It targeted `interface.js`
 exclusively and did not interact with the frame-loop relocation covered
-by [rfc-map-frame.md](rfc-map-frame.md). Keeping it as an independent
+by [rfc6-map-frame.md](rfc6-map-frame.md). Keeping it as an independent
 track avoided inflating the RFC's scope.
 
 ---
@@ -1919,7 +1919,7 @@ and `presenter` (no current typed call sites outside legacy demos).
 ## REFACTOR: replace the event bus with a typed `EventBus` class
 
 **Opened:** 2026-05-13
-**Status:** elevated to RFC — see [rfc-event-bus.md](rfc-event-bus.md)
+**Status:** elevated to RFC — see [rfc2-event-bus.md](rfc2-event-bus.md)
 
 ### Motivation
 

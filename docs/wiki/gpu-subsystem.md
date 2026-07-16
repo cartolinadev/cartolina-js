@@ -15,7 +15,7 @@ Related pages cover focused parts of the subsystem:
   projection and target-local 2D coordinate conventions.
 - [normal-encoding.md](normal-encoding.md) — normal-map encoding and
   texture-space filtering rules.
-- [rfc-bump-bake.md](rfc-bump-bake.md) — historical design notes for
+- [rfc4-bump-bake.md](rfc4-bump-bake.md) — historical design notes for
   GPU texture preprocessing and cache ownership.
 
 ## Ownership

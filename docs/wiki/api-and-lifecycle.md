@@ -103,7 +103,7 @@ branch is deleting or isolating the mapConfig path.
 
 Runtime configuration lives in one `ConfigStore<ViewerConfig>`
 (`src/core/config-store.ts`), implemented by
-[rfc-config-store.md](rfc-config-store.md). The single-source
+[rfc1-config-store.md](rfc1-config-store.md). The single-source
 `catalogue` object (`src/core/viewer-config.ts`) declares every
 valid key exactly once — doc comment, producer default,
 normalizer, URL parse kind, and visibility class — and the
@@ -264,7 +264,7 @@ emit still do. A throwing listener aborts the remaining listeners in
 the same emit call. `EventTarget` was rejected because it does not
 match the MapLibre-style `on()` / `once()` API, allocates
 `CustomEvent` objects for frequent events, and still needs an
-adapter. See [rfc-event-bus.md](rfc-event-bus.md).
+adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
 
 Event names and payload types are defined by `ViewerEventMap` in
 `src/core/types.ts`:
