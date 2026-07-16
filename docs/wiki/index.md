@@ -45,7 +45,8 @@ in [AGENTS.md](../../AGENTS.md).
   machinery repopulate
 - RFC 11 [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md) — convert
   legacy mapConfigs to styles before initialization, replace Views with
-  Viewer-level visibility profiles, and delete the second internal map model
+  Viewer-level visibility profiles, delete the second internal map model,
+  and dissolve the legacy `Browser` shell into `Viewer`
 
 ### Data model
 

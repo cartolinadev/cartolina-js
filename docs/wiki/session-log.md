@@ -3,6 +3,46 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-16 — RFC 11 scope revision; RFC filenames carry numbers
+
+Rebased `design/rfc11-mapconfig-to-style` onto main and revised the
+draft ([rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)):
+
+- The `map()` factory stays. The draft's replacement of the factory
+  with a public `new Map(options)` class constructor was removed from
+  scope — it changes every caller without serving the mapConfig
+  retirement; it is now an explicit non-goal.
+- `Browser` (`src/browser/browser.js`) dissolves into `Viewer` as the
+  new phase 5. The mapConfig removals already delete its ingestion,
+  browserOptions re-application, `view` command, and the
+  view-activated `geojson` / `geodata` / `geojsonStyle` construction
+  options (no demo or test uses them); the surviving glue — sub-object
+  construction, config watchers, tick dispatch, position-in-URL,
+  teardown — moves to typed `Viewer` code. The phase is severable:
+  nothing later depends on it.
+- The free-layer machinery is explicitly out of scope. Lettering style
+  layers keep compiling to internal free layers in
+  `MapStyle.refreshSequences()`; only the View junction around it is
+  removed. Source inspection found `getCurrentView()`'s style branch
+  calls `MapStyle.legacyView()`, which does not exist — the junction is
+  dead on style maps and is deleted, not repaired.
+- Goals and motivation now state the north-star framing directly:
+  styles become the only supported map manifest; mapConfig support
+  becomes converter work at the input boundary.
+- Section 8.6 records that the `tacoma-fitonly` prod entry pins an
+  older build whose render has drifted (reported cause: the terrain
+  normal representation changed after pinning); rendering acceptance
+  for the converted style is agreement with the dev entry, not the
+  prod render.
+- Corrected the stale claim that `map()` requires `position`; it is
+  optional today, and the RFC adds only the style-root default.
+
+Separately, RFC filenames now carry their numbers
+(`rfc<N>-<slug>.md`); all ten files renamed, cross-references in the
+wiki, source comments, and tests updated, and the AGENTS.md naming
+rule changed. RFC 10 is the terrain-tile container on its unmerged
+feature branch; numbering counts unmerged design branches.
+
 ## 2026-07-13 — RFC 11 mapConfig-to-style design
 
 Drafted [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md). The design

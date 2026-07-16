@@ -2,6 +2,8 @@
 
 **Status:** Draft
 **Opened:** 2026-07-13
+**Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
+machinery untouched, `Browser` dissolution added
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -29,7 +31,10 @@ constructor, loader, style state, layer sequencing, and rendering path.
 The runtime concepts `MapConfig`, `MapView`, `namedViews`, and
 `currentView_` are removed. The `style or mapConfig` branches in `Viewer`,
 `Map`, `LegacyMap`, terrain selection, free-layer selection, and refresh
-logic are removed with them.
+logic are removed with them. `Browser` (`src/browser/browser.js`)
+dissolves in the same effort: the mapConfig ingestion it hosts is
+removed, its surviving viewer glue moves into typed `Viewer` code, and
+the legacy module is deleted.
 
 The replacement for the visibility part of a named view is a
 **visibility profile**: a Viewer-level value that atomically selects terrain
@@ -141,11 +146,16 @@ name the source field, external stylesheet, or reconciled symbol before any
 renderer state exists. Once conversion succeeds, no downstream class needs
 to know that the style originated as a mapConfig.
 
-This also follows the project north star. Cartolina's public API is moving
-toward one flat MapLibre-shaped map object and a style-authored map. A core
-that retains Views, mapConfig-only methods, and format branches works
-against that direction. An isolated importer maintains required legacy data
-compatibility without making the legacy model part of the future API.
+This is a direct step toward the project north star: a modern web
+cartography library whose public API is one flat MapLibre-shaped map
+object and whose only supported map manifest is the style. Retiring
+mapConfig from the library core — `Viewer`, `Map`, and the classes they
+own — is the load-bearing part of this RFC. Backward compatibility is
+preserved, but as an import path rather than a second architecture: an
+isolated conversion suite maintains required legacy data compatibility
+without making the legacy model part of the future API. A core that
+retains Views, mapConfig-only methods, and format branches works
+against that direction.
 
 ### 2.4 Views mix unrelated state
 
@@ -205,20 +215,47 @@ layer mutation is introduced. Validation rejects duplicate ids.
 
 ### 2.7 Default position is split from the style
 
-`map()` currently requires a `position` construction option even though a
-mapConfig may supply its own `position`. This prevents a converted mapConfig
-from remaining self-describing.
+`map()` accepts an optional `position` construction option, but a style
+cannot carry its own default position, while a mapConfig can. A
+converted mapConfig therefore cannot remain self-describing: its
+authored position would have to travel beside the style instead of
+inside it.
 
 The [MapLibre style root specification][maplibre-style-root] defines default
 camera properties at the style root. They apply only when construction
 options or application state did not set the camera. Cartolina should use
 the same precedence rule with its native position representation.
 
+### 2.8 `Browser` is the last legacy construction shell
+
+`Viewer` is a typed facade constructed over `Browser`
+(`src/browser/browser.js`), a legacy JS module. `Browser` ingests the
+`browser()` config bag, re-applies mapConfig `browserOptions` after
+`map-loaded`, routes the legacy `position` and `view` commands in
+`applyConfigParam`, activates the `geojson` / `geodata` construction
+options through `getView()` / `setView()`, and constructs and wires the
+UI, autopilot, control-mode, presenter, and ROI helpers.
+
+Removing the mapConfig model deletes the format-specific part of that
+list. What remains is viewer glue with no format content: sub-object
+construction, config watchers, per-tick dispatch, position-in-URL
+updates, and teardown. Keeping a legacy JS constructor as the body of
+every `Viewer` would preserve the shell of the removed model and keep
+the public object's construction path in untyped code. The remainder
+is small enough to absorb into typed `Viewer` code within the same
+effort, and the direction is already recorded: the vts-era `Browser`
+config accessors were removed ahead of this RFC with the note that the
+remaining names retire when `Browser` dissolves.
+
 ## 3. Goals
 
 The architectural goal is one normalized map model after input resolution.
 The change succeeds when adding or changing map behavior no longer requires
-an engineer to decide how the map was initialized.
+an engineer to decide how the map was initialized. Retiring the mapConfig
+model from the library core while keeping mapConfig documents loadable is
+the step this RFC contributes to the project north star: styles become the
+only supported map manifest, and legacy support becomes converter work at
+the input boundary.
 
 1. Make validated style state the only input accepted by the internal map
    constructor.
@@ -227,19 +264,22 @@ an engineer to decide how the map was initialized.
    compatibility boundary.
 4. Remove mapConfig and View state, branches, and methods from `Viewer`,
    `Map`, `LegacyMap`, traversal, and layer compilation.
-5. Ensure core map and renderer code cannot observe whether a style was
+5. Dissolve `Browser` into `Viewer`: delete `src/browser/browser.js`
+   once its mapConfig ingestion is removed and its surviving glue is
+   moved to typed code.
+6. Ensure core map and renderer code cannot observe whether a style was
    authored directly or converted.
-6. Move format reconciliation into a deterministic compiler that can be
+7. Move format reconciliation into a deterministic compiler that can be
    tested without DOM, WebGL, or a running map.
-7. Report compatibility loss at conversion time with actionable errors or
+8. Report compatibility loss at conversion time with actionable errors or
    structured warnings instead of reduced behavior later in the runtime.
-8. Provide a flat runtime layer visibility API over the single style model.
-9. Preserve Cartolina's terrain-specific ability to activate terrain
-   sources and apply one layer to selected terrain sources.
-10. Translate named mapConfig views into Viewer-level visibility profiles
+9. Provide a flat runtime layer visibility API over the single style model.
+10. Preserve Cartolina's terrain-specific ability to activate terrain
+    sources and apply one layer to selected terrain sources.
+11. Translate named mapConfig views into Viewer-level visibility profiles
     returned separately from the style, without
     retaining the View data model.
-11. Add an optional style default position with construction-option
+12. Add an optional style default position with construction-option
     precedence.
 
 These goals reduce future feature work as well as current code. A new layer
@@ -256,6 +296,20 @@ the feature.
 - The RFC does not add general runtime source or layer authoring. It adds
   the mutations required to replace views; `addSource()` and `addLayer()`
   remain separate future work.
+- The public constructor keeps its `map()` factory shape. Adopting the
+  MapLibre `new Map(options)` class constructor is an independent
+  public-API change with its own migration; bundling it here would widen
+  the blast radius of an already broad removal without serving it.
+- The internal free-layer machinery is not redesigned. Lettering style
+  layers keep compiling to internal free layers behind the scenes, the
+  free-layer draw path is unchanged, and the public `createGeodata()` /
+  `addFreeLayer()` / `removeFreeLayer()` methods keep their current
+  behavior. The free-layer mechanism has its own future refactoring;
+  this RFC only removes the View-based call sites around it.
+- Dissolving `Browser` does not port the UI, autopilot, control-mode,
+  presenter, or ROI helpers to TypeScript. They remain legacy JS
+  modules; only the glue that constructs and wires them becomes typed
+  `Viewer` code.
 - The converter does not make every historical VTS extension part of the
   Cartolina style specification.
 - The converter does not preserve ignored virtual-surface or glue client
@@ -287,35 +341,38 @@ After this RFC:
 12. Applying a visibility profile does not enter a profile mode. Later
     direct mutations and later profile applications follow normal call
     order; the last operation affecting a value wins.
+13. `src/browser/browser.js` does not exist. `Viewer` constructs and
+    owns its collaborators from typed code; the legacy JS modules it
+    still uses are leaf helpers, not construction shells.
 
 ## 6. Public API
 
-### 6.1 One style-based constructor
+### 6.1 One style-based entry point
 
-The [MapLibre `MapOptions` contract][maplibre-map-options] belongs to one
-public `Map` class constructed from an options object; its `style` option
-accepts a style object or URL. Cartolina adopts that shape for the public
-class currently implemented as `Viewer`:
+The `map()` factory keeps its current shape and becomes the only public
+construction entry point:
 
 ```ts
-const viewer = new Map({
+const viewer = cartolina.map({
     container: 'map',
     style,
     position,
 });
 ```
 
+Its options object already follows the
+[MapLibre `MapOptions` contract][maplibre-map-options] in field shape:
+`style` accepts a style object or URL, and `container` an element or
+its id. Replacing the factory with a public `new Map(options)` class
+constructor is deliberately out of scope (section 4); it changes every
+caller without changing what this RFC must change.
+
 `style` is required until Cartolina has a deliberate `setStyle()` API.
 MapLibre permits it to be omitted and supplied later, but accepting an empty
 map before that lifecycle exists would add another partial construction
 state.
 
-The existing `map()` factory can be removed when the public class constructor
-lands. If retained temporarily for source migration, it is a zero-logic
-deprecated alias for `new Map(options)`, not a second initialization path.
-The final API has one constructor.
-
-`MapOptions.position` becomes optional. Camera precedence is:
+`MapOptions.position` stays optional. Camera precedence is:
 
 1. the explicit constructor `position`;
 2. application camera state established before style readiness;
@@ -334,11 +391,11 @@ Cartolina uses one native position field instead of copying MapLibre's
 Web-Mercator-specific `center`, `zoom`, `bearing`, and `pitch` fields. The
 precedence matches MapLibre even though the representation differs.
 
-The `browser(element, config)` factory is removed. Compatibility means that
-mapConfig data can be converted, not that its constructor or public API
-survives. The internal `Browser` class may remain temporarily as a UI helper;
-removing the public factory does not by itself complete that separate
-absorption into `Viewer`.
+The `browser(element, config)` factory is removed, together with
+`BrowserConfig` and the mapConfig-preserving `configFromUrl()` helper.
+Compatibility means that mapConfig data can be converted, not that its
+constructor or public API survives. The internal `Browser` class does
+not remain either; section 6.6 dissolves it into `Viewer`.
 
 ### 6.2 Independent conversion
 
@@ -394,7 +451,7 @@ Typical compatibility construction is explicit:
 ```ts
 const converted = await mapConfigToStyle(mapConfig, conversionOptions);
 
-const viewer = new Map({
+const viewer = cartolina.map({
     container,
     style: converted.style,
     options: {
@@ -423,7 +480,7 @@ ambiguous relative URL instead of resolving it against the current page.
 The function performs I/O needed to resolve referenced mapConfig resources
 and stylesheets. `transformRequest` applies to those requests. The returned
 style is JSON-serializable and can be inspected, edited, cached, or supplied
-to the public constructor. Warnings identify both the input location and the
+to the `map()` factory. Warnings identify both the input location and the
 deterministic recovery that was applied, so a caller can decide whether the
 converted result is acceptable.
 
@@ -554,6 +611,44 @@ This rule keeps both API levels predictable. Primitive methods edit one
 piece of style visibility. A profile writes a saved complete snapshot. Once
 expanded by `Viewer`, core `Map` processes the same primitive mutations in
 both cases.
+
+### 6.6 `Browser` dissolves into `Viewer`
+
+With the mapConfig model gone, `Browser` keeps no format-specific work
+(section 2.8). Its members split three ways.
+
+Removed with the mapConfig model:
+
+- the `originalConfig` capture and the re-application of mapConfig
+  `browserOptions` after `map-loaded` (core `Map` already applies
+  `browserOptions` through `applyBrowserOptions_`; both die with the
+  mapConfig loader);
+- the `view` command in `applyConfigParam` — visibility profiles are
+  applied by the caller, never by config ingestion;
+- the `geojson`, `geodata`, and `geojsonStyle` construction options.
+  Their activation path is `getView()` / `setView()`, which this RFC
+  removes, and no demo or test uses them. Applications build overlays
+  with `createGeodata()` / `addFreeLayer()` directly.
+
+Moved into typed `Viewer` code:
+
+- construction of the UI, autopilot, control-mode, presenter, and ROI
+  sub-objects, and of the config store and core `Map`;
+- the config watchers for the UI control keys and autopilot options;
+- per-tick dispatch to the autopilot and UI;
+- position-in-URL updates and `getLinkWithCurrentPos()`;
+- teardown, which merges into `Viewer[Symbol.dispose]()`.
+
+Deleted afterwards: `src/browser/browser.js`, and the `map` and `view`
+fields of the internal `Viewer.Config` glue type. The deprecated
+`Viewer.ui`, `Viewer.autopilot`, and `Viewer.presenter` getters keep
+their behavior but type the `Viewer`-owned objects directly instead of
+through `Browser['...']` lookups.
+
+The dissolution is the last implementation phase. It depends on the
+mapConfig removals, but nothing in this RFC depends on it; if needed it
+can land as an independent follow-up series without reopening this
+design.
 
 ## 7. Style source representation
 
@@ -819,6 +914,16 @@ decomposition: terrain, diffuse and bump layers, four Cartolina geodata
 layers, consolidated constants and fonts, illumination, and vertical
 exaggeration. It demonstrates the shape the converter should produce.
 
+The prod entry pins an older production build, and its render has
+visibly drifted from current output; the terrain normal representation
+changed after that build was pinned (reported cause, not re-verified
+here). The entry's role in this RFC is therefore not a pixel
+reference: the mapConfig it loads is the public conversion input, and
+the dev entry is the rendering reference for the converted result.
+Rendering acceptance for the converted style is agreement with the dev
+entry's render modulo the documented differences below, not agreement
+with the prod entry's drifted output.
+
 The pair is a design reference, not a byte-for-byte golden conversion. The
 hand-authored style uses a newer geodata source and contains cartographic
 tuning that differs from the mapConfig. Converter tests derive expected
@@ -854,7 +959,17 @@ for visibility changes. Profile validation and expansion stay in `Viewer`.
 Terrain traversal reads the effective terrain source list. Every layer
 processor reads the same effective visibility and terrain applicability.
 Processor-specific work still differs by layer type, but there is no
-bound-layer/free-layer distinction and no check for mapConfig origin.
+bound-layer/free-layer distinction and no check for mapConfig origin in
+the public model.
+
+Internally, lettering style layers continue to compile into legacy free
+layers for drawing, exactly as `MapStyle.refreshSequences()` already
+does for style maps. That translation sits behind the style contract
+and is untouched by this RFC; only the view-driven sequence rebuild —
+`refreshFreelayesInView()` reading `getCurrentView()` — is removed with
+the View model. `getCurrentView()`'s style branch calls
+`MapStyle.legacyView()`, a method that does not exist; the junction is
+dead on style maps today and is deleted rather than repaired.
 
 ## 10. Unified initialization
 
@@ -866,7 +981,7 @@ authored style --------------------------+
 mapConfig -> mapConfigToStyle() -> style +
                                          |
                                          v
-                               new Map({ style })
+                                 map({ style })
                                          |
                                          v
                               load one map model
@@ -890,17 +1005,19 @@ Implementation removes:
   `mapRunning_`, `createMapFromMapConfig()`, and the mapConfig construction
   branch in [src/core/map.ts](../../src/core/map.ts);
 - `namedViews`, `currentView_`, `initialView`, `setView()`, `getView()`,
-  `getNamedView()`, `getNamedViews()`, and mapConfig branches in
-  `refreshView()` from
+  `getNamedView()`, `getNamedViews()`, `getCurrentView()` (including
+  its dead `style.legacyView()` branch), `refreshFreelayesInView()`,
+  and mapConfig branches in `refreshView()` from
   [src/core/map/map.js](../../src/core/map/map.js);
 - `Viewer.setView()`, `Viewer.getView()`, and `Viewer.getNamedViews()` from
   [src/browser/viewer.ts](../../src/browser/viewer.ts);
 - the public `browser()` factory, `BrowserConfig`, and mapConfig-preserving
   `configFromUrl()` compatibility surface from
   [src/browser/index.ts](../../src/browser/index.ts);
-- the `map()` factory after callers have migrated to the public class
-  constructor, unless it is retained temporarily as a zero-logic deprecated
-  alias;
+- [src/browser/browser.js](../../src/browser/browser.js), dissolved per
+  section 6.6;
+- the `geojson`, `geodata`, and `geojsonStyle` construction options
+  from the config catalogue;
 - `view` and `map` from internal `Viewer.Config` and `ViewerConfig`;
 - mapConfig-specific browser configuration routing;
 - `map-mapconfig-loaded` from the event map.
@@ -937,8 +1054,8 @@ and async readiness currently contain mapConfig assumptions.
 1. Implement `mapConfigToStyle()` with checked-in public fixtures.
 2. Convert surfaces, bound layers, free layers, stylesheets, views,
    position, and browser options.
-3. Update compatibility callers to await conversion and construct the public
-   map class with `conversion.style`.
+3. Update compatibility callers to await conversion and construct the
+   map with `map()` and `conversion.style`.
 4. Compare the converted style and separately returned converted views with
    expected snapshots before browser rendering tests.
 
@@ -947,11 +1064,23 @@ and async readiness currently contain mapConfig assumptions.
 1. Remove the mapConfig initialization factory and state from `Map`.
 2. Remove `MapConfig`, `MapView`, and the legacy sequence generator.
 3. Remove all `if (map.style)` and `if (!map.style)` behavior branches.
-4. Remove the View methods from `Viewer`, core `Map`, and `LegacyMap`.
+4. Remove the View methods from `Viewer`, core `Map`, and `LegacyMap`,
+   together with `getCurrentView()` and `refreshFreelayesInView()`.
 5. Remove `browser()`, obsolete types, events, config keys, demos, and
    documentation.
 
-### Phase 5: close compatibility gaps
+### Phase 5: dissolve `Browser`
+
+1. Move the surviving glue from section 6.6 into typed `Viewer` code:
+   sub-object construction, config watchers, tick dispatch,
+   position-in-URL, and teardown.
+2. Retire the `geojson`, `geodata`, and `geojsonStyle` construction
+   options.
+3. Delete `src/browser/browser.js` and the `Viewer.Config` glue fields.
+4. Re-type the deprecated `ui`, `autopilot`, and `presenter` getters
+   against the `Viewer`-owned objects.
+
+### Phase 6: close compatibility gaps
 
 Run the conversion corpus with strict diagnostics. Every supported field is
 represented by typed style or construction state. Any unsupported field is
@@ -1002,7 +1131,11 @@ Unit and browser tests verify:
 - visibility-profile validation failures occur before state changes;
 - caller style objects remain unchanged;
 - constructor position overrides style position;
-- style position overrides the computed fallback.
+- style position overrides the computed fallback;
+- after the `Browser` dissolution: constructing and disposing a
+  `Viewer` registers and drains every watcher and listener, the UI
+  control keys and autopilot options still react to `setParam`, and
+  position-in-URL updates still fire.
 
 ### 13.3 Regression rendering
 
@@ -1015,7 +1148,7 @@ resource requests.
 
 The removal is complete only when a repository search finds no mapConfig or
 View reference outside the isolated compatibility converter, its tests, and
-VTS-input documentation.
+VTS-input documentation, and `src/browser/browser.js` no longer exists.
 
 ## 14. Alternatives rejected
 
@@ -1080,7 +1213,7 @@ data. Applications can use that data through the new API without another
 library object. The Browser wrapper is rejected from the main library. If a
 concrete integration later requires API-level compatibility, it can live in
 a separate optional legacy adapter built on `mapConfigToStyle()` and the
-public map class.
+public `map()` factory.
 
 ## 15. Open questions for review
 
@@ -1109,6 +1242,7 @@ The final architecture differs from the starting point at each boundary:
 | Terrain and layers | separate view and style sequencing rules | one effective terrain list and one layer compilation path |
 | Public mutation | mapConfig-only View methods beside style-era controls | layer methods and visibility profiles operate on every map |
 | Failure reporting | unsupported behavior can emerge after map creation | conversion reports the exact field, dependency, and recovery |
+| Public construction | `map()` and `browser()` over the legacy `Browser` shell | one `map()` factory over typed `Viewer` construction |
 | Future features | must account for two partially overlapping models | target one style contract and one runtime implementation |
 | Legacy removal | intertwined with constructors, `Map`, `LegacyMap`, and rendering | confined to one external converter |
 
@@ -1122,7 +1256,9 @@ The core loses its View model, mapConfig load state, fabricated per-surface
 styles, mapConfig-only API methods, and every style-versus-mapConfig behavior
 branch. `Map` becomes responsible for one lifecycle and one normalized map
 state. A successful load establishes the same invariants regardless of
-input origin.
+input origin. The browser layer loses its legacy construction shell:
+`Viewer` is constructed by typed code end to end, and the legacy JS
+modules that remain are leaf helpers it instantiates.
 
 Feature work becomes narrower. A new rendering option or layer behavior is
 added to the style schema, validation, and one runtime path. If a mapConfig
