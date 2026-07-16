@@ -36,6 +36,20 @@ draft ([rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)):
   prod render.
 - Corrected the stale claim that `map()` requires `position`; it is
   optional today, and the RFC adds only the style-root default.
+- The conversion corpus widened to every mapConfig-based entry in
+  `test/urls.json`: `a-3d-mountain-map`, `nacis-2023`, and
+  `legacy-benatky` (glue-declaration warning path) join
+  `tacoma-fitonly`. Their reference is the pre-removal mapConfig
+  render; the demo application keeps its `mapConfig` parameter by
+  routing it through `mapConfigToStyle()`, so the legacy dev URLs stay
+  living converter regression cases.
+- The "open questions for review" section was resolved into defended
+  design positions: mixed VTS rules split into `lines` + `labels`
+  layers over one source (no generic `geodata` type); `depthOffset` /
+  `maxLod` become `cartolina-geodata` source fields (their legacy
+  scope is the source); `mapConfigToStyle()` gains `strict` with a
+  lenient default; a future `getStyle()` returns effective style
+  state, MapLibre-style.
 
 Separately, RFC filenames now carry their numbers
 (`rfc<N>-<slug>.md`); all ten files renamed, cross-references in the

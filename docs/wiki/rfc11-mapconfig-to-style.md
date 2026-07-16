@@ -3,7 +3,9 @@
 **Status:** Draft
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
-machinery untouched, `Browser` dissolution added
+machinery untouched, `Browser` dissolution added, open questions resolved
+into design positions, conversion corpus widened to every mapConfig-based
+test URL
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -433,6 +435,7 @@ async function mapConfigToStyle(
         baseUrl?: string;
         view?: string | MapConfigViewDefinition;
         transformRequest?: TransformRequestCallback;
+        strict?: boolean;
     },
 ): Promise<MapConfigConversion>;
 ```
@@ -833,20 +836,27 @@ keeps the free-layer source, emits no style layers for it, and warns that the
 layer will not render. Failure to expand one optional free layer does not
 prevent terrain and other independent layers from loading.
 
-The current `labels` and `lines` discriminators both compile to the same VTS
-stylesheet layer shape. Conversion uses the discriminator matching the
-enabled point or line properties. If a mixed layer cannot be represented
-without loss, conversion preserves the representable properties and emits a
-warning that names the omitted behavior. If implementation shows the
-discriminator is artificial for mixed point-and-line layers, replace both
-with one typed `geodata` layer in the style schema before implementing
-conversion. Do not guess from property names and silently drop half of a
-mixed layer.
+The current `labels` and `lines` discriminators both compile to the same
+VTS stylesheet layer shape. Conversion uses the discriminator matching the
+enabled point or line properties. A rule that enables both splits into two
+style layers over the same geodata source — a `lines` layer and a `labels`
+layer with deterministic derived ids, the lines layer ordered first. Both
+discriminators compile back into the same internal stylesheet shape, so
+the split changes the authored representation, not the generated drawing
+jobs. A generic `geodata` layer type is rejected: it would reintroduce an
+untyped catch-all where the style schema is deliberately typed per aspect.
+A mixed-rule property that neither discriminator accepts is a conversion
+error; conversion never guesses from property names and never silently
+drops half of a mixed rule.
 
-Legacy geodata `depthOffset` and `maxLod` overrides need typed common
-style-layer fields before conversion. The implementation must add those
-fields or reject inputs that use the overrides. It must not leave them in an
-opaque compatibility object or create a separate geodata visibility model.
+Legacy geodata `depthOffset` and `maxLod` overrides become typed optional
+fields of the `cartolina-geodata` source specification. Their legacy scope
+is the free layer — one value per geodata source, not per stylesheet
+rule — so a source field preserves that scope exactly. Style-layer fields
+were considered and rejected: the converter would replicate one legacy
+value across every layer derived from the source and would need conflict
+rules for copies that later disagree. The overrides must not live in an
+opaque compatibility object or a separate geodata visibility model.
 
 ### 8.4 View options
 
@@ -899,6 +909,13 @@ stylesheet, a reconciled symbol collision, or an already ignored legacy
 construct is recoverable. The converter does not hide a visible difference:
 the warning names the omitted or rebound element and the recovery used.
 
+`options.strict` promotes every recoverable outcome to an error. The
+default stays best-effort: the function exists to load historical
+documents, and refusing a whole map over one degraded optional layer
+would serve nobody at runtime. Strict mode serves migration tooling and
+checked-in fixtures, where a new warning must fail loudly instead of
+aging into an accepted diff.
+
 ### 8.6 Public reference conversion
 
 The `tacoma-fitonly` dev and prod entries in
@@ -930,6 +947,26 @@ tuning that differs from the mapConfig. Converter tests derive expected
 values from the prod input and use the dev style to check decomposition and
 layer semantics, not to justify unexplained value changes.
 
+The tacoma pair is the structural reference because only it has a
+hand-authored style counterpart, but every mapConfig-based entry in
+[test/urls.json](../../test/urls.json) is a public conversion input:
+
+- `a-3d-mountain-map` — global terrain with a single bound layer and
+  lettering;
+- `nacis-2023` — blend modes and view-dependent alphas across several
+  bound layers;
+- `legacy-benatky` — a tileset with internal textures beside a global
+  terrain, whose mapConfig carries non-empty glue declarations,
+  exercising the ignored-glue warning path.
+
+These entries have no style counterpart. Their rendering reference is
+the same URL's mapConfig render on the pre-removal runtime, captured
+before phase 4 deletes it. The `legacy-benatky` dev entry itself loads
+through the demo application's `mapConfig` query parameter; keeping the
+test URLs rendering therefore requires the demo application to route
+that parameter through `mapConfigToStyle()`, which makes every legacy
+dev URL a living converter regression case.
+
 ## 9. Runtime style state
 
 `MapStyle` becomes the owner of two layers of state:
@@ -951,6 +988,14 @@ This separation supports ordinary runtime visibility changes. Mutating
 `layer.terrain` to `[]` in the authored style when hiding a layer would lose
 the list needed to show it again. The empty-list representation is suitable
 for effective runtime state only.
+
+When a `getStyle()` accessor is added, it returns the effective style
+state — a clone with runtime overrides applied — matching MapLibre,
+which exposes current style state rather than the authored document.
+The authored baseline stays internal; a caller that wants the original
+already holds the object it passed in, which invariant 5 guarantees is
+never mutated. The accessor itself is future work; the state split
+above is designed so that adding it needs no rework.
 
 `MapStyle` builds indexes by source and layer id once after validation.
 Runtime setters validate through those indexes. No render-loop scan is added
@@ -1034,7 +1079,8 @@ and async readiness currently contain mapConfig assumptions.
 1. Require ids on every style layer and update authored styles.
 2. Add URL-or-inline source locations with explicit base URLs.
 3. Add the optional root `position` and its precedence rule.
-4. Add common style-layer fields needed for depth and LOD behavior.
+4. Add the `cartolina-geodata` source fields `depthOffset` and
+   `maxLod` (section 8.3).
 5. Move `terrain` to the common base shared by every layer type and define
    an empty list as hidden.
 6. Rename VTS-shaped source discriminators to `cartolina-terrain`,
@@ -1112,7 +1158,8 @@ Checked-in public fixtures cover:
 Snapshot tests verify the complete conversion result. Focused unit tests
 verify deterministic generated ids, source mappings, qualified symbol names,
 reference rewriting, warning codes, and fallback selection. The public
-`tacoma-fitonly` pair is used as a structural conversion case as described in
+`tacoma-fitonly` pair is used as a structural conversion case, and the
+other mapConfig-based test URLs as conversion inputs, as described in
 section 8.6.
 
 ### 13.2 Runtime tests
@@ -1140,11 +1187,15 @@ Unit and browser tests verify:
 ### 13.3 Regression rendering
 
 Run the canonical `simple-terrain`, `complex-terrain`, and `full-terrain`
-screenshot comparisons sequentially. Add a project-controlled public
-mapConfig fixture whose converted render exercises multiple terrain and
-visibility-profile switches across raster-derived and geodata-derived
-layers. Tests listen to both console and page-error events and reject failed
-resource requests.
+screenshot comparisons sequentially. Every mapConfig-based entry in
+[test/urls.json](../../test/urls.json) stays a living regression URL
+(section 8.6): the demo application's `mapConfig` parameter routes
+through `mapConfigToStyle()`, and converted renders are compared against
+mapConfig-path captures taken before phase 4. Add a project-controlled
+public mapConfig fixture whose converted render exercises multiple
+terrain and visibility-profile switches across raster-derived and
+geodata-derived layers. Tests listen to both console and page-error
+events and reject failed resource requests.
 
 The removal is complete only when a repository search finds no mapConfig or
 View reference outside the isolated compatibility converter, its tests, and
@@ -1215,21 +1266,7 @@ concrete integration later requires API-level compatibility, it can live in
 a separate optional legacy adapter built on `mapConfigToStyle()` and the
 public `map()` factory.
 
-## 15. Open questions for review
-
-1. Should mixed point-and-line VTS stylesheet layers motivate one generic
-   `geodata` style-layer type, or can the current `labels` and `lines` types
-   represent them without loss?
-2. Which common style-layer fields should represent legacy geodata
-   `depthOffset` and `maxLod`?
-3. Is lossy continuation the right default when a stylesheet symbol cannot
-   be rewritten, or should `mapConfigToStyle()` have a strict option that
-   promotes such warnings to errors?
-4. Should `getStyle()` expose the authored baseline or a clone with current
-   runtime overrides applied? MapLibre exposes current style state; matching
-   that behavior is preferable when `getStyle()` is added.
-
-## 16. Expected result
+## 15. Expected result
 
 mapConfig becomes an import format. Style becomes the only live map model.
 
