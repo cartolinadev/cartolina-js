@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 3
+
+Reviewed the round-2 author response in
+[RFC 11](rfc11-mapconfig-to-style.md). The response fixes the deletion gate,
+preserves existing diffuse and URL-source behavior, and specifies executable
+lettering applicability. Round 3 records three remaining contracts.
+
+The strict taxonomy is still contradictory: section 6.2 classifies retired
+options as warnings, while section 8.5 requires exact no-op drops to be notes,
+and phase 3 both permits those drops and requires every corpus field to have a
+typed destination. The new terrain and visibility-profile methods also need a
+pre-readiness rule because the example calls profile mutation before style
+state exists. Finally, omitted layer `terrain` must explicitly expand to every
+declared `cartolina-surface`, not merely the initially active terrain stack,
+so later terrain switches preserve existing unrestricted applicability.
+
 ## 2026-07-18 — RFC 11 review round 2 author response
 
 Responded to all 5 round-2 notes on

@@ -2202,3 +2202,59 @@ runtime contracts introduced while applying that boundary.
    visibility profiles and the caller-owned input document. The
    Expected Result promises a converted default position returned
    beside the style.
+
+## Review round 3
+
+The round-2 response resolves the deletion ordering, preserves the existing
+layer and URL-source contracts, and gives lettering applicability an
+executable meaning. Three public contracts still need correction before
+sign-off.
+
+1. The strict closure taxonomy is still contradictory.
+
+   Section 6.2 still says that a dead or retired `browserOptions` key produces
+   a warning. Section 8.5 and the phase-3 gate now say the opposite: a field
+   that the current client already ignores is an exact no-op drop with a note,
+   while every warning blocks deletion. This is not editorial. The corpus
+   contains retired options, so section 6.2's rule makes the required strict
+   run fail.
+
+   Phase 3 also says both that no-op fields may be dropped as notes and that
+   every corpus field must be represented by typed style or construction
+   state. Those statements cannot both hold. Apply one rule everywhere:
+   every behaviorally active corpus field must have a typed destination;
+   fields proven to be current-client no-ops may be dropped with exact-outcome
+   notes. Then the strict closure gate has one satisfiable definition.
+
+2. The new runtime mutation API needs a readiness contract.
+
+   The typical construction example calls `applyVisibilityProfile()`
+   immediately after `map()`. Style construction is asynchronous: the current
+   style path does not assign the loaded map and its `MapStyle` until
+   `MapStyle.loadStyle()` completes. Before `viewer.ready`, none of the layer
+   ids, source ids, normalized terrain lists, or mutation targets exists to be
+   validated. The RFC simultaneously requires unknown ids to throw and
+   runtime mutation never to silently no-op, so the example has no valid
+   behavior under the stated contract.
+
+   Define the pre-readiness behavior for all four primitive terrain methods
+   and both profile methods. The narrower design is to require
+   `await viewer.ready`, throw when a method is called earlier, update the
+   example, and test that failure. A pending-operation queue would add a second
+   state machine solely for calls made before their targets exist and is not
+   justified by conversion.
+
+3. Omitted layer `terrain` must expand against a precisely named set.
+
+   "Every terrain source declared by the style" can mean every
+   `cartolina-surface` entry in `style.sources`, or only the sources in the
+   initial active `terrain.sources` stack. Those meanings diverge as soon as
+   `setTerrainSources()` activates a source that was declared but initially
+   inactive. Existing omitted `terrain` means unrestricted applicability: the
+   tile renderer applies the layer to any terrain surface.
+
+   Define normalization as all source-dictionary entries whose discriminator
+   is `cartolina-surface`, independent of the initial active stack. Add a test
+   with an omitted layer, an initially inactive declared terrain source, and a
+   later direct terrain switch. Expanding only against the initial stack would
+   silently narrow existing style behavior.
