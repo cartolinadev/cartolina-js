@@ -3,6 +3,31 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 2 author response
+
+Responded to all 5 round-2 notes on
+[RFC 11](rfc11-mapconfig-to-style.md); every note is adopted.
+
+The structural fix: the strict compatibility gate moves into phase 3
+and the post-deletion "close compatibility gaps" phase is deleted —
+conversion gaps must be found and closed while both runtimes exist.
+To make the strict gate satisfiable, section 8.5 now classifies
+dropped constructs by current-client behavior: already ignored
+constructs (glue declarations, dead browser options) are exact
+outcomes with informational notes; warnings are reserved for drops
+that could change behavior, and only warnings fail strict mode.
+
+Contract fixes: section 6.3 shows the real `LayerBase` generic and
+preserves the `DiffuseMapLayer` omitted-type default; section 9 gains
+a collision-proof generated-id algorithm; section 7.1 scopes the
+inline metadata equality rules off URL sources, which keep their
+current acceptance; lettering terrain applicability becomes the
+executable stack-intersection contract (active when the rule's terrain
+list intersects the active stack, recompiled on changes), with
+per-tile lettering explicitly not promised. Three leftover statements
+from the rejected design (invariant 11, alternative 14.7, Expected
+Result position) were corrected. The RFC stays `In review`.
+
 ## 2026-07-17 — RFC 11 review round 2
 
 Reviewed the round-1 author response in

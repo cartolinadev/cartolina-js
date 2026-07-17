@@ -11,6 +11,11 @@ contract is frozen, the conversion corpus becomes the compatibility
 contract, the conversion result returns visibility profiles and position
 beside the style, and `Browser` dissolution moves to separate follow-up
 work
+**Updated:** 2026-07-18 — review round 2 response: the strict closure
+gate moves into phase 3 and no-op drops become informational notes, the
+existing `LayerBase` generic and diffuse type default are preserved,
+inline metadata rules are scoped off URL sources, and lettering terrain
+applicability gets the executable stack-intersection contract
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -328,8 +333,9 @@ the input boundary.
 5. Make the conversion corpus (section 8.6) the normative compatibility
    contract: fields and grammar forms exercised by corpus inputs
    convert exactly; fields outside the corpus produce structured
-   unsupported-field warnings and gain no new style or runtime
-   representation.
+   unsupported-field diagnostics — warnings when the current client
+   reads them, informational notes when it ignores them (section
+   8.5) — and gain no new style or runtime representation.
 6. Remove mapConfig and View state, branches, and methods from `Viewer`,
    `Map`, `LegacyMap`, traversal, and layer compilation, together with
    the mapConfig ingestion hosted by `Browser`.
@@ -391,8 +397,8 @@ the feature.
   this RFC only removes the View-based call sites around it.
 - The converter does not make every historical VTS extension part of the
   Cartolina style specification. The corpus bounds what must convert
-  exactly; a field recognized only by the dead parsers gets a
-  structured unsupported-field warning, not new code.
+  exactly; a field outside it gets a structured diagnostic — a warning,
+  or a note when the current client ignores it — not new code.
 - The converter does not preserve ignored virtual-surface or glue client
   behavior. Those concepts are already absent from the client renderer.
 
@@ -419,9 +425,12 @@ After this RFC:
 9. Source URLs and inline source data have an explicit base URL. Relative
    resource paths never depend on the page URL after conversion.
 10. `StyleSpecification` contains no visibility-profile fields.
-11. “Bound layer” and “free layer” exist only inside the compatibility
-    converter and references to code being removed. Cartolina runtime and
-    public APIs speak only of sources, terrain, and layers.
+11. “Bound layer” does not appear outside the compatibility converter
+    and references to code being removed. “Free layer” survives only
+    where it already exists — the `cartolina-freelayer` source
+    discriminator and the internal free-layer machinery kept by the
+    non-goals. Neither term names a model concept beside sources,
+    terrain, and layers, and no new public API introduces either.
 12. Applying a visibility profile does not enter a profile mode. Later
     direct mutations and later profile applications follow normal call
     order; the last operation affecting a value wins.
@@ -540,7 +549,8 @@ migration example and precedence tests use it without a cast.
 produced a usable result that may differ from the legacy rendering.
 `notes` report informational diagnostics about exact conversions, such
 as a deterministic symbol rename whose references were all rewritten
-(section 8.3). Strict mode fails on warnings, never on notes.
+(section 8.3) or a dropped construct the current client already ignores
+(section 8.5). Strict mode fails on warnings, never on notes.
 
 Typical compatibility construction is explicit:
 
@@ -618,32 +628,52 @@ round-trips exactly.
 preserves the caller's back-to-front order. A terrain source may remain
 loaded while inactive; visibility changes do not rebuild source objects.
 
-The public contract is identical for diffuse, bump, specular, label, line,
-and later layer types. Their processors may implement visibility
-differently, but those differences are below the style model and runtime
-API.
+The public contract — the authored `terrain` field, the mutation
+methods, and validation — is identical for diffuse, bump, specular,
+label, line, and later layer types. Evaluation granularity differs by
+processor and is part of the specified behavior:
+
+- tile layers are evaluated per terrain tile: the renderer checks the
+  layer's effective terrain list against the tile's terrain source;
+- lettering layers are evaluated against the active terrain stack as a
+  whole: a label or line rule is active exactly when its effective
+  terrain list intersects the active stack. Stylesheet compilation in
+  `MapStyle.refreshSequences()` excludes inactive rules, and the
+  affected free-layer stylesheets recompile when the rule list or the
+  active terrain stack changes.
+
+Per-terrain-tile lettering is not promised by this RFC: the free-layer
+drawing path compiles one stylesheet per geodata source and cannot
+evaluate a rule per tile (section 4). The stack-intersection rule is
+the contract the current runtime can execute.
 
 Unknown layer ids, duplicate source ids, and non-terrain ids throw. Runtime
 style mutation must not silently no-op.
 
-The existing `terrain` field moves to the common layer base and becomes
-the single authored terrain-applicability representation. Both fields of
-the base are additive for layer types that lack them today:
+The existing `terrain` field moves from `TileLayerBase` to the common
+`LayerBase` and becomes the single authored terrain-applicability
+representation. Both additions are optional fields on the existing
+generic. Nothing about `type` changes: the current
+`LayerBase<TType extends string>` shape and the `DiffuseMapLayer`
+override that permits an omitted `type` (defaulting to `diffuse-map`)
+are preserved, so shipped styles using that form keep validating:
 
 ```ts
-interface LayerBase {
-    id?: string;
-    type: string;
-    terrain?: string[];
+export type LayerBase<TType extends string> = {
+    type: TType,
+    id?: string,
+    terrain?: string[],
+    necessity?: 'optional' | 'essential'
 }
 ```
 
 Every style layer type extends this common identity and
 terrain-applicability contract. `id` stays optional in the authored
 schema so existing anonymous styles remain valid; runtime state assigns
-deterministic generated ids (section 9). Omitting `terrain` means all
-terrain sources in the style; an empty array means inactive everywhere.
-Source shape and internal processing vary by type; layer selection and
+deterministic generated ids (section 9), computed after the omitted
+diffuse type default is applied. Omitting `terrain` means all terrain
+sources in the style; an empty array means inactive everywhere. Source
+shape and internal processing vary by type; layer selection and
 mutation do not.
 
 ### 6.4 Viewer-level visibility profiles
@@ -809,23 +839,30 @@ terrain source per surface. Shared reference metadata is copied into each
 small inline source definition. Avoiding that small JSON duplication would
 require a second shared-resource context and is not worth another concept.
 
-Repeated inline metadata needs one deterministic contract, for authored
-and converted styles alike:
+Repeated inline metadata needs one deterministic contract. The rules
+below bind the additive inline form only. URL sources keep their
+current acceptance behavior — global tables taken from the first
+surface document, later documents checked for reference-frame id
+agreement — so every existing URL-only style loads unchanged. A future
+proposal may strengthen URL-source consistency after auditing authored
+styles; conversion work must not introduce that break.
 
 - converter output is fully normalized: every URL embedded in inline
   data is absolute, so a single `baseUrl` per source is sufficient and
   no per-field provenance is needed;
-- authored styles may use either the URL or the inline form under the
-  same rule — relative URLs inside inline data resolve against that
-  source's `baseUrl` only;
+- authored styles may use either the URL or the inline form; relative
+  URLs inside inline data resolve against that source's `baseUrl`
+  only;
 - the loader requires the reference frame and the shared SRS, body,
-  and service definitions to be structurally equal across all terrain
-  sources in one style; an inconsistency is a load error reported
-  before any map object is constructed, never resolved by keeping the
-  first source or letting terrain order decide;
-- credits merge by id; two definitions of the same credit id must be
-  structurally equal, otherwise loading fails with both source ids
-  named.
+  and service definitions to be structurally equal across all inline
+  terrain sources in one style; an inconsistency is a load error
+  reported before any map object is constructed, never resolved by
+  keeping the first source or letting terrain order decide;
+- credits merge by id across inline sources; two definitions of the
+  same credit id must be structurally equal, otherwise loading fails
+  with both source ids named;
+- structural equality ignores JSON object key order; array order and
+  canonical URL values are significant.
 
 ### 7.2 Source identity
 
@@ -1038,29 +1075,35 @@ before the Viewer exists; no runtime `setView()` path remains.
 
 ### 8.5 Warnings and errors
 
-Warnings are returned as structured values. The application decides whether
-to log, display, reject, or persist them. Warnings are reserved for behavior
-the current client already documents as ignored, such as non-empty
-virtual-surface or glue declarations, and for explicit best-effort recovery
-from an external or stylesheet-reconciliation problem.
+Warnings and notes are returned as structured values. The application
+decides whether to log, display, reject, or persist them. The dividing
+line is current-client behavior. Dropping a construct the current
+client already ignores — non-empty virtual-surface or glue
+declarations, dead browser options — preserves rendering exactly and
+produces an informational note. A warning marks best-effort recovery
+from an external or stylesheet-reconciliation problem, or a dropped
+field that could change behavior.
 
 Conversion has three outcomes for a field or dependency:
 
 - **exact**: behavior is fully preserved; may carry an informational
   note, such as a deterministic symbol rename whose references were all
-  rewritten (section 8.3);
+  rewritten (section 8.3) or a dropped construct the current client
+  already ignores;
 - **recovered**: a deterministic fallback produced a usable result and a
   structured warning describes the possible difference;
 - **fatal**: no coherent style can be constructed.
 
 Missing frame metadata, no usable terrain surface, malformed source ids, or
 an invalid resulting style are fatal. A failed optional free-layer
-stylesheet, an unrewritable symbol reference, or an already ignored
-legacy construct is recoverable. A field or grammar form outside the
-conversion corpus is also recoverable: it produces an unsupported-field
-or unsupported-rule warning and gains no style or runtime
-representation. The converter does not hide a visible difference: the
-warning names the omitted or rebound element and the recovery used.
+stylesheet or an unrewritable symbol reference is recoverable. A field
+or grammar form outside the conversion corpus gains no style or runtime
+representation either way: when the current client reads it, dropping
+it could change behavior, so it is recoverable with an
+unsupported-field or unsupported-rule warning; when the current client
+ignores it, dropping it is an exact outcome with a note. The converter
+does not hide a visible difference: the warning names the omitted or
+rebound element and the recovery used.
 
 `options.strict` promotes every recoverable outcome to an error; exact
 outcomes and their notes never fail. The default stays best-effort: the
@@ -1113,7 +1156,7 @@ hand-authored style counterpart, but every mapConfig-based entry in
   bound layers;
 - `legacy-benatky` — a tileset with internal textures beside a global
   terrain, whose mapConfig carries non-empty glue declarations,
-  exercising the ignored-glue warning path.
+  exercising the ignored-glue note path (section 8.5).
 
 These entries have no style counterpart. Their rendering reference is
 the same URL's mapConfig render on the pre-removal runtime, captured
@@ -1134,12 +1177,17 @@ authored style
 ```
 
 The authored style is a validated clone of caller input. Validation
-normalizes that clone without touching the caller's object: each
-anonymous authored layer receives a deterministic generated id derived
-from its layer type and array position, and each omitted layer `terrain`
-expands to the explicit list of every terrain source declared by the
-style. Runtime overrides introduced by this RFC hold active terrain
-sources and per-layer terrain lists. The effective state is derived at
+normalizes that clone without touching the caller's object. Each
+anonymous authored layer receives a deterministic generated id: the
+candidate is derived from the layer's effective type — after the
+omitted diffuse type default is applied — and its array position, and
+while the candidate equals any explicit id in the style, a
+deterministic disambiguation suffix is appended until it is unique.
+Explicit ids are never rewritten; duplicate explicit ids are still
+rejected. Each omitted layer `terrain` expands to the explicit list of
+every terrain source declared by the style. Runtime overrides
+introduced by this RFC hold active terrain sources and per-layer
+terrain lists. The effective state is derived at
 commit time and exposed to terrain traversal and style compilation.
 Existing runtime illumination and vertical-exaggeration setters remain
 separate rendering APIs.
@@ -1273,8 +1321,19 @@ Every step is additive; existing authored styles remain valid unchanged.
    map with `map()`, `conversion.style`, and `conversion.position`.
 4. Compare the converted style, position, viewer options, and profiles
    with expected snapshots before browser rendering tests.
+5. Pass the compatibility closure gate: the full conversion corpus
+   converts in strict mode — no-op drops surface as notes and do not
+   fail; any warning is an open compatibility gap — and the snapshot
+   review and pre-removal rendering comparisons complete. Every corpus
+   field ends up represented by typed style or construction state; no
+   opaque `legacy` field, no old parser called from the style loader.
 
 ### Phase 4: delete the second runtime
+
+Phase 4 starts only after the phase-3 closure gate passes. There is no
+post-deletion phase whose purpose is to discover or close conversion
+gaps; once the mapConfig runtime is gone, the live reference path is
+gone with it.
 
 1. Remove the mapConfig initialization factory and state from `Map`.
 2. Remove `MapConfig`, `MapView`, and the legacy sequence generator.
@@ -1285,14 +1344,6 @@ Every step is additive; existing authored styles remain valid unchanged.
    `src/browser/browser.js`, the `geojson` / `geodata` /
    `geojsonStyle` construction options, obsolete types, events, config
    keys, demos, and documentation.
-
-### Phase 5: close compatibility gaps
-
-Run the conversion corpus with strict diagnostics. Every corpus field is
-represented by typed style or construction state. Any field outside the
-corpus is a structured unsupported-field warning, an error in strict
-mode. Do not add an opaque `legacy` field or call old parsers from the
-style loader.
 
 ## 13. Validation
 
@@ -1341,6 +1392,13 @@ Unit and browser tests verify:
 
 - hiding and showing every layer kind;
 - changing every layer type's terrain list;
+- two lettering rules over one geodata source with different terrain
+  lists: only rules whose lists intersect the active terrain stack are
+  compiled, verified across a direct terrain switch in both
+  directions;
+- a style containing an anonymous layer beside an explicit id equal to
+  the would-be generated id: validation yields distinct ids and both
+  layers stay addressable;
 - activating and deactivating terrain sources;
 - repeated profile application without state leaking from the prior profile;
 - direct layer and terrain changes after profile application;
@@ -1437,9 +1495,11 @@ objects that introduce a new stylesheet would make a nominally synchronous
 lifecycle and an API whose exact compatibility boundary is difficult to
 state.
 
-The conversion result already preserves the original and translated view
-data. Applications can use that data through the new API without another
-library object. The Browser wrapper is rejected from the main library. If a
+The conversion result already returns each named view as a translated
+visibility profile. Applications can apply those profiles through the
+new API without another library object, and a migration tool that needs
+the original view definitions owns the input document. The Browser
+wrapper is rejected from the main library. If a
 concrete integration later requires API-level compatibility, it can live in
 a separate optional legacy adapter built on `mapConfigToStyle()` and the
 public `map()` factory.
@@ -1481,8 +1541,9 @@ can express an equivalent concept, the converter maps it. If it cannot, the
 converter reports that boundary instead of introducing another core branch.
 
 Applications retain legacy document compatibility while gaining the newer
-flat API: stable layer ids, terrain-aware layer visibility, atomic visibility
-profiles, and a style-defined default position. Applications can also run
+flat API: stable layer ids, terrain-aware layer applicability, atomic
+visibility profiles, and a converted default position returned beside
+the style. Applications can also run
 the converter independently to inspect warnings, cache the result, and
 migrate stored mapConfigs to styles.
 
@@ -2030,6 +2091,16 @@ runtime contracts introduced while applying that boundary.
    a compatibility gap that must be resolved before deletion. Move the strict
    gate into phase 3 and make every corpus case pass it.
 
+   *Adopted.* Section 8.5 now draws the warning/note line by
+   current-client behavior: dropping an already ignored construct —
+   `legacy-benatky` glue declarations, `tacoma-fitonly` dead browser
+   options — is an exact outcome with an informational note, so the
+   strict corpus run is satisfiable and meaningful. Phase 3 gains the
+   closure gate (strict corpus, snapshot review, pre-removal rendering
+   comparisons); phase 4 explicitly starts only after it passes; the
+   old phase 5 is deleted. Goal 5, the non-goals, and sections 6.2 and
+   8.6 were aligned with the reclassification.
+
 2. The proposed common `LayerBase` still breaks valid version-2 styles.
 
    The sketch makes `type: string` mandatory for every layer. The current
@@ -2045,6 +2116,16 @@ runtime contracts introduced while applying that boundary.
    string. Define the generated namespace or collision-avoidance algorithm,
    generate after applying the omitted diffuse type default, and test a style
    containing both an anonymous layer and a colliding explicit id.
+
+   *Adopted.* Section 6.3 now shows the real
+   `LayerBase<TType extends string>` generic with `id` and `terrain` as
+   optional additions, and states that the `DiffuseMapLayer` omitted-
+   type default is preserved. Section 9 defines the generation
+   algorithm: candidate from effective type (after the diffuse
+   default) plus array position, with a deterministic disambiguation
+   suffix appended while the candidate equals any explicit id;
+   explicit ids are never rewritten. Section 13.2 adds the collision
+   test.
 
 3. Inline metadata validation must not impose a new rejection on URL sources.
 
@@ -2062,6 +2143,13 @@ runtime contracts introduced while applying that boundary.
    introduce that breaking validation. Define structural equality as well:
    record key order must not matter, while array order and canonical URL values
    do.
+
+   *Adopted.* Section 7.1 scopes the equality and credit-conflict
+   rules to the inline form only and records that URL sources keep the
+   current first-document-tables plus frame-id-agreement behavior, so
+   existing URL-only styles load unchanged. Structural equality is
+   defined as the reviewer states: object key order irrelevant, array
+   order and canonical URL values significant.
 
 4. Terrain applicability for lettering layers has no executable contract.
 
@@ -2083,6 +2171,15 @@ runtime contracts introduced while applying that boundary.
    multi-terrain test with two rules over one geodata source, different terrain
    lists, and a direct terrain switch.
 
+   *Adopted.* The smaller behavior is now the specified contract:
+   section 6.3 states that a lettering rule is active exactly when its
+   effective terrain list intersects the active terrain stack, that
+   `refreshSequences()` excludes inactive rules at stylesheet
+   compilation, and that affected free layers recompile when the rule
+   list or the active stack changes. Per-terrain-tile lettering is
+   explicitly not promised. Section 13.2 adds the two-rule
+   multi-terrain switch test.
+
 5. Remove statements left over from the rejected design.
 
    Three normative statements contradict the revised body:
@@ -2097,3 +2194,11 @@ runtime contracts introduced while applying that boundary.
 
    Correct all three before sign-off. The final RFC must not leave the old
    architecture as an alternative description of the accepted one.
+
+   *Adopted.* Invariant 11 now names the two surviving uses of "free
+   layer" — the `cartolina-freelayer` discriminator and the internal
+   machinery kept by the non-goals — while still barring the term from
+   any new public model concept. Alternative 14.7 speaks of translated
+   visibility profiles and the caller-owned input document. The
+   Expected Result promises a converted default position returned
+   beside the style.
