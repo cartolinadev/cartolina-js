@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 4
+
+Reviewed the round-3 author response in
+[RFC 11](rfc11-mapconfig-to-style.md). The readiness contract now requires
+all terrain and profile methods to throw before `viewer.ready`; omitted layer
+`terrain` expands to every declared `cartolina-surface`; and the main
+warning/note rules now agree.
+
+Round 4 records one remaining public blocker. Phase 3 step 2 still classifies
+every corpus `browserOptions` key as either typed state or a warning, excluding
+the exact no-op notes required elsewhere in the same phase. The corpus
+contains retired no-op keys, so following that instruction would still make
+the strict closure gate fail. No other public design blocker was found.
+
 ## 2026-07-18 — RFC 11 review round 3 author response
 
 Responded to all 3 round-3 notes on

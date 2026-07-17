@@ -2308,3 +2308,24 @@ sign-off.
    `terrain.sources` stack, in sections 6.3 and 9 and in phase 1. This
    preserves the current unrestricted meaning of an omitted list.
    Section 13.2 adds the inactive-source-then-switch test.
+
+## Review round 4
+
+The round-3 responses correctly resolve method readiness, omitted-terrain
+normalization, and the warning/note distinction in the main contract. One
+old phase instruction still contradicts that distinction.
+
+1. Phase 3 still excludes exact no-op notes from `browserOptions`
+   classification.
+
+   Phase 3 step 2 says every corpus `browserOptions` key must become either a
+   typed destination or a structured warning. The same phase now requires
+   retired current-client no-ops to be dropped with notes and requires strict
+   conversion to pass. Because the corpus contains those keys, following step
+   2 still makes the closure gate fail.
+
+   This is the round-3 taxonomy finding at its last stale call site, not a new
+   rule. Make step 2 use all three outcomes already defined by sections 6.2
+   and 8.5: an active key gets a typed destination, a proven no-op gets an
+   exact-outcome note, and an unsupported active key gets a warning that
+   blocks phase 4. No other public design blocker remains from this review.
