@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 3 author response
+
+Responded to all 3 round-3 notes on
+[RFC 11](rfc11-mapconfig-to-style.md); every note is adopted. All three
+were consistency defects in the round-2 application, not new design.
+
+Section 6.2 and the phase-3 gate now state the single no-op-drop rule
+(active corpus fields get typed destinations; proven current-client
+no-ops drop with exact-outcome notes), removing the last statements
+that would have made the strict gate unsatisfiable. The runtime
+mutation API gains a readiness contract: all four primitive terrain
+methods and both profile methods throw before `viewer.ready` resolves,
+with no pending-operation queue; the construction example awaits
+readiness. Omitted layer `terrain` normalization is pinned to every
+`cartolina-surface` entry in the `sources` dictionary, independent of
+the initial active stack, preserving the existing unrestricted
+meaning. Section 13.2 gains the pre-ready-throw and
+inactive-source-then-switch tests. The RFC stays `In review`.
+
 ## 2026-07-18 — RFC 11 review round 3
 
 Reviewed the round-2 author response in

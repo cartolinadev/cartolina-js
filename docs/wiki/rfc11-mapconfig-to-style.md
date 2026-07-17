@@ -16,6 +16,10 @@ gate moves into phase 3 and no-op drops become informational notes, the
 existing `LayerBase` generic and diffuse type default are preserved,
 inline metadata rules are scoped off URL sources, and lettering terrain
 applicability gets the executable stack-intersection contract
+**Updated:** 2026-07-18 — review round 3 response: one no-op-drop rule
+stated everywhere, mutation methods gain the throw-before-`ready`
+contract, omitted `terrain` expands against all declared
+`cartolina-surface` sources
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -540,10 +544,11 @@ implementation: a key that still affects style-map rendering gets a
 deliberate typed destination in `PublicConstructionConfig` — for the
 known corpus keys `mapFeaturesReduceMode` and `mapFeaturesReduceParams`
 this means promoting them from internal to public catalogue visibility
-as documented label-density options — and a dead or retired key
-produces a structured warning. The declared `viewerOptions` type is the
-real emitted type; the converter never widens it by assertion, and the
-migration example and precedence tests use it without a cast.
+as documented label-density options — and a key the current client
+ignores is dropped as an exact no-op with an informational note
+(section 8.5). The declared `viewerOptions` type is the real emitted
+type; the converter never widens it by assertion, and the migration
+example and precedence tests use it without a cast.
 
 `warnings` report recovered conversions: a deterministic fallback
 produced a usable result that may differ from the legacy rendering.
@@ -570,8 +575,12 @@ const viewer = cartolina.map({
     transformRequest,
 });
 
+await viewer.ready;
 viewer.applyVisibilityProfile(converted.profiles.satellite);
 ```
+
+The `await` is required: the runtime mutation methods throw before
+`viewer.ready` resolves (section 6.3).
 
 `transformRequest` is passed to both calls because the two hooks cover
 different requests: conversion-time fetches of referenced resources and
@@ -619,10 +628,12 @@ array. An empty array makes the layer inactive everywhere. The same
 method applies to every layer type.
 
 Runtime state is normalized: validation expands an omitted authored
-`terrain` into the explicit list of every terrain source declared by the
-style. `getLayerTerrainSources()` therefore always returns an explicit
-array copy, never an omitted-value sentinel, and a captured profile
-round-trips exactly.
+`terrain` into the explicit list of every `cartolina-surface` entry in
+the style's `sources` dictionary — independent of the initial
+`terrain.sources` stack, preserving the current unrestricted meaning of
+an omitted list. `getLayerTerrainSources()` therefore always returns an
+explicit array copy, never an omitted-value sentinel, and a captured
+profile round-trips exactly.
 
 `setTerrainSources()` changes the active terrain stack. It validates ids and
 preserves the caller's back-to-front order. A terrain source may remain
@@ -649,6 +660,15 @@ the contract the current runtime can execute.
 
 Unknown layer ids, duplicate source ids, and non-terrain ids throw. Runtime
 style mutation must not silently no-op.
+
+The methods also have a readiness precondition. Style construction is
+asynchronous, and until `viewer.ready` resolves no validated style
+state — layer ids, source ids, normalized terrain lists — exists to
+mutate or query. All four primitive terrain methods and both profile
+methods throw when called before readiness; there is no
+pending-operation queue. A second state machine for calls made before
+their targets exist is not justified by conversion, and a queued
+mutation could not be validated at call time without one.
 
 The existing `terrain` field moves from `TileLayerBase` to the common
 `LayerBase` and becomes the single authored terrain-applicability
@@ -1185,10 +1205,11 @@ while the candidate equals any explicit id in the style, a
 deterministic disambiguation suffix is appended until it is unique.
 Explicit ids are never rewritten; duplicate explicit ids are still
 rejected. Each omitted layer `terrain` expands to the explicit list of
-every terrain source declared by the style. Runtime overrides
-introduced by this RFC hold active terrain sources and per-layer
-terrain lists. The effective state is derived at
-commit time and exposed to terrain traversal and style compilation.
+every `cartolina-surface` entry in the `sources` dictionary, not the
+initially active stack (section 6.3). Runtime overrides introduced by
+this RFC hold active terrain sources and per-layer terrain lists. The
+effective state is derived at commit time and exposed to terrain
+traversal and style compilation.
 Existing runtime illumination and vertical-exaggeration setters remain
 separate rendering APIs.
 
@@ -1299,7 +1320,8 @@ Every step is additive; existing authored styles remain valid unchanged.
    consistency rules (section 7.1).
 3. Move `terrain` to the common base shared by every layer type and
    define an empty list as inactive everywhere; validation expands an
-   omitted list to the declared terrain sources.
+   omitted list to every `cartolina-surface` source-dictionary entry
+   (section 6.3).
 
 ### Phase 2: runtime mutation
 
@@ -1324,8 +1346,10 @@ Every step is additive; existing authored styles remain valid unchanged.
 5. Pass the compatibility closure gate: the full conversion corpus
    converts in strict mode — no-op drops surface as notes and do not
    fail; any warning is an open compatibility gap — and the snapshot
-   review and pre-removal rendering comparisons complete. Every corpus
-   field ends up represented by typed style or construction state; no
+   review and pre-removal rendering comparisons complete. One rule
+   applies everywhere: every behaviorally active corpus field has a
+   typed style or construction destination, and a field proven to be
+   a current-client no-op is dropped with an exact-outcome note. No
    opaque `legacy` field, no old parser called from the style loader.
 
 ### Phase 4: delete the second runtime
@@ -1408,6 +1432,12 @@ Unit and browser tests verify:
 - an authored style with omitted layer `terrain` round-trips through
   normalization: the getter returns the expanded explicit list and a
   captured profile reapplies exactly;
+- an omitted-`terrain` layer beside a declared but initially inactive
+  terrain source: after a direct terrain switch activates that source,
+  the layer applies to it without any mutation call;
+- every primitive terrain method and both profile methods throw when
+  called before `viewer.ready` resolves, and succeed after awaiting
+  it;
 - anonymous authored layers render unchanged and are addressable
   through their generated ids;
 - one sequence refresh and dirty mark per profile application;
@@ -2226,6 +2256,12 @@ sign-off.
    fields proven to be current-client no-ops may be dropped with exact-outcome
    notes. Then the strict closure gate has one satisfiable definition.
 
+   *Adopted.* Both stale statements were round-2 misses on my side.
+   Section 6.2 now says an ignored key is dropped as an exact no-op
+   with a note, and the phase-3 gate states the single rule in the
+   reviewer's formulation: active fields get typed destinations,
+   proven no-ops drop with notes.
+
 2. The new runtime mutation API needs a readiness contract.
 
    The typical construction example calls `applyVisibilityProfile()`
@@ -2244,6 +2280,14 @@ sign-off.
    state machine solely for calls made before their targets exist and is not
    justified by conversion.
 
+   *Adopted.* The narrower design is taken: section 6.3 specifies that
+   all four primitive terrain methods and both profile methods throw
+   before `viewer.ready` (an existing `Viewer` promise) resolves, with
+   no pending-operation queue — a queued mutation could not be
+   validated at call time. The section 6.2 example awaits readiness
+   before applying the profile, and section 13.2 tests the pre-ready
+   throw and post-ready success for every method.
+
 3. Omitted layer `terrain` must expand against a precisely named set.
 
    "Every terrain source declared by the style" can mean every
@@ -2258,3 +2302,9 @@ sign-off.
    with an omitted layer, an initially inactive declared terrain source, and a
    later direct terrain switch. Expanding only against the initial stack would
    silently narrow existing style behavior.
+
+   *Adopted.* Normalization is defined as every `cartolina-surface`
+   entry in the `sources` dictionary, independent of the initial
+   `terrain.sources` stack, in sections 6.3 and 9 and in phase 1. This
+   preserves the current unrestricted meaning of an omitted list.
+   Section 13.2 adds the inactive-source-then-switch test.
