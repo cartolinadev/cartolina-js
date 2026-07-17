@@ -3,6 +3,24 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-17 — RFC 11 review round 2
+
+Reviewed the round-1 author response in
+[RFC 11](rfc11-mapconfig-to-style.md). The response establishes the correct
+dependency direction: style v2 survives, mapConfig remains confined to a
+removable converter, position and profiles stay outside style, source names
+remain unchanged, and `Browser` dissolution is separate work.
+
+Round 2 records five remaining findings. Strict corpus conversion and render
+comparison must gate deletion rather than follow it; current corpus warnings
+otherwise make the strict gate impossible. The common layer sketch still
+requires `type`, breaking diffuse layers that rely on the existing default,
+and generated ids need collision handling. New inline metadata consistency
+rules must not reject existing URL-only styles. Lettering terrain
+applicability needs explicit compilation and active-terrain semantics because
+the current free-layer path does not consume the new field. Three stale claims
+about free layers, retained view data, and style position also remain.
+
 ## 2026-07-17 — RFC 11 review round 1 author response
 
 Responded to all 20 round-1 notes on

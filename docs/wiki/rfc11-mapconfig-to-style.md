@@ -2004,3 +2004,96 @@ decision.
     input (sections 2.6 and 9). Duplicate explicit ids are rejected;
     section 13.2 tests unchanged rendering and generated-id
     addressability.
+
+## Review round 2
+
+The round-1 architectural boundary is now stated correctly: style survives,
+mapConfig is confined to conversion, and the style contract is not reshaped
+around legacy concepts. The remaining findings concern contradictions and
+runtime contracts introduced while applying that boundary.
+
+1. Compatibility closure must gate runtime deletion, not follow it.
+
+   Phase 4 deletes the mapConfig runtime, while phase 5 then runs the corpus
+   strictly and "closes compatibility gaps." At that point the live reference
+   path is gone. Phase 3 must finish strict conversion, snapshot review, and
+   rendering comparisons while both paths still exist; phase 4 may start only
+   after that gate passes. There must be no post-deletion phase whose purpose
+   is to discover or close conversion gaps.
+
+   The current strict gate cannot pass in any case. `legacy-benatky` is in the
+   normative corpus specifically to produce an ignored-glue warning, and
+   `tacoma-fitonly` contains dead or retired browser options that also produce
+   warnings. Strict mode promotes every warning to an error. If dropping a
+   field exactly preserves the current client's no-op behavior, classify that
+   result as an informational note. If dropping it can change behavior, it is
+   a compatibility gap that must be resolved before deletion. Move the strict
+   gate into phase 3 and make every corpus case pass it.
+
+2. The proposed common `LayerBase` still breaks valid version-2 styles.
+
+   The sketch makes `type: string` mandatory for every layer. The current
+   `DiffuseMapLayer` deliberately permits an omitted type, defaulting to
+   `diffuse-map`, and shipped styles such as `satellite.json`, `complex.json`,
+   and `full.json` use that form. Adding optional `id` and `terrain` must not
+   remove that existing default. Preserve the current generic and
+   `DiffuseMapLayer` override rather than replacing it with the sketched
+   required field.
+
+   Generated ids also need a collision rule. "Layer type and array position"
+   is not sufficient when an explicit authored id can equal the generated
+   string. Define the generated namespace or collision-avoidance algorithm,
+   generate after applying the omitted diffuse type default, and test a style
+   containing both an anonymous layer and a colliding explicit id.
+
+3. Inline metadata validation must not impose a new rejection on URL sources.
+
+   Section 7.1 requires structurally equal frame, SRS, body, and service data
+   across every terrain source in a style. The current URL-source loader does
+   not have that contract: it takes the global tables from the first surface
+   document and only asserts that later reference-frame ids agree. Applying
+   strict structural equality to existing URL-only styles would violate the
+   promise that every accepted version-2 style keeps loading unchanged.
+
+   Scope the new equality and credit-conflict rules to the additive inline
+   form used by converter output. Existing URL forms retain their current
+   acceptance behavior. A future proposal may strengthen URL-source
+   consistency after auditing authored styles, but conversion cannot silently
+   introduce that breaking validation. Define structural equality as well:
+   record key order must not matter, while array order and canonical URL values
+   do.
+
+4. Terrain applicability for lettering layers has no executable contract.
+
+   Tile layers are evaluated per terrain tile: `TileRenderRig` checks the
+   layer's `terrain` list against `resourceSurface.styleSourceId`. Lettering
+   layers are different today. `MapStyle.refreshSequences()` groups every
+   label and line rule by free-layer source, compiles them into one VTS
+   stylesheet, and schedules that free layer once. It strips only `id`,
+   `type`, and `source`, so merely adding `terrain` to the common base would
+   copy an unimplemented Cartolina field into the legacy stylesheet rather
+   than control the rule.
+
+   Specify the smaller behavior that this runtime can implement. If a
+   lettering rule is active when its applicability list intersects the active
+   terrain stack, say so; exclude inactive rules during stylesheet compilation
+   and recompile when either the rule list or active terrain stack changes. If
+   the API instead promises true per-surface lettering, the existing free-layer
+   path cannot provide it and the common contract must be narrowed. Add a
+   multi-terrain test with two rules over one geodata source, different terrain
+   lists, and a direct terrain switch.
+
+5. Remove statements left over from the rejected design.
+
+   Three normative statements contradict the revised body:
+
+   - invariant 11 says "free layer" exists only in the converter, although
+     `cartolina-freelayer` remains a public discriminator and the internal
+     free-layer drawing path is explicitly preserved;
+   - alternative 14.7 says the conversion result preserves original and
+     translated view data, but that data and wrapper were removed; and
+   - the Expected Result still promises a style-defined default position,
+     although `position` now travels beside the style.
+
+   Correct all three before sign-off. The final RFC must not leave the old
+   architecture as an alternative description of the accepted one.
