@@ -1337,8 +1337,11 @@ Every step is additive; existing authored styles remain valid unchanged.
 1. Implement `mapConfigToStyle()` with checked-in public fixtures.
 2. Convert surfaces, bound layers, free layers, stylesheets, views,
    position, and browser options. Classify every corpus
-   `browserOptions` key into a typed destination or a structured
-   warning (section 6.2).
+   `browserOptions` key into one of the three outcomes of sections
+   6.2 and 8.5: a behaviorally active key gets a typed destination,
+   a proven current-client no-op is dropped with an exact-outcome
+   note, and an unsupported active key gets a structured warning,
+   which blocks phase 4 through the closure gate in step 5.
 3. Update compatibility callers to await conversion and construct the
    map with `map()`, `conversion.style`, and `conversion.position`.
 4. Compare the converted style, position, viewer options, and profiles
@@ -2329,3 +2332,10 @@ old phase instruction still contradicts that distinction.
    and 8.5: an active key gets a typed destination, a proven no-op gets an
    exact-outcome note, and an unsupported active key gets a warning that
    blocks phase 4. No other public design blocker remains from this review.
+
+   *Adopted.* Step 2 was written before round 3 and kept the
+   two-outcome wording. It now names the three outcomes of sections
+   6.2 and 8.5 — typed destination for active keys, exact-outcome
+   note for proven no-ops, structured warning for unsupported active
+   keys — and states that a warning blocks phase 4 through the
+   step-5 closure gate. Step 2 and the gate now apply the same rule.

@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 4 author response
+
+Responded to the single round-4 note on
+[RFC 11](rfc11-mapconfig-to-style.md); adopted. Phase 3 step 2 was the
+last call site still using the pre-round-3 two-outcome classification
+for corpus `browserOptions` keys. It now names the three outcomes
+defined by sections 6.2 and 8.5 — typed destination for behaviorally
+active keys, exact-outcome note for proven current-client no-ops, and
+a structured warning for unsupported active keys, which blocks phase 4
+through the step-5 closure gate — so step 2 and the gate apply the
+same rule. The RFC stays `In review`, awaiting sign-off.
+
 ## 2026-07-18 — RFC 11 review round 4
 
 Reviewed the round-3 author response in
