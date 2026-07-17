@@ -175,8 +175,10 @@ the RFC with their notes. The author then:
 2. Addresses each note in the document — fixing, partially fixing, or
    rejecting with explanation.
 3. Below each reviewer note, appends an italicised author comment
-   using one of: *Implemented.*, *Partially implemented.*, or
-   *Rejected.*, followed by a brief explanation.
+   using one of: *Adopted.*, *Partially adopted.*, or *Rejected.*,
+   followed by a brief explanation. (Earlier RFCs used *Implemented.*
+   for the same verdict; that wording was retired because it reads as
+   a claim about code, not about the design text.)
 4. Does not alter the reviewer's original note text.
 5. Waits for the reviewer to either sign off or open the next round.
 

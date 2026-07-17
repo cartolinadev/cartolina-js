@@ -1,4 +1,4 @@
-# RFC 11: retire mapConfig maps from the runtime
+# RFC 11: retire legacy mapConfig support from Cartolina proper
 
 **Status:** In review
 **Opened:** 2026-07-13
@@ -6,6 +6,11 @@
 machinery untouched, `Browser` dissolution added, open questions resolved
 into design positions, conversion corpus widened to every mapConfig-based
 test URL
+**Updated:** 2026-07-17 — review round 1 response: the version-2 style
+contract is frozen, the conversion corpus becomes the compatibility
+contract, the conversion result returns visibility profiles and position
+beside the style, and `Browser` dissolution moves to separate follow-up
+work
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -24,6 +29,23 @@ both representations alive forces the core to implement their union and to
 branch wherever the models disagree. Converting at the input boundary pays
 that mismatch cost once and gives the rest of the library one contract.
 
+The two models are not peers, and this RFC does not merge them into a
+common model. Style is the surviving contract; mapConfig is legacy input
+accepted temporarily through a removable converter. The design boundary
+is:
+
+```text
+mapConfig -> converter -> existing style v2 + construction values
+existing style v2 -----------------------> one style runtime
+```
+
+The version-2 style contract is frozen in this RFC: every existing style
+remains valid and renders unchanged, and the converter emits the existing
+schema, source discriminators, and semantics. Style is extended only when
+a corpus input cannot otherwise convert and the extension is
+independently valid style functionality; every extension is additive and
+non-breaking.
+
 An independent compatibility adapter converts a mapConfig into a Cartolina
 style and associated construction defaults before map initialization. The
 adapter is called explicitly by applications and migration tools. It is not
@@ -33,10 +55,10 @@ constructor, loader, style state, layer sequencing, and rendering path.
 The runtime concepts `MapConfig`, `MapView`, `namedViews`, and
 `currentView_` are removed. The `style or mapConfig` branches in `Viewer`,
 `Map`, `LegacyMap`, terrain selection, free-layer selection, and refresh
-logic are removed with them. `Browser` (`src/browser/browser.js`)
-dissolves in the same effort: the mapConfig ingestion it hosts is
-removed, its surviving viewer glue moves into typed `Viewer` code, and
-the legacy module is deleted.
+logic are removed with them. The mapConfig ingestion hosted by `Browser`
+(`src/browser/browser.js`) is removed as part of the same deletion.
+Dissolving the rest of `Browser` into typed `Viewer` code is separate
+follow-up work; deleting the mapConfig path does not depend on it.
 
 The replacement for the visibility part of a named view is a
 **visibility profile**: a Viewer-level value that atomically selects terrain
@@ -44,12 +66,12 @@ sources and controls layer visibility or per-terrain applicability. Profiles
 are not stored in `StyleSpecification`. Applications own any names or preset
 registry; the style remains a MapLibre-shaped description of one map.
 
-The primitive layer API expresses Cartolina's terrain-aware visibility
-directly:
+The primitive layer API expresses Cartolina's terrain-aware layer
+applicability directly:
 
 ```ts
-viewer.setLayerVisibility('roads', ['world-terrain']);
-viewer.setLayerVisibility('roads', []); // hidden on every terrain
+viewer.setLayerTerrainSources('roads', ['world-terrain']);
+viewer.setLayerTerrainSources('roads', []); // inactive on every terrain
 ```
 
 Terrain-stack selection and atomic profile application remain separate:
@@ -184,27 +206,54 @@ and restore a named combination of mutations.
 
 ### 2.5 Target vocabulary
 
-The Cartolina model has sources, terrain, and layers. Every drawable or
-styleable item is a layer. Diffuse imagery, bump maps, specular maps, labels,
-and lines have different layer types and internal processors, but no public
-category separates them.
+The Cartolina model has sources, terrain, and layers. Every layer is
+selected, ordered, and controlled through one contract. Diffuse imagery,
+bump maps, specular maps, labels, and lines have different layer types
+and internal processors, but no public category separates them.
+
+One drawable is deliberately outside the layer stack: a terrain surface
+with internal textures (`resourceSurface.textureUrl`) draws that texture
+as intrinsic terrain material. It is part of the terrain source's own
+data, has no style layer id, and is not addressable by the layer
+mutation API. `legacy-benatky` in the conversion corpus exercises this
+case.
+
+Three terms distinguish the shapes involved in loading a source:
+
+- a **source specification** is one entry in the style root's `sources`
+  dictionary, keyed by a unique style source id; its `type` selects a
+  loader, and it supplies either a URL or equivalent inline data;
+- a **source definition** is the fetched or inline data that the loader
+  consumes;
+- a **source instance** is the runtime loader object built from the
+  definition.
+
+The source types relate to the rest of the style as follows:
+
+- a terrain source (`cartolina-surface`) is selected and ordered by
+  `terrain.sources` and supplies terrain geometry plus the metadata
+  needed to interpret it;
+- a raster source (`cartolina-tms`) supplies tiled raster data and
+  becomes visible only through a style layer that references its id;
+- a geodata source (`cartolina-freelayer`) supplies monolithic or tiled
+  geodata and becomes visible only through one or more style layers
+  that reference its id;
+- several layers may share one raster or geodata source without
+  creating several source or GPU-resource instances.
+
+These are the existing version-2 discriminators. This RFC does not
+rename or reinterpret them; renaming is a possible separate style
+proposal (section 4).
 
 “Bound layer” and “free layer” are VTS input terms. This RFC uses them only
 when naming mapConfig fields, explaining conversion, or identifying legacy
 code to delete. They do not appear in the target style schema, Viewer API,
 core map model, or current-behavior documentation after implementation.
 
-Style source discriminators describe the data being loaded, not a parallel
-layer hierarchy:
-
-- `cartolina-terrain` supplies terrain geometry and metadata;
-- `cartolina-raster` supplies tiled raster data used by style layers;
-- `cartolina-geodata` supplies tiled vector or label data used by style
-  layers.
-
 The source type selects a loader. The layer type selects a processor. All
-layers still share one array, identity, ordering, visibility, and terrain
-applicability contract.
+layers share one array, identity, ordering, and terrain applicability
+contract; the source discriminators describe the data being loaded, not
+a parallel layer hierarchy.
 
 ### 2.6 Layer identity is incomplete
 
@@ -212,23 +261,30 @@ Lettering layers have ids. Terrain texture and constant layers do not. A
 MapLibre-like runtime style API requires every mutable layer to have a
 stable, unique id.
 
-The style schema must therefore require `id` on every layer before runtime
-layer mutation is introduced. Validation rejects duplicate ids.
+Making `id` mandatory in the schema would break existing authored
+styles, which use anonymous tile layers. The schema therefore keeps `id`
+optional. The converter emits an explicit stable id on every layer it
+generates, and validation assigns a deterministic generated id to each
+anonymous authored layer in the runtime style state (section 9) so the
+mutation API can address it. Validation rejects duplicate explicit ids.
+Anonymous authored styles stay valid, render unchanged, and are never
+mutated in place.
 
-### 2.7 Default position is split from the style
+### 2.7 Default position travels beside the style
 
 `map()` accepts an optional `position` construction option, but a style
-cannot carry its own default position, while a mapConfig can. A
-converted mapConfig therefore cannot remain self-describing: its
-authored position would have to travel beside the style instead of
-inside it.
+cannot carry its own default position, while a mapConfig can. The
+converted initial position therefore travels beside the style in the
+conversion result, and the application passes it to `map()`.
 
-The [MapLibre style root specification][maplibre-style-root] defines default
-camera properties at the style root. They apply only when construction
-options or application state did not set the camera. Cartolina should use
-the same precedence rule with its native position representation.
+The [MapLibre style root specification][maplibre-style-root] defines
+default camera properties at the style root, but adding a Cartolina
+equivalent is a style-contract extension that conversion does not
+require. The conversion result is deliberately wider than a style, so
+it is the natural home for the value. A future proposal may add
+authored style camera defaults if applications need them.
 
-### 2.8 `Browser` is the last legacy construction shell
+### 2.8 `Browser` hosts the mapConfig ingestion
 
 `Viewer` is a typed facade constructed over `Browser`
 (`src/browser/browser.js`), a legacy JS module. `Browser` ingests the
@@ -239,15 +295,16 @@ options through `getView()` / `setView()`, and constructs and wires the
 UI, autopilot, control-mode, presenter, and ROI helpers.
 
 Removing the mapConfig model deletes the format-specific part of that
-list. What remains is viewer glue with no format content: sub-object
-construction, config watchers, per-tick dispatch, position-in-URL
-updates, and teardown. Keeping a legacy JS constructor as the body of
-every `Viewer` would preserve the shell of the removed model and keep
-the public object's construction path in untyped code. The remainder
-is small enough to absorb into typed `Viewer` code within the same
-effort, and the direction is already recorded: the vts-era `Browser`
-config accessors were removed ahead of this RFC with the note that the
-remaining names retire when `Browser` dissolves.
+list: the config-bag ingestion, the `browserOptions` re-application,
+the `view` command, and the View-based activation of the `geojson` /
+`geodata` options. What remains is viewer glue with no format content:
+sub-object construction, config watchers, per-tick dispatch,
+position-in-URL updates, and teardown. Dissolving that remainder into
+typed `Viewer` code is worthwhile — the direction is already recorded
+in the removal of the vts-era `Browser` config accessors — but it is
+not required to delete the mapConfig path. It is tracked as separate
+follow-up work with its own construction, ownership, and teardown
+design, outside this RFC's completion criteria.
 
 ## 3. Goals
 
@@ -264,25 +321,33 @@ the input boundary.
 2. Make style initialization the only internal map initialization path.
 3. Keep legacy mapConfig documents usable through one explicit, removable
    compatibility boundary.
-4. Remove mapConfig and View state, branches, and methods from `Viewer`,
-   `Map`, `LegacyMap`, traversal, and layer compilation.
-5. Dissolve `Browser` into `Viewer`: delete `src/browser/browser.js`
-   once its mapConfig ingestion is removed and its surviving glue is
-   moved to typed code.
-6. Ensure core map and renderer code cannot observe whether a style was
+4. Keep every existing version-2 style valid and rendering unchanged.
+   The converter emits the existing style schema, discriminators, and
+   semantics; the converter remains removable without changing style or
+   runtime code.
+5. Make the conversion corpus (section 8.6) the normative compatibility
+   contract: fields and grammar forms exercised by corpus inputs
+   convert exactly; fields outside the corpus produce structured
+   unsupported-field warnings and gain no new style or runtime
+   representation.
+6. Remove mapConfig and View state, branches, and methods from `Viewer`,
+   `Map`, `LegacyMap`, traversal, and layer compilation, together with
+   the mapConfig ingestion hosted by `Browser`.
+7. Ensure core map and renderer code cannot observe whether a style was
    authored directly or converted.
-7. Move format reconciliation into a deterministic compiler that can be
+8. Move format reconciliation into a deterministic compiler that can be
    tested without DOM, WebGL, or a running map.
-8. Report compatibility loss at conversion time with actionable errors or
+9. Report compatibility loss at conversion time with actionable errors or
    structured warnings instead of reduced behavior later in the runtime.
-9. Provide a flat runtime layer visibility API over the single style model.
-10. Preserve Cartolina's terrain-specific ability to activate terrain
+10. Provide a flat runtime layer terrain-applicability API over the
+    single style model.
+11. Preserve Cartolina's terrain-specific ability to activate terrain
     sources and apply one layer to selected terrain sources.
-11. Translate named mapConfig views into Viewer-level visibility profiles
-    returned separately from the style, without
-    retaining the View data model.
-12. Add an optional style default position with construction-option
-    precedence.
+12. Translate named mapConfig views into Viewer-level visibility
+    profiles returned beside the style, without retaining the View data
+    model.
+13. Return the converted initial position beside the style, feeding the
+    existing `map()` construction option.
 
 These goals reduce future feature work as well as current code. A new layer
 or rendering capability has one authored representation, one validation
@@ -292,6 +357,22 @@ the feature.
 
 ## 4. Non-goals
 
+- The style contract is not redesigned. Style is the surviving model;
+  anything that makes style resemble mapConfig is out of scope.
+  Compatibility is implemented in the converter, not in the surviving
+  model. Style extensions are limited to what a named corpus input
+  needs and must be additive, non-breaking, and independently valid
+  style functionality.
+- The source discriminators are not renamed. `cartolina-surface`,
+  `cartolina-tms`, and `cartolina-freelayer` stay as they are. Better
+  public names (for example `cartolina-terrain`, `cartolina-raster`,
+  and `cartolina-vector`) may be worth having, but they are a separate
+  non-breaking alias proposal with its own canonicalization and
+  serialization rules, not part of mapConfig conversion.
+- `Browser` is not dissolved here. This RFC removes only its mapConfig
+  ingestion; moving the surviving viewer glue into typed `Viewer` code
+  and deleting `src/browser/browser.js` is separate follow-up work
+  with its own construction and teardown design.
 - Backward compatibility for the old wrapper-object API is not restored.
 - A visibility profile is not authored style, a camera bookmark, or a
   general rendering preset. Applications own profile names and storage.
@@ -308,12 +389,10 @@ the feature.
   `addFreeLayer()` / `removeFreeLayer()` methods keep their current
   behavior. The free-layer mechanism has its own future refactoring;
   this RFC only removes the View-based call sites around it.
-- Dissolving `Browser` does not port the UI, autopilot, control-mode,
-  presenter, or ROI helpers to TypeScript. They remain legacy JS
-  modules; only the glue that constructs and wires them becomes typed
-  `Viewer` code.
 - The converter does not make every historical VTS extension part of the
-  Cartolina style specification.
+  Cartolina style specification. The corpus bounds what must convert
+  exactly; a field recognized only by the dead parsers gets a
+  structured unsupported-field warning, not new code.
 - The converter does not preserve ignored virtual-surface or glue client
   behavior. Those concepts are already absent from the client renderer.
 
@@ -328,7 +407,10 @@ After this RFC:
    be renamed when `LegacyMap` is absorbed into `Map`.
 4. The authored style is the immutable baseline for runtime style state.
 5. Runtime mutations do not edit the caller's style object.
-6. Every style layer has a unique id.
+6. Every layer in runtime style state has a unique id: explicit
+   authored and converter-generated ids are unique, and anonymous
+   authored layers receive deterministic generated ids at validation.
+   Anonymous authored styles remain valid and render unchanged.
 7. A visibility-profile operation is atomic: a frame sees either the old
    style visibility or the complete new visibility state.
 8. `Viewer` expands a visibility profile into primitive style mutations.
@@ -343,9 +425,13 @@ After this RFC:
 12. Applying a visibility profile does not enter a profile mode. Later
     direct mutations and later profile applications follow normal call
     order; the last operation affecting a value wins.
-13. `src/browser/browser.js` does not exist. `Viewer` constructs and
-    owns its collaborators from typed code; the legacy JS modules it
-    still uses are leaf helpers, not construction shells.
+13. No `Browser` code reads mapConfig state: the config-bag ingestion,
+    `browserOptions` re-application, `view` command, and View-based
+    construction options are gone from `src/browser/browser.js`. The
+    module itself survives until the separate dissolution work.
+14. The version-2 style schema accepted before this RFC is still
+    accepted, with identical rendering. Additions to the schema are
+    optional fields only.
 
 ## 6. Public API
 
@@ -374,30 +460,21 @@ MapLibre permits it to be omitted and supplied later, but accepting an empty
 map before that lifecycle exists would add another partial construction
 state.
 
-`MapOptions.position` stays optional. Camera precedence is:
-
-1. the explicit constructor `position`;
-2. application camera state established before style readiness;
-3. the style root `position`;
-4. the existing computed fallback.
-
-The style addition is:
-
-```ts
-interface StyleSpecification {
-    position?: PositionInput;
-}
-```
-
-Cartolina uses one native position field instead of copying MapLibre's
-Web-Mercator-specific `center`, `zoom`, `bearing`, and `pitch` fields. The
-precedence matches MapLibre even though the representation differs.
+`MapOptions.position` stays optional, and camera behavior is unchanged:
+an explicit constructor `position` wins, otherwise the existing computed
+fallback applies. The style contract gains no position field; a
+converted mapConfig's initial position is returned beside the style
+(section 6.2) and passed to `map()` by the application. No new
+pre-readiness camera state is introduced. The existing limitation that
+`Viewer.setPosition()` is a no-op before the map is created predates
+this RFC and is unchanged by it.
 
 The `browser(element, config)` factory is removed, together with
 `BrowserConfig` and the mapConfig-preserving `configFromUrl()` helper.
 Compatibility means that mapConfig data can be converted, not that its
-constructor or public API survives. The internal `Browser` class does
-not remain either; section 6.6 dissolves it into `Viewer`.
+constructor or public API survives. The internal `Browser` class loses
+its mapConfig ingestion (section 6.6) and is dissolved in separate
+follow-up work.
 
 ### 6.2 Independent conversion
 
@@ -408,18 +485,11 @@ type MapConfigInput = string | Record<string, unknown>;
 
 interface MapConfigConversion {
     style: MapStyle.StyleSpecification;
+    position: PositionInput | null;
     viewerOptions: Partial<PublicConstructionConfig>;
-    views: Record<string, ConvertedMapConfigView>;
-    initialView: ConvertedMapConfigView | null;
+    profiles: Record<string, Viewer.VisibilityProfile>;
     warnings: MapConfigConversionWarning[];
-}
-
-interface ConvertedMapConfigView {
-    original: MapConfigViewDefinition;
-    visibility: Viewer.VisibilityProfile;
-    illumination?: MapStyle.IlluminationSpecification;
-    verticalExaggeration?:
-        MapStyle.VerticalExaggerationSpecification;
+    notes: MapConfigConversionNote[];
 }
 
 interface MapConfigConversionWarning {
@@ -427,6 +497,12 @@ interface MapConfigConversionWarning {
     path: string;
     message: string;
     recovery: string;
+}
+
+interface MapConfigConversionNote {
+    code: string;
+    path: string;
+    message: string;
 }
 
 async function mapConfigToStyle(
@@ -440,38 +516,56 @@ async function mapConfigToStyle(
 ): Promise<MapConfigConversion>;
 ```
 
-The result is wider than a bare style because `browserOptions` are viewer
-construction defaults and named views are application-level presets, not
-authored rendering state. Putting either into the style would deepen an
-existing layering mistake. The application merges `viewerOptions` below its
-own constructor options, preserving the current rule that caller
-configuration wins. `views` preserves the original named-view definitions
-and their translations; `initialView` does the same for the selected
-possibly anonymous view. The style loader receives neither field.
+The result is wider than a bare style because a mapConfig carries more
+than authored rendering state. `position` is the converted initial
+position; the application passes it to `map()`. `viewerOptions` are
+viewer construction defaults from `browserOptions`; the application
+merges them below its own constructor options, preserving the current
+rule that caller configuration wins. `profiles` are the named views
+translated into plain visibility profiles (section 6.4); the converter
+returns no legacy view definitions and no wrapper type around the
+profiles. The style loader receives none of these fields.
+
+Every `browserOptions` key found in a corpus input is classified during
+implementation: a key that still affects style-map rendering gets a
+deliberate typed destination in `PublicConstructionConfig` — for the
+known corpus keys `mapFeaturesReduceMode` and `mapFeaturesReduceParams`
+this means promoting them from internal to public catalogue visibility
+as documented label-density options — and a dead or retired key
+produces a structured warning. The declared `viewerOptions` type is the
+real emitted type; the converter never widens it by assertion, and the
+migration example and precedence tests use it without a cast.
+
+`warnings` report recovered conversions: a deterministic fallback
+produced a usable result that may differ from the legacy rendering.
+`notes` report informational diagnostics about exact conversions, such
+as a deterministic symbol rename whose references were all rewritten
+(section 8.3). Strict mode fails on warnings, never on notes.
 
 Typical compatibility construction is explicit:
 
 ```ts
-const converted = await mapConfigToStyle(mapConfig, conversionOptions);
+const converted = await mapConfigToStyle(mapConfigUrl, {
+    transformRequest,
+});
 
 const viewer = cartolina.map({
     container,
     style: converted.style,
+    position: converted.position ?? undefined,
     options: {
         ...converted.viewerOptions,
         ...applicationOptions,
     },
+    transformRequest,
 });
 
-const satellite = converted.views.satellite;
-viewer.applyVisibilityProfile(satellite.visibility);
-if (satellite.illumination) {
-    viewer.setIllumination(satellite.illumination);
-}
-if (satellite.verticalExaggeration) {
-    viewer.setVerticalExaggeration(satellite.verticalExaggeration);
-}
+viewer.applyVisibilityProfile(converted.profiles.satellite);
 ```
+
+`transformRequest` is passed to both calls because the two hooks cover
+different requests: conversion-time fetches of referenced resources and
+stylesheets, and runtime tile, image, and glyph requests.
 
 `MapConfigViewDefinition` is the validated legacy input type owned by the
 converter. It is not exported as part of the map or style API.
@@ -481,11 +575,16 @@ For a URL input, the document URL supplies the base URL. For an object input,
 ambiguous relative URL instead of resolving it against the current page.
 
 The function performs I/O needed to resolve referenced mapConfig resources
-and stylesheets. `transformRequest` applies to those requests. The returned
-style is JSON-serializable and can be inspected, edited, cached, or supplied
-to the `map()` factory. Warnings identify both the input location and the
-deterministic recovery that was applied, so a caller can decide whether the
-converted result is acceptable.
+and stylesheets. `transformRequest` applies to those requests, and it
+changes transport details only. A referenced source or stylesheet is
+resolved against the logical URL of the document that contains it;
+`transformRequest` is then applied to the resulting request. The emitted
+style stores logical, canonical URLs, never proxy or credential-bearing
+transport URLs. The returned style is JSON-serializable and can be
+inspected, edited, cached, or supplied to the `map()` factory. Warnings
+identify both the input location and the deterministic recovery that was
+applied, so a caller can decide whether the converted result is
+acceptable.
 
 ### 6.3 Runtime layer methods
 
@@ -493,17 +592,27 @@ converted result is acceptable.
 profiles or need a one-off change:
 
 ```ts
-viewer.setLayerVisibility(layerId, terrainIds);
-viewer.getLayerVisibility(layerId);
+viewer.setLayerTerrainSources(layerId, terrainIds);
+viewer.getLayerTerrainSources(layerId);
 
 viewer.setTerrainSources(sourceIds);
 viewer.getTerrainSources();
 ```
 
-`setLayerVisibility()` replaces the layer's active terrain-source list. It
-validates every id as a terrain source and stores a copy of the array. An
-empty array makes the layer inactive everywhere. The same method applies to
-every layer type.
+The methods are named for what they mutate: a layer's terrain-source
+applicability list, not visibility in the MapLibre sense. The plain
+`visibility` name stays free for a later visible/hidden layer property.
+
+`setLayerTerrainSources()` replaces the layer's active terrain-source
+list. It validates every id as a terrain source and stores a copy of the
+array. An empty array makes the layer inactive everywhere. The same
+method applies to every layer type.
+
+Runtime state is normalized: validation expands an omitted authored
+`terrain` into the explicit list of every terrain source declared by the
+style. `getLayerTerrainSources()` therefore always returns an explicit
+array copy, never an omitted-value sentinel, and a captured profile
+round-trips exactly.
 
 `setTerrainSources()` changes the active terrain stack. It validates ids and
 preserves the caller's back-to-front order. A terrain source may remain
@@ -517,21 +626,25 @@ API.
 Unknown layer ids, duplicate source ids, and non-terrain ids throw. Runtime
 style mutation must not silently no-op.
 
-The existing `terrain` field moves to the common layer base and becomes the
-single authored visibility representation:
+The existing `terrain` field moves to the common layer base and becomes
+the single authored terrain-applicability representation. Both fields of
+the base are additive for layer types that lack them today:
 
 ```ts
 interface LayerBase {
-    id: string;
+    id?: string;
     type: string;
     terrain?: string[];
 }
 ```
 
-Every style layer type extends this common identity and terrain-applicability
-contract. Omitting `terrain` means all terrain sources in the style; an empty
-array means hidden. Source shape and internal processing vary by type; layer
-selection and mutation do not.
+Every style layer type extends this common identity and
+terrain-applicability contract. `id` stays optional in the authored
+schema so existing anonymous styles remain valid; runtime state assigns
+deterministic generated ids (section 9). Omitting `terrain` means all
+terrain sources in the style; an empty array means inactive everywhere.
+Source shape and internal processing vary by type; layer selection and
+mutation do not.
 
 ### 6.4 Viewer-level visibility profiles
 
@@ -561,16 +674,16 @@ const current = viewer.getVisibilityProfile();
 
 `Viewer` does not register or resolve profile names. An application can keep
 `Record<string, VisibilityProfile>` and pass the selected value. The
-mapConfig converter returns each profile inside `conversion.views` because
-mapConfig supplies named views, but that compatibility result does not
-become style state.
+mapConfig converter returns each profile inside `conversion.profiles`
+because mapConfig supplies named views, but that compatibility result
+does not become style state.
 
 The profile is a complete snapshot: active terrain sources plus the active
 terrain list for every style layer. `Viewer` rejects a profile that omits or
 names an unknown layer.
 
 `Viewer.applyVisibilityProfile()` translates that snapshot into the same
-primitive changes exposed by `setLayerVisibility()` and
+primitive changes exposed by `setLayerTerrainSources()` and
 `setTerrainSources()`. It submits those changes through a generic atomic
 style-mutation batch. Core `Map` sees only style property changes; it does
 not receive a `VisibilityProfile` or know why those changes were grouped.
@@ -591,7 +704,7 @@ Operations compose by call order:
 
 ```ts
 viewer.applyVisibilityProfile(base);
-viewer.setLayerVisibility('labels', []);
+viewer.setLayerTerrainSources('labels', []);
 
 // Captures `base` with labels now hidden.
 const modified = viewer.getVisibilityProfile();
@@ -600,7 +713,8 @@ const modified = viewer.getVisibilityProfile();
 viewer.applyVisibilityProfile(base);
 ```
 
-A direct `setLayerVisibility()` call replaces only that layer's terrain
+A direct `setLayerTerrainSources()` call replaces only that layer's
+terrain
 list. A direct `setTerrainSources()` call replaces only the active terrain
 stack; layer lists remain unchanged and may name currently inactive terrain
 sources in preparation for a later terrain switch.
@@ -615,12 +729,10 @@ piece of style visibility. A profile writes a saved complete snapshot. Once
 expanded by `Viewer`, core `Map` processes the same primitive mutations in
 both cases.
 
-### 6.6 `Browser` dissolves into `Viewer`
+### 6.6 `Browser` loses its mapConfig ingestion
 
-With the mapConfig model gone, `Browser` keeps no format-specific work
-(section 2.8). Its members split three ways.
-
-Removed with the mapConfig model:
+The mapConfig-specific members of `Browser` are removed with the
+mapConfig model:
 
 - the `originalConfig` capture and the re-application of mapConfig
   `browserOptions` after `map-loaded` (core `Map` already applies
@@ -633,25 +745,13 @@ Removed with the mapConfig model:
   removes, and no demo or test uses them. Applications build overlays
   with `createGeodata()` / `addFreeLayer()` directly.
 
-Moved into typed `Viewer` code:
-
-- construction of the UI, autopilot, control-mode, presenter, and ROI
-  sub-objects, and of the config store and core `Map`;
-- the config watchers for the UI control keys and autopilot options;
-- per-tick dispatch to the autopilot and UI;
-- position-in-URL updates and `getLinkWithCurrentPos()`;
-- teardown, which merges into `Viewer[Symbol.dispose]()`.
-
-Deleted afterwards: `src/browser/browser.js`, and the `map` and `view`
-fields of the internal `Viewer.Config` glue type. The deprecated
-`Viewer.ui`, `Viewer.autopilot`, and `Viewer.presenter` getters keep
-their behavior but type the `Viewer`-owned objects directly instead of
-through `Browser['...']` lookups.
-
-The dissolution is the last implementation phase. It depends on the
-mapConfig removals, but nothing in this RFC depends on it; if needed it
-can land as an independent follow-up series without reopening this
-design.
+The surviving viewer glue — sub-object construction, config watchers,
+per-tick dispatch, position-in-URL updates, and teardown — stays in
+`src/browser/browser.js` for now. Dissolving it into typed `Viewer`
+code is separate follow-up work (section 2.8); that work owes its own
+specification of construction order, ownership, disposal, and rollback
+when a constructor throws, and is not part of this RFC's completion
+criteria.
 
 ## 7. Style source representation
 
@@ -661,22 +761,43 @@ Conversion starts from a fetched aggregate mapConfig. The unified style
 loader must be able to consume the resource definitions already present in
 that document without pretending that each one has an independent endpoint.
 
-Each Cartolina source therefore accepts exactly one of a URL or inline data:
+Each style source specification therefore accepts exactly one of a URL
+or inline data. The addition is additive to the existing version-2
+specifications; URL-only sources stay valid unchanged:
 
 ```ts
 type SourceLocation<T> =
     | { url: string; data?: never }
     | { data: T; baseUrl: string; url?: never };
+
+interface StyleSpecification {
+    sources: {
+        [sourceId: string]: SourceSpecification;
+    };
+}
+
+// Sketch of one variant; the other discriminators follow the same
+// pattern with their own definition types.
+type SurfaceSourceSpecification = {
+    type: 'cartolina-surface';
+} & SourceLocation<SurfaceSourceDefinition>;
 ```
 
-The source types combine their target discriminator with the relevant
-location:
+The existing source types combine their discriminator with the relevant
+inline definition:
 
-- `cartolina-terrain` inline data is one terrain resource definition
-  plus the reference-frame, SRS, body, service, and credit metadata needed
-  to initialize it;
-- `cartolina-raster` inline data is a tiled raster source definition;
-- `cartolina-geodata` inline data is a tiled geodata source definition.
+- `cartolina-surface` inline data is one terrain resource definition
+  plus the reference-frame, SRS, body, service, and credit metadata
+  needed to initialize it;
+- `cartolina-tms` inline data is a tiled raster source definition;
+- `cartolina-freelayer` inline data is a union of the monolithic and
+  tiled geodata definitions that `MapSurface` already accepts. The
+  draw loop already routes monolithic geodata through
+  `drawMonoliticGeodata()` and tiled geodata through the tile tree;
+  the dispatch stays behind the existing discriminator. The corpus
+  requires the monolithic form: `a-3d-mountain-map` selects
+  `peaklist-org-ultras`, a free layer with one monolithic `geodata`
+  URL.
 
 Inline source support is part of the style loader, not a mapConfig escape
 hatch. Constructors receive resolved source data and a base URL through one
@@ -687,6 +808,24 @@ For a legacy mapConfig with several surfaces, the converter emits one
 terrain source per surface. Shared reference metadata is copied into each
 small inline source definition. Avoiding that small JSON duplication would
 require a second shared-resource context and is not worth another concept.
+
+Repeated inline metadata needs one deterministic contract, for authored
+and converted styles alike:
+
+- converter output is fully normalized: every URL embedded in inline
+  data is absolute, so a single `baseUrl` per source is sufficient and
+  no per-field provenance is needed;
+- authored styles may use either the URL or the inline form under the
+  same rule — relative URLs inside inline data resolve against that
+  source's `baseUrl` only;
+- the loader requires the reference frame and the shared SRS, body,
+  and service definitions to be structurally equal across all terrain
+  sources in one style; an inconsistency is a load error reported
+  before any map object is constructed, never resolved by keeping the
+  first source or letting terrain order decide;
+- credits merge by id; two definitions of the same credit id must be
+  structurally equal, otherwise loading fails with both source ids
+  named.
 
 ### 7.2 Source identity
 
@@ -706,13 +845,13 @@ The converter maps:
 
 | mapConfig field | conversion result |
 |---|---|
-| `surfaces` | one inline `cartolina-terrain` source per surface |
-| `boundLayers` | inline `cartolina-raster` sources |
-| `freeLayers` | inline `cartolina-geodata` sources |
+| `surfaces` | one inline `cartolina-surface` source per surface |
+| `boundLayers` | inline `cartolina-tms` sources |
+| `freeLayers` | inline `cartolina-freelayer` sources |
 | `stylesheets` | resolved into Cartolina geodata style layers |
-| `position` | style root `position` |
+| `position` | conversion result `position` |
 | `view` | initial layer visibility and root rendering properties |
-| `namedViews` | conversion result `views` with original and translated data |
+| `namedViews` | conversion result `profiles` |
 | `browserOptions` | conversion result `viewerOptions` |
 | frame/SRS/body/services/credits | inline surface resource metadata |
 
@@ -738,7 +877,7 @@ Each distinct layer presentation becomes a normal style layer with a stable
 id. If several views use the same source, type, styling properties, and
 terrain applicability, they share one layer. If those properties differ,
 the converter emits separate normal layers and the returned visibility
-profiles in `views` select the appropriate variant.
+profiles in `conversion.profiles` select the appropriate variant.
 
 For example, these incompatible per-surface orders:
 
@@ -787,22 +926,23 @@ into Cartolina root tables and Cartolina style layers.
 
 A VTS stylesheet is a module with four symbol spaces:
 
-- `layers`, which become entries in the Cartolina `layers` array;
+- `layers`, which become entries in the Cartolina `layers` array and
+  whose ids are also a referenceable symbol space;
 - `constants`, which become candidates for the root `constants` table;
 - `fonts`, which become candidates for the root `fonts` table;
 - `bitmaps`, which become candidates for the root `bitmaps` table.
 
 Several selected free layers, or several named views, can import
-stylesheets whose root tables use the same name. Cartolina has one table of
-each kind, so conversion includes a linker pass after all effective
-stylesheets have been loaded.
+stylesheets whose symbols use the same name in any of the four spaces.
+Cartolina has one root table of each kind and one flat layer-id space,
+so conversion includes a linker pass after all effective stylesheets
+have been loaded.
 
 The linker processes modules in deterministic source-id and view-id
-order:
+order, applying the same rules to all four symbol spaces:
 
-1. A symbol absent from the output table keeps its original name.
-2. A symbol with a structurally equal definition is coalesced without a
-   warning.
+1. A symbol absent from the output space keeps its original name.
+2. A symbol with a structurally equal definition is coalesced silently.
 3. A symbol with a different definition is assigned a deterministic
    module-qualified name.
 4. References in that module's layers and constants are rewritten to the
@@ -810,17 +950,24 @@ order:
 5. Dependencies are followed transitively. Renaming a constant also rewrites
    references from other constants in the same module.
 
+For layer symbols, rewriting covers every typed layer reference:
+`inherit`, `next-pass`, `selected-layer`, `selected-hover-layer`,
+`hover-layer`, and `visibility-switch`. When one legacy layer id maps to
+several target layers, the linker records a stable one-to-many mapping
+so each reference form resolves deterministically.
+
 Rewriting must understand the VTS stylesheet grammar. Constant references
 can be standalone strings or appear in string templates. Font and bitmap
 aliases occur in typed properties and can also be reached through constants.
 The linker parses those references and rewrites the expression tree. A blind
 text replacement can change label text and is not acceptable.
 
-Conflicting definitions are recoverable when every reference can be
-rewritten. The converter emits a warning that records the original name,
-the generated name, and both source modules. The warning exists because the
-output is no longer a straightforward flattening even when rendering is
-preserved.
+A collision whose definitions and references are all qualified and
+rewritten is an exact conversion: rendering is preserved and nothing was
+dropped. It produces an informational note recording the original name,
+the generated name, and both source modules — not a warning, and it
+never fails strict mode. The note exists because the output is no longer
+a straightforward flattening even though behavior is identical.
 
 When a reference cannot be classified or rewritten, the converter keeps the
 first definition, gives the later module a qualified definition where
@@ -837,26 +984,23 @@ layer will not render. Failure to expand one optional free layer does not
 prevent terrain and other independent layers from loading.
 
 The current `labels` and `lines` discriminators both compile to the same
-VTS stylesheet layer shape. Conversion uses the discriminator matching the
-enabled point or line properties. A rule that enables both splits into two
-style layers over the same geodata source — a `lines` layer and a `labels`
-layer with deterministic derived ids, the lines layer ordered first. Both
-discriminators compile back into the same internal stylesheet shape, so
-the split changes the authored representation, not the generated drawing
-jobs. A generic `geodata` layer type is rejected: it would reintroduce an
-untyped catch-all where the style schema is deliberately typed per aspect.
-A mixed-rule property that neither discriminator accepts is a conversion
-error; conversion never guesses from property names and never silently
-drops half of a mixed rule.
+VTS stylesheet layer shape. Conversion uses the discriminator matching
+the enabled point or line properties. No stylesheet selected by the
+conversion corpus mixes line drawing with point or label drawing in one
+rule, so mixed rules get no conversion machinery: a rule that neither
+discriminator accepts cleanly produces an unsupported-rule warning, is
+not emitted, and fails in strict mode. Rule identity — inheritance,
+multipass, selection, hover, packing, and visibility switches all refer
+to it — makes any split non-trivial, and conversion never guesses from
+property names or silently drops half of a rule. A generic `geodata`
+layer type is likewise rejected: it would reintroduce an untyped
+catch-all where the style schema is deliberately typed per aspect.
 
-Legacy geodata `depthOffset` and `maxLod` overrides become typed optional
-fields of the `cartolina-geodata` source specification. Their legacy scope
-is the free layer — one value per geodata source, not per stylesheet
-rule — so a source field preserves that scope exactly. Style-layer fields
-were considered and rejected: the converter would replicate one legacy
-value across every layer derived from the source and would need conflict
-rules for copies that later disagree. The overrides must not live in an
-opaque compatibility object or a separate geodata visibility model.
+Legacy geodata `depthOffset` and `maxLod` overrides appear nowhere in
+the conversion corpus, so they get no style or runtime representation.
+An input that contains either field produces a structured
+unsupported-field warning, promoted to an error in strict mode, per the
+corpus contract (goal 5).
 
 ### 8.4 View options
 
@@ -868,20 +1012,24 @@ generated style's initial terrain and layer visibility. Its supported
 - `superelevation` is normalized to the current typed
   `style['vertical-exaggeration']` representation.
 
-Each named view becomes a `ConvertedMapConfigView`. `original` preserves a
-clone of the input definition. `visibility` contains only the Viewer-level
-visibility snapshot. Supported illumination and superelevation are
-normalized into sibling fields, not added to `VisibilityProfile`.
+Each named view becomes one plain `VisibilityProfile` in
+`conversion.profiles`. No corpus input has a named view carrying
+rendering options, so the profile is the entire converted value: there
+is no wrapper type, no retained legacy view definition, and no optional
+illumination or exaggeration fields. Optional fields could not preserve
+the legacy semantics anyway — old `setView()` actively disables
+superelevation when the next view omits it, so "apply when present"
+would leave stale state behind.
 
-An application that wants view-like behavior applies `visibility` and the
-relevant existing rendering setters explicitly. The converter preserves the
-data needed for that operation without preserving `setView()` or introducing
-a View concept into the map.
+An application that wants view-like behavior applies the profile through
+`applyVisibilityProfile()`. A caller that needs the original view
+definitions for migration tooling already owns the input document.
 
-Unknown options on the selected view are conversion errors. Unknown options
-on other named views remain present in `original` and produce structured
-warnings. This prevents `VisibilityProfile` from becoming an untyped
-replacement for `MapView.options` without discarding the source data.
+Unknown options on the selected view are conversion errors. Any option —
+including `illumination` and `superelevation` — on a non-initial named
+view produces a structured warning and no output. This keeps
+`VisibilityProfile` from becoming an untyped replacement for
+`MapView.options`.
 
 An explicit `options.view` passed to `mapConfigToStyle()` wins over the
 mapConfig's initial view. A string resolves a named view. An object is
@@ -898,23 +1046,28 @@ from an external or stylesheet-reconciliation problem.
 
 Conversion has three outcomes for a field or dependency:
 
-- **exact**: represented without a warning;
+- **exact**: behavior is fully preserved; may carry an informational
+  note, such as a deterministic symbol rename whose references were all
+  rewritten (section 8.3);
 - **recovered**: a deterministic fallback produced a usable result and a
   structured warning describes the possible difference;
 - **fatal**: no coherent style can be constructed.
 
 Missing frame metadata, no usable terrain surface, malformed source ids, or
 an invalid resulting style are fatal. A failed optional free-layer
-stylesheet, a reconciled symbol collision, or an already ignored legacy
-construct is recoverable. The converter does not hide a visible difference:
-the warning names the omitted or rebound element and the recovery used.
+stylesheet, an unrewritable symbol reference, or an already ignored
+legacy construct is recoverable. A field or grammar form outside the
+conversion corpus is also recoverable: it produces an unsupported-field
+or unsupported-rule warning and gains no style or runtime
+representation. The converter does not hide a visible difference: the
+warning names the omitted or rebound element and the recovery used.
 
-`options.strict` promotes every recoverable outcome to an error. The
-default stays best-effort: the function exists to load historical
-documents, and refusing a whole map over one degraded optional layer
-would serve nobody at runtime. Strict mode serves migration tooling and
-checked-in fixtures, where a new warning must fail loudly instead of
-aging into an accepted diff.
+`options.strict` promotes every recoverable outcome to an error; exact
+outcomes and their notes never fail. The default stays best-effort: the
+function exists to load historical documents, and refusing a whole map
+over one degraded optional layer would serve nobody at runtime. Strict
+mode serves migration tooling and checked-in fixtures, where a new
+warning must fail loudly instead of aging into an accepted diff.
 
 ### 8.6 Public reference conversion
 
@@ -952,7 +1105,10 @@ hand-authored style counterpart, but every mapConfig-based entry in
 [test/urls.json](../../test/urls.json) is a public conversion input:
 
 - `a-3d-mountain-map` — global terrain with a single bound layer and
-  lettering;
+  lettering; it selects two stylesheets with a conflicting `@name`
+  constant, exercising the linker's exact qualification path, and the
+  `peaklist-org-ultras` free layer, whose single monolithic `geodata`
+  URL exercises inline monolithic geodata (section 7.1);
 - `nacis-2023` — blend modes and view-dependent alphas across several
   bound layers;
 - `legacy-benatky` — a tileset with internal textures beside a global
@@ -977,12 +1133,16 @@ authored style
     = effective style state
 ```
 
-The authored style is a validated clone of caller input. Runtime overrides
-introduced by this RFC hold active terrain sources and per-layer terrain
-lists. The effective state is derived at commit time
-and exposed to terrain traversal and style compilation. Existing runtime
-illumination and vertical-exaggeration setters remain separate rendering
-APIs.
+The authored style is a validated clone of caller input. Validation
+normalizes that clone without touching the caller's object: each
+anonymous authored layer receives a deterministic generated id derived
+from its layer type and array position, and each omitted layer `terrain`
+expands to the explicit list of every terrain source declared by the
+style. Runtime overrides introduced by this RFC hold active terrain
+sources and per-layer terrain lists. The effective state is derived at
+commit time and exposed to terrain traversal and style compilation.
+Existing runtime illumination and vertical-exaggeration setters remain
+separate rendering APIs.
 
 This separation supports ordinary runtime visibility changes. Mutating
 `layer.terrain` to `[]` in the authored style when hiding a layer would lose
@@ -1059,8 +1219,12 @@ Implementation removes:
 - the public `browser()` factory, `BrowserConfig`, and mapConfig-preserving
   `configFromUrl()` compatibility surface from
   [src/browser/index.ts](../../src/browser/index.ts);
-- [src/browser/browser.js](../../src/browser/browser.js), dissolved per
-  section 6.6;
+- the mapConfig ingestion inside
+  [src/browser/browser.js](../../src/browser/browser.js) (section 6.6):
+  the `originalConfig` capture, the `browserOptions` re-application,
+  the `view` command, and the View-based construction-option
+  activation — the module itself survives until the separate
+  dissolution work;
 - the `geojson`, `geodata`, and `geojsonStyle` construction options
   from the config catalogue;
 - `view` and `map` from internal `Viewer.Config` and `ViewerConfig`;
@@ -1076,22 +1240,25 @@ and async readiness currently contain mapConfig assumptions.
 
 ### Phase 1: complete the style vocabulary
 
-1. Require ids on every style layer and update authored styles.
-2. Add URL-or-inline source locations with explicit base URLs.
-3. Add the optional root `position` and its precedence rule.
-4. Add the `cartolina-geodata` source fields `depthOffset` and
-   `maxLod` (section 8.3).
-5. Move `terrain` to the common base shared by every layer type and define
-   an empty list as hidden.
-6. Rename VTS-shaped source discriminators to `cartolina-terrain`,
-   `cartolina-raster`, and `cartolina-geodata`; update authored styles.
+Every step is additive; existing authored styles remain valid unchanged.
+
+1. Add optional `id` to the common layer base. Validation assigns
+   deterministic generated ids to anonymous layers in runtime state and
+   rejects duplicate explicit ids.
+2. Add URL-or-inline source locations with explicit base URLs to the
+   existing source specifications, including the monolithic-or-tiled
+   union for `cartolina-freelayer`, and the inline terrain metadata
+   consistency rules (section 7.1).
+3. Move `terrain` to the common base shared by every layer type and
+   define an empty list as inactive everywhere; validation expands an
+   omitted list to the declared terrain sources.
 
 ### Phase 2: runtime mutation
 
 1. Introduce authored and runtime style state in `MapStyle`.
-2. Add the layer-visibility and active-terrain methods.
+2. Add the layer terrain-applicability and active-terrain methods.
 3. Make terrain traversal and every layer processor read the common
-   effective visibility and terrain state.
+   effective terrain-applicability state.
 4. Add a generic atomic style-mutation batch to core `Map`.
 5. Implement visibility-profile validation and expansion only in `Viewer`.
 
@@ -1099,11 +1266,13 @@ and async readiness currently contain mapConfig assumptions.
 
 1. Implement `mapConfigToStyle()` with checked-in public fixtures.
 2. Convert surfaces, bound layers, free layers, stylesheets, views,
-   position, and browser options.
+   position, and browser options. Classify every corpus
+   `browserOptions` key into a typed destination or a structured
+   warning (section 6.2).
 3. Update compatibility callers to await conversion and construct the
-   map with `map()` and `conversion.style`.
-4. Compare the converted style and separately returned converted views with
-   expected snapshots before browser rendering tests.
+   map with `map()`, `conversion.style`, and `conversion.position`.
+4. Compare the converted style, position, viewer options, and profiles
+   with expected snapshots before browser rendering tests.
 
 ### Phase 4: delete the second runtime
 
@@ -1112,27 +1281,18 @@ and async readiness currently contain mapConfig assumptions.
 3. Remove all `if (map.style)` and `if (!map.style)` behavior branches.
 4. Remove the View methods from `Viewer`, core `Map`, and `LegacyMap`,
    together with `getCurrentView()` and `refreshFreelayesInView()`.
-5. Remove `browser()`, obsolete types, events, config keys, demos, and
-   documentation.
+5. Remove `browser()`, the mapConfig ingestion in
+   `src/browser/browser.js`, the `geojson` / `geodata` /
+   `geojsonStyle` construction options, obsolete types, events, config
+   keys, demos, and documentation.
 
-### Phase 5: dissolve `Browser`
+### Phase 5: close compatibility gaps
 
-1. Move the surviving glue from section 6.6 into typed `Viewer` code:
-   sub-object construction, config watchers, tick dispatch,
-   position-in-URL, and teardown.
-2. Retire the `geojson`, `geodata`, and `geojsonStyle` construction
-   options.
-3. Delete `src/browser/browser.js` and the `Viewer.Config` glue fields.
-4. Re-type the deprecated `ui`, `autopilot`, and `presenter` getters
-   against the `Viewer`-owned objects.
-
-### Phase 6: close compatibility gaps
-
-Run the conversion corpus with strict diagnostics. Every supported field is
-represented by typed style or construction state. Any unsupported field is
-either designed into the style model through review or documented as a
-conversion error. Do not add an opaque `legacy` field or call old parsers
-from the style loader.
+Run the conversion corpus with strict diagnostics. Every corpus field is
+represented by typed style or construction state. Any field outside the
+corpus is a structured unsupported-field warning, an error in strict
+mode. Do not add an opaque `legacy` field or call old parsers from the
+style loader.
 
 ## 13. Validation
 
@@ -1146,14 +1306,27 @@ Checked-in public fixtures cover:
 - free layers with inline and referenced stylesheets;
 - several stylesheets with equal and conflicting constants, fonts, and
   bitmaps;
+- conflicting layer ids across stylesheets, combined with `inherit`
+  and `visibility-switch` references to the colliding family;
 - transitive constant references and references embedded in templates;
+- exact-outcome notes for deterministic symbol renames, distinct from
+  recovered-outcome warnings, with strict mode failing only the
+  latter;
+- a monolithic free-layer geodata definition (`peaklist-org-ultras`),
+  asserting the monolithic request and its rendered labels, not only a
+  whole-scene screenshot;
 - an unavailable view stylesheet with a usable free-layer default;
 - a free layer for which neither stylesheet can be loaded;
 - named views and an explicit construction view;
-- view illumination and superelevation options;
+- initial-view illumination and superelevation options, and
+  unsupported-option warnings for rendering options on named views;
 - relative URL resolution from URL and object inputs;
-- browser-option precedence;
-- invalid references and unsupported fields.
+- a `transformRequest` hook that rewrites the document request while
+  the document contains a relative dependency, asserting logical
+  resolution and transport rewrite separately;
+- browser-option precedence, typed without casts;
+- invalid references and unsupported fields, including `depthOffset`,
+  `maxLod`, and mixed line-and-label rules.
 
 Snapshot tests verify the complete conversion result. Focused unit tests
 verify deterministic generated ids, source mappings, qualified symbol names,
@@ -1174,15 +1347,17 @@ Unit and browser tests verify:
 - reapplying a profile overwrites intervening direct changes;
 - `getVisibilityProfile()` captures the current mixed state rather than the
   last supplied profile object;
+- an authored style with omitted layer `terrain` round-trips through
+  normalization: the getter returns the expanded explicit list and a
+  captured profile reapplies exactly;
+- anonymous authored layers render unchanged and are addressable
+  through their generated ids;
 - one sequence refresh and dirty mark per profile application;
 - visibility-profile validation failures occur before state changes;
 - caller style objects remain unchanged;
-- constructor position overrides style position;
-- style position overrides the computed fallback;
-- after the `Browser` dissolution: constructing and disposing a
-  `Viewer` registers and drains every watcher and listener, the UI
-  control keys and autopilot options still react to `setParam`, and
-  position-in-URL updates still fire.
+- `conversion.position` passed to `map()` behaves exactly like a
+  directly supplied constructor position, and the computed fallback
+  applies when it is absent.
 
 ### 13.3 Regression rendering
 
@@ -1197,9 +1372,12 @@ terrain and visibility-profile switches across raster-derived and
 geodata-derived layers. Tests listen to both console and page-error
 events and reject failed resource requests.
 
-The removal is complete only when a repository search finds no mapConfig or
-View reference outside the isolated compatibility converter, its tests, and
-VTS-input documentation, and `src/browser/browser.js` no longer exists.
+The removal is complete only when a repository search finds no mapConfig
+or View reference outside the isolated compatibility converter, its
+tests, and VTS-input documentation. In `src/browser/browser.js` that
+means no mapConfig ingestion, `browserOptions` handling, or View-based
+code remains; the module's surviving viewer glue is out of scope
+(section 6.6).
 
 ## 14. Alternatives rejected
 
@@ -1279,7 +1457,7 @@ The final architecture differs from the starting point at each boundary:
 | Terrain and layers | separate view and style sequencing rules | one effective terrain list and one layer compilation path |
 | Public mutation | mapConfig-only View methods beside style-era controls | layer methods and visibility profiles operate on every map |
 | Failure reporting | unsupported behavior can emerge after map creation | conversion reports the exact field, dependency, and recovery |
-| Public construction | `map()` and `browser()` over the legacy `Browser` shell | one `map()` factory over typed `Viewer` construction |
+| Public construction | `map()` and `browser()`, with mapConfig ingestion in `Browser` | one `map()` factory; `Browser` keeps only format-free viewer glue |
 | Future features | must account for two partially overlapping models | target one style contract and one runtime implementation |
 | Legacy removal | intertwined with constructors, `Map`, `LegacyMap`, and rendering | confined to one external converter |
 
@@ -1293,9 +1471,9 @@ The core loses its View model, mapConfig load state, fabricated per-surface
 styles, mapConfig-only API methods, and every style-versus-mapConfig behavior
 branch. `Map` becomes responsible for one lifecycle and one normalized map
 state. A successful load establishes the same invariants regardless of
-input origin. The browser layer loses its legacy construction shell:
-`Viewer` is constructed by typed code end to end, and the legacy JS
-modules that remain are leaf helpers it instantiates.
+input origin. The browser layer loses every mapConfig-facing member of
+`Browser`; dissolving the surviving viewer glue into typed `Viewer`
+code is queued as separate follow-up work.
 
 Feature work becomes narrower. A new rendering option or layer behavior is
 added to the style schema, validation, and one runtime path. If a mapConfig
@@ -1365,6 +1543,17 @@ decision.
    Non-goals, the public API, and migration phases to enforce this boundary
    before implementation starts.
 
+   *Adopted.* The initial draft had this backwards in places: it
+   extended and renamed parts of the modern style contract to give
+   legacy concepts a permanent home, which petrifies what the RFC
+   exists to delete. The boundary and its diagram are now in the
+   decision summary; goals 4 and 5, the new non-goals, and invariant 14
+   enforce it. The discriminator rename, the root `position` field,
+   mandatory layer ids, and the `depthOffset` / `maxLod` source fields
+   are withdrawn; profiles, position, and viewer options travel beside
+   the style; phase 1 is additive only; `Browser` dissolution moved to
+   separate follow-up work. The RFC title now names the actual goal.
+
 2. The supported compatibility contract is not bounded tightly enough.
 
    The RFC says both that historical documents remain usable and that the
@@ -1379,6 +1568,12 @@ decision.
    State this rule in Goals, Non-goals, and Validation. It is the guard against
    rebuilding the union model inside the converter.
 
+   *Adopted.* Goal 5 states the corpus contract; the non-goals
+   restate it for VTS extensions; sections 8.3 and 8.5 define the
+   unsupported-field and unsupported-rule warnings with strict-mode
+   promotion; phase 5 runs the corpus strictly; section 13.1 tests the
+   warning paths.
+
 3. `depthOffset` and `maxLod` should not enter the new source schema.
 
    An audit of all four public conversion inputs finds neither field anywhere
@@ -1391,6 +1586,10 @@ decision.
    future input contains either field, emit the unsupported-field warning
    defined by note 2. Do not add runtime mutation or duplicated sources for an
    unexercised compatibility feature.
+
+   *Adopted.* The source fields are gone from section 8.3 and the
+   phases. Both fields now produce the unsupported-field warning, an
+   error in strict mode, and section 13.1 tests them by name.
 
 4. Named-view illumination and vertical exaggeration are also wider than the
    corpus contract, and the proposed optional fields cannot preserve the old
@@ -1410,6 +1609,13 @@ decision.
    explicit disabled value and a public operation that can apply it; absence
    is not enough.
 
+   *Adopted.* The optional fields are gone together with the wrapper
+   type they lived on (note 18). Section 8.4 now warns on any rendering
+   option carried by a non-initial named view and records why optional
+   fields could not preserve the old `setView()` disable semantics.
+   Initial-view illumination and superelevation still become root style
+   state, which the corpus exercises.
+
 5. `viewerOptions: Partial<PublicConstructionConfig>` cannot carry the
    browser options required by the public corpus.
 
@@ -1427,6 +1633,15 @@ decision.
    assertion. The migration example and precedence tests must use the final
    typed result without a cast.
 
+   *Adopted.* Section 6.2 and phase 3 now require classifying every
+   corpus `browserOptions` key. The known still-live corpus keys,
+   `mapFeaturesReduceMode` and `mapFeaturesReduceParams`, are promoted
+   from internal to public catalogue visibility as documented
+   label-density options, making the declared `viewerOptions` type the
+   real emitted type. Dead and retired keys produce structured
+   warnings. Section 13.1 requires the precedence tests to type-check
+   without casts.
+
 6. The stylesheet linker is missing a layer-symbol pass.
 
    VTS layer ids are a symbol space as well as output style ids. Several
@@ -1441,6 +1656,13 @@ decision.
    one-to-many mapping when one legacy presentation produces several target
    layers. Add focused tests for collisions combined with inheritance and
    visibility-switch references.
+
+   *Adopted.* Section 8.3 now treats layer ids as the fourth symbol
+   space under the same deterministic qualification rules, rewrites
+   `inherit`, `next-pass`, `selected-layer`, `selected-hover-layer`,
+   `hover-layer`, and `visibility-switch` references transitively, and
+   records a stable one-to-many mapping. Section 13.1 adds the
+   collision-plus-reference tests.
 
 7. Mixed VTS rules should not be split into `lines` and `labels` layers.
 
@@ -1458,6 +1680,11 @@ decision.
    strict mode. This removes a sizeable compatibility subsystem with no
    supported input.
 
+   *Adopted.* The split is withdrawn. Section 8.3 accepts cleanly
+   classifying rules only; a mixed rule produces an unsupported-rule
+   warning, is not emitted, and fails strict mode. Section 13.1 tests
+   the warning.
+
 8. Lossless symbol qualification must be an exact conversion, not a warning
    that strict mode promotes to failure.
 
@@ -1473,6 +1700,13 @@ decision.
    that can change behavior or omit output. Snapshot the deterministic rename
    without classifying it as loss.
 
+   *Adopted.* The conversion result now carries `notes` beside
+   `warnings` (section 6.2). A fully rewritten collision is an exact
+   outcome with an informational note; strict mode fails on warnings
+   only (sections 8.3 and 8.5). The `a-3d-mountain-map` collision
+   therefore converts exactly under strict corpus runs, and section
+   13.1 snapshots the deterministic rename as a note.
+
 9. URL provenance through `transformRequest` needs an explicit rule.
 
    A request transform changes transport details; it must not silently change
@@ -1487,6 +1721,14 @@ decision.
    image, and glyph requests are separate. Add a test where the hook rewrites
    the document request and that document contains a relative dependency.
 
+   *Adopted.* Section 6.2 now states the rule: relative references
+   resolve against the logical URL of their containing document, the
+   hook applies to the resulting request, and the emitted style stores
+   logical canonical URLs only. The construction example passes the
+   hook to both calls, and section 13.1 adds the test that rewrites the
+   document request while the document holds a relative dependency,
+   asserting logical resolution and the transport request separately.
+
 10. The camera precedence rule requires pre-readiness state that does not exist
    today.
 
@@ -1500,6 +1742,14 @@ decision.
    and whether several pre-ready calls use last-write-wins behavior. Test a
    constructor position, a `setPosition()` call made before `ready`, style
    position, and fallback as four distinct cases.
+
+   *Adopted.* Resolved by removing `StyleSpecification.position`
+   entirely (note 19): with no style position there is no new
+   precedence ladder and no pre-readiness camera state to specify.
+   Section 6.1 states that camera behavior is unchanged, and section
+   13.2 tests `conversion.position` as an ordinary constructor
+   position. The pre-ready `setPosition()` no-op is a pre-existing
+   limitation, now explicitly out of scope.
 
 11. Inline terrain sources need one deterministic metadata and base-URL
     contract.
@@ -1518,6 +1768,15 @@ decision.
     provenance for each merged document. State which form authored styles may
     use.
 
+    *Adopted.* Section 7.1 now takes the first option: converter output
+    is fully normalized with absolute embedded URLs, so one `baseUrl`
+    per source suffices and no provenance typing is needed. Authored
+    styles may use either the URL or the inline form under the same
+    resolution rule. The loader requires structurally equal frame, SRS,
+    body, and service definitions across terrain sources, merges
+    credits by id with equal definitions, and fails loading on any
+    inconsistency before map objects exist.
+
 12. The target vocabulary conflicts with intrinsic terrain textures.
 
     `legacy-benatky` is explicitly in the public corpus because one terrain
@@ -1530,6 +1789,12 @@ decision.
     texture intrinsic terrain material, outside the authored layer stack and
     visibility API. The alternative is an explicit generated layer with an id.
     Do not leave a public invariant contradicted by a required regression case.
+
+    *Adopted.* The smaller model is chosen: section 2.5 defines the
+    internal texture as intrinsic terrain material — part of the
+    terrain source's own data, with no layer id and no layer-API
+    control — and the every-drawable-is-a-layer claim is corrected
+    accordingly, citing `legacy-benatky` as the corpus case.
 
 13. `setLayerVisibility()` consumes and returns terrain applicability, not
     visibility in the MapLibre sense.
@@ -1545,6 +1810,14 @@ decision.
     of every declared terrain source or as an omitted/default sentinel. A
     complete profile and stable round-trip require one normalized answer.
 
+    *Adopted.* The primitives are renamed `setLayerTerrainSources()` /
+    `getLayerTerrainSources()` throughout, leaving `visibility` free
+    for a later visible/hidden property. Runtime state is normalized at
+    validation: an omitted authored `terrain` expands to the explicit
+    list of declared terrain sources, so the getter always returns an
+    explicit array and profiles round-trip exactly (sections 6.3, 9,
+    13.2).
+
 14. Browser dissolution is both mandatory and optional in the current text.
 
     Goals, invariants, removal completeness, and Expected Result require
@@ -1559,6 +1832,16 @@ decision.
     watchers, map listeners, core `Map`, and DOM. Include rollback when a
     constructor throws after UI creation; moving glue into TypeScript does not
     by itself preserve the construction and teardown lifecycle.
+
+    *Adopted.* Dissolution is extracted from this RFC. Deleting the
+    mapConfig path does not require it, and doing it justice needs
+    exactly the construction-order, ownership, disposal, and rollback
+    specification the note lists — its own piece of work. This RFC now
+    removes only `Browser`'s mapConfig ingestion (sections 2.8, 6.6);
+    the goals, invariants, phases, removals, and completion criteria
+    no longer mention deleting `src/browser/browser.js`, and the
+    dissolution-specific runtime tests are dropped from section 13.2.
+    The follow-up is recorded in the backlog.
 
 15. Inline `cartolina-freelayer` data must include monolithic geodata.
 
@@ -1581,6 +1864,13 @@ decision.
     `peaklist-org-ultras`. The test must verify the monolithic request and its
     rendered labels; a generic `a-3d-mountain-map` screenshot can otherwise
     pass using only its other geodata source.
+
+    *Adopted.* Section 7.1 extends `cartolina-freelayer` inline data to
+    the union of monolithic and tiled geodata definitions that
+    `MapSurface` already accepts, keeping the dispatch behind the
+    existing discriminator. Section 8.6 records `peaklist-org-ultras`
+    as the corpus basis, and section 13.1 adds the focused snapshot
+    plus the monolithic-request and rendered-label assertions.
 
 16. "Cartolina source" is not defined precisely.
 
@@ -1608,6 +1898,13 @@ decision.
     names a separate concept. Also show the complete `sources` dictionary
     shape around `SourceLocation<T>`; the location union alone does not show a
     reader where the id and `type` live.
+
+    *Adopted.* Section 2.5 now defines source specification, source
+    definition, and source instance, and states each source type's
+    relationship to `terrain.sources`, style layers, and shared
+    instances in the reviewer's terms. Section 7.1 shows the `sources`
+    dictionary shape and one complete specification variant. The
+    document speaks of style sources; "Cartolina source" is gone.
 
 17. The proposed source discriminator rename is an unversioned style-schema
     redesign, not part of mapConfig conversion.
@@ -1637,6 +1934,13 @@ decision.
     rules. Do not increment the style version, rewrite authored styles, or add
     aliases as part of mapConfig conversion.
 
+    *Adopted.* The rename is withdrawn; the RFC uses
+    `cartolina-surface`, `cartolina-tms`, and `cartolina-freelayer`
+    throughout. Deferred, not abandoned: the broader names remain a
+    candidate for a separate non-breaking alias proposal — with
+    `cartolina-vector` rather than `cartolina-geodata` as the freelayer
+    alias — recorded in the non-goals.
+
 18. `ConvertedMapConfigView` retains a View-shaped public data model instead
     of returning visibility profiles directly.
 
@@ -1654,6 +1958,12 @@ decision.
     `views` wrapper. A conversion caller already owns the input document if
     migration tooling needs to inspect its original view definitions.
 
+    *Adopted.* The conversion result now returns
+    `profiles: Record<string, VisibilityProfile>` directly (section
+    6.2). `ConvertedMapConfigView`, `views`, `initialView`, and the
+    retained `original` definitions are gone; section 8.4 describes the
+    named-view translation purely in profile terms.
+
 19. Root `position` is an unnecessary style-spec extension.
 
     The current style contract has no position, while `map()` already accepts
@@ -1668,6 +1978,11 @@ decision.
     need them, but similarity to MapLibre and making the conversion result one
     field smaller do not justify changing this contract.
 
+    *Adopted.* The style field and its precedence rule are removed
+    (sections 2.7 and 6.1, phase 1). The conversion result carries
+    `position` and the construction example passes it to `map()`
+    (section 6.2). This also dissolved note 10's pre-readiness problem.
+
 20. Requiring ids on every version-2 style layer is breaking.
 
     `LetteringLayerBase` requires an id today, but tile texture and constant
@@ -1680,3 +1995,12 @@ decision.
     anonymous authored layers if the new mutation API must address them. The
     loader must not mutate the caller's style object, and existing anonymous
     layers must retain their current rendering when no mutation API is used.
+
+    *Adopted.* `LayerBase.id` stays optional in the authored schema
+    (section 6.3). The converter emits explicit stable ids on every
+    generated layer, and validation assigns deterministic generated
+    ids — derived from layer type and array position — to anonymous
+    authored layers in the runtime clone only, never mutating caller
+    input (sections 2.6 and 9). Duplicate explicit ids are rejected;
+    section 13.2 tests unchanged rendering and generated-id
+    addressability.

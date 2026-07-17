@@ -3,6 +3,33 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-17 — RFC 11 review round 1 author response
+
+Responded to all 20 round-1 notes on
+[RFC 11](rfc11-mapconfig-to-style.md); every note is adopted and the
+design body is revised accordingly. The RFC is retitled "retire legacy
+mapConfig support from Cartolina proper", which names the actual goal.
+
+The main correction: the draft extended the surviving style contract to
+host legacy concepts instead of confining them to the converter. The
+revision freezes the version-2 style schema — existing styles stay
+valid and render unchanged — and withdraws the source-discriminator
+rename, the root `position` field, mandatory layer ids, and the
+`depthOffset` / `maxLod` source fields. The conversion corpus is now
+the normative compatibility contract; fields outside it warn instead of
+gaining representation. The conversion result returns plain visibility
+profiles and `position` beside the style, `browserOptions` keys get
+typed classification, the stylesheet linker gains a layer-symbol pass,
+lossless symbol renames become exact outcomes with informational notes,
+and mixed line-and-label rules warn instead of splitting. `Browser`
+dissolution moved out of the RFC to a new backlog entry; RFC 11 removes
+only its mapConfig ingestion.
+
+Also changed the review-protocol author verdict vocabulary in
+[AGENTS.md](../../AGENTS.md) from *Implemented.* to *Adopted.* — the
+old wording read as a claim about code rather than design text. The
+RFC stays `In review`, awaiting round 2.
+
 ## 2026-07-17 — RFC 11 review round 1
 
 Opened review round 1 on

@@ -6,6 +6,28 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## Dissolve `Browser` into typed `Viewer` construction
+
+**Opened:** 2026-07-17
+**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
+(sections 2.8 and 6.6, review round 1 note 14)
+
+RFC 11 removes the mapConfig ingestion from `src/browser/browser.js`
+but leaves the module in place. What remains after that removal is
+viewer glue with no format content: sub-object construction (UI,
+autopilot, control mode, presenter, ROI, config store, core `Map`),
+config watchers, per-tick dispatch, position-in-URL updates, and
+teardown. Moving that glue into typed `Viewer` code and deleting the
+module is this entry.
+
+The work owes its own specification before implementation: construction
+order and ownership, disposal order across sub-objects, watchers, map
+listeners, and DOM, and rollback when a constructor throws after UI
+creation. Verification: constructing and disposing a `Viewer` registers
+and drains every watcher and listener, the UI control keys and
+autopilot options still react to `setParam`, and position-in-URL
+updates still fire. Blocked on RFC 11 phase 4 (the mapConfig removals).
+
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10
