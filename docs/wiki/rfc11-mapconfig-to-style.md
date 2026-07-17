@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** In review
+**Status:** Accepted
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -2339,3 +2339,18 @@ old phase instruction still contradicts that distinction.
    note for proven no-ops, structured warning for unsupported active
    keys — and states that a warning blocks phase 4 through the
    step-5 closure gate. Step 2 and the gate now apply the same rule.
+
+## Review round 5 — sign-off
+
+All round-4 notes are resolved. Phase 3 now applies the same three-outcome
+classification as sections 6.2 and 8.5: active corpus behavior gets a typed
+destination, proven current-client no-ops produce exact-outcome notes, and an
+unsupported active key produces a warning that blocks runtime deletion.
+
+The complete design was re-audited against the current style loader, runtime
+readiness, terrain and lettering paths, public conversion corpus, and removal
+boundary. Style remains the sole surviving map model. Visibility profiles
+remain Viewer-level values rather than authored style or recreated Views, all
+style additions are additive, and compatibility closure precedes deletion of
+the reference runtime. No specification-level findings remain. Design
+accepted.

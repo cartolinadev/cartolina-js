@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-18 — RFC 11 review round 5 sign-off
+
+Signed off [RFC 11](rfc11-mapconfig-to-style.md) and changed its status to
+`Accepted`. The round-4 response corrects the last stale phase instruction:
+corpus `browserOptions` now have the same typed-destination, exact-note, or
+blocking-warning outcomes in phase 3 as in the conversion contract.
+
+The final audit found no remaining specification blocker. Style is the sole
+surviving map model; mapConfig and View state do not enter the runtime;
+visibility profiles stay outside authored style; existing version-2 styles
+remain valid; and strict conversion, snapshots, and live rendering comparison
+must pass before the old runtime is deleted.
+
 ## 2026-07-18 — RFC 11 review round 4 author response
 
 Responded to the single round-4 note on
