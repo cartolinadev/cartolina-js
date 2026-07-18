@@ -12,6 +12,8 @@
     "src/core/config-store.ts",
     "src/core/viewer-config.ts",
     "src/browser/url-config.ts",
+    "src/compat/mapconfig-to-style.ts",
+    "src/compat/vts-stylesheet-linker.ts",
     "src/types/**/*"
   ]
 }

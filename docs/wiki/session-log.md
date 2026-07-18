@@ -3,6 +3,48 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 implementation, phase 3 (converter)
+
+Phase 3 of [RFC 11](rfc11-mapconfig-to-style.md): the compatibility
+converter, isolated in the new
+[src/compat/](../../src/compat/mapconfig-to-style.ts) directory and
+exported as `mapConfigToStyle()`.
+
+- The converter fetches the aggregate mapConfig, referenced
+  bound-layer and free-layer definitions, and the effective VTS
+  stylesheets, and emits a fully normalized style: one inline
+  `cartolina-surface` source per surface carrying the shared
+  reference metadata, inline `cartolina-tms` and
+  `cartolina-freelayer` sources, absolute embedded URLs throughout.
+  Position, typed viewer options, and named views as visibility
+  profiles travel beside the style. URL resolution is DOM-free and
+  keeps `{lod}-{x}-{y}` templates verbatim; `transformRequest`
+  changes transport only, never the logical URLs stored in the style.
+- The stylesheet linker
+  ([vts-stylesheet-linker.ts](../../src/compat/vts-stylesheet-linker.ts))
+  merges the four symbol spaces of all selected stylesheets: equal
+  definitions coalesce, conflicts get deterministic module-qualified
+  names with references rewritten (constants standalone and in
+  templates, font/bitmap aliases through their typed properties and
+  constants, layer references incl. `inherit`, `next-pass`, and
+  `visibility-switch`). A full rewrite is an exact outcome with a
+  note; an unclassifiable reference is a lossy warning.
+- Diagnostics follow the three-outcome contract: exact (notes:
+  ignored fields, no-op browser options, symbol renames), recovered
+  (warnings: unavailable sources/stylesheets, mixed rules,
+  unsupported fields incl. `depthOffset`/`maxLod`, internal browser
+  options, layer-order conflicts), fatal (thrown). Strict mode
+  rejects warnings, never notes.
+- `mapFeaturesReduceMode` / `mapFeaturesReduceParams` promoted from
+  internal to public (runtime) catalogue visibility as the typed
+  destination for the corpus label-density browser options; the
+  compile-time key pin in test/types/viewer-api.ts updated.
+- Style schema extension for the corpus: optional
+  `illumination.useLighting` (already honored by the renderer).
+
+Validation: tsc clean; `npm run test:unit` passes 73 tests, 22 of
+them the new converter suite (fixture-driven, no network).
+
 ## 2026-07-19 — RFC 11 implementation, phase 2 (runtime mutation)
 
 Phase 2 of [RFC 11](rfc11-mapconfig-to-style.md) on

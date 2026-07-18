@@ -784,9 +784,9 @@ const catalogue = {
      *  processor overwrites it per reduce mode. */
     mapFeaturesSortByTop: bool(false, 'internal'),
 
-    /** Label reduce algorithm (`scr-count*`); the legacy names
-     *  `auto`, `legacy`, `gridcells`, `singlepass`, and `margin`
-     *  map onto their `scr-count*` equivalents. */
+    /** Label-density reduce algorithm (`scr-count*`); the legacy
+     *  names `auto`, `legacy`, `gridcells`, `singlepass`, and
+     *  `margin` map onto their `scr-count*` equivalents. */
     mapFeaturesReduceMode: spec({
         produce: () => 'scr-count7',
         normalize: (value) => {
@@ -800,14 +800,14 @@ const catalogue = {
             return mode;
         },
         urlKind: 'string',
-        visibility: 'internal',
+        visibility: 'runtime',
     }),
 
-    /** Parameters of the label reduce algorithm; slot meanings
-     *  depend on `mapFeaturesReduceMode`, and the geodata
+    /** Parameters of the label-density reduce algorithm; slot
+     *  meanings depend on `mapFeaturesReduceMode`, and the geodata
      *  processor pads missing slots with per-mode defaults. */
     mapFeaturesReduceParams:
-        numberArray([0.05, 0.17, 11, 1, 1000], 'internal'),
+        numberArray([0.05, 0.17, 11, 1, 1000], 'runtime'),
 
     /** Distance weighting in label reduction; the geodata
      *  processor derives it from `mapFeaturesReduceParams[2]`. */

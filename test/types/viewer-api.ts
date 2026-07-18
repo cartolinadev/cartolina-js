@@ -19,10 +19,12 @@ declare const runtimeConfig: Viewer.PublicRuntimeConfig;
 const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
-// The audited 58-key public runtime subset, pinned as a lasting
+// The audited 60-key public runtime subset, pinned as a lasting
 // compile-time contract (rfc1-config-store.md, step 8): an
 // incidental visibility edit in the catalogue fails here and
-// requires an explicit test update.
+// requires an explicit test update. The label-density keys
+// mapFeaturesReduceMode / mapFeaturesReduceParams were promoted to
+// public visibility by RFC 11 (corpus browserOptions destination).
 type Expect<T extends true> = T;
 type Eq<A, B> =
     (<X>() => X extends A ? 1 : 2) extends
@@ -51,7 +53,8 @@ type _publicRuntimeSubsetPin = Expect<Eq<
     | 'mapShadingAspect' | 'mapFlagLighting' | 'mapFlagNormalMaps'
     | 'mapFlagDiffuseMaps' | 'mapFlagSpecularMaps'
     | 'mapFlagBumpMaps' | 'mapFlagAtmosphere' | 'mapFlagShadows'
-    | 'mapFlagLabels'
+    | 'mapFlagLabels' | 'mapFeaturesReduceMode'
+    | 'mapFeaturesReduceParams'
 >>;
 
 const subsetPinHolds: _publicRuntimeSubsetPin = true;

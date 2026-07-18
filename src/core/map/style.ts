@@ -386,6 +386,7 @@ export type Alpha = number
 export type IlluminationSpecification = {
 
     light: LightSpecification | LegacyLightSpecification,
+    useLighting?: boolean,
     ambientCoef?: number,
     shadingLambertianWeight?: number,
     shadingSlopeWeight?: number,

@@ -39,6 +39,22 @@ export type {
 };
 
 /**
+ * The compatibility converter: turns a legacy VTS mapConfig into a
+ * Cartolina style plus construction values (position, viewer
+ * options, visibility profiles). Called explicitly by applications
+ * and migration tools before `map()`; never called by the runtime.
+ */
+export { mapConfigToStyle } from '../compat/mapconfig-to-style';
+export type {
+    MapConfigInput,
+    MapConfigConversion,
+    MapConfigConversionWarning,
+    MapConfigConversionNote,
+    MapConfigViewDefinition,
+    MapConfigToStyleOptions,
+} from '../compat/mapconfig-to-style';
+
+/**
  * `PublicRuntimeConfig` is the runtime configuration map accepted
  * and returned by `Viewer.setParam` and `Viewer.getParam`;
  * `PublicConstructionConfig` is the wider option bag accepted by

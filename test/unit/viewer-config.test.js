@@ -133,8 +133,10 @@ describe('viewer-config normalization', function() {
 
     it('keeps the audited public subset sizes', function() {
 
-        assert.strictEqual(publicRuntimeConfigKeys.length, 58);
-        assert.strictEqual(publicConstructionConfigKeys.length, 71);
+        // 60 runtime keys since RFC 11 promoted the label-density
+        // pair mapFeaturesReduceMode / mapFeaturesReduceParams
+        assert.strictEqual(publicRuntimeConfigKeys.length, 60);
+        assert.strictEqual(publicConstructionConfigKeys.length, 73);
     });
 
     it('expands the mapNoTextures coupling', function() {
