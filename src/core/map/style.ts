@@ -421,6 +421,14 @@ export type VerticalExaggerationSpecification =
 
 export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 
+/**
+ * One primitive runtime style mutation, submitted through the core
+ * map's atomic style-mutation batch.
+ */
+export type StyleMutation =
+    | { kind: 'layer-terrain', layerId: string, terrain: string[] }
+    | { kind: 'terrain-sources', sources: string[] };
+
 } // export namespace MapStyle
 
 const validateStyle = typia.createValidateEquals<MapStyle.StyleSpecification>();
@@ -846,15 +854,188 @@ export class MapStyle {
 
 
     map: LegacyMap;
-    styleSpec: MapStyle.StyleSpecification;
+
+    /** The normalized authored style: the immutable runtime baseline. */
+    private authoredSpec_: MapStyle.StyleSpecification;
+
+    /** The effective style state: authored plus runtime overrides. */
+    private effectiveSpec_: MapStyle.StyleSpecification;
+
+    /** Layer index over the authored clone, keyed by layer id. */
+    private layersById_ = new globalThis.Map<
+        string, MapStyle.LayerSpecification>();
+
+    /** Ids of every `cartolina-surface` entry in `sources`. */
+    private surfaceSourceIds_ = new Set<string>();
+
+    /** Runtime per-layer terrain-list overrides, keyed by layer id. */
+    private layerTerrainOverrides_ = new globalThis.Map<string, string[]>();
+
+    /** Runtime active-terrain-stack override, or `null` for authored. */
+    private terrainOverride_: string[] | null = null;
 
 
     /**
-     * Obtain the style specification
+     * Returns the effective style state: the authored baseline with
+     * runtime terrain and layer-applicability overrides applied.
      */
     style(): MapStyle.StyleSpecification {
 
-        return this.styleSpec;
+        return this.effectiveSpec_;
+    }
+
+    /**
+     * Applies a batch of primitive style mutations atomically: every
+     * mutation is validated before any state is written, so an
+     * invalid batch changes nothing. The caller commits the result by
+     * rebuilding the effective state and recompiling sequences.
+     *
+     * @param mutations primitive mutations in application order
+     * @returns whether the batch can affect lettering compilation
+     */
+    applyMutations(
+        mutations: MapStyle.StyleMutation[],
+    ): { letteringChanged: boolean } {
+
+        // validation pass: nothing is written until every mutation
+        // checks out
+        for (const mutation of mutations) {
+
+            if (mutation.kind === 'layer-terrain') {
+
+                if (!this.layersById_.has(mutation.layerId)) {
+                    throw new Error(
+                        `Unknown style layer id "${mutation.layerId}".`);
+                }
+
+                this.validateTerrainIds(mutation.terrain);
+
+            } else {
+
+                this.validateTerrainIds(mutation.sources);
+            }
+        }
+
+        const hasLettering = (this.authoredSpec_.layers ?? []).some(
+            (layer) => ['labels', 'lines'].includes(layer.type ?? ''));
+
+        let letteringChanged = false;
+
+        for (const mutation of mutations) {
+
+            if (mutation.kind === 'layer-terrain') {
+
+                this.layerTerrainOverrides_.set(
+                    mutation.layerId, [...mutation.terrain]);
+
+                if (this.isLetteringLayer(mutation.layerId))
+                    letteringChanged = true;
+
+            } else {
+
+                this.terrainOverride_ = [...mutation.sources];
+
+                // a stack change can activate or deactivate rules
+                // through the stack-intersection contract
+                if (hasLettering) letteringChanged = true;
+            }
+        }
+
+        return { letteringChanged };
+    }
+
+    /**
+     * Returns a copy of one layer's effective terrain-source list.
+     * Always an explicit array; an omitted authored list was expanded
+     * at validation.
+     *
+     * @param layerId id of the layer to query
+     * @throws on an unknown layer id
+     */
+    getLayerTerrainSources(layerId: string): string[] {
+
+        const layer = this.layersById_.get(layerId);
+        if (!layer) {
+            throw new Error(`Unknown style layer id "${layerId}".`);
+        }
+
+        const override = this.layerTerrainOverrides_.get(layerId);
+        return [...(override ?? layer.terrain ?? [])];
+    }
+
+    /** Returns a copy of the effective active terrain stack. */
+    getTerrainSources(): string[] {
+
+        return [...(this.terrainOverride_
+            ?? this.authoredSpec_.terrain.sources)];
+    }
+
+    /** Returns the ids of every style layer in array order. */
+    getLayerIds(): string[] {
+
+        return (this.authoredSpec_.layers ?? []).map(
+            (layer) => layer.id as string);
+    }
+
+    /**
+     * Returns whether a layer id names a lettering (`labels` or
+     * `lines`) layer.
+     *
+     * @param layerId id of the layer to query
+     */
+    isLetteringLayer(layerId: string): boolean {
+
+        const layer = this.layersById_.get(layerId);
+        return layer !== undefined
+            && ['labels', 'lines'].includes(layer.type ?? '');
+    }
+
+    /**
+     * Rebuilds the effective style state from the authored baseline
+     * and the current runtime overrides. Called by the style-mutation
+     * commit before sequences recompile.
+     */
+    rebuildEffectiveState(): void {
+
+        const spec = structuredClone(this.authoredSpec_);
+
+        if (this.terrainOverride_) {
+            spec.terrain.sources = [...this.terrainOverride_];
+        }
+
+        for (const layer of spec.layers ?? []) {
+
+            const override =
+                this.layerTerrainOverrides_.get(layer.id as string);
+            if (override) layer.terrain = [...override];
+        }
+
+        this.effectiveSpec_ = spec;
+    }
+
+    /**
+     * Validates a terrain-source id list: every id must name a
+     * `cartolina-surface` source and appear only once.
+     */
+    private validateTerrainIds(sourceIds: string[]): void {
+
+        const seen = new Set<string>();
+
+        for (const id of sourceIds) {
+
+            if (!this.surfaceSourceIds_.has(id)) {
+                throw new Error(
+                    `"${id}" is not a terrain (cartolina-surface) `
+                    + `source of this style.`);
+            }
+
+            if (seen.has(id)) {
+                throw new Error(
+                    `Duplicate terrain source id "${id}".`);
+            }
+
+            seen.add(id);
+        }
     }
 
     /**
@@ -864,8 +1045,9 @@ export class MapStyle {
     refreshSequences(): void {
 
         let map = this.map;
+        const spec = this.effectiveSpec_;
 
-        this.styleSpec.terrain.sources.forEach((sourceId: string) => {
+        spec.terrain.sources.forEach((sourceId: string) => {
 
             const surface = map.surfaces.find((s: MapSurface) =>
                 s.styleSourceId === sourceId);
@@ -877,17 +1059,26 @@ export class MapStyle {
             }
 
             // surface layer sequence is the style spec itself
-            surface.style = this.style();
+            surface.style = spec;
         })
 
 
         // compile free layer stylesheets from style layers and set them
         let freeLayerStyles: Record<string, vtsStylesheet> = {};
 
+        // the active terrain stack gates lettering rules below
+        const activeTerrain = spec.terrain.sources;
+
         // iterate through layes, compiling layer style sheets along the way
-        this.styleSpec.layers && this.styleSpec.layers.forEach((layer) => {
+        spec.layers && spec.layers.forEach((layer) => {
 
             if (['labels', 'lines'].includes(layer.type ?? '')) {
+
+                // a lettering rule is active exactly when its terrain
+                // list intersects the active terrain stack
+                const ruleTerrain = layer.terrain ?? [];
+                if (!ruleTerrain.some((id) => activeTerrain.includes(id)))
+                    return;
 
                 let freelayerId = layer.source as string;
                 let stylesheet: vtsStylesheet = freeLayerStyles[freelayerId];
@@ -897,9 +1088,9 @@ export class MapStyle {
                 if (!stylesheet) {
 
                     stylesheet = freeLayerStyles[freelayerId] = {}
-                    if (this.styleSpec.fonts) stylesheet.fonts = this.styleSpec.fonts;
-                    if (this.styleSpec.constants) stylesheet.constants = this.styleSpec.constants;
-                    if (this.styleSpec.bitmaps) stylesheet.bitmaps = this.styleSpec.bitmaps;
+                    if (spec.fonts) stylesheet.fonts = spec.fonts;
+                    if (spec.constants) stylesheet.constants = spec.constants;
+                    if (spec.bitmaps) stylesheet.bitmaps = spec.bitmaps;
                     stylesheet.layers = {};
 
                 }
@@ -952,11 +1143,29 @@ export class MapStyle {
     }
 
     /**
-     * The bare bones constructor (to be invoked from the static factory func)
+     * The bare bones constructor (to be invoked from the static
+     * factory func). `style` must be the normalized clone produced by
+     * `normalizeStyle`: every layer carries a unique id and an
+     * explicit terrain list.
      */
     constructor(map: LegacyMap, style: MapStyle.StyleSpecification) {
 
-        this.map = map; this.styleSpec = style;
+        this.map = map;
+        this.authoredSpec_ = style;
+        this.effectiveSpec_ = style;
+
+        for (const layer of style.layers ?? []) {
+            this.layersById_.set(layer.id as string, layer);
+        }
+
+        for (const [id, sourceSpec] of Object.entries(style.sources))
+            if (sourceSpec.type === 'cartolina-surface') {
+                this.surfaceSourceIds_.add(id);
+            }
+
+        // materialize the effective clone so later commits never
+        // hand out the authored baseline for mutation
+        this.rebuildEffectiveState();
     }
 }
 

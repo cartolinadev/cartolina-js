@@ -655,6 +655,121 @@ class Map {
         return this.map?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
+    // -----------------------------------------------------------------
+    // Runtime style mutation
+    // -----------------------------------------------------------------
+
+    /**
+     * Whether the `ready` promise has resolved. The runtime style
+     * mutation methods throw while this is `false`.
+     *
+     * @internal
+     */
+    get isReady(): boolean {
+
+        return this.readyResolved_;
+    }
+
+    /**
+     * Applies a batch of primitive style mutations atomically: the
+     * complete batch is validated before any state changes, sequences
+     * recompile once, geodata hysteresis clears once when lettering
+     * changed, and the map is marked dirty once. A frame sees either
+     * the old or the complete new visibility state.
+     *
+     * @param mutations primitive mutations in application order
+     * @throws before readiness or on any invalid mutation, in which
+     *   case nothing changes
+     */
+    mutateStyle(mutations: MapStyle.StyleMutation[]): void {
+
+        this.assertAlive();
+        const style = this.requireReadyStyle();
+
+        const { letteringChanged } = style.applyMutations(mutations);
+        style.rebuildEffectiveState();
+
+        // reset the label hysteresis buffer so recompiled rules do
+        // not inherit fade state from the previous rule set
+        if (letteringChanged) this.renderer.draw.clearJobHBuffer();
+
+        // viewCounter bump, sequence recompilation, dirty mark
+        this.map!.refreshView();
+    }
+
+    /**
+     * Replaces one layer's active terrain-source list. An empty array
+     * makes the layer inactive on every terrain.
+     *
+     * @param layerId id of the layer to mutate
+     * @param terrainIds terrain source ids
+     */
+    setLayerTerrainSources(layerId: string, terrainIds: string[]): void {
+
+        this.mutateStyle([
+            { kind: 'layer-terrain', layerId, terrain: terrainIds },
+        ]);
+    }
+
+    /**
+     * Returns a copy of one layer's effective terrain-source list.
+     *
+     * @param layerId id of the layer to query
+     */
+    getLayerTerrainSources(layerId: string): string[] {
+
+        this.assertAlive();
+        return this.requireReadyStyle().getLayerTerrainSources(layerId);
+    }
+
+    /**
+     * Replaces the active terrain stack, preserving the caller's
+     * back-to-front order.
+     *
+     * @param sourceIds terrain source ids in stack order
+     */
+    setTerrainSources(sourceIds: string[]): void {
+
+        this.mutateStyle([
+            { kind: 'terrain-sources', sources: sourceIds },
+        ]);
+    }
+
+    /** Returns a copy of the effective active terrain stack. */
+    getTerrainSources(): string[] {
+
+        this.assertAlive();
+        return this.requireReadyStyle().getTerrainSources();
+    }
+
+    /**
+     * Returns the ids of every style layer in array order.
+     *
+     * @internal `Viewer` uses this to validate visibility profiles.
+     */
+    getStyleLayerIds(): string[] {
+
+        this.assertAlive();
+        return this.requireReadyStyle().getLayerIds();
+    }
+
+    /**
+     * Returns the loaded map's style state, throwing before
+     * `viewer.ready` resolves: no validated layer ids, source ids, or
+     * normalized terrain lists exist to mutate or query earlier.
+     */
+    private requireReadyStyle(): MapStyle {
+
+        const style = this.readyResolved_ ? this.map?.style : null;
+
+        if (!style) {
+            throw new Error('The style is not ready; await '
+                + '`viewer.ready` before style mutations or queries.');
+        }
+
+        return style;
+    }
+
     /**
      * Switches to a named legacy mapConfig view, or to a supplied view
      * definition. Only valid for mapConfig-initialized maps.

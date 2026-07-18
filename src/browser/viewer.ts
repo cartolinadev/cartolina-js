@@ -194,6 +194,149 @@ class Viewer {
         return this.legacyMap?.atmosphere?.getRuntimeParameters() ?? null;
     }
 
+    // -------------------------------------------------------------------------
+    // Layer terrain applicability and visibility profiles
+    //
+    // All six methods require style readiness: they throw before the
+    // `ready` promise resolves. There is no pending-operation queue.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Replaces one layer's active terrain-source list. An empty array
+     * makes the layer inactive on every terrain. Applies to every
+     * layer type; lettering rules are active exactly when their list
+     * intersects the active terrain stack.
+     *
+     * @param layerId id of the layer to mutate
+     * @param terrainIds terrain source ids
+     * @throws before `ready`, on an unknown layer id, or on an id
+     *   that is not a terrain source
+     */
+    setLayerTerrainSources(layerId: string, terrainIds: string[]): this {
+
+        this.assertAlive();
+        this.map_.setLayerTerrainSources(layerId, terrainIds);
+        return this;
+    }
+
+    /**
+     * Returns a copy of one layer's effective terrain-source list.
+     * Always an explicit array: an omitted authored `terrain`
+     * expanded at validation to every declared terrain source.
+     *
+     * @param layerId id of the layer to query
+     * @throws before `ready` or on an unknown layer id
+     */
+    getLayerTerrainSources(layerId: string): string[] {
+
+        this.assertAlive();
+        return this.map_.getLayerTerrainSources(layerId);
+    }
+
+    /**
+     * Replaces the active terrain stack, preserving the caller's
+     * back-to-front order. Layer terrain lists are unchanged and may
+     * name currently inactive terrain sources in preparation for a
+     * later terrain switch.
+     *
+     * @param sourceIds terrain source ids in stack order
+     * @throws before `ready` or on an id that is not a terrain source
+     */
+    setTerrainSources(sourceIds: string[]): this {
+
+        this.assertAlive();
+        this.map_.setTerrainSources(sourceIds);
+        return this;
+    }
+
+    /**
+     * Returns a copy of the effective active terrain stack.
+     *
+     * @throws before `ready`
+     */
+    getTerrainSources(): string[] {
+
+        this.assertAlive();
+        return this.map_.getTerrainSources();
+    }
+
+    /**
+     * Applies a complete visibility snapshot atomically: the active
+     * terrain stack plus the active terrain list of every style
+     * layer. The profile is fully validated first; an invalid
+     * profile changes nothing. Applying a profile is a one-time
+     * write of ordinary visibility state — later direct mutations
+     * and later profiles follow normal call order.
+     *
+     * @param profile the complete visibility snapshot
+     * @throws before `ready`, or when the profile omits a layer,
+     *   names an unknown layer, or names an unknown terrain source
+     */
+    applyVisibilityProfile(profile: Viewer.VisibilityProfile): this {
+
+        this.assertAlive();
+
+        // completeness: the profile must cover exactly the style's
+        // layers, so reapplying a captured profile restores all state
+        const layerIds = this.map_.getStyleLayerIds();
+        const profileIds = new Set(Object.keys(profile.layers));
+
+        for (const id of layerIds) {
+
+            if (!profileIds.has(id)) {
+                throw new Error(`Visibility profile omits layer `
+                    + `"${id}".`);
+            }
+
+            profileIds.delete(id);
+        }
+
+        if (profileIds.size > 0) {
+            throw new Error(`Visibility profile names unknown `
+                + `layer(s): ${[...profileIds].join(', ')}.`);
+        }
+
+        // expand into the same primitives as the direct methods; the
+        // batch validates terrain ids and commits atomically
+        const mutations: MapStyle.StyleMutation[] = [
+            { kind: 'terrain-sources', sources: profile.terrain },
+        ];
+
+        for (const id of layerIds) {
+            mutations.push({
+                kind: 'layer-terrain',
+                layerId: id,
+                terrain: profile.layers[id],
+            });
+        }
+
+        this.map_.mutateStyle(mutations);
+        return this;
+    }
+
+    /**
+     * Captures the current visibility state as a complete profile:
+     * the active terrain stack and every layer's terrain list. The
+     * result reapplies exactly through `applyVisibilityProfile`.
+     *
+     * @throws before `ready`
+     */
+    getVisibilityProfile(): Viewer.VisibilityProfile {
+
+        this.assertAlive();
+
+        const layers: Record<string, string[]> = {};
+
+        for (const id of this.map_.getStyleLayerIds()) {
+            layers[id] = this.map_.getLayerTerrainSources(id);
+        }
+
+        return {
+            terrain: this.map_.getTerrainSources(),
+            layers,
+        };
+    }
+
     /**
      * Switches to a named legacy mapConfig view, or to a supplied view
      * definition. Only valid for mapConfig-initialized maps.
@@ -807,6 +950,17 @@ class Viewer {
 }
 
 namespace Viewer {
+
+    /**
+     * A complete visibility snapshot: the active terrain stack plus
+     * the active terrain-source list of every style layer. A runtime
+     * value applied through `applyVisibilityProfile`; never part of
+     * the authored style.
+     */
+    export interface VisibilityProfile {
+        terrain: string[];
+        layers: Record<string, string[]>;
+    }
 
     /**
      * The public runtime configuration map accepted and returned by

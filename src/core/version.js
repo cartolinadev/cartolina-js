@@ -2,5 +2,5 @@
 // Use scripts/bump-patch.js to update version.
 
 export default function getVersion() {
-  return '2.49.574-feature_rfc11_mapconfig_to_style.930293bf';
+  return '2.49.575-feature_rfc11_mapconfig_to_style.46dd9969';
 }

@@ -3,6 +3,42 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 implementation, phase 2 (runtime mutation)
+
+Phase 2 of [RFC 11](rfc11-mapconfig-to-style.md) on
+`feature/rfc11-mapconfig-to-style`:
+
+- `MapStyle` now owns two layers of state: the normalized authored
+  baseline and runtime overrides (per-layer terrain lists, active
+  terrain stack). `style()` returns the effective state — a derived
+  clone with overrides applied — which terrain traversal
+  (`Map.surfaceList()`), `TileRenderRig`, and stylesheet compilation
+  consume unchanged. Indexes by layer id and terrain-source id back
+  the runtime validation.
+- `MapStyle.applyMutations()` is the atomic primitive batch: the
+  whole batch validates before any write, so an invalid batch
+  changes nothing.
+- Core `Map` gains `mutateStyle()` (commit: rebuild effective state,
+  clear label hysteresis when lettering changed, one sequence
+  recompile and dirty mark via `refreshView()`) and the four
+  primitive terrain methods. All throw before the `ready` promise
+  resolves; there is no pending-operation queue.
+- `Viewer` exposes `setLayerTerrainSources` / `getLayerTerrainSources`
+  / `setTerrainSources` / `getTerrainSources` and the profile pair
+  `applyVisibilityProfile` / `getVisibilityProfile`.
+  `Viewer.VisibilityProfile` is a runtime value; `Viewer` validates
+  profile completeness and expands profiles into the same primitive
+  mutations. Core `Map` has no profile type.
+- `refreshSequences()` compiles a lettering rule exactly when its
+  effective terrain list intersects the active terrain stack.
+
+Validation: tsc clean; new runtime test
+[test/style-mutation.js](../../test/style-mutation.js) passes all 20
+checks (pre-ready throws, generated ids, profile round-trip and
+overwrite semantics, validation failures leaving state untouched);
+visual check confirmed hide/restore of imagery and lettering through
+the API; the three canonical screenshot comparisons match prod.
+
 ## 2026-07-19 — RFC 11 implementation, phase 1 (style vocabulary)
 
 Started implementing [RFC 11](rfc11-mapconfig-to-style.md) on
