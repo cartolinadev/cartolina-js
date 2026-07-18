@@ -10,7 +10,16 @@ var utilsUrl = utilsUrl_;
 var MapCredit = MapCredit_;
 
 
-var MapBoundLayer = function(map, json, id) {
+/**
+ * @param map the owning legacy map
+ * @param json bound-layer definition object, or a URL string to fetch
+ *   it from
+ * @param id the bound-layer id
+ * @param [baseUrl] base URL that resolves relative URLs inside an
+ *   inline definition object; ignored for URL input, which derives
+ *   its own base
+ */
+var MapBoundLayer = function(map, json, id, baseUrl) {
     this.map = map;
     this.id = id;
     this.currentAlpha = 1.0;
@@ -64,10 +73,16 @@ var MapBoundLayer = function(map, json, id) {
             'Source');
         //utils.loadJSON(this.url, onLoaded, onError, null, utils.useCredentials);
     } else {
+        if (baseUrl) {
+            this.baseUrl = utilsUrl.getBase(baseUrl);
+            this.baseUrlSchema = utilsUrl.getSchema(baseUrl);
+            this.baseUrlOrigin = utilsUrl.getOrigin(baseUrl);
+        }
+
         this.parseJson(json);
         this.ready = true;
     }
-    
+
 };
 
 

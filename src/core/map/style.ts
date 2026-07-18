@@ -51,15 +51,66 @@ export type SourceSpecification =
     | CartolinaTmsSource
     | CartolinaFreeLayerSource;
 
+/**
+ * Where a source definition comes from: a URL to fetch it from, or
+ * the definition inline together with the base URL that resolves any
+ * relative URLs inside it.
+ */
+export type SourceLocation<T> =
+    | { url: string, data?: never, baseUrl?: never }
+    | { data: T, baseUrl: string, url?: never };
 
-type SourceBase<TType extends string> = {
-    type: TType,
-    url: string
+/**
+ * Inline data of a `cartolina-surface` source: a single-surface
+ * document carrying the surface resource definition plus the
+ * reference-frame, SRS, body, service, and credit metadata needed to
+ * initialize it. The same shape a surface URL resolves to.
+ */
+export type SurfaceSourceDefinition = {
+
+    referenceFrame: {
+        id: string;
+    } & Record<string, unknown>;
+
+    srses: Record<string, unknown>;
+    bodies: Record<string, MapBody.Configuration>;
+    services?: {
+        atmdensity?: {
+            url: string;
+        };
+    } & Record<string, unknown>;
+
+    surfaces: Array<Record<string, unknown>>;
+    credits?: Record<string, unknown>;
 }
 
-export type CartolinaSurfaceSource = SourceBase<'cartolina-surface'>
-export type CartolinaTmsSource = SourceBase<'cartolina-tms'>
-export type CartolinaFreeLayerSource = SourceBase<'cartolina-freelayer'>
+/**
+ * Inline data of a `cartolina-tms` source: a tiled raster source
+ * definition, the same shape a `cartolina-tms` URL resolves to.
+ */
+export type TmsSourceDefinition = Record<string, unknown>;
+
+/**
+ * Inline data of a `cartolina-freelayer` source: a monolithic
+ * (`type: 'geodata'`) or tiled (`type: 'geodata-tiles'`) geodata
+ * definition, the same shapes a `cartolina-freelayer` URL resolves
+ * to.
+ */
+export type FreeLayerSourceDefinition =
+    | ({ type: 'geodata' } & Record<string, unknown>)
+    | ({ type: 'geodata-tiles' } & Record<string, unknown>);
+
+export type CartolinaSurfaceSource = {
+    type: 'cartolina-surface'
+} & SourceLocation<SurfaceSourceDefinition>;
+
+export type CartolinaTmsSource = {
+    type: 'cartolina-tms'
+} & SourceLocation<TmsSourceDefinition>;
+
+export type CartolinaFreeLayerSource = {
+    type: 'cartolina-freelayer'
+} & SourceLocation<FreeLayerSourceDefinition>;
 
 export type TerrainSpecification = {
 
@@ -83,12 +134,13 @@ export type TileConstantLayer = DiffuseConstantLayer;
 export type LayerBase<TType extends string> = {
 
     type: TType,
+    id?: string,
+    terrain?: string[],
     necessity?: 'optional' | 'essential'
 }
 
 export type TileLayerBase<TType extends string> = LayerBase<TType> & {
 
-    terrain?: string[]
     source: string,
     whitewash?: number,
     blendMode?: BlendMode,
@@ -373,9 +425,105 @@ export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 
 const validateStyle = typia.createValidateEquals<MapStyle.StyleSpecification>();
 
+
+/*
+ * Structural equality for inline source metadata: object key order is
+ * irrelevant, array order and value identity are significant.
+ */
+
+function canonicalJson(value: unknown): string {
+
+    if (Array.isArray(value)) {
+        return '[' + value.map(canonicalJson).join(',') + ']';
+    }
+
+    if (value !== null && typeof value === 'object') {
+
+        const record = value as Record<string, unknown>;
+        const keys = Object.keys(record).sort();
+
+        return '{' + keys.map(
+            (key) => JSON.stringify(key) + ':'
+                + canonicalJson(record[key])).join(',') + '}';
+    }
+
+    return JSON.stringify(value) ?? 'undefined';
+}
+
+
+/*
+ * Validates the consistency rules for inline `cartolina-surface`
+ * sources: the reference frame and the shared SRS, body, and service
+ * definitions must be structurally equal across all inline terrain
+ * sources, and two inline definitions of the same credit id must be
+ * structurally equal. Throws before any map object is constructed.
+ * URL sources are not checked; they keep the historical
+ * first-document acceptance behavior.
+ */
+
+function checkInlineSurfaceConsistency(
+    sources: Record<string, MapStyle.SourceSpecification>,
+): void {
+
+    const inline: Array<[string, MapStyle.SurfaceSourceDefinition]> = [];
+
+    for (const [id, sourceSpec] of Object.entries(sources))
+        if (sourceSpec.type === 'cartolina-surface'
+            && sourceSpec.data !== undefined) {
+
+            inline.push([id, sourceSpec.data]);
+        }
+
+    if (inline.length < 2) return;
+
+    const [firstId, first] = inline[0];
+
+    const sharedKeys =
+        ['referenceFrame', 'srses', 'bodies', 'services'] as const;
+
+    for (let i = 1; i < inline.length; i++) {
+
+        const [otherId, other] = inline[i];
+
+        for (const key of sharedKeys) {
+
+            if (canonicalJson(first[key]) !== canonicalJson(other[key])) {
+
+                throw new Error(`Inline terrain sources "${firstId}" and `
+                    + `"${otherId}" carry different "${key}" definitions; `
+                    + `inline surface metadata must be structurally equal.`);
+            }
+        }
+    }
+
+    // credits merge by id; same id requires a structurally equal value
+    const creditOwners: Record<string, [string, string]> = {};
+
+    for (const [id, definition] of inline) {
+
+        if (!definition.credits) continue;
+
+        for (const [creditId, credit] of Object.entries(definition.credits)) {
+
+            const canonical = canonicalJson(credit);
+            const existing = creditOwners[creditId];
+
+            if (existing && existing[1] !== canonical) {
+
+                throw new Error(`Credit "${creditId}" is defined differently `
+                    + `by inline terrain sources "${existing[0]}" and `
+                    + `"${id}".`);
+            }
+
+            if (!existing) creditOwners[creditId] = [id, canonical];
+        }
+    }
+}
+
 /// vts stylesheet shape, compile from style for goedata free layer rendering
 
-type VtsStylesheetLayer = Omit<MapStyle.LetteringLayer, 'id' | 'type' | 'source'>;
+type VtsStylesheetLayer =
+    Omit<MapStyle.LetteringLayer, 'id' | 'type' | 'source' | 'terrain'>;
 
 type vtsStylesheet = {
 
@@ -385,31 +533,75 @@ type vtsStylesheet = {
     layers?: Record<string, VtsStylesheetLayer>
 }
 
-type SurfaceMapConfig = {
-
-    referenceFrame: {
-        id: string;
-    } & Record<string, unknown>;
-
-    srses: Record<string, unknown>;
-    bodies: Record<string, MapBody.Configuration>;
-    services?: {
-        atmdensity?: {
-            url: string;
-        };
-    } & Record<string, unknown>;
-
-    surfaces: unknown[];
-    credits?: Record<string, unknown>;
-}
-
-
 /*
  * Class map style, provides a method to initialize the map object according
  * to a style spec.
  */
 
 export class MapStyle {
+
+    /**
+     * Builds the normalized runtime clone of an authored style: every
+     * layer gets a unique id and an explicit terrain list, while the
+     * caller's object stays untouched.
+     *
+     * Anonymous layers receive a deterministic generated id derived
+     * from the layer's effective type (after the omitted diffuse type
+     * default) and its array position; while the candidate equals an
+     * explicit authored id, a deterministic `-anon` suffix is appended
+     * until it is unique. Duplicate explicit ids are rejected. An
+     * omitted layer `terrain` expands to the explicit list of every
+     * `cartolina-surface` entry in the `sources` dictionary,
+     * independent of the initial `terrain.sources` stack.
+     *
+     * @param styleSpec the validated authored style
+     * @returns the normalized clone
+     */
+    static normalizeStyle(
+        styleSpec: MapStyle.StyleSpecification,
+    ): MapStyle.StyleSpecification {
+
+        const spec = structuredClone(styleSpec);
+        const layers = spec.layers ?? [];
+
+        // duplicate explicit ids are authoring errors
+        const explicitIds = new Set<string>();
+
+        for (const layer of layers) {
+
+            if (layer.id === undefined) continue;
+
+            if (explicitIds.has(layer.id)) {
+                throw new Error(
+                    `Duplicate style layer id "${layer.id}".`);
+            }
+
+            explicitIds.add(layer.id);
+        }
+
+        const surfaceSourceIds = Object.entries(spec.sources)
+            .filter(([, sourceSpec]) =>
+                sourceSpec.type === 'cartolina-surface')
+            .map(([id]) => id);
+
+        layers.forEach((layer, index) => {
+
+            if (layer.id === undefined) {
+
+                const effectiveType = layer.type ?? 'diffuse-map';
+                let candidate = `${effectiveType}-${index}`;
+
+                while (explicitIds.has(candidate)) candidate += '-anon';
+                layer.id = candidate;
+            }
+
+            if (layer.terrain === undefined) {
+                layer.terrain = [...surfaceSourceIds];
+            }
+        });
+
+        return spec;
+    }
 
     /**
      * Load a map from style specification. This entails retrieving the sources,
@@ -436,10 +628,17 @@ export class MapStyle {
             throw new Error(`Invalid style (${errs.length} errors)`);
         }
 
-        const styleSurfaceSourceIds = Object.entries(styleSpec.sources)
+        // inline surface metadata must be consistent before any map
+        // object is constructed
+        checkInlineSurfaceConsistency(styleSpec.sources);
+
+        // normalized runtime clone; the caller's object stays untouched
+        const spec = MapStyle.normalizeStyle(styleSpec);
+
+        const styleSurfaceSourceIds = Object.entries(spec.sources)
             .filter(([, sourceSpec]) => sourceSpec.type === 'cartolina-surface')
             .map(([id]) => id);
-        const unknownTerrainSources = styleSpec.terrain.sources
+        const unknownTerrainSources = spec.terrain.sources
             .filter((id) => !styleSurfaceSourceIds.includes(id));
 
         if (unknownTerrainSources.length > 0) {
@@ -466,18 +665,31 @@ export class MapStyle {
 
         // parse surfaces from style sources
         // (with special handling of the first surface, extracting ref frame, body and services
-        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+        for (const [id, sourceSpec] of Object.entries(spec.sources))
             if (sourceSpec.type === 'cartolina-surface') {
 
-                // load surface map config
-                const path = MapStyle.slapResource(
-                    map.url.processUrl(sourceSpec.url), 'mapConfig.json');
+                // resolve the surface document: fetch the URL form,
+                // take the inline form as already-resolved data
+                let path: string;
+                let mc: MapStyle.SurfaceSourceDefinition;
 
-                let mc = await utils.loadJson(
-                    path,
-                    map.core.config.transformRequest ?? undefined,
-                    'MapConfig',
-                ) as SurfaceMapConfig;
+                if (sourceSpec.url !== undefined) {
+
+                    path = MapStyle.slapResource(
+                        map.url.processUrl(sourceSpec.url),
+                        'mapConfig.json');
+
+                    mc = await utils.loadJson(
+                        path,
+                        map.core.config.transformRequest ?? undefined,
+                        'MapConfig',
+                    ) as MapStyle.SurfaceSourceDefinition;
+
+                } else {
+
+                    path = sourceSpec.baseUrl;
+                    mc = sourceSpec.data;
+                }
 
                 // TODO: validation
                 //__DEV__ && console.log(mc);
@@ -513,20 +725,20 @@ export class MapStyle {
                     let body = map.referenceFrame.body;
                     let services = map.services;
 
-                    if (styleSpec.atmosphere
+                    if (spec.atmosphere
                         && body && body.atmosphere
                         && services && services.atmdensity) {
 
-                        let spec: Atmosphere.Specification = {
+                        let atmoSpec: Atmosphere.Specification = {
                             visibilityToEyeDistance: 5.0,
                             edgeDistanceToEyeDistance: 1.0,
                             maxVisibility: 1e6,
-                            ...body.atmosphere, 
-                            ...styleSpec.atmosphere
+                            ...body.atmosphere,
+                            ...spec.atmosphere
                         };
 
                         map.atmosphere = new Atmosphere(
-                            spec, map.getPhysicalSrs(),
+                            atmoSpec, map.getPhysicalSrs(),
                             map.url.makeUrl(services.atmdensity.url, {}), map);
                        }
                 }
@@ -551,20 +763,39 @@ export class MapStyle {
             }
 
         // parse bound layers from sources
-        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+        for (const [id, sourceSpec] of Object.entries(spec.sources))
             if (sourceSpec.type === 'cartolina-tms') {
 
-                const path = MapStyle.slapResource(
-                    map.url.processUrl(sourceSpec.url), 'boundlayer.json');
+                if (sourceSpec.url !== undefined) {
 
-                // asynchronous: callbacks force repeated map.refreshView()
-                let bl = new MapBoundLayer(map, path, id);
-                map.addBoundLayer(id, bl);
+                    const path = MapStyle.slapResource(
+                        map.url.processUrl(sourceSpec.url),
+                        'boundlayer.json');
+
+                    // asynchronous: callbacks force repeated
+                    // map.refreshView()
+                    let bl = new MapBoundLayer(map, path, id);
+                    map.addBoundLayer(id, bl);
+
+                } else {
+
+                    let bl = new MapBoundLayer(
+                        map, sourceSpec.data, id, sourceSpec.baseUrl);
+                    map.addBoundLayer(id, bl);
+                }
             }
 
         // parse free layers from sources
-        for (const [id, sourceSpec] of Object.entries(styleSpec.sources))
+        for (const [id, sourceSpec] of Object.entries(spec.sources))
             if (sourceSpec.type === 'cartolina-freelayer') {
+
+                if (sourceSpec.data !== undefined) {
+
+                    let fl = new MapSurface(
+                        map, sourceSpec.data, 'free', sourceSpec.baseUrl);
+                    map.addFreeLayer(id, fl);
+                    continue;
+                }
 
                 const path = MapStyle.slapResource(
                     map.url.processUrl(sourceSpec.url), 'freelayer.json');
@@ -576,13 +807,13 @@ export class MapStyle {
 
 
         // illumination
-        if (styleSpec.illumination) {
+        if (spec.illumination) {
 
-            map.renderer.setIllumination(styleSpec.illumination);
+            map.renderer.setIllumination(spec.illumination);
         }
 
         // vertical exaggeration
-        const veSpec = styleSpec['vertical-exaggeration'];
+        const veSpec = spec['vertical-exaggeration'];
 
         if (veSpec) {
             map.renderer.setSuperElevationState(true);
@@ -599,9 +830,9 @@ export class MapStyle {
         }
 
         // options
-        if (styleSpec.config) {
+        if (spec.config) {
 
-            for (const [key, value] of Object.entries(styleSpec.config)) {
+            for (const [key, value] of Object.entries(spec.config)) {
 
                 const patch = viewerConfig.normalizeConfigPatch(key, value);
                 if (patch) map.core.configStore.set(patch);
@@ -610,7 +841,7 @@ export class MapStyle {
 
         // done
         //__DEV__ && console.log(map);
-        map.style = new MapStyle(map, styleSpec);
+        map.style = new MapStyle(map, spec);
     }
 
 
@@ -675,10 +906,12 @@ export class MapStyle {
 
                 const clonedLayer = structuredClone(
                     layer) as MapStyle.LetteringLayer;
-                const { id, type, source, ...stylesheetLayer } = clonedLayer;
 
                 // remove fields specific to cartolina style layers and
                 // not present in vts stylesheets
+                const { id, type, source, terrain, ...stylesheetLayer }
+                    = clonedLayer;
+
                 // final stylesheet
                 stylesheet.layers![id] = stylesheetLayer;
             }

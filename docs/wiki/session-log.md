@@ -3,6 +3,41 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 implementation, phase 1 (style vocabulary)
+
+Started implementing [RFC 11](rfc11-mapconfig-to-style.md) on
+`feature/rfc11-mapconfig-to-style`. Phase 1 lands the additive style
+vocabulary in [style.ts](../../src/core/map/style.ts):
+
+- `LayerBase` gains optional `id` and hosts the `terrain` list moved
+  up from `TileLayerBase`; every layer type now shares one identity
+  and terrain-applicability contract. The `DiffuseMapLayer` omitted
+  `type` default is preserved.
+- Source specifications accept a URL or inline data
+  (`SourceLocation<T>`): `SurfaceSourceDefinition` (single-surface
+  document plus reference metadata), `TmsSourceDefinition`, and the
+  monolithic-or-tiled `FreeLayerSourceDefinition` union. Inline data
+  carries an explicit `baseUrl`; `MapSurface` and `MapBoundLayer`
+  constructors accept it as a new optional parameter.
+- Inline terrain sources are validated for structurally equal
+  reference-frame, SRS, body, and service definitions (object key
+  order irrelevant, array order significant) and per-id credit
+  consistency before any map object is constructed. URL sources keep
+  the historical first-document acceptance.
+- `MapStyle.normalizeStyle()` builds the runtime clone: deterministic
+  generated ids for anonymous layers (effective type + array
+  position, `-anon` suffix on collision with an explicit id),
+  duplicate explicit ids rejected, omitted `terrain` expanded to
+  every `cartolina-surface` entry of the `sources` dictionary. The
+  caller's style object is never mutated.
+- `refreshSequences()` strips `terrain` from compiled stylesheet
+  rules so the Cartolina-only field does not leak into VTS
+  stylesheets.
+
+Validation: `npx tsc --noEmit` clean; `simple-terrain`,
+`complex-terrain`, and `full-terrain` screenshots match prod with no
+console or network errors.
+
 ## 2026-07-18 — RFC 11 review round 5 sign-off
 
 Signed off [RFC 11](rfc11-mapconfig-to-style.md) and changed its status to

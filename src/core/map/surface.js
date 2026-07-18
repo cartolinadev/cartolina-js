@@ -13,7 +13,16 @@ var BBox = BBox_;
 var utilsUrl = utilsUrl_;
 
 
-var MapSurface = function(map, json, type) {
+/**
+ * @param map the owning legacy map
+ * @param json source definition object, or a URL string to fetch it
+ *   from
+ * @param [type] 'free' for a free layer, otherwise a plain surface
+ * @param [baseUrl] base URL that resolves relative URLs inside an
+ *   inline definition object; ignored for URL input, which derives
+ *   its own base
+ */
+var MapSurface = function(map, json, type, baseUrl) {
     this.map = map;
     this.id = null;
     this.styleSourceId = null;
@@ -80,6 +89,12 @@ var MapSurface = function(map, json, type) {
             'Source');
         //utils.loadJSON(this.url, onLoaded, onError, null, utils.useCredentials);
     } else {
+        if (baseUrl) {
+            this.baseUrl = utilsUrl.getBase(baseUrl);
+            this.baseUrlSchema = utilsUrl.getSchema(baseUrl);
+            this.baseUrlOrigin = utilsUrl.getOrigin(baseUrl);
+        }
+
         this.parseJson(json);
         this.ready = true;
     }
