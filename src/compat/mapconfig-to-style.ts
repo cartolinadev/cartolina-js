@@ -729,10 +729,17 @@ class ConversionContext {
 
         this.convertViewOptions(initialView, style);
 
-        // atmosphere: the legacy runtime always enabled the body's
-        // atmosphere; an empty section opts the style map in with
-        // the body defaults
-        style['atmosphere'] = {};
+        // atmosphere: the legacy runtime enabled the body's
+        // atmosphere with its fixed visibility. The style loader
+        // adds eye-distance-driven defaults on top of the body
+        // values, so the explicit zeros disable the eye-distance
+        // terms and the large cap neutralizes the clamp; the body's
+        // own visibility then applies, matching the legacy render.
+        style['atmosphere'] = {
+            visibilityToEyeDistance: 0,
+            edgeDistanceToEyeDistance: 0,
+            maxVisibility: 1e12,
+        };
 
         // named views become plain visibility profiles
         const profiles = this.buildProfiles(

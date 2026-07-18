@@ -87,7 +87,9 @@ namespace MapBody {
 
     export type Info = BaseInfo;
 
-    export type Configuration = Omit<BaseInfo, 'atmosphere'> & {
+    // every field is optional: `parse` substitutes defaults, and
+    // body documents carry additional fields the parser ignores
+    export type Configuration = Partial<Omit<BaseInfo, 'atmosphere'>> & {
         atmosphere?: Partial<Atmosphere>;
     };
 

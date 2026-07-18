@@ -73,7 +73,7 @@ export type SurfaceSourceDefinition = {
     } & Record<string, unknown>;
 
     srses: Record<string, unknown>;
-    bodies: Record<string, MapBody.Configuration>;
+    bodies?: Record<string, Record<string, unknown>>;
     services?: {
         atmdensity?: {
             url: string;
@@ -722,7 +722,9 @@ export class MapStyle {
 
                     // the bodies
                     for (let key in mc.bodies)
-                        map.addBody(key, new MapBody(map, mc.bodies[key]));
+                        map.addBody(key, new MapBody(
+                            map,
+                            mc.bodies[key] as MapBody.Configuration));
 
                     // the reference frame
                     map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);

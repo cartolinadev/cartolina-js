@@ -3,6 +3,35 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 phase-3 closure gate passed
+
+The compatibility closure gate of
+[RFC 11](rfc11-mapconfig-to-style.md) phase 3 passed:
+
+- [test/mapconfig-corpus.js](../../test/mapconfig-corpus.js) converts
+  every mapConfig-based entry of test/urls.json in strict mode. All
+  four corpus inputs convert with informational notes only: the
+  `@name` constant collision of `a-3d-mountain-map` is an exact
+  rename note, `legacy-benatky`'s non-empty glue declarations and the
+  dead `tacoma-fitonly` browser options are ignored-field notes, and
+  the `nacis-2023` view-item `shaderFilter` keys (which the current
+  client never reads) likewise.
+- The demo application routes its `mapConfig` query parameter through
+  `mapConfigToStyle()` and `map()`, making every legacy dev URL a
+  living converter regression case.
+- Converted renders of all four corpus entries are visually
+  indistinguishable from mapConfig-path captures taken immediately
+  before the switch (the UI chrome differs because `map()` disables
+  the legacy default controls; map rendering, labels, and shading
+  match).
+- Two fixes surfaced by the gate: `MapBody.Configuration` fields are
+  now optional (matching `parse`, which substitutes defaults —
+  required for typia validation of inline surface metadata), and the
+  converter emits an atmosphere section with explicit zero
+  eye-distance factors so the style loader reproduces the legacy
+  fixed-visibility atmosphere instead of layering its
+  eye-distance-driven defaults on top.
+
 ## 2026-07-19 — RFC 11 implementation, phase 3 (converter)
 
 Phase 3 of [RFC 11](rfc11-mapconfig-to-style.md): the compatibility

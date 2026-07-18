@@ -134,11 +134,25 @@ async function main() {
   });
 
   if (!hasStyle && mapConfigUrl) {
-    const browserConfig = {...options, map: mapConfigUrl};
+    // legacy mapConfigs load through the compatibility converter;
+    // every legacy dev URL is thereby a living converter regression
+    const conversion = await cartolina.mapConfigToStyle(mapConfigUrl);
+
+    for (const note of conversion.notes) {
+      console.log(`mapConfigToStyle note [${note.code}] ${note.path}: ${note.message}`);
+    }
+    for (const warning of conversion.warnings) {
+      console.warn(`mapConfigToStyle warning [${warning.code}] ${warning.path}: ${warning.message} (${warning.recovery})`);
+    }
+
     const urlPos = posFromURL();
 
-    if (urlPos) browserConfig.position = urlPos;
-    cartolina.browser('map', browserConfig);
+    window.v = cartolina.map({
+      container: 'map',
+      style: conversion.style,
+      position: urlPos ?? conversion.position ?? undefined,
+      options: { ...conversion.viewerOptions, ...options }
+    });
     return;
   }
 
