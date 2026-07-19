@@ -132,12 +132,13 @@ describe('viewer-config normalization', function() {
 
     it('keeps the audited public subset sizes', function() {
 
-        // 60 runtime keys since RFC 11 promoted the label-density
-        // pair mapFeaturesReduceMode / mapFeaturesReduceParams; the
+        // 61 runtime keys since RFC 11 promoted the corpus
+        // browserOptions destinations (mapFeaturesReduceMode,
+        // mapFeaturesReduceParams, mapSoftViewSwitch); the
         // construction set lost the geojson / geodata / geojsonStyle
         // startup options removed with the mapConfig runtime
-        assert.strictEqual(publicRuntimeConfigKeys.length, 60);
-        assert.strictEqual(publicConstructionConfigKeys.length, 70);
+        assert.strictEqual(publicRuntimeConfigKeys.length, 61);
+        assert.strictEqual(publicConstructionConfigKeys.length, 71);
     });
 
     it('expands the mapNoTextures coupling', function() {

@@ -3,6 +3,41 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — converter fixes: canonical order merge, switch
+options, null visibility-switch targets
+
+Three converter defects surfaced by conversion inputs wider than the
+public corpus:
+
+- The canonical raster-layer order is now a deterministic
+  topological merge of every view's per-surface sequences (Kahn's
+  algorithm; initial-view first-seen order breaks ties, named-only
+  layers slot where their constraints demand). The previous
+  first-seen ordering produced false layer-order-conflict warnings
+  whenever a later surface interleaved a layer an earlier surface
+  omitted. A genuine cross-view ordering cycle still warns per
+  affected view surface.
+- `visibility-switch` pairs with a `null` second element (a level
+  with no layer) are valid and no longer produce
+  unresolved-reference warnings; renamed layer targets in the
+  remaining pairs are rewritten.
+- `mapSoftViewSwitch` is promoted to public (runtime) catalogue
+  visibility: it is read per tile at terrain/visibility switch time
+  (`surface-tile.js`) and controls whether previous tile state is
+  kept during a switch, so it is live behavior with an independent
+  public justification. `mapLogGeodataStyles` gates geodata-worker
+  console logging only (`worker-style.js`) and is dropped with a
+  diagnostics-only note.
+
+Validation: tsc clean; 76 unit tests pass (new tests for the
+topological merge, named-only slotting, the genuine-conflict
+warning, null visibility-switch targets, and the two option
+classifications); the strict public corpus conversion is unchanged
+(same notes, same nacis layer order). Screenshot verification is
+deferred: cdn.tspl.re is currently timing out on fonts and tiles,
+degrading even the unchanged style-path renders (known upstream
+glitch pattern); to be re-run when the CDN recovers.
+
 ## 2026-07-19 — RFC 11 closed as implemented
 
 Appended the implementation addendum to

@@ -281,6 +281,19 @@ async function defaultLoadJson(
  */
 const provenNoOpOptions = new Set(['mapGridTextureLayer']);
 
+/*
+ * Catalogued keys that gate console diagnostics only and cannot
+ * affect rendering. Dropping them preserves the rendered map
+ * exactly; the note names the consumer. Verified against the source
+ * when added here.
+ */
+const diagnosticOnlyOptions: Record<string, string> = {
+
+    // gates stylesheet-processing console logging in the geodata
+    // worker (worker-style.js via processor.js)
+    mapLogGeodataStyles: 'geodata-worker stylesheet logging',
+};
+
 const publicOptionKeys: ReadonlySet<string> =
     new Set(viewerConfig.publicConstructionConfigKeys);
 
@@ -562,6 +575,15 @@ type LetteringModule = {
     data: linker.VtsStylesheetData;
 };
 
+/* One view's raster-entry sequence on one surface: the ordering
+ * constraint it contributes to the canonical layer order. The viewId
+ * is null for the initial view. */
+type ViewSequence = {
+    viewId: string | null;
+    path: string;
+    keys: string[];
+};
+
 /* One raster presentation with its output id and terrain sets. */
 type PresentationEntry = {
     id: string;
@@ -667,8 +689,10 @@ class ConversionContext {
         const namedViews = this.resolveNamedViews();
 
         // raster presentations and lettering modules across all views
-        const presentations = this.collectPresentations(
-            initialView, namedViews);
+        const { presentations, sequences } =
+            this.collectPresentations(initialView, namedViews);
+        const orderedPresentations =
+            this.orderPresentations(presentations, sequences);
         const modules = await this.collectLetteringModules(
             initialView, namedViews);
 
@@ -708,7 +732,7 @@ class ConversionContext {
 
         // assemble the layers array
         const { layers, letteringIdsByModule } = this.assembleLayers(
-            presentations, ordered, linked);
+            orderedPresentations, ordered, linked);
 
         // root style
         const style: Record<string, unknown> = {
@@ -743,8 +767,8 @@ class ConversionContext {
 
         // named views become plain visibility profiles
         const profiles = this.buildProfiles(
-            namedViews, presentations, ordered, letteringIdsByModule,
-            layers);
+            namedViews, orderedPresentations, ordered,
+            letteringIdsByModule, layers);
 
         // construction values beside the style
         const position = Array.isArray(doc['position'])
@@ -752,8 +776,6 @@ class ConversionContext {
             : null;
 
         const viewerOptions = this.convertBrowserOptions();
-
-        this.checkNamedViewLayerOrder(namedViews, presentations);
 
         return {
             style: style as unknown as MapStyle.StyleSpecification,
@@ -1190,14 +1212,20 @@ class ConversionContext {
      * Collects the distinct raster presentations of all views. Equal
      * source, type, and styling properties share one layer whose
      * terrain list carries the union of assigned surfaces; different
-     * properties become separate layers selected by profiles.
+     * properties become separate layers selected by profiles. Also
+     * records every view's per-surface presentation sequence for the
+     * canonical-order merge.
      */
     private collectPresentations(
         initialView: NormalizedView,
         namedViews: Map<string, NormalizedView>,
-    ): Map<string, PresentationEntry> {
+    ): {
+        presentations: Map<string, PresentationEntry>;
+        sequences: ViewSequence[];
+    } {
 
         const presentations = new Map<string, PresentationEntry>();
+        const sequences: ViewSequence[] = [];
         const idCounters = new Map<string, number>();
         let initialOrder = 0;
 
@@ -1216,6 +1244,14 @@ class ConversionContext {
                     fatal(`view references unknown surface `
                         + `"${legacySurfaceId}".`);
                 }
+
+                const sequence: ViewSequence = {
+                    viewId,
+                    path: `${pathPrefix}.surfaces.${legacySurfaceId}`,
+                    keys: [],
+                };
+
+                sequences.push(sequence);
 
                 entries.forEach((entry, index) => {
 
@@ -1236,6 +1272,8 @@ class ConversionContext {
 
                     const key = canonicalJson(
                         { sourceId, spec: presentation.spec });
+
+                    sequence.keys.push(key);
 
                     let existing = presentations.get(key);
 
@@ -1285,7 +1323,148 @@ class ConversionContext {
         for (const [name, view] of namedViews)
             visit(view, name, `namedViews.${name}`);
 
-        return presentations;
+        return { presentations, sequences };
+    }
+
+    /*
+     * Chooses the canonical raster-layer order: a deterministic
+     * topological merge of every view's per-surface sequences. The
+     * initial view is the backbone — its first-seen order breaks
+     * ties — and layers used only by named views slot where their
+     * ordering constraints demand. A view surface whose sequence the
+     * final order cannot reproduce (a genuine ordering cycle across
+     * views) gets a layer-order-conflict warning.
+     */
+    private orderPresentations(
+        presentations: Map<string, PresentationEntry>,
+        sequences: ViewSequence[],
+    ): PresentationEntry[] {
+
+        // precedence edges from consecutive sequence pairs
+        const successors = new Map<string, Set<string>>();
+        const indegree = new Map<string, number>();
+
+        for (const key of presentations.keys()) {
+            successors.set(key, new Set());
+            indegree.set(key, 0);
+        }
+
+        for (const sequence of sequences) {
+
+            for (let i = 0; i + 1 < sequence.keys.length; i++) {
+
+                const from = sequence.keys[i];
+                const to = sequence.keys[i + 1];
+                if (from === to) continue;
+
+                const set = successors.get(from) as Set<string>;
+                if (set.has(to)) continue;
+
+                set.add(to);
+                indegree.set(to, (indegree.get(to) as number) + 1);
+            }
+        }
+
+        // Kahn's algorithm; among ready nodes, initial-view layers go
+        // in their first-seen order, named-only layers by id
+        const sortKey = (key: string): [number, string] => {
+
+            const entry = presentations.get(key) as PresentationEntry;
+            return [
+                entry.initialOrder === -1
+                    ? Number.MAX_SAFE_INTEGER : entry.initialOrder,
+                entry.id,
+            ];
+        };
+
+        const ready: string[] = [];
+
+        for (const [key, degree] of indegree)
+            if (degree === 0) ready.push(key);
+
+        const ordered: string[] = [];
+
+        while (ready.length > 0) {
+
+            let best = 0;
+
+            for (let i = 1; i < ready.length; i++) {
+
+                const [aOrder, aId] = sortKey(ready[i]);
+                const [bOrder, bId] = sortKey(ready[best]);
+
+                if (aOrder < bOrder
+                    || (aOrder === bOrder && aId < bId)) {
+                    best = i;
+                }
+            }
+
+            const key = ready.splice(best, 1)[0];
+            ordered.push(key);
+
+            for (const next of successors.get(key) as Set<string>) {
+
+                const degree = (indegree.get(next) as number) - 1;
+                indegree.set(next, degree);
+                if (degree === 0) ready.push(next);
+            }
+        }
+
+        // a cycle means genuinely incompatible per-surface orders;
+        // emit the rest deterministically and let the check below
+        // name the affected view surfaces
+        if (ordered.length < presentations.size) {
+
+            const emitted = new Set(ordered);
+            const remaining = [...presentations.keys()]
+                .filter((key) => !emitted.has(key));
+
+            remaining.sort((a, b) => {
+
+                const [aOrder, aId] = sortKey(a);
+                const [bOrder, bId] = sortKey(b);
+                if (aOrder !== bOrder) return aOrder - bOrder;
+                return aId < bId ? -1 : 1;
+            });
+
+            ordered.push(...remaining);
+        }
+
+        const positions = new Map<string, number>();
+        ordered.forEach((key, index) => positions.set(key, index));
+
+        // per-view reproducibility check: every sequence must be
+        // non-decreasing in the final order
+        for (const sequence of sequences) {
+
+            let last = -1;
+
+            for (const key of sequence.keys) {
+
+                const position = positions.get(key) as number;
+
+                if (position < last) {
+
+                    this.warnings.push({
+                        code: 'layer-order-conflict',
+                        path: sequence.path,
+                        message: `The relative layer order at `
+                            + `${sequence.path} cannot be reproduced `
+                            + `by visibility changes over the `
+                            + `canonical layer order.`,
+                        recovery: `The merged canonical order `
+                            + `applies.`,
+                    });
+
+                    break;
+                }
+
+                last = position;
+            }
+        }
+
+        return ordered.map(
+            (key) => presentations.get(key) as PresentationEntry);
     }
 
     // -----------------------------------------------------------------
@@ -1444,7 +1623,7 @@ class ConversionContext {
     // -----------------------------------------------------------------
 
     private assembleLayers(
-        presentations: Map<string, PresentationEntry>,
+        orderedPresentations: PresentationEntry[],
         orderedModules: LetteringModule[],
         linked: linker.LinkerResult,
     ): {
@@ -1454,21 +1633,8 @@ class ConversionContext {
 
         const layers: Record<string, unknown>[] = [];
 
-        // raster layers: initial-view order first, then layers used
-        // only by named views in deterministic id order
-        const rasterEntries = [...presentations.values()];
-
-        rasterEntries.sort((a, b) => {
-
-            const aInitial = a.initialOrder !== -1;
-            const bInitial = b.initialOrder !== -1;
-
-            if (aInitial !== bInitial) return aInitial ? -1 : 1;
-            if (aInitial) return a.initialOrder - b.initialOrder;
-            return a.id.localeCompare(b.id);
-        });
-
-        for (const entry of rasterEntries) {
+        // raster layers in the merged canonical order
+        for (const entry of orderedPresentations) {
 
             layers.push({
                 id: entry.id,
@@ -1602,7 +1768,7 @@ class ConversionContext {
 
     private buildProfiles(
         namedViews: Map<string, NormalizedView>,
-        presentations: Map<string, PresentationEntry>,
+        orderedPresentations: PresentationEntry[],
         orderedModules: LetteringModule[],
         letteringIdsByModule: Map<string, string[]>,
         layers: Record<string, unknown>[],
@@ -1619,7 +1785,7 @@ class ConversionContext {
                 profileLayers[layer['id'] as string] = [];
 
             // raster layers active in this view
-            for (const entry of presentations.values()) {
+            for (const entry of orderedPresentations) {
 
                 const terrain = entry.viewTerrain.get(name);
                 if (terrain) profileLayers[entry.id] = [...terrain];
@@ -1645,82 +1811,6 @@ class ConversionContext {
         }
 
         return profiles;
-    }
-
-    /* Warns when a named view's relative per-surface layer order
-     * cannot be reproduced by visibility changes over the canonical
-     * layer order. */
-    private checkNamedViewLayerOrder(
-        namedViews: Map<string, NormalizedView>,
-        presentations: Map<string, PresentationEntry>,
-    ): void {
-
-        // canonical position of each presentation id
-        const position = new Map<string, number>();
-        let index = 0;
-        for (const entry of presentations.values())
-            position.set(canonicalJson(
-                { sourceId: entry.sourceId, spec: entry.spec }), index++);
-
-        // note: positions must follow the emitted order, which sorted
-        // by initial order; rebuild from the sorted sequence
-        const sorted = [...presentations.entries()];
-        sorted.sort(([, a], [, b]) => {
-
-            const aInitial = a.initialOrder !== -1;
-            const bInitial = b.initialOrder !== -1;
-            if (aInitial !== bInitial) return aInitial ? -1 : 1;
-            if (aInitial) return a.initialOrder - b.initialOrder;
-            return a.id.localeCompare(b.id);
-        });
-
-        sorted.forEach(([key], sortedIndex) =>
-            position.set(key, sortedIndex));
-
-        for (const [name, view] of namedViews) {
-
-            for (const [legacySurfaceId, entries]
-                of Object.entries(view.surfaces)) {
-
-                let last = -1;
-
-                for (const [entryIndex, entry] of entries.entries()) {
-
-                    const presentation = convertRasterEntry(
-                        entry,
-                        `namedViews.${name}.surfaces.`
-                        + `${legacySurfaceId}[${entryIndex}]`,
-                        // classification notes were already recorded
-                        // in the collection pass
-                        []);
-
-                    const sourceId = this.boundSourceIds.get(
-                        presentation.boundLayerId) as string;
-                    const key = canonicalJson(
-                        { sourceId, spec: presentation.spec });
-                    const layerPosition = position.get(key) ?? -1;
-
-                    if (layerPosition < last) {
-
-                        this.warnings.push({
-                            code: 'layer-order-conflict',
-                            path: `namedViews.${name}.surfaces.`
-                                + `${legacySurfaceId}`,
-                            message: `The relative layer order of `
-                                + `named view "${name}" on surface `
-                                + `"${legacySurfaceId}" cannot be `
-                                + `reproduced by visibility changes.`,
-                            recovery: `The canonical layer order of `
-                                + `the initial view applies.`,
-                        });
-
-                        break;
-                    }
-
-                    last = layerPosition;
-                }
-            }
-        }
     }
 
     // -----------------------------------------------------------------
@@ -1768,6 +1858,20 @@ class ConversionContext {
                     message: `Nothing in the current client reads `
                         + `"${canonical}"; dropped with behavior `
                         + `unchanged.`,
+                });
+
+                continue;
+            }
+
+            if (canonical in diagnosticOnlyOptions) {
+
+                this.notes.push({
+                    code: 'ignored-browser-option',
+                    path,
+                    message: `"${canonical}" gates console `
+                        + `diagnostics only `
+                        + `(${diagnosticOnlyOptions[canonical]}); `
+                        + `dropped with rendering unchanged.`,
                 });
 
                 continue;

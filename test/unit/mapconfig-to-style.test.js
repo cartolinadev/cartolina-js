@@ -311,8 +311,11 @@ describe('mapConfigToStyle', function() {
             controlMeasure: true,
             mapCache: 1000,
             mapFeaturesReduceMode: 'scr-count7',
+            mapSoftViewSwitch: false,
             // proven current-client no-op: note
             mapGridTextureLayer: 'x',
+            // diagnostics-only key: note
+            mapLogGeodataStyles: false,
             // uncatalogued: the client drops it, note
             mapLoadMode: 'fitonly',
             // catalogued internal and still read: warning
@@ -326,6 +329,8 @@ describe('mapConfigToStyle', function() {
         assert.strictEqual(
             conversion.viewerOptions.mapFeaturesReduceMode,
             'scr-count7');
+        assert.strictEqual(
+            conversion.viewerOptions.mapSoftViewSwitch, false);
 
         const noteKeys = conversion.notes
             .filter((note) => note.code === 'ignored-browser-option')
@@ -333,12 +338,126 @@ describe('mapConfigToStyle', function() {
         assert.deepStrictEqual(noteKeys.sort(), [
             'browserOptions.mapGridTextureLayer',
             'browserOptions.mapLoadMode',
+            'browserOptions.mapLogGeodataStyles',
         ]);
 
         const warning = conversion.warnings.find((entry) =>
             entry.code === 'unsupported-browser-option');
         assert.ok(warning);
         assert.strictEqual(warning.path, 'browserOptions.mapSplitMargin');
+    });
+
+    it('merges per-surface layer orders topologically',
+        async function() {
+
+        const doc = baseMapConfig();
+        doc.surfaces.push({
+            id: 'terrain-b',
+            lodRange: [1, 15],
+            meshUrl: 'b/{lod}-{x}-{y}.bin',
+            metaUrl: 'b/{lod}-{x}-{y}.meta',
+            navUrl: 'b/{lod}-{x}-{y}.nav',
+            tileRange: [[0, 0], [1, 1]],
+        });
+
+        doc.boundLayers = {
+            'bl-x': 'https://cdn.example.com/bl/x/boundlayer.json',
+            'bl-y': 'https://cdn.example.com/bl/y/boundlayer.json',
+            'bl-z': 'https://cdn.example.com/bl/z/boundlayer.json',
+        };
+
+        // surface a omits bl-y; surface b needs it between x and z.
+        // first-seen order would emit y after z and break surface b.
+        doc.view.surfaces = {
+            'terrain-a': ['bl-x', 'bl-z'],
+            'terrain-b': ['bl-x', 'bl-y', 'bl-z'],
+        };
+
+        const fixtures = baseFixtures(doc);
+        for (const key of ['x', 'y', 'z']) {
+            fixtures[`https://cdn.example.com/bl/${key}/boundlayer.json`]
+                = boundLayerDefinition();
+        }
+
+        const conversion = await convert(doc, fixtures);
+
+        assert.deepStrictEqual(
+            conversion.style.layers.map((layer) => layer.id),
+            ['bl-x', 'bl-y', 'bl-z']);
+        assert.deepStrictEqual(conversion.warnings, []);
+    });
+
+    it('slots named-view-only layers where their order demands',
+        async function() {
+
+        const doc = baseMapConfig();
+        doc.boundLayers = {
+            'bl-p': 'https://cdn.example.com/bl/p/boundlayer.json',
+            'bl-q': 'https://cdn.example.com/bl/q/boundlayer.json',
+            'bl-r': 'https://cdn.example.com/bl/r/boundlayer.json',
+        };
+
+        // r is used only by the named view, which needs it before q;
+        // appending named-only layers after the initial order would
+        // break that sequence
+        doc.view.surfaces = { 'terrain-a': ['bl-p', 'bl-q'] };
+        doc.namedViews = {
+            other: { surfaces: { 'terrain-a': ['bl-r', 'bl-q'] } },
+        };
+
+        const fixtures = baseFixtures(doc);
+        for (const key of ['p', 'q', 'r']) {
+            fixtures[`https://cdn.example.com/bl/${key}/boundlayer.json`]
+                = boundLayerDefinition();
+        }
+
+        const conversion = await convert(doc, fixtures);
+        const ids = conversion.style.layers.map((layer) => layer.id);
+
+        assert.ok(ids.indexOf('bl-r') < ids.indexOf('bl-q'));
+        assert.ok(ids.indexOf('bl-p') < ids.indexOf('bl-q'));
+        assert.deepStrictEqual(conversion.warnings, []);
+
+        // named-only layers start inactive; the profile activates r
+        const layerR = conversion.style.layers.find(
+            (layer) => layer.id === 'bl-r');
+        assert.deepStrictEqual(layerR.terrain, []);
+        assert.deepStrictEqual(
+            conversion.profiles.other.layers['bl-r'], ['terrain-a']);
+    });
+
+    it('warns on a genuinely irreproducible named-view order',
+        async function() {
+
+        const doc = baseMapConfig();
+        doc.boundLayers = {
+            'bl-x': 'https://cdn.example.com/bl/x/boundlayer.json',
+            'bl-y': 'https://cdn.example.com/bl/y/boundlayer.json',
+        };
+
+        doc.view.surfaces = { 'terrain-a': ['bl-x', 'bl-y'] };
+        doc.namedViews = {
+            flipped: { surfaces: { 'terrain-a': ['bl-y', 'bl-x'] } },
+        };
+
+        const fixtures = baseFixtures(doc);
+        for (const key of ['x', 'y']) {
+            fixtures[`https://cdn.example.com/bl/${key}/boundlayer.json`]
+                = boundLayerDefinition();
+        }
+
+        const conversion = await convert(doc, fixtures);
+
+        // the initial view keeps its order; only the named view warns
+        assert.deepStrictEqual(
+            conversion.style.layers.map((layer) => layer.id),
+            ['bl-x', 'bl-y']);
+
+        const warnings = conversion.warnings.filter((entry) =>
+            entry.code === 'layer-order-conflict');
+        assert.strictEqual(warnings.length, 1);
+        assert.strictEqual(warnings[0].path,
+            'namedViews.flipped.surfaces.terrain-a');
     });
 
     it('notes non-empty ignored top-level fields', async function() {
@@ -607,6 +726,43 @@ describe('mapConfigToStyle stylesheet linking', function() {
             loadJson: loaderFor(fixtures),
             strict: true,
         });
+    });
+
+    it('rewrites layer references through null-target '
+        + 'visibility-switch pairs', async function() {
+
+        const { doc, fixtures } = letteringMapConfig();
+
+        // both modules define "peaks" differently, so the second
+        // module's family is renamed; its references must follow,
+        // and the null-target pair must not warn
+        fixtures['https://cdn.example.com/fl/a/a.style'].layers.peaks =
+            { label: true, 'label-size': 10 };
+
+        fixtures['https://cdn.example.com/fl/b/b.style'].layers.peaks =
+            { label: true, 'label-size': 20 };
+        fixtures['https://cdn.example.com/fl/b/b.style'].layers
+            ['peaks-switch'] = {
+                label: true,
+                'visibility-switch':
+                    [['@z7', null], ['@z6', 'peaks']],
+                inherit: 'peaks',
+            };
+
+        const conversion = await convert(doc, fixtures);
+
+        const renamed = conversion.style.layers.find(
+            (layer) => layer.id === 'peaks--beta-source');
+        assert.ok(renamed);
+
+        const switcher = conversion.style.layers.find(
+            (layer) => layer.id === 'peaks-switch');
+        assert.deepStrictEqual(switcher['visibility-switch'],
+            [['@z7', null], ['@z6', 'peaks--beta-source']]);
+        assert.strictEqual(switcher.inherit, 'peaks--beta-source');
+
+        assert.ok(!conversion.warnings.find((entry) =>
+            entry.code === 'unresolved-reference'));
     });
 
     it('rejects mixed rules with an unsupported-rule warning',

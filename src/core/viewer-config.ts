@@ -678,9 +678,13 @@ const catalogue = {
      *  frame. */
     mapRefreshCycles: num(0, MAX, 3, 'internal'),
 
-    /** Keeps the previous metanodes while a view switch loads,
-     *  avoiding a blank frame. */
-    mapSoftViewSwitch: bool(true, 'internal'),
+    /** Keeps each tile's previous mesh, textures, and metanode
+     *  while a terrain or layer-visibility switch loads its
+     *  replacements, avoiding a blank frame; `false` drops the old
+     *  tile state immediately. Read per tile at switch time
+     *  (`surface-tile.js`), so a change applies to the next
+     *  switch. */
+    mapSoftViewSwitch: bool(true, 'runtime'),
 
     /** Applies hysteresis when resorting geodata draw jobs. */
     mapSortHysteresis: bool(true, 'internal'),

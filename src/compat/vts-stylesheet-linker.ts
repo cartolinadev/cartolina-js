@@ -547,13 +547,16 @@ function rewriteLayerRefs(
 
                 for (const pair of visibilitySwitch) {
 
+                    // a pair's second element names a layer, or is
+                    // null for a level with no layer
                     if (Array.isArray(pair)
                         && typeof pair[1] === 'string') {
 
                         if (renames.has(pair[1]))
                             pair[1] = renames.get(pair[1]);
 
-                    } else if (pair !== null) {
+                    } else if (!Array.isArray(pair)
+                        || pair[1] != null) {
 
                         warn(path('visibility-switch'));
                     }
