@@ -43,11 +43,6 @@ in [AGENTS.md](../../AGENTS.md).
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate
-- RFC 11 [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md) —
-  retire legacy mapConfig support from Cartolina proper: convert
-  mapConfigs to styles before initialization, replace Views with
-  Viewer-level visibility profiles, and delete the second internal map
-  model
 
 ### Data model
 

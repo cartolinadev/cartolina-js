@@ -6,6 +6,31 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## RFC 11 validation items not yet automated
+
+**Opened:** 2026-07-19
+**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
+(sections 13.1 and 13.2, implementation addendum)
+
+The RFC 11 implementation covers the conversion corpus, the strict
+closure gate, and the core runtime-mutation contract. Four validation
+items from the RFC's test lists remain unautomated:
+
+- linker unit tests for layer-id collisions combined with `inherit`
+  and `visibility-switch` references (the rewrite code exists; no
+  corpus input exercises it);
+- the two-lettering-rule multi-terrain test: rules over one geodata
+  source with different terrain lists, compiled in and out across a
+  direct terrain switch in both directions;
+- validation of a style containing an anonymous layer beside an
+  explicit id equal to the would-be generated id;
+- a project-controlled public mapConfig fixture whose converted
+  render exercises terrain and visibility-profile switches across
+  raster-derived and geodata-derived layers (section 13.3).
+
+The first three are unit or Playwright tests; the last needs a small
+public fixture dataset.
+
 ## Dissolve `Browser` into typed `Viewer` construction
 
 **Opened:** 2026-07-17
@@ -26,7 +51,8 @@ listeners, and DOM, and rollback when a constructor throws after UI
 creation. Verification: constructing and disposing a `Viewer` registers
 and drains every watcher and listener, the UI control keys and
 autopilot options still react to `setParam`, and position-in-URL
-updates still fire. Blocked on RFC 11 phase 4 (the mapConfig removals).
+updates still fire. RFC 11 phase 4 (the mapConfig removals) landed
+2026-07-19; this entry is unblocked.
 
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 

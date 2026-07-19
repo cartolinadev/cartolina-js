@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 closed as implemented
+
+Appended the implementation addendum to
+[RFC 11](rfc11-mapconfig-to-style.md) — result per phase, closure
+gate, validation, deviations — and changed the status to
+`Implemented`. The RFC moved from the wiki index's active list to
+[rfcs-implemented.md](rfcs-implemented.md). The Browser-dissolution
+backlog entry is unblocked, and a new backlog entry tracks the four
+RFC 11 validation items not yet automated (linker collision
+reference tests, the multi-terrain lettering switch, the
+generated-id collision case, and a public multi-switch fixture).
+
 ## 2026-07-19 — RFC 11 phase 4: the mapConfig runtime is deleted
 
 Phase 4 of [RFC 11](rfc11-mapconfig-to-style.md), started only after

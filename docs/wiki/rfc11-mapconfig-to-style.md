@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** Accepted
+**Status:** Implemented
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -2354,3 +2354,72 @@ remain Viewer-level values rather than authored style or recreated Views, all
 style additions are additive, and compatibility closure precedes deletion of
 the reference runtime. No specification-level findings remain. Design
 accepted.
+
+## Addendum — 2026-07-19 — implementation note
+
+Implemented on `feature/rfc11-mapconfig-to-style` in four commits
+matching the migration phases (46dd9969, aa8d3358, 5eea454e +
+47374103, 2453d76e).
+
+**Result.** Phase 1 added the style vocabulary to
+`src/core/map/style.ts`: optional `id` and the common `terrain` list
+on `LayerBase`, `SourceLocation<T>` URL-or-inline source
+specifications with the monolithic-or-tiled freelayer union, the
+inline-metadata consistency rules, and `normalizeStyle()` (generated
+ids, duplicate rejection, omitted-`terrain` expansion). Phase 2
+split `MapStyle` into the authored baseline plus runtime overrides
+with a derived effective state, added the atomic
+`MapStyle.applyMutations()` batch, `Map.mutateStyle()` and the four
+primitive terrain methods (all throwing before `ready`), and the
+`Viewer` profile pair; lettering rules compile exactly when their
+effective terrain list intersects the active stack. Phase 3
+delivered `mapConfigToStyle()` and the VTS stylesheet linker in the
+isolated `src/compat/` directory, exported from the package index;
+the demo application routes `?mapConfig=` through the converter.
+Phase 4 deleted the mapConfig runtime per section 11, plus the
+`demos/legacy` tree built on the removed wrapper API.
+
+**Closure gate.** All four corpus inputs convert in strict mode with
+informational notes only (`test/mapconfig-corpus.js`); converted
+renders are visually indistinguishable from mapConfig-path captures
+taken immediately before the demo switch. The completion search
+finds mapConfig and View references only in `src/compat/`, its
+tests, VTS-input format documentation, and historical records.
+
+**Validation.** `npx tsc --noEmit` clean; 72 unit tests including
+the 22-test converter suite; `test/style-mutation.js` covers the
+section 13.2 core (pre-ready throws, generated ids, profile
+round-trip and overwrite semantics, validation atomicity) against
+the dev server; all seven test URLs render without console or
+network errors after a fresh build.
+
+**Deviations from the accepted design.**
+
+- The converter emits an `atmosphere` section with explicit zero
+  eye-distance factors and a large `maxVisibility` so the style
+  loader reproduces the legacy fixed-visibility atmosphere instead
+  of layering its eye-distance defaults over the body values. The
+  design body did not specify atmosphere conversion.
+- The style contract gained one corpus-driven additive extension
+  beyond section 7.1: optional `illumination.useLighting`, required
+  by the `nacis-2023` initial view and already honored by the
+  renderer.
+- `MapBody.Configuration` fields became optional to match the
+  parser's defaulting; typia validation of inline surface metadata
+  rejected real body documents otherwise.
+- `mapConfigToStyle()` accepts an internal `loadJson` option as the
+  DOM-free test seam; the converter defers whole-style typia
+  validation to the style loader, which every conversion result
+  passes through in the rendering gate.
+- Generated anonymous-layer ids disambiguate with an `-anon`
+  suffix; linker qualified names use `name--moduleId`.
+- The `map-loaded` event keeps its `browserOptions` payload field,
+  now always empty. `runtimeOptionsFromUrl()` lost its third
+  parsing-options parameter together with `configFromUrl()`.
+- Converted demo renders differ from the legacy `browser()` path in
+  UI chrome only: `map()` disables the legacy default controls.
+- Section 13 items not yet automated — linker collision tests
+  combined with `inherit` / `visibility-switch` references, the
+  two-rule multi-terrain lettering switch, the
+  anonymous-beside-colliding-explicit-id case, and a
+  multi-terrain-switch public fixture — are tracked in the backlog.
