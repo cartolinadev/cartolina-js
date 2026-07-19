@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 second addendum
+
+Appended `Addendum — 2026-07-20 — post-implementation conversion
+fixes` to [RFC 11](rfc11-mapconfig-to-style.md), covering the
+post-closure commits `f4fb3011` and `6d0c8b9b`: the topological
+canonical layer order, null `visibility-switch` targets, the
+`mapSoftViewSwitch` / `mapLogGeodataStyles` classifications, and
+the schema corrections (`BitmapSpecification`, the
+`visibility-switch` type, five lettering properties the geodata
+processor reads).
+
 ## 2026-07-19 — style schema: admit runtime-honored properties
 
 Conversion inputs wider than the public corpus exposed three schema

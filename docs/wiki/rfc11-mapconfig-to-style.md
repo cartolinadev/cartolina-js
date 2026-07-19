@@ -2423,3 +2423,61 @@ network errors after a fresh build.
   two-rule multi-terrain lettering switch, the
   anonymous-beside-colliding-explicit-id case, and a
   multi-terrain-switch public fixture — are tracked in the backlog.
+
+## Addendum — 2026-07-20 — post-implementation conversion fixes
+(f4fb3011, 6d0c8b9b)
+
+Post-closure hardening of the converter and the schema it emits
+against. Every change is additive in acceptance; the public corpus
+conversion output and all seven test-URL renders are unchanged.
+
+**Canonical layer order is a topological merge** (`f4fb3011`).
+Section 8.2's first-seen implementation emitted false
+layer-order-conflict warnings for a multi-surface mapConfig whose
+surfaces interleave a layer that an earlier-visited surface omits,
+and for a named view that orders a named-view-only layer before an
+initial-view layer. The order is now Kahn's algorithm over the
+precedence edges of every view's per-surface sequences: the initial
+view's first-seen order breaks ties, named-only layers slot where
+their constraints demand, and the warning survives only for a
+genuine cross-view ordering cycle (the initial view keeps its
+order). Unit tests cover the interleaving, the named-only slotting,
+and the genuine-cycle warning.
+
+**`visibility-switch` accepts levels with no layer** (`f4fb3011`,
+`6d0c8b9b`). A switch pair's second element may be `null` in the
+VTS grammar. The linker no longer emits an unresolved-reference
+warning for such pairs while still rewriting renamed layer targets,
+and the schema type is corrected to
+`Array<[string, string | null]>` — the previous declaration was the
+literal string pair `['string', 'string']`, which no real value
+could satisfy.
+
+**Two more `browserOptions` classifications** (`f4fb3011`), closing
+the three-outcome rule for keys the phase-3 corpus did not carry:
+`mapSoftViewSwitch` is behaviorally active — `surface-tile.js`
+reads it per tile whenever `viewCounter` changes, which every
+profile application and terrain mutation triggers, choosing whether
+previous tile state is kept across the switch — and is promoted to
+public (runtime) catalogue visibility as its typed destination.
+`mapLogGeodataStyles` gates geodata-worker console logging only
+(`worker-style.js`) and converts to a diagnostics-only
+informational note; it cannot affect rendering.
+
+**Schema admits runtime-honored properties** (`6d0c8b9b`). An
+audit of the geodata processor's accepted stylesheet vocabulary
+against `LetteringLayerProperties` found five properties the
+runtime reads but validation rejected: `label-spacing`,
+`label-line-height`, `line-label-type`, `icon-color`, and
+`icon-no-overlap` (`worker-style.js`, `worker-pointarray.js`,
+`worker-linestring.js`). The `bitmaps` table is retyped as
+`Record<string, BitmapSpecification>` — a URL string or
+`{url, filter?, tiled?}`, the shape `worker-style.js` parses — and
+not expressions; besides being wrong, the old type degraded
+typia's union error reporting across the whole style whenever a
+bitmap table was present.
+
+Validation: tsc clean; 76 unit tests including new coverage for the
+order merge and the switch-pair rewrite; the strict public corpus
+conversion is byte-identical in diagnostics and layer order; all
+seven test URLs render with no console or network errors.
