@@ -3,6 +3,26 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — style schema: admit runtime-honored properties
+
+Conversion inputs wider than the public corpus exposed three schema
+gaps in `MapStyle.StyleSpecification`; all three are properties the
+runtime already honors, so the additions change validation only:
+
+- `bitmaps` entries are a URL string or `{url, filter?, tiled?}`
+  (`BitmapSpecification`) — the shape `worker-style.js` accepts —
+  not expressions. The old `Record<string, Expression>` type also
+  degraded typia's union error reporting across the whole style
+  whenever a real bitmap table was present.
+- `visibility-switch` is `Array<[string, string | null]>`; the
+  previous type was the literal string pair `['string', 'string']`,
+  which no real value could satisfy.
+- Five lettering properties read by the geodata processor were
+  missing: `label-spacing`, `label-line-height`, `line-label-type`,
+  `icon-color`, `icon-no-overlap`.
+
+Validation: tsc clean; 76 unit tests pass.
+
 ## 2026-07-19 — converter fixes: canonical order merge, switch
 options, null visibility-switch targets
 

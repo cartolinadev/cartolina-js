@@ -34,7 +34,7 @@ export interface StyleSpecification  {
     layers?: LayerSpecification[];
 
     constants?: Record<string, Expression>;
-    bitmaps?: Record<string, Expression>;
+    bitmaps?: Record<string, BitmapSpecification>;
     fonts?: Record<string, string>;
 
     illumination?: IlluminationSpecification;
@@ -116,6 +116,19 @@ export type TerrainSpecification = {
 
     sources: string[]
 }
+
+/**
+ * One entry of the root `bitmaps` table: the bitmap URL, or an
+ * object carrying the URL with the optional filter and tiling
+ * flags the geodata processor accepts.
+ */
+export type BitmapSpecification =
+    | string
+    | {
+        url: string,
+        filter?: string,
+        tiled?: boolean,
+    };
 
 
 export type LayerSpecification =
@@ -205,6 +218,7 @@ export type LetteringLayerProperties = {
     'line-label-outline': Property<[number, number, number, number]>,
     'line-label-source': Property<string>,
     'line-label-size': Property<number>,
+    'line-label-type': Property<string>,
     'line-label-offset': Property<number>,
     'line-label-no-overlap': Property<boolean>,
     'line-label-no-overlap-margin': Property<number>,
@@ -218,6 +232,8 @@ export type LetteringLayerProperties = {
     icon: Property<boolean>,
     'icon-source': Property<[string, number, number, number]>,
     'icon-scale': Property<number>,
+    'icon-color': Property<Color4Spec>,
+    'icon-no-overlap': Property<boolean>,
     'icon-offset': Property<[number, number]>,
     'icon-origin': Property<number[]>,
     'icon-stick': Property<number[]>,
@@ -226,6 +242,8 @@ export type LetteringLayerProperties = {
     'label-font': Property<string[]>,
     'label-source': Property<string>,
     'label-size': Property<number>,
+    'label-spacing': Property<number>,
+    'label-line-height': Property<number>,
     'label-color': Property<Color4Spec>,
     'label-color2': Property<Color4Spec>,
 
@@ -256,7 +274,7 @@ export type LetteringLayerProperties = {
     'visibility': Property<number>,
     'visibility-abs': Property<[number, number]>,
     'visibility-rel': Property<[number, number, number, number]>,
-    'visibility-switch': [['string', 'string']],
+    'visibility-switch': Array<[string, string | null]>,
     'culling': Property<number>,
 
     'next-pass': [number, string]
@@ -537,7 +555,7 @@ type VtsStylesheetLayer =
 type vtsStylesheet = {
 
     constants?: Record<string, MapStyle.Expression>;
-    bitmaps?: Record<string, MapStyle.Expression>;
+    bitmaps?: Record<string, MapStyle.BitmapSpecification>;
     fonts?: Record<string, string>;
     layers?: Record<string, VtsStylesheetLayer>
 }
