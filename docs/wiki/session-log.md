@@ -53,10 +53,11 @@ Validation: tsc clean; 76 unit tests pass (new tests for the
 topological merge, named-only slotting, the genuine-conflict
 warning, null visibility-switch targets, and the two option
 classifications); the strict public corpus conversion is unchanged
-(same notes, same nacis layer order). Screenshot verification is
-deferred: cdn.tspl.re is currently timing out on fonts and tiles,
-degrading even the unchanged style-path renders (known upstream
-glitch pattern); to be re-run when the CDN recovers.
+(same notes, same nacis layer order). Screenshot verification was
+initially deferred behind a cdn.tspl.re glitch and completed
+2026-07-20 together with the schema commit below: all seven test
+URLs (three style entries, four converted legacy entries) render
+correctly on the branch tip with no console or network errors.
 
 ## 2026-07-19 — RFC 11 closed as implemented
 
