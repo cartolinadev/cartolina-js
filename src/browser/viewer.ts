@@ -25,8 +25,8 @@ import type { vec3 } from '../core/utils/math';
  * lifecycle, camera, rendering controls, coordinate conversion, and
  * hit-testing.
  *
- * Do not construct directly — use the `map()` or `browser()`
- * factory functions. Sub-objects from the legacy API (`.map`,
+ * Do not construct directly — use the `map()` factory
+ * function. Sub-objects from the legacy API (`.map`,
  * `.renderer`) are not part of this public interface; methods are
  * promoted to flat accessors on `Viewer` as applications require
  * them.
@@ -56,12 +56,11 @@ class Viewer {
     }
 
     /**
-     * Do not construct directly — use the `map()` or `browser()` factory
-     * functions exported from this package.
+     * Do not construct directly — use the `map()` factory function
+     * exported from this package.
      *
      * @param element the container element or its CSS selector / id
-     * @param config browser configuration object
-     *   (style-based or legacy mapConfig)
+     * @param config the flattened construction configuration
      */
     constructor(element: HTMLElement | string, config: Viewer.Config) {
 
@@ -335,40 +334,6 @@ class Viewer {
             terrain: this.map_.getTerrainSources(),
             layers,
         };
-    }
-
-    /**
-     * Switches to a named legacy mapConfig view, or to a supplied view
-     * definition. Only valid for mapConfig-initialized maps.
-     *
-     * @param view named view id or legacy view definition
-     * @returns this viewer
-     */
-    setView(view: string | Record<string, unknown>): this {
-
-        this.assertAlive();
-        this.map_.setView(view);
-        return this;
-    }
-
-    /**
-     * Returns the current legacy mapConfig view definition, or `null`
-     * when no map is loaded.
-     */
-    getView(): Record<string, unknown> | null {
-
-        this.assertAlive();
-        return this.map_.getView();
-    }
-
-    /**
-     * Returns the named legacy mapConfig view ids available on the
-     * loaded map.
-     */
-    getNamedViews(): string[] {
-
-        this.assertAlive();
-        return this.map_.getNamedViews();
     }
 
     /**
@@ -971,13 +936,8 @@ namespace Viewer {
         import('../core/viewer-config').PublicRuntimeConfig;
 
     /**
-     * The internal config shape passed into `Viewer`.
-     *
-     * This exists only as constructor glue: `Viewer` has a single
-     * constructor, but the library still needs to support both the
-     * preferred `map()` entry point and the legacy `browser()` entry
-     * point. Their structural inputs are flattened here into one
-     * temporary internal object shape.
+     * The internal config shape passed into `Viewer`: the `map()`
+     * factory's structural inputs flattened into one internal object.
      */
     export type Config = {
 
@@ -986,9 +946,7 @@ namespace Viewer {
         [key: string]: unknown;
 
         style?: string | MapStyle.StyleSpecification;
-        map?: string | Record<string, unknown>;
         position?: Map.PositionInput;
-        view?: string | Record<string, unknown>;
         transformRequest?: TransformRequestCallback;
     };
 }

@@ -1558,7 +1558,7 @@ getSuperElevationState(): boolean {
 
 /**
  * @deprecated Use {@link setVerticalExaggeration} instead.
- *   Kept for mapConfig-based map compatibility.
+ *   Kept for the deprecated style vertical-exaggeration form.
  */
 setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
@@ -2771,7 +2771,7 @@ export type RenderingOptions = {
 
 /**
  * @deprecated Use {@link VerticalExaggerationSpec} instead.
- *   Kept for mapConfig-based map compatibility.
+ *   Kept for the deprecated style vertical-exaggeration form.
  */
 export type SeDefinition = SeRampDef | {
     heightRamp?: SeRampDef;

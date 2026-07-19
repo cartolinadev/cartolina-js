@@ -3,7 +3,7 @@
 // Diagnostic app: compare CPU-decoded atmosphere density RGB vs GPU sampling.
 //
 // Engine touchpoints:
-// - Config parsing: MapConfig(map, json)  (src/core/map/config.js)
+// - Style loading: MapStyle.loadStyle (src/core/map/style.ts)
 // - Atmosphere helper: Atmosphere.decodeAtmosphereDensity(img: ImageData)
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
@@ -12,7 +12,20 @@ import ConfigStore from '../../src/core/config-store';
 import * as viewerConfig from '../../src/core/viewer-config';
 import Atmosphere from '../../src/core/map/atmosphere';
 
-const MAP_CONFIG_URL = 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/mapConfig.json';
+// a minimal style over one global terrain surface; the empty
+// atmosphere section enables the body's atmosphere defaults
+const STYLE = {
+  version: 2 as const,
+  sources: {
+    terrain: {
+      type: 'cartolina-surface' as const,
+      url: 'https://cdn.tspl.re/mapproxy/melown2015/surface/topoearth/copernicus-dem-glo30/',
+    },
+  },
+  terrain: { sources: ['terrain'] },
+  layers: [],
+  atmosphere: {},
+};
 
 
 // WebGL2 helper: draw full-screen quad sampling a RGB8UI texture with usampler2D
@@ -90,14 +103,14 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   const right = document.getElementById('right')!;
   const info = document.getElementById('info')!;
 
-  // 1) Fetch and parse mapConfig.json via Cartolina's map object
+  // 1) Load the minimal style via Cartolina's map object
   let div = document.createElement('div');
   div.style.width = '10px';
   div.style.height = '10px';
 
   const store = new ConfigStore(viewerConfig.defaultViewerConfig());
-  store.set({map: MAP_CONFIG_URL});
-  const core = new Map(div, {'map': MAP_CONFIG_URL}, store);
+  store.set({style: STYLE});
+  const core = new Map(div, store);
   await core.ready;
   console.log('Core ready');
 

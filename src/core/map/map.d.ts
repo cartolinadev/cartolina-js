@@ -126,10 +126,6 @@ export default class Map {
      * companion to `bestMeshTexelSize`. */
     bestGeodataTexelSize: number;
 
-    /** Initial `browserOptions` payload from the loaded mapConfig;
-     * forwarded with the `map-loaded` event and the ready Promise.
-     * Undefined for style-initialized maps, which have no mapConfig. */
-    browserOptions: Record<string, unknown> | undefined;
     /** Becomes true once the reference frame and any geoid grids have
      * finished loading. Gates the ready path inside `Map.tick`. */
     srsReady: boolean;
@@ -150,8 +146,6 @@ export default class Map {
     boundLayers: Record<string, MapBoundLayer | null>;
     stylesheets: Record<string, unknown>;
 
-    initialView: unknown;
-    currentView_: unknown;
     freeLayerSequence: FreeLayer[];
     freeLayersHaveGeodata: boolean;
 
@@ -177,9 +171,6 @@ export default class Map {
 
     setPosition(position: PositionInput): void;
     getPosition(): MapPosition;
-    setView(view: string | Record<string, unknown>): void;
-    getView(): Record<string, unknown>;
-    getNamedViews(): string[];
 
     markDirty(): void;
     isReferenceFrameReady(): boolean;
@@ -202,8 +193,6 @@ export default class Map {
      */
     tickDeferredEvents(): void;
 
-    setLoaderParams(mapConfig: unknown): void;
-
     /** True when the navigation SRS is geocentric (non-projected). */
     isGeocent: boolean;
 
@@ -216,20 +205,11 @@ export default class Map {
     /** Frame counter used by camera smoothing. Typo preserved from JS. */
     updateCoutner: number;
 
-    /** The parsed mapConfig object. Shape is fully owned by map.js. */
-    mapConfig: unknown;
-
     /** The coordinate-conversion helper attached after construction. */
     convert: unknown;
 
-    /** Regenerates the free-layer and surface sequences from the view. */
+    /** Recompiles the style sequences and marks the map dirty. */
     refreshView(): void;
-
-    /** Returns the current `MapView`. Shape owned by `view.js`. */
-    getCurrentView(): {
-        surfaces: Record<string, unknown>;
-        freeLayers: Record<string, unknown>;
-    };
 
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;

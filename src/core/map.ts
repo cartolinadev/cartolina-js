@@ -31,8 +31,6 @@ import MapConvert from './map/convert';
 import MapMeasure from './map/measure';
 import MapSurfaceTree from './map/surface-tree';
 import type MapSurface from './map/surface';
-import MapConfig from './map/config';
-import MapView from './map/view';
 import DrawTraversalMaskPool from './map/draw-traversal-mask';
 import { drawTerrainTraversal } from './map/draw-traversal';
 
@@ -127,14 +125,6 @@ class Map {
     element: HTMLElement | null;
 
     /**
-     * The caller's raw options, kept so mapConfig `browserOptions`
-     * never override explicit user configuration.
-     *
-     * @internal
-     */
-    initialConfig: Record<string, unknown>;
-
-    /**
      * The live, normalized config value map — the single config
      * object shared by the map, renderer, and browser layers.
      *
@@ -145,10 +135,6 @@ class Map {
     private readyPromise_: Promise<void>;
     private readyResolved_ = false;
     private resolveReady_: (() => void) | null = null;
-
-    // async mapConfig load state
-    private mapConfigData_: unknown = null;
-    private mapRunning_ = false;
 
     /**
      * The event bus behind `on`, `once`, and `emit`. Handed to the
@@ -179,8 +165,8 @@ class Map {
 
     /**
      * Camera-state swapper for diagnostic freeze mode. `null` while no
-     * map is loaded and between loads. Created by `createMapFromMapConfig`
-     * and `createMapFromStyle`. JS callers that still hold a `LegacyMap`
+     * map is loaded and between loads. Created by
+     * `createMapFromStyle`. JS callers that still hold a `LegacyMap`
      * reference access this through `legacyMap.outerMap.freeze`.
      *
      * See `FreezeCameraState` in
@@ -243,20 +229,16 @@ class Map {
 
     /**
      * @param element canvas element to render into
-     * @param config the caller's raw options; the normalized values
-     *   are read from `configStore`
      * @param configStore runtime config store, already seeded with
      *   the caller's normalized options
      */
     constructor(
         element: HTMLElement,
-        config: Record<string, unknown>,
         configStore: ConfigStore<viewerConfig.ViewerConfig>,
     ) {
 
         this.configStore_ = configStore;
         this.config = configStore.values;
-        this.initialConfig = config || {};
         this.element = element;
 
         this.readyPromise_ = new Promise((resolve) => {
@@ -271,10 +253,6 @@ class Map {
         if (this.config.style) {
 
             this.loadMapFromStyle(this.config.style);
-
-        } else if (this.config.map) {
-
-            this.loadMap(this.config.map);
         }
 
         window.requestAnimationFrame(this.onUpdate_.bind(this));
@@ -315,40 +293,6 @@ class Map {
 
         this.assertAlive();
         return this.readyPromise_;
-    }
-
-    /**
-     * Loads a map from a mapConfig URL.
-     *
-     * @param path URL to the mapConfig.json resource
-     */
-    loadMap(path: string): void {
-
-        this.assertAlive();
-        this.mapLoadedFired_ = false;
-
-        if (this.map != null) this.destroyMap_();
-        if (path == null) return;
-
-        path = utilsUrl.getProcessUrl(path, window.location.href);
-
-        this.mapConfigData_ = null;
-        this.mapRunning_ = false;
-
-        utils.loadJSON(
-            path,
-            (data: unknown) => {
-
-                this.mapConfigData_ = data;
-                this.onMapConfigLoaded_(path);
-            },
-            () => { /* load errors leave the map unloaded */ },
-            false,
-            utils.useCredentials,
-            null,
-            this.config.transformRequest ?? undefined,
-            'MapConfig',
-        );
     }
 
     /**
@@ -394,35 +338,6 @@ class Map {
         this.bus_.emit('map-unloaded', {});
     }
 
-    /** Continues `loadMap` once the mapConfig JSON has arrived. */
-    private onMapConfigLoaded_(path: string): void {
-
-        if (!this.mapConfigData_ || this.mapRunning_) return;
-
-        this.mapRunning_ = true;
-        const data = this.mapConfigData_;
-
-        this.bus_.emit(
-            'map-mapconfig-loaded', data as Record<string, unknown>);
-
-        this.createMapFromMapConfig(data, path);
-        this.applyBrowserOptions_(this.map!.browserOptions);
-
-        if (this.config.position) {
-
-            this.map!.setPosition(this.config.position);
-            this.configStore_.set({ position: null });
-        }
-
-        if (this.config.view) {
-
-            this.map!.setView(this.config.view);
-            this.configStore_.set({ view: null });
-        }
-
-        this.renderer.createBuffers();
-    }
-
     /** Loads a map from a style URL or parsed style object. */
     private async loadMapFromStyle(
         style: string | MapStyle.StyleSpecification,
@@ -448,26 +363,6 @@ class Map {
 
         // initialize ubos
         this.renderer.createBuffers();
-    }
-
-    /**
-     * Writes the loaded mapConfig's `browserOptions` to the config
-     * store. Keys the caller configured explicitly are skipped, so
-     * mapConfig options never override user settings. Position and
-     * view flow into the store and are consumed by the load path
-     * right after this call.
-     */
-    private applyBrowserOptions_(options: unknown): void {
-
-        if (typeof options !== 'object' || options === null) return;
-
-        for (const [key, value] of Object.entries(options)) {
-
-            if (this.initialConfig[key] !== undefined) continue;
-
-            const patch = viewerConfig.normalizeConfigPatch(key, value);
-            if (patch) this.configStore_.set(patch);
-        }
     }
 
     // -----------------------------------------------------------------
@@ -768,46 +663,6 @@ class Map {
         }
 
         return style;
-    }
-
-    /**
-     * Switches to a named legacy mapConfig view, or to a supplied view
-     * definition. Only valid for mapConfig-initialized maps.
-     *
-     * @param view named view id or legacy view definition
-     * @returns this map
-     */
-    setView(view: string | Record<string, unknown>): this {
-
-        this.assertAlive();
-        const legacyMap = this.map;
-        if (!legacyMap) {
-            throw new Error('No map is loaded.');
-        }
-
-        legacyMap.setView(view);
-        return this;
-    }
-
-    /**
-     * Returns the current legacy mapConfig view definition, or `null`
-     * when no map is loaded.
-     */
-    getView(): Record<string, unknown> | null {
-
-        this.assertAlive();
-        const view = this.map?.getView();
-        return view ? view as Record<string, unknown> : null;
-    }
-
-    /**
-     * Returns the named legacy mapConfig view ids available on the
-     * loaded map.
-     */
-    getNamedViews(): string[] {
-
-        this.assertAlive();
-        return this.map?.getNamedViews() ?? [];
     }
 
     // -----------------------------------------------------------------
@@ -1167,7 +1022,7 @@ class Map {
             legacyMap.srsReady = true;
             this.mapLoadedFired_ = true;
             this.bus_.emit('map-loaded',
-                { browserOptions: legacyMap.browserOptions ?? {} });
+                { browserOptions: {} });
             this.markReady_();
         }
 
@@ -1451,8 +1306,6 @@ class Map {
             this, path, this.config, this.bus_);
         legacyMap.outerMap = this;
 
-        legacyMap.setLoaderParams(null);
-
         // load style
         await MapStyle.loadStyle(legacyMap,
             style as MapStyle.StyleSpecification);
@@ -1478,61 +1331,6 @@ class Map {
         legacyMap.draw = new MapDraw(legacyMap);
         this.freeze = new FreezeCameraState(legacyMap);
         legacyMap.draw.setupDetailDegradation();  // probably not needed
-
-        this.map = legacyMap;
-    }
-
-    private createMapFromMapConfig(
-        mapConfig: unknown,
-        path: string,
-    ): void {
-
-        const legacyMap = new LegacyMap(
-            this, path, this.config, this.bus_);
-        legacyMap.outerMap = this;
-
-        legacyMap.setLoaderParams(mapConfig);
-
-        // most of initialization happens here
-        const mapCfg = new MapConfig(legacyMap, mapConfig);
-        legacyMap.mapConfig = mapCfg;
-
-        const conv = new MapConvert(legacyMap);
-        legacyMap.convert = conv;
-        const meas = new MapMeasure(legacyMap);
-        legacyMap.measure = meas;
-        conv.measure = meas;
-
-        legacyMap.isGeocent =
-            !legacyMap.getNavigationSrs().isProjected();
-
-        legacyMap.currentView_ = new MapView(legacyMap, {});
-
-        mapCfg.afterConfigParsed();
-
-        legacyMap.updateCoutner = 0;
-
-        legacyMap.dirty = true;
-        legacyMap.dirtyCountdown = 0;
-        legacyMap.hitMapDirty = true;
-        legacyMap.geoHitMapDirty = true;
-
-        legacyMap.draw = new MapDraw(legacyMap);
-        this.freeze = new FreezeCameraState(legacyMap);
-        legacyMap.draw.setupDetailDegradation();
-
-        const body = legacyMap.referenceFrame?.body;
-        const services = legacyMap.services;
-
-        // atmosphere
-        if (body && body.atmosphere && services && services.atmdensity) {
-
-            legacyMap.atmosphere = new Atmosphere(
-                body.atmosphere,
-                legacyMap.getPhysicalSrs(),
-                legacyMap.url.makeUrl(services.atmdensity.url, {}),
-                legacyMap);
-        }
 
         this.map = legacyMap;
     }
@@ -1689,54 +1487,30 @@ class Map {
      * in back-to-front order (front surface at the last index). Plain
      * surfaces only — glues and virtual surfaces are skipped.
      *
-     * For map-config maps the stack order is fixed by the top-level
-     * `surfaces` array; the active view's `surfaces` is a dictionary and
-     * carries no order (a vts-vtsd legacy where glue stitching enforced
-     * a single server-side order, so views could never reorder). We
-     * therefore walk `surfaces` in array order and keep those the active
-     * view selects. For style-based maps the order comes from the style
-     * spec's terrain sources array.
+     * The order comes from the effective style state's terrain
+     * sources array.
      */
     surfaceList(): MapSurface[] {
 
         const legacyMap = this.map;
-        if (!legacyMap) return [];
+        if (!legacyMap?.style) return [];
 
-        let surfaces: MapSurface[];
+        // terrain.sources order: back-to-front, front at last index
+        const sources = legacyMap.style.style().terrain?.sources ?? [];
 
-        if (legacyMap.style) {
+        return sources.map(sourceId => {
 
-            // terrain.sources order: back-to-front, front at last index
-            const sources = legacyMap.style.style().terrain?.sources
-                ?? [];
+            const surface = legacyMap.surfaces.find(
+                s => s.styleSourceId === sourceId);
 
-            surfaces = sources.map(sourceId => {
+            if (!surface) {
+                throw new Error(`terrain.sources references `
+                    + `"${sourceId}" but no surface was loaded `
+                    + `for that source`);
+            }
 
-                const surface = legacyMap.surfaces.find(
-                    s => s.styleSourceId === sourceId);
-
-                if (!surface) {
-                    throw new Error(`terrain.sources references `
-                        + `"${sourceId}" but no surface was loaded `
-                        + `for that source`);
-                }
-
-                return surface;
-            });
-
-        } else {
-
-            // Map-config maps: the canonical `surfaces` array fixes the
-            // stack order; the view's `surfaces` dictionary only selects
-            // which of them are active (its key order is meaningless).
-            const view = legacyMap.getCurrentView();
-            const selected = view.surfaces ?? {};
-
-            surfaces = legacyMap.surfaces.filter(
-                (s: MapSurface) => s.id in selected);
-        }
-
-        return surfaces;
+            return surface;
+        });
     }
 
     /**

@@ -118,7 +118,6 @@ export type OverlaySpec = {
  * verified without migrating that file.
  */
 export interface ViewerEventMap {
-    'map-mapconfig-loaded': Record<string, unknown>;
     'map-loaded': { browserOptions: Record<string, unknown> };
     'map-unloaded': Record<string, never>;
     'map-update': Record<string, never>;

@@ -1,22 +1,17 @@
 
 import {vec3} from '../utils/matrix';
-import * as utils from '../utils/utils';
-import * as viewerConfig from '../viewer-config';
 import {platform} from '../utils/platform';
-import MapView from './view';
 import MapSurfaceTree from './surface-tree';
 import MapResourceTree from './resource-tree';
 import MapSrs from './srs';
 import MapCache from './cache';
 import MapCamera from './camera';
-import MapConfig from './config';
 import MapConvert from './convert';
 import MapMeasure from './measure';
 import MapDraw from './draw';
 import MapLoader from './loader/loader';
 import MapPosition from './position';
 import MapStats from './stats';
-import MapSurfaceSequence from './surface-sequence';
 import MapUrl from './url';
 import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
@@ -91,14 +86,8 @@ var Map = function(core, path, config, bus) {
     this.processingTasks2 = [];
     this.geodataProcessors = [];
 
-    this.surfaceSequence = new MapSurfaceSequence(this);
-
     this.style = null;
 
-    this.initialView = null;
-    this.currentView_ = null; // new MapView(this, {});
-    this.currentViewString = '';
-    this.namedViews = {};
     this.viewCounter = 0;
     this.srsReady = false;
     this.surfaceCounter = 0;
@@ -413,7 +402,6 @@ Map.prototype.addFreeLayer = function(id, layer) {
         layer = new MapSurface(this, layer, 'free');
 
     this.freeLayers[id] = layer;
-    //this.setView(this.getView());
     this.markDirty();
 };
 
@@ -422,7 +410,6 @@ Map.prototype.removeFreeLayer = function(id) {
     if (this.freeLayers[id]) {
         this.freeLayers[id].kill();
         this.freeLayers[id] = null;
-        //this.setView(this.getView());
         this.markDirty();
     }
 };
@@ -471,106 +458,6 @@ Map.prototype.getMapsSrs = function(srs) {
 
     //search existing srs
     return this.srses[srs];
-};
-
-
-Map.prototype.addNamedView = function(id, view) {
-    this.namedViews[id] = view;
-};
-
-
-Map.prototype.getNamedView = function(id) {
-    return this.namedViews[id];
-};
-
-
-Map.prototype.getNamedViews = function() {
-    return this.getMapKeys(this.namedViews);
-};
-
-
-Map.prototype.setView = function(view, forceRefresh, posToFixed) {
-
-    if (view == null) {
-        return;
-    }
-
-    if (this.style)
-        throw Error(`setView may not be used when the map `
-            + `is initialized via style.`);
-
-    if (posToFixed && this.convert) {
-        var p = this.getPosition();
-        p = this.convert.convertPositionHeightMode(p, 'fix', true);
-        this.setPosition(p);
-    }
-    
-    if (typeof view === 'string') {
-        view = view.trim();
-        
-        if (view.charAt(0) == '{') {
-            try {
-                view = JSON.parse(view);
-            } catch(e){
-                return;            
-            }
-        } else {
-            view = this.getNamedView(view);
-
-            if (!view) {
-                return;
-            }
-            
-            //view = JSON.parse(JSON.stringify(view));
-            view = view.getInfo();
-        }
-    }
-
-    //construct view string without options
-    var string = {};
-
-    if (view.surfaces) {
-        string.surfaces = view.surfaces;
-    }
-
-    if (view.freeLayers) {
-        string.freeLayers = view.freeLayers;
-    }
-
-    string = JSON.stringify(string);
-
-    var renderer = this.renderer;
-
-    //process options
-    if (view.options) {
-
-        //console.log(view.options);
-
-        if (view.options.superelevation) {
-
-            renderer.setSuperElevationState(true);
-            renderer.setSuperElevation(view.options.superelevation);
-        } else {
-            renderer.setSuperElevationState(false);
-        }
-
-        if (view.options.illumination) {
-            renderer.setIllumination(view.options.illumination);
-        }
-    }
-
-    if (string != this.currentViewString || forceRefresh) {
-        this.currentView_.parse(view);
-        this.currentViewString = string;
-        this.viewCounter++;  //this also cause rest of geodata
-        renderer.draw.clearJobHBuffer(); //hotfix - reset hysteresis buffer
-    }
-
-    this.surfaceSequence.generateBoundLayerSequence();
-
-    this.refreshFreelayesInView();
-
-    this.markDirty();
 };
 
 
@@ -656,62 +543,10 @@ Map.prototype.refreshGeodataStylesheets = function() {
 };
 
 
-Map.prototype.getCurrentView = function() {
-
-    if (this.style)
-        return this.style.legacyView();
-
-    return this.currentView_;
-}
-
-Map.prototype.getView = function() {
-    return this.getCurrentView().getInfo();
-};
-
-
-Map.prototype.refreshFreelayesInView = function() {
-    var freeLayers = this.getCurrentView().freeLayers;
-    this.freeLayerSequence = [];
-    this.freeLayersHaveGeodata = false;
-
-    for (var key in freeLayers) {
-        var freeLayer = this.getFreeLayer(key);
-
-        if (freeLayer) {
-
-            if (!freeLayer.geodata) {
-                utils.warnOnce('Free layer "' + key + '" is not a geodata'
-                    + ' layer and is not rendered.', 1);
-                continue;
-            }
-
-            freeLayer.zFactor = freeLayers[key]['depthOffset'];
-            freeLayer.maxLod = freeLayers[key]['maxLod'];
-
-            this.freeLayerSequence.push(freeLayer);
-            this.freeLayersHaveGeodata = true;
-
-            if (freeLayers[key]['style']) {
-                freeLayer.setStyle(freeLayers[key]['style']);
-            } else {
-                freeLayer.setStyle(freeLayer.originalStyle);
-            }
-        }
-    }
-};
-
 Map.prototype.refreshView = function() {
     this.viewCounter++;
 
-    // style-based map
     if (this.style) this.style.refreshSequences();
-
-    // mapconfig-based map, use the legacy methods
-    if (!this.style && this.currentView_) {
-
-        this.surfaceSequence.generateBoundLayerSequence();
-        this.refreshFreelayesInView();
-    }
 
     this.markDirty();
 };
@@ -1112,36 +947,6 @@ Map.prototype.setGeodataSelection = function(selection) {
 Map.prototype.getGeodataSelection = function() {
 
     return this.renderer.geodataSelection;
-};
-
-
-Map.prototype.setLoaderParams = function(mapConfig) {
-    var options = (mapConfig && mapConfig['browserOptions']) || {};
-    var userConfig = this.core.initialConfig || {};
-
-    var loaderKeys = [
-        'mapSeparateLoader', 'mapGeodataBinaryLoad',
-        'mapPackLoaderEvents', 'mapParseMeshInWorker',
-        'mapPackGeodataEvents'
-    ];
-
-    for (var i = 0; i < loaderKeys.length; i++) {
-        var key = loaderKeys[i];
-
-        if (typeof options[key] === 'undefined') {
-            continue;
-        }
-
-        // explicit user configuration wins over mapConfig options
-        if (typeof userConfig[key] !== 'undefined') {
-            continue;
-        }
-
-        var patch = viewerConfig.normalizeConfigPatch(key, options[key]);
-        if (patch) {
-            this.core.configStore.set(patch);
-        }
-    }
 };
 
 

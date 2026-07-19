@@ -75,14 +75,11 @@ This replaced the old terrain draw-command path that was split across:
 - `MapDrawTiles.updateTileBounds`
 
 `MapMesh.drawSubmesh` was removed with the 3D Tiles octree path in
-2026-05. Remaining draw code still serves runtime behaviour, especially
-mapConfig-era maps and geodata.
-The legacy draw files include:
+2026-05. Remaining draw code still serves runtime behaviour,
+especially geodata. The legacy draw files include:
 
 - `src/core/map/draw.js`
 - `src/core/map/draw-tiles.js`
-- `src/core/map/surface-sequence.ts`
-- map-config helpers that order surfaces, glues, and bound layers
 
 Those files predate the style layer stack and the per-tile rig. They are
 shrunk only when feature work removes a caller or replaces a behaviour

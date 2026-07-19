@@ -104,8 +104,8 @@ The webpack build has one application entry point:
 | `src/browser/index.ts` | `cartolina.js` / `.esm.js` | Browser library |
 
 The public factory is `map()`. It returns a `Viewer` instance, exported
-as the public `Map` type alias. `browser()` is a deprecated compatibility
-alias for the old vts-browser-js factory.
+as the public `Map` type alias. Legacy mapConfig documents load through
+the exported `mapConfigToStyle()` converter followed by `map()`.
 
 Worker bundles such as `map-loader-worker.js` and
 `geodata-processor-worker.js` are produced separately. They are loaded by

@@ -454,10 +454,10 @@ The sequence for each `cartolina-surface` source in the style:
    contain exactly one entry. That entry is wrapped in a `MapSurface`
    and stored in `map.surfaces`.
 
-The mapConfig path (`Map.createMapFromMapConfig`) follows the same RF
-extraction steps via `MapConfig` constructor in
-[config.js](../../src/core/map/config.js), but that path is deprecated
-— new code should only use the style path.
+The style path is the only initialization path; the legacy mapConfig
+runtime was removed by
+[rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md). Legacy
+documents convert through `mapConfigToStyle()` before construction.
 
 
 ### MapRefFrame construction

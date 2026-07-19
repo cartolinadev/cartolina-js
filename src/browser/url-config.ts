@@ -2,12 +2,6 @@ import * as utils from '../core/utils/utils';
 import * as viewerConfig from '../core/viewer-config';
 
 
-export type UrlConfigOptions = {
-    mapParam?: string;
-    mapConfigSuffix?: string;
-    requireMap?: boolean;
-};
-
 type ParsedConfigValue =
     boolean | number | number[] | string | string[] | null | unknown;
 type ParsedConfig = Record<string, ParsedConfigValue>;
@@ -75,19 +69,6 @@ function parseString(value: unknown): string | null {
 }
 
 
-function parseJson(value: unknown): unknown {
-
-    // permissive ingestion: a malformed JSON query parameter is
-    // dropped (the undefined result is skipped by configFromUrl)
-    // rather than aborting startup
-    try {
-        return JSON.parse(decodeURIComponent(String(value)));
-    } catch {
-        return undefined;
-    }
-}
-
-
 /**
  * Parses one query-string value by the URL parse kind of its
  * catalogue spec. Uncatalogued keys pass through unparsed; they
@@ -107,26 +88,20 @@ export function parseConfigParamValue(
         case 'boolean': return parseBoolean(value);
         case 'number': return parseNumber(value);
         case 'numberArray': return parseNumberArray(value);
-        case 'json': return parseJson(value);
         case 'string': return parseString(value);
         default: return value;
     }
 }
 
 
-export function configFromUrl(
+export function runtimeOptionsFromUrl(
     defaults?: ParsedConfig,
     url?: string,
-    options?: UrlConfigOptions
 ): ParsedConfig {
-    const initialConfig: ParsedConfig = Object.assign({}, defaults || {});
+    const config: ParsedConfig = Object.assign({}, defaults || {});
     const sourceUrl = url || window.location.href;
-    const params = utils.getParamsFromUrl(sourceUrl) as Record<string, unknown>;
-    const settings = Object.assign({
-        mapParam: 'map',
-        mapConfigSuffix: '/mapConfig.json',
-        requireMap: false
-    }, options || {});
+    const params =
+        utils.getParamsFromUrl(sourceUrl) as Record<string, unknown>;
 
     for (const rawKey in params) {
         // own-property lookup: a query key such as `toString` must
@@ -136,32 +111,9 @@ export function configFromUrl(
                 ? KEY_ALIASES[rawKey] : rawKey;
 
         const parsed = parseConfigParamValue(key, params[rawKey]);
-        if (parsed !== undefined) initialConfig[key] = parsed;
+        if (parsed !== undefined) config[key] = parsed;
     }
 
-    if (settings.requireMap && !initialConfig[settings.mapParam]) {
-        throw new Error(
-            `Use query parameter "${settings.mapParam}" to specify `
-            + 'the mapConfig location');
-    }
-
-    const map = initialConfig[settings.mapParam];
-    if (typeof map === 'string'
-            && map !== ''
-            && !map.endsWith('mapConfig.json')) {
-        initialConfig[settings.mapParam] = map + settings.mapConfigSuffix;
-    }
-
-    return initialConfig;
-}
-
-
-export function runtimeOptionsFromUrl(
-    defaults?: ParsedConfig,
-    url?: string,
-    options?: UrlConfigOptions
-): ParsedConfig {
-    const config = configFromUrl(defaults, url, options);
     const runtimeOptions: ParsedConfig = {};
 
     // keep catalogued keys only: query strings carry arbitrary

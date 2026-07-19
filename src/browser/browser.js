@@ -25,9 +25,7 @@ var Browser = function(element, config) {
     this.configStore = new ConfigStore(viewerConfig.defaultViewerConfig());
     this.config = this.configStore.values;
 
-    this.originalConfig = JSON.parse(JSON.stringify(config));
-    
-    this.element = (typeof element === 'string') ? document.getElementById(element) : element; 
+    this.element = (typeof element === 'string') ? document.getElementById(element) : element;
 
     // Ensure the container establishes a positioning context for .vts-browser (absolute)
     if (this.element && window.getComputedStyle(this.element).position === 'static') {
@@ -45,7 +43,7 @@ var Browser = function(element, config) {
 
     element = (typeof element !== 'string') ? element : document.getElementById(element);
 
-    this.map = new Map(this.ui.getMapControl().getMapElement().getElement(), config, this.configStore);
+    this.map = new Map(this.ui.getMapControl().getMapElement().getElement(), this.configStore);
 
     this.updatePosInUrl = false;
     this.lastUrlUpdateTime = false;
@@ -156,38 +154,8 @@ Browser.prototype.on = function(name, listener) {
 };
 
 
-Browser.prototype.onMapLoaded = function(event) {
+Browser.prototype.onMapLoaded = function() {
     this.mapLoaded = true;
-
-    //overwrite browser options
-    var options = event['browserOptions'] || {};
-    var originalOptions = this.originalConfig;
-    for (var key in originalOptions) {
-        if (typeof options[key] !== 'undefined') {
-            options[key] = originalOptions[key]; 
-        } 
-    }    
-    
-    this.applyConfigParams(options);
-
-    if (this.config.geojson || this.config.geodata) {
-        var data = this.config.geojson || this.config.geodata;
-
-        if (typeof data === 'string') {
-            data = data.trim();
-           
-            if (data.charAt(0) == '{') {
-                try {
-                    data = JSON.parse(data);
-                    this.onGeoJsonLoaded(data);
-                } catch(e){ }
-            } else {
-                utils.loadJSON(data, this.onGeoJsonLoaded.bind(this));
-            }
-        }
-    }
-
-    var map = this.getMap();
 
     if (this.autopilot) {
         this.autopilot.setAutorotate(this.config.autoRotate);
@@ -287,28 +255,6 @@ Browser.prototype.onMapUpdate = function() {
 };
 
 
-Browser.prototype.onGeoJsonLoaded = function(data) {
-    var map = this.getMap();
-    var geodata = map.createGeodata();
-
-    var addFreeLayer = (function(){
-        var freeLayer = geodata.makeFreeLayer(this.config.geojsonStyle);
-        map.addFreeLayer('geojson', freeLayer);
-        var view = map.getView();
-        view.freeLayers.geojson = {};
-        map.setView(view);
-    }).bind(this)
-
-    if (this.config.geodata) {
-        geodata.importVTSGeodata(data);
-        addFreeLayer();
-    } else {
-        geodata.importGeoJson(data);
-        geodata.processHeights('node-by-precision', 62, addFreeLayer);
-    }
-};
-
-
 Browser.prototype.onTick = function() {
     if (this.killed) {
         return;
@@ -332,8 +278,8 @@ Browser.prototype.onTick = function() {
 
 
 /**
- * Applies a bag of raw config inputs (caller options, mapConfig
- * browserOptions) through applyConfigParam.
+ * Applies a bag of raw caller config inputs through
+ * applyConfigParam.
  */
 Browser.prototype.applyConfigParams = function(params) {
     if (typeof params === 'object' && params !== null) {
@@ -355,7 +301,7 @@ Browser.prototype.updateUI = function(key) {
 
 /**
  * Applies one raw config input: alias resolution, normalization,
- * the store write, and the position / view commands.
+ * the store write, and the position command.
  */
 Browser.prototype.applyConfigParam = function(key, value) {
     var patch = viewerConfig.normalizeConfigPatch(key, value);
@@ -371,15 +317,12 @@ Browser.prototype.applyConfigParam = function(key, value) {
 
     this.configStore.set(patch);
 
-    // position and view are commands: they act on the loaded map
-    // immediately instead of waiting for a watcher flush
+    // position is a command: it acts on the loaded map immediately
+    // instead of waiting for a watcher flush
     var legacyMap = this.map ? this.getMap() : null;
     if (legacyMap) {
         if ('position' in patch && patch.position != null) {
             legacyMap.setPosition(patch.position);
-        }
-        if ('view' in patch && patch.view != null) {
-            legacyMap.setView(patch.view);
         }
     }
 };

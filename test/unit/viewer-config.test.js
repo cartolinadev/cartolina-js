@@ -109,7 +109,6 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(urlParseKind('mapCache'), 'number');
         assert.strictEqual(urlParseKind('sensitivity'), 'numberArray');
         assert.strictEqual(urlParseKind('mapLanguage'), 'string');
-        assert.strictEqual(urlParseKind('geojsonStyle'), 'json');
         assert.strictEqual(urlParseKind('pos'), 'position');
         assert.strictEqual(urlParseKind('rotate'), 'number');
         assert.strictEqual(urlParseKind('pan'), 'numberArray');
@@ -134,9 +133,11 @@ describe('viewer-config normalization', function() {
     it('keeps the audited public subset sizes', function() {
 
         // 60 runtime keys since RFC 11 promoted the label-density
-        // pair mapFeaturesReduceMode / mapFeaturesReduceParams
+        // pair mapFeaturesReduceMode / mapFeaturesReduceParams; the
+        // construction set lost the geojson / geodata / geojsonStyle
+        // startup options removed with the mapConfig runtime
         assert.strictEqual(publicRuntimeConfigKeys.length, 60);
-        assert.strictEqual(publicConstructionConfigKeys.length, 73);
+        assert.strictEqual(publicConstructionConfigKeys.length, 70);
     });
 
     it('expands the mapNoTextures coupling', function() {
@@ -168,38 +169,18 @@ describe('viewer-config normalization', function() {
             [1, 2, 3]);
     });
 
-    it('accepts only strings and plain objects for view, geojson, '
-        + 'geodata, and style', function() {
+    it('accepts only strings and plain objects for style',
+        function() {
 
-        for (const key of ['view', 'geojson', 'geodata', 'style']) {
-
-            assert.strictEqual(
-                normalizeConfigValue(key, 'value'), 'value');
-            assert.deepStrictEqual(
-                normalizeConfigValue(key, { a: 1 }), { a: 1 });
-            assert.strictEqual(normalizeConfigValue(key, 42), null);
-            assert.strictEqual(
-                normalizeConfigValue(key, [1, 2]), null);
-            assert.strictEqual(
-                normalizeConfigValue(key, new Date(0)), null);
-        }
-    });
-
-    it('routes both geojsonStyle forms through the plain-object '
-        + 'check', function() {
-
+        assert.strictEqual(
+            normalizeConfigValue('style', 'value'), 'value');
         assert.deepStrictEqual(
-            normalizeConfigValue('geojsonStyle', '{"a": 1}'), { a: 1 });
-        assert.deepStrictEqual(
-            normalizeConfigValue('geojsonStyle', { a: 1 }), { a: 1 });
+            normalizeConfigValue('style', { a: 1 }), { a: 1 });
+        assert.strictEqual(normalizeConfigValue('style', 42), null);
         assert.strictEqual(
-            normalizeConfigValue('geojsonStyle', '42'), null);
+            normalizeConfigValue('style', [1, 2]), null);
         assert.strictEqual(
-            normalizeConfigValue('geojsonStyle', '[]'), null);
-        assert.strictEqual(
-            normalizeConfigValue('geojsonStyle', [1]), null);
-        assert.strictEqual(
-            normalizeConfigValue('geojsonStyle', new Date(0)), null);
+            normalizeConfigValue('style', new Date(0)), null);
     });
 
     it('accepts position arrays and MapPosition-like objects for '

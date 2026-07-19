@@ -58,9 +58,9 @@ access, add a deliberate flat `Viewer` method.
 
 ## Construction
 
-Factory functions such as `map()` and `browser()` return usable objects
-or throw. They do not return `null` for unsupported WebGL, failed engine
-creation, or invalid construction state.
+The `map()` factory returns a usable object or throws. It does not
+return `null` for unsupported WebGL, failed engine creation, or
+invalid construction state.
 
 When construction fails, the constructor raises before inserting DOM
 nodes. This keeps `Viewer`, `Browser`, and `Map` out of half-created
@@ -73,31 +73,25 @@ terrain under the cursor or an unloaded map property.
 
 ## Style And MapConfig
 
-The style specification is the authored map contract for new code. It
-is represented by `MapStyle.StyleSpecification` in
-`src/core/map/style.ts`.
+The style specification is the only authored map contract. It is
+represented by `MapStyle.StyleSpecification` in
+`src/core/map/style.ts`. Every successfully constructed map has a
+validated style; core map and renderer code cannot observe whether
+the style was authored directly or converted.
 
-The inherited `mapConfig.json` path remains for compatibility. It has
-limited functionality: it does not support the style terrain renderer,
-illumination model, atmosphere, or vertical exaggeration as first-class
-features. Do not add new features to the mapConfig path.
-Named mapConfig view switching is exposed only as flat `Viewer` methods
-for migration and compatibility tooling:
+Legacy `mapConfig.json` documents are an import format
+(rfc11-mapconfig-to-style.md). The exported `mapConfigToStyle()`
+converter (`src/compat/mapconfig-to-style.ts`) turns a mapConfig
+into a style plus construction values — initial position, typed
+viewer options, and named views as visibility profiles — which the
+application passes to `map()`. The converter is called explicitly
+by applications and migration tools; the runtime never calls it.
 
-- `viewer.setView(view)`
-- `viewer.getView()`
-- `viewer.getNamedViews()`
-
-Deprecated entry points and concepts:
-
-- `browser()` and the `map` config key for mapConfig loading
-- tileserver-injected `browserOptions`
-- views from vts-browser-js
-- `addBoundLayer` promotion to `Viewer`
-
-Layer visibility in new code belongs in the style specification. Avoid
-new branches that split behaviour by "style or mapConfig" unless the
-branch is deleting or isolating the mapConfig path.
+Runtime layer visibility is the terrain-applicability API on
+`Viewer`: `setLayerTerrainSources` / `getLayerTerrainSources`,
+`setTerrainSources` / `getTerrainSources`, and the atomic
+`applyVisibilityProfile` / `getVisibilityProfile` pair. All six
+methods throw before the `ready` promise resolves.
 
 ## Configuration
 
@@ -130,8 +124,8 @@ typo fails loudly. `setParam` normalizes the value
 compile-time tests in `test/types/viewer-api.ts`, run by
 `npm run test:unit`.
 
-The factory option bags (`MapOptions.options` and the `browser()`
-config) are typed by `PublicConstructionConfig`: the public runtime
+The factory option bag (`MapOptions.options`) is typed by
+`PublicConstructionConfig`: the public runtime
 keys plus the deliberately public construction and load-time keys.
 The bag has no index signature, so a misspelled or internal-only
 factory option fails compilation. At runtime, `map()` rejects any
@@ -143,13 +137,13 @@ keys only, dropping arbitrary query parameters before they reach
 the factory guard.
 
 The remaining permissive ingestion paths accept the full catalogue
-and the legacy `pos` / `rotate` / `pan` aliases. The deprecated
-`browser()` factory bag and mapConfig `browserOptions` flow through
-`Browser.applyConfigParams`; `position` and `view` additionally act
-on the loaded map at once. Unknown keys are dropped, and a dropped
-key carrying a config prefix (`map`, `renderer`, `control`, `debug`)
-is logged. The style `config` block also accepts the full catalogue
-and aliases, but drops unknown keys without logging. The vts-era
+and the legacy `pos` / `rotate` / `pan` aliases. The internal
+construction bag flows through `Browser.applyConfigParams`;
+`position` additionally acts on the loaded map at once. Unknown
+keys are dropped, and a dropped key carrying a config prefix
+(`map`, `renderer`, `control`, `debug`) is logged. The style
+`config` block also accepts the full catalogue and aliases, but
+drops unknown keys without logging. The vts-era
 `Browser.setConfigParam` / `getConfigParam` accessors are removed;
 no repository or documented integration called them.
 
@@ -167,10 +161,6 @@ but change nothing until the consuming object is next created. The
 construction-only keys are annotated in `ViewerConfig`
 (`src/core/viewer-config.ts`) and excluded from
 `PublicRuntimeConfig`.
-
-A loaded mapConfig's `browserOptions` apply through
-`Map.applyBrowserOptions_`, which skips keys the caller configured
-explicitly, so user settings always win.
 
 `transformRequest(url, resourceType)` follows the MapLibre-style host
 application hook. It may return a rewritten URL, headers, and
@@ -215,9 +205,9 @@ array:
 ## Async Initialization
 
 `Map.map` (the loaded `LegacyMap`) is `null` at construction time. It
-is set after the style or mapConfig is fetched and parsed:
+is set after the style is fetched and parsed:
 
-1. The `Map` constructor starts the style load or `loadMap`.
+1. The `Map` constructor starts the style load.
 2. On success, `Map.map` is assigned.
 3. `Map.tick` emits `map-loaded` after the reference frame is ready
    and resolves the one-shot `ready` Promise.
@@ -238,9 +228,8 @@ the config store and runs `Map.tick()`, which:
    legacy loader / worker work, draw, overlays, deferred geodata events,
    then public `tick`
 
-`Map.loadMap()` and `Map.unloadMap()` reset the per-loaded-map
-`map-loaded` gate. The `ready` Promise remains one-shot for the typed
-`Map` wrapper.
+`Map.unloadMap()` resets the per-loaded-map `map-loaded` gate. The
+`ready` Promise remains one-shot for the typed `Map` wrapper.
 
 ## Event Bus
 
@@ -250,8 +239,7 @@ both return an unsubscribe function; both are surfaced on `Viewer`.
 `Map.emit` is internal — applications only subscribe.
 
 `Map` emits its own lifecycle events (`tick`, `map-loaded`,
-`map-mapconfig-loaded`, `map-unloaded`, `map-update`, the
-position-change pair). The legacy emitters receive the bus instance
+`map-unloaded`, `map-update`, the position-change pair). The legacy emitters receive the bus instance
 at construction and publish through it directly: `LegacyMap`
 (geo-feature events) and `GpuDevice` (context-loss events).
 Browser-layer code emits through `Map.emit`.
@@ -269,7 +257,6 @@ adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
 Event names and payload types are defined by `ViewerEventMap` in
 `src/core/types.ts`:
 
-- `map-mapconfig-loaded`
 - `map-loaded`
 - `map-unloaded`
 - `map-update`

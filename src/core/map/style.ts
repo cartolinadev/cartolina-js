@@ -669,8 +669,6 @@ export class MapStyle {
         map.boundLayers = {}
         map.stylesheets = {}
         map.services = {}
-        map.initialView = null;
-        map.currentView_ = null;
 
         // parse surfaces from style sources
         // (with special handling of the first surface, extracting ref frame, body and services

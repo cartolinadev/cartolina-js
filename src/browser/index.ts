@@ -18,9 +18,7 @@ import * as math from '../core/utils/math';
 import {platform} from '../core/utils/platform';
 import dom from './utility/dom';
 import {
-    configFromUrl as configFromUrl_,
     runtimeOptionsFromUrl as runtimeOptionsFromUrl_,
-    UrlConfigOptions
 } from './url-config';
 import type {
     PositionInput,
@@ -157,52 +155,6 @@ export function map(options: MapOptions): Viewer {
 }
 
 /**
- * The legacy mapConfig-based initialization options object.
- *
- * Prefer the style-based `map` API for new code.
- */
-export type BrowserConfig = viewerConfig.PublicConstructionConfig & {
-
-    /** The legacy vts-geospatial mapConfig, usually as a URL. */
-    map: string | Record<string, unknown>,
-
-    /**
-     * The 10-component vts-geospatial position, specifying the initial
-     * vantage point.
-     */
-    position?: PositionInput,
-
-    /** The legacy view definition. */
-    view?: string | Record<string, unknown>,
-
-    /** Optional hook for rewriting resource URLs or adding request headers. */
-    transformRequest?: TransformRequestCallback
-};
-
-
-/**
- * The legacy vts-geospatial mapConfig-based API for map
- * initialization.
- *
- * Prefer the style-based `map` API for new code.
- *
- * @param element the DOM element mean for the map
- * @param config the legacy map configuration, which includes the mapConfig,
- *      the JSON object containing the map configuration, optional
- *      position and various browser options.
- * @return the browser interface
- */
-
-export function browser(
-    element: HTMLElement | string,
-    config: BrowserConfig
-): Viewer {
-
-    var vi = new Viewer(element, config);
-    return vi;
-}
-
-/**
  * Returns the core library version.
  * @return the core library version
  */
@@ -226,9 +178,9 @@ export function getBrowserVersion(): string {
  * accept browser, core, renderer, or debug options from the query
  * string without maintaining their own parsing table.
  *
- * Unlike `configFromUrl`, this helper removes structural fields
- * such as `map`, `position`, `pos`, `view`, `style`, and `container`,
- * so the result can be passed as the `map()` factory's `options`.
+ * The helper removes structural fields such as `mapConfig`,
+ * `position`, `pos`, `style`, and `container`, so the result can be
+ * passed as the `map()` factory's `options`.
  *
  * The URL vocabulary is wider than `PublicConstructionConfig`: the
  * query string is a permissive ingestion boundary, and parsed
@@ -240,45 +192,16 @@ export function getBrowserVersion(): string {
  *
  * @param defaults initial runtime option values to merge with URL parameters
  * @param url the URL to parse, defaults to `window.location.href`
- * @param options parsing options such as map parameter requirements
  * @return runtime options parsed from the query string
  */
 export function runtimeOptionsFromUrl(
     defaults?: viewerConfig.PublicConstructionConfig,
     url?: string,
-    options?: UrlConfigOptions
 ): viewerConfig.PublicConstructionConfig {
 
     return runtimeOptionsFromUrl_(
-        defaults as Record<string, unknown>, url, options
+        defaults as Record<string, unknown>, url
     ) as viewerConfig.PublicConstructionConfig;
-}
-
-/**
- * Converts URL query parameters into cartolina configuration values for
- * the legacy `browser` API.
- *
- * This helper parses the same runtime option vocabulary as
- * `runtimeOptionsFromUrl`, but it also preserves legacy structural
- * fields such as `map`, `position`, and `view` when present in the URL
- * or defaults. The same permissive-boundary note applies: parsed
- * internal or debug keys still apply at runtime even though the
- * returned type does not declare them.
- *
- * @param defaults initial values to merge with URL parameters
- * @param url the URL to parse, defaults to `window.location.href`
- * @param options parsing options such as map parameter requirements
- * @return config object with parsed query parameter values
- */
-export function configFromUrl(
-    defaults?: Partial<BrowserConfig>,
-    url?: string,
-    options?: UrlConfigOptions
-): Partial<BrowserConfig> {
-
-    return configFromUrl_(
-        defaults as Record<string, unknown>, url, options
-    ) as Partial<BrowserConfig>;
 }
 
 export {vec2, vec3, vec4, mat3, mat4, math, utils, getCoreVersion,

@@ -81,9 +81,7 @@ Methods already promoted to `Viewer`:
 |---|---|
 | `.getHitCoords(x, y, mode)` | `Viewer` ✓ |
 | `.convertCoordsFromNavToCanvas(pos, mode)` | `Viewer` ✓ |
-| `.getView()` | `Viewer.getView()` ✓ |
-| `.setView(viewName)` | `Viewer.setView(viewName)` ✓ |
-| named view ids | `Viewer.getNamedViews()` ✓ |
+| `.getView()` / `.setView()` / named views | removed with the mapConfig runtime (rfc11); named views convert to visibility profiles applied through `Viewer.applyVisibilityProfile()` |
 
 Methods that currently exist on the legacy map object only:
 
@@ -140,9 +138,9 @@ mapy.com call surface does not include them (they are absent from
 the inventory above). Replacement for applications: the typed
 `Viewer.setParam` / `Viewer.getParam` over the public runtime
 subset; construction-time values go through the factory option
-bags. Ingestion of the `browser()` config bag and of mapConfig
-`browserOptions` continues internally through
-`Browser.applyConfigParams`.
+bag. Converted mapConfig `browserOptions` return as typed
+`viewerOptions` from `mapConfigToStyle()` and merge below the
+caller's own options.
 
 ---
 

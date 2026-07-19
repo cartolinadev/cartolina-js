@@ -18,8 +18,8 @@ import * as utils from './utils/utils';
  *   read once at construction, at map or style load, or when the
  *   key's UI control is built.
  * - `structural` — command-like keys with dedicated methods or
- *   construction options (`style`, `map`, `position`, `view`,
- *   `transformRequest`); on neither public bag surface.
+ *   construction options (`style`, `position`, `transformRequest`);
+ *   on neither public bag surface.
  * - `internal` — tuning and diagnostics reachable through URL
  *   parameters and legacy ingestion, not through the typed public
  *   surfaces.
@@ -36,7 +36,7 @@ export type ConfigKeyVisibility =
  */
 export type UrlParseKind =
     'boolean' | 'number' | 'numberArray' | 'position' | 'string'
-    | 'json' | 'none';
+    | 'none';
 
 
 /**
@@ -156,15 +156,6 @@ const strOrNull = <V extends ConfigKeyVisibility>(
 ): ConfigSpec<string | null, V> => ({
     produce: () => null,
     normalize: toStringOrNull,
-    urlKind: 'string',
-    visibility,
-});
-
-const strOrRecord = <V extends ConfigKeyVisibility>(
-    visibility: V,
-): ConfigSpec<string | Record<string, unknown> | null, V> => ({
-    produce: () => null,
-    normalize: toStringOrRecord,
     urlKind: 'string',
     visibility,
 });
@@ -381,27 +372,6 @@ const catalogue = {
      *  observed position. */
     fixedHeight: num(-MAX, MAX, 0, 'runtime'),
 
-    /** GeoJSON (URL string or object) loaded at startup as a free
-     *  layer. */
-    geojson: strOrRecord('construction'),
-
-    /** Geodata (URL string or object) loaded at startup as a free
-     *  layer; alternative input to `geojson`. */
-    geodata: strOrRecord('construction'),
-
-    /** Style applied to the startup `geojson` / `geodata` free
-     *  layer: an object, or a JSON string. A malformed JSON string
-     *  throws from normalization; the URL layer catches the parse
-     *  failure and drops the parameter instead. */
-    geojsonStyle: spec({
-        produce: (): Record<string, unknown> | null => null,
-        normalize: (value) => typeof value === 'string'
-            ? toRecordOrNull(JSON.parse(value))
-            : toRecordOrNull(value),
-        urlKind: 'json',
-        visibility: 'construction',
-    }),
-
     /** `[min, max]` band of the horizon-visibility factor within
      *  which the maximum camera tilt interpolates from -20° down
      *  to -90°. */
@@ -456,9 +426,6 @@ const catalogue = {
         visibility: 'structural',
     }),
 
-    /** Legacy mapConfig URL to load (`mapConfig.json`). */
-    map: strOrNull('structural'),
-
     /** Initial position: a legacy position array (mode strings and
      *  finite numbers) or a `MapPosition` instance. */
     position: spec({
@@ -484,10 +451,6 @@ const catalogue = {
         urlKind: 'position',
         visibility: 'structural',
     }),
-
-    /** View applied after the map loads: a named view string or a
-     *  view definition object. */
-    view: strOrRecord('structural'),
 
     /** Request hook invoked before each resource fetch; may
      *  rewrite the URL and add headers or credentials (see
@@ -1011,10 +974,9 @@ const keysWithVisibility = (
  * Deliberately absent: `construction` keys (read once at
  * construction, at load, or when their UI control is built),
  * `structural` command keys with dedicated methods (`style`,
- * `map`, `position`, `view`, `transformRequest`), `internal`
- * tuning and diagnostics, `debug` switches, and the `pos` /
- * `rotate` / `pan` aliases, which remain compatibility ingestion
- * only.
+ * `position`, `transformRequest`), `internal` tuning and
+ * diagnostics, `debug` switches, and the `pos` / `rotate` / `pan`
+ * aliases, which remain compatibility ingestion only.
  */
 export type PublicRuntimeConfig =
     Pick<ViewerConfig, KeysWithVisibility<'runtime'>>;

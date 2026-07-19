@@ -102,13 +102,14 @@ describe('url-config runtime options', function() {
         assert.strictEqual(warnings.length, 0);
     });
 
-    it('drops a malformed geojsonStyle JSON parameter instead of '
-        + 'throwing', function() {
+    it('drops an uncatalogued unprefixed query key silently',
+        function() {
 
         const options = runtimeOptionsFromUrl({},
-            'http://localhost/?geojsonStyle={bad-json&mapCache=500');
+            'http://localhost/?geojsonStyle={x}&mapCache=500');
 
         assert.strictEqual('geojsonStyle' in options, false);
         assert.strictEqual(options.mapCache, 500);
+        assert.strictEqual(warnings.length, 0);
     });
 });

@@ -3,6 +3,44 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-19 — RFC 11 phase 4: the mapConfig runtime is deleted
+
+Phase 4 of [RFC 11](rfc11-mapconfig-to-style.md), started only after
+the phase-3 closure gate passed. Deleted:
+
+- `src/core/map/config.js`, `src/core/map/view.js`, and
+  `src/core/map/surface-sequence.ts`;
+- from core `Map`: `loadMap()`, `onMapConfigLoaded_()`,
+  `createMapFromMapConfig()`, the mapConfig construction branch,
+  `applyBrowserOptions_()`, `initialConfig`, and the
+  `setView` / `getView` / `getNamedViews` methods; the
+  `map-mapconfig-loaded` event; `surfaceList()` reads the effective
+  style only;
+- from `LegacyMap`: the View state and methods (`namedViews`,
+  `currentView_`, `setView`, `getCurrentView` with its dead
+  `style.legacyView()` branch, `refreshFreelayesInView`,
+  `surfaceSequence`, `setLoaderParams`); `refreshView()` is now the
+  style-sequence recompilation only;
+- from the browser layer: the public `browser()` factory,
+  `BrowserConfig`, `configFromUrl()`, `Viewer`'s View methods, the
+  `Browser` mapConfig ingestion (`originalConfig` capture,
+  `browserOptions` re-application, `view` command, and the
+  `geojson` / `geodata` / `geojsonStyle` construction options);
+- from the config catalogue: `map`, `view`, `geojson`, `geodata`,
+  `geojsonStyle`, and the now-unused `json` URL parse kind;
+- the `demos/legacy` tree (vts-browser-js tutorial demos using the
+  removed `vts.browser` wrapper API against a retired CDN).
+
+The sandbox atmosphere-density tool now loads a minimal style
+instead of a mapConfig. A repository search finds no mapConfig or
+View reference outside `src/compat/`, its tests, VTS-input format
+documentation, and historical RFC records.
+
+Validation after a fresh dev-server build: tsc clean, 72 unit tests
+pass, `test/style-mutation.js` passes all 20 checks, and all seven
+test URLs (three style entries and four converted legacy entries)
+render with no console or network errors.
+
 ## 2026-07-19 — RFC 11 phase-3 closure gate passed
 
 The compatibility closure gate of
