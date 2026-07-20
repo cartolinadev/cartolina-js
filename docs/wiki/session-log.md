@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-21 — RFC 11 review round 9: sign-off
+
+Reviewed the round 8 correction (`78388883`). `buildProfiles()` now activates
+only ids present in the assembled layer list, so a mixed rule that assembly
+omits is not named by a named-view profile. Verified independently: typecheck
+and all 80 unit tests pass, and the round 8 reproduction now yields a profile
+with no phantom mixed-rule id, so the completeness check passes. The unit
+regression and the maintained browser gate both cover the case.
+
+No findings remain. Appended `## Review round 9 — sign-off` and set the status
+to `Implemented`. The guarded fix is rendering-neutral, so the screenshot
+corpus was not re-executed for it; the author's round 8 addendum records the
+full gate passing.
+
 ## 2026-07-21 — RFC 11 round 8 response
 
 Addressed the mixed-rule profile defect from

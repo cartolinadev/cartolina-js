@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** In review
+**Status:** Implemented
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -3258,3 +3258,33 @@ Validation passed the typecheck, all 80 unit tests, the four-mapConfig strict
 corpus, the maintained runtime gate, the production build, and the three
 sequential dev/production screenshot comparisons. The six captures were
 inspected and match in terrain, imagery, shading, and labels.
+
+## Review round 9 — sign-off
+
+The round 8 finding is resolved. `buildProfiles()` now builds the emitted-id
+set from the assembled layer list and activates only ids present in it, so a
+mixed rule that `assembleLayers()` omits is no longer named by a named-view
+profile. Every converted profile again covers exactly the style's emitted
+layers, per section 6.4.
+
+Independently verified on the branch at `78388883`: the typecheck and all 80
+unit tests pass, and the round 8 reproduction — a `geodata` free layer whose
+stylesheet holds `labels-a` and a `mixed-a` rule, selected by a named view —
+now yields a `detail` profile whose only key is `labels-a`, with no phantom
+`mixed-a`, so the completeness check passes. The unit regression asserts the
+profile keys equal the emitted style ids, and the maintained browser gate
+applies a converted mixed-rule profile through the live
+`applyVisibilityProfile()`. The guarded change touches only converted
+named-view profile construction; it alters no rendering, and the style-native
+screenshot corpus (no named views, no mixed rules) does not exercise it. The
+author's round 8 correction addendum records the full gate, including the
+screenshot comparisons, passing.
+
+Rounds 7 and 8 confirmed the round 6 design change end to end: the stylesheet
+qualification label stays inside the linker, the retained overlay boundary
+enforces the surviving geodata forms, source construction passes its base
+explicitly with no `LegacyMap.url` swap, the compatibility converter lives
+behind its own entry point loaded only on the mapConfig route, and the
+terminology matches the bounded legacy exception. No specification-level or
+implementation findings remain. The round 6 design change and its
+implementation are accepted; the RFC is `Implemented`.
