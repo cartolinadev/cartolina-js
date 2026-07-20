@@ -680,7 +680,7 @@ describe('mapConfigToStyle stylesheet linking', function() {
         return { doc, fixtures };
     }
 
-    it('links modules: coalesce, qualify, and rewrite',
+    it('links resolved stylesheets: coalesce, qualify, and rewrite',
         async function() {
 
         const { doc, fixtures } = letteringMapConfig();
@@ -692,8 +692,9 @@ describe('mapConfigToStyle stylesheet linking', function() {
         assert.deepStrictEqual(conversion.style.fonts,
             { noto: 'https://fonts.example.com/noto.fnt' });
 
-        // conflicting @name: first module keeps the name, the later
-        // module gets a qualified name with rewritten references
+        // conflicting @name: the first resolved stylesheet keeps the
+        // name, the later one gets a qualified name with rewritten
+        // references
         assert.ok('@name' in conversion.style.constants);
         assert.ok('@name--beta-source' in conversion.style.constants);
 
@@ -702,8 +703,9 @@ describe('mapConfigToStyle stylesheet linking', function() {
         const linesA = layers.find((layer) => layer.id === 'lines-a');
         const labelsB = layers.find((layer) => layer.id === 'labels-b');
 
-        // module order is source-id order: alpha-source first, so its
-        // symbols keep their names and beta's references are rewritten
+        // resolved-stylesheet order is source-id order: alpha-source
+        // first, so its symbols keep their names and beta's
+        // references are rewritten
         assert.strictEqual(
             labelsA['label-source'], '{@name} ({@shared})');
         assert.strictEqual(
@@ -733,9 +735,9 @@ describe('mapConfigToStyle stylesheet linking', function() {
 
         const { doc, fixtures } = letteringMapConfig();
 
-        // both modules define "peaks" differently, so the second
-        // module's family is renamed; its references must follow,
-        // and the null-target pair must not warn
+        // both resolved stylesheets define "peaks" differently, so
+        // the second one's family is renamed; its references must
+        // follow, and the null-target pair must not warn
         fixtures['https://cdn.example.com/fl/a/a.style'].layers.peaks =
             { label: true, 'label-size': 10 };
 
@@ -866,7 +868,8 @@ describe('mapConfigToStyle stylesheet linking', function() {
     });
 
     it('does not let a qualified constant collide with the same '
-        + 'module\'s own conflicting symbol', async function() {
+        + 'resolved stylesheet\'s own conflicting symbol',
+        async function() {
 
         const { doc, fixtures } = letteringMapConfig();
 
@@ -888,7 +891,8 @@ describe('mapConfigToStyle stylesheet linking', function() {
     });
 
     it('does not let a qualified layer id collide with the same '
-        + 'module\'s own conflicting layer', async function() {
+        + 'resolved stylesheet\'s own conflicting layer',
+        async function() {
 
         const { doc, fixtures } = letteringMapConfig();
 

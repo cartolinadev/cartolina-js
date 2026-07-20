@@ -2,14 +2,16 @@
 import proj4 from 'proj4';
 import MapTexture_ from './texture';
 import * as math from '../utils/math';
+import {utilsUrl as utilsUrl_} from '../utils/url';
 import GeographicLib_ from 'geographiclib';
 
 //get rid of compiler mess
 var MapTexture = MapTexture_;
+var utilsUrl = utilsUrl_;
 var GeographicLib = GeographicLib_;
 
 
-var MapSrs = function(map, id, json) {
+var MapSrs = function(map, id, json, baseUrl) {
     this.map = map;
     this.id = id;
     this.comment = json['comment'] || null;
@@ -61,7 +63,9 @@ var MapSrs = function(map, id, json) {
         }
 
         if (this.geoidGrid.definition) {
-            var url = this.map.url.makeUrl(this.geoidGrid.definition, {}, null);
+            var url = baseUrl
+                ? utilsUrl.getProcessUrl(this.geoidGrid.definition, baseUrl)
+                : this.map.url.makeUrl(this.geoidGrid.definition, {}, null);
             this.geoidGridMap = new MapTexture(this.map, url, true);
         }
         
@@ -452,4 +456,3 @@ MapSrs.prototype.convertWGSToGeocent = function(coords, srs, coords2, index, ind
 
 
 export default MapSrs;
-

@@ -564,14 +564,11 @@ const consumedTopLevelFields = new Set([
     ...ignoredTopLevelFields,
 ]);
 
-/* One resolved VTS stylesheet for one free layer. The
- * stylesheetScopeId is a transitional linker-qualification identity
- * assigned after collection; it is unique even when one free layer
- * selects different stylesheets in different views, and never
- * survives into the returned style or visibility profiles. */
+/* One resolved VTS stylesheet for one free layer. One free layer can
+ * yield several of these sharing one freeLayerKey, when it selects a
+ * different stylesheet in different named views. */
 type ResolvedVtsStylesheet = {
     freeLayerKey: string;
-    stylesheetScopeId: string;
     sourceId: string;
     stylesheetUrl: string;
     viewIds: Set<string>;
@@ -706,29 +703,14 @@ class ConversionContext {
                 ? a.stylesheetUrl.localeCompare(b.stylesheetUrl)
                 : a.sourceId.localeCompare(b.sourceId));
 
-        // unique scope ids: a free layer selecting different
-        // stylesheets in different views yields several resolved
-        // stylesheets sharing one freeLayerKey
-        const usedStylesheetScopeIds = new Set<string>();
-
-        for (const stylesheet of ordered) {
-
-            let candidate = stylesheet.freeLayerKey;
-            let ordinal = 2;
-
-            while (usedStylesheetScopeIds.has(candidate)) {
-                candidate = `${stylesheet.freeLayerKey}-v${ordinal++}`;
-            }
-
-            usedStylesheetScopeIds.add(candidate);
-            stylesheet.stylesheetScopeId = candidate;
-        }
-
         // raster presentation ids are allocated before linking and
-        // share the same explicit layer-id space as lettering rules
+        // share the same explicit layer-id space as lettering rules.
+        // The linker assigns and consumes its own symbol-qualification
+        // identity internally; this caller pairs its emitted layers
+        // back to `ordered` by input position, via
+        // `linked.layerIdsByInput`.
         const linked = linker.linkStylesheets(
             ordered.map((stylesheet) => ({
-                stylesheetScopeId: stylesheet.stylesheetScopeId,
                 sourceId: stylesheet.sourceId,
                 path: `freeLayers.${stylesheet.freeLayerKey}.style`,
                 data: stylesheet.data,
@@ -739,7 +721,7 @@ class ConversionContext {
         this.warnings.push(...linked.warnings);
 
         // assemble the layers array
-        const { layers, letteringIdsByStylesheetScope } =
+        const layers =
             this.assembleLayers(orderedPresentations, ordered, linked);
 
         // root style
@@ -776,7 +758,7 @@ class ConversionContext {
         // named views become plain visibility profiles
         const profiles = this.buildProfiles(
             namedViews, orderedPresentations, ordered,
-            letteringIdsByStylesheetScope, layers);
+            linked.layerIdsByInput, layers);
 
         // construction values beside the style
         const position = Array.isArray(doc['position'])
@@ -1566,7 +1548,6 @@ class ConversionContext {
 
                     stylesheet = {
                         freeLayerKey: key,
-                        stylesheetScopeId: key,
                         sourceId,
                         stylesheetUrl: data.url,
                         viewIds: new Set(),
@@ -1654,10 +1635,7 @@ class ConversionContext {
         orderedPresentations: PresentationEntry[],
         orderedStylesheets: ResolvedVtsStylesheet[],
         linked: linker.LinkerResult,
-    ): {
-        layers: Record<string, unknown>[];
-        letteringIdsByStylesheetScope: Map<string, string[]>;
-    } {
+    ): Record<string, unknown>[] {
 
         const layers: Record<string, unknown>[] = [];
 
@@ -1672,22 +1650,26 @@ class ConversionContext {
             });
         }
 
-        // lettering layers in stylesheet-scope order; rules from
-        // stylesheets the initial view selects apply to every
-        // terrain, named-only rules start inactive
-        const letteringIdsByStylesheetScope = new Map<string, string[]>();
-        const stylesheetByScopeId = new Map(orderedStylesheets.map(
-            (stylesheet) => [stylesheet.stylesheetScopeId, stylesheet]));
+        // the linker pairs its output to `orderedStylesheets` by input
+        // position (`layerIdsByInput`), not by an identity of its own;
+        // recover the per-layer resolved-stylesheet record from that
+        // pairing, keyed by the already-unique emitted layer id
+        const stylesheetByLayerId = new Map<string, ResolvedVtsStylesheet>();
+        linked.layerIdsByInput.forEach((ids, index) => {
+            for (const id of ids)
+                stylesheetByLayerId.set(id, orderedStylesheets[index]);
+        });
 
+        // lettering layers in linked order; rules from stylesheets the
+        // initial view selects apply to every terrain, named-only
+        // rules start inactive
         for (const linkedLayer of linked.layers) {
 
             const rule = linkedLayer.rule;
             const cls = classifyRule(rule);
 
-            const stylesheet =
-                stylesheetByScopeId.get(linkedLayer.stylesheetScopeId);
-            const freeLayerKey =
-                stylesheet?.freeLayerKey ?? linkedLayer.stylesheetScopeId;
+            const stylesheet = stylesheetByLayerId.get(linkedLayer.id);
+            const freeLayerKey = stylesheet?.freeLayerKey ?? linkedLayer.id;
 
             if (cls === 'mixed') {
 
@@ -1719,15 +1701,9 @@ class ConversionContext {
             if (!inInitialView) layer['terrain'] = [];
 
             layers.push(layer);
-
-            const ids = letteringIdsByStylesheetScope.get(
-                linkedLayer.stylesheetScopeId) ?? [];
-            ids.push(linkedLayer.id);
-            letteringIdsByStylesheetScope.set(
-                linkedLayer.stylesheetScopeId, ids);
         }
 
-        return { layers, letteringIdsByStylesheetScope };
+        return layers;
     }
 
     // -----------------------------------------------------------------
@@ -1800,7 +1776,7 @@ class ConversionContext {
         namedViews: Map<string, NormalizedView>,
         orderedPresentations: PresentationEntry[],
         orderedStylesheets: ResolvedVtsStylesheet[],
-        letteringIdsByStylesheetScope: Map<string, string[]>,
+        layerIdsByInput: string[][],
         layers: Record<string, unknown>[],
     ): Record<string, Viewer.VisibilityProfile> {
 
@@ -1822,21 +1798,19 @@ class ConversionContext {
             }
 
             // lettering rules of stylesheets this view selects apply
-            // to every declared terrain source. Looked up by
-            // stylesheetScopeId, not freeLayerKey: a free layer that
+            // to every declared terrain source. Paired to
+            // orderedStylesheets by input position (layerIdsByInput),
+            // not by an identity the linker exports: a free layer that
             // selects different stylesheets across views yields
             // several resolved stylesheets sharing one freeLayerKey
             // but each with its own emitted rule ids.
-            for (const stylesheet of orderedStylesheets) {
+            orderedStylesheets.forEach((stylesheet, index) => {
 
-                if (!stylesheet.viewIds.has(name)) continue;
+                if (!stylesheet.viewIds.has(name)) return;
 
-                const ids = letteringIdsByStylesheetScope.get(
-                    stylesheet.stylesheetScopeId) ?? [];
-
-                for (const id of ids)
+                for (const id of layerIdsByInput[index])
                     profileLayers[id] = [...allTerrainIds];
-            }
+            });
 
             profiles[name] = {
                 terrain: this.terrainStackOf(view),

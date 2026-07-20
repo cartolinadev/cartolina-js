@@ -6,30 +6,6 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
-## Eliminate the remaining ambient `LegacyMap.url` swap for inline surfaces
-
-**Opened:** 2026-07-20
-**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
-(section 7.1)
-
-`MapStyle.loadStyle()` still temporarily replaces `LegacyMap.url` while
-extracting the shared first-surface metadata (`MapSrs`, `MapBody`,
-`MapRefFrame`, `Atmosphere`) from an inline `cartolina-surface` source.
-The swap is now wrapped in `try`/`finally`, so a construction error no
-longer leaves the wrong base in place, and `MapSurface` itself already
-receives its base URL as an explicit constructor argument, matching the
-free-layer and bound-layer sources.
-
-The remaining gap is `MapSrs`: its `geoidGrid.definition` resolution
-(`src/core/map/srs.js`) reads `this.map.url` directly, with no
-explicit-base constructor parameter. Converter-produced styles never hit
-this — `mapConfigToStyle()` absolutizes `geoidGrid.definition` before
-emitting the style — but a hand-authored inline style with a relative
-geoidGrid URL still depends on the ambient swap. Give `MapSrs` (and, if
-they gain a similar need, `MapBody`, `MapRefFrame`, `Atmosphere`) an
-explicit base parameter and remove the swap from
-`MapStyle.loadStyle()` entirely.
-
 ## RFC 11 validation items not yet automated
 
 **Opened:** 2026-07-19

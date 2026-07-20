@@ -911,7 +911,10 @@ class Map {
     }
 
     /**
-     * Adds a free layer to the map under the given id.
+     * Adds a free layer to the map under the given id. `layer` must
+     * be a "geodata" or "geodata-tiles" specification (or an existing
+     * surface of that kind, or its fetch URL); any other free-layer
+     * kind is rejected with a console warning and not registered.
      *
      * @param id layer identifier
      * @param layer free-layer specification or existing legacy surface

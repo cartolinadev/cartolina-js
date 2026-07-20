@@ -15,20 +15,15 @@ export type VtsStylesheetData = {
 };
 
 /**
- * One resolved VTS stylesheet entering the linker. This identity is
- * transitional: it exists only to qualify colliding symbols during
- * linking and does not survive into the returned style.
+ * One resolved VTS stylesheet entering the linker.
  */
 export interface VtsStylesheetInput {
-
-    /** Deterministic scope id, unique per resolved stylesheet, used
-     *  to qualify conflicting symbols. */
-    stylesheetScopeId: string;
 
     /** Style source id of the geodata source this stylesheet styles. */
     sourceId: string;
 
-    /** Diagnostic path prefix for warnings and notes. */
+    /** Diagnostic path prefix for warnings and notes; also the
+     *  source of the linker's internal symbol-qualification label. */
     path: string;
 
     /** The absolutized stylesheet document. */
@@ -39,7 +34,6 @@ export interface VtsStylesheetInput {
 export interface LinkedLayer {
     id: string;
     sourceId: string;
-    stylesheetScopeId: string;
     rule: Record<string, unknown>;
 }
 
@@ -62,6 +56,15 @@ export interface LinkerResult {
     fonts: Record<string, string>;
     bitmaps: Record<string, unknown>;
     layers: LinkedLayer[];
+
+    /** The layer ids emitted for each input stylesheet, in the same
+     *  order and at the same index as the `stylesheets` argument
+     *  passed to `linkStylesheets()`. Lets the caller pair emitted
+     *  layers back to its own resolved-stylesheet records by
+     *  position, without the linker exporting any identity of its
+     *  own. */
+    layerIdsByInput: string[][];
+
     notes: LinkerNote[];
     warnings: LinkerWarning[];
 }
@@ -130,14 +133,24 @@ export function linkStylesheets(
         fonts: {},
         bitmaps: {},
         layers: [],
+        layerIdsByInput: stylesheets.map(() => []),
         notes: [],
         warnings: [],
     };
 
     const usedLayerIds = new Set<string>(reservedLayerIds);
 
-    for (const stylesheet of stylesheets) {
+    // per-input symbol-qualification labels, generated and consumed
+    // entirely inside this function: never returned, never accepted
+    // as an argument. Two inputs whose path yields the same label
+    // (a free layer selecting several stylesheets across views) are
+    // disambiguated deterministically, same as any other qualified
+    // name.
+    const scopeLabels = assignScopeLabels(stylesheets);
 
+    stylesheets.forEach((stylesheet, index) => {
+
+        const scopeLabel = scopeLabels[index];
         const data = stylesheet.data;
 
         // clone: rewriting must not touch the caller's document
@@ -147,12 +160,12 @@ export function linkStylesheets(
         const layers = structuredClone(data.layers ?? {});
 
         // pass 1: decide the output name of every stylesheet's symbol
-        const constantRenames = planRenames(
-            result.constants, constants, stylesheet, 'constants', result);
-        const fontRenames = planRenames(
-            result.fonts, fonts, stylesheet, 'fonts', result);
-        const bitmapRenames = planRenames(
-            result.bitmaps, bitmaps, stylesheet, 'bitmaps', result);
+        const constantRenames = planRenames(result.constants, constants,
+            stylesheet, scopeLabel, 'constants', result);
+        const fontRenames = planRenames(result.fonts, fonts,
+            stylesheet, scopeLabel, 'fonts', result);
+        const bitmapRenames = planRenames(result.bitmaps, bitmaps,
+            stylesheet, scopeLabel, 'bitmaps', result);
 
         // layer symbols: two sources cannot share one output layer,
         // so a taken id is qualified regardless of equality. Reserve
@@ -168,8 +181,7 @@ export function linkStylesheets(
             if (!usedLayerIds.has(name)) continue;
 
             const qualified = qualifiedName(
-                name, stylesheet.stylesheetScopeId,
-                (id) => reservedLayerNames.has(id));
+                name, scopeLabel, (id) => reservedLayerNames.has(id));
             layerRenames.set(name, qualified);
             reservedLayerNames.add(qualified);
 
@@ -177,7 +189,7 @@ export function linkStylesheets(
                 code: 'symbol-renamed',
                 path: `${stylesheet.path}:layers.${name}`,
                 message: `Layer "${name}" of stylesheet `
-                    + `"${stylesheet.stylesheetScopeId}" renamed to `
+                    + `"${scopeLabel}" renamed to `
                     + `"${qualified}"; all references were rewritten.`,
             });
         }
@@ -205,16 +217,39 @@ export function linkStylesheets(
             const id = layerRenames.get(name) ?? name;
             usedLayerIds.add(id);
 
-            result.layers.push({
-                id,
-                sourceId: stylesheet.sourceId,
-                stylesheetScopeId: stylesheet.stylesheetScopeId,
-                rule,
-            });
+            result.layers.push({ id, sourceId: stylesheet.sourceId, rule });
+            result.layerIdsByInput[index].push(id);
         }
-    }
+    });
 
     return result;
+}
+
+
+/*
+ * Assigns each input stylesheet a symbol-qualification label, derived
+ * from its diagnostic path and disambiguated when two inputs share
+ * one label (a free layer selecting different stylesheets across
+ * named views resolves to several inputs with the same path prefix).
+ * Purely an internal naming aid: never part of `VtsStylesheetInput` or
+ * `LinkedLayer`, and never returned to the caller.
+ */
+function assignScopeLabels(stylesheets: VtsStylesheetInput[]): string[] {
+
+    const used = new Set<string>();
+
+    return stylesheets.map((stylesheet) => {
+
+        // diagnostic path convention: "<space>.<label>.<rest...>"
+        const base = stylesheet.path.split('.')[1] ?? stylesheet.path;
+
+        let candidate = base;
+        let ordinal = 2;
+        while (used.has(candidate)) candidate = `${base}-v${ordinal++}`;
+
+        used.add(candidate);
+        return candidate;
+    });
 }
 
 
@@ -227,6 +262,7 @@ function planRenames(
     outTable: Record<string, unknown>,
     stylesheetTable: Record<string, unknown>,
     stylesheet: VtsStylesheetInput,
+    scopeLabel: string,
     space: string,
     result: LinkerResult,
 ): Map<string, string> {
@@ -251,7 +287,7 @@ function planRenames(
         }
 
         const qualified = qualifiedName(
-            name, stylesheet.stylesheetScopeId, (id) => reserved.has(id));
+            name, scopeLabel, (id) => reserved.has(id));
         renames.set(name, qualified);
         reserved.add(qualified);
 
@@ -259,7 +295,7 @@ function planRenames(
             code: 'symbol-renamed',
             path: `${stylesheet.path}:${space}.${name}`,
             message: `${space} symbol "${name}" of stylesheet `
-                + `"${stylesheet.stylesheetScopeId}" renamed to `
+                + `"${scopeLabel}" renamed to `
                 + `"${qualified}"; all references were rewritten.`,
         });
     }
@@ -271,11 +307,11 @@ function planRenames(
 /* Deterministic scope-qualified name, suffixed until unused. */
 function qualifiedName(
     name: string,
-    stylesheetScopeId: string,
+    scopeLabel: string,
     taken: (candidate: string) => boolean,
 ): string {
 
-    let candidate = `${name}--${stylesheetScopeId}`;
+    let candidate = `${name}--${scopeLabel}`;
     while (taken(candidate)) candidate += '-x';
     return candidate;
 }

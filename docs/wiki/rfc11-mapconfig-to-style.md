@@ -261,8 +261,16 @@ proposal (section 4).
 
 “Bound layer” and “free layer” are VTS input terms. This RFC uses them only
 when naming mapConfig fields, explaining conversion, or identifying legacy
-code to delete. They do not appear in the target style schema, Viewer API,
-core map model, or current-behavior documentation after implementation.
+code to delete. They do not appear in the target style schema, in the
+converter's output, or in visibility profiles.
+
+One bounded exception survives outside that boundary: the existing
+`Viewer.createGeodata()` / `addFreeLayer()` / `removeFreeLayer()` overlay
+methods and their internal machinery keep the "free layer" spelling, per
+section 4's retained-machinery decision, and the non-interactive demo
+documents that transitional surface. This is a legacy compatibility path,
+not part of the style/profile contract; it does not reappear in the target
+style schema, the converter's output, or the profile API this RFC adds.
 
 The source type selects a loader. The layer type selects a processor. All
 layers share one array, identity, ordering, and terrain applicability
@@ -863,15 +871,11 @@ inline definition:
 Inline source support is part of the style loader, not a mapConfig escape
 hatch. Each source's own object — `MapSurface`, `MapBoundLayer` — receives
 its resolved source data and base URL directly, the same constructor path
-for a URL or an inline source. This does not yet extend to the shared
-first-surface metadata (`MapSrs`, `MapBody`, `MapRefFrame`, `Atmosphere`):
-that extraction still reads a temporarily swapped `LegacyMap.url`, because
-`MapSrs`'s geoidGrid resolution has no explicit-base constructor parameter
-today. The swap is exception-safe — restored in a `finally` block, so a
-construction error never leaves the wrong base in place — but eliminating
-it entirely needs a constructor-signature change to those four classes,
-which is out of this RFC's proportionate scope and is tracked as backlog
-follow-up.
+for a URL or an inline source. Shared first-surface metadata follows the same
+rule. `MapSrs` receives the source base for relative geoid-grid resolution,
+and `MapStyle.loadStyle()` resolves the atmosphere service URL from that base
+before constructing `Atmosphere`. `MapBody` and `MapRefFrame` do not resolve
+URLs. Source construction never replaces the style-level `LegacyMap.url`.
 
 For a legacy mapConfig with several surfaces, the converter emits one
 terrain source per surface. Shared reference metadata is copied into each
@@ -3034,6 +3038,11 @@ notes unresolved.
    `stylesheetScopeId` must not occur outside the linker and its direct linker
    tests.
 
+   *Adopted.* The linker now assigns and consumes the qualification label
+   internally. It returns emitted layer ids grouped by input position, so the
+   converter can pair them with its resolved-stylesheet records without
+   exporting or looking up the label.
+
 2. Required correction 4 was only partially implemented.
 
    Removing `freeLayersHaveGeodata` fixes the stale duplicate state, but
@@ -3046,6 +3055,11 @@ notes unresolved.
    the predicate from the style path, and add a regression that a profile
    changing from active vectors to none skips drawing and hit testing based on
    the sequence itself.
+
+   *Adopted.* `addFreeLayer()` now rejects known non-geodata definitions at
+   registration, and fetched definitions are removed when their resolved type
+   is not geodata. The style path no longer checks `freeLayer.geodata`; the
+   regression exercises active-to-empty draw and hit-test sequences.
 
 3. The revised design body and current terminology still contradict each
    other.
@@ -3063,6 +3077,10 @@ notes unresolved.
    "resolved stylesheet" or a more specific phrase. Historical reviewer text
    and immutable addenda remain unchanged.
 
+   *Adopted.* Section 2.5 now names the retained overlay methods and machinery
+   as the bounded exception. Live unit-test names and comments now say
+   "resolved stylesheet"; historical review and addendum text is untouched.
+
 4. The remaining ambient `LegacyMap.url` swap has not been shown to require
    four constructor changes.
 
@@ -3079,6 +3097,13 @@ notes unresolved.
    read prevents this, identify that read in the response; the current source
    does not contain it.
 
+   *Adopted.* `MapSrs` now receives the source base explicitly, the atmosphere
+   service URL is resolved from that same base, and `MapSurface` receives it
+   for URL and inline documents. The `LegacyMap.url` swap and `MapUrl` import
+   are gone. The runtime gate checks two inline surfaces with different bases,
+   SRS and atmosphere resolution, and a failing `MapSrs` construction without
+   changing the style-level URL object.
+
 5. The compatibility entry point is separate, but the demo does not load it
    conditionally.
 
@@ -3092,6 +3117,11 @@ notes unresolved.
    browser assertion that a style URL makes no compatibility-bundle request and
    that a mapConfig URL loads it and renders.
 
+   *Adopted.* The demo injects `cartolina-compat.js` only after selecting the
+   `?mapConfig=` path. The runtime gate records browser requests: its style
+   route must omit the bundle, while its mapConfig route must request it and
+   reach a ready viewer with a live canvas.
+
 6. Correct the implementation-history commit references append-only.
 
    The correction addendum names `94b32577`, a dangling pre-amend commit; the
@@ -3100,7 +3130,34 @@ notes unresolved.
    addendum naming the final commits and explaining that the first hash was the
    pre-amend object.
 
+   *Adopted.* The dated correction addendum below leaves both earlier addenda
+   unchanged, identifies `94b32577` as the discarded pre-amend object, and
+   records `3e237f1b` and `92dc7458` as the committed changes.
+
 The browser checks for this round followed a fresh-server protocol: the prior
 Cartolina dev-server process was stopped, port 8080 was confirmed free, one new
 server was started on port 8080, compilation completed, and the served version
 was matched to `src/core/version.js` before capture.
+
+## Addendum — 2026-07-20 — round 7 corrections
+
+This addendum implements the six round 7 responses above and corrects the
+implementation-history references without changing earlier addenda.
+
+The implementation-review correction addendum names `94b32577`. That object
+was the pre-amend form of the correction commit and is no longer the branch
+commit. The committed correction is `3e237f1b`. The subsequent fixes found
+while re-running validation are committed as `92dc7458`.
+
+Round 7 also keeps the stylesheet qualification label inside the linker,
+enforces the surviving geodata forms at the retained registration boundary,
+and aligns the live terminology with the bounded compatibility exception.
+Source construction now passes base URLs explicitly to `MapSrs`, atmosphere
+URL resolution, and `MapSurface`, so it never replaces `LegacyMap.url`.
+The demo loads the compatibility entry only on its mapConfig route.
+
+The maintained runtime gate checks the active-to-empty vector sequence, two
+inline surfaces with different bases, SRS and atmosphere URL resolution, URL
+context preservation when an SRS constructor throws, and conditional browser
+loading of the compatibility entry. The complete validation result is recorded
+in the session log.

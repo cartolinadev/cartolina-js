@@ -72,8 +72,23 @@ var MapSurface = function(map, json, type, baseUrl) {
         this.baseUrlOrigin = utilsUrl.getOrigin(this.jsonUrl);
         
         var onLoaded = (function(data){
-            this.parseJson(data);            
+            this.parseJson(data);
             this.ready = true;
+
+            // a fetched free layer is validated here, once its type
+            // is known; an unsupported resolved type is removed
+            // rather than reaching the style path as a phantom entry
+            if (this.free && !this.geodata) {
+
+                console.warn(`Free layer at "${this.jsonUrl}" resolved `
+                    + `to unsupported type "${this.type}"; removing.`);
+
+                for (var key in this.map.freeLayers) {
+                    if (this.map.freeLayers[key] === this)
+                        this.map.freeLayers[key] = null;
+                }
+            }
+
             this.map.refreshView();
         }).bind(this);
         

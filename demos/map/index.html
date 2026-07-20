@@ -4,7 +4,6 @@
 <title>Cartolina JS: A trivial map application (supports styles with placeholders)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="../../build/cartolina.js"></script>
-<script src="../../build/cartolina-compat.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet"/>
 <style>
   body { margin: 0; padding: 0; }
@@ -73,6 +72,19 @@ function expandStyleTemplate(styleText, params) {
   });
 }
 
+function loadCompatibilityEntry() {
+  if (window.cartolinaCompat) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '../../build/cartolina-compat.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(
+      `Failed to load compatibility entry "${script.src}".`));
+    document.head.appendChild(script);
+  });
+}
+
 /**
  * Rewrites relative source URLs in a parsed style to absolute URLs,
  * resolving them against the URL the style was retrieved from. URLs
@@ -136,9 +148,9 @@ async function main() {
 
   if (!hasStyle && mapConfigUrl) {
     // legacy mapConfigs load through the compatibility converter,
-    // loaded from its own cartolina-compat.js entry point so the
-    // style-only route never pays for it; every legacy dev URL is
-    // thereby a living converter regression
+    // loaded on demand from its own entry point; every legacy dev URL
+    // is thereby a living converter regression
+    await loadCompatibilityEntry();
     const conversion = await cartolinaCompat.mapConfigToStyle(mapConfigUrl);
 
     for (const note of conversion.notes) {

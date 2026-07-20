@@ -3,6 +3,33 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 round 7 response
+
+Addressed all six findings in
+[RFC 11 review round 7](rfc11-mapconfig-to-style.md). The linker keeps its
+symbol-qualification label internal and returns emitted layer ids by input
+position. The retained overlay boundary enforces the surviving geodata forms,
+and the style path no longer repeats the type predicate. Section 2.5 and live
+test wording now describe resolved stylesheets and the bounded legacy overlay
+exception.
+
+Source construction passes its base explicitly to `MapSrs`, atmosphere URL
+resolution, and `MapSurface`; `MapStyle.loadStyle()` no longer swaps
+`LegacyMap.url`. The map demo loads `cartolina-compat.js` only on the mapConfig
+route. Runtime checks cover separate inline-source bases, constructor-failure
+URL preservation, and conditional compatibility-bundle requests. The RFC gains
+the three missing author responses and an append-only correction of the
+implementation commit references. The obsolete URL-swap backlog entry is
+removed.
+
+Validation: typecheck; all 80 unit tests; strict conversion of all four public
+mapConfig corpus entries; every runtime assertion; and sequential
+`simple-terrain`, `complex-terrain`, and `full-terrain` dev/prod captures with
+no console or network errors. The three dev captures were inspected and show
+the expected terrain, imagery, shading, and labels. The production build passes
+with the established size warnings; its main bundle contains no converter or
+linker marker, while the separate compatibility bundle does.
+
 ## 2026-07-20 — RFC 11 implementation response reviewed
 
 Reviewed public correction commits `3e237f1b` and `92dc7458` and opened

@@ -8,8 +8,8 @@ import MapBody from '../map/body';
 import Atmosphere from '../map/atmosphere';
 import MapSurface from '../map/surface';
 import MapCredit from '../map/credit';
-import MapUrl from '../map/url';
 import MapBoundLayer from '../map/bound-layer';
+import { utilsUrl } from '../utils/url';
 
 import * as styleSchema from './style-schema';
 
@@ -572,85 +572,71 @@ export class MapStyle {
                 // TODO: validation
                 //__DEV__ && console.log(mc);
 
-                // not pretty, but constructors called below silently rely on this
-                let mapurl = map.url;
+                // sanity: all surfaces need to share the same frame of reference
+                if (map.referenceFrame)
+                    console.assert(
+                        mc.referenceFrame.id === map.referenceFrame.id);
 
-                map.url = new MapUrl(map, path);
+                if (!map.referenceFrame) {
+                    // ok, this is first surface, so we extract all the map metadata
 
-                try {
+                    // the srses
+                    for (let key in mc.srses)
+                        map.addSrs(key,
+                            new MapSrs(map, key, mc.srses[key], path));
 
-                    // sanity: all surfaces need to share the same frame of reference
-                    if (map.referenceFrame)
-                        console.assert(
-                            mc.referenceFrame.id === map.referenceFrame.id);
+                    // the bodies
+                    for (let key in mc.bodies)
+                        map.addBody(key, new MapBody(
+                            map,
+                            mc.bodies[key] as MapBody.Configuration));
 
-                    if (!map.referenceFrame) {
-                        // ok, this is first surface, so we extract all the map metadata
+                    // the reference frame
+                    map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
 
-                        // the srses
-                        for (let key in mc.srses)
-                            map.addSrs(key, new MapSrs(map, key, mc.srses[key]));
+                    // the services
+                    map.services = mc.services ?? {};
 
-                        // the bodies
-                        for (let key in mc.bodies)
-                            map.addBody(key, new MapBody(
-                                map,
-                                mc.bodies[key] as MapBody.Configuration));
+                    // atmosphere
+                    let body = map.referenceFrame.body;
+                    let services = map.services;
 
-                        // the reference frame
-                        map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
+                    if (spec.atmosphere
+                        && body && body.atmosphere
+                        && services && services.atmdensity) {
 
-                        // the services
-                        map.services = mc.services ?? {};
+                        let atmoSpec: Atmosphere.Specification = {
+                            visibilityToEyeDistance: 5.0,
+                            edgeDistanceToEyeDistance: 1.0,
+                            maxVisibility: 1e6,
+                            ...body.atmosphere,
+                            ...spec.atmosphere
+                        };
 
-                        // atmosphere
-                        let body = map.referenceFrame.body;
-                        let services = map.services;
-
-                        if (spec.atmosphere
-                            && body && body.atmosphere
-                            && services && services.atmdensity) {
-
-                            let atmoSpec: Atmosphere.Specification = {
-                                visibilityToEyeDistance: 5.0,
-                                edgeDistanceToEyeDistance: 1.0,
-                                maxVisibility: 1e6,
-                                ...body.atmosphere,
-                                ...spec.atmosphere
-                            };
-
-                            map.atmosphere = new Atmosphere(
-                                atmoSpec, map.getPhysicalSrs(),
-                                map.url.makeUrl(services.atmdensity.url, {}), map);
-                           }
-                    }
-
-                    // the surface, only single-surface mapconfigs are admissible
-                    if (mc.surfaces.length != 1) {
-
-                        throw Error(`The url for source ${id} does not define `
-                            + `exactly one surface, bailing out.`);
-                    }
-
-                    // pass the inline source's own base explicitly,
-                    // matching the free-layer constructor path below;
-                    // a URL source has no baseUrl and keeps relying on
-                    // the swapped map.url ambient context above
-                    let surface = new MapSurface(
-                        map, mc.surfaces[0], undefined, sourceSpec.baseUrl);
-                    surface.styleSourceId = id;
-                    map.addSurface(surface.id, surface);
-
-                    // the credits
-                    if (mc.credits) for (let key in mc.credits)
-                        map.addCredit(key, new MapCredit(map, mc.credits[key]));
-
-                } finally {
-
-                    // restore the mapurl (style path), even if a
-                    // constructor above threw
-                    map.url = mapurl;
+                        map.atmosphere = new Atmosphere(
+                            atmoSpec, map.getPhysicalSrs(),
+                            utilsUrl.getProcessUrl(
+                                services.atmdensity.url, path), map);
+                       }
                 }
+
+                // the surface, only single-surface mapconfigs are admissible
+                if (mc.surfaces.length != 1) {
+
+                    throw Error(`The url for source ${id} does not define `
+                        + `exactly one surface, bailing out.`);
+                }
+
+                // the resolved document and its base reach the surface
+                // constructor explicitly for both URL and inline sources
+                let surface = new MapSurface(
+                    map, mc.surfaces[0], undefined, path);
+                surface.styleSourceId = id;
+                map.addSurface(surface.id, surface);
+
+                // the credits
+                if (mc.credits) for (let key in mc.credits)
+                    map.addCredit(key, new MapCredit(map, mc.credits[key]));
             }
 
         // parse bound layers from sources
@@ -998,11 +984,15 @@ export class MapStyle {
 
             // copied from generatesurfacesequenece
             // copied from Map.refreshFreeLayersInView
+            //
+            // registration already guarantees the surviving geodata
+            // form (addFreeLayer, MapSurface's fetched-layer
+            // validation), so this path trusts the registry: a
+            // registered free layer is either present and eligible,
+            // or the registry entry is null.
             let freeLayer = map.getFreeLayer(id);
 
             if (freeLayer) {
-
-                if (!freeLayer.geodata) continue;
 
                 freeLayer.options = {};
 

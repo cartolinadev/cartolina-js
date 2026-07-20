@@ -393,11 +393,32 @@ Map.prototype.getBoundLayers = function() {
 };
 
 
+// The only surviving free-layer source kinds are 'geodata' and
+// 'geodata-tiles'. URL-backed surfaces are checked once loaded in
+// MapSurface's onLoaded (surface.js).
+function isRecognizedFreeLayerType(layer) {
+    if (typeof layer === 'string') return true;
+    if (layer instanceof MapSurface) return !layer.ready || layer.geodata;
+    if (layer == null || typeof layer !== 'object') return false;
+    return layer['type'] === 'geodata' || layer['type'] === 'geodata-tiles';
+}
+
+
 Map.prototype.addFreeLayer = function(id, layer) {
 
     if (layer == null) return;
-    if (!(layer instanceof MapSurface))
+
+    if (!isRecognizedFreeLayerType(layer)) {
+        const type = layer && typeof layer === 'object'
+            ? layer['type'] : typeof layer;
+        console.warn(`addFreeLayer("${id}"): unsupported free `
+            + `layer type "${type}"; not registered.`);
+        return;
+    }
+
+    if (!(layer instanceof MapSurface)) {
         layer = new MapSurface(this, layer, 'free');
+    }
 
     this.freeLayers[id] = layer;
     this.markDirty();
