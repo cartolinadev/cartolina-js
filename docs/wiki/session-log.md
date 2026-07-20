@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 implementation response reviewed
+
+Reviewed public correction commits `3e237f1b` and `92dc7458` and opened
+[RFC 11 review round 7](rfc11-mapconfig-to-style.md). The three original
+converter/linker defects are fixed and the complete public gate passes, but
+sign-off remains blocked: the stylesheet scope id still escapes the linker,
+the downstream geodata predicate remains, section 2.5 contradicts the retained
+legacy overlay API, the ambient URL-swap deferral overstates its source
+mechanism, and the demo loads the compatibility bundle on style-only routes.
+The round also requests append-only correction of the implementation commit
+reference.
+
+Browser verification exposed a recurring stale-server hazard. `AGENTS.md` now
+requires every browser-test run to kill any running Cartolina dev server,
+confirm port 8080 is free, start one new server on that port, wait for
+compilation, and verify its served version before capture. The round-7 checks
+were rerun under that protocol: typecheck, 80 unit tests, production build,
+`test:rfc11`, and the `a-3d-mountain-map` screenshot all pass.
+
 ## 2026-07-20 — two more findings from re-validating the RFC 11 fix
 
 Found while re-running conversion-corpus validation after the RFC 11

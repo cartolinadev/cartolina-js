@@ -459,10 +459,16 @@ server.
 For regression testing, use only these three entries unless instructed
 otherwise: `simple-terrain`, `complex-terrain`, `full-terrain`.
 
-1. Ensure the dev server is running: check whether
-   `http://localhost:8080` is reachable; if not, start it with
-   `npm start` in the background. If it is already running, connect to
-   it directly; do not start a second instance.
+1. Always start a new dev server for every browser-test run. Kill any
+   running Cartolina dev server first, confirm port 8080 is free, then
+   run `npm start` and wait for compilation to finish. Never reuse an
+   existing server, even when it is reachable or appears current: it
+   may serve stale code or a bundle written by another process. Start
+   exactly one server on the canonical port; if webpack selects another
+   port, stop it and resolve the listener on 8080 instead of testing
+   across two servers. Before capture, verify that the version served
+   from `build/cartolina.js` matches `src/core/version.js` in the
+   current checkout.
 
 2. Use [test/screenshot.js](test/screenshot.js) to capture and compare
    renders. This script may be run without asking for permission:

@@ -3007,3 +3007,100 @@ Both were latent — dropping a config key nothing reads, and no longer
 fetching a stylesheet no longer used, changes no rendering — and
 surfaced only once validation started checking console output. Fixed
 alongside the round 6 correction addendum.
+
+## Review round 7
+
+The fixes for the three original blocking defects are accepted. Independent
+verification passed the typecheck, all 80 unit tests, the complete
+`test:rfc11` command, a production build, and the
+`a-3d-mountain-map` compatibility-entry-point screenshot. Round 6 is not
+signed off because the response leaves the following design and implementation
+notes unresolved.
+
+1. The stylesheet scope id still escapes the linker, contrary to the revised
+   section 8.3.
+
+   `LinkedLayer` exports `stylesheetScopeId`. The converter then builds
+   `stylesheetByScopeId` and `letteringIdsByStylesheetScope`, and
+   `buildProfiles()` retrieves emitted ids through that scope. Section 8.3 now
+   says the id exists only during the linker pass and that profile construction
+   uses the caller's view identity instead. The implementation does the
+   opposite.
+
+   Generate and consume the qualification scope inside the linker. Return
+   emitted layers grouped in input order, or another structure that lets the
+   caller pair each result with its existing resolved-stylesheet record without
+   exporting or looking up the scope string. After the change,
+   `stylesheetScopeId` must not occur outside the linker and its direct linker
+   tests.
+
+2. Required correction 4 was only partially implemented.
+
+   Removing `freeLayersHaveGeodata` fixes the stale duplicate state, but
+   `MapStyle.refreshSequences()` still contains
+   `if (!freeLayer.geodata) continue`, and `addFreeLayer()` still accepts an
+   unvalidated `unknown` value. The review explicitly required validation at
+   that retained legacy boundary followed by removal of downstream type gates.
+
+   Make the surviving geodata/vector invariant explicit at registration, remove
+   the predicate from the style path, and add a regression that a profile
+   changing from active vectors to none skips drawing and hit testing based on
+   the sequence itself.
+
+3. The revised design body and current terminology still contradict each
+   other.
+
+   Section 2.5 says "free layer" does not appear in the Viewer API, core model,
+   or current-behavior documentation after implementation. Section 4 retains
+   `createGeodata()` / `addFreeLayer()` / `removeFreeLayer()` and the internal
+   machinery, and `non-interactive.md` necessarily documents that transitional
+   surface. Revise section 2.5 to name these bounded legacy exceptions rather
+   than claiming they do not exist.
+
+   The implementation review also required the new terminology to be removed
+   from tests. Current test names and comments still say "links modules",
+   "first module", and "same module's own". Replace those remaining uses with
+   "resolved stylesheet" or a more specific phrase. Historical reviewer text
+   and immutable addenda remain unchanged.
+
+4. The remaining ambient `LegacyMap.url` swap has not been shown to require
+   four constructor changes.
+
+   Source inspection finds one relevant ambient read:
+   `MapSrs` resolves `geoidGrid.definition` through `this.map.url`.
+   `MapBody` and `MapRefFrame` do not read it, and the atmosphere URL is
+   assembled by `MapStyle.loadStyle()` before `Atmosphere` construction. The
+   round-6 text and backlog therefore overstate the mechanism when they say all
+   four classes need constructor changes.
+
+   Pass the source base into `MapSrs` resolution, construct the atmosphere URL
+   from that same explicit context, and remove the swap. Test two inline
+   surfaces with different bases and a constructor failure. If another ambient
+   read prevents this, identify that read in the response; the current source
+   does not contain it.
+
+5. The compatibility entry point is separate, but the demo does not load it
+   conditionally.
+
+   `demos/map/index.html` has an unconditional
+   `<script src="../../build/cartolina-compat.js">`, so every style-only demo
+   visit still downloads and evaluates the converter. This contradicts the new
+   comment that the style-only route does not pay for it and the backlog's lazy
+   loading acceptance condition.
+
+   Load the compatibility entry only inside the `?mapConfig=` path. Add a
+   browser assertion that a style URL makes no compatibility-bundle request and
+   that a mapConfig URL loads it and renders.
+
+6. Correct the implementation-history commit references append-only.
+
+   The correction addendum names `94b32577`, a dangling pre-amend commit; the
+   committed implementation is `3e237f1b`. The later validation fixes are in
+   `92dc7458`. Do not edit the committed addenda. Append a dated correction
+   addendum naming the final commits and explaining that the first hash was the
+   pre-amend object.
+
+The browser checks for this round followed a fresh-server protocol: the prior
+Cartolina dev-server process was stopped, port 8080 was confirmed free, one new
+server was started on port 8080, compilation completed, and the served version
+was matched to `src/core/version.js` before capture.
