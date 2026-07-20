@@ -3161,3 +3161,74 @@ inline surfaces with different bases, SRS and atmosphere URL resolution, URL
 context preservation when an SRS constructor throws, and conditional browser
 loading of the compatibility entry. The complete validation result is recorded
 in the session log.
+
+## Review round 8
+
+This is a post-implementation review of the branch at `7e724f5e`, reading
+the code rather than the design text.
+
+Round 7's six responses are confirmed in the code:
+
+1. The stylesheet qualification label is assigned and consumed inside
+   `linkStylesheets()`. `stylesheetScopeId` occurs nowhere outside the
+   linker; the linker returns `layerIdsByInput`, and the converter pairs
+   emitted ids back to its resolved-stylesheet records by input position.
+2. `Map.addFreeLayer()` rejects a non-geodata definition, `MapSurface`'s
+   `onLoaded` drops a fetched free layer whose resolved type is not
+   geodata, and `MapStyle.refreshSequences()` no longer reads
+   `freeLayer.geodata`. `freeLayersHaveGeodata` is gone from the source.
+3. Section 2.5 names the retained overlay methods as the bounded legacy
+   exception; live unit-test names and comments say "resolved stylesheet".
+4. `MapSrs`, the atmosphere service URL, and `MapSurface` receive the
+   source base explicitly. The `LegacyMap.url` swap and the `MapUrl`
+   import are gone from `MapStyle.loadStyle()`.
+5. `demos/map/index.html` injects `cartolina-compat.js` only after
+   selecting the `?mapConfig=` path.
+6. The round 7 corrections addendum identifies `94b32577` as the
+   discarded pre-amend object and records `3e237f1b` and `92dc7458`.
+
+`npm run typecheck` and `npm run test:unit` (80 tests) pass on the branch.
+
+One new defect blocks sign-off.
+
+1. **A named-view profile can name a layer the style does not contain,
+   which `applyVisibilityProfile()` then rejects.**
+
+   `assembleLayers()` skips a mixed rule — a VTS rule that enables both
+   line drawing and point or label drawing — emitting an
+   `unsupported-rule` warning and no layer, per section 8.3.
+   `buildProfiles()` does not learn of that skip: for every named view
+   that selects the rule's stylesheet, it activates every id in
+   `layerIdsByInput` for that input, including the skipped mixed rule's
+   id. The returned profile therefore carries a `layers` key that no
+   style layer matches.
+
+   Section 6.4 states that a profile is a complete snapshot and that
+   `Viewer` rejects a profile that names an unknown layer;
+   `Viewer.applyVisibilityProfile()` enforces this and throws
+   `Visibility profile names unknown layer(s): <id>`. So a non-strict
+   conversion of a mapConfig whose named-view stylesheet holds one mixed
+   rule produces a profile that crashes the moment the application applies
+   it. Strict mode masks the defect, because the mixed-rule warning
+   already fails conversion there.
+
+   Reproduced against the compiled converter: a free layer with a
+   `geodata` source and a stylesheet holding `labels-a` (label only) and
+   `mixed-a` (label plus line), selected by both the initial view and a
+   named view `detail`. The emitted style contains only `labels-a`, but
+   the `detail` profile's `layers` are `labels-a` and `mixed-a`, and the
+   completeness check rejects `mixed-a`.
+
+   Have `assembleLayers()` report which linker ids it actually emitted (or
+   which it skipped), and have `buildProfiles()` activate only emitted
+   ids. Add a regression that a named view selecting a stylesheet with a
+   mixed rule yields a profile whose keys equal the emitted style layer
+   ids, and that the converted profile applies through
+   `applyVisibilityProfile()` without throwing.
+
+The design body needs no change: section 8.3 already says a mixed rule is
+not emitted, and section 6.4 already requires a profile to cover exactly
+the style's layers. This is an implementation gap in `buildProfiles()`.
+Fix it, add the regression, extend the maintained gate if the case is not
+otherwise reachable, and record the fix in a dated correction addendum.
+This round does not sign off.

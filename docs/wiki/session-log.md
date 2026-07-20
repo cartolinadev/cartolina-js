@@ -3,6 +3,24 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 review round 8
+
+Post-implementation code review of the branch. Confirmed the six round-7
+responses in the source and ran the structural gate (typecheck; 80 unit
+tests). Appended [`## Review round 8`](rfc11-mapconfig-to-style.md); it does
+not sign off.
+
+One blocking finding: `buildProfiles()` activates every `layerIdsByInput` id
+of a named-view-selected stylesheet, including a mixed rule that
+`assembleLayers()` skipped, so a named-view profile can name a layer absent
+from the style. `Viewer.applyVisibilityProfile()` rejects such a profile
+(section 6.4), so a non-strict conversion of a mapConfig with a mixed rule in
+a named-view stylesheet yields a profile that throws on application; strict
+mode masks it. Reproduced against the compiled converter with a two-rule
+stylesheet (`labels-a` plus `mixed-a`) selected by a named view. Fix belongs
+in `buildProfiles()`: activate only the ids `assembleLayers()` actually
+emitted. No design-body change is needed.
+
 ## 2026-07-20 — RFC 11 round 7 response
 
 Addressed all six findings in
