@@ -19,9 +19,11 @@ const { chromium } = require('playwright');
 const STYLE_URL = 'http://localhost:8080/demos/map/?style=complex'
   + '&pos=obj,12.721290,47.084420,fix,2727.44,-46.93,-44.97,0.00,'
   + '12643.36,30.00';
-const MAPCONFIG_URL = 'http://localhost:8080/demos/map/?mapConfig='
-  + 'https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/'
+const MAPCONFIG_SOURCE_URL =
+  'https://cdn.tspl.re/store/a-3d-mountain-map/map-config/map/'
   + 'mapConfig.json';
+const MAPCONFIG_URL = 'http://localhost:8080/demos/map/?mapConfig='
+  + MAPCONFIG_SOURCE_URL;
 
 const TERRAIN = 'topoearth-copernicus-dem-glo30';
 
@@ -312,6 +314,58 @@ async function main() {
     requests.slice(requestsBeforeMapConfig).some(compatRequest),
   ]);
   results.push(['mapConfig route renders', mapConfigRendered]);
+
+  // A linked mixed rule is intentionally absent from the emitted
+  // style. Verify that a named-view profile excludes it and applies
+  // through the real Viewer completeness check (RFC 11 review round
+  // 8). The injected rule changes no emitted layer, so the profile
+  // applies to the viewer created from the same public mapConfig.
+  const mixedRuleProfileApplies = await page.evaluate(
+    async (mapConfigUrl) => {
+
+      const mapConfigResponse = await fetch(mapConfigUrl);
+      if (!mapConfigResponse.ok) {
+        throw new Error(`mapConfig probe failed: ${mapConfigResponse.status}`);
+      }
+
+      const mapConfig = await mapConfigResponse.json();
+      mapConfig.namedViews = {
+        'round8-detail': structuredClone(mapConfig.view),
+      };
+
+      const loadJson = async (url, kind) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`probe fetch failed: ${response.status} ${url}`);
+        }
+
+        const data = await response.json();
+        if (kind === 'Style') {
+          data.layers = data.layers || {};
+          data.layers['round8-mixed'] = { label: true, line: true };
+        }
+        return data;
+      };
+
+      const conversion = await cartolinaCompat.mapConfigToStyle(
+        mapConfig, { baseUrl: mapConfigUrl, loadJson });
+      const profile = conversion.profiles['round8-detail'];
+      const styleIds = conversion.style.layers.map(layer => layer.id);
+      const profileIds = Object.keys(profile.layers);
+
+      if (!conversion.warnings.some(
+        warning => warning.code === 'unsupported-rule')) return false;
+      if (JSON.stringify(profileIds) !== JSON.stringify(styleIds)) return false;
+
+      window.v.applyVisibilityProfile(profile);
+      return JSON.stringify(window.v.getVisibilityProfile())
+        === JSON.stringify(profile);
+    }, MAPCONFIG_SOURCE_URL);
+
+  results.push([
+    'converted mixed-rule profile applies without an unknown layer',
+    mixedRuleProfileApplies,
+  ]);
 
   let failed = 0;
 

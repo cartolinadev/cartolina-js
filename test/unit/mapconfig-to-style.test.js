@@ -771,6 +771,9 @@ describe('mapConfigToStyle stylesheet linking', function() {
         async function() {
 
         const { doc, fixtures } = letteringMapConfig();
+        doc.namedViews = {
+            detail: structuredClone(doc.view),
+        };
         fixtures['https://cdn.example.com/fl/a/a.style'].layers.mixed = {
             label: true,
             line: true,
@@ -783,6 +786,12 @@ describe('mapConfigToStyle stylesheet linking', function() {
         assert.ok(warning);
         assert.ok(!conversion.style.layers.find(
             (layer) => layer.id === 'mixed'));
+
+        const emittedIds = conversion.style.layers.map(
+            (layer) => layer.id);
+        assert.deepStrictEqual(
+            Object.keys(conversion.profiles.detail.layers), emittedIds);
+        assert.ok(!('mixed' in conversion.profiles.detail.layers));
     });
 
     it('falls back to the default stylesheet and then degrades',

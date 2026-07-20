@@ -3226,9 +3226,35 @@ One new defect blocks sign-off.
    ids, and that the converted profile applies through
    `applyVisibilityProfile()` without throwing.
 
+   *Adopted.* `buildProfiles()` now intersects each selected stylesheet's
+   linked ids with the final assembled layer ids. No additional
+   `assembleLayers()` result is needed because `buildProfiles()` already
+   receives the assembled layer list. The unit regression checks that the
+   profile keys equal the emitted style ids, and the maintained browser gate
+   applies a converted mixed-rule profile through `applyVisibilityProfile()`.
+
 The design body needs no change: section 8.3 already says a mixed rule is
 not emitted, and section 6.4 already requires a profile to cover exactly
 the style's layers. This is an implementation gap in `buildProfiles()`.
 Fix it, add the regression, extend the maintained gate if the case is not
 otherwise reachable, and record the fix in a dated correction addendum.
 This round does not sign off.
+
+## Addendum — 2026-07-21 — round 8 correction
+
+Named-view profile construction now treats the final assembled layer list as
+the authoritative emitted-id set. A mixed rule remains linked for diagnostics
+and symbol processing, but its id is not activated after layer assembly omits
+the rule. Every profile therefore continues to cover exactly the style's
+emitted layers.
+
+The converter unit regression selects a stylesheet containing a label rule and
+a mixed rule from a named view, then compares the profile keys with the emitted
+style-layer ids. The browser gate injects a mixed rule during conversion of the
+public compatibility case and applies the converted named-view profile through
+the live `Viewer` without an unknown-layer error.
+
+Validation passed the typecheck, all 80 unit tests, the four-mapConfig strict
+corpus, the maintained runtime gate, the production build, and the three
+sequential dev/production screenshot comparisons. The six captures were
+inspected and match in terrain, imagery, shading, and labels.

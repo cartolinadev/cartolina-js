@@ -3,6 +3,26 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-21 — RFC 11 round 8 response
+
+Addressed the mixed-rule profile defect from
+[RFC 11 review round 8](rfc11-mapconfig-to-style.md). `buildProfiles()` now
+activates only linker ids present in the final assembled style, so a mixed rule
+omitted by `assembleLayers()` cannot become an unknown profile key. The
+existing assembled layer list is the authoritative emitted set; no duplicate
+return channel was added.
+
+The unit regression checks that a named-view profile containing a linked mixed
+rule has exactly the emitted style-layer keys. The maintained browser gate
+injects the same case into a public mapConfig conversion and applies the
+resulting profile through the live `Viewer` API.
+
+Validation passed: typecheck; all 80 unit tests; strict conversion of all four
+public corpus entries; every runtime assertion; the production build; and
+sequential
+`simple-terrain`, `complex-terrain`, and `full-terrain` dev/production captures
+with no console or network errors. The six captures were inspected and match.
+
 ## 2026-07-20 — RFC 11 review round 8
 
 Post-implementation code review of the branch. Confirmed the six round-7

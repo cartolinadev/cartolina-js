@@ -1786,9 +1786,14 @@ class ConversionContext {
         for (const [name, view] of namedViews) {
 
             const profileLayers: Record<string, string[]> = {};
+            const emittedLayerIds = new Set<string>();
 
-            for (const layer of layers)
-                profileLayers[layer['id'] as string] = [];
+            for (const layer of layers) {
+
+                const id = layer['id'] as string;
+                profileLayers[id] = [];
+                emittedLayerIds.add(id);
+            }
 
             // raster layers active in this view
             for (const entry of orderedPresentations) {
@@ -1808,8 +1813,14 @@ class ConversionContext {
 
                 if (!stylesheet.viewIds.has(name)) return;
 
-                for (const id of layerIdsByInput[index])
-                    profileLayers[id] = [...allTerrainIds];
+                // layerIdsByInput describes linked rules. A mixed
+                // rule is linked but deliberately omitted during
+                // assembly, so only activate ids present in the
+                // emitted style.
+                for (const id of layerIdsByInput[index]) {
+                    if (emittedLayerIds.has(id))
+                        profileLayers[id] = [...allTerrainIds];
+                }
             });
 
             profiles[name] = {
