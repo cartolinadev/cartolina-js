@@ -127,7 +127,6 @@ export function map(options: MapOptions): Viewer {
         , "jumpAllowed": true
         , "controlSearch": false
         , "controlZoom": false
-        , "controlFalback": false
         , "controlSpace": false
         , "controlCompass": false
     }

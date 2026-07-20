@@ -2979,3 +2979,31 @@ qualified names use `name--moduleId`." The qualified-name pattern is
 unchanged; only the identifier it is built from is renamed to
 `stylesheetScopeId`, per the round 6 rename above. The addendum text
 itself is not edited, per the append-only rule for addenda.
+
+## Addendum — 2026-07-20 — two findings from re-running validation
+
+Re-running conversion-corpus validation after the correction addendum
+above surfaced two further small, pre-existing defects, neither
+specific to any one conversion input.
+
+1. `convertFreeLayers()` copied a free layer's raw `style` field
+   (its legacy default stylesheet URL) into the emitted inline source
+   data unchanged. `MapSurface.parseJson()` reads that field
+   independently of `style.layers` and fetches it as a legacy
+   per-surface stylesheet — a fetch RFC 11 makes redundant, since
+   lettering is driven entirely by `style.layers`, and one that can
+   fail loudly if a legacy default URL is stale. The converter's own
+   default-stylesheet resolution still needs the field, so
+   `convertFreeLayers()` now drops `style` only from the copy assigned
+   to the emitted source, not from the definition it resolves
+   defaults from.
+2. `map()`'s own `dflts` object (`src/browser/index.ts`) has carried a
+   typo, `controlFalback`, since the function was first written — no
+   catalogued option of either spelling exists. It has silently logged
+   an "unknown configuration key" warning on every `map()` call since;
+   removed.
+
+Both were latent — dropping a config key nothing reads, and no longer
+fetching a stylesheet no longer used, changes no rendering — and
+surfaced only once validation started checking console output. Fixed
+alongside the round 6 correction addendum.

@@ -3,6 +3,28 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — two more findings from re-validating the RFC 11 fix
+
+Found while re-running conversion-corpus validation after the RFC 11
+implementation-review correction addendum landed, both pre-existing and
+unrelated to that correction:
+
+- `convertFreeLayers()` was copying a free layer's legacy `style` field
+  verbatim into the emitted inline source data. `MapSurface.parseJson()`
+  reads that field independently of `style.layers` and fetches it as a
+  redundant legacy per-surface stylesheet — harmless when the URL still
+  resolves, but a console error when it does not. The converter's own
+  default-stylesheet resolution still needs the field, so it is now
+  dropped only from the copy assigned to the emitted source.
+- `map()`'s own default-options bag has carried a typo,
+  `controlFalback`, since it was first written (no catalogued option of
+  either spelling exists); it silently warned on every `map()` call.
+  Removed.
+
+Verified: typecheck, unit tests (80), and the `simple-terrain` and
+`complex-terrain` screenshot comparisons all clean. Recorded as a new
+RFC 11 addendum.
+
 ## 2026-07-20 — RFC 11 implementation review: fixes and reopened design
 
 Responded to the RFC 11 implementation review. Reopened

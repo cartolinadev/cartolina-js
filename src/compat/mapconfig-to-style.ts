@@ -1121,9 +1121,22 @@ class ConversionContext {
                 continue;
             }
 
+            // "style" is the free layer's own legacy default
+            // stylesheet pointer. The convert-time resolution below
+            // still needs it (this.freeLayerDefinitions keeps the
+            // original), but the runtime must not see it: MapSurface
+            // reads a free-layer source's own "style" field and
+            // independently fetches it as a legacy per-surface
+            // stylesheet — a fetch made redundant by this RFC, since
+            // lettering is driven entirely by style.layers, and one
+            // that fails loudly whenever a manifest's declared
+            // default happens to be stale.
+            const sourceData: Record<string, unknown> = { ...definition };
+            delete sourceData['style'];
+
             this.sources[sourceId] = {
                 type: 'cartolina-freelayer',
-                data: definition,
+                data: sourceData,
                 baseUrl: definitionContext
                     ? definitionContext.base
                     : this.requireBase(path),
