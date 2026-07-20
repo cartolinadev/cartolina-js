@@ -2481,3 +2481,29 @@ Validation: tsc clean; 76 unit tests including new coverage for the
 order merge and the switch-pair rewrite; the strict public corpus
 conversion is byte-identical in diagnostics and layer order; all
 seven test URLs render with no console or network errors.
+
+## Addendum — 2026-07-20 — bundle size and the removable-converter claim
+
+Section 3's design boundary states the converter is "removable
+without changing style or runtime code," and structurally it is —
+`src/compat/` has no callers from `Viewer`, `Map`, or the style
+loader. The finished implementation does not make it *optional at
+build time*: `mapConfigToStyle()` is a static, eagerly evaluated
+export of `src/browser/index.ts`, the library's one build entry
+point, so every consumer's bundle includes the converter and the
+stylesheet linker (~2,300 lines) regardless of whether the
+application ever loads a legacy mapConfig.
+
+Comparing production builds of the design branch (pre-implementation)
+against the finished implementation: `cartolina.min.js` grew from
+1,407,878 B to 1,461,279 B (+3.8%; 276,637 B to 285,901 B gzipped,
++3.6%). Measured separately, core map-runtime source outside
+`src/compat/` shows a net reduction of about 500 lines (881
+insertions, 1,376 deletions) over the same span — the goal-5 runtime
+simplification did happen; it is masked in bundle size by the
+converter's unconditional inclusion.
+
+Splitting the converter into its own entry point or a dynamically
+imported module, so it only ships to applications that use it, is
+tracked as a backlog item and was not part of this RFC's scope or
+completion criteria.

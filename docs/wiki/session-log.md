@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — bundle-size finding: the converter is not tree-shaken
+
+Production-build comparison, design branch vs. the finished RFC 11
+implementation: `cartolina.min.js` +3.8% (1,407,878 B to
+1,461,279 B; +3.6% gzipped). `mapConfigToStyle()` is a static
+export of the single build entry point (`src/browser/index.ts`), so
+the ~2,300-line converter and stylesheet linker ship to every
+consumer regardless of use. Core runtime source outside
+`src/compat/` shrank by roughly 500 lines over the same span, so the
+RFC's structural simplification is real but invisible in bundle
+size. Recorded as a third [RFC 11](rfc11-mapconfig-to-style.md)
+addendum and a new backlog entry: split the converter into its own
+entry point or a dynamic import.
+
 ## 2026-07-20 — RFC 11 second addendum
 
 Appended `Addendum — 2026-07-20 — post-implementation conversion
