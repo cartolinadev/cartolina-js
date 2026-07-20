@@ -94,8 +94,6 @@ var Map = function(core, path, config, bus) {
 
     this.freeLayerSequence = [];
 
-    this.freeLayersHaveGeodata = false;
-
     this.visibleCredits = {
         imagery : {},
         mapdata : {}
@@ -1136,12 +1134,12 @@ Map.prototype.hitTestGeoLayers = function(screenX, screenY, mode) {
     }
 
     if (this.geoHitMapDirty) {
-        if (this.freeLayersHaveGeodata) {
+        if (this.freeLayerSequence.length > 0) {
             this.draw.drawGeodataHitmap();
         }
     }
 
-    if (!this.freeLayersHaveGeodata) {
+    if (this.freeLayerSequence.length === 0) {
         this.lastHoverFeature = null;
         this.lastHoverFeatureId = null;
         this.hoverFeature = null;

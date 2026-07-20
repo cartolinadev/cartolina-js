@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** Implemented
+**Status:** In review
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -20,6 +20,11 @@ applicability gets the executable stack-intersection contract
 stated everywhere, mutation methods gain the throw-before-`ready`
 contract, omitted `terrain` expands against all declared
 `cartolina-surface` sources
+**Updated:** 2026-07-20 — review round 6 request: reopened from
+`Implemented` after an implementation review found the linker's internal
+stylesheet identity escaping into profile construction. Sections 4, 7.1,
+and 8.3 gain the explicitly transitional stylesheet-scope terminology;
+see round 6 below.
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -405,6 +410,12 @@ the feature.
   or a note when the current client ignores it — not new code.
 - The converter does not preserve ignored virtual-surface or glue client
   behavior. Those concepts are already absent from the client renderer.
+- The linker's internal stylesheet-scope id (section 8.3) is not a new
+  Cartolina concept. It exists only to qualify a colliding symbol's
+  generated name during linking and must not survive into the returned
+  style, a visibility profile, or any runtime API. Looking it up by a
+  different identity (the free-layer key, the source id) is a defect,
+  not an accepted alternate spelling.
 
 ## 5. Invariants
 
@@ -850,9 +861,17 @@ inline definition:
   URL.
 
 Inline source support is part of the style loader, not a mapConfig escape
-hatch. Constructors receive resolved source data and a base URL through one
-typed path. They no longer infer base URL by temporarily replacing
-`LegacyMap.url`.
+hatch. Each source's own object — `MapSurface`, `MapBoundLayer` — receives
+its resolved source data and base URL directly, the same constructor path
+for a URL or an inline source. This does not yet extend to the shared
+first-surface metadata (`MapSrs`, `MapBody`, `MapRefFrame`, `Atmosphere`):
+that extraction still reads a temporarily swapped `LegacyMap.url`, because
+`MapSrs`'s geoidGrid resolution has no explicit-base constructor parameter
+today. The swap is exception-safe — restored in a `finally` block, so a
+construction error never leaves the wrong base in place — but eliminating
+it entirely needs a constructor-signature change to those four classes,
+which is out of this RFC's proportionate scope and is tracked as backlog
+follow-up.
 
 For a legacy mapConfig with several surfaces, the converter emits one
 terrain source per surface. Shared reference metadata is copied into each
@@ -981,7 +1000,7 @@ definition and the effective stylesheet, resolves their relative references
 against the document that contains them, and then splits the VTS stylesheet
 into Cartolina root tables and Cartolina style layers.
 
-A VTS stylesheet is a module with four symbol spaces:
+A VTS stylesheet has four symbol spaces:
 
 - `layers`, which become entries in the Cartolina `layers` array and
   whose ids are also a referenceable symbol space;
@@ -995,17 +1014,25 @@ Cartolina has one root table of each kind and one flat layer-id space,
 so conversion includes a linker pass after all effective stylesheets
 have been loaded.
 
-The linker processes modules in deterministic source-id and view-id
-order, applying the same rules to all four symbol spaces:
+Merging needs one transitional identity per resolved stylesheet, used only
+to qualify a colliding symbol's generated name: a scope id, unique across
+the whole conversion. No other code — the returned style, the visibility
+profiles, the runtime layer API — carries or looks anything up by this id.
+Its scope is exactly the linker pass; the linker's own free-layer key and
+view-id order remain the caller's identity for everything else, including
+which named view activates which emitted rule.
+
+The linker processes resolved stylesheets in deterministic source-id and
+view-id order, applying the same rules to all four symbol spaces:
 
 1. A symbol absent from the output space keeps its original name.
 2. A symbol with a structurally equal definition is coalesced silently.
 3. A symbol with a different definition is assigned a deterministic
-   module-qualified name.
-4. References in that module's layers and constants are rewritten to the
-   qualified name.
+   scope-qualified name.
+4. References in that stylesheet's layers and constants are rewritten to
+   the qualified name.
 5. Dependencies are followed transitively. Renaming a constant also rewrites
-   references from other constants in the same module.
+   references from other constants in the same stylesheet.
 
 For layer symbols, rewriting covers every typed layer reference:
 `inherit`, `next-pass`, `selected-layer`, `selected-hover-layer`,
@@ -1022,12 +1049,12 @@ text replacement can change label text and is not acceptable.
 A collision whose definitions and references are all qualified and
 rewritten is an exact conversion: rendering is preserved and nothing was
 dropped. It produces an informational note recording the original name,
-the generated name, and both source modules — not a warning, and it
+the generated name, and both source stylesheets — not a warning, and it
 never fails strict mode. The note exists because the output is no longer
 a straightforward flattening even though behavior is identical.
 
 When a reference cannot be classified or rewritten, the converter keeps the
-first definition, gives the later module a qualified definition where
+first definition, gives the later stylesheet a qualified definition where
 possible, and emits a lossy-conversion warning naming every unresolved
 reference. It continues converting other layers. This is the best-effort
 rule for valid historical stylesheets whose expression forms are wider than
@@ -2778,3 +2805,177 @@ and implementation:
    point and verify their absence from a style-native bundle;
 7. rerun the complete public conversion and rendering gate;
 8. append a dated correction addendum with the fixes, validation, and commits.
+
+## Review round 6 — requested
+
+This is an author request for renewed review, not reviewer feedback: it
+describes a design-body change made in response to the implementation
+review's primary architectural finding above.
+
+The finding was that the linker's internal identity for one resolved
+stylesheet (previously spelled `moduleId`, on a `LinkerModule` /
+`LetteringModule` type) reads as a new Cartolina concept rather than a
+transitional linker detail, and that reading became a real defect: profile
+construction looked the identity up through the free-layer key instead of
+through the identity itself, so a free layer selecting different
+stylesheets per view could activate the wrong view's rules (blocking
+finding 1).
+
+Design-body changes:
+
+- **Section 8.3** no longer calls a VTS stylesheet "a module." It states
+  directly that merging needs one transitional per-stylesheet scope id,
+  states its sole purpose (qualifying a colliding symbol's generated
+  name), and states that no other code — the returned style, visibility
+  profiles, the runtime layer API — may carry or look anything up by it.
+  "Module" and "moduleId" are gone from the section; "resolved stylesheet"
+  and "scope id" name the same things without implying a new unit.
+- **Section 4** gains a non-goal bullet stating the scope id explicitly:
+  it is linker-internal, and looking it up by a different identity is a
+  defect, not an accepted alternate spelling. This is the design-level
+  statement of the rule that blocking finding 1 violated.
+- **Section 7.1** is corrected to describe what "one typed path" for
+  inline-source construction actually covers: the source's own object
+  (`MapSurface`, matching `MapBoundLayer`), not yet the shared
+  first-surface metadata (`MapSrs`, `MapBody`, `MapRefFrame`,
+  `Atmosphere`), which still reads a temporarily swapped `LegacyMap.url`.
+  The swap is now exception-safe (`finally`); full elimination needs a
+  constructor-signature change to those four classes and is out of this
+  RFC's proportionate scope, tracked as backlog follow-up. The original
+  wording overstated what had been achieved.
+
+The corresponding rename in the converter and linker
+(`ResolvedVtsStylesheet`, `stylesheetScopeId`, `letteringIdsByStylesheetScope`
+replacing `LetteringModule`/`LinkerModule`, `moduleId`,
+`letteringIdsByModule`) is implementation history and is recorded, with the
+bug fixes it accompanies, in the correction addendum below rather than in
+this design section.
+
+Section 2.5 and section 8.5 were also named in the implementation review's
+closure conditions. Both already stated the corrected rule before this
+round: section 2.5 already scopes "free layer" to mapConfig-field,
+conversion-explanation, and legacy-deletion contexts, and already excludes
+it from the target style schema, Viewer API, and core map model; section
+8.5 already lists an invalid resulting style as fatal. Neither needed a
+text change; the gap was implementation compliance, corrected below.
+
+## Addendum — 2026-07-20 — implementation review corrections (94b32577)
+
+Fixes the three blocking findings and the required corrections from the
+implementation review above, in the same session as the round 6 design
+request.
+
+**Blocking findings.**
+
+1. `buildProfiles()` looked up emitted lettering-layer ids by
+   `freeLayerKey`; `assembleLayers()` had indexed them by the linker's
+   per-stylesheet scope id (then called `moduleId`). A free layer
+   selecting different stylesheets across views produced several
+   resolved stylesheets sharing one `freeLayerKey`, so the lookup always
+   returned the first one's ids regardless of which view was being
+   built. Fixed by looking the ids up by the scope id everywhere,
+   consistently. Regression test: "activates the named view's own
+   stylesheet when a free layer selects a different one per view."
+2. `planRenames()` and the layer-rename pass checked only the
+   accumulated output table for a free qualified name, not the
+   stylesheet currently being merged. A stylesheet defining both a
+   colliding symbol and the name that symbol would be qualified to
+   could get two definitions written to the same output key, silently,
+   with an exact-conversion note claiming success. Fixed with one
+   reservation set per symbol space and per layer-rename pass, seeded
+   from the output table and the stylesheet's own table, with each
+   allocated name reserved before the next. Regression tests: "does not
+   let a qualified constant/layer id collide with the same module's own
+   conflicting symbol/layer."
+3. Raster and lettering layers were allocated in separate id spaces, and
+   `mapConfigToStyle()` returned its assembled style through a type
+   assertion with no validation. Fixed by seeding the linker's layer-id
+   space with the raster ids already allocated (`linkStylesheets()`
+   gained a `reservedLayerIds` parameter), and by running the style
+   loader's schema, inline-consistency, normalization, and
+   duplicate-id checks before returning, in both normal and strict
+   mode. That validation logic was extracted from `style.ts` into a new
+   dependency-free `src/core/map/style-schema.ts` — `style.ts` imports
+   `Atmosphere`, which imports `Renderer`, and pulling that into the
+   compat converter would have defeated required correction 7 below and
+   broken the Node-based unit tests. Regression test: "keeps raster and
+   lettering layer ids in one global space."
+
+**Primary architectural finding.** The linker's transitional
+per-stylesheet identity is renamed from `moduleId` (on a `LinkerModule` /
+`LetteringModule` type) to `stylesheetScopeId` (on `VtsStylesheetInput` /
+`ResolvedVtsStylesheet`), across the linker, the converter, and the unit
+tests, per round 6 above. `letteringIdsByModule` is renamed
+`letteringIdsByStylesheetScope`. No behavior beyond blocking finding 1
+depended on the old names; this is a pure rename plus the one-line lookup
+fix.
+
+**Required corrections.**
+
+4. Deleted `freeLayersHaveGeodata` (`LegacyMap`), its declaration, its one
+   write, and its three reads, replacing each read with
+   `freeLayerSequence.length > 0`/`=== 0`. The two representations of
+   "does the active vector sequence have geodata" could disagree: the
+   flag was set true in `MapStyle.refreshSequences()` but never reset,
+   so it stayed true after a profile change emptied
+   `freeLayerSequence`. Suspended `demos/core/index.html`'s
+   `addRouteLayer()` call — `addFreeLayer()` does not render on a
+   style-based map, a pre-existing, already-tracked backlog bug unaffected
+   by this RFC — and corrected `non-interactive.md`'s claim that the
+   demo's vector overlay works. The function stays as API reference.
+5. Wrapped the temporary `LegacyMap.url` swap in
+   `MapStyle.loadStyle()` in `try`/`finally`, so a construction error
+   during the shared first-surface metadata extraction can no longer
+   leave the wrong base in place. Passed the inline surface's own base
+   explicitly to `MapSurface`, the same constructor path already used
+   for free-layer and bound-layer sources. `MapSrs`'s geoidGrid
+   resolution still reads the ambient value — it has no explicit-base
+   parameter — so the swap itself is not yet removable; section 7.1
+   above and a new backlog entry ("Eliminate the remaining ambient
+   `LegacyMap.url` swap for inline surfaces") record the remaining gap
+   and why full removal needs a constructor-signature change to four
+   classes, out of this correction's proportionate scope.
+6. Added `npm run test:rfc11`: `test:unit`, `test/style-mutation.js`,
+   `test/mapconfig-corpus.js`, then `test/screenshot.js` for
+   `simple-terrain`, `complex-terrain`, and `full-terrain` in sequence.
+   Structural checks (unit tests, runtime mutation assertions, strict
+   corpus conversion) run before the visual screenshot comparisons.
+7. Added `src/compat/index.ts`, the `cartolina/compat` entry point,
+   re-exporting `mapConfigToStyle()` and its types. Removed the eager
+   export from `src/browser/index.ts`. Added a `cartolina-compat`
+   webpack entry (global var `cartolinaCompat` and an ESM build) and a
+   `./compat` package export. `demos/map/index.html` now loads
+   `cartolina-compat.js` alongside `cartolina.js` and calls
+   `cartolinaCompat.mapConfigToStyle()` on its `?mapConfig=` route.
+   Verified: `cartolina.js` contains no `linkStylesheets`/`qualifiedName`
+   code (one incidental docstring mention of the function name in a
+   JSDoc comment); `cartolina-compat.js` contains no `Atmosphere`,
+   `Renderer`, or `GpuDevice` code; the `a-3d-mountain-map` legacy
+   mapConfig demo still renders correctly through the new entry point.
+8. Replaced the literal NUL byte in the free-layer/stylesheet cache key
+   with an escaped delimiter between the key and the URL — the file
+   no longer reads as binary to `file` or text tools.
+   Removed the stale "named views" mention from `Map`'s class doc; `Map`
+   does not hold visibility profiles, which are application-level
+   values (section 6.4). Left the `map-loaded` event's always-empty
+   `browserOptions` payload field as is: `rfc2-event-bus.md`'s and this
+   RFC's own implementation-note addenda already record it as a
+   deliberate, dated deviation, which post-acceptance addenda cannot be
+   rewritten to reverse.
+
+**Validation.** `npm run typecheck`; `npm run test:unit`, 80 tests (76
+plus the 4 added here); `npm run test:rfc11` in full, after restarting
+the dev server so it picked up the new webpack entries: all four public
+corpus entries convert in strict mode with the same notes as before,
+`test/style-mutation.js` passes every check, and `simple-terrain`,
+`complex-terrain`, and `full-terrain` render pixel-identical dev-versus-prod
+with no console or network errors. Additionally ran
+`node test/screenshot.js a-3d-mountain-map` (a `?mapConfig=` route,
+exercising the new compat entry point specifically) with the same result.
+
+**Deviation from the 2026-07-19 implementation-note addendum.** That
+addendum's "Deviations from the accepted design" list states "linker
+qualified names use `name--moduleId`." The qualified-name pattern is
+unchanged; only the identifier it is built from is renamed to
+`stylesheetScopeId`, per the round 6 rename above. The addendum text
+itself is not edited, per the append-only rule for addenda.

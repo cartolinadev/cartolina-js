@@ -39,8 +39,8 @@ import { drawTerrainTraversal } from './map/draw-traversal';
  * The map data model — cartolina's central object. The typed
  * representation of a loaded map together with the logic that
  * operates on it. Holds the reference frame, surfaces, free layers,
- * atmosphere, named views, current position, and registered
- * overlays; exposes the per-frame tick, the canvas-target draw,
+ * atmosphere, current position, and registered overlays; exposes
+ * the per-frame tick, the canvas-target draw,
  * coordinate conversion, and hit-testing. It also owns the engine
  * lifecycle: the animation-frame loop, map loading and unloading,
  * the event bus, and the constructed `Renderer` and `Inspector`
@@ -1207,7 +1207,7 @@ class Map {
 
         // clear queued geodata jobs
         if (labelsEnabled
-            && legacyMap.freeLayersHaveGeodata
+            && legacyMap.freeLayerSequence.length > 0
             && channel === 'color') {
 
             renderer.draw.clearJobBuffer();
@@ -1277,7 +1277,7 @@ class Map {
         // draw queued geodata labels and icons
         if (this.overrides.drawEarth
                 && labelsEnabled
-                && legacyMap.freeLayersHaveGeodata
+                && legacyMap.freeLayerSequence.length > 0
                 && channel === 'color') {
 
             renderer.drawnGeodataTiles =

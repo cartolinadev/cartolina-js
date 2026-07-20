@@ -820,6 +820,116 @@ describe('mapConfigToStyle stylesheet linking', function() {
         assert.strictEqual(source.data.geodata,
             'https://cdn.example.com/fl/b/geo?viewspec={viewspec}');
     });
+
+    it('activates the named view\'s own stylesheet when a free '
+        + 'layer selects a different one per view', async function() {
+
+        const doc = baseMapConfig();
+
+        doc.freeLayers = {
+            'solo-source': 'https://cdn.example.com/fl/solo/freelayer.json',
+        };
+        doc.view.freeLayers = { 'solo-source': {} };
+        doc.namedViews = {
+            alt: {
+                surfaces: { 'terrain-a': ['imagery'] },
+                freeLayers: {
+                    'solo-source': {
+                        style: 'https://cdn.example.com/fl/solo/b.style',
+                    },
+                },
+            },
+        };
+
+        const fixtures = baseFixtures(doc);
+
+        fixtures['https://cdn.example.com/fl/solo/freelayer.json'] = {
+            type: 'geodata',
+            geodata: 'geo?viewspec={viewspec}',
+            style: 'https://cdn.example.com/fl/solo/a.style',
+        };
+        fixtures['https://cdn.example.com/fl/solo/a.style'] = {
+            layers: { 'rule-a': { label: true, 'label-size': 10 } },
+        };
+        fixtures['https://cdn.example.com/fl/solo/b.style'] = {
+            layers: { 'rule-b': { label: true, 'label-size': 20 } },
+        };
+
+        const conversion = await convert(doc, fixtures);
+        const profile = conversion.profiles.alt;
+
+        // "alt" selects b.style: its rule is active in that profile...
+        assert.deepStrictEqual(profile.layers['rule-b'], ['terrain-a']);
+
+        // ...and a.style's rule, which "alt" does not select, is not
+        assert.deepStrictEqual(profile.layers['rule-a'], []);
+    });
+
+    it('does not let a qualified constant collide with the same '
+        + 'module\'s own conflicting symbol', async function() {
+
+        const { doc, fixtures } = letteringMapConfig();
+
+        fixtures['https://cdn.example.com/fl/a/a.style']
+            .constants['@dup'] = 1;
+        fixtures['https://cdn.example.com/fl/b/b.style']
+            .constants['@dup'] = 2;
+        fixtures['https://cdn.example.com/fl/b/b.style']
+            .constants['@dup--beta-source'] = 99;
+
+        const conversion = await convert(doc, fixtures);
+
+        // all three survive under distinct keys: no silent overwrite
+        assert.strictEqual(conversion.style.constants['@dup'], 1);
+        assert.strictEqual(
+            conversion.style.constants['@dup--beta-source'], 99);
+        assert.strictEqual(
+            conversion.style.constants['@dup--beta-source-x'], 2);
+    });
+
+    it('does not let a qualified layer id collide with the same '
+        + 'module\'s own conflicting layer', async function() {
+
+        const { doc, fixtures } = letteringMapConfig();
+
+        fixtures['https://cdn.example.com/fl/a/a.style'].layers.ridge =
+            { label: true, 'label-size': 1 };
+        fixtures['https://cdn.example.com/fl/b/b.style'].layers.ridge =
+            { label: true, 'label-size': 2 };
+        fixtures['https://cdn.example.com/fl/b/b.style'].layers
+            ['ridge--beta-source'] = { label: true, 'label-size': 99 };
+
+        const conversion = await convert(doc, fixtures);
+        const byId = (id) =>
+            conversion.style.layers.find((layer) => layer.id === id);
+
+        // three distinct layers survive; no id is emitted twice
+        assert.strictEqual(byId('ridge').type, 'labels');
+        assert.strictEqual(byId('ridge--beta-source')['label-size'], 99);
+        assert.strictEqual(byId('ridge--beta-source-x')['label-size'], 2);
+    });
+
+    it('keeps raster and lettering layer ids in one global space',
+        async function() {
+
+        const { doc, fixtures } = letteringMapConfig();
+
+        // "imagery" is already a raster presentation id (the bound
+        // layer of the same name); a same-named lettering rule must
+        // be qualified, not collide
+        fixtures['https://cdn.example.com/fl/a/a.style'].layers.imagery =
+            { label: true, 'label-size': 5 };
+
+        const conversion = await convert(doc, fixtures);
+        const ids = conversion.style.layers.map((layer) => layer.id);
+
+        assert.strictEqual(ids.filter((id) => id === 'imagery').length, 1);
+        assert.ok(ids.includes('imagery--alpha-source'));
+
+        const raster = conversion.style.layers.find(
+            (layer) => layer.id === 'imagery');
+        assert.strictEqual(raster.type, 'diffuse-map');
+    });
 });
 
 // ---------------------------------------------------------------------------

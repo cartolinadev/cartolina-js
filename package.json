@@ -1,8 +1,12 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.580-feature_rfc11_mapconfig_to_style.f4fb3011",
+  "version": "2.49.581-feature_rfc11_mapconfig_to_style.76aa97c8",
   "description": "A 3D terrain cartography engine",
   "main": "src/browser/index.ts",
+  "exports": {
+    ".": "./src/browser/index.ts",
+    "./compat": "./src/compat/index.ts"
+  },
   "engines": {
     "node": ">=18.20.0"
   },
@@ -16,6 +20,7 @@
     "perf:install": "npx playwright install chromium",
     "test": "npm run test:perf:headed",
     "test:unit": "node_modules/.bin/tsc -p tsconfig.unit.json && node_modules/.bin/tsc -p tsconfig.types.json && node_modules/.bin/mocha test/unit/*.test.js",
+    "test:rfc11": "npm run test:unit && node test/style-mutation.js && node test/mapconfig-corpus.js && node test/screenshot.js simple-terrain && node test/screenshot.js complex-terrain && node test/screenshot.js full-terrain",
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
     "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",

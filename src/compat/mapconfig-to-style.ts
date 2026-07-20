@@ -4,6 +4,7 @@
  */
 
 import type { MapStyle } from '../core/map/style';
+import { validateAndNormalizeStyle } from '../core/map/style-schema';
 import type {
     PositionInput,
     RequestResourceType,
@@ -563,12 +564,14 @@ const consumedTopLevelFields = new Set([
     ...ignoredTopLevelFields,
 ]);
 
-/* One lettering module: a free layer plus its effective stylesheet.
- * The moduleId is assigned after collection and is unique even when
- * one free layer selects different stylesheets in different views. */
-type LetteringModule = {
+/* One resolved VTS stylesheet for one free layer. The
+ * stylesheetScopeId is a transitional linker-qualification identity
+ * assigned after collection; it is unique even when one free layer
+ * selects different stylesheets in different views, and never
+ * survives into the returned style or visibility profiles. */
+type ResolvedVtsStylesheet = {
     freeLayerKey: string;
-    moduleId: string;
+    stylesheetScopeId: string;
     sourceId: string;
     stylesheetUrl: string;
     viewIds: Set<string>;
@@ -688,51 +691,56 @@ class ConversionContext {
         const initialView = this.resolveInitialView();
         const namedViews = this.resolveNamedViews();
 
-        // raster presentations and lettering modules across all views
+        // raster presentations and resolved stylesheets across all views
         const { presentations, sequences } =
             this.collectPresentations(initialView, namedViews);
         const orderedPresentations =
             this.orderPresentations(presentations, sequences);
-        const modules = await this.collectLetteringModules(
+        const stylesheets = await this.collectResolvedStylesheets(
             initialView, namedViews);
 
-        // link stylesheet modules into one symbol space, in
+        // link resolved stylesheets into one symbol space, in
         // deterministic source-id then stylesheet order
-        const ordered = [...modules.values()].sort(
+        const ordered = [...stylesheets.values()].sort(
             (a, b) => a.sourceId === b.sourceId
                 ? a.stylesheetUrl.localeCompare(b.stylesheetUrl)
                 : a.sourceId.localeCompare(b.sourceId));
 
-        // unique module ids: a free layer selecting different
-        // stylesheets in different views yields several modules
-        const usedModuleIds = new Set<string>();
+        // unique scope ids: a free layer selecting different
+        // stylesheets in different views yields several resolved
+        // stylesheets sharing one freeLayerKey
+        const usedStylesheetScopeIds = new Set<string>();
 
-        for (const module of ordered) {
+        for (const stylesheet of ordered) {
 
-            let candidate = module.freeLayerKey;
+            let candidate = stylesheet.freeLayerKey;
             let ordinal = 2;
 
-            while (usedModuleIds.has(candidate)) {
-                candidate = `${module.freeLayerKey}-v${ordinal++}`;
+            while (usedStylesheetScopeIds.has(candidate)) {
+                candidate = `${stylesheet.freeLayerKey}-v${ordinal++}`;
             }
 
-            usedModuleIds.add(candidate);
-            module.moduleId = candidate;
+            usedStylesheetScopeIds.add(candidate);
+            stylesheet.stylesheetScopeId = candidate;
         }
 
-        const linked = linker.linkStylesheets(ordered.map((module) => ({
-            moduleId: module.moduleId,
-            sourceId: module.sourceId,
-            path: `freeLayers.${module.freeLayerKey}.style`,
-            data: module.data,
-        })));
+        // raster presentation ids are allocated before linking and
+        // share the same explicit layer-id space as lettering rules
+        const linked = linker.linkStylesheets(
+            ordered.map((stylesheet) => ({
+                stylesheetScopeId: stylesheet.stylesheetScopeId,
+                sourceId: stylesheet.sourceId,
+                path: `freeLayers.${stylesheet.freeLayerKey}.style`,
+                data: stylesheet.data,
+            })),
+            orderedPresentations.map((entry) => entry.id));
 
         this.notes.push(...linked.notes);
         this.warnings.push(...linked.warnings);
 
         // assemble the layers array
-        const { layers, letteringIdsByModule } = this.assembleLayers(
-            orderedPresentations, ordered, linked);
+        const { layers, letteringIdsByStylesheetScope } =
+            this.assembleLayers(orderedPresentations, ordered, linked);
 
         // root style
         const style: Record<string, unknown> = {
@@ -768,7 +776,7 @@ class ConversionContext {
         // named views become plain visibility profiles
         const profiles = this.buildProfiles(
             namedViews, orderedPresentations, ordered,
-            letteringIdsByModule, layers);
+            letteringIdsByStylesheetScope, layers);
 
         // construction values beside the style
         const position = Array.isArray(doc['position'])
@@ -776,6 +784,13 @@ class ConversionContext {
             : null;
 
         const viewerOptions = this.convertBrowserOptions();
+
+        // an invalid assembled style (a schema violation, or a
+        // duplicate explicit layer id from a raster/lettering
+        // collision) is fatal at conversion time, in both normal and
+        // strict mode; the caller must not receive an unloadable style
+        validateAndNormalizeStyle(
+            style as unknown as MapStyle.StyleSpecification);
 
         return {
             style: style as unknown as MapStyle.StyleSpecification,
@@ -1468,15 +1483,15 @@ class ConversionContext {
     }
 
     // -----------------------------------------------------------------
-    // Lettering modules
+    // Resolved lettering stylesheets
     // -----------------------------------------------------------------
 
-    private async collectLetteringModules(
+    private async collectResolvedStylesheets(
         initialView: NormalizedView,
         namedViews: Map<string, NormalizedView>,
-    ): Promise<Map<string, LetteringModule>> {
+    ): Promise<Map<string, ResolvedVtsStylesheet>> {
 
-        const modules = new Map<string, LetteringModule>();
+        const stylesheets = new Map<string, ResolvedVtsStylesheet>();
 
         const visit = async (
             view: NormalizedView,
@@ -1531,24 +1546,24 @@ class ConversionContext {
 
                 if (data === null) continue;
 
-                const moduleKey = `${key} ${data.url}`;
-                let module = modules.get(moduleKey);
+                const stylesheetKey = `${key}\\u0000${data.url}`;
+                let stylesheet = stylesheets.get(stylesheetKey);
 
-                if (!module) {
+                if (!stylesheet) {
 
-                    module = {
+                    stylesheet = {
                         freeLayerKey: key,
-                        moduleId: key,
+                        stylesheetScopeId: key,
                         sourceId,
                         stylesheetUrl: data.url,
                         viewIds: new Set(),
                         data: data.stylesheet,
                     };
 
-                    modules.set(moduleKey, module);
+                    stylesheets.set(stylesheetKey, stylesheet);
                 }
 
-                module.viewIds.add(viewId);
+                stylesheet.viewIds.add(viewId);
             }
         };
 
@@ -1556,7 +1571,7 @@ class ConversionContext {
         for (const [name, view] of namedViews)
             await visit(view, name, `namedViews.${name}`);
 
-        return modules;
+        return stylesheets;
     }
 
     /* Loads the effective stylesheet, falling back from the view
@@ -1624,11 +1639,11 @@ class ConversionContext {
 
     private assembleLayers(
         orderedPresentations: PresentationEntry[],
-        orderedModules: LetteringModule[],
+        orderedStylesheets: ResolvedVtsStylesheet[],
         linked: linker.LinkerResult,
     ): {
         layers: Record<string, unknown>[];
-        letteringIdsByModule: Map<string, string[]>;
+        letteringIdsByStylesheetScope: Map<string, string[]>;
     } {
 
         const layers: Record<string, unknown>[] = [];
@@ -1644,21 +1659,22 @@ class ConversionContext {
             });
         }
 
-        // lettering layers in module order; rules from modules the
-        // initial view selects apply to every terrain, named-only
-        // rules start inactive
-        const letteringIdsByModule = new Map<string, string[]>();
-        const moduleById = new Map(orderedModules.map(
-            (module) => [module.moduleId, module]));
+        // lettering layers in stylesheet-scope order; rules from
+        // stylesheets the initial view selects apply to every
+        // terrain, named-only rules start inactive
+        const letteringIdsByStylesheetScope = new Map<string, string[]>();
+        const stylesheetByScopeId = new Map(orderedStylesheets.map(
+            (stylesheet) => [stylesheet.stylesheetScopeId, stylesheet]));
 
         for (const linkedLayer of linked.layers) {
 
             const rule = linkedLayer.rule;
             const cls = classifyRule(rule);
 
-            const module = moduleById.get(linkedLayer.moduleId);
+            const stylesheet =
+                stylesheetByScopeId.get(linkedLayer.stylesheetScopeId);
             const freeLayerKey =
-                module?.freeLayerKey ?? linkedLayer.moduleId;
+                stylesheet?.freeLayerKey ?? linkedLayer.stylesheetScopeId;
 
             if (cls === 'mixed') {
 
@@ -1676,7 +1692,7 @@ class ConversionContext {
             }
 
             const inInitialView =
-                module !== undefined && module.viewIds.has('');
+                stylesheet !== undefined && stylesheet.viewIds.has('');
 
             const layer: Record<string, unknown> = {
                 id: linkedLayer.id,
@@ -1691,13 +1707,14 @@ class ConversionContext {
 
             layers.push(layer);
 
-            const ids =
-                letteringIdsByModule.get(linkedLayer.moduleId) ?? [];
+            const ids = letteringIdsByStylesheetScope.get(
+                linkedLayer.stylesheetScopeId) ?? [];
             ids.push(linkedLayer.id);
-            letteringIdsByModule.set(linkedLayer.moduleId, ids);
+            letteringIdsByStylesheetScope.set(
+                linkedLayer.stylesheetScopeId, ids);
         }
 
-        return { layers, letteringIdsByModule };
+        return { layers, letteringIdsByStylesheetScope };
     }
 
     // -----------------------------------------------------------------
@@ -1769,8 +1786,8 @@ class ConversionContext {
     private buildProfiles(
         namedViews: Map<string, NormalizedView>,
         orderedPresentations: PresentationEntry[],
-        orderedModules: LetteringModule[],
-        letteringIdsByModule: Map<string, string[]>,
+        orderedStylesheets: ResolvedVtsStylesheet[],
+        letteringIdsByStylesheetScope: Map<string, string[]>,
         layers: Record<string, unknown>[],
     ): Record<string, Viewer.VisibilityProfile> {
 
@@ -1791,14 +1808,18 @@ class ConversionContext {
                 if (terrain) profileLayers[entry.id] = [...terrain];
             }
 
-            // lettering rules of modules this view selects apply to
-            // every declared terrain source
-            for (const module of orderedModules) {
+            // lettering rules of stylesheets this view selects apply
+            // to every declared terrain source. Looked up by
+            // stylesheetScopeId, not freeLayerKey: a free layer that
+            // selects different stylesheets across views yields
+            // several resolved stylesheets sharing one freeLayerKey
+            // but each with its own emitted rule ids.
+            for (const stylesheet of orderedStylesheets) {
 
-                if (!module.viewIds.has(name)) continue;
+                if (!stylesheet.viewIds.has(name)) continue;
 
-                const ids =
-                    letteringIdsByModule.get(module.freeLayerKey) ?? [];
+                const ids = letteringIdsByStylesheetScope.get(
+                    stylesheet.stylesheetScopeId) ?? [];
 
                 for (const id of ids)
                     profileLayers[id] = [...allTerrainIds];

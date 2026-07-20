@@ -6,36 +6,29 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
-## The mapConfig converter is not tree-shakeable out of the bundle
+## Eliminate the remaining ambient `LegacyMap.url` swap for inline surfaces
 
 **Opened:** 2026-07-20
 **Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
+(section 7.1)
 
-RFC 11 states the converter is "removable without changing style or
-runtime code," and structurally it is: `src/compat/` has no callers
-from `Viewer`, `Map`, or the style loader. But removable is not the
-same as optional at build time. `mapConfigToStyle()` is a static,
-eagerly evaluated export from `src/browser/index.ts` — the library's
-one build entry point — so `webpack` includes `mapconfig-to-style.ts`
-and `vts-stylesheet-linker.ts` (~2,300 lines) in `cartolina.min.js`
-for every consumer, whether or not the application ever loads a
-legacy mapConfig.
+`MapStyle.loadStyle()` still temporarily replaces `LegacyMap.url` while
+extracting the shared first-surface metadata (`MapSrs`, `MapBody`,
+`MapRefFrame`, `Atmosphere`) from an inline `cartolina-surface` source.
+The swap is now wrapped in `try`/`finally`, so a construction error no
+longer leaves the wrong base in place, and `MapSurface` itself already
+receives its base URL as an explicit constructor argument, matching the
+free-layer and bound-layer sources.
 
-Measured impact comparing the pre-implementation design branch against
-the finished implementation: `cartolina.min.js` grew from 1,407,878 B
-to 1,461,279 B (+3.8%), 276,637 B to 285,901 B gzipped (+3.6%). Most
-of that growth is the converter; the core map-runtime source outside
-`src/compat/` shows a net *reduction* of ~500 lines (881 insertions,
-1,376 deletions) over the same span, so the bundle growth is not
-representative of the runtime simplification the RFC delivered.
-
-Split `mapConfigToStyle()` into its own entry point (a
-`cartolina/compat` subpath export or a dynamic `import()`) so
-applications that only construct maps from styles do not pay for the
-converter. Requires a webpack multi-entry or code-splitting change and
-updating the package's export map; check whether `demos/map`'s
-`?mapConfig=` routing still works through a lazy import before closing
-this out.
+The remaining gap is `MapSrs`: its `geoidGrid.definition` resolution
+(`src/core/map/srs.js`) reads `this.map.url` directly, with no
+explicit-base constructor parameter. Converter-produced styles never hit
+this — `mapConfigToStyle()` absolutizes `geoidGrid.definition` before
+emitting the style — but a hand-authored inline style with a relative
+geoidGrid URL still depends on the ambient swap. Give `MapSrs` (and, if
+they gain a similar need, `MapBody`, `MapRefFrame`, `Atmosphere`) an
+explicit base parameter and remove the swap from
+`MapStyle.loadStyle()` entirely.
 
 ## RFC 11 validation items not yet automated
 

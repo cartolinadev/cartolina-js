@@ -37,20 +37,10 @@ export type {
 };
 
 /**
- * The compatibility converter: turns a legacy VTS mapConfig into a
- * Cartolina style plus construction values (position, viewer
- * options, visibility profiles). Called explicitly by applications
- * and migration tools before `map()`; never called by the runtime.
+ * The legacy mapConfig-to-style converter lives at the `cartolina/compat`
+ * entry point (`src/compat/index.ts`), not here, so applications that
+ * only construct maps from styles do not pay for it at build time.
  */
-export { mapConfigToStyle } from '../compat/mapconfig-to-style';
-export type {
-    MapConfigInput,
-    MapConfigConversion,
-    MapConfigConversionWarning,
-    MapConfigConversionNote,
-    MapConfigViewDefinition,
-    MapConfigToStyleOptions,
-} from '../compat/mapconfig-to-style';
 
 /**
  * `PublicRuntimeConfig` is the runtime configuration map accepted

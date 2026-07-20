@@ -3,6 +3,44 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 implementation review: fixes and reopened design
+
+Responded to the RFC 11 implementation review. Reopened
+[RFC 11](rfc11-mapconfig-to-style.md) from `Implemented` to `In review` and
+appended "Review round 6 — requested": sections 4, 7.1, and 8.3 gain
+explicitly transitional stylesheet-scope terminology, replacing the
+`moduleId`/`LinkerModule`/`LetteringModule` naming that let the linker's
+internal identity get confused with the free-layer key. Sections 2.5 and
+8.5 needed no text change; they already stated the rule the implementation
+had violated.
+
+Fixed the three blocking defects: the profile-identity mixup (renamed
+`moduleId` to `stylesheetScopeId` and fixed the lookup to use it
+consistently), the symbol/layer qualified-name collision in the linker
+(one reservation set per pass, seeded from both tables), and the missing
+global raster/lettering layer-id space plus absent conversion-time
+validation (`linkStylesheets()` now takes `reservedLayerIds`;
+`mapConfigToStyle()` now validates before returning). The validation logic
+moved to a new dependency-free `src/core/map/style-schema.ts` so the
+lightweight compat bundle does not pull in `Atmosphere`/`Renderer`.
+
+Addressed the required corrections: deleted the stale
+`freeLayersHaveGeodata` boolean, suspended the non-interactive demo's
+non-functional vector-overlay call and corrected the doc claiming it
+works, made the `LegacyMap.url` swap in `loadStyle()` exception-safe and
+passed `MapSurface` its base explicitly (full removal needs a
+constructor-signature change to `MapSrs` and three other classes, now
+backlogged), added `npm run test:rfc11`, gave the converter its own
+`cartolina/compat` entry point with a dedicated webpack build and package
+export, and fixed a literal NUL byte and a stale doc line.
+
+Added regression tests for all three blocking cases (80 unit tests total,
+up from 76). Restarted the dev server to pick up the new webpack entries,
+then ran the full `test:rfc11` gate plus a direct check of the
+`?mapConfig=` route through the new compat bundle: all pass, screenshots
+pixel-identical dev-versus-prod. Recorded as a dated correction addendum
+to RFC 11.
+
 ## 2026-07-20 — RFC 11 implementation review
 
 Reviewed the complete RFC 11 branch after its implementation addenda and

@@ -1,5 +1,5 @@
 /*
- * vts-stylesheet-linker.ts - merge VTS stylesheet modules into one
+ * vts-stylesheet-linker.ts - merge resolved VTS stylesheets into one
  * symbol space
  */
 
@@ -14,13 +14,18 @@ export type VtsStylesheetData = {
     layers?: Record<string, Record<string, unknown>>;
 };
 
-/** One stylesheet module entering the linker. */
-export interface LinkerModule {
+/**
+ * One resolved VTS stylesheet entering the linker. This identity is
+ * transitional: it exists only to qualify colliding symbols during
+ * linking and does not survive into the returned style.
+ */
+export interface VtsStylesheetInput {
 
-    /** Deterministic module id used to qualify conflicting symbols. */
-    moduleId: string;
+    /** Deterministic scope id, unique per resolved stylesheet, used
+     *  to qualify conflicting symbols. */
+    stylesheetScopeId: string;
 
-    /** Style source id of the geodata source this module styles. */
+    /** Style source id of the geodata source this stylesheet styles. */
     sourceId: string;
 
     /** Diagnostic path prefix for warnings and notes. */
@@ -34,7 +39,7 @@ export interface LinkerModule {
 export interface LinkedLayer {
     id: string;
     sourceId: string;
-    moduleId: string;
+    stylesheetScopeId: string;
     rule: Record<string, unknown>;
 }
 
@@ -99,19 +104,26 @@ function canonicalJson(value: unknown): string {
 
 
 /**
- * Links several VTS stylesheet modules into one output symbol space
+ * Links several resolved VTS stylesheets into one output symbol space
  * per the RFC 11 rules: a symbol absent from the output keeps its
  * name, a structurally equal definition coalesces silently, and a
- * conflicting definition gets a deterministic module-qualified name
- * whose references are rewritten across the module. A fully
+ * conflicting definition gets a deterministic scope-qualified name
+ * whose references are rewritten across that stylesheet. A fully
  * rewritten collision is an exact conversion recorded as a note; a
  * reference that cannot be classified produces a lossy-conversion
  * warning and the first definition stays bound.
  *
- * Modules must arrive in deterministic order; the caller orders them
- * by source id and view id.
+ * Stylesheets must arrive in deterministic order; the caller orders
+ * them by source id and view id.
+ *
+ * `reservedLayerIds` seeds the layer-id space with ids already
+ * allocated outside the linker (raster presentation ids), so a
+ * qualified lettering layer id cannot collide with one of them.
  */
-export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
+export function linkStylesheets(
+    stylesheets: VtsStylesheetInput[],
+    reservedLayerIds: Iterable<string> = [],
+): LinkerResult {
 
     const result: LinkerResult = {
         constants: {},
@@ -122,11 +134,11 @@ export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
         warnings: [],
     };
 
-    const usedLayerIds = new Set<string>();
+    const usedLayerIds = new Set<string>(reservedLayerIds);
 
-    for (const module of modules) {
+    for (const stylesheet of stylesheets) {
 
-        const data = module.data;
+        const data = stylesheet.data;
 
         // clone: rewriting must not touch the caller's document
         const constants = structuredClone(data.constants ?? {});
@@ -134,36 +146,43 @@ export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
         const bitmaps = structuredClone(data.bitmaps ?? {});
         const layers = structuredClone(data.layers ?? {});
 
-        // pass 1: decide the output name of every module symbol
+        // pass 1: decide the output name of every stylesheet's symbol
         const constantRenames = planRenames(
-            result.constants, constants, module, 'constants', result);
+            result.constants, constants, stylesheet, 'constants', result);
         const fontRenames = planRenames(
-            result.fonts, fonts, module, 'fonts', result);
+            result.fonts, fonts, stylesheet, 'fonts', result);
         const bitmapRenames = planRenames(
-            result.bitmaps, bitmaps, module, 'bitmaps', result);
+            result.bitmaps, bitmaps, stylesheet, 'bitmaps', result);
 
         // layer symbols: two sources cannot share one output layer,
-        // so a taken id is qualified regardless of equality
+        // so a taken id is qualified regardless of equality. Reserve
+        // this stylesheet's own layer names too, or a generated
+        // qualified name could collide with one of its other layers
+        // before it is inserted.
         const layerRenames = new Map<string, string>();
+        const reservedLayerNames = new Set(usedLayerIds);
+        for (const name of Object.keys(layers)) reservedLayerNames.add(name);
 
         for (const name of Object.keys(layers)) {
 
             if (!usedLayerIds.has(name)) continue;
 
             const qualified = qualifiedName(
-                name, module.moduleId, (id) => usedLayerIds.has(id));
+                name, stylesheet.stylesheetScopeId,
+                (id) => reservedLayerNames.has(id));
             layerRenames.set(name, qualified);
+            reservedLayerNames.add(qualified);
 
             result.notes.push({
                 code: 'symbol-renamed',
-                path: `${module.path}:layers.${name}`,
-                message: `Layer "${name}" of module `
-                    + `"${module.moduleId}" renamed to "${qualified}"; `
-                    + `all references were rewritten.`,
+                path: `${stylesheet.path}:layers.${name}`,
+                message: `Layer "${name}" of stylesheet `
+                    + `"${stylesheet.stylesheetScopeId}" renamed to `
+                    + `"${qualified}"; all references were rewritten.`,
             });
         }
 
-        // pass 2: rewrite the module's references to renamed symbols
+        // pass 2: rewrite the stylesheet's references to renamed symbols
         if (constantRenames.size > 0) {
 
             rewriteConstantRefs(constants, constantRenames);
@@ -171,10 +190,10 @@ export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
         }
 
         rewriteFontRefs(
-            layers, constants, fontRenames, module, result);
+            layers, constants, fontRenames, stylesheet, result);
         rewriteBitmapRefs(
-            layers, constants, bitmapRenames, module, result);
-        rewriteLayerRefs(layers, layerRenames, module, result);
+            layers, constants, bitmapRenames, stylesheet, result);
+        rewriteLayerRefs(layers, layerRenames, stylesheet, result);
 
         // pass 3: insert the surviving symbols under their names
         insertSymbols(result.constants, constants, constantRenames);
@@ -188,8 +207,8 @@ export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
 
             result.layers.push({
                 id,
-                sourceId: module.sourceId,
-                moduleId: module.moduleId,
+                sourceId: stylesheet.sourceId,
+                stylesheetScopeId: stylesheet.stylesheetScopeId,
                 rule,
             });
         }
@@ -206,35 +225,42 @@ export function linkStylesheets(modules: LinkerModule[]): LinkerResult {
  */
 function planRenames(
     outTable: Record<string, unknown>,
-    moduleTable: Record<string, unknown>,
-    module: LinkerModule,
+    stylesheetTable: Record<string, unknown>,
+    stylesheet: VtsStylesheetInput,
     space: string,
     result: LinkerResult,
 ): Map<string, string> {
 
     const renames = new Map<string, string>();
 
-    for (const [name, definition] of Object.entries(moduleTable)) {
+    // reserved names: everything already in the output table, plus
+    // every name the stylesheet being merged defines, so a generated
+    // qualified name cannot collide with either
+    const reserved = new Set(Object.keys(outTable));
+    for (const name of Object.keys(stylesheetTable)) reserved.add(name);
+
+    for (const [name, definition] of Object.entries(stylesheetTable)) {
 
         if (!(name in outTable)) continue;
 
         if (canonicalJson(outTable[name]) === canonicalJson(definition)) {
 
             // structurally equal: coalesce silently
-            delete moduleTable[name];
+            delete stylesheetTable[name];
             continue;
         }
 
         const qualified = qualifiedName(
-            name, module.moduleId, (id) => id in outTable);
+            name, stylesheet.stylesheetScopeId, (id) => reserved.has(id));
         renames.set(name, qualified);
+        reserved.add(qualified);
 
         result.notes.push({
             code: 'symbol-renamed',
-            path: `${module.path}:${space}.${name}`,
-            message: `${space} symbol "${name}" of module `
-                + `"${module.moduleId}" renamed to "${qualified}"; `
-                + `all references were rewritten.`,
+            path: `${stylesheet.path}:${space}.${name}`,
+            message: `${space} symbol "${name}" of stylesheet `
+                + `"${stylesheet.stylesheetScopeId}" renamed to `
+                + `"${qualified}"; all references were rewritten.`,
         });
     }
 
@@ -242,28 +268,28 @@ function planRenames(
 }
 
 
-/* Deterministic module-qualified name, suffixed until unused. */
+/* Deterministic scope-qualified name, suffixed until unused. */
 function qualifiedName(
     name: string,
-    moduleId: string,
+    stylesheetScopeId: string,
     taken: (candidate: string) => boolean,
 ): string {
 
-    let candidate = `${name}--${moduleId}`;
+    let candidate = `${name}--${stylesheetScopeId}`;
     while (taken(candidate)) candidate += '-x';
     return candidate;
 }
 
 
-/* Moves the module's symbols into the output table under their
+/* Moves the stylesheet's symbols into the output table under their
  * decided names. Coalesced symbols were already deleted. */
 function insertSymbols<T>(
     outTable: Record<string, T>,
-    moduleTable: Record<string, T>,
+    stylesheetTable: Record<string, T>,
     renames: Map<string, string>,
 ): void {
 
-    for (const [name, definition] of Object.entries(moduleTable)) {
+    for (const [name, definition] of Object.entries(stylesheetTable)) {
         outTable[renames.get(name) ?? name] = definition;
     }
 }
@@ -329,7 +355,7 @@ function rewriteFontRefs(
     layers: Record<string, Record<string, unknown>>,
     constants: Record<string, unknown>,
     renames: Map<string, string>,
-    module: LinkerModule,
+    stylesheet: VtsStylesheetInput,
     result: LinkerResult,
 ): void {
 
@@ -350,7 +376,7 @@ function rewriteFontRefs(
 
             return false;
         },
-        module, result);
+        stylesheet, result);
 }
 
 
@@ -363,7 +389,7 @@ function rewriteBitmapRefs(
     layers: Record<string, Record<string, unknown>>,
     constants: Record<string, unknown>,
     renames: Map<string, string>,
-    module: LinkerModule,
+    stylesheet: VtsStylesheetInput,
     result: LinkerResult,
 ): void {
 
@@ -381,7 +407,7 @@ function rewriteBitmapRefs(
 
             return false;
         },
-        module, result);
+        stylesheet, result);
 }
 
 
@@ -402,7 +428,7 @@ function rewriteAliasRefs(
         value: unknown,
         rename: (alias: string) => string,
     ) => boolean,
-    module: LinkerModule,
+    stylesheet: VtsStylesheetInput,
     result: LinkerResult,
 ): void {
 
@@ -451,7 +477,7 @@ function rewriteAliasRefs(
                 continue;
             }
 
-            classify(value, `${module.path}:layers.${layerName}.${prop}`);
+            classify(value, `${stylesheet.path}:layers.${layerName}.${prop}`);
         }
     }
 
@@ -476,7 +502,7 @@ function rewriteAliasRefs(
             continue;
         }
 
-        classify(value, `${module.path}:constants.${name}`);
+        classify(value, `${stylesheet.path}:constants.${name}`);
     }
 }
 
@@ -490,7 +516,7 @@ function rewriteAliasRefs(
 function rewriteLayerRefs(
     layers: Record<string, Record<string, unknown>>,
     renames: Map<string, string>,
-    module: LinkerModule,
+    stylesheet: VtsStylesheetInput,
     result: LinkerResult,
 ): void {
 
@@ -507,7 +533,7 @@ function rewriteLayerRefs(
     for (const [layerName, rule] of Object.entries(layers)) {
 
         const path = (prop: string) =>
-            `${module.path}:layers.${layerName}.${prop}`;
+            `${stylesheet.path}:layers.${layerName}.${prop}`;
 
         for (const prop of layerRefProps) {
 

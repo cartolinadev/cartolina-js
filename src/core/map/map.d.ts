@@ -147,7 +147,6 @@ export default class Map {
     stylesheets: Record<string, unknown>;
 
     freeLayerSequence: FreeLayer[];
-    freeLayersHaveGeodata: boolean;
 
     /** Credit name → weight accumulated this frame; reset each draw pass. */
     visibleCredits: {

@@ -43,13 +43,15 @@ const viewer = cartolina.map({
 
 // ---- Events -----------------------------------------------------------------
 
-viewer.on('map-loaded', () => {
-    addRouteLayer();
-});
+// addRouteLayer() is not called: runtime free layers added through
+// addFreeLayer() do not render on style-based maps yet (see the
+// "runtime free layers do not render on style-based maps" backlog
+// entry). The function is kept below as API reference only.
 
 // ---- Geodata: draw a triangle route over central Europe -----------------
 // Uses viewer.createGeodata() / addFreeLayer() — promoted to Viewer in
 // 2026-05. The geodata builder type is unknown pending full type promotion.
+// Currently non-functional on style-based maps: see the comment above.
 
 function addRouteLayer() {
     const geo = viewer.createGeodata();

@@ -140,6 +140,9 @@ viewer.convertCoordsFromNavToCanvas(navPos, 'fix');
 
 ## Vector overlays (geodata free layers)
 
+This does not currently render on a style-based map; see the note
+below the example.
+
 ```js
 viewer.on('map-loaded', () => {
     const geo = viewer.createGeodata();
@@ -165,9 +168,16 @@ viewer.removeFreeLayer('route');
 The geodata builder type is `unknown` pending a full TypeScript
 declaration for the geodata API.
 
+A runtime `addFreeLayer()` call does not render on a style-based map:
+`MapStyle.refreshSequences()` derives the rendered free-layer sequence
+from `style.layers`, and `addFreeLayer()` only adds the object to the
+legacy free-layer registry. See the "runtime free layers do not render
+on style-based maps" backlog entry.
+
 
 ## Demo
 
-A working reference implementation is at `demos/core/index.html`. It
-demonstrates non-interactive init, pan/orbit/zoom navigation, click-to-
-coordinates, and a geodata free layer polyline.
+A reference implementation is at `demos/core/index.html`. It
+demonstrates non-interactive init, pan/orbit/zoom navigation, and
+click-to-coordinates. Its geodata free layer polyline is reference
+code only; it does not currently render, for the reason above.

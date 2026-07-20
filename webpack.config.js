@@ -204,6 +204,33 @@ const workerGeodata = makeWorker(
   'geodata-processor-worker.js'
 );
 
+// 4) Compat build: the legacy mapConfig-to-style converter
+// (cartolina/compat), a separate entry so applications that only
+// construct maps from styles do not pay for it in cartolina.js
+var compatGlobalConfig = Object.assign({}, baseConfig);
+compatGlobalConfig.name = 'compat-global';
+compatGlobalConfig.entry = {
+  'cartolina-compat': __dirname + '/src/compat/index'
+};
+compatGlobalConfig.output = Object.assign({}, baseConfig.output, {
+  library: 'cartolinaCompat'
+});
+delete compatGlobalConfig.devServer;      // independent of the dev server
+
+var compatEsmConfig = Object.assign({}, baseConfig);
+compatEsmConfig.name = 'compat-esm';
+compatEsmConfig.entry = {
+  'cartolina-compat': __dirname + '/src/compat/index'
+};
+compatEsmConfig.output = Object.assign({}, baseConfig.output, {
+  path: TARGET_DIR,
+  filename: '[name]' + (isProd ? '.min' : '') + '.esm.js',
+  libraryTarget: 'module'
+});
+delete compatEsmConfig.output.library;
+compatEsmConfig.experiments = Object.assign({}, baseConfig.experiments || {}, { outputModule: true });
+delete compatEsmConfig.devServer;         // independent of the dev server
+
 
 // 5) Sandbox build: compiles TS sandbox apps to /build/sandbox/*.js
 var sandboxConfig = {
@@ -241,5 +268,8 @@ var sandboxConfig = {
   plugins:  plugins 
 };
 
-module.exports = [ globalConfig, esmConfig, workerMapLoader, workerGeodata ];
+module.exports = [
+  globalConfig, esmConfig, workerMapLoader, workerGeodata,
+  compatGlobalConfig, compatEsmConfig,
+];
 if (!isProd) module.exports.push(sandboxConfig);

@@ -11,7 +11,7 @@ import MapCredit from '../map/credit';
 import MapUrl from '../map/url';
 import MapBoundLayer from '../map/bound-layer';
 
-import typia from "typia";
+import * as styleSchema from './style-schema';
 
 
 import * as utils from '../utils/utils';
@@ -450,103 +450,6 @@ export type StyleMutation =
 
 } // export namespace MapStyle
 
-const validateStyle = typia.createValidateEquals<MapStyle.StyleSpecification>();
-
-
-/*
- * Structural equality for inline source metadata: object key order is
- * irrelevant, array order and value identity are significant.
- */
-
-function canonicalJson(value: unknown): string {
-
-    if (Array.isArray(value)) {
-        return '[' + value.map(canonicalJson).join(',') + ']';
-    }
-
-    if (value !== null && typeof value === 'object') {
-
-        const record = value as Record<string, unknown>;
-        const keys = Object.keys(record).sort();
-
-        return '{' + keys.map(
-            (key) => JSON.stringify(key) + ':'
-                + canonicalJson(record[key])).join(',') + '}';
-    }
-
-    return JSON.stringify(value) ?? 'undefined';
-}
-
-
-/*
- * Validates the consistency rules for inline `cartolina-surface`
- * sources: the reference frame and the shared SRS, body, and service
- * definitions must be structurally equal across all inline terrain
- * sources, and two inline definitions of the same credit id must be
- * structurally equal. Throws before any map object is constructed.
- * URL sources are not checked; they keep the historical
- * first-document acceptance behavior.
- */
-
-function checkInlineSurfaceConsistency(
-    sources: Record<string, MapStyle.SourceSpecification>,
-): void {
-
-    const inline: Array<[string, MapStyle.SurfaceSourceDefinition]> = [];
-
-    for (const [id, sourceSpec] of Object.entries(sources))
-        if (sourceSpec.type === 'cartolina-surface'
-            && sourceSpec.data !== undefined) {
-
-            inline.push([id, sourceSpec.data]);
-        }
-
-    if (inline.length < 2) return;
-
-    const [firstId, first] = inline[0];
-
-    const sharedKeys =
-        ['referenceFrame', 'srses', 'bodies', 'services'] as const;
-
-    for (let i = 1; i < inline.length; i++) {
-
-        const [otherId, other] = inline[i];
-
-        for (const key of sharedKeys) {
-
-            if (canonicalJson(first[key]) !== canonicalJson(other[key])) {
-
-                throw new Error(`Inline terrain sources "${firstId}" and `
-                    + `"${otherId}" carry different "${key}" definitions; `
-                    + `inline surface metadata must be structurally equal.`);
-            }
-        }
-    }
-
-    // credits merge by id; same id requires a structurally equal value
-    const creditOwners: Record<string, [string, string]> = {};
-
-    for (const [id, definition] of inline) {
-
-        if (!definition.credits) continue;
-
-        for (const [creditId, credit] of Object.entries(definition.credits)) {
-
-            const canonical = canonicalJson(credit);
-            const existing = creditOwners[creditId];
-
-            if (existing && existing[1] !== canonical) {
-
-                throw new Error(`Credit "${creditId}" is defined differently `
-                    + `by inline terrain sources "${existing[0]}" and `
-                    + `"${id}".`);
-            }
-
-            if (!existing) creditOwners[creditId] = [id, canonical];
-        }
-    }
-}
-
 /// vts stylesheet shape, compile from style for goedata free layer rendering
 
 type VtsStylesheetLayer =
@@ -588,46 +491,29 @@ export class MapStyle {
         styleSpec: MapStyle.StyleSpecification,
     ): MapStyle.StyleSpecification {
 
-        const spec = structuredClone(styleSpec);
-        const layers = spec.layers ?? [];
+        return styleSchema.normalizeStyle(styleSpec);
+    }
 
-        // duplicate explicit ids are authoring errors
-        const explicitIds = new Set<string>();
+    /**
+     * Validates an authored style against the schema and the inline
+     * surface consistency rules, then returns the normalized runtime
+     * clone via `normalizeStyle`. Throws before any map object is
+     * constructed: on a schema violation, inconsistent inline surface
+     * metadata, a duplicate explicit layer id, or a `terrain.sources`
+     * entry naming an unknown surface source.
+     *
+     * Shared by `loadStyle` and by `mapConfigToStyle()`, so a
+     * conversion result is rejected at conversion time rather than
+     * only when a `Viewer` later loads it.
+     *
+     * @param styleSpec the authored style
+     * @returns the normalized clone
+     */
+    static validateAndNormalize(
+        styleSpec: MapStyle.StyleSpecification,
+    ): MapStyle.StyleSpecification {
 
-        for (const layer of layers) {
-
-            if (layer.id === undefined) continue;
-
-            if (explicitIds.has(layer.id)) {
-                throw new Error(
-                    `Duplicate style layer id "${layer.id}".`);
-            }
-
-            explicitIds.add(layer.id);
-        }
-
-        const surfaceSourceIds = Object.entries(spec.sources)
-            .filter(([, sourceSpec]) =>
-                sourceSpec.type === 'cartolina-surface')
-            .map(([id]) => id);
-
-        layers.forEach((layer, index) => {
-
-            if (layer.id === undefined) {
-
-                const effectiveType = layer.type ?? 'diffuse-map';
-                let candidate = `${effectiveType}-${index}`;
-
-                while (explicitIds.has(candidate)) candidate += '-anon';
-                layer.id = candidate;
-            }
-
-            if (layer.terrain === undefined) {
-                layer.terrain = [...surfaceSourceIds];
-            }
-        });
-
-        return spec;
+        return styleSchema.validateAndNormalizeStyle(styleSpec);
     }
 
     /**
@@ -642,40 +528,7 @@ export class MapStyle {
 
     static async loadStyle(map: LegacyMap, styleSpec: MapStyle.StyleSpecification) {
 
-        // validation
-        const res = validateStyle(styleSpec);
-
-        if (!res.success) {
-
-            let errs = 'errors' in res ? res.errors : [];
-
-            for (const e of errs)
-                console.error(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
-
-            throw new Error(`Invalid style (${errs.length} errors)`);
-        }
-
-        // inline surface metadata must be consistent before any map
-        // object is constructed
-        checkInlineSurfaceConsistency(styleSpec.sources);
-
-        // normalized runtime clone; the caller's object stays untouched
-        const spec = MapStyle.normalizeStyle(styleSpec);
-
-        const styleSurfaceSourceIds = Object.entries(spec.sources)
-            .filter(([, sourceSpec]) => sourceSpec.type === 'cartolina-surface')
-            .map(([id]) => id);
-        const unknownTerrainSources = spec.terrain.sources
-            .filter((id) => !styleSurfaceSourceIds.includes(id));
-
-        if (unknownTerrainSources.length > 0) {
-            const msg = 'Invalid style terrain.sources: unknown style surface source id(s): '
-                + unknownTerrainSources.join(', ')
-                + '. Expected one of: ' + styleSurfaceSourceIds.join(', ');
-
-            console.error(msg);
-            throw new Error(msg);
-        }
+        const spec = MapStyle.validateAndNormalize(styleSpec);
 
         // wipe the map clean
         map.referenceFrame = null;
@@ -724,69 +577,80 @@ export class MapStyle {
 
                 map.url = new MapUrl(map, path);
 
-                // sanity: all surfaces need to share the same frame of reference
-                if (map.referenceFrame)
-                    console.assert(
-                        mc.referenceFrame.id === map.referenceFrame.id);
+                try {
 
-                if (!map.referenceFrame) {
-                    // ok, this is first surface, so we extract all the map metadata
+                    // sanity: all surfaces need to share the same frame of reference
+                    if (map.referenceFrame)
+                        console.assert(
+                            mc.referenceFrame.id === map.referenceFrame.id);
 
-                    // the srses
-                    for (let key in mc.srses)
-                        map.addSrs(key, new MapSrs(map, key, mc.srses[key]));
+                    if (!map.referenceFrame) {
+                        // ok, this is first surface, so we extract all the map metadata
 
-                    // the bodies
-                    for (let key in mc.bodies)
-                        map.addBody(key, new MapBody(
-                            map,
-                            mc.bodies[key] as MapBody.Configuration));
+                        // the srses
+                        for (let key in mc.srses)
+                            map.addSrs(key, new MapSrs(map, key, mc.srses[key]));
 
-                    // the reference frame
-                    map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
+                        // the bodies
+                        for (let key in mc.bodies)
+                            map.addBody(key, new MapBody(
+                                map,
+                                mc.bodies[key] as MapBody.Configuration));
 
-                    // the services
-                    map.services = mc.services ?? {};
+                        // the reference frame
+                        map.referenceFrame = new MapRefFrame(map, mc.referenceFrame);
 
-                    // atmosphere
-                    let body = map.referenceFrame.body;
-                    let services = map.services;
+                        // the services
+                        map.services = mc.services ?? {};
 
-                    if (spec.atmosphere
-                        && body && body.atmosphere
-                        && services && services.atmdensity) {
+                        // atmosphere
+                        let body = map.referenceFrame.body;
+                        let services = map.services;
 
-                        let atmoSpec: Atmosphere.Specification = {
-                            visibilityToEyeDistance: 5.0,
-                            edgeDistanceToEyeDistance: 1.0,
-                            maxVisibility: 1e6,
-                            ...body.atmosphere,
-                            ...spec.atmosphere
-                        };
+                        if (spec.atmosphere
+                            && body && body.atmosphere
+                            && services && services.atmdensity) {
 
-                        map.atmosphere = new Atmosphere(
-                            atmoSpec, map.getPhysicalSrs(),
-                            map.url.makeUrl(services.atmdensity.url, {}), map);
-                       }
+                            let atmoSpec: Atmosphere.Specification = {
+                                visibilityToEyeDistance: 5.0,
+                                edgeDistanceToEyeDistance: 1.0,
+                                maxVisibility: 1e6,
+                                ...body.atmosphere,
+                                ...spec.atmosphere
+                            };
+
+                            map.atmosphere = new Atmosphere(
+                                atmoSpec, map.getPhysicalSrs(),
+                                map.url.makeUrl(services.atmdensity.url, {}), map);
+                           }
+                    }
+
+                    // the surface, only single-surface mapconfigs are admissible
+                    if (mc.surfaces.length != 1) {
+
+                        throw Error(`The url for source ${id} does not define `
+                            + `exactly one surface, bailing out.`);
+                    }
+
+                    // pass the inline source's own base explicitly,
+                    // matching the free-layer constructor path below;
+                    // a URL source has no baseUrl and keeps relying on
+                    // the swapped map.url ambient context above
+                    let surface = new MapSurface(
+                        map, mc.surfaces[0], undefined, sourceSpec.baseUrl);
+                    surface.styleSourceId = id;
+                    map.addSurface(surface.id, surface);
+
+                    // the credits
+                    if (mc.credits) for (let key in mc.credits)
+                        map.addCredit(key, new MapCredit(map, mc.credits[key]));
+
+                } finally {
+
+                    // restore the mapurl (style path), even if a
+                    // constructor above threw
+                    map.url = mapurl;
                 }
-
-                // the surface, only single-surface mapconfigs are admissible
-                if (mc.surfaces.length != 1) {
-
-                    throw Error(`The url for source ${id} does not define `
-                        + `exactly one surface, bailing out.`);
-                }
-
-                let surface = new MapSurface(map, mc.surfaces[0]);
-                surface.styleSourceId = id;
-                map.addSurface(surface.id, surface);
-
-                // the credits
-                if (mc.credits) for (let key in mc.credits)
-                    map.addCredit(key, new MapCredit(map, mc.credits[key]));
-
-                // restore the mapurl (style path)
-                map.url = mapurl;
             }
 
         // parse bound layers from sources
@@ -1141,7 +1005,6 @@ export class MapStyle {
                 if (!freeLayer.geodata) continue;
 
                 freeLayer.options = {};
-                this.map.freeLayersHaveGeodata = true;
 
                 // WARN: investigage, possibly add to layer properties
                 //freeLayer.zFactor = stylesheet['depthOffset'];

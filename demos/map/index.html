@@ -4,6 +4,7 @@
 <title>Cartolina JS: A trivial map application (supports styles with placeholders)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="../../build/cartolina.js"></script>
+<script src="../../build/cartolina-compat.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet"/>
 <style>
   body { margin: 0; padding: 0; }
@@ -134,9 +135,11 @@ async function main() {
   });
 
   if (!hasStyle && mapConfigUrl) {
-    // legacy mapConfigs load through the compatibility converter;
-    // every legacy dev URL is thereby a living converter regression
-    const conversion = await cartolina.mapConfigToStyle(mapConfigUrl);
+    // legacy mapConfigs load through the compatibility converter,
+    // loaded from its own cartolina-compat.js entry point so the
+    // style-only route never pays for it; every legacy dev URL is
+    // thereby a living converter regression
+    const conversion = await cartolinaCompat.mapConfigToStyle(mapConfigUrl);
 
     for (const note of conversion.notes) {
       console.log(`mapConfigToStyle note [${note.code}] ${note.path}: ${note.message}`);
