@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-20 — RFC 11 implementation review
+
+Reviewed the complete RFC 11 branch after its implementation addenda and
+appended an implementation review to
+[RFC 11](rfc11-mapconfig-to-style.md). The dependency direction is sound, but
+the branch is not mergeable. Three reproduced converter/linker defects violate
+profile selection, symbol collision, and global layer-id invariants. The review
+also requires explicitly transitional VTS stylesheet terminology, deletion of
+the obsolete geodata type gate, a dedicated compatibility entry point, and one
+maintained closure command. Existing style discriminators and the legacy public
+overlay calls remain bounded compatibility exceptions. The normal typecheck,
+unit, build, corpus, mutation, and canonical rendering gates pass because they
+do not exercise the three reproduced defects.
+
 ## 2026-07-20 — bundle-size finding: the converter is not tree-shaken
 
 Production-build comparison, design branch vs. the finished RFC 11

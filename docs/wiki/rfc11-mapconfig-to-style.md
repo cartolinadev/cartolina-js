@@ -2507,3 +2507,274 @@ Splitting the converter into its own entry point or a dynamically
 imported module, so it only ships to applications that use it, is
 tracked as a backlog item and was not part of this RFC's scope or
 completion criteria.
+
+## Addendum — 2026-07-20 — implementation review
+
+This addendum records a review of the complete implementation branch after
+the implementation addenda above. It is a reviewer record, not an
+implementation-completion claim. Author responses and fixes belong in a later
+dated correction addendum; this text remains unchanged once committed.
+
+**Verdict:** the core dependency direction is sound, but the implementation is
+not mergeable. The primary architectural failure is that the refactor gives the
+obsolete VTS stylesheet and free-layer models new names or new surfaces instead
+of eliminating them from the new model. Three converter and linker defects also
+violate signed-off RFC invariants. The `Implemented` status is premature until
+the findings are fixed and the closure gate is rerun.
+
+### Primary architectural finding
+
+**The refactor preserves obsolete concepts under new terminology.**
+
+The purpose of this work is to simplify Cartolina by removing mapConfig and VTS
+stylesheets as runtime concepts. The intended boundary is one-way: resolve each
+legacy VTS stylesheet, merge its four symbol tables into Cartolina style
+namespaces, emit ordinary Cartolina layers, and discard the stylesheet
+structure.
+
+Instead, section 8.3 assigns the stylesheet a new architectural noun, and the
+implementation materializes that wording in types and identifiers. The new
+identity then escapes collision handling and participates in profile
+construction. Blocking finding 1 shows the consequence: the temporary
+stylesheet identity is confused with the free-layer identity.
+
+A refactor that merely redresses a legacy concept can be worse than leaving the
+legacy code explicit. It preserves the old ontology, adds a second vocabulary,
+hides the remaining coupling, and invites new code to depend on what was meant
+to disappear.
+
+Keep the identity local and visibly transitional. Suitable names include
+`ResolvedVtsStylesheet`, `VtsStylesheetInput`, and `stylesheetScopeId`. Describe
+the operation as resolving and merging legacy stylesheet symbol tables, not as
+introducing a new Cartolina unit. No stylesheet identity should survive in the
+returned style, visibility profiles, or runtime API.
+
+The same rule applies to "free layer." That term belongs to the legacy VTS data
+model, where free layers included several kinds of content. Cartolina removed
+the non-geodata path in `c87aa0f1`; the surviving monolithic and tiled forms are
+both vector data. The new model should therefore use the term appropriate to
+each context: vector source for stored geodata, vector layer or vector overlay
+for a runtime object, and lettering layer, line, or label for styled output.
+
+Compatibility boundaries legitimately retain the old spelling: the converter
+must parse the literal mapConfig `freeLayers` field, and the frozen style
+contract keeps its existing `cartolina-freelayer` discriminator. RFC 11
+explicitly forbids changing that contract except for optional additions required
+by the conversion. The existing `createGeodata()` / `addFreeLayer()` /
+`removeFreeLayer()` public overlay path may also remain until a general runtime
+source and layer API can replace it. Preserve these spellings as explicit legacy
+exceptions, but do not let them dictate new runtime gates, data categories, or
+general architecture terminology. The non-interactive demo is independently
+valuable and must remain; retaining that demo does not require claiming that its
+currently broken vector-overlay block works.
+
+The accepted RFC already makes this distinction in sections 2.5 and 4 and in
+review-round-1 note 17. Its decision to retain the existing discriminators is
+sound within RFC 11's conversion scope. A separate non-breaking style proposal
+may add `cartolina-terrain`, `cartolina-raster`, and `cartolina-vector` aliases
+so that new authored styles need not adopt the old vocabulary. Such aliases
+must normalize immediately to semantic loader categories, define one canonical
+serialized spelling, and keep the existing spellings readable. They must not
+create parallel loaders or leave either spelling as a runtime model concept.
+
+### Architectural assessment
+
+The main dependency direction is sound:
+
+- style is the sole runtime map model;
+- compatibility conversion happens before `Viewer` construction;
+- `Viewer`, `Map`, and the style loader do not call the converter;
+- profiles remain application-level values rather than recreating the removed
+  `View` model;
+- runtime mutations are atomic and validate before changing state;
+- new compatibility behavior is isolated in TypeScript under `src/compat/`;
+- obsolete wrappers, demos, and mapConfig runtime branches were deleted rather
+  than retained behind compatibility bridges.
+
+The implementation needs focused correction, not an architectural rollback.
+
+### Blocking findings
+
+1. **A named profile can activate the wrong resolved stylesheet.**
+
+   `assembleLayers()` stores emitted lettering ids under the temporary
+   stylesheet identity, but `buildProfiles()` retrieves them with the
+   free-layer identity. Those keys differ when one free layer selects more than
+   one stylesheet: the temporary stylesheet ids become, for example, `labels`
+   and `labels-v2`, while both selections retain the `labels` free-layer key.
+
+   A minimal input with stylesheet A in the construction view and stylesheet B
+   in a named view reproduces the error. The named profile enables A's rule and
+   leaves B's rule inactive. Resolve the lookup through the temporary
+   stylesheet identity and test that rules from the selected stylesheet are
+   active while rules from every unselected stylesheet are inactive.
+
+2. **A generated qualified symbol can overwrite a symbol from the same
+   resolved stylesheet.**
+
+   `planRenames()` checks a qualified candidate against the accumulated output
+   table only. It does not reserve original names from the stylesheet currently
+   being merged or targets allocated earlier in the same pass.
+
+   If an earlier stylesheet defines `@x` and the current stylesheet defines
+   conflicting `@x` plus `@x--s2`, qualification can select the already present
+   `@x--s2` name and then write both definitions to that key. References are
+   rewritten to the surviving, wrong definition while the result reports an
+   exact-conversion note and no warning.
+
+   The layer allocator has the same defect: a stylesheet containing both `peak`
+   and `peak--s2`, after an earlier `peak`, can emit two `peak--s2` layers. The
+   generic defect also applies to fonts and bitmaps.
+
+   Use one reservation set per symbol space, seeded with accumulated output
+   names and all names in the stylesheet being merged, and reserve each
+   allocated target before the next rename. Add collision tests for constants,
+   layers, and another generic symbol space.
+
+3. **Raster and lettering layers do not share a globally unique id space, and
+   the converter does not validate its result.**
+
+   Raster ids are allocated before stylesheet linking. The linker reserves only
+   lettering ids, and `assembleLayers()` concatenates the two sets without
+   reconciliation. A raster presentation and stylesheet rule both named
+   `imagery` produce duplicate explicit layer ids with no warning.
+
+   `mapConfigToStyle()` returns the assembled object through a type assertion.
+   The duplicate is rejected only later by `MapStyle.normalizeStyle()` during
+   viewer construction. Section 8.5 instead makes an invalid resulting style
+   fatal during conversion.
+
+   Allocate layer ids in one global namespace, or pass raster ids into the
+   linker as reservations. Run the loader's canonical style validation and a
+   normalization check before returning. Invalid output must fail in normal and
+   strict modes. Add a raster-versus-lettering collision test.
+
+### Required implementation corrections
+
+4. **Delete the obsolete free-layer type gate.**
+
+   Commit `c87aa0f1` removed rendering of non-geodata free layers and
+   established that the active sequence contains geodata only. The only typed
+   surviving source definitions are `geodata` and `geodata-tiles`. The boolean
+   therefore duplicates whether the active vector sequence is nonempty. Its
+   stale-true behavior after an active-to-empty profile change is one
+   consequence of keeping two representations of the same fact.
+
+   Remove the field, initializer, writes, and declaration. Where avoiding empty
+   work matters, inspect the active vector sequence directly; do not reintroduce
+   a type predicate. Clearing and drawing the vector job buffer can instead
+   follow the label and color-pass conditions, and vector hit testing can return
+   immediately when the active vector sequence is empty.
+
+   Keep `Viewer.createGeodata()`, `Viewer.addFreeLayer()`, and
+   `Viewer.removeFreeLayer()` in this bounded refactor. Section 4 already
+   identifies them as retained internal-machinery exceptions. Do not rename
+   them to a new vector-specific API: that would present the incomplete legacy
+   registry mutation as a new design.
+
+   The existing "runtime free layers do not render on style-based maps" backlog
+   entry records that `addFreeLayer()` only changes the legacy registry while
+   `MapStyle.refreshSequences()` derives rendered vectors from `style.layers`.
+   Preserve the non-interactive demo's navigation, coordinate conversion, and
+   hit-testing coverage, but remove or visibly suspend only its nonfunctional
+   vector-overlay block and the documentation that calls that block working.
+
+   A future general `addSource()` / `addLayer()` API should own atomic
+   validation, ordering, source ownership, and removal. Migrate the demo and
+   documentation to that API before deleting the legacy public methods.
+
+   Until then, validate at `addFreeLayer()` that its input is the surviving
+   geodata form; the method must not reintroduce support for historical free
+   layer kinds. Keep the frozen `cartolina-freelayer` source discriminator and
+   translate it at the loader boundary. Validate inline and fetched vector
+   definitions before registration. With those boundary invariants in place,
+   remove downstream type predicates from the new style path. Add an
+   active-to-empty profile and hit-test regression.
+
+   The non-breaking aliases contemplated by section 4 would let new styles use
+   current terminology, but are not required to remove the obsolete runtime
+   gate. If pursued, keep them a separate style-contract change with the
+   normalization and serialization rules stated above.
+
+5. **Complete the accepted inline-source base-URL design.**
+
+   The style loader still temporarily replaces `LegacyMap.url` while
+   constructing a surface, including inline sources. Section 7.1 requires
+   resolved data and base context to reach constructors explicitly. The current
+   restoration is not protected by `finally`, so an exception can retain the
+   wrong URL context.
+
+   Pass base context through the constructor path used by other inline source
+   types. Test two inline surfaces with different bases and a construction error
+   without mutating the style-level URL context.
+
+6. **Make the closure tests one maintained executable gate.**
+
+   `test/style-mutation.js` and `test/mapconfig-corpus.js` are standalone and
+   are not reachable through an npm verification target. The unit suite omits
+   all three blocking cases. Add a named RFC 11 verification command covering
+   unit tests, runtime mutations, strict corpus conversion, and the three
+   canonical screenshot comparisons. Structural assertions must precede visual
+   interpretation.
+
+7. **Give the converter a dedicated compatibility entry point.**
+
+   The preceding addendum measures a 3.6% gzip increase because
+   `src/browser/index.ts` statically exports the converter. A separate
+   compatibility entry point matches the accepted architecture and makes the
+   converter removable at build time, not only removable by a future source
+   edit.
+
+   Implement the `cartolina/compat` subpath described in the corresponding
+   backlog entry, and remove the eager export from the main browser entry
+   point. Update the `demos/map` mapConfig route to import that entry point
+   explicitly. Verify that style-native bundles contain neither converter nor
+   linker code, that mapConfig conversion still works through the compatibility
+   entry point, and that compatibility code has no reverse dependency from the
+   style runtime.
+
+### Follow-up quality findings
+
+8. **Remove residual implementation debris.**
+
+   The converter contains a literal NUL byte in its stylesheet-selection cache
+   key, causing text tools to classify the TypeScript file as binary. Use an
+   escaped delimiter or structured key. Update the `Map` documentation, which
+   still says it owns named views, and remove or deliberately retain the
+   always-empty `map-loaded.browserOptions` event payload.
+
+### Review validation
+
+The following checks passed on the reviewed branch:
+
+- `npm run typecheck`;
+- `npm run test:unit`, 76 tests;
+- `npm run dist`, with the existing asset-size warnings;
+- strict conversion of all four public mapConfig corpus entries;
+- `node test/style-mutation.js`;
+- sequential `simple-terrain`, `complex-terrain`, and `full-terrain`
+  dev-versus-production captures with no console or network errors.
+
+The three blocking cases were then reproduced with minimal synthetic inputs
+against the compiled converter and linker. The ordinary gates pass because they
+do not contain those cases.
+
+### Closure conditions
+
+The primary architectural finding requires a revision to the signed-off design
+body. Follow the RFC lifecycle: change the status from `Implemented` to
+`In review`, revise the terminology, and append
+`## Review round 6 — requested` describing the change. After renewed sign-off
+and implementation:
+
+1. add failing regression tests for the three blocking cases;
+2. fix stylesheet-selection profile identity and symbol reservation;
+3. enforce global layer ids and conversion-time style validation;
+4. replace the new vocabulary with explicitly transitional VTS stylesheet
+   terminology in the RFC, converter, linker, diagnostics, and tests;
+5. remove the obsolete geodata flag and downstream type gates without widening
+   the legacy public overlay API, then remove the temporary URL-context swap;
+6. move the converter and linker behind the dedicated compatibility entry
+   point and verify their absence from a style-native bundle;
+7. rerun the complete public conversion and rendering gate;
+8. append a dated correction addendum with the fixes, validation, and commits.
