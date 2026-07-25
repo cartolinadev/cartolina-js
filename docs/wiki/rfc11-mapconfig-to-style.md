@@ -3288,3 +3288,26 @@ behind its own entry point loaded only on the mapConfig route, and the
 terminology matches the bounded legacy exception. No specification-level or
 implementation findings remain. The round 6 design change and its
 implementation are accepted; the RFC is `Implemented`.
+
+## Addendum — 2026-07-26 — native and mapConfig construction defaults
+
+`Viewer` now accepts the same complete `Options` object as the `map()` factory.
+The factory delegates directly; `Viewer` owns validation and flattens the
+options only at the remaining legacy `Browser` boundary. The permissive
+`Viewer.Config` intermediary and the factory-local default patch are gone.
+
+The catalogue now holds the six effective style-factory values: double-click
+jump is enabled, while compass, zoom, space, search, and measure controls are
+disabled. Five catalogue values changed; measure was already disabled. This
+preserves native style-map behavior while making the catalogue its sole
+default authority.
+
+The converter now emits the retired mapConfig factory's corresponding default
+profile in `viewerOptions`. Authored `browserOptions` override that profile,
+and application options retain final precedence. A malformed authored boolean
+does not count as an override: it retains the mapConfig value, matching the
+fallback in effect before the catalogue defaults changed.
+
+Focused compile contracts pin factory and constructor option equality. Unit
+tests pin both default profiles and the mapConfig valid-override and
+invalid-fallback behavior.

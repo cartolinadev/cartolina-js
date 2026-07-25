@@ -128,17 +128,26 @@ The factory option bag (`Map.Options.options`) is typed by
 `PublicConstructionConfig`: the public runtime
 keys plus the deliberately public construction and load-time keys.
 The bag has no index signature, so a misspelled or internal-only
-factory option fails compilation. At runtime, `map()` rejects any
-option key that is not in the catalogue (after alias resolution),
-so a JavaScript typo throws at construction; catalogued keys
-outside the typed surface pass, because the query-string vocabulary
-flows through the factory. `runtimeOptionsFromUrl` keeps catalogued
-keys only, dropping arbitrary query parameters before they reach
-the factory guard.
+factory option fails compilation. `Viewer` accepts the same complete
+`Map.Options` object as `map()`: the factory only delegates.
+Construction rejects an unknown top-level option and rejects any
+option-bag key that is not in the catalogue after alias resolution,
+so a JavaScript typo throws. Catalogued keys outside the typed surface
+pass because the query-string vocabulary flows through the factory.
+`runtimeOptionsFromUrl` keeps catalogued keys only, dropping arbitrary
+query parameters before they reach the constructor guard.
+
+The catalogue contains the native style-map defaults. mapConfig
+conversion emits the retired mapConfig factory's six-value control
+and interaction profile explicitly in `viewerOptions`. Converted
+`browserOptions` override that profile, and application options
+override the complete conversion result. Compatibility is therefore
+ordinary construction input, not a second implicit default source.
 
 The remaining permissive ingestion paths accept the full catalogue
 and the legacy `pos` / `rotate` / `pan` aliases. The internal
-construction bag flows through `Browser.applyConfigParams`;
+construction bag is flattened by `Viewer` and flows through
+`Browser.applyConfigParams`;
 `position` additionally acts on the loaded map at once. Unknown
 keys are dropped, and a dropped key carrying a config prefix
 (`map`, `renderer`, `control`, `debug`) is logged. The style

@@ -16,6 +16,15 @@ import getVersion from '../core/version.js';
 import type { vec3 } from '../core/utils/math';
 
 
+// The complete public construction shape. Keeping this guard beside
+// Viewer.Options prevents the factory and constructor contracts from
+// drifting apart.
+const optionKeys = new Set([
+    'container', 'style', 'position', 'options',
+    'transformRequest', 'interactive',
+]);
+
+
 /**
  * The public API object returned by the `map()` factory.
  * Exported as the type alias `Map` from the package index.
@@ -59,12 +68,29 @@ class Viewer {
      * Do not construct directly — use the `map()` factory function
      * exported from this package.
      *
-     * @param element the container element or its CSS selector / id
-     * @param config the flattened construction configuration
+     * @param options the same public options accepted by `map()`
      */
-    constructor(element: HTMLElement | string, config: Viewer.Config) {
+    constructor(options: Viewer.Options) {
 
-        this._browser = new Browser(element, config);
+        for (const key of Object.keys(options)) {
+
+            if (!optionKeys.has(key)) {
+                throw new Error(`'${key}' is not a valid map() option.`);
+            }
+        }
+
+        // Reject typos and invented keys loudly; catalogued keys
+        // outside the typed surface pass (query-string vocabulary).
+        if (options.options)
+            viewerConfig.assertCataloguedConfigKeys(options.options);
+
+        this._browser = new Browser(options.container, {
+            style: options.style,
+            ...options.options,
+            position: options.position,
+            transformRequest: options.transformRequest,
+            interactive: options.interactive ?? true,
+        });
         this.map_ = this._browser.getCore() as Map;
     }
 
@@ -974,21 +1000,6 @@ namespace Viewer {
     export type PositionInput = import('../core/types').PositionInput;
     export type OverlaySpec = import('../core/map').OverlaySpec;
     export type ViewerEventMap = import('../core/map').ViewerEventMap;
-
-    /**
-     * The internal config shape passed into `Viewer`: the `map()`
-     * factory's structural inputs flattened into one internal object.
-     */
-    export type Config = {
-
-        // permissive ingestion glue: every value is normalized by
-        // `Browser.applyConfigParams` before it reaches the store
-        [key: string]: unknown;
-
-        style?: string | MapStyle.StyleSpecification;
-        position?: Map.PositionInput;
-        transformRequest?: utils.TransformRequestCallback;
-    };
 }
 
 export default Viewer;

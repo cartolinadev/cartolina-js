@@ -3,6 +3,31 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-26 — Native and mapConfig construction defaults separated
+
+Removed the vestigial two-factory construction shape. `Viewer` now accepts
+the same complete `Options` object as `map()`; the factory delegates, and
+`Viewer` validates and flattens the options only for the remaining legacy
+`Browser` constructor. `Viewer.Config` and the factory-local `dflts` patch
+are gone.
+
+The catalogue now holds the six effective style-factory values as the native
+defaults; five changed, while measure was already disabled. mapConfig
+conversion seeds `viewerOptions` with the retired factory's corresponding
+defaults, applies valid authored `browserOptions` above them, and leaves
+application options with final precedence. Invalid authored booleans retain
+the compatibility value rather than falling through to the new native
+default.
+
+The existing backlog entry for dissolving `Browser` into `Viewer` was
+refined as a separate behavior-preserving refactor. It records the ownership
+and teardown surface and identifies the unused `Rois` and `ExploreBar`
+modules for deletion rather than migration.
+
+Verification was intentionally limited to local checks: the typecheck,
+compile contracts, and all 82 unit tests pass. No browser regression run
+was performed on the slow network.
+
 ## 2026-07-26 — Public API type ownership and export cleanup
 
 Reworked what `src/browser/index.ts` exports and retired

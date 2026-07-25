@@ -13,6 +13,14 @@ const { mapConfigToStyle } =
     require('../../tmp/unit-build/src/compat/mapconfig-to-style');
 
 const DOC_URL = 'https://maps.example.com/map/mapConfig.json';
+const mapConfigViewerDefaults = {
+    controlMeasure: false,
+    jumpAllowed: false,
+    controlSearch: true,
+    controlZoom: true,
+    controlSpace: true,
+    controlCompass: true,
+};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -154,7 +162,8 @@ describe('mapConfigToStyle', function() {
 
         // construction values beside the style
         assert.deepStrictEqual(conversion.position, doc.position);
-        assert.deepStrictEqual(conversion.viewerOptions, {});
+        assert.deepStrictEqual(
+            conversion.viewerOptions, mapConfigViewerDefaults);
         assert.deepStrictEqual(conversion.profiles, {});
         assert.deepStrictEqual(conversion.warnings, []);
         assert.deepStrictEqual(conversion.notes, []);
@@ -345,6 +354,25 @@ describe('mapConfigToStyle', function() {
             entry.code === 'unsupported-browser-option');
         assert.ok(warning);
         assert.strictEqual(warning.path, 'browserOptions.mapSplitMargin');
+    });
+
+    it('applies valid browser options without accepting malformed overrides',
+        async function() {
+
+        const doc = baseMapConfig();
+        doc.browserOptions = {
+            jumpAllowed: true,
+            controlSearch: false,
+            controlZoom: 'invalid',
+        };
+
+        const conversion = await convert(doc);
+
+        assert.deepStrictEqual(conversion.viewerOptions, {
+            ...mapConfigViewerDefaults,
+            jumpAllowed: true,
+            controlSearch: false,
+        });
     });
 
     it('merges per-surface layer orders topologically',

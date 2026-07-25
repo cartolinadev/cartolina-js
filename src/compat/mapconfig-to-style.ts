@@ -48,8 +48,8 @@ export interface MapConfigConversion {
     /** Converted initial position for the `map()` factory. */
     position: PositionInput | null;
 
-    /** Viewer construction defaults from `browserOptions`; caller
-     *  configuration merges above them. */
+    /** MapConfig compatibility defaults plus converted
+     *  `browserOptions`; caller configuration merges above them. */
     viewerOptions: viewerConfig.PublicConstructionConfig;
 
     /** Named views translated into plain visibility profiles. */
@@ -294,6 +294,23 @@ const diagnosticOnlyOptions: Record<string, string> = {
 
 const publicOptionKeys: ReadonlySet<string> =
     new Set(viewerConfig.publicConstructionConfigKeys);
+
+/*
+ * The defaults of the retired mapConfig factory. Native style maps use
+ * the catalogue defaults; converted mapConfigs carry this compatibility
+ * profile below authored browserOptions and application overrides.
+ */
+const mapConfigViewerDefaults = {
+    controlMeasure: false,
+    jumpAllowed: false,
+    controlSearch: true,
+    controlZoom: true,
+    controlSpace: true,
+    controlCompass: true,
+} satisfies viewerConfig.PublicConstructionConfig;
+
+const mapConfigViewerDefaultKeys: ReadonlySet<string> =
+    new Set(Object.keys(mapConfigViewerDefaults));
 
 
 // ---------------------------------------------------------------------------
@@ -1843,7 +1860,9 @@ class ConversionContext {
     private convertBrowserOptions():
         viewerConfig.PublicConstructionConfig {
 
-        const viewerOptions: viewerConfig.PublicConstructionConfig = {};
+        const viewerOptions: viewerConfig.PublicConstructionConfig = {
+            ...mapConfigViewerDefaults,
+        };
         const browserOptions = this.doc['browserOptions'];
         if (!isRecord(browserOptions)) return viewerOptions;
 
@@ -1905,6 +1924,15 @@ class ConversionContext {
                         + `default applies.`,
                 });
 
+                continue;
+            }
+
+            // Before the native defaults changed, malformed values for
+            // these booleans fell back to the mapConfig defaults. They
+            // are not authored overrides and must leave the seeded
+            // compatibility values intact.
+            if (mapConfigViewerDefaultKeys.has(canonical)
+                    && typeof value !== 'boolean') {
                 continue;
             }
 

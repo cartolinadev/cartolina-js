@@ -25,6 +25,28 @@ const {
 
 describe('viewer-config normalization', function() {
 
+    it('uses the native style-map interaction and control defaults',
+        function() {
+
+        const defaults = defaultViewerConfig();
+
+        assert.deepStrictEqual({
+            controlMeasure: defaults.controlMeasure,
+            jumpAllowed: defaults.jumpAllowed,
+            controlSearch: defaults.controlSearch,
+            controlZoom: defaults.controlZoom,
+            controlSpace: defaults.controlSpace,
+            controlCompass: defaults.controlCompass,
+        }, {
+            controlMeasure: false,
+            jumpAllowed: true,
+            controlSearch: false,
+            controlZoom: false,
+            controlSpace: false,
+            controlCompass: false,
+        });
+    });
+
     it('resolves the legacy key aliases', function() {
 
         assert.strictEqual(canonicalConfigKey('pos'), 'position');

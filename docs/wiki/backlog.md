@@ -56,28 +56,20 @@ items from the RFC's test lists remain unautomated:
 The first three are unit or Playwright tests; the last needs a small
 public fixture dataset.
 
-## Dissolve `Browser` into typed `Viewer` construction
+## Dissolve `Browser` into `Viewer`
 
 **Opened:** 2026-07-17
-**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
-(sections 2.8 and 6.6, review round 1 note 14)
+**Updated:** 2026-07-26
 
-RFC 11 removes the mapConfig ingestion from `src/browser/browser.js`
-but leaves the module in place. What remains after that removal is
-viewer glue with no format content: sub-object construction (UI,
-autopilot, control mode, presenter, ROI, config store, core `Map`),
-config watchers, per-tick dispatch, position-in-URL updates, and
-teardown. Moving that glue into typed `Viewer` code and deleting the
-module is this entry.
+`Browser` is a private transitional owner for UI, navigation, configuration
+watchers, position-in-URL updates, and teardown. Move those responsibilities
+into `Viewer` and delete `src/browser/browser.js`; do not replace it with
+another context wrapper.
 
-The work owes its own specification before implementation: construction
-order and ownership, disposal order across sub-objects, watchers, map
-listeners, and DOM, and rollback when a constructor throws after UI
-creation. Verification: constructing and disposing a `Viewer` registers
-and drains every watcher and listener, the UI control keys and
-autopilot options still react to `setParam`, and position-in-URL
-updates still fire. RFC 11 phase 4 (the mapConfig removals) landed
-2026-07-19; this entry is unblocked.
+Preserve construction, failure rollback, listener and watcher teardown,
+configuration reactions, and position-in-URL behavior. Delete unused children
+instead of moving them: `Rois` has no live caller, and `ExploreBar` is not
+imported.
 
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 

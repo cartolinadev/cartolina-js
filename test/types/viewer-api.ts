@@ -5,6 +5,7 @@
 
 import { map } from '../../src/browser/index';
 import type { Map as PublicMap } from '../../src/browser/index';
+import Viewer from '../../src/browser/viewer';
 import type MapStyle from '../../src/core/map/style';
 import type * as viewerConfig from '../../src/core/viewer-config';
 
@@ -29,6 +30,15 @@ type Expect<T extends true> = T;
 type Eq<A, B> =
     (<X>() => X extends A ? 1 : 2) extends
         (<X>() => X extends B ? 1 : 2) ? true : false;
+
+type _viewerConstructorMatchesFactory = Expect<Eq<
+    ConstructorParameters<typeof Viewer>,
+    [PublicMap.Options]
+>>;
+
+const viewerConstructorMatchesFactory:
+    _viewerConstructorMatchesFactory = true;
+void viewerConstructorMatchesFactory;
 
 type _publicRuntimeSubsetPin = Expect<Eq<
     keyof viewerConfig.PublicRuntimeConfig,

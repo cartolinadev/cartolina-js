@@ -259,7 +259,7 @@ const catalogue = {
     zoomAllowed: bool(true, 'runtime'),
 
     /** Allows the double-click jump to the clicked point. */
-    jumpAllowed: bool(false, 'runtime'),
+    jumpAllowed: bool(true, 'runtime'),
 
     /** Gesture speed factors: `[0]` mouse pan, `[1]` rotation,
      *  `[2]` wheel-zoom step. */
@@ -294,16 +294,16 @@ const catalogue = {
     navigationMode: str('azimuthal', 'runtime'),
 
     /** Shows the compass control. */
-    controlCompass: bool(true, 'runtime'),
+    controlCompass: bool(false, 'runtime'),
 
     /** Shows the zoom control. */
-    controlZoom: bool(true, 'runtime'),
+    controlZoom: bool(false, 'runtime'),
 
     /** Shows the space (vertical-exaggeration) control. */
-    controlSpace: bool(true, 'runtime'),
+    controlSpace: bool(false, 'runtime'),
 
     /** Shows the search control. */
-    controlSearch: bool(true, 'runtime'),
+    controlSearch: bool(false, 'runtime'),
 
     /** SRS override for search-result coordinates; `null` uses the
      *  control's built-in SRS. */
@@ -994,9 +994,8 @@ export const publicRuntimeConfigKeys =
 
 /**
  * The public construction configuration map: the typed shape of
- * the factory option bags (`Map.Options.options` and the
- * `browser()` config) — every `runtime` key plus the
- * `construction` keys.
+ * `Map.Options.options` and compatibility conversion output — every
+ * `runtime` key plus the `construction` keys.
  */
 export type PublicConstructionConfig = Partial<Pick<ViewerConfig,
     KeysWithVisibility<'runtime' | 'construction'>>>;
