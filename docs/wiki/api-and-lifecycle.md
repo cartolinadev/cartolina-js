@@ -124,7 +124,7 @@ typo fails loudly. `setParam` normalizes the value
 compile-time tests in `test/types/viewer-api.ts`, run by
 `npm run test:unit`.
 
-The factory option bag (`MapOptions.options`) is typed by
+The factory option bag (`Map.Options.options`) is typed by
 `PublicConstructionConfig`: the public runtime
 keys plus the deliberately public construction and load-time keys.
 The bag has no index signature, so a misspelled or internal-only
@@ -255,7 +255,7 @@ match the MapLibre-style `on()` / `once()` API, allocates
 adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
 
 Event names and payload types are defined by `ViewerEventMap` in
-`src/core/types.ts`:
+`src/core/map.ts`:
 
 - `map-loaded`
 - `map-unloaded`

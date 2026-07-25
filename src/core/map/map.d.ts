@@ -21,7 +21,7 @@ import type {
 } from '../types';
 import type { vec3 } from '../utils/math';
 import type EventBus from '../event-bus';
-import type { ViewerEventMap } from '../types';
+import type { ViewerEventMap } from '../map';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;

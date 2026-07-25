@@ -6,6 +6,31 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## Switch class modules from default to named exports
+
+**Opened:** 2026-07-24
+**Related:** AGENTS.md, "Declaration merging for exported types"
+
+Class modules default-export their class and merge a same-name
+namespace for associated types (`export default Viewer`, plus
+`namespace Viewer`). At least eleven modules follow this — `Map`,
+`Renderer`, `Atmosphere`, `GpuDevice`, `MapStyle`, `MapBody`,
+`FrameProfiler`, `FreezeCameraState`, `GpuMesh`, `GpuTexture`,
+`Viewer`.
+
+The default export forces `export { default as Map } from './viewer'`
+at the barrel and lets each import site pick its own name for the
+class, and current TypeScript guidance generally favors named exports.
+Declaration merging does not need the default: a class and its
+same-name namespace merge by identifier in module scope, so
+`export { Viewer }` keeps `Map.PositionInput` and the rest working.
+
+The switch is mechanical and tsc-verifiable but codebase-wide: each
+module's `export default Foo` becomes `export { Foo }`, each importer's
+`import Foo` becomes `import { Foo }`, and the AGENTS.md convention plus
+its example change to match. Do it as one deliberate commit, not by
+making any single module a lone exception.
+
 ## RFC 11 validation items not yet automated
 
 **Opened:** 2026-07-19

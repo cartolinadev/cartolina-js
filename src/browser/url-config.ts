@@ -94,11 +94,36 @@ export function parseConfigParamValue(
 }
 
 
+/**
+ * Converts URL query parameters into runtime options for the `map()`
+ * factory.
+ *
+ * This is mainly intended for simple demos and applications that want to
+ * accept browser, core, renderer, or debug options from the query
+ * string without maintaining their own parsing table.
+ *
+ * The helper removes structural fields such as `mapConfig`,
+ * `position`, `pos`, `style`, and `container`, so the result can be
+ * passed as the `map()` factory's `options`.
+ *
+ * The URL vocabulary is wider than `PublicConstructionConfig`: the
+ * query string is a permissive ingestion boundary, and parsed
+ * internal or debug keys still apply at runtime even though the
+ * returned type does not declare them. An uncatalogued query key
+ * carrying a config prefix (`map`, `renderer`, `control`, `debug`)
+ * is dropped with a console warning; other unknown query keys are
+ * dropped silently.
+ *
+ * @param defaults initial runtime option values to merge with URL parameters
+ * @param url the URL to parse, defaults to `window.location.href`
+ * @return runtime options parsed from the query string
+ */
 export function runtimeOptionsFromUrl(
-    defaults?: ParsedConfig,
+    defaults?: viewerConfig.PublicConstructionConfig,
     url?: string,
-): ParsedConfig {
-    const config: ParsedConfig = Object.assign({}, defaults || {});
+): viewerConfig.PublicConstructionConfig {
+    const config: ParsedConfig =
+        Object.assign({}, defaults || {}) as ParsedConfig;
     const sourceUrl = url || window.location.href;
     const params =
         utils.getParamsFromUrl(sourceUrl) as Record<string, unknown>;
@@ -131,5 +156,5 @@ export function runtimeOptionsFromUrl(
         }
     }
 
-    return runtimeOptions;
+    return runtimeOptions as viewerConfig.PublicConstructionConfig;
 }

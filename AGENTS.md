@@ -677,25 +677,20 @@ Do not create parallel boundary interfaces (`IFoo`-style types in a
 separate file) that duplicate a JS class shape. That pattern requires
 maintaining the same shape in two places.
 
-**Use a `types.ts` for simple, reusable type shapes.**
-JavaScript files cannot define types. Simple types that are reused
-across multiple modules — string literal unions, numeric aliases, tuple
-types, event maps — belong in a `types.ts` file for their layer:
-`src/core/types.ts` for the core layer, `src/browser/types.ts` for the
-browser layer. Create the file when the first such type is needed in
-that layer.
+Where types physically live is covered under **Where types live** in
+Source code conventions.
 
 **No `: any` or `: unknown` for known shapes.**
 If a shape is trivial (a fixed-shape tuple, a small string union),
-define it in `types.ts`. If a shape is complex and belongs to a
-specific `.js` class, write a `.d.ts`. Reserve `unknown` only for
-payloads that genuinely cannot be typed yet (e.g. legacy event payloads
-from untyped JS).
+define it with the module that owns its meaning. If a shape is complex
+and belongs to a specific `.js` class, write a `.d.ts`. Reserve
+`unknown` only for payloads that genuinely cannot be typed yet (e.g.
+legacy event payloads from untyped JS).
 
 Do not use `: any` or `: unknown` as a convenience workaround when the
-shape is already available elsewhere in the codebase, whether via an
-existing type in `types.ts`, a sibling `.d.ts`, or direct import of a
-legacy `.js` module under `allowJs`.
+shape is already available elsewhere in the codebase, whether via its
+owner module, a sibling `.d.ts`, or direct import of a legacy `.js`
+module under `allowJs`.
 
 **Verify from code before inferring local history or intent.**
 When the answer can be checked directly in the current file, the branch
@@ -839,12 +834,33 @@ Do not rename existing private members only to satisfy this convention.
 Apply it to new members and to members already being changed for other
 reasons.
 
+### Where types live
+
+Put a type where its semantic owner is. A type belongs to the module
+that defines what the value means or owns the operation that produces
+or consumes it. Usage by several layers does not remove that ownership:
+an event map belongs to its event hub, a tuple or string union belongs
+to the domain model it describes, and a math alias belongs to the math
+module.
+
+A TypeScript owner exports the type and, for a class module, surfaces
+associated public types through its same-name namespace (below). A
+legacy `.js` owner takes a sibling `.d.ts`. The owner being legacy
+JavaScript is not a reason to move the type elsewhere — that status is
+temporary.
+
+Do not create or add to a layer-level catch-all `types.ts`.
+`src/core/types.ts` is temporary migration staging for types whose
+legacy owners have not migrated yet; move each resident when its owner
+migrates, then delete the file. A genuinely domain-neutral type-level
+utility gets a narrowly named module only when a concrete use requires
+one.
+
 ### Declaration merging for exported types
 
-Modules that export a class as their default export use a
-**same-name namespace** to expose associated types. This is an
-intentional application of TypeScript declaration merging, chosen so
-that consumers always reference types with their origin explicit:
+A module that exports a class as its default export uses a **same-name
+namespace** to expose its associated types, so consumers reference them
+with their origin explicit:
 
 ```ts
 // atmosphere.ts
@@ -857,21 +873,39 @@ namespace Atmosphere {
 export default Atmosphere;
 ```
 
-Consumers then write `Atmosphere.Specification` rather than importing a
-bare `Specification`. **Do not convert these to named exports.** Apply
-the same pattern when adding exported types to any new module that
-follows this structure.
+Consumers write `Atmosphere.Specification`, never a bare import.
+Associated types owned by the class belong in this namespace. Types
+owned by another module keep one canonical definition there and are
+referenced with their owner's qualifier inside the codebase. **Do not
+convert these to named exports.**
+
+At the public `Viewer` surface, forward a type from its canonical owner
+with an inline `import()` type:
+
+```ts
+namespace Viewer {
+    export type OverlaySpec = import('../core/map').OverlaySpec;
+}
+```
+
+This holds at the package boundary too. The public entry point
+([index.ts](src/browser/index.ts)) exports no bare type names; every
+public type is reached through the `Map` namespace — `Map.Options`,
+`Map.OverlaySpec`, `Map.PositionInput`, `Map.PublicRuntimeConfig`, and
+so on. Surface a type by adding it to `Viewer`'s namespace (`Viewer` is
+exported as `Map`), forwarding to the module that owns the type. Only
+types that appear directly on `Viewer`'s public surface — a method
+parameter, return, or construction option — earn a place there. A type
+that is merely a component of another (the `resourceType` inside a
+request hook, the `ctx` inside an overlay spec) is reached by derivation,
+not given a name.
 
 Modules that export only free functions and types (no primary class) use
 regular named exports, as in
-[illumination.ts](src/core/map/illumination.ts). Consumers import such a
-module as a namespace and call through the qualifier —
-`import * as utils from './utils/utils'`,
-`import * as viewerConfig from './viewer-config'` — never through named
-imports. The point is the same as for the class namespaces: no
-unqualified symbols enter the local namespace, and every call site
-names its origin. Fix named imports of function modules whenever the
-importing file is already being changed.
+[illumination.ts](src/core/map/illumination.ts). Import them as a
+namespace — `import * as utils from './utils/utils'` — never through
+named imports, so every call site names its origin. Fix named imports
+whenever the importing file is already being changed.
 
 ### Order of declarations in a class module
 
@@ -884,8 +918,8 @@ out in this order:
 3. The class (with its JSDoc).
 4. Local, non-exported types used by the class — keep them out of
    the way so the class is what the reader sees first.
-5. The same-name namespace re-exporting public types (see next
-   section).
+5. The same-name namespace re-exporting public types (see
+   **Declaration merging for exported types** above).
 6. `export default`.
 
 [atmosphere.ts](src/core/map/atmosphere.ts) and
@@ -893,36 +927,6 @@ out in this order:
 pattern. Do **not** put local types between the imports and the class
 — that pushes the class down and reads as if those types were part of
 the public surface.
-
-### Declaration merging for re-exported types
-
-Types that appear on a class's public surface (method parameters,
-return values, generic constraints) belong in that class's same-name
-namespace, so consumers reach them through the class:
-
-```ts
-// consumer
-import Map from '../core/map';
-
-viewer.addOverlay('id', spec satisfies Map.OverlaySpec);
-```
-
-When the type itself lives in a shared module like `core/types.ts`
-because more than one class needs it, re-export it under the class
-namespace using an inline `import()` type:
-
-```ts
-namespace Map {
-    export type OverlaySpec = import('./types').OverlaySpec;
-    export type CoreEventMap = import('./types').CoreEventMap;
-}
-```
-
-This keeps the canonical definition in `types.ts` while letting
-consumers reach the type through `Map.X` rather than reaching across
-into `core/types`. Apply this rule when a class adds a type-bearing
-method: if the type is part of that class's API, surface it under the
-class namespace.
 
 ### Documentation
 

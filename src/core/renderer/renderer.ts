@@ -21,7 +21,7 @@ import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../event-bus';
 import type ConfigStore from '../config-store';
 import type * as viewerConfig from '../viewer-config';
-import type { ViewerEventMap } from '../types';
+import type { ViewerEventMap } from '../map';
 import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';

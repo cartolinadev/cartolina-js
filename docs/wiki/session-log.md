@@ -3,6 +3,99 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-26 — Public API type ownership and export cleanup
+
+Reworked what `src/browser/index.ts` exports and retired
+`src/core/types.ts` as a catch-all. Rendering and map logic are
+unchanged; the runtime edits remove obsolete exports, consolidate the
+version accessor, and inline one demo's angle conversion.
+
+**How public types are exposed — the load-bearing decision.** Consumers
+reach the public named-type vocabulary through the `Map` namespace:
+`Map.Options`, `Map.PositionInput`, `Map.OverlaySpec`,
+`Map.ViewerEventMap`, and `Map.PublicRuntimeConfig`. The barrel exports
+no bare type names. `Map.Options` owns the factory input shape; a type
+that appears directly on `Viewer` is surfaced through `Viewer`'s
+same-name namespace (`Viewer` is exported as `Map`), forwarding with an
+inline `import()` to the module that owns the canonical definition.
+
+A reviewer will see churn in AGENTS.md, so the reasoning is worth
+stating. An earlier step in this same session added flat named type
+re-exports at the barrel — the MapLibre idiom,
+`import { OverlaySpec } from 'cartolina-js'`. That was reverted here. A
+flat barrel list is a hand-maintained mirror of `Viewer`'s surface with
+nothing enforcing the correspondence: add a type to a `Viewer` method
+and the list silently goes stale. It also forces two different
+re-export idioms depending on whether the barrel happens to use the
+symbol internally (a re-export leaves no local binding, so an
+internally-used symbol must be imported and re-exported separately).
+Putting the list on `Viewer`'s namespace keeps it beside the class it
+mirrors, uses one uniform idiom, and matches the codebase's existing
+origin-explicit convention (qualified `Map.X`, never bare). Component
+types reached only inside another are left off: a consumer derives the
+request resource type through
+`Parameters<NonNullable<Map.Options['transformRequest']>>[1]` and the
+overlay context through `Parameters<Map.OverlaySpec['render']>[0]`.
+The rule is recorded under "Declaration merging for exported types" in
+AGENTS.md.
+
+**`types.ts` retired to transitional scaffolding.** It had no legitimate
+permanent residents. Shared use does not remove semantic ownership: an
+event map belongs to its hub, position tuples and unions belong to the
+position model, and math aliases belong to the math module. A genuinely
+domain-neutral utility gets a narrowly named module when a concrete use
+requires it. Layer-level `types.ts` catch-alls are prohibited.
+
+- `OverlaySpec`/`OverlayContext` and `ViewerEventMap`/`GeoFeatureEvent`
+  moved to `src/core/map.ts`. `Map` owns the overlay methods and the
+  event bus, into which both the map runtime and the GPU device emit, so
+  the event map has no single owner other than the hub. The renderer and
+  device now import `ViewerEventMap` from `../map`; these are
+  `import type` edges, erased at compile time, so the resulting
+  type-only cycles are harmless — confirmed by a clean `tsc`.
+- The request-transform triad (`RequestResourceType`,
+  `RequestTransformResult`, `TransformRequestCallback`) moved to
+  `src/core/utils/utils.ts`, which implements the transform. Consumers
+  reference them qualified (`utils.TransformRequestCallback`).
+
+What remains (`PositionInput`, `HeightMode`, `Lod`, `NodeInformation`,
+`Vec2`, `Vec3`) is parked with a header note naming each destination.
+These belong to `position.js` and `measure.js`, still untyped
+JavaScript. `position` is about to be refactored and its public API is
+changing — it is a fixed ten-slot tuple, and `HeightMode` is slot 3 —
+so typing it now would be thrown away. The file is expected to disappear
+as those two migrations land.
+
+**Barrel minimized.** Removed the vendor/utility value re-exports
+(`vec2`–`mat4`, `math`, `proj4`, `earcut`, `dom`, `platform`, `utils`):
+batteries-included carry-over from the vts-browser-js global, with no
+in-repo consumer except one `cartolina.math.radians` in a demo, inlined
+to `x * Math.PI / 180`. No compat surface used any other. Replaced
+`getCoreVersion`/`getBrowserVersion` (the obsolete vts-browser-js
+core/browser build split) with a single `Viewer.version()`.
+`runtimeOptionsFromUrl` is now a pure re-export: its public typing and
+JSDoc moved into `url-config.ts`, which owns the parsing, so the barrel
+no longer wraps it. The barrel is now three exports: `Map`, `map()`,
+`runtimeOptionsFromUrl`.
+
+**Backlog.** Added "Switch class modules from default to named exports"
+to [backlog.md](backlog.md). The `export type { default as Map }` line
+and the same-name-namespace pattern currently ride on default exports
+across ~11 class modules. Declaration merging does not need the default
+(a class and its namespace merge by identifier), and named exports would
+drop the `default as` awkwardness and enforce the name at import sites,
+but the switch is a codebase-wide convention change best done as one
+deliberate commit. That is why `Viewer` stays a default export here.
+
+**Verification.** `tsc --noEmit` and all webpack targets compiled clean
+before review. The public `legacy-benatky` conversion case rendered with
+zero console or request errors. A package-entry compile contract now
+in `test/types/public-api.ts` imports only the public entry and checks
+`Map.Options`, the namespace aliases, event inference, and derivation
+of the request callback through the factory options. The review rewrite
+reran the type checks; network-dependent screenshot comparison was
+intentionally not repeated on the slow connection.
+
 ## 2026-07-21 — RFC 11 review round 9: sign-off
 
 Reviewed the round 8 correction (`78388883`). `buildProfiles()` now activates

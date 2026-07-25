@@ -4,7 +4,7 @@
 
 import type MapPosition from './map/position';
 import type MapStyle from './map/style';
-import type { PositionInput, TransformRequestCallback } from './types';
+import type { PositionInput } from './types';
 import * as utils from './utils/utils';
 
 
@@ -456,9 +456,9 @@ const catalogue = {
      *  rewrite the URL and add headers or credentials (see
      *  `request-transform.md`). */
     transformRequest: spec({
-        produce: (): TransformRequestCallback | null => null,
+        produce: (): utils.TransformRequestCallback | null => null,
         normalize: (value) => typeof value === 'function'
-            ? value as TransformRequestCallback : null,
+            ? value as utils.TransformRequestCallback : null,
         urlKind: 'none',
         visibility: 'structural',
     }),
@@ -994,7 +994,7 @@ export const publicRuntimeConfigKeys =
 
 /**
  * The public construction configuration map: the typed shape of
- * the factory option bags (`MapOptions.options` and the
+ * the factory option bags (`Map.Options.options` and the
  * `browser()` config) — every `runtime` key plus the
  * `construction` keys.
  */

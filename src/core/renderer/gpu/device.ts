@@ -3,7 +3,7 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import type EventBus from '../../event-bus';
-import type { ViewerEventMap } from '../../types';
+import type { ViewerEventMap } from '../../map';
 import * as utils from '../../utils/utils';
 
 

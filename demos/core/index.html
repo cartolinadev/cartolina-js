@@ -111,13 +111,13 @@ window.addEventListener('mousemove', e => {
         // Pan: screen delta → geographic delta.
         const h = el.clientHeight || 1;
         const factor = pos.getViewExtent() / h * 2;
-        const yaw = cartolina.math.radians(pos.getOrientation()[0]);
+        const yaw = pos.getOrientation()[0] * Math.PI / 180;
         const sinA = Math.sin(yaw);
         const cosA = Math.cos(yaw);
         const lat  = pos.pos[2];
 
         // Longitude degrees per metre shrinks toward the poles.
-        const lonScale = Math.cos(cartolina.math.radians(lat)) || 0.001;
+        const lonScale = Math.cos(lat * Math.PI / 180) || 0.001;
         const mPerDeg  = 111320;
 
         pos.pos[1] -=

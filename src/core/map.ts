@@ -12,9 +12,6 @@ import * as viewerConfig from './viewer-config';
 import type {
     HeightMode,
     Lod,
-    OverlayContext,
-    OverlaySpec,
-    ViewerEventMap,
 } from './types';
 import type { vec3 } from './utils/math';
 import * as utils from './utils/utils';
@@ -1603,6 +1600,95 @@ function resolveMaskResolution(value: number | undefined): number {
 }
 
 
+/**
+ * Per-frame context passed to overlay lifecycle callbacks.
+ *
+ * Overlays run as the explicit last step of the canvas-target frame,
+ * after the engine has finished drawing terrain, free layers, and
+ * label/icon jobs. Forward-compatible: new context fields may be
+ * added; existing callbacks need no change.
+ */
+export type OverlayContext = {
+    /**
+     * The renderer for issuing draw helpers
+     * (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`).
+     */
+    readonly renderer: Renderer;
+};
+
+/**
+ * Lifecycle hooks for a custom overlay registered through
+ * `viewer.addOverlay(name, spec)`.
+ *
+ * - `onAdd` fires once when the engine is ready to accept draw calls
+ *   from the overlay (after `map-loaded`). Overlays registered before
+ *   the engine is ready have `onAdd` deferred to that moment.
+ * - `render` fires every frame, as the last step against the canvas
+ *   target, after engine draws have completed.
+ * - `onRemove` fires when the overlay is removed via
+ *   `viewer.removeOverlay(name)` or when the viewer is disposed.
+ */
+export type OverlaySpec = {
+    onAdd?: (ctx: OverlayContext) => void;
+    render: (ctx: OverlayContext) => void;
+    onRemove?: (ctx: OverlayContext) => void;
+};
+
+/**
+ * Map from event name to its payload type. All events are public and
+ * reachable through `Viewer.on()`.
+ *
+ * Known payload fields carry concrete types; `unknown` remains only
+ * where the source is still untyped ES5 and the shape cannot be
+ * verified without migrating that file.
+ */
+export interface ViewerEventMap {
+    'map-loaded': { browserOptions: Record<string, unknown> };
+    'map-unloaded': Record<string, never>;
+    'map-update': Record<string, never>;
+    'map-position-changed': {
+        position: number[];
+        'last-position': number[];
+    };
+    'map-position-fixed-height-changed': {
+        height: number;
+        'last-height': number;
+    };
+    'map-position-panned': Record<string, never>;
+    'map-position-rotated': Record<string, never>;
+    'map-position-zoomed': Record<string, never>;
+    'tick': Record<string, never>;
+    'gpu-context-lost': Record<string, never>;
+    'gpu-context-restored': Record<string, never>;
+    'geo-feature-enter': GeoFeatureEvent;
+    'geo-feature-leave': GeoFeatureEvent;
+    'geo-feature-hover': GeoFeatureEvent;
+    'geo-feature-click': GeoFeatureEvent;
+    'autorotate-changed': { autorotate: number };
+    'fly-start': {
+        startPosition: unknown;
+        endPosition: unknown;
+        options: unknown;
+    };
+    'fly-final-phase': { position: unknown };
+    'fly-progress': { position: unknown; progress: number };
+    'fly-end': { position: unknown };
+    'loading-screen-hidden': Record<string, never>;
+}
+
+/**
+ * Payload of the `geo-feature-*` pointer events emitted by
+ * `LegacyMap` (`src/core/map/map.js`).
+ */
+export interface GeoFeatureEvent {
+    feature: unknown;           // typed once LegacyMap migrates to TS
+    'canvas-coords': number[];
+    'physical-coords': number[];
+    state: unknown;
+    element: unknown;
+}
+
+
 /* Declaration merging: re-export public types under `Map.*`. Consumers
  * (`Viewer`, demos) should reference them as `Map.OverlaySpec`,
  * `Map.ViewerEventMap`, etc. rather than reaching into `core/types`.
@@ -1611,11 +1697,11 @@ namespace Map {
 
     export type PositionInput = import('./types').PositionInput;
     export type ViewerConfig = import('./viewer-config').ViewerConfig;
-    export type ViewerEventMap = import('./types').ViewerEventMap;
+    export type ViewerEventMap = import('./map').ViewerEventMap;
     export type HeightMode = import('./types').HeightMode;
     export type Lod = import('./types').Lod;
-    export type OverlayContext = import('./types').OverlayContext;
-    export type OverlaySpec = import('./types').OverlaySpec;
+    export type OverlayContext = import('./map').OverlayContext;
+    export type OverlaySpec = import('./map').OverlaySpec;
 }
 
 

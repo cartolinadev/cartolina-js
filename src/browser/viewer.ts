@@ -6,12 +6,12 @@ import Browser from './browser';
 import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
-import type { TransformRequestCallback } from '../core/types';
 import * as viewerConfig from '../core/viewer-config';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
 import * as utils from '../core/utils/utils';
+import getVersion from '../core/version.js';
 
 import type { vec3 } from '../core/utils/math';
 
@@ -66,6 +66,12 @@ class Viewer {
 
         this._browser = new Browser(element, config);
         this.map_ = this._browser.getCore() as Map;
+    }
+
+    /** The cartolina-js library version string. */
+    version(): string {
+
+        return getVersion();
     }
 
     // -------------------------------------------------------------------------
@@ -916,6 +922,31 @@ class Viewer {
 
 namespace Viewer {
 
+    /** Options accepted by the public `map()` factory. */
+    export type Options = {
+
+        /** The HTML element in which cartolina renders the map. */
+        container: HTMLElement | string;
+
+        /** A parsed map style or the URL of one. */
+        style: string | MapStyle.StyleSpecification;
+
+        /** Initial ten-component position; omitted to use the style default. */
+        position?: Map.PositionInput;
+
+        /** Public runtime and construction configuration values. */
+        options?: viewerConfig.PublicConstructionConfig;
+
+        /** Rewrites resource URLs or adds request headers. */
+        transformRequest?: utils.TransformRequestCallback;
+
+        /**
+         * Enables mouse, keyboard, and touch interaction. Defaults to
+         * `true`.
+         */
+        interactive?: boolean;
+    };
+
     /**
      * A complete visibility snapshot: the active terrain stack plus
      * the active terrain-source list of every style layer. A runtime
@@ -936,6 +967,15 @@ namespace Viewer {
         import('../core/viewer-config').PublicRuntimeConfig;
 
     /**
+     * Public member types, surfaced here so consumers name them through
+     * the `Map` alias (`Map.PositionInput`, `Map.OverlaySpec`, …). Each
+     * forwards to the module that owns the type.
+     */
+    export type PositionInput = import('../core/types').PositionInput;
+    export type OverlaySpec = import('../core/map').OverlaySpec;
+    export type ViewerEventMap = import('../core/map').ViewerEventMap;
+
+    /**
      * The internal config shape passed into `Viewer`: the `map()`
      * factory's structural inputs flattened into one internal object.
      */
@@ -947,7 +987,7 @@ namespace Viewer {
 
         style?: string | MapStyle.StyleSpecification;
         position?: Map.PositionInput;
-        transformRequest?: TransformRequestCallback;
+        transformRequest?: utils.TransformRequestCallback;
     };
 }
 

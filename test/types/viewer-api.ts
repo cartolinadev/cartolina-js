@@ -3,19 +3,18 @@
  * configuration API; compiled by tsconfig.types.json, never executed
  */
 
-import Viewer from '../../src/browser/viewer';
 import { map } from '../../src/browser/index';
+import type { Map as PublicMap } from '../../src/browser/index';
 import type MapStyle from '../../src/core/map/style';
-import type { PositionInput } from '../../src/core/types';
 import type * as viewerConfig from '../../src/core/viewer-config';
 
-declare const viewer: Viewer;
+declare const viewer: PublicMap;
 declare const container: HTMLElement;
 declare const style: MapStyle.StyleSpecification;
-declare const position: PositionInput;
+declare const position: PublicMap.PositionInput;
 
 // The namespace re-export and the core definition are the same type.
-declare const runtimeConfig: Viewer.PublicRuntimeConfig;
+declare const runtimeConfig: PublicMap.PublicRuntimeConfig;
 const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
@@ -62,7 +61,7 @@ const subsetPinHolds: _publicRuntimeSubsetPin = true;
 void subsetPinHolds;
 
 // Valid keys accept values of their declared type and chain.
-const chained: Viewer = viewer
+const chained: PublicMap = viewer
     .setParam('mapFlagLighting', false)
     .setParam('rendererCssDpi', 192)
     .setParam('sensitivity', [1, 0.06, 0.05])

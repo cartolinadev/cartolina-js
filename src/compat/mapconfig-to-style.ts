@@ -5,11 +5,8 @@
 
 import type { MapStyle } from '../core/map/style';
 import { validateAndNormalizeStyle } from '../core/map/style-schema';
-import type {
-    PositionInput,
-    RequestResourceType,
-    TransformRequestCallback,
-} from '../core/types';
+import type { PositionInput } from '../core/types';
+import * as utils from '../core/utils/utils';
 import type Viewer from '../browser/viewer';
 import * as viewerConfig from '../core/viewer-config';
 import * as linker from './vts-stylesheet-linker';
@@ -83,14 +80,14 @@ export interface MapConfigToStyleOptions {
 
     /** Applied to conversion-time fetches; changes transport details
      *  only, never the logical URLs stored in the emitted style. */
-    transformRequest?: TransformRequestCallback;
+    transformRequest?: utils.TransformRequestCallback;
 
     /** Promotes every recoverable warning to an error. */
     strict?: boolean;
 
     /** @internal Test seam replacing network fetches. */
     loadJson?: (
-        url: string, kind: RequestResourceType) => Promise<unknown>;
+        url: string, kind: utils.RequestResourceType) => Promise<unknown>;
 }
 
 
@@ -240,8 +237,8 @@ function fatal(message: string): never {
 /* Default document loader over the global fetch. */
 async function defaultLoadJson(
     url: string,
-    kind: RequestResourceType,
-    transformRequest: TransformRequestCallback | undefined,
+    kind: utils.RequestResourceType,
+    transformRequest: utils.TransformRequestCallback | undefined,
 ): Promise<unknown> {
 
     let requestUrl = url;
@@ -606,7 +603,7 @@ class ConversionContext {
     private documentContext: UrlContext = null;
     private options!: MapConfigToStyleOptions;
     private loadJson!: (
-        url: string, kind: RequestResourceType) => Promise<unknown>;
+        url: string, kind: utils.RequestResourceType) => Promise<unknown>;
 
     private warnings: MapConfigConversionWarning[] = [];
     private notes: MapConfigConversionNote[] = [];

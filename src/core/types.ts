@@ -1,41 +1,31 @@
+/*
+ * types.ts — transitional scaffolding, not a permanent home.
+ *
+ * This file has no legitimate long-term residents. Each type below
+ * belongs to a feature module that is not yet typed and is parked here
+ * only until that module can receive it. The file is expected to
+ * disappear once both migrations below land.
+ *
+ * Do not add new residents. Domain-neutral type-level utilities also
+ * get narrowly named modules rather than extending this catch-all.
+ *
+ * Parked groups and their destinations:
+ *
+ *   - Position group — PositionInput, HeightMode, Lod. Move into the
+ *     position model when map/position.js is refactored (imminent; its
+ *     public API is changing). A position is a fixed ten-slot tuple and
+ *     HeightMode is slot 3, so these are members of that shape rather
+ *     than standalone concepts.
+ *
+ *   - Measure group — NodeInformation and its private Vec2/Vec3. Move
+ *     into map/measure when that module is typed.
+ */
+
 import type MapSrs from './map/srs';
 import type MapPosition from './map/position';
-import type Renderer from './renderer/renderer';
 
-/**
- * Resource category passed to `transformRequest`.
- *
- * `Source` covers style source and legacy surface or bound-layer JSON.
- * `Tile` covers terrain, metadata, texture, and geodata tile payloads.
- * `Glyph` covers binary font metadata and font atlas pages.
- */
-export type RequestResourceType =
-    | 'MapConfig'
-    | 'Style'
-    | 'Source'
-    | 'Tile'
-    | 'Image'
-    | 'Glyph'
-    | 'Other';
 
-/** Request override returned by `TransformRequestCallback`. */
-export type RequestTransformResult = {
-    url: string;
-    headers?: Record<string, string>;
-    credentials?: 'include' | 'same-origin' | 'omit';
-};
-
-/**
- * Callback invoked before cartolina-js loads an external resource.
- *
- * @param url original absolute or resolved resource URL
- * @param resourceType category of the requested resource
- * @returns URL, optional headers, and optional credentials mode
- */
-export type TransformRequestCallback = (
-    url: string,
-    resourceType: RequestResourceType,
-) => RequestTransformResult;
+// Position group (see file header).
 
 /**
  * A camera position accepted by the public API: a `MapPosition`
@@ -53,10 +43,16 @@ export type HeightMode = 'fix' | 'float';
  */
 export type Lod = number;
 
+
+// Measure group (see file header).
+
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
 
-/** Result of `MapMeasure.getNodeInformation()` for one spatial division node. */
+/**
+ * Result of `MapMeasure.getNodeInformation()` for one spatial division
+ * node.
+ */
 export type NodeInformation = {
     id: Vec3;
     height: number;
@@ -74,91 +70,3 @@ export type NodeInformation = {
     divisionNode: unknown;
     upVector: Vec3;
 };
-
-/**
- * Per-frame context passed to overlay lifecycle callbacks.
- *
- * Overlays run as the explicit last step of the canvas-target frame,
- * after the engine has finished drawing terrain, free layers, and
- * label/icon jobs. Forward-compatible: new context fields may be
- * added; existing callbacks need no change.
- */
-export type OverlayContext = {
-    /**
-     * The renderer for issuing draw helpers
-     * (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`).
-     */
-    readonly renderer: Renderer;
-};
-
-/**
- * Lifecycle hooks for a custom overlay registered through
- * `viewer.addOverlay(name, spec)`.
- *
- * - `onAdd` fires once when the engine is ready to accept draw calls
- *   from the overlay (after `map-loaded`). Overlays registered before
- *   the engine is ready have `onAdd` deferred to that moment.
- * - `render` fires every frame, as the last step against the canvas
- *   target, after engine draws have completed.
- * - `onRemove` fires when the overlay is removed via
- *   `viewer.removeOverlay(name)` or when the viewer is disposed.
- */
-export type OverlaySpec = {
-    onAdd?: (ctx: OverlayContext) => void;
-    render: (ctx: OverlayContext) => void;
-    onRemove?: (ctx: OverlayContext) => void;
-};
-
-/**
- * Map from event name to its payload type. All events are public and
- * reachable through `Viewer.on()`.
- *
- * Known payload fields carry concrete types; `unknown` remains only
- * where the source is still untyped ES5 and the shape cannot be
- * verified without migrating that file.
- */
-export interface ViewerEventMap {
-    'map-loaded': { browserOptions: Record<string, unknown> };
-    'map-unloaded': Record<string, never>;
-    'map-update': Record<string, never>;
-    'map-position-changed': {
-        position: number[];
-        'last-position': number[];
-    };
-    'map-position-fixed-height-changed': {
-        height: number;
-        'last-height': number;
-    };
-    'map-position-panned': Record<string, never>;
-    'map-position-rotated': Record<string, never>;
-    'map-position-zoomed': Record<string, never>;
-    'tick': Record<string, never>;
-    'gpu-context-lost': Record<string, never>;
-    'gpu-context-restored': Record<string, never>;
-    'geo-feature-enter': GeoFeatureEvent;
-    'geo-feature-leave': GeoFeatureEvent;
-    'geo-feature-hover': GeoFeatureEvent;
-    'geo-feature-click': GeoFeatureEvent;
-    'autorotate-changed': { autorotate: number };
-    'fly-start': {
-        startPosition: unknown;
-        endPosition: unknown;
-        options: unknown;
-    };
-    'fly-final-phase': { position: unknown };
-    'fly-progress': { position: unknown; progress: number };
-    'fly-end': { position: unknown };
-    'loading-screen-hidden': Record<string, never>;
-}
-
-/**
- * Payload of the `geo-feature-*` pointer events emitted by
- * `LegacyMap` (`src/core/map/map.js`).
- */
-export interface GeoFeatureEvent {
-    feature: unknown;           // typed once LegacyMap migrates to TS
-    'canvas-coords': number[];
-    'physical-coords': number[];
-    state: unknown;
-    element: unknown;
-}

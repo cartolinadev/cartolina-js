@@ -1,11 +1,42 @@
 
 import * as math from './math';
 import {utilsUrl} from './url';
-import type {
-    RequestResourceType,
-    RequestTransformResult,
-    TransformRequestCallback,
-} from '../types';
+
+
+/**
+ * Resource category passed to `transformRequest`.
+ *
+ * `Source` covers style source and legacy surface or bound-layer JSON.
+ * `Tile` covers terrain, metadata, texture, and geodata tile payloads.
+ * `Glyph` covers binary font metadata and font atlas pages.
+ */
+export type RequestResourceType =
+    | 'MapConfig'
+    | 'Style'
+    | 'Source'
+    | 'Tile'
+    | 'Image'
+    | 'Glyph'
+    | 'Other';
+
+/** Request override returned by `TransformRequestCallback`. */
+export type RequestTransformResult = {
+    url: string;
+    headers?: Record<string, string>;
+    credentials?: 'include' | 'same-origin' | 'omit';
+};
+
+/**
+ * Callback invoked before cartolina-js loads an external resource.
+ *
+ * @param url original absolute or resolved resource URL
+ * @param resourceType category of the requested resource
+ * @returns URL, optional headers, and optional credentials mode
+ */
+export type TransformRequestCallback = (
+    url: string,
+    resourceType: RequestResourceType,
+) => RequestTransformResult;
 
 
 export const useCredentials = false;
