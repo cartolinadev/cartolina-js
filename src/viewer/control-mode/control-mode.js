@@ -9,7 +9,7 @@ var ControlModeMapObserver = ControlModeMapObserver_;
 var ControlModePano = ControlModePano_;
 
 
-var ControlMode = function(browser) {
+var ControlMode = function(browser, interactive) {
     this.browser = browser;
     this.ui = browser.ui;
     this.mapControl = this.ui.getMapControl();
@@ -18,7 +18,7 @@ var ControlMode = function(browser) {
     this.shiftKey = false;
     this.ctrlKey = false;
 
-    if (browser.config.interactive !== false) {
+    if (interactive) {
         this.mapElement.on('drag', this.onDrag.bind(this));
         //this.mapElement.on('dragstart', this.onDragStart.bind(this));
         //this.mapElement.on('dragend', this.onDragEnd.bind(this));

@@ -1,6 +1,6 @@
 
 
-var Presenter = function(browser, config) {
+var Presenter = function(browser) {
     this.container = null;
     this.aTags = null;
     this.sectionTags = null;
@@ -20,12 +20,7 @@ var Presenter = function(browser, config) {
     this.id = [];
     this.current = null;
 
-    this.presenter = (typeof config['presenter'] !== 'undefined') ? JSON.parse(JSON.stringify(config['presenter'])) : {};
-    this.presenterAutoplay = config['presenterAutoplay'];
-
-    if (typeof this.presenter !== 'undefined') {
-        this.playPresentation();
-    }
+    this.presenter = {};
 };
 
 
@@ -52,7 +47,6 @@ Presenter.prototype.removePresentation = function(id) {
             this.stopPresentation();
         }
         this.presenter = {}; // Remove all presentations
-        this.presenterAutoplay = '';
         this.current = null;
         return('All presentations removed.');
     }
@@ -71,9 +65,7 @@ Presenter.prototype.getCurrentPresentationType = function() {
 
 Presenter.prototype.playPresentation = function(id) {
     this.stopPresentation();
-    if (this.presenterAutoplay !== undefined && typeof id === 'undefined') {
-        id = this.presenterAutoplay;
-    } else if (typeof id === 'undefined' && this.presenter !== undefined && Object.keys(this.presenter).length > 0) {
+    if (typeof id === 'undefined' && Object.keys(this.presenter).length > 0) {
         for (var key in this.presenter) {
             id = key;
             break;
@@ -593,4 +585,3 @@ Presenter.prototype.showSections = function(elem) {
 
 
 export default Presenter;
-

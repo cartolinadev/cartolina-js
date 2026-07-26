@@ -6,17 +6,19 @@ type ParsedConfigValue =
     boolean | number | number[] | string | string[] | null | unknown;
 type ParsedConfig = Record<string, ParsedConfigValue>;
 
-// keys the runtime-options filter excludes: structural inputs with
-// dedicated factory options, plus `mapConfig`, the query parameter
-// the demo applications read themselves
-const STRUCTURAL_KEYS = new Set([
+// keys the runtime-options filter excludes: dedicated factory inputs,
+// plus `mapConfig`, the query parameter the demo applications read
+// themselves
+const FACTORY_INPUT_KEYS = new Set([
     'map',
     'mapConfig',
     'position',
     'pos',
     'view',
     'style',
-    'container'
+    'container',
+    'transformRequest',
+    'interactive',
 ]);
 
 
@@ -49,20 +51,6 @@ function parseNumberArray(value: unknown): Array<number | unknown> {
 }
 
 
-function parsePosition(value: unknown): Array<number | string | unknown> {
-    const items: Array<number | string | unknown> =
-        decodeURIComponent(String(value)).split(',');
-
-    for (let i = 1; i < items.length; i++) {
-        if (i !== 3) {
-            items[i] = parseNumber(items[i]);
-        }
-    }
-
-    return items;
-}
-
-
 function parseString(value: unknown): string | null {
     const parsed = decodeURIComponent(String(value));
     return parsed === 'null' ? null : parsed;
@@ -84,7 +72,6 @@ export function parseConfigParamValue(
     }
 
     switch (viewerConfig.urlParseKind(key)) {
-        case 'position': return parsePosition(value);
         case 'boolean': return parseBoolean(value);
         case 'number': return parseNumber(value);
         case 'numberArray': return parseNumberArray(value);
@@ -102,9 +89,10 @@ export function parseConfigParamValue(
  * accept browser, core, renderer, or debug options from the query
  * string without maintaining their own parsing table.
  *
- * The helper removes structural fields such as `mapConfig`,
- * `position`, `pos`, `style`, and `container`, so the result can be
- * passed as the `map()` factory's `options`.
+ * The helper removes dedicated factory fields such as `mapConfig`,
+ * `position`, `pos`, `style`, `container`, `transformRequest`, and
+ * `interactive`, so the result can be passed as the `map()` factory's
+ * `options`.
  *
  * The URL vocabulary is wider than `PublicConstructionConfig`: the
  * query string is a permissive ingestion boundary, and parsed
@@ -145,7 +133,7 @@ export function runtimeOptionsFromUrl(
     // parameters, and the result feeds the strict `map()` factory
     for (const key in config) {
 
-        if (STRUCTURAL_KEYS.has(key)) continue;
+        if (FACTORY_INPUT_KEYS.has(key)) continue;
 
         if (viewerConfig.canonicalConfigKey(key) !== null) {
             runtimeOptions[key] = config[key];

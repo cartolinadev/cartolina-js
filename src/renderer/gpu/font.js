@@ -35,7 +35,7 @@ GpuFont.prototype.getSize = function(){ return this.size; };
 GpuFont.prototype.load = function(path) {
     utils.loadBinary(
         path, this.onLoaded.bind(this), this.onError.bind(this),
-        false, null, null, this.core.config.transformRequest, 'Glyph');
+        false, null, null, this.core.transformRequest, 'Glyph');
 };
 
 GpuFont.prototype.onLoaded = function(data) {
@@ -72,7 +72,7 @@ GpuFont.prototype.areTexturesReady = function(files) {
                 this.onFileLoaded.bind(this, index),
                 this.onFileLoadError.bind(this),
                 false, null, null,
-                this.core.config.transformRequest,
+                this.core.transformRequest,
                 'Glyph');
             this.textures[index] = new GpuTexture(this.gpu, null, this.core);
             ready = false;
@@ -93,4 +93,3 @@ GpuFont.prototype.getTexture = function(file) {
 };
 
 export default GpuFont;
-

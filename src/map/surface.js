@@ -100,7 +100,7 @@ var MapSurface = function(map, json, type, baseUrl) {
                 ? (this.jsonUrl.indexOf(this.map.url.baseUrl) != -1)
                 : false),
             this.map.core.xhrParams,
-            this.map.core.config.transformRequest,
+            this.map.core.transformRequest,
             'Source');
         //utils.loadJSON(this.url, onLoaded, onError, null, utils.useCredentials);
     } else {

@@ -2,9 +2,6 @@
  * viewer-config.ts - single-source catalogue of runtime config keys
  */
 
-import type MapPosition from './map/position';
-import type MapStyle from './map/style';
-import type { PositionInput } from './map/types';
 import * as utils from './utils/utils';
 
 
@@ -17,26 +14,21 @@ import * as utils from './utils/utils';
  * - `construction` — public through the factory option bags only;
  *   read once at construction, at map or style load, or when the
  *   key's UI control is built.
- * - `structural` — command-like keys with dedicated methods or
- *   construction options (`style`, `position`, `transformRequest`);
- *   on neither public bag surface.
  * - `internal` — tuning and diagnostics reachable through URL
  *   parameters and legacy ingestion, not through the typed public
  *   surfaces.
  * - `debug` — inspector switches reachable through URL parameters.
  */
 export type ConfigKeyVisibility =
-    'runtime' | 'construction' | 'structural' | 'internal' | 'debug';
+    'runtime' | 'construction' | 'internal' | 'debug';
 
 
 /**
  * How the URL layer turns a query-string value into the raw value
- * handed to normalization. `none` keeps the string untouched
- * (`position` has a dedicated parser in `url-config.ts`).
+ * handed to normalization.
  */
 export type UrlParseKind =
-    'boolean' | 'number' | 'numberArray' | 'position' | 'string'
-    | 'none';
+    'boolean' | 'number' | 'numberArray' | 'string';
 
 
 /**
@@ -87,24 +79,6 @@ const asyncImageDecode = (): boolean =>
 
 const toStringOrNull = (value: unknown): string | null =>
     typeof value === 'string' ? value : null;
-
-const toRecordOrNull = (
-    value: unknown,
-): Record<string, unknown> | null => {
-
-    // plain objects only: reject arrays, class instances, DOM
-    // objects, and similar values
-    if (value === null || typeof value !== 'object') return null;
-
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null
-        ? value as Record<string, unknown> : null;
-};
-
-const toStringOrRecord = (
-    value: unknown,
-): string | Record<string, unknown> | null =>
-    typeof value === 'string' ? value : toRecordOrNull(value);
 
 const toDebugValue = (value: unknown): string | boolean | null =>
     typeof value === 'string' || typeof value === 'boolean'
@@ -236,17 +210,12 @@ const spec = <T, V extends ConfigKeyVisibility>(
  * (rfc1-config-store.md §4.5).
  *
  * Values stored under these keys are already normalized. Watchers
- * and readers may treat them as valid. Two entries are stored with
- * shallow or no checks: `style` (object shape validated at style
- * load) and `mapSplitSpace` (unchecked legacy payload).
+ * and readers may treat them as valid. `mapSplitSpace` is the one
+ * unchecked legacy payload.
  */
 const catalogue = {
 
     // --- UI controls and navigation (browser layer) ---
-
-    /** Registers the map's mouse, touch, and keyboard handlers.
-     *  With `false` the map renders but ignores input. */
-    interactive: bool(true, 'construction'),
 
     /** Allows the left-drag pan gesture. */
     panAllowed: bool(true, 'runtime'),
@@ -412,56 +381,6 @@ const catalogue = {
     }),
 
     // --- Cross-cutting (map loading and shared services) ---
-
-    /** Style to load: a style URL string or an inline
-     *  specification object. Normalized to a string or plain
-     *  object only; the object's spec shape is validated at style
-     *  load, not here. */
-    style: spec({
-        produce: ():
-            string | MapStyle.StyleSpecification | null => null,
-        normalize: (value) => toStringOrRecord(value) as
-            string | MapStyle.StyleSpecification | null,
-        urlKind: 'string',
-        visibility: 'structural',
-    }),
-
-    /** Initial position: a legacy position array (mode strings and
-     *  finite numbers) or a `MapPosition` instance. */
-    position: spec({
-        produce: (): PositionInput | null => null,
-        normalize: (value) => {
-
-            // a legacy position array: mode strings and finite
-            // numbers
-            if (Array.isArray(value) && value.every((item) =>
-                    typeof item === 'string' || Number.isFinite(item)))
-                return value as (number | string)[];
-
-            // a MapPosition instance, identified structurally so
-            // this module stays free of runtime map imports
-            if (value !== null && typeof value === 'object'
-                    && !Array.isArray(value)
-                    && typeof (value as MapPosition).toArray
-                        === 'function')
-                return value as MapPosition;
-
-            return null;
-        },
-        urlKind: 'position',
-        visibility: 'structural',
-    }),
-
-    /** Request hook invoked before each resource fetch; may
-     *  rewrite the URL and add headers or credentials (see
-     *  `request-transform.md`). */
-    transformRequest: spec({
-        produce: (): utils.TransformRequestCallback | null => null,
-        normalize: (value) => typeof value === 'function'
-            ? value as utils.TransformRequestCallback : null,
-        urlKind: 'none',
-        visibility: 'structural',
-    }),
 
     /** Enables the built-in inspector: debug keyboard shortcuts
      *  and diagnostics overlays. */
@@ -977,10 +896,9 @@ const keysWithVisibility = (
  *
  * Deliberately absent: `construction` keys (read once at
  * construction, at load, or when their UI control is built),
- * `structural` command keys with dedicated methods (`style`,
- * `position`, `transformRequest`), `internal` tuning and
- * diagnostics, `debug` switches, and the `pos` / `rotate` / `pan`
- * aliases, which remain compatibility ingestion only.
+ * dedicated top-level construction inputs, `internal` tuning and
+ * diagnostics, `debug` switches, and the `rotate` / `pan` aliases,
+ * which remain compatibility ingestion only.
  */
 export type PublicRuntimeConfig =
     Pick<ViewerConfig, KeysWithVisibility<'runtime'>>;
@@ -1008,20 +926,33 @@ export const publicConstructionConfigKeys =
 
 
 /**
- * Throws when a factory option bag contains a key that is not in
- * the config catalogue (after alias resolution), so a JavaScript
- * typo in `map()` options fails loudly instead of disappearing.
- * Catalogued keys outside the typed factory surface pass: the
- * query-string vocabulary documented on `runtimeOptionsFromUrl`
- * flows through the factory at runtime.
+ * Throws when a factory config bag contains an unknown key or a
+ * dedicated top-level factory input. Catalogued internal and debug
+ * keys outside the typed factory surface pass so the query-string
+ * vocabulary documented on `runtimeOptionsFromUrl` can flow through
+ * the factory at runtime.
  */
-export function assertCataloguedConfigKeys(
+export function assertConstructionConfigKeys(
     bag: Record<string, unknown>,
 ): void {
 
     for (const key of Object.keys(bag)) {
 
-        if (canonicalConfigKey(key) === null) {
+        if ([
+            'container',
+            'style',
+            'position',
+            'transformRequest',
+            'interactive',
+        ].indexOf(key) !== -1) {
+
+            throw new Error(
+                `'${key}' is a top-level map() option and cannot `
+                + 'be placed inside map().options.');
+        }
+
+        const canonical = canonicalConfigKey(key);
+        if (canonical === null) {
 
             throw new Error(
                 `'${key}' is not a known configuration key.`);
@@ -1055,7 +986,6 @@ const hasOwn = (dict: object, key: string): boolean =>
 
 
 const keyAliases: Record<string, keyof ViewerConfig> = {
-    pos: 'position',
     rotate: 'autoRotate',
     pan: 'autoPan',
 };
@@ -1064,9 +994,9 @@ const keyAliases: Record<string, keyof ViewerConfig> = {
 /**
  * Resolves a public config key to its canonical `ViewerConfig` key.
  *
- * Handles the legacy aliases (`pos` for `position`, `rotate` for
- * `autoRotate`, `pan` for `autoPan`) and returns `null` for keys
- * that are not catalogued, so untyped callers can be filtered at
+ * Handles the legacy aliases (`rotate` for `autoRotate`, `pan` for
+ * `autoPan`) and returns `null` for keys that are not catalogued, so
+ * untyped callers can be filtered at
  * runtime. Inherited object-property names (`toString`,
  * `constructor`, `__proto__`, ...) are not catalogued keys.
  */

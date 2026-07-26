@@ -123,18 +123,27 @@ typo fails loudly. `setParam` normalizes the value
 compile-time tests in `test/types/viewer-api.ts`, run by
 `npm run test:unit`.
 
-The factory option bag (`Map.Options.options`) is typed by
-`PublicConstructionConfig`: the public runtime
-keys plus the deliberately public construction and load-time keys.
-The bag has no index signature, so a misspelled or internal-only
-factory option fails compilation. `Viewer` accepts the same complete
-`Map.Options` object as `map()`: the factory only delegates.
-Construction rejects an unknown top-level option and rejects any
-option-bag key that is not in the catalogue after alias resolution,
-so a JavaScript typo throws. Catalogued keys outside the typed surface
-pass because the query-string vocabulary flows through the factory.
-`runtimeOptionsFromUrl` keeps catalogued keys only, dropping arbitrary
-query parameters before they reach the constructor guard.
+The nested factory config bag (`Map.Options.options`) is typed by
+`PublicConstructionConfig`: the public store-backed runtime keys plus
+the deliberately public store-backed construction and load-time keys.
+It has no index signature, so a misspelled or internal-only option fails
+compilation. `Viewer` accepts the same complete `Map.Options` object as
+`map()`: the factory only delegates.
+
+Dedicated construction inputs are top-level `Map.Options` fields.
+`Viewer` passes `style` and initial `position` directly to `Map`, and
+passes `interactive` directly to `ControlMode`. They are not flattened
+into the config store. `transformRequest` is also top-level and becomes
+an immutable field on `Map`, which owns resource loading. Map and renderer
+loaders read the hook from that owner.
+
+Construction rejects an unknown top-level option, an unknown nested
+config key, or a dedicated top-level input placed inside `options`.
+Catalogued internal and debug keys outside the typed surface pass so the
+query-string vocabulary can flow through the factory.
+`runtimeOptionsFromUrl` keeps catalogued config keys only and excludes
+dedicated factory inputs, dropping arbitrary query parameters before
+they reach the constructor guard.
 
 The catalogue contains the native style-map defaults. mapConfig
 conversion emits the retired mapConfig factory's six-value control
@@ -143,14 +152,11 @@ and interaction profile explicitly in `viewerOptions`. Converted
 override the complete conversion result. Compatibility is therefore
 ordinary construction input, not a second implicit default source.
 
-The remaining permissive ingestion paths accept the full catalogue
-and the legacy `pos` / `rotate` / `pan` aliases. `Viewer` flattens and
-applies the internal construction bag; `position` additionally acts on
-the loaded map at once. Unknown keys are dropped, and a dropped key
-carrying a config prefix
-(`map`, `renderer`, `control`, `debug`) is logged. The style
-`config` block also accepts the full catalogue and aliases, but
-drops unknown keys without logging. The vts-era
+The remaining permissive ingestion paths accept the full catalogue and
+the legacy `rotate` / `pan` aliases. Unknown keys are dropped, and a
+dropped key carrying a config prefix (`map`, `renderer`, `control`,
+`debug`) is logged. The style `config` block also accepts the full
+catalogue and aliases, but drops unknown keys without logging. The vts-era
 `Browser.setConfigParam` / `getConfigParam` accessors are removed;
 no repository or documented integration called them.
 

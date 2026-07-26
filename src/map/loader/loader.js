@@ -69,11 +69,8 @@ var MapLoader = function(map, maxThreads) {
 
             this.processWorker.onmessage = this.onWorkerMessage.bind(this);
 
-            const workerConfig = { ...this.config };
-            delete workerConfig.transformRequest;
-
             this.processWorker.postMessage({'command':'config',
-                'data': workerConfig});
+                'data': this.config});
 
             return worker;
         });
@@ -163,7 +160,7 @@ MapLoader.prototype.onWorkerMessage = function(message, direct) {
 
 MapLoader.prototype.processLoadBinary = function(path, onLoaded, onError, responseType, kind, options) {
     var withCredentials = (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false);
-    var transformRequest = this.map.core.config.transformRequest;
+    var transformRequest = this.map.core.transformRequest;
 
     if (this.processWorker) {
 

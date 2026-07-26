@@ -12,6 +12,7 @@ import * as viewerConfig from '../viewer-config';
 import type {
     HeightMode,
     Lod,
+    PositionInput,
 } from './types';
 import type { vec3 } from '../utils/math';
 import * as utils from '../utils/utils';
@@ -40,8 +41,9 @@ import { drawTerrainTraversal } from './draw-traversal';
  * the per-frame tick, the canvas-target draw,
  * coordinate conversion, and hit-testing. It also owns the engine
  * lifecycle: the animation-frame loop, map loading and unloading,
- * the event bus, and the constructed `Renderer` and `Inspector`
- * (absorbed from the retired `core.js` shell).
+ * the event bus, request transformation, and the constructed
+ * `Renderer` and `Inspector` (absorbed from the retired `core.js`
+ * shell).
  *
  * UI-facing concerns live on `Viewer` (`src/viewer/viewer.ts`);
  * the GPU and shader work lives on `Renderer`
@@ -128,6 +130,14 @@ class Map {
      * @internal
      */
     config: Readonly<viewerConfig.ViewerConfig>;
+
+    /**
+     * Application hook applied to every external resource request.
+     *
+     * @internal
+     */
+    readonly transformRequest:
+        utils.TransformRequestCallback | undefined;
 
     private readyPromise_: Promise<void>;
     private readyResolved_ = false;
@@ -228,14 +238,21 @@ class Map {
      * @param element canvas element to render into
      * @param configStore runtime config store, already seeded with
      *   the caller's normalized options
+     * @param style style URL or inline style to load
+     * @param position optional initial camera position
+     * @param transformRequest optional resource-request hook
      */
     constructor(
         element: HTMLElement,
         configStore: ConfigStore<viewerConfig.ViewerConfig>,
+        style: string | MapStyle.StyleSpecification,
+        position?: PositionInput,
+        transformRequest?: utils.TransformRequestCallback,
     ) {
 
         this.configStore_ = configStore;
         this.config = configStore.values;
+        this.transformRequest = transformRequest;
         this.element = element;
 
         this.readyPromise_ = new Promise((resolve) => {
@@ -247,10 +264,7 @@ class Map {
 
         platform.init();
 
-        if (this.config.style) {
-
-            this.loadMapFromStyle(this.config.style);
-        }
+        this.loadMapFromStyle(style, position);
 
         window.requestAnimationFrame(this.onUpdate_.bind(this));
     }
@@ -338,6 +352,7 @@ class Map {
     /** Loads a map from a style URL or parsed style object. */
     private async loadMapFromStyle(
         style: string | MapStyle.StyleSpecification,
+        position?: PositionInput,
     ): Promise<void> {
 
         let styleSpec: unknown = style;
@@ -347,16 +362,12 @@ class Map {
 
             path = utilsUrl.getProcessUrl(style, path);
             styleSpec = await utils.loadJson(
-                path, this.config.transformRequest ?? undefined, 'Style');
+                path, this.transformRequest, 'Style');
         }
 
         await this.createMapFromStyle(styleSpec, path);
 
-        if (this.config.position) {
-
-            this.map!.setPosition(this.config.position);
-            this.configStore_.set({ position: null });
-        }
+        if (position) this.map!.setPosition(position);
 
         // initialize ubos
         this.renderer.createBuffers();

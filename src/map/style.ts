@@ -559,7 +559,7 @@ export class MapStyle {
 
                     mc = await utils.loadJson(
                         path,
-                        map.core.config.transformRequest ?? undefined,
+                        map.core.transformRequest,
                         'MapConfig',
                     ) as MapStyle.SurfaceSourceDefinition;
 

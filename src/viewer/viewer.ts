@@ -119,23 +119,16 @@ class Viewer {
             }
         }
 
-        // Reject typos and invented keys loudly; catalogued keys
-        // outside the typed surface pass (query-string vocabulary).
+        // Reject typos, invented keys, and dedicated factory inputs
+        // inside the configuration bag. Catalogued internal and
+        // debug keys pass for the query-string vocabulary.
         if (options.options)
-            viewerConfig.assertCataloguedConfigKeys(options.options);
-
-        const constructionConfig = {
-            style: options.style,
-            ...options.options,
-            position: options.position,
-            transformRequest: options.transformRequest,
-            interactive: options.interactive ?? true,
-        };
+            viewerConfig.assertConstructionConfigKeys(options.options);
 
         this.configStore = new ConfigStore(
             viewerConfig.defaultViewerConfig());
         this.config = this.configStore.values;
-        this.applyConfigParams(constructionConfig);
+        this.applyConfigParams(options.options || {});
 
         if (!GpuDevice.checkSupport()) {
             throw new Error('cartolina-js requires WebGL2.');
@@ -159,11 +152,18 @@ class Viewer {
             const mapElement = this.ui_.getMapControl()!
                 .getMapElement().getElement();
 
-            map = new Map(mapElement, this.configStore);
+            map = new Map(
+                mapElement,
+                this.configStore,
+                options.style,
+                options.position,
+                options.transformRequest,
+            );
             this.map_ = map;
             this.autopilot_ = new Autopilot(this);
-            this.controlMode = new ControlMode(this);
-            this.presenter_ = new Presenter(this, constructionConfig);
+            this.controlMode = new ControlMode(
+                this, options.interactive ?? true);
+            this.presenter_ = new Presenter(this);
 
             this.unsubscribes_ = [
                 this.on('map-loaded', this.onMapLoaded_.bind(this)),
@@ -209,7 +209,7 @@ class Viewer {
             this.applyConfigParam_(key, value);
     }
 
-    /** Applies one raw config input and its immediate position command. */
+    /** Normalizes and applies one raw shared-config input. */
     private applyConfigParam_(key: string, value: unknown): void {
 
         const patch = viewerConfig.normalizeConfigPatch(key, value);
@@ -223,10 +223,6 @@ class Viewer {
         }
 
         this.configStore.set(patch);
-
-        const legacyMap = this.map_?.legacyMap;
-        if (legacyMap && 'position' in patch && patch.position != null)
-            legacyMap.setPosition(patch.position);
     }
 
     /** Registers Viewer-owned configuration reactions. */
@@ -1269,7 +1265,7 @@ namespace Viewer {
         /** Initial ten-component position; omitted to use the style default. */
         position?: Map.PositionInput;
 
-        /** Public runtime and construction configuration values. */
+        /** Public store-backed runtime and construction values. */
         options?: viewerConfig.PublicConstructionConfig;
 
         /** Rewrites resource URLs or adds request headers. */

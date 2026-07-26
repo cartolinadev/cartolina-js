@@ -122,7 +122,7 @@ MapGeodata.prototype.onLoad = function(url, onLoaded, onError) {
                 ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1)
                 : false),
             this.map.core.xhrParams,
-            this.map.core.config.transformRequest,
+            this.map.core.transformRequest,
             'Tile');
     }
 

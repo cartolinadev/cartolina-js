@@ -80,16 +80,18 @@ describe('url-config runtime options', function() {
         assert.strictEqual(warnings.length, 0);
     });
 
-    it('excludes structural keys and mapConfig without warning',
+    it('excludes dedicated factory inputs and mapConfig without warning',
         function() {
 
         const options = runtimeOptionsFromUrl({},
             'http://localhost/?mapConfig=x/mapConfig.json'
-            + '&pos=obj,15,50,fix,0,0,0,0,1000,45&style=y.json');
+            + '&pos=obj,15,50,fix,0,0,0,0,1000,45&style=y.json'
+            + '&interactive=false');
 
         assert.strictEqual('mapConfig' in options, false);
         assert.strictEqual('pos' in options, false);
         assert.strictEqual('style' in options, false);
+        assert.strictEqual('interactive' in options, false);
         assert.strictEqual(warnings.length, 0);
     });
 

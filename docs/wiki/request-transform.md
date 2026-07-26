@@ -6,7 +6,7 @@ or choose a credentials mode. It follows the MapLibre GL JS pattern:
 cartolina-js calls the callback before it loads an external resource,
 and the callback returns the request fields cartolina-js should use.
 
-The hook is accepted by both public constructors:
+The hook is a dedicated top-level `map()` option:
 
 ```ts
 const viewer = cartolina.map({
@@ -19,17 +19,9 @@ const viewer = cartolina.map({
 });
 ```
 
-For legacy mapConfig usage:
-
-```ts
-const viewer = cartolina.browser('map', {
-    map: 'https://example.com/mapConfig.json',
-    transformRequest(url, resourceType) {
-
-        return { url };
-    }
-});
-```
+It is not part of the nested `options` config bag. `Viewer` passes the
+callback to the `Map` that owns resource loading. Map and renderer loaders
+read the same immutable hook from that owner.
 
 ## Callback Shape
 

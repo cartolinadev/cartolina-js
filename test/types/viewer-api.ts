@@ -157,6 +157,23 @@ void map({
     options: { debugMode: true },
 });
 
+void map({
+    container, style, position,
+    // @ts-expect-error interaction is a dedicated top-level option
+    options: { interactive: false },
+});
+
+void map({
+    container, style, position,
+    // @ts-expect-error the request hook is a dedicated top-level option
+    options: { transformRequest: (url) => ({ url }) },
+});
+
+void map({
+    container, style, position,
+    transformRequest: (url) => ({ url }),
+});
+
 // The README construction form: a style URL string, no position.
 void map({ container: 'map', style: './style.json' });
 

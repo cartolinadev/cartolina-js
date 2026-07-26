@@ -39,7 +39,7 @@ var MapStylesheet = function(map, id, url, freeLayer) {
                 ? (this.url.indexOf(this.map.url.baseUrl) != -1)
                 : false),
             this.map.core.xhrParams,
-            this.map.core.config.transformRequest,
+            this.map.core.transformRequest,
             'Style');
         this.loadState = 1;
     }

@@ -351,7 +351,7 @@ private load(
             onError();
         }
 
-    }, false, direct, this.core?.config.transformRequest, 'Image');
+    }, false, direct, this.core?.transformRequest, 'Image');
 
 };
 

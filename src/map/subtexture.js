@@ -293,7 +293,7 @@ MapSubtexture.prototype.onLoad = function(header, url, onLoaded, onError) {
     } else {
         this.image = utils.loadImage(
             url, onload, onerror, false, false,
-            this.map.core.config.transformRequest,
+            this.map.core.transformRequest,
             'Image');
     }
     //mapXhrImageLoad
@@ -457,7 +457,7 @@ MapSubtexture.prototype.onLoadHead = function(downloadAll, url, onLoaded, onErro
                 ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1)
                 : false),
             this.map.core.xhrParams,
-            this.map.core.config.transformRequest,
+            this.map.core.transformRequest,
             'Image');
     }
 };

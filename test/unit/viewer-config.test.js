@@ -11,7 +11,7 @@
 const assert = require('assert');
 
 const {
-    assertCataloguedConfigKeys,
+    assertConstructionConfigKeys,
     canonicalConfigKey,
     defaultViewerConfig,
     isPublicRuntimeConfigKey,
@@ -49,7 +49,7 @@ describe('viewer-config normalization', function() {
 
     it('resolves the legacy key aliases', function() {
 
-        assert.strictEqual(canonicalConfigKey('pos'), 'position');
+        assert.strictEqual(canonicalConfigKey('pos'), null);
         assert.strictEqual(canonicalConfigKey('rotate'), 'autoRotate');
         assert.strictEqual(canonicalConfigKey('pan'), 'autoPan');
         assert.strictEqual(canonicalConfigKey('mapCache'), 'mapCache');
@@ -131,10 +131,10 @@ describe('viewer-config normalization', function() {
         assert.strictEqual(urlParseKind('mapCache'), 'number');
         assert.strictEqual(urlParseKind('sensitivity'), 'numberArray');
         assert.strictEqual(urlParseKind('mapLanguage'), 'string');
-        assert.strictEqual(urlParseKind('pos'), 'position');
+        assert.strictEqual(urlParseKind('pos'), null);
         assert.strictEqual(urlParseKind('rotate'), 'number');
         assert.strictEqual(urlParseKind('pan'), 'numberArray');
-        assert.strictEqual(urlParseKind('transformRequest'), 'none');
+        assert.strictEqual(urlParseKind('transformRequest'), null);
         assert.strictEqual(urlParseKind('noSuchKey'), null);
         assert.strictEqual(urlParseKind('toString'), null);
     });
@@ -160,7 +160,7 @@ describe('viewer-config normalization', function() {
         // construction set lost the geojson / geodata / geojsonStyle
         // startup options removed with the mapConfig runtime
         assert.strictEqual(publicRuntimeConfigKeys.length, 61);
-        assert.strictEqual(publicConstructionConfigKeys.length, 71);
+        assert.strictEqual(publicConstructionConfigKeys.length, 70);
     });
 
     it('expands the mapNoTextures coupling', function() {
@@ -190,52 +190,6 @@ describe('viewer-config normalization', function() {
         assert.deepStrictEqual(
             normalizeConfigValue('mapFeaturesReduceParams', [1, 2, 3]),
             [1, 2, 3]);
-    });
-
-    it('accepts only strings and plain objects for style',
-        function() {
-
-        assert.strictEqual(
-            normalizeConfigValue('style', 'value'), 'value');
-        assert.deepStrictEqual(
-            normalizeConfigValue('style', { a: 1 }), { a: 1 });
-        assert.strictEqual(normalizeConfigValue('style', 42), null);
-        assert.strictEqual(
-            normalizeConfigValue('style', [1, 2]), null);
-        assert.strictEqual(
-            normalizeConfigValue('style', new Date(0)), null);
-    });
-
-    it('accepts position arrays and MapPosition-like objects for '
-        + 'position', function() {
-
-        const positionArray =
-            ['obj', 15, 50, 'fix', 0, 0, 0, 0, 10000, 45];
-        const positionLike = { toArray: () => positionArray };
-
-        assert.deepStrictEqual(
-            normalizeConfigValue('position', positionArray),
-            positionArray);
-        assert.strictEqual(
-            normalizeConfigValue('position', positionLike),
-            positionLike);
-        assert.strictEqual(normalizeConfigValue('position', 42), null);
-        assert.strictEqual(
-            normalizeConfigValue('position', { lon: 15 }), null);
-        assert.strictEqual(
-            normalizeConfigValue('position', [{}]), null);
-        assert.strictEqual(
-            normalizeConfigValue('position', ['obj', NaN, 50]), null);
-    });
-
-    it('drops non-function transformRequest values', function() {
-
-        const hook = () => ({ url: 'https://tiles.example.com/' });
-
-        assert.strictEqual(
-            normalizeConfigValue('transformRequest', hook), hook);
-        assert.strictEqual(
-            normalizeConfigValue('transformRequest', 'hook'), null);
     });
 
     it('keeps debug values as strings or booleans only', function() {
@@ -296,17 +250,31 @@ describe('viewer-config normalization', function() {
     });
 
     it('factory bags reject unknown keys and accept the '
-        + 'catalogue', function() {
+        + 'catalogue while rejecting dedicated inputs', function() {
 
         assert.throws(
-            () => assertCataloguedConfigKeys({ mapFlagLigthing: false }),
+            () => assertConstructionConfigKeys({
+                mapFlagLigthing: false,
+            }),
             /not a known configuration key/);
         assert.throws(
-            () => assertCataloguedConfigKeys({ entirelyInvented: true }),
+            () => assertConstructionConfigKeys({
+                entirelyInvented: true,
+            }),
             /not a known configuration key/);
+        assert.throws(
+            () => assertConstructionConfigKeys({
+                transformRequest: () => undefined,
+            }),
+            /top-level map\(\) option/);
+        assert.throws(
+            () => assertConstructionConfigKeys({
+                interactive: false,
+            }),
+            /top-level map\(\) option/);
 
         // catalogued internals and aliases flow through the factory
-        assert.doesNotThrow(() => assertCataloguedConfigKeys({
+        assert.doesNotThrow(() => assertConstructionConfigKeys({
             mapFlagLighting: false,
             mapExposeFpsToWindow: true,
             rotate: 1,
@@ -323,7 +291,7 @@ describe('viewer-config normalization', function() {
 
             assert.strictEqual(canonicalConfigKey(name), null);
             assert.throws(
-                () => assertCataloguedConfigKeys({ [name]: true }),
+                () => assertConstructionConfigKeys({ [name]: true }),
                 /not a known configuration key/);
         }
     });

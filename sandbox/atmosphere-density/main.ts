@@ -109,8 +109,7 @@ function drawRgbToCanvas(rgb: Uint8Array, width: number, height: number, mount: 
   div.style.height = '10px';
 
   const store = new ConfigStore(viewerConfig.defaultViewerConfig());
-  store.set({style: STYLE});
-  const core = new Map(div, store);
+  const core = new Map(div, store, STYLE);
   await core.ready;
   console.log('Core ready');
 

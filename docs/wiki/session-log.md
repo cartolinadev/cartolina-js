@@ -3,6 +3,28 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-26 — Construction inputs separated from shared config
+
+Removed the Browser-era construction flattening from `Viewer`. The factory's
+`style` and initial `position` now pass directly to `Map`, while `interactive`
+passes directly to `ControlMode`. These dedicated inputs no longer exist in
+`ViewerConfig`. `transformRequest` remains a top-level option and is owned as
+an immutable field by `Map`; map and renderer loaders read it directly from
+that owner. Worker config messages no longer clone the store merely to remove
+the callback before structured cloning.
+
+The nested `options` bag now rejects dedicated inputs instead of accepting an
+input that a later top-level spread could overwrite. URL config ingestion also
+excludes them. Presenter construction no longer receives the flattened object
+or attempts to initialize the removed presenter startup fields.
+
+The typecheck, all 79 unit tests, production build, and targeted Viewer
+lifecycle check pass. The build produced the global, ESM, compatibility, CSS,
+and both worker artifacts. A fresh development server served the generated
+source version. Sequential dev/production captures for `simple-terrain`,
+`complex-terrain`, and `full-terrain` completed without reported errors; all
+six images were inspected and match.
+
 ## 2026-07-26 — Source topology aligned with runtime ownership
 
 Moved the public entry point and UI tree from `src/browser/` to
