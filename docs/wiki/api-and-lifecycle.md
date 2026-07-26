@@ -123,14 +123,14 @@ typo fails loudly. `setParam` normalizes the value
 compile-time tests in `test/types/viewer-api.ts`, run by
 `npm run test:unit`.
 
-The nested factory config bag (`Map.Options.options`) is typed by
+The complete factory input is `Map.Config`. Its nested `options` bag is typed by
 `PublicConstructionConfig`: the public store-backed runtime keys plus
 the deliberately public store-backed construction and load-time keys.
 It has no index signature, so a misspelled or internal-only option fails
-compilation. `Viewer` accepts the same complete `Map.Options` object as
+compilation. `Viewer` accepts the same complete `Map.Config` object as
 `map()`: the factory only delegates.
 
-Dedicated construction inputs are top-level `Map.Options` fields.
+Dedicated construction inputs are top-level `Map.Config` fields.
 `Viewer` passes `style` and initial `position` directly to `Map`, and
 passes `interactive` directly to `ControlMode`. They are not flattened
 into the config store. `transformRequest` is also top-level and becomes

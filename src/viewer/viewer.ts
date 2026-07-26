@@ -22,9 +22,9 @@ import type { vec3 } from '../utils/math';
 
 
 // The complete public construction shape. Keeping this guard beside
-// Viewer.Options prevents the factory and constructor contracts from
+// Viewer.Config prevents the factory and constructor contracts from
 // drifting apart.
-const optionKeys = new Set([
+const configKeys = new Set([
     'container', 'style', 'position', 'options',
     'transformRequest', 'interactive',
 ]);
@@ -108,13 +108,13 @@ class Viewer {
      * Do not construct directly — use the `map()` factory function
      * exported from this package.
      *
-     * @param options the same public options accepted by `map()`
+     * @param config the complete configuration accepted by `map()`
      */
-    constructor(options: Viewer.Options) {
+    constructor(config: Viewer.Config) {
 
-        for (const key of Object.keys(options)) {
+        for (const key of Object.keys(config)) {
 
-            if (!optionKeys.has(key)) {
+            if (!configKeys.has(key)) {
                 throw new Error(`'${key}' is not a valid map() option.`);
             }
         }
@@ -122,21 +122,21 @@ class Viewer {
         // Reject typos, invented keys, and dedicated factory inputs
         // inside the configuration bag. Catalogued internal and
         // debug keys pass for the query-string vocabulary.
-        if (options.options)
-            viewerConfig.assertConstructionConfigKeys(options.options);
+        if (config.options)
+            viewerConfig.assertConstructionConfigKeys(config.options);
 
         this.configStore = new ConfigStore(
             viewerConfig.defaultViewerConfig());
         this.config = this.configStore.values;
-        this.applyConfigParams(options.options || {});
+        this.applyOptions(config.options || {});
 
         if (!GpuDevice.checkSupport()) {
             throw new Error('cartolina-js requires WebGL2.');
         }
 
-        const element = typeof options.container === 'string'
-            ? document.getElementById(options.container)
-            : options.container;
+        const element = typeof config.container === 'string'
+            ? document.getElementById(config.container)
+            : config.container;
 
         if (element
             && window.getComputedStyle(element).position === 'static') {
@@ -155,14 +155,14 @@ class Viewer {
             map = new Map(
                 mapElement,
                 this.configStore,
-                options.style,
-                options.position,
-                options.transformRequest,
+                config.style,
+                config.position,
+                config.transformRequest,
             );
             this.map_ = map;
             this.autopilot_ = new Autopilot(this);
             this.controlMode = new ControlMode(
-                this, options.interactive ?? true);
+                this, config.interactive ?? true);
             this.presenter_ = new Presenter(this);
 
             this.unsubscribes_ = [
@@ -202,15 +202,15 @@ class Viewer {
         }
     }
 
-    /** Applies normalized construction input to the shared config store. */
-    private applyConfigParams(params: object): void {
+    /** Applies normalized construction options to the shared config store. */
+    private applyOptions(options: object): void {
 
-        for (const [key, value] of Object.entries(params))
-            this.applyConfigParam_(key, value);
+        for (const [key, value] of Object.entries(options))
+            this.applyOption_(key, value);
     }
 
-    /** Normalizes and applies one raw shared-config input. */
-    private applyConfigParam_(key: string, value: unknown): void {
+    /** Normalizes and applies one raw shared option. */
+    private applyOption_(key: string, value: unknown): void {
 
         const patch = viewerConfig.normalizeConfigPatch(key, value);
         if (!patch) {
@@ -1253,8 +1253,8 @@ class Viewer {
 
 namespace Viewer {
 
-    /** Options accepted by the public `map()` factory. */
-    export type Options = {
+    /** Complete construction configuration accepted by `map()`. */
+    export type Config = {
 
         /** The HTML element in which cartolina renders the map. */
         container: HTMLElement | string;

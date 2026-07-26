@@ -890,7 +890,7 @@ namespace Viewer {
 
 This holds at the package boundary too. The public entry point
 ([index.ts](src/viewer/index.ts)) exports no bare type names; every
-public type is reached through the `Map` namespace — `Map.Options`,
+public type is reached through the `Map` namespace — `Map.Config`,
 `Map.OverlaySpec`, `Map.PositionInput`, `Map.PublicRuntimeConfig`, and
 so on. Surface a type by adding it to `Viewer`'s namespace (`Viewer` is
 exported as `Map`), forwarding to the module that owns the type. Only

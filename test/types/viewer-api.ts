@@ -33,7 +33,7 @@ type Eq<A, B> =
 
 type _viewerConstructorMatchesFactory = Expect<Eq<
     ConstructorParameters<typeof Viewer>,
-    [PublicMap.Options]
+    [PublicMap.Config]
 >>;
 
 const viewerConstructorMatchesFactory:

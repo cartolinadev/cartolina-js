@@ -912,7 +912,7 @@ export const publicRuntimeConfigKeys =
 
 /**
  * The public construction configuration map: the typed shape of
- * `Map.Options.options` and compatibility conversion output — every
+ * `Map.Config.options` and compatibility conversion output — every
  * `runtime` key plus the `construction` keys.
  */
 export type PublicConstructionConfig = Partial<Pick<ViewerConfig,

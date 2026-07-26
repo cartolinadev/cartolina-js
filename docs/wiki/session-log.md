@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-27 — Viewer construction configuration named explicitly
+
+Renamed the complete factory and constructor input type from `Map.Options` to
+`Map.Config`. The constructor now receives `config`, while its nested
+`config.options` field remains the store-backed option subset. The internal
+application methods are named `applyOptions` and `applyOption_` to reflect
+that narrower role. The runtime input shape is unchanged. The public
+typecheck and all 79 unit tests pass.
+
 ## 2026-07-26 — Construction inputs separated from shared config
 
 Removed the Browser-era construction flattening from `Viewer`. The factory's

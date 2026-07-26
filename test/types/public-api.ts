@@ -12,13 +12,13 @@ type Eq<A, B> =
         (<X>() => X extends B ? 1 : 2) ? true : false;
 
 
-type _optionsMatchFactory = Expect<Eq<
-    Map.Options,
+type _configMatchesFactory = Expect<Eq<
+    Map.Config,
     Parameters<typeof map>[0]
 >>;
 
-const optionsMatchFactory: _optionsMatchFactory = true;
-void optionsMatchFactory;
+const configMatchesFactory: _configMatchesFactory = true;
+void configMatchesFactory;
 
 const viewer: Map = map({
     container: 'map',
@@ -39,7 +39,7 @@ const lighting: boolean = runtimeConfig.mapFlagLighting;
 void lighting;
 
 type TransformRequestCallback =
-    NonNullable<Map.Options['transformRequest']>;
+    NonNullable<Map.Config['transformRequest']>;
 declare const transformRequest: TransformRequestCallback;
 const transformed = transformRequest('https://tiles.example.com', 'Tile');
 void transformed;

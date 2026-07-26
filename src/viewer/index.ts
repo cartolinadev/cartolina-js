@@ -13,12 +13,12 @@ export type { default as Map } from './viewer';
 /**
  * Creates a map from a style.
  *
- * @param options construction options
+ * @param config complete viewer construction configuration
  * @returns the map viewer
  */
-export function map(options: Viewer.Options): Viewer {
+export function map(config: Viewer.Config): Viewer {
 
-    return new Viewer(options);
+    return new Viewer(config);
 }
 
 export { runtimeOptionsFromUrl } from './url-config';
