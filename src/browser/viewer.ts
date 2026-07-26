@@ -2,16 +2,21 @@
  * viewer.ts — the public API object for cartolina-js
  */
 
-import Browser from './browser';
 import Map from '../core/map';
 import Atmosphere from '../core/map/atmosphere';
 import Renderer from '../core/renderer/renderer';
+import ConfigStore from '../core/config-store';
+import { GpuDevice } from '../core/renderer/gpu/device';
 import * as viewerConfig from '../core/viewer-config';
 import MapStyle from '../core/map/style';
 import MapPosition from '../core/map/position';
 import type LegacyMap from '../core/map/map';
 import * as utils from '../core/utils/utils';
 import getVersion from '../core/version.js';
+import UI from './ui/ui';
+import Autopilot from './autopilot/autopilot';
+import ControlMode from './control-mode/control-mode';
+import Presenter from './presenter/presenter';
 
 import type { vec3 } from '../core/utils/math';
 
@@ -23,6 +28,12 @@ const optionKeys = new Set([
     'container', 'style', 'position', 'options',
     'transformRequest', 'interactive',
 ]);
+
+const uiControlKeys: (keyof viewerConfig.ViewerConfig)[] = [
+    'controlCompass', 'controlZoom', 'controlMeasure', 'controlScale',
+    'controlLayers', 'controlSpace', 'controlSearch', 'controlLink',
+    'controlLogo', 'controlFullscreen', 'controlCredits',
+];
 
 
 /**
@@ -42,16 +53,45 @@ const optionKeys = new Set([
  */
 class Viewer {
 
-    //private readonly _browser: InstanceType<typeof Browser>;
-    private readonly _browser: Browser;
+    private readonly configStore:
+        ConfigStore<viewerConfig.ViewerConfig>;
+
+    /**
+     * Shared normalized configuration read by the remaining legacy
+     * UI and navigation modules.
+     */
+    private readonly config: Readonly<viewerConfig.ViewerConfig>;
+
     private readonly map_: Map;
+    private readonly ui_: InstanceType<typeof UI>;
+    private readonly autopilot_: InstanceType<typeof Autopilot>;
+    private controlMode: InstanceType<typeof ControlMode>;
+    private readonly presenter_: InstanceType<typeof Presenter>;
+    private unsubscribes_: (() => void)[] = [];
+
+    private updatePosInUrl_ = false;
+    private lastUrlUpdateTime_ = 0;
+    private mapLoaded = false;
+    private mapInteracted_ = false;
+    private dirty_ = false;
     private disposed_ = false;
 
+    /**
+     * Internal event-emitter owner used by residual JS children.
+     * This property is private to the typed public surface.
+     */
+    private get map(): Map {
+
+        return this.map_;
+    }
+
     private get legacyMap(): LegacyMap | null {
+
         return this.map_.legacyMap;
     }
 
     private get _renderer(): Renderer {
+
         return this.map_.renderer;
     }
 
@@ -84,14 +124,277 @@ class Viewer {
         if (options.options)
             viewerConfig.assertCataloguedConfigKeys(options.options);
 
-        this._browser = new Browser(options.container, {
+        const constructionConfig = {
             style: options.style,
             ...options.options,
             position: options.position,
             transformRequest: options.transformRequest,
             interactive: options.interactive ?? true,
-        });
-        this.map_ = this._browser.getCore() as Map;
+        };
+
+        this.configStore = new ConfigStore(
+            viewerConfig.defaultViewerConfig());
+        this.config = this.configStore.values;
+        this.applyConfigParams(constructionConfig);
+
+        if (!GpuDevice.checkSupport()) {
+            throw new Error('cartolina-js requires WebGL2.');
+        }
+
+        const element = typeof options.container === 'string'
+            ? document.getElementById(options.container)
+            : options.container;
+
+        if (element
+            && window.getComputedStyle(element).position === 'static') {
+
+            element.style.position = 'relative';
+        }
+
+        this.ui_ = new UI(this, element);
+        let map: Map | null = null;
+
+        try {
+
+            const mapElement = this.ui_.getMapControl()!
+                .getMapElement().getElement();
+
+            map = new Map(mapElement, this.configStore);
+            this.map_ = map;
+            this.autopilot_ = new Autopilot(this);
+            this.controlMode = new ControlMode(this);
+            this.presenter_ = new Presenter(this, constructionConfig);
+
+            this.unsubscribes_ = [
+                this.on('map-loaded', this.onMapLoaded_.bind(this)),
+                this.on('map-unloaded', this.onMapUnloaded_.bind(this)),
+                this.on('map-update', this.onMapUpdate_.bind(this)),
+                this.on(
+                    'map-position-changed',
+                    this.onMapPositionChanged_.bind(this),
+                ),
+                this.on(
+                    'map-position-fixed-height-changed',
+                    this.onMapPositionFixedHeightChanged_.bind(this),
+                ),
+                this.on(
+                    'map-position-panned',
+                    this.onMapPositionPanned_.bind(this),
+                ),
+                this.on(
+                    'map-position-rotated',
+                    this.onMapPositionRotated_.bind(this),
+                ),
+                this.on(
+                    'map-position-zoomed',
+                    this.onMapPositionZoomed_.bind(this),
+                ),
+                this.on('tick', this.onTick_.bind(this)),
+            ];
+
+            this.watchConfig_();
+        } catch (error) {
+
+            map?.[Symbol.dispose]();
+            this.ui_.kill();
+            this.disposed_ = true;
+            throw error;
+        }
+    }
+
+    /** Applies normalized construction input to the shared config store. */
+    private applyConfigParams(params: object): void {
+
+        for (const [key, value] of Object.entries(params))
+            this.applyConfigParam_(key, value);
+    }
+
+    /** Applies one raw config input and its immediate position command. */
+    private applyConfigParam_(key: string, value: unknown): void {
+
+        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        if (!patch) {
+
+            if (viewerConfig.looksLikeConfigKey(key)) {
+                console.warn(
+                    `Unknown configuration key '${key}'; ignored.`);
+            }
+            return;
+        }
+
+        this.configStore.set(patch);
+
+        const legacyMap = this.map_?.legacyMap;
+        if (legacyMap && 'position' in patch && patch.position != null)
+            legacyMap.setPosition(patch.position);
+    }
+
+    /** Registers Viewer-owned configuration reactions. */
+    private watchConfig_(): void {
+
+        for (const key of uiControlKeys) {
+
+            this.unsubscribes_.push(this.configStore.watch(
+                [key],
+                () => this.updateUI_(key),
+            ));
+        }
+
+        this.unsubscribes_.push(this.configStore.watch(
+            ['autoRotate', 'autoPan'],
+            (values) => {
+
+                if (this.legacyMap) {
+                    this.autopilot_.setAutorotate(values.autoRotate);
+                    this.autopilot_.setAutopan(
+                        values.autoPan[0], values.autoPan[1]);
+                }
+            },
+        ));
+    }
+
+    private updateUI_(key: keyof viewerConfig.ViewerConfig): void {
+
+        this.ui_.setParam(key);
+    }
+
+    private onMapLoaded_(): void {
+
+        this.mapLoaded = true;
+        this.autopilot_.setAutorotate(this.config.autoRotate);
+        this.autopilot_.setAutopan(
+            this.config.autoPan[0], this.config.autoPan[1]);
+    }
+
+    private onMapUnloaded_(): void {
+    }
+
+    private onMapUpdate_(): void {
+
+        this.dirty_ = true;
+    }
+
+    private onMapPositionChanged_(): void {
+
+        if (this.config.positionInUrl) this.updatePosInUrl_ = true;
+    }
+
+    private onMapPositionFixedHeightChanged_(): void {
+
+        if (this.config.positionInUrl) this.updatePosInUrl_ = true;
+    }
+
+    private onMapPositionPanned_(): void {
+
+        this.mapInteracted_ = true;
+    }
+
+    private onMapPositionRotated_(): void {
+
+        this.mapInteracted_ = true;
+    }
+
+    private onMapPositionZoomed_(): void {
+
+        this.mapInteracted_ = true;
+    }
+
+    private onTick_(): void {
+
+        if (this.disposed_) return;
+
+        this.autopilot_.tick();
+        this.ui_.tick(this.dirty_);
+        this.dirty_ = false;
+
+        if (!this.updatePosInUrl_) return;
+
+        const timer = performance.now();
+        if (timer - this.lastUrlUpdateTime_ <= 1000) return;
+
+        if (window.history.replaceState) {
+            window.history.replaceState(
+                {},
+                '',
+                this.getLinkWithCurrentPos_(),
+            );
+        }
+
+        this.updatePosInUrl_ = false;
+        this.lastUrlUpdateTime_ = timer;
+    }
+
+    private getLinkWithCurrentPos_(): string {
+
+        const map = this.legacyMap;
+        if (!map) return '';
+
+        const params = utils.getParamsFromUrl(
+            window.location.href) as Record<string, string>;
+        let position = map.getPosition();
+        position = map.convertPositionHeightMode(position, 'fix', true);
+
+        const coords = position.getCoords();
+        const orientation = position.getOrientation();
+        const serialized = [
+            position.getViewMode(),
+            coords[0].toFixed(6),
+            coords[1].toFixed(6),
+            position.getHeightMode(),
+            coords[2].toFixed(2),
+            orientation[0].toFixed(2),
+            orientation[1].toFixed(2),
+            orientation[2].toFixed(2),
+            position.getViewExtent().toFixed(2),
+            position.getFov().toFixed(2),
+        ].join(',');
+
+        params.pos = serialized;
+
+        if (this.mapInteracted_) {
+
+            if (params.rotate || this.configStore.get('autoRotate'))
+                params.rotate = '0';
+
+            const pan = this.configStore.get('autoPan');
+            if (params.pan || pan[0] || pan[1]) params.pan = '0,0';
+        }
+
+        const query = Object.entries(params)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('&');
+        const urlParts = window.location.href.split('?');
+        if (urlParts.length > 1) {
+
+            const extraParts = urlParts[1].split('#');
+            return `${urlParts[0]}?${query}${extraParts[1] || ''}`;
+        }
+
+        return `${urlParts[0]}?${query}`;
+    }
+
+    /**
+     * Internal map-model accessor used by residual JS Viewer children.
+     */
+    private getMap(): LegacyMap | null {
+
+        return this.legacyMap;
+    }
+
+    /**
+     * Internal renderer accessor used by residual JS Viewer children.
+     */
+    private getRenderer(): Renderer {
+
+        return this._renderer;
+    }
+
+    /**
+     * Internal URL helper used by the link and measurement controls.
+     */
+    private getLinkWithCurrentPos(): string {
+
+        return this.getLinkWithCurrentPos_();
     }
 
     /** The cartolina-js library version string. */
@@ -122,9 +425,15 @@ class Viewer {
     [Symbol.dispose](): void {
 
         if (this.disposed_) return;
-        this.map_[Symbol.dispose]();
-        this._browser.kill();
+
         this.disposed_ = true;
+
+        for (const unsubscribe of this.unsubscribes_)
+            unsubscribe();
+        this.unsubscribes_ = [];
+
+        this.map_[Symbol.dispose]();
+        this.ui_.kill();
     }
 
     // -------------------------------------------------------------------------
@@ -500,7 +809,7 @@ class Viewer {
         }
 
         const patch = viewerConfig.normalizeConfigPatch(key, value);
-        if (patch) this._browser.configStore.set(patch);
+        if (patch) this.configStore.set(patch);
         return this;
     }
 
@@ -525,7 +834,7 @@ class Viewer {
                 `'${String(key)}' is not a public runtime parameter.`);
         }
 
-        return this._browser.configStore.get(key) as
+        return this.configStore.get(key) as
             Viewer.PublicRuntimeConfig[K];
     }
 
@@ -861,7 +1170,7 @@ class Viewer {
     // -------------------------------------------------------------------------
     // Legacy shims — pending promotion to flat Viewer methods
     //
-    // These three getters expose Browser sub-objects directly. They exist
+    // These three getters expose Viewer sub-objects directly. They exist
     // because no flat Viewer method covers the needed call sites yet.
     // Each one should be replaced by a specific typed method on Viewer
     // (e.g. `flyTo()` instead of `viewer.autopilot.flyTo()`), and the
@@ -874,10 +1183,10 @@ class Viewer {
      * @deprecated Direct sub-object access. Use a flat `Viewer` method
      *   once the relevant capability is promoted.
      */
-    get ui(): Browser['ui'] {
+    get ui(): InstanceType<typeof UI> {
 
         this.assertAlive();
-        return this._browser.ui;
+        return this.ui_;
     }
 
     /**
@@ -886,10 +1195,10 @@ class Viewer {
      * @deprecated Direct sub-object access. Use a flat `Viewer` method
      *   once the relevant capability is promoted.
      */
-    get autopilot(): Browser['autopilot'] {
+    get autopilot(): InstanceType<typeof Autopilot> {
 
         this.assertAlive();
-        return this._browser.autopilot;
+        return this.autopilot_;
     }
 
     /**
@@ -898,10 +1207,10 @@ class Viewer {
      * @deprecated Direct sub-object access. Use a flat `Viewer` method
      *   once the relevant capability is promoted.
      */
-    get presenter(): Browser['presenter'] {
+    get presenter(): InstanceType<typeof Presenter> {
 
         this.assertAlive();
-        return this._browser.presenter;
+        return this.presenter_;
     }
 
     // -------------------------------------------------------------------------
@@ -926,10 +1235,10 @@ class Viewer {
      *
      * @param mode control mode identifier
      */
-    setControlMode(mode: Browser['controlMode']): this {
+    setControlMode(mode: InstanceType<typeof ControlMode>): this {
 
         this.assertAlive();
-        this._browser.setControlMode(mode);
+        this.controlMode = mode;
         return this;
     }
 
@@ -938,10 +1247,10 @@ class Viewer {
      *
      * See `setControlMode()` for the built-in mode semantics.
      */
-    getControlMode(): Browser['controlMode'] | null {
+    getControlMode(): InstanceType<typeof ControlMode> | null {
 
         this.assertAlive();
-        return this._browser.getControlMode();
+        return this.controlMode;
     }
 
 }

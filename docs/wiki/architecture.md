@@ -47,11 +47,9 @@ whose concern it matches. New public API belongs on `Viewer`. New map
 data model state and per-frame state belongs on `Map`. New graphics
 work belongs on `Renderer`.
 
-Two other classes exist as residual or transitional structures:
-`Browser` holds legacy UI helpers being absorbed into `Viewer`;
-`LegacyMap` is the JS half of `Map` being absorbed. Neither is a
-separate subsystem of the architecture; they are work-in-progress on
-the way to the three-class shape.
+One other class exists as a transitional structure: `LegacyMap` is the
+JS half of `Map` being absorbed. It is not a separate subsystem of the
+architecture; its name records implementation status.
 
 The "Runtime Objects" section below shows the full ownership chain.
 
@@ -127,25 +125,21 @@ The current ownership chain is:
 
 ```text
 Viewer                         public API
-    Browser                      legacy UI helpers
-      UI                         DOM controls
-      Autopilot                  camera animation
-      Presenter                  tour playback
-      ControlMode                input handling
-      Map                        typed map data model and engine owner
-        LegacyMap                JS half of Map (being absorbed)
-        Renderer                 WebGL2 renderer
-          GpuDevice              GL context and render targets
+    UI                           DOM controls
+    Autopilot                    camera animation
+    Presenter                    tour playback
+    ControlMode                  input handling
+    Map                          typed map data model and engine owner
+      LegacyMap                  JS half of Map (being absorbed)
+      Renderer                   WebGL2 renderer
+        GpuDevice                GL context and render targets
 ```
 
 `Viewer` is the public API. It exposes a flat MapLibre-like method
-surface and owns the `Browser` instance. It also keeps a shortcut to the
-internal `Map` object so public methods do not repeatedly walk through
-`Browser`.
-
-`Browser` holds the legacy UI helper objects: DOM controls, input
-handling, camera animation, and presenter playback. It is private to
-`Viewer` and is being absorbed into it as feature work touches that code.
+surface and directly owns the internal `Map`, DOM controls, input
+handling, camera animation, and presenter playback. Residual JavaScript
+children receive the `Viewer` and call its narrow internal accessors;
+they do not form another ownership layer.
 
 `Map` in `src/core/map.ts` is the typed map data model and logic.
 It is not the public API class — that is `Viewer`. `Map` owns the
@@ -206,7 +200,6 @@ method when a capability needs to be public.
 The remaining migration direction is:
 
 - route `Viewer` methods through `Map`
-- move `Browser` behaviour into `Viewer`
 - move `LegacyMap` behaviour into `Map` when feature work already
   touches that area
 - keep `Renderer` as the owner of GPU state

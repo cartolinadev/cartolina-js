@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-26 — Browser dissolved into Viewer
+
+Removed the private `Browser` ownership layer. `Viewer` now constructs and
+owns the config store, `Map`, UI, control mode, autopilot, presenter,
+configuration watchers, event subscriptions, position-in-URL state, and
+teardown. Residual JavaScript UI children receive `Viewer` directly through
+the same narrow internal calls; no compatibility wrapper replaced `Browser`.
+
+Construction now rolls back the map and UI wrapper if a later child fails.
+Disposal drains Viewer-owned subscriptions before releasing the map and DOM.
+The unused `Rois` tree and unimported `ExploreBar` were deleted with
+`browser.js`.
+
+The typecheck, all 82 unit tests, production build, and a targeted Playwright
+lifecycle check pass. The lifecycle check covered configuration watchers,
+position-in-URL, invalid options, non-interactive construction, disposal
+before and after readiness, repeated disposal, DOM removal, and calls after
+disposal. Fresh-server dev/production captures for `simple-terrain`,
+`complex-terrain`, and `full-terrain` completed without reported console or
+network errors; all six images were inspected and match.
+
 ## 2026-07-26 — Native and mapConfig construction defaults separated
 
 Removed the vestigial two-factory construction shape. `Viewer` now accepts

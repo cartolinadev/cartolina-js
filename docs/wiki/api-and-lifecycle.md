@@ -26,9 +26,9 @@ viewer.on('map-loaded', () => {
 });
 ```
 
-`Map` in `src/core/map.ts` is internal. It is the typed boundary between
-`Browser` and the engine objects. Methods move from `Map` to `Viewer`
-as feature work touches them. `Map` exposes internal fields such as
+`Map` in `src/core/map.ts` is internal. It is the typed map-model
+boundary below `Viewer`. Methods move from `Map` to `Viewer` as feature
+work touches them. `Map` exposes internal fields such as
 `map`, `renderer`, and `configStore` only while `LegacyMap` is being
 absorbed; legacy modules reach the `Map` instance through their `core`
 back-references.
@@ -44,7 +44,6 @@ That pattern is partly gone:
 | Name | Role | Status |
 |---|---|---|
 | `Viewer` | Public API | Stays |
-| `Browser` | Legacy UI helpers | Moves into `Viewer` |
 | `Map` | Typed map data model and logic | Stays; absorbs JS halves below |
 | `CoreInterface` | Legacy public wrapper | Deleted |
 | `MapInterface` | Thin legacy delegation wrapper | Deleted |
@@ -62,9 +61,9 @@ The `map()` factory returns a usable object or throws. It does not
 return `null` for unsupported WebGL, failed engine creation, or
 invalid construction state.
 
-When construction fails, the constructor raises before inserting DOM
-nodes. This keeps `Viewer`, `Browser`, and `Map` out of half-created
-states.
+When construction fails after the UI wrapper is inserted, `Viewer`
+disposes any constructed `Map` and removes the wrapper before rethrowing.
+Unsupported WebGL and invalid top-level options fail before DOM insertion.
 
 Legacy optional chains and `null` returns that only tolerate missing
 core objects are migration debt. Remove them when touching the owning
@@ -106,9 +105,9 @@ normalizer, URL parse kind, and visibility class — and the
 all derive from it. Invalid input falls back to the key's
 catalogue default, produced fresh for array values.
 
-The store's live value map is the single config object: `Map.config`,
-`LegacyMap.config`, `Renderer.config`, and `Browser.config` all alias
-it, so reads anywhere see the same normalized values immediately.
+The store's live value map is the single config object: `Viewer.config`,
+`Map.config`, `LegacyMap.config`, and `Renderer.config` all alias it, so
+reads anywhere see the same normalized values immediately.
 
 `Viewer.setParam(key, value)` and `Viewer.getParam(key)` are typed
 over `Viewer.PublicRuntimeConfig` (`src/core/viewer-config.ts`), the
@@ -145,11 +144,10 @@ override the complete conversion result. Compatibility is therefore
 ordinary construction input, not a second implicit default source.
 
 The remaining permissive ingestion paths accept the full catalogue
-and the legacy `pos` / `rotate` / `pan` aliases. The internal
-construction bag is flattened by `Viewer` and flows through
-`Browser.applyConfigParams`;
-`position` additionally acts on the loaded map at once. Unknown
-keys are dropped, and a dropped key carrying a config prefix
+and the legacy `pos` / `rotate` / `pan` aliases. `Viewer` flattens and
+applies the internal construction bag; `position` additionally acts on
+the loaded map at once. Unknown keys are dropped, and a dropped key
+carrying a config prefix
 (`map`, `renderer`, `control`, `debug`) is logged. The style
 `config` block also accepts the full catalogue and aliases, but
 drops unknown keys without logging. The vts-era
@@ -251,7 +249,7 @@ both return an unsubscribe function; both are surfaced on `Viewer`.
 `map-unloaded`, `map-update`, the position-change pair). The legacy emitters receive the bus instance
 at construction and publish through it directly: `LegacyMap`
 (geo-feature events) and `GpuDevice` (context-loss events).
-Browser-layer code emits through `Map.emit`.
+Viewer-layer code emits through `Map.emit`.
 
 Dispatch is per event name: `emit` visits only listeners registered
 for the emitted name and returns without allocation when none are
@@ -293,10 +291,9 @@ Event names and payload types are defined by `ViewerEventMap` in
 `kill()` is the inherited lifecycle convention used by engine objects,
 map resources, GPU resources, and tile resources.
 
-Engine objects such as `Map`, `LegacyMap`, and `Browser` hold a
-`killed` flag. After disposal or `kill()`, the animation frame
-callback and pending async callbacks check that flag before touching
-the object.
+Engine objects such as `Map` and `LegacyMap` hold a `killed` flag.
+After disposal or `kill()`, the animation frame callback and pending
+async callbacks check that flag before touching the object.
 
 `LegacyMap.kill()` releases map-owned resources but does not destroy
 the shared `Renderer`. `Map.unloadMap()` may unload one map and later
@@ -307,8 +304,8 @@ The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing
 results, so evicted resources are discarded.
 
-`Browser.kill()` drains the unsubscribe closures stored for every
-listener registered at construction.
+`Viewer[Symbol.dispose]()` drains its event and configuration
+unsubscribe closures, disposes `Map`, and removes the UI wrapper.
 
 The following TypeScript classes implement `[Symbol.dispose]()` as the
 canonical teardown hook:
@@ -328,8 +325,8 @@ calls it directly. The shim delegates to `[Symbol.dispose]()` and
 carries a comment naming the JS file. Remove it once that file is
 migrated to TypeScript.
 
-`Renderer` uses `disposed_` as its guard field. The legacy `killed`
-name is retained on `Map`, `LegacyMap`, `Browser`, and their JS
+`Renderer` and `Viewer` use `disposed_` as their guard field. The
+legacy `killed` name is retained on `Map`, `LegacyMap`, and their JS
 resource callbacks.
 
 New classes and major refactors should prefer modern forms:

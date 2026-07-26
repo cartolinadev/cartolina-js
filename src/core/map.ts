@@ -141,7 +141,7 @@ class Map {
     private bus_: EventBus<ViewerEventMap> = new EventBus();
 
     /**
-     * The runtime config store. Owned by `Browser`, which seeds it
+     * The runtime config store. Owned by `Viewer`, which seeds it
      * with the caller's options before constructing this `Map`;
      * `Map.tick` flushes it at the start of every frame so watchers
      * reconfigure before the draw.

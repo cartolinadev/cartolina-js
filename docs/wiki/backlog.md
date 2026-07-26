@@ -56,21 +56,6 @@ items from the RFC's test lists remain unautomated:
 The first three are unit or Playwright tests; the last needs a small
 public fixture dataset.
 
-## Dissolve `Browser` into `Viewer`
-
-**Opened:** 2026-07-17
-**Updated:** 2026-07-26
-
-`Browser` is a private transitional owner for UI, navigation, configuration
-watchers, position-in-URL updates, and teardown. Move those responsibilities
-into `Viewer` and delete `src/browser/browser.js`; do not replace it with
-another context wrapper.
-
-Preserve construction, failure rollback, listener and watcher teardown,
-configuration reactions, and position-in-URL behavior. Delete unused children
-instead of moving them: `Rois` has no live caller, and `ExploreBar` is not
-imported.
-
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10
@@ -1844,8 +1829,8 @@ track avoided inflating the RFC's scope.
 ### Done
 
 `Map` (`src/core/map.ts`) exists and replaces `CoreInterface`. `Viewer`
-holds `_core: Map`; `Browser` constructs `Map` directly. `CoreInterface`
-and its `.d.ts` are deleted.
+constructs and holds `Map` directly. `CoreInterface`, `Core`, and their
+declarations are deleted.
 
 ### Remaining
 
@@ -1876,28 +1861,27 @@ instead, allowing the `core` shim to be deleted.
 
 ### Goal
 
-Construction of `Viewer`, `Browser`, `Map`, `Core`, and `Renderer`
-should either complete or throw. An instance with no engine object is not
-a valid object.
+Construction of `Viewer`, `Map`, and `Renderer` should either complete
+or throw. An instance with no engine object is not a valid object.
 
 ### Done
 
-`Browser` now throws when WebGL2 support is absent. `map()` and
-`browser()` return `Viewer`, not `Viewer | null`. Non-legacy demos no
-longer check the factory result for falsiness.
+`Viewer` throws when WebGL2 support is absent. `map()` returns `Viewer`,
+not `Viewer | null`. Non-legacy demos no longer check the factory result
+for falsiness.
 
 `GpuDevice` now throws when canvas or WebGL2 context creation fails.
 `Map` keeps its `Core` reference non-null; after disposal, public
 methods throw instead of returning `null`.
 
 `GpuDevice.checkSupport()` is the canonical pre-flight probe; it is
-called by `Browser` before DOM insertion. The legacy `checkSupport`
+called by `Viewer` before DOM insertion. The legacy `checkSupport`
 function in `core.js` and its re-export from the public namespace are
 removed.
 
-`Browser.setConfigParam()` no longer reads `Browser.core` before `Core`
-construction. Constructor-time config stores browser-owned values first;
-engine forwarding happens only after the `Map` boundary object exists.
+Constructor-time config is stored before `Map` construction. `Viewer`
+rolls back a constructed map and UI wrapper if a later child constructor
+throws.
 
 ### Remaining
 
@@ -1915,8 +1899,8 @@ nullable returns mostly describe runtime states:
   lifecycle behavior, not construction failure.
 
 Keep this item open until one more focused audit confirms that nullable
-checks in `Viewer`, `Map`, `Browser`, `Core`, `Renderer`, and
-`GpuDevice` fall into the runtime-state categories above. Remove a check
+checks in `Viewer`, `Map`, `Renderer`, and `GpuDevice` fall into the
+runtime-state categories above. Remove a check
 only if it exists solely to tolerate a failed constructor after an object
 has already been returned.
 
@@ -1963,7 +1947,7 @@ dependency on the legacy constants file from typed GPU code.
 ### Motivation
 
 `Viewer.ui`, `Viewer.autopilot`, and `Viewer.presenter` hand the caller
-entire `Browser` sub-objects whose method surfaces are untyped legacy JS.
+entire legacy JS sub-objects whose method surfaces are untyped.
 A caller using `viewer.autopilot.flyTo(...)` works directly in the legacy
 object graph, bypassing the typed `Viewer` surface. This is inconsistent
 with the goal of a flat, typed public API and the AGENTS.md rule against
