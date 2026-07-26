@@ -12,12 +12,12 @@ direction. Format details live in
 
 ## Map And Renderer Boundary
 
-`Map` in `src/core/map.ts` is the future home for map data, camera
+`Map` in `src/map/map.ts` is the future home for map data, camera
 state, tile selection, culling decisions, coordinate conversion,
 measurement, style interpretation, and calls that decide what should be
 drawn.
 
-Supporting TypeScript files under `src/core/map/` should hold pieces of
+Supporting TypeScript files under `src/map/` should hold pieces of
 that work when a separate file keeps the code clearer. Legacy files such
 as `map.js`, `draw.js`, and `surface-tree.js` are being absorbed into
 `Map` and supporting TypeScript files as feature work touches them.
@@ -53,16 +53,16 @@ through draw traversal.
 
 ## Terrain Tile Rendering
 
-`src/core/map/tile-render-rig.ts` is the current terrain tile renderer.
+`src/map/tile-render-rig.ts` is the current terrain tile renderer.
 One `TileRenderRig` resolves tile resources, tracks readiness, builds
 the style layer stack, collapses bump maps into the normal map when
 possible, and renders color and depth passes for one terrain tile.
 
 The default terrain draw path now enters
-`src/core/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.
+`src/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.
 It performs recursive backtracking over the legacy-selected terrain
 surface and uses UV-space R8 masks from
-`src/core/map/draw-traversal-mask.ts` to stop fallback tiles from
+`src/map/draw-traversal-mask.ts` to stop fallback tiles from
 overdrawing finer child coverage. The traversal uses v6
 `metanode.watertight` flags as a post-draw fast path: a drawn
 watertight tile skips footprint rasterization and returns analytic full
@@ -78,8 +78,8 @@ This replaced the old terrain draw-command path that was split across:
 2026-05. Remaining draw code still serves runtime behaviour,
 especially geodata. The legacy draw files include:
 
-- `src/core/map/draw.js`
-- `src/core/map/draw-tiles.js`
+- `src/map/draw.js`
+- `src/map/draw-tiles.js`
 
 Those files predate the style layer stack and the per-tile rig. They are
 shrunk only when feature work removes a caller or replaces a behaviour
@@ -172,7 +172,7 @@ those cases to avoid visible artifacts.
 
 `overrides` is a single runtime object holding all per-frame rendering
 overrides. Its type, `Overrides`, and its defaults, `defaultOverrides`,
-are defined in `src/core/map/overrides.ts` and derived with `typeof` so
+are defined in `src/map/overrides.ts` and derived with `typeof` so
 the type and the defaults cannot drift.
 
 The typed `Map` (`map.ts`) owns the object as a class field:

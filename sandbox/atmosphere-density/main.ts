@@ -3,14 +3,14 @@
 // Diagnostic app: compare CPU-decoded atmosphere density RGB vs GPU sampling.
 //
 // Engine touchpoints:
-// - Style loading: MapStyle.loadStyle (src/core/map/style.ts)
+// - Style loading: MapStyle.loadStyle (src/map/style.ts)
 // - Atmosphere helper: Atmosphere.decodeAtmosphereDensity(img: ImageData)
 // - GPU parity: upload as RGB8UI with format RGB_INTEGER (matches engine)
 
-import Map from '../../src/core/map';
-import ConfigStore from '../../src/core/config-store';
-import * as viewerConfig from '../../src/core/viewer-config';
-import Atmosphere from '../../src/core/map/atmosphere';
+import Map from '../../src/map/map';
+import ConfigStore from '../../src/config-store';
+import * as viewerConfig from '../../src/viewer-config';
+import Atmosphere from '../../src/map/atmosphere';
 
 // a minimal style over one global terrain surface; the empty
 // atmosphere section enables the body's atmosphere defaults

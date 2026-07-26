@@ -143,7 +143,7 @@ The sections below trace each phase in detail.
 
 ### Frame entry
 
-`MapDraw.drawMap()` in `src/core/map/draw.js` opens the frame by
+`MapDraw.drawMap()` in `src/map/draw.js` opens the frame by
 clearing the job buffer:
 
 ```js
@@ -171,7 +171,7 @@ tiles. The option is a candidate for removal.
 
 ### From tile to GPU jobs
 
-`MapDrawTiles.drawGeodataTile()` in `src/core/map/draw-tiles.js`
+`MapDrawTiles.drawGeodataTile()` in `src/map/draw-tiles.js`
 handles a single matched tile. It creates a `MapGeodataView` for the
 tile, waits for the geodata resource to load and for worker processing
 to finish, then calls `MapGeodataView.draw()`.
@@ -203,7 +203,7 @@ diagnostic separates the two.
 
 Converting raw tile JSON into GPU-ready vertex buffers is too slow to
 do on the main thread without frame drops. `MapGeodataProcessor`
-(`src/core/map/geodata-processor/processor.js`) spawns a dedicated web
+(`src/map/geodata-processor/processor.js`) spawns a dedicated web
 worker (`geodata-processor-worker.js`) that handles this work
 asynchronously.
 
@@ -335,7 +335,7 @@ z-index slot determines draw order; higher z-index draws on top.
 
 ## Phase 2 — Job dispatch
 
-`RendererDraw.drawGpuJobs()` in `src/core/renderer/draw.js` iterates
+`RendererDraw.drawGpuJobs()` in `src/renderer/draw.js` iterates
 over the z-buffer from slot 0 to 512. For each slot it calls
 `drawGpuJob()` for every queued job, then runs any pending density pass
 and resolves deferred label draws.
@@ -378,7 +378,7 @@ and resolves deferred label draws.
 
 ### Collision detection
 
-`RendererRMap` in `src/core/renderer/rmap.js` is a screen-space
+`RendererRMap` in `src/renderer/rmap.js` is a screen-space
 occupancy grid. The screen is divided into fixed-size cells; each cell
 holds a list of the rectangles and circles already placed in that area.
 
@@ -407,7 +407,7 @@ When `importance-source` is set on a style layer, the worker injects a
 density modes. Jobs with these modes are not drawn immediately during
 their z-level pass. Instead they are collected into `renderer.gmap[]`,
 and after each z-level batch, one of `processGMap4()` through
-`processGMap7()` in `src/core/renderer/gmap.js` decides which to draw
+`processGMap7()` in `src/renderer/gmap.js` decides which to draw
 based on spatial density and the feature's prominence score.
 
 The static `reduce` property (evaluated in the worker) is different: it
@@ -565,26 +565,26 @@ but is not used by any current test style.
 
 ## Files referenced
 
-- `src/core/map/draw.js` — frame entry, job collection, monolithic
+- `src/map/draw.js` — frame entry, job collection, monolithic
   geodata path
-- `src/core/map/draw-tiles.js` — `MapDrawTiles.drawGeodataTile()`
-- `src/core/map/geodata-view.js` — `MapGeodataView`, worker bridge,
+- `src/map/draw-tiles.js` — `MapDrawTiles.drawGeodataTile()`
+- `src/map/geodata-view.js` — `MapGeodataView`, worker bridge,
   GPU group matrix updates
-- `src/core/map/geodata-processor/processor.js` — worker lifecycle and
+- `src/map/geodata-processor/processor.js` — worker lifecycle and
   stylesheet dispatch
-- `src/core/map/geodata-processor/worker-main.js` — `processGeodata()`,
+- `src/map/geodata-processor/worker-main.js` — `processGeodata()`,
   `processGroup()`, `processFeatures()`, hover/selection state routing
-- `src/core/map/geodata-processor/worker-pointarray.js` — point and
+- `src/map/geodata-processor/worker-pointarray.js` — point and
   label geometry: `processLabel()`, `processIcon()`
-- `src/core/map/geodata-processor/worker-linestring.js` — line
+- `src/map/geodata-processor/worker-linestring.js` — line
   triangulation and on-path text layout
-- `src/core/map/geodata-processor/worker-polygon.js` — polygon fill,
+- `src/map/geodata-processor/worker-polygon.js` — polygon fill,
   border routing to line and point processors
-- `src/core/renderer/gpu/group.js` — `GpuGroup`, job buffer insertion,
+- `src/renderer/gpu/group.js` — `GpuGroup`, job buffer insertion,
   `addRenderJob2()`
-- `src/core/renderer/draw.js` — `RendererDraw.drawGpuJobs()`,
+- `src/renderer/draw.js` — `RendererDraw.drawGpuJobs()`,
   `drawGpuJob()`, `processNoOverlap()`
-- `src/core/renderer/rmap.js` — `RendererRMap`, screen-space occupancy
+- `src/renderer/rmap.js` — `RendererRMap`, screen-space occupancy
   grid
-- `src/core/renderer/gmap.js` — density-based label reduction passes
-- `src/core/constants.ts` — job type and worker command constants
+- `src/renderer/gmap.js` — density-based label reduction passes
+- `src/constants.ts` — job type and worker command constants

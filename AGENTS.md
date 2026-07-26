@@ -293,7 +293,7 @@ commit at logical milestones, not after every step. On the main branch,
 always ask before committing.
 
 Commit hooks may add version bumps to `package.json` or
-`src/core/version.js`. Leave those hook-generated version changes in the
+`src/version.ts`. Leave those hook-generated version changes in the
 commit even when asked to commit only a specific logical change.
 
 ## Orientation
@@ -467,7 +467,7 @@ otherwise: `simple-terrain`, `complex-terrain`, `full-terrain`.
    exactly one server on the canonical port; if webpack selects another
    port, stop it and resolve the listener on 8080 instead of testing
    across two servers. Before capture, verify that the version served
-   from `build/cartolina.js` matches `src/core/version.js` in the
+   from `build/cartolina.js` matches `src/version.ts` in the
    current checkout.
 
 2. Use [test/screenshot.js](test/screenshot.js) to capture and compare
@@ -713,14 +713,14 @@ runtime shape, define the input type as a variation of that derived type
 the full structure.
 
 **Resolving the `Map` name collision.**
-The old ES5 `Map` class (`src/core/map/map.js`, the JS half being
+The old ES5 `Map` class (`src/map/legacy-map.js`, the JS half being
 absorbed) has the same default-export name as the new TypeScript `Map`
-class (`src/core/map.ts`). In any TypeScript module that imports the
+class (`src/map/map.ts`). In any TypeScript module that imports the
 old class, use the alias `LegacyMap`:
 
 ```ts
-import type LegacyMap from './map/map'; // JS half of Map (being absorbed)
-import Map from '../map';               // typed map data model
+import type LegacyMap from './legacy-map'; // JS half being absorbed
+import Map from './map';                   // typed map data model
 ```
 
 Apply the alias in all TypeScript modules — not only where both names
@@ -850,7 +850,7 @@ JavaScript is not a reason to move the type elsewhere — that status is
 temporary.
 
 Do not create or add to a layer-level catch-all `types.ts`.
-`src/core/types.ts` is temporary migration staging for types whose
+`src/map/types.ts` is temporary migration staging for types whose
 legacy owners have not migrated yet; move each resident when its owner
 migrates, then delete the file. A genuinely domain-neutral type-level
 utility gets a narrowly named module only when a concrete use requires
@@ -884,12 +884,12 @@ with an inline `import()` type:
 
 ```ts
 namespace Viewer {
-    export type OverlaySpec = import('../core/map').OverlaySpec;
+    export type OverlaySpec = import('../map/map').OverlaySpec;
 }
 ```
 
 This holds at the package boundary too. The public entry point
-([index.ts](src/browser/index.ts)) exports no bare type names; every
+([index.ts](src/viewer/index.ts)) exports no bare type names; every
 public type is reached through the `Map` namespace — `Map.Options`,
 `Map.OverlaySpec`, `Map.PositionInput`, `Map.PublicRuntimeConfig`, and
 so on. Surface a type by adding it to `Viewer`'s namespace (`Viewer` is
@@ -902,7 +902,7 @@ not given a name.
 
 Modules that export only free functions and types (no primary class) use
 regular named exports, as in
-[illumination.ts](src/core/map/illumination.ts). Import them as a
+[illumination.ts](src/map/illumination.ts). Import them as a
 namespace — `import * as utils from './utils/utils'` — never through
 named imports, so every call site names its origin. Fix named imports
 whenever the importing file is already being changed.
@@ -922,8 +922,8 @@ out in this order:
    **Declaration merging for exported types** above).
 6. `export default`.
 
-[atmosphere.ts](src/core/map/atmosphere.ts) and
-[tile-render-rig.ts](src/core/map/tile-render-rig.ts) follow this
+[atmosphere.ts](src/map/atmosphere.ts) and
+[tile-render-rig.ts](src/map/tile-render-rig.ts) follow this
 pattern. Do **not** put local types between the imports and the class
 — that pushes the class down and reads as if those types were part of
 the public surface.
@@ -934,7 +934,7 @@ Every new class and every new module shall have a JSDoc block:
 
 - **Module-level:** a leading one-line block comment naming the file
   and stating its job in a single sentence, matching the pattern in
-  [tile-render-rig.ts](src/core/map/tile-render-rig.ts):
+  [tile-render-rig.ts](src/map/tile-render-rig.ts):
 
   ```ts
   /*
@@ -955,8 +955,8 @@ Every new class and every new module shall have a JSDoc block:
 - **Public methods and constructors:** JSDoc with `@param` and
   `@returns` for non-obvious signatures.
 
-Use [tile-render-rig.ts](src/core/map/tile-render-rig.ts) and
-[atmosphere.ts](src/core/map/atmosphere.ts) as reference examples for
+Use [tile-render-rig.ts](src/map/tile-render-rig.ts) and
+[atmosphere.ts](src/map/atmosphere.ts) as reference examples for
 documentation style.
 
 Private methods usually do not need JSDoc unless their functionality is
@@ -1052,14 +1052,14 @@ until it can.
 
 ## WebGL2 shaders
 
-Shaders live in [src/core/renderer/shaders/](src/core/renderer/shaders/):
+Shaders live in [src/renderer/shaders/](src/renderer/shaders/):
 
 - Fragment shaders: `<name>.frag.glsl`
 
 - Vertex shaders: `<name>.vert.glsl`
 
 - Shared include files:
-  `src/core/renderer/shaders/includes/<name>.inc.glsl`
+  `src/renderer/shaders/includes/<name>.inc.glsl`
 
 All shaders target GLSL ES 3.00 (`#version 300 es`).
 
@@ -1098,18 +1098,18 @@ the headless use case from the same build.
 
 Internal class structure:
 
-- **`Viewer`** ([src/browser/viewer.ts](src/browser/viewer.ts)) — the
+- **`Viewer`** ([src/viewer/viewer.ts](src/viewer/viewer.ts)) — the
   public API. Flat, typed, MapLibre-style method surface. Public API
   design should follow the
   [MapLibre GL JS](#maplibre-gl-js-primary) conventions where
   applicable.
-- **`Map`** ([src/core/map.ts](src/core/map.ts)) — the typed map data
+- **`Map`** ([src/map/map.ts](src/map/map.ts)) — the typed map data
   model and logic, graphics-library-independent. Owns the frame loop,
   lifecycle, and state that is map-model in nature. Not the public API
-  class. `LegacyMap` ([src/core/map/map.js](src/core/map/map.js)) is
+  class. `LegacyMap` ([src/map/legacy-map.js](src/map/legacy-map.js)) is
   the unfinished JS version of the same object and is absorbed into
   `Map` as feature work touches it.
-- **`Renderer`** ([src/core/renderer/renderer.ts](src/core/renderer/renderer.ts))
+- **`Renderer`** ([src/renderer/renderer.ts](src/renderer/renderer.ts))
   — the WebGL2 graphics class. Also serves as the public surface for
   custom drawing from inside overlay callbacks (`Renderer.drawImage`,
   `Renderer.drawLineString`, `Renderer.createTexture`,
@@ -1120,16 +1120,24 @@ Internal class structure:
 
 Place new TypeScript modules according to their architectural owner.
 
-Use `src/core/` for core map-rendering functionality. Its existing
-sub-structure is:
+The source tree follows the architectural owner:
 
 ```text
-src/core/
-  map/          — map-level objects (Atmosphere, TileRenderRig, Style, ...)
-  renderer/     — rendering pipeline (Renderer, GpuDevice, GpuProgram, ...)
-  renderer/gpu/ — low-level GPU abstractions
-  utils/        — math, utilities
+src/
+  viewer/       — public Viewer, UI, input, autopilot, presenter
+  map/          — map model, loading, styles, event bus, legacy JS map
+  renderer/     — rendering pipeline and low-level GPU abstractions
+  inspector/    — runtime diagnostics
+  utils/        — domain-neutral runtime utilities
+  compat/       — explicit compatibility entry point
+  types/        — ambient declarations
+
+  config-store.ts
+  viewer-config.ts
+  constants.ts
+  version.ts
 ```
 
 Place new modules in the most specific matching directory. Do not create
-new top-level directories without a clear reason.
+forwarding modules, aliases, or catch-all shared directories to blur
+ownership.

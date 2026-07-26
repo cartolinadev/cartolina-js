@@ -10,7 +10,7 @@ ownership map.
 ## Public API Surface
 
 There is one public entry point: `Viewer`, exported as the type alias
-`Map` from `src/browser/index.ts`. It follows the MapLibre GL JS
+`Map` from `src/viewer/index.ts`. It follows the MapLibre GL JS
 convention: one flat class, no required access through sub-objects.
 
 ```ts
@@ -26,7 +26,7 @@ viewer.on('map-loaded', () => {
 });
 ```
 
-`Map` in `src/core/map.ts` is internal. It is the typed map-model
+`Map` in `src/map/map.ts` is internal. It is the typed map-model
 boundary below `Viewer`. Methods move from `Map` to `Viewer` as feature
 work touches them. `Map` exposes internal fields such as
 `map`, `renderer`, and `configStore` only while `LegacyMap` is being
@@ -74,7 +74,7 @@ terrain under the cursor or an unloaded map property.
 
 The style specification is the only authored map contract. It is
 represented by `MapStyle.StyleSpecification` in
-`src/core/map/style.ts`. Every successfully constructed map has a
+`src/map/style.ts`. Every successfully constructed map has a
 validated style; core map and renderer code cannot observe whether
 the style was authored directly or converted.
 
@@ -95,9 +95,9 @@ methods throw before the `ready` promise resolves.
 ## Configuration
 
 Runtime configuration lives in one `ConfigStore<ViewerConfig>`
-(`src/core/config-store.ts`), implemented by
+(`src/config-store.ts`), implemented by
 [rfc1-config-store.md](rfc1-config-store.md). The single-source
-`catalogue` object (`src/core/viewer-config.ts`) declares every
+`catalogue` object (`src/viewer-config.ts`) declares every
 valid key exactly once — doc comment, producer default,
 normalizer, URL parse kind, and visibility class — and the
 `ViewerConfig` type, `defaultViewerConfig()`,
@@ -110,7 +110,7 @@ The store's live value map is the single config object: `Viewer.config`,
 reads anywhere see the same normalized values immediately.
 
 `Viewer.setParam(key, value)` and `Viewer.getParam(key)` are typed
-over `Viewer.PublicRuntimeConfig` (`src/core/viewer-config.ts`), the
+over `Viewer.PublicRuntimeConfig` (`src/viewer-config.ts`), the
 deliberate public subset of `ViewerConfig`: live, application-facing
 keys only. Every key in the subset is verified live — covered by a
 watcher with the required side effect, or read from the store's
@@ -166,7 +166,7 @@ and `rendererAllowScreenshots`, the per-texture
 `rendererAnisotropic`) accept writes through the ingestion paths
 but change nothing until the consuming object is next created. The
 construction-only keys are annotated in `ViewerConfig`
-(`src/core/viewer-config.ts`) and excluded from
+(`src/viewer-config.ts`) and excluded from
 `PublicRuntimeConfig`.
 
 `transformRequest(url, resourceType)` follows the MapLibre-style host
@@ -241,7 +241,7 @@ the config store and runs `Map.tick()`, which:
 ## Event Bus
 
 The event bus is a typed `EventBus<ViewerEventMap>`
-(`src/core/event-bus.ts`) owned by `Map`. `Map.on` and `Map.once`
+(`src/map/event-bus.ts`) owned by `Map`. `Map.on` and `Map.once`
 both return an unsubscribe function; both are surfaced on `Viewer`.
 `Map.emit` is internal — applications only subscribe.
 
@@ -262,7 +262,7 @@ match the MapLibre-style `on()` / `once()` API, allocates
 adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
 
 Event names and payload types are defined by `ViewerEventMap` in
-`src/core/map.ts`:
+`src/map/map.ts`:
 
 - `map-loaded`
 - `map-unloaded`
@@ -340,8 +340,8 @@ New classes and major refactors should prefer modern forms:
 
 The browser entry point imports CSS files for side effects:
 
-- `src/browser/browser.css`
-- `src/browser/presenter/css/*.css`
+- `src/viewer/viewer.css`
+- `src/viewer/presenter/css/*.css`
 
 Webpack handles these imports through loaders. TypeScript and editor
 tooling need an ambient declaration for `*.css`; it lives in

@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-26 — Source topology aligned with runtime ownership
+
+Moved the public entry point and UI tree from `src/browser/` to
+`src/viewer/`, the map model and its legacy JavaScript implementation to
+`src/map/`, and the renderer, inspector, and utilities out of `src/core/`.
+The typed map is `src/map/map.ts`; its transitional JavaScript half is
+`src/map/legacy-map.js` with a sibling declaration. Root configuration,
+constants, and version metadata now live directly under `src/`.
+
+Build, worker, package, test, sandbox, hook, contributor, and current wiki
+paths now follow those owners. No forwarding modules or aliases preserve the
+retired directories. The hook generates typed `src/version.ts` and stages it
+with `package.json`.
+
+The typecheck, all 82 unit tests, production build, and targeted Viewer
+lifecycle check pass. The build produced the global, ESM, compatibility,
+CSS, and both worker artifacts. A fresh development server served the
+generated source version. Sequential dev/production captures for
+`simple-terrain`, `complex-terrain`, and `full-terrain` completed without
+reported errors; all six images were inspected and match.
+
 ## 2026-07-26 — Browser dissolved into Viewer
 
 Removed the private `Browser` ownership layer. `Viewer` now constructs and

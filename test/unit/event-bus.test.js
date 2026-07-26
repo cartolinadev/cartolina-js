@@ -1,5 +1,5 @@
 /*
- * event-bus.test.js - unit tests for src/core/event-bus.ts
+ * event-bus.test.js - unit tests for src/map/event-bus.ts
  *
  * Run with `npm run test:unit`, which compiles the module under test
  * to tmp/unit-build before mocha executes this file.
@@ -8,7 +8,7 @@
 const assert = require('assert');
 
 const EventBus =
-    require('../../tmp/unit-build/src/core/event-bus').default;
+    require('../../tmp/unit-build/src/map/event-bus').default;
 
 describe('EventBus', function() {
 

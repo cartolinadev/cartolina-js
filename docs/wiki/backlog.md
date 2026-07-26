@@ -121,8 +121,8 @@ reproduce.
 
 **Opened:** 2026-07-07
 **Status:** deferred — no clean fix with the current density texture.
-**Related:** `src/core/map/atmosphere.ts`,
-`src/core/renderer/shaders/includes/atmosphere.inc.glsl`,
+**Related:** `src/map/atmosphere.ts`,
+`src/renderer/shaders/includes/atmosphere.inc.glsl`,
 `externals/vts-libs/.../vts/atmospheredensitytexture.cpp` (tileserver).
 
 The atmosphere shell is anchored to the datum with a fixed thickness.
@@ -168,8 +168,8 @@ atmosphere stays datum-anchored and static.
 
 **Opened:** 2026-06-29
 **Status:** deferred — expected future work, not an immediate priority.
-**Related:** `src/core/map/mesh.js`, `src/core/map/submesh.js`,
-`src/core/map/loader/worker-mesh.js`.
+**Related:** `src/map/mesh.js`, `src/map/submesh.js`,
+`src/map/loader/worker-mesh.js`.
 
 The next terrain format revision has several known reasons to be a clean
 break rather than another adjustment to the v1-v3 vertex layout:
@@ -203,8 +203,8 @@ client.
 **Opened:** 2026-06-23
 **Status:** deferred — fold into the JS→TS migration, ideally alongside a
 mesh-format change so both parsers move at once.
-**Related:** `src/core/map/submesh.js`, `src/core/map/loader/worker-mesh.js`,
-`src/core/map/mesh.js`.
+**Related:** `src/map/submesh.js`, `src/map/loader/worker-mesh.js`,
+`src/map/mesh.js`.
 
 The mesh binary is decoded by two near-identical parsers. `submesh.js`
 parses on the main thread as `MapSubmesh` prototype methods; `worker-mesh.js`
@@ -288,8 +288,8 @@ surface-packaging support
 
 Current cartolina-js does not consume configured metatile packaging
 values. Terrain metatile fetches use a literal aggregation order 5 in
-`src/core/map/surface-tile.js`; bound-layer texture metatiles use a
-literal order 8 in `src/core/map/texture.js`. Parsed reference-frame
+`src/map/surface-tile.js`; bound-layer texture metatiles use a
+literal order 8 in `src/map/texture.js`. Parsed reference-frame
 and surface `metaBinaryOrder` values are currently dead.
 
 This item has no standalone meaning before RFC 7 is implemented: the
@@ -383,7 +383,7 @@ The first failure mode is fixed on
 `feature/height-query-ownership`. A tree now claims the answer only
 with terrain evidence at the coordinate: a usable navtile, or geometry
 on the traced path (`params.sawGeometry`, set by the trace functions in
-[surface-tree.js](../../src/core/map/surface-tree.js)). A tree whose
+[surface-tree.js](../../src/map/surface-tree.js)). A tree whose
 trace ends on structural nodes falls through to the next
 surface back. A consulted tree that could not answer conclusively
 (metanode or navtile texture still loading) marks the result
@@ -465,7 +465,7 @@ coverage.
 
 ### Motivation
 
-`src/core/map/tile-render-rig.ts` is built around the style layer model.
+`src/map/tile-render-rig.ts` is built around the style layer model.
 That model should stay: it is the style-era terrain composition model,
 and the rig already does useful tile-local work. It owns the tile and
 submesh resource references, builds the prepared layer stack, tracks
@@ -789,14 +789,14 @@ The mask operations were counted directly by wrapping the four
 per frame. Footprint rasterization is already zero — every drawn tile is
 watertight (metatile v6; the whole fit frontier L1-L14 reads watertight)
 and returns before `addFootprint` in
-[draw-traversal.ts](../../src/core/map/draw-traversal.ts). The residual
+[draw-traversal.ts](../../src/map/draw-traversal.ts). The residual
 cost is fill and blit quads plus their clears.
 
 ### Root cause
 
 A node propagates watertight coverage with no mask only when all four
 child quadrants come back watertight
-([draw-traversal.ts:203](../../src/core/map/draw-traversal.ts)). Because
+([draw-traversal.ts:203](../../src/map/draw-traversal.ts)). Because
 every tile here is watertight and loaded, the only way a quadrant fails
 to return watertight is frustum culling: a culled quadrant is dropped in
 `collectChildActive` and never recursed, so its parent sees fewer than
@@ -1000,14 +1000,14 @@ are correct.
 The vertical-exaggeration scale factor depends on the camera view
 extent (zoom): `getVeScaleFactor` reads `position.pos[8]` and runs it
 through `currentScaleDenominator` —
-[src/core/renderer/renderer.ts:1657](../../src/core/renderer/renderer.ts).
+[src/renderer/renderer.ts:1657](../../src/renderer/renderer.ts).
 
 The terrain surface applies exaggeration on the GPU every frame at the
 live position, so it always matches the current zoom. The cull box and
 debug box use `bbox2`, whose exaggerated `minZ`/`maxZ` are baked in
 `MapSurfaceTile.isMetanodeReady` only when
 `tile.seCounter != renderer.seCounter` —
-[src/core/map/surface-tile.js:341](../../src/core/map/surface-tile.js).
+[src/map/surface-tile.js:341](../../src/map/surface-tile.js).
 `seCounter` advances only on exaggeration *configuration* changes
 (enable/disable, ramp setup), never on zoom. So once a node syncs to the
 current `seCounter` generation, its baked SE height is not refreshed as
@@ -1027,7 +1027,7 @@ not needed for the fix.
 ### Wider risk
 
 `bbox2` is the v4+ frustum cull volume —
-[src/core/map/surface-tile.js:646](../../src/core/map/surface-tile.js),
+[src/map/surface-tile.js:646](../../src/map/surface-tile.js),
 `pointsVisible(node.bbox2, …)`. A stale-baked `bbox2` mis-sizes culling
 against an exaggeration that no longer matches the live surface, so this
 is not only a debug-overlay artifact.
@@ -1035,7 +1035,7 @@ is not only a debug-overlay artifact.
 ### Fix (implemented, verified)
 
 Per-node factor invalidation in `MapSurfaceTile.isMetanodeReady`
-([surface-tile.js:341](../../src/core/map/surface-tile.js)): each
+([surface-tile.js:341](../../src/map/surface-tile.js)): each
 metanode records the scale factor it was baked at (`veBakedFactor`); the
 gate now also fires when `getVeScaleFactor(this.map.position)` differs
 from it, rebaking `minZ`/`maxZ` and `bbox2` at the current factor. The
@@ -1076,11 +1076,11 @@ versions 1–3. The v1–v3 code paths carry meaningful complexity:
 
 - Quantized physical extent decoding in
   `MapMetanode.prototype.parseMetanode()` —
-  [src/core/map/metanode.js](../../src/core/map/metanode.js)
+  [src/map/metanode.js](../../src/map/metanode.js)
 - Aliasing `minZ`/`maxZ` to the int16 navSRS `minHeight`/`maxHeight`
   instead of reading explicit float32 SDS values
 - `MapSurfaceTree.prototype.updateNodeHeightExtents()` in
-  [src/core/map/surface-tree.js](../../src/core/map/surface-tree.js)
+  [src/map/surface-tree.js](../../src/map/surface-tree.js)
   — propagates the height range from navtile-flagged ancestors to
   children for culling box construction; guarded by
   `node.metatile.useVersion < 4` and never fires against v4+ data
@@ -1097,13 +1097,13 @@ versions 1–3. The v1–v3 code paths carry meaningful complexity:
   `this.minZ = this.minHeight` (v1–v3 had no explicit float32 SDS
   heights, so `minZ`/`maxZ` were aliased from the navSRS int16 range;
   v4+ stores them separately) —
-  [src/core/map/metanode.js:211](../../src/core/map/metanode.js)
+  [src/map/metanode.js:211](../../src/map/metanode.js)
 - `MapSurfaceTree.prototype.updateNodeHeightExtents()` and all its
   call sites in the legacy and typed traversals — this propagation
   exists only because the alias above produces unreliable height ranges
   for pre-v4 tiles and children need to inherit from the nearest
   navtile-flagged ancestor —
-  [src/core/map/surface-tree.js:157](../../src/core/map/surface-tree.js)
+  [src/map/surface-tree.js:157](../../src/map/surface-tree.js)
 - The `mapForceMetatileV3` config key, its setter/getter in `map.js`,
   and the `useVersion` override logic in `MapMetatile`
 - The v1-specific credit-block parsing path (`creditCount`/`creditSize`
@@ -1473,7 +1473,7 @@ of a frozen scene gives you Traced Nodes for free.
 
 ### Implementation note
 
-`src/core/map/freeze-camera-state.ts` owns the captured camera state.
+`src/map/freeze-camera-state.ts` owns the captured camera state.
 The typed `Map` (`map.ts`) owns the `FreezeCameraState` instance
 (`map.freeze`) and the `withSelectionCamera` / `withNavigationCamera`
 methods. Legacy draw code reaches them via `legacyMap.outerMap.freeze`
@@ -1481,7 +1481,7 @@ and `legacyMap.outerMap.withXxxCamera(...)`. Final terrain and geodata
 rendering use the navigation context for camera matrices while passing
 the selection position to `Renderer.updateBuffers()` or `drawGpuJobs()`
 so scale-dependent vertical exaggeration follows the selected tile set.
-`src/core/inspector/freeze.ts` owns mode state, DOM controls, and
+`src/inspector/freeze.ts` owns mode state, DOM controls, and
 frustum capture. `Renderer` draws the frustum with the modern
 `useProgram2` shader path.
 
@@ -1545,17 +1545,17 @@ since September 2020.
 
 ### What to delete
 
-- `src/core/map/geodata-import/3dtiles.js` — v1 importer (unused;
+- `src/map/geodata-import/3dtiles.js` — v1 importer (unused;
   import already commented out in `geodata-builder.js`)
-- `src/core/map/geodata-import/3dtiles2.js` — v2 importer (active)
-- `src/core/map/geodata-processor/worker-main.js` — the
+- `src/map/geodata-import/3dtiles2.js` — v2 importer (active)
+- `src/map/geodata-processor/worker-main.js` — the
   `nodes[].meshes[]` dispatch block (lines ~445–452)
-- `src/core/renderer/gpu/group.js` — `GpuGroup.prototype.drawMesh`
+- `src/renderer/gpu/group.js` — `GpuGroup.prototype.drawMesh`
   (lines 1287–1305), the `binFiles`/`binPath` streaming machinery
   (lines ~1600–1850), and the `direct-3dtiles` loader calls
-- `src/core/map/loader/loader.js` — the `'direct-3dtiles'` case
+- `src/map/loader/loader.js` — the `'direct-3dtiles'` case
   (line 189)
-- `src/browser/browser.js` — the `config.tiles3d` branch (lines ~148–151)
+- `src/viewer/browser.js` — the `config.tiles3d` branch (lines ~148–151)
 - `geodata-builder.js` — the commented-out `load3DTiles` / `import3DTiles`
   methods and the `binPath` field (lines ~1474–1491, 1942–1943)
 - `geodata-view.js` — the `directBinParse` path and the
@@ -1628,7 +1628,7 @@ depth passes. `DRAWCOMMAND_GEODATA` remains because geodata tiles still
 use `MapDraw.processDrawCommands()`.
 
 Kept `MapMesh.drawSubmesh()` and the legacy tile shaders it uses because
-geodata mesh jobs in `src/core/renderer/gpu/group.js` still call it, and
+geodata mesh jobs in `src/renderer/gpu/group.js` still call it, and
 the public custom mesh renderer still uses the old shaded/depth mesh
 programs. Deleting those requires a separate migration for geodata mesh
 jobs and custom mesh rendering.
@@ -1793,7 +1793,7 @@ Background on the legacy stack:
 
 ### Goal
 
-Delete `src/core/map/interface.js`. It was a thin layer that delegated
+Delete `src/map/interface.js`. It was a thin layer that delegated
 69 methods to `LegacyMap` after the render-slot removal in commit
 `ff70938e`. `Viewer` reached it via the `legacyMapInterface_` getter.
 
@@ -1828,7 +1828,7 @@ track avoided inflating the RFC's scope.
 
 ### Done
 
-`Map` (`src/core/map.ts`) exists and replaces `CoreInterface`. `Viewer`
+`Map` (`src/map/map.ts`) exists and replaces `CoreInterface`. `Viewer`
 constructs and holds `Map` directly. `CoreInterface`, `Core`, and their
 declarations are deleted.
 
@@ -1906,9 +1906,9 @@ has already been returned.
 
 ### Next audit targets
 
-- `src/core/map.ts`: document which `core_.map?.` calls mean
+- `src/map/map.ts`: document which `core_.map?.` calls mean
   unloaded-map state.
-- `src/core/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
+- `src/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
   that allow renderer settings before a map has loaded.
 
 ---
@@ -1920,7 +1920,7 @@ has already been returned.
 
 ### Motivation
 
-`TEXTURETYPE_*` are legacy numeric constants in `src/core/constants.ts`.
+`TEXTURETYPE_*` are legacy numeric constants in `src/constants.ts`.
 They are imported into `texture.ts` to tag texture formats, which is
 workable but relies on an untyped numeric namespace. Moving them to a
 `GpuTexture.Type` const enum (or a plain enum on the `GpuTexture`
@@ -1930,7 +1930,7 @@ dependency on the legacy constants file from typed GPU code.
 ### Scope
 
 - Done: define `GpuTexture.Type` enum in
-  `src/core/renderer/gpu/texture.ts`.
+  `src/renderer/gpu/texture.ts`.
 - Done: replace all `vts.TEXTURETYPE_*` references in `texture.ts` with
   the new enum members.
 - Done: update TypeScript call sites that create `GpuTexture` directly.
@@ -2028,9 +2028,9 @@ side effect of `Viewer.addFreeLayer()`.
 | File | Note |
 |---|---|
 | `demos/core/index.html` | Demonstrates the missing runtime overlay path |
-| `src/browser/viewer.ts` | `createGeodata` / `addFreeLayer` public methods |
-| `src/core/map/style.ts` | Builds `freeLayerSequence` from `style.layers` |
-| `src/core/map/map.js` | Legacy `addFreeLayer` registers only the object |
+| `src/viewer/viewer.ts` | `createGeodata` / `addFreeLayer` public methods |
+| `src/map/style.ts` | Builds `freeLayerSequence` from `style.layers` |
+| `src/map/legacy-map.js` | Legacy `addFreeLayer` registers only the object |
 
 ---
 
@@ -2048,7 +2048,7 @@ discarded.
 
 ### Root cause
 
-`src/browser/viewer.ts` — `setAtmosphere`:
+`src/viewer/viewer.ts` — `setAtmosphere`:
 
 ```ts
 this._map?.atmosphere?.setRuntimeParameters(spec);
@@ -2082,8 +2082,8 @@ style declared.
 
 | File | Note |
 |---|---|
-| `src/browser/viewer.ts:205` | `setAtmosphere` — the silent no-op |
-| `src/browser/viewer.ts:212` | `getAtmosphere` — always returns null when no style section |
+| `src/viewer/viewer.ts:205` | `setAtmosphere` — the silent no-op |
+| `src/viewer/viewer.ts:212` | `getAtmosphere` — always returns null when no style section |
 
 ---
 
@@ -2091,7 +2091,7 @@ style declared.
 
 **Opened:** 2026-04-24
 **Status:** fixed 2026-07-07 — the background draw call in
-[map.ts](../../src/core/map.ts) now checks the same runtime override /
+[map.ts](../../src/map/map.ts) now checks the same runtime override /
 config flag as the tile-shader haze layer before calling
 `renderer.drawBackground()`
 
@@ -2119,7 +2119,7 @@ checked). Both call sites now inline what they actually need:
 `Map.draw` in map.ts checks the runtime/config atmosphere flag, iOS decode
 support, and subsystem existence before drawing the background; the haze
 layer inclusion in `TileRenderRig`'s `buildLayerStack`
-([tile-render-rig.ts](../../src/core/map/tile-render-rig.ts)) checks iOS
+([tile-render-rig.ts](../../src/map/tile-render-rig.ts)) checks iOS
 decode support and subsystem existence only, since the flag is already
 applied per-frame via `renderFlags`.
 
@@ -2143,7 +2143,7 @@ In an embed where reveal.js sits above the cartolina container in the DOM, scrol
 
 ### Root cause
 
-`src/browser/control-mode/control-mode.js` line 26 registers:
+`src/viewer/control-mode/control-mode.js` line 26 registers:
 ```js
 this.mapElement.on('mousewheel', this.onWheel.bind(this));
 ```
@@ -2158,7 +2158,7 @@ Replace `mousewheel` with `wheel` in `control-mode.js`. The `wheel` event provid
 
 | File | Note |
 |---|---|
-| `src/browser/control-mode/control-mode.js:26` | the `mousewheel` listener to replace |
+| `src/viewer/control-mode/control-mode.js:26` | the `mousewheel` listener to replace |
 
 ---
 
@@ -2438,12 +2438,12 @@ incorrect: `map.camera.position` is the correct reference, and
 
 | File | Note |
 |---|---|
-| `src/browser/viewer.ts` | `checkVisibility()` — the broken method |
-| `src/core/map/map.js` | `convertCoordsFromPhysToCameraSpace` |
-| `src/core/map/convert.js:258` | `getPositionCameraSpaceCoords` (flagged comment) |
-| `src/core/map/camera.js` | `MapCamera.update()` — shows GL eye is at `[0,0,0]` |
-| `src/core/renderer/gpu/shaders.js:850` | shader writes `camDist = length(camSpacePos.xyz)` |
-| `src/core/renderer/renderer.ts:1828` | `getDepth()` — decodes hitmap pixels |
+| `src/viewer/viewer.ts` | `checkVisibility()` — the broken method |
+| `src/map/legacy-map.js` | `convertCoordsFromPhysToCameraSpace` |
+| `src/map/convert.js:258` | `getPositionCameraSpaceCoords` (flagged comment) |
+| `src/map/camera.js` | `MapCamera.update()` — shows GL eye is at `[0,0,0]` |
+| `src/renderer/gpu/shaders.js:850` | shader writes `camDist = length(camSpacePos.xyz)` |
+| `src/renderer/renderer.ts:1828` | `getDepth()` — decodes hitmap pixels |
 | `demos/waypoint/waypoint.js` | the demo that was reverted |
 
 ---

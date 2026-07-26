@@ -40,7 +40,7 @@ child.id[0] * typeFactor * child.distance` calculation.
 ## The Stored Sample Length
 
 The fast path starts with `node.pixelSize`. The field is parsed in
-`src/core/map/metanode.js` from the metanode suffix `texelSize` field
+`src/map/metanode.js` from the metanode suffix `texelSize` field
 when metanode flag bit 2, `applyTexelSize`, is set. The parser stores it
 as `node.pixelSize`.
 

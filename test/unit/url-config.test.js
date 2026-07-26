@@ -1,6 +1,6 @@
 /*
  * url-config.test.js - unit tests for the URL ingestion boundary in
- * src/browser/url-config.ts
+ * src/viewer/url-config.ts
  *
  * Run with `npm run test:unit`. The URL is always passed explicitly,
  * so the module never touches `window` here.
@@ -10,7 +10,7 @@ const assert = require('assert');
 
 const {
     runtimeOptionsFromUrl,
-} = require('../../tmp/unit-build/src/browser/url-config');
+} = require('../../tmp/unit-build/src/viewer/url-config');
 
 describe('url-config runtime options', function() {
 

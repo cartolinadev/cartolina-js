@@ -120,4 +120,4 @@ fi
 
 # Now do the version bump
 node scripts/bump-version-pre-commit.js
-git add package.json src/core/version.js
+git add package.json src/version.ts

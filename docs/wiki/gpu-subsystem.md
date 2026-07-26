@@ -30,8 +30,8 @@ work and owns GL invariants.
 
 ## Frame Profiling
 
-`src/core/map/frame-profiler.ts` measures frames that actually draw. It
-brackets `Map.draw()` and overlay rendering from `src/core/map.ts`, so
+`src/map/frame-profiler.ts` measures frames that actually draw. It
+brackets `Map.draw()` and overlay rendering from `src/map/map.ts`, so
 loader promotion and event dispatch are outside the measured render
 section.
 

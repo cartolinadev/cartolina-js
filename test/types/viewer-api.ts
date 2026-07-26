@@ -3,18 +3,18 @@
  * configuration API; compiled by tsconfig.types.json, never executed
  */
 
-import { map } from '../../src/browser/index';
-import type { Map as PublicMap } from '../../src/browser/index';
-import Viewer from '../../src/browser/viewer';
-import type MapStyle from '../../src/core/map/style';
-import type * as viewerConfig from '../../src/core/viewer-config';
+import { map } from '../../src/viewer/index';
+import type { Map as PublicMap } from '../../src/viewer/index';
+import Viewer from '../../src/viewer/viewer';
+import type MapStyle from '../../src/map/style';
+import type * as viewerConfig from '../../src/viewer-config';
 
 declare const viewer: PublicMap;
 declare const container: HTMLElement;
 declare const style: MapStyle.StyleSpecification;
 declare const position: PublicMap.PositionInput;
 
-// The namespace re-export and the core definition are the same type.
+// The namespace re-export and the internal definition are the same type.
 declare const runtimeConfig: PublicMap.PublicRuntimeConfig;
 const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;

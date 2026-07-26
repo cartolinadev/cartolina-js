@@ -28,10 +28,10 @@ See [nav-tiles.md](nav-tiles.md) for the full navtile analysis.
 Current cartolina-js applications do not access a `cartolina.core()`
 factory object. They call `cartolina.map(options)` for style-based maps
 or `cartolina.browser(element, config)` for legacy mapConfig maps. Both
-return the `Viewer` class from `src/browser/viewer.ts`. Package
+return the `Viewer` class from `src/viewer/viewer.ts`. Package
 consumers see that class through the exported `Map` type alias.
 Promoted public methods should appear as flat methods on `Viewer`.
-Many of those methods delegate through `src/core/map.ts`, which is the
+Many of those methods delegate through `src/map/map.ts`, which is the
 typed internal boundary between `Viewer` and the legacy map engine. The
 legacy `.map` and `.renderer` objects recorded below are observed
 mapy.com usage, not current cartolina-js API design.

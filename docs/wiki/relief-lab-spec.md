@@ -160,9 +160,9 @@ so the illumination toggle is entirely controlled by
 ### 1. Diffuse color
 
 `diffuseColor` added to:
-- `MapStyle.IlluminationSpecification` (`src/core/map/style.ts`) —
+- `MapStyle.IlluminationSpecification` (`src/map/style.ts`) —
   for style-file authoring
-- `Renderer.IlluminationDef` (`src/core/renderer/renderer.ts`) —
+- `Renderer.IlluminationDef` (`src/renderer/renderer.ts`) —
   for programmatic use
 - Internal `Illumination` type
 
@@ -185,8 +185,8 @@ the config default on the next frame.
 
 | File | Change |
 |------|--------|
-| `src/core/map/style.ts` | Add `diffuseColor?: Color3Spec` to `IlluminationSpecification` |
-| `src/core/renderer/renderer.ts` | `diffuseColor` in types + `setIllumination`; `setRenderingOptions()` + `RenderingOptions` type; `updateBuffers()` scaling |
+| `src/map/style.ts` | Add `diffuseColor?: Color3Spec` to `IlluminationSpecification` |
+| `src/renderer/renderer.ts` | `diffuseColor` in types + `setIllumination`; `setRenderingOptions()` + `RenderingOptions` type; `updateBuffers()` scaling |
 | `src/core/renderer/interface.js` | Proxy `setRenderingOptions` |
 | `src/core/interface.js` | Proxy `setRenderingOptions` |
 | `src/browser/interface.js` | Proxy `setRenderingOptions` |

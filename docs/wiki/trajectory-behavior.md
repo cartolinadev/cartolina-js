@@ -1,6 +1,6 @@
 # Trajectory behavior — flight duration and phasing
 
-Reference notes for `src/core/map/trajectory.js`, covering how flight
+Reference notes for `src/map/trajectory.js`, covering how flight
 duration and phase structure are computed and the non-obvious patches
 applied to date.
 

@@ -19,7 +19,7 @@ refers to the navigation SRS, not to a specific rendering feature.
 
 Every metanode carries a `flags` byte. Bit 1 (`navtilePresent`) marks
 whether the tile has a navtile. The parser in
-[src/core/map/metanode.js](../../src/core/map/metanode.js) exposes
+[src/map/metanode.js](../../src/map/metanode.js) exposes
 this as `MapMetanode.prototype.hasNavtile()`.
 
 When the flag is set, two `int16` fields at the end of the common
@@ -46,7 +46,7 @@ binary layout.
 
 The navtile texture is a separate per-tile HTTP resource. Its URL is
 produced by `MapSurface.prototype.getNavUrl()` in
-[src/core/map/surface.js](../../src/core/map/surface.js), which
+[src/map/surface.js](../../src/map/surface.js), which
 expands the surface's `navUrl` template with the tile's LOD, X, and Y
 indices.
 
@@ -62,7 +62,7 @@ machinery and stored as `tile.heightMap` on the `MapSurfaceTile`.
 This is the primary and only fully-active use of navtile textures.
 
 `MapMeasure.prototype.getSurfaceHeight()` in
-[src/core/map/measure.js](../../src/core/map/measure.js) answers
+[src/map/measure.js](../../src/map/measure.js) answers
 queries of the form "what is the terrain elevation at these navigation
 coordinates?" The answer drives the camera, coordinate conversion, and
 the public `getTerrainHeightAt` API.
@@ -81,7 +81,7 @@ The query path:
    a metanode or navtile texture is still loading — marks the result
    provisional (third tuple element false) so callers query again.
 2. `MapSurfaceTree.prototype.traceHeightTileByMap()` in
-   [surface-tree.js](../../src/core/map/surface-tree.js) descends the
+   [surface-tree.js](../../src/map/surface-tree.js) descends the
    tile tree toward the desired LOD. At each level it checks
    `node.hasNavtile()`. When set and the node's `minHeight`/`maxHeight`
    range is usable (not inverted, not outside the reference frame's
@@ -99,7 +99,7 @@ The query path:
    yielding one altitude value per tile rather than a pixel-sampled one.
 
 The inspector stats display (
-[src/core/inspector/stats.js](../../src/core/inspector/stats.js))
+[src/inspector/stats.js](../../src/inspector/stats.js))
 reports `heightClass = 2` when a navtile texture was used and
 `heightClass = 1` when the metanode centre fallback was used.
 
@@ -107,16 +107,16 @@ reports `heightClass = 2` when a navtile texture was used and
 
 | Caller | Purpose |
 |---|---|
-| [src/core/map/camera.js:36](../../src/core/map/camera.js) | Every frame: terrain height at the camera look-at point; drives float-height mode, near/far plane, and orbit distance |
-| [src/core/map/convert.js](../../src/core/map/convert.js) | Multiple coordinate conversion methods: fly-to altitude, position clamping, marker placement |
-| [src/core/map/map.js:931](../../src/core/map/map.js) | Public API `getTerrainHeightAt()` |
-| [src/core/map/geodata-builder.js:1506](../../src/core/map/geodata-builder.js) | `heightmap-by-precision` / `heightmap-by-lod` draping modes: projects geodata features onto the terrain surface |
+| [src/map/camera.js:36](../../src/map/camera.js) | Every frame: terrain height at the camera look-at point; drives float-height mode, near/far plane, and orbit distance |
+| [src/map/convert.js](../../src/map/convert.js) | Multiple coordinate conversion methods: fly-to altitude, position clamping, marker placement |
+| [src/map/legacy-map.js:931](../../src/map/legacy-map.js) | Public API `getTerrainHeightAt()` |
+| [src/map/geodata-builder.js:1506](../../src/map/geodata-builder.js) | `heightmap-by-precision` / `heightmap-by-lod` draping modes: projects geodata features onto the terrain surface |
 
 **Config flag:** setting `mapIgnoreNavtiles = true` bypasses the
 navtile texture path entirely and forces the metanode-centre fallback
 for all queries. The flag is exposed via `map.setParam()` and parsed
 at
-[src/core/map/map.js:1175](../../src/core/map/map.js).
+[src/map/legacy-map.js:1175](../../src/map/legacy-map.js).
 
 ### 2. Height range propagation for bounding-box culling (v1–v3 only)
 
@@ -127,7 +127,7 @@ considered authoritative and does not need to be inherited from a
 parent.
 
 `MapSurfaceTree.prototype.updateNodeHeightExtents()` in
-[surface-tree.js:157](../../src/core/map/surface-tree.js) propagates
+[surface-tree.js:157](../../src/map/surface-tree.js) propagates
 the height range from the nearest ancestor whose `heightReady` is true
 down to a child that does not yet have its own range. The function is
 guarded by `node.metatile.useVersion < 4`: it fires only for metatile
@@ -137,7 +137,7 @@ This propagated range feeds into `generateCullingHelpers()`, which
 builds the tile's 3D bounding disc. The bounding disc is used for
 frustum culling and camera-distance computation. Both the legacy draw
 traversal and the new typed traversal
-([src/core/map/draw-traversal.ts:306](../../src/core/map/draw-traversal.ts))
+([src/map/draw-traversal.ts:306](../../src/map/draw-traversal.ts))
 call `updateNodeHeightExtents()`.
 
 For metatile version 4 and above, `minZ`/`maxZ` are stored as float32
@@ -162,9 +162,9 @@ The grid's visual texture is loaded from a configured bound layer
 (`mapGridTextureLayer`), not from the navtile URL.
 
 The grid fallback path exists only in the **legacy draw traversal** in
-[src/core/map/surface-tree.js](../../src/core/map/surface-tree.js).
+[src/map/surface-tree.js](../../src/map/surface-tree.js).
 The new traversal in
-[src/core/map/draw-traversal.ts](../../src/core/map/draw-traversal.ts)
+[src/map/draw-traversal.ts](../../src/map/draw-traversal.ts)
 does not call `drawGrid()`. This path will disappear when the legacy
 traversal is retired.
 
@@ -176,17 +176,17 @@ traversal is retired.
 
 `MapSurface` has a field `geodataNavtileInfo`, explicitly initialised
 to `false` at
-[src/core/map/surface.js:150](../../src/core/map/surface.js). When
+[src/map/surface.js:150](../../src/map/surface.js). When
 true it would embed a navtile identifier into the geodata tile URL via
 the `{geonavtile}` template variable in
-[src/core/map/url.js:199](../../src/core/map/url.js), allowing the
+[src/map/url.js:199](../../src/map/url.js), allowing the
 server to clip geodata by navtile coverage. The flag is disabled and
 the template variable is never populated.
 
 ### Heightmap mesh and vertex shader
 
 `RendererInit.prototype.initHeightmap()` in
-[src/core/renderer/init.js:106](../../src/core/renderer/init.js)
+[src/renderer/init.js:106](../../src/renderer/init.js)
 builds a 5×5 vertex-grid mesh via
 `RendererGeometry.buildHeightmap(5, true)` but immediately comments
 out the `new GpuMesh()` call. The mesh geometry is built and discarded.

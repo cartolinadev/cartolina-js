@@ -3,12 +3,12 @@
  * Cartolina style plus construction values
  */
 
-import type { MapStyle } from '../core/map/style';
-import { validateAndNormalizeStyle } from '../core/map/style-schema';
-import type { PositionInput } from '../core/types';
-import * as utils from '../core/utils/utils';
-import type Viewer from '../browser/viewer';
-import * as viewerConfig from '../core/viewer-config';
+import type { MapStyle } from '../map/style';
+import { validateAndNormalizeStyle } from '../map/style-schema';
+import type { PositionInput } from '../map/types';
+import * as utils from '../utils/utils';
+import type Viewer from '../viewer/viewer';
+import * as viewerConfig from '../viewer-config';
 import * as linker from './vts-stylesheet-linker';
 
 

@@ -2,8 +2,8 @@
  * public-api.ts — compile-only contract of the package entry
  */
 
-import { map } from '../../src/browser/index';
-import type { Map } from '../../src/browser/index';
+import { map } from '../../src/viewer/index';
+import type { Map } from '../../src/viewer/index';
 
 
 type Expect<T extends true> = T;

@@ -20,8 +20,8 @@ metatiles and the re-encode process and commands.
 The server-side format is defined in
 `externals/vts-libs/vts-libs/vts/metatile.hpp` in the
 `cartolina-tileserver` repository. The client parser is in
-`src/core/map/metatile.js` (`MapMetatile.parseMetatatile`) and
-`src/core/map/metanode.js` (`MapMetanode.parseMetanode`).
+`src/map/metatile.js` (`MapMetatile.parseMetatatile`) and
+`src/map/metanode.js` (`MapMetanode.parseMetanode`).
 
 
 ## Binary layout
@@ -311,7 +311,7 @@ into projections, not about metanodes.
 
 ### Fetching and caching
 
-`MapResourceNode.getMetatile()` in `src/core/map/resource-node.js`
+`MapResourceNode.getMetatile()` in `src/map/resource-node.js`
 is the entry point. On the first call for a given tile ID it
 constructs a `MapMetatile` and schedules an HTTP load. On
 subsequent calls for the same ID but a different surface it
@@ -328,7 +328,7 @@ of the metanode array, and marks the tile ready.
 
 ### LOD traversal
 
-`MapSurfaceTile.validate()` in `src/core/map/surface-tile.js`
+`MapSurfaceTile.validate()` in `src/map/surface-tile.js`
 drives the tile tree traversal. For each surface in the sequence
 it calls `metaresources.getMetatile()` and then
 `metatile.getNode(id)` to retrieve the metanode for the current
@@ -341,7 +341,7 @@ order.
 
 ### LOD selection
 
-`MapSurfaceTile.updateTexelSize()` in `src/core/map/surface-tile.js`
+`MapSurfaceTile.updateTexelSize()` in `src/map/surface-tile.js`
 computes `tile.texelSize` from the metanode:
 
 - If `applyTexelSize` is set, the texel size is read from
@@ -363,7 +363,7 @@ and traversal rules.
 ### Frustum culling and disk distance
 
 `MapMetanode.generateCullingHelpers()` in
-`src/core/map/metanode.js` computes the culling disc:
+`src/map/metanode.js` computes the culling disc:
 
 - **v4+**: `minZ` and the division-node coordinate transform
   give `diskPos` (3D physical center), `diskNormal` (surface
@@ -391,7 +391,7 @@ regressions in the v4/v5 culling path.
 
 `node.minHeight` and `node.maxHeight` (int16, in navSRS units)
 bound the elevation range of the navtile. The draw system in
-`src/core/map/draw-tiles.js` passes these to the mesh shader as
+`src/map/draw-tiles.js` passes these to the mesh shader as
 `uHeights.x` and `uHeights.y`. They are also used when
 constructing navtile cache keys.
 

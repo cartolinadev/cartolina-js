@@ -7,14 +7,14 @@ engine used for geodata labels and line decoration.
 
 The relevant implementation lives mainly in:
 
-- `src/core/map/style.ts`
-- `src/core/map/geodata-processor/worker-style.js`
-- `src/core/map/geodata-processor/worker-linestring.js`
-- `src/core/renderer/draw.js`
+- `src/map/style.ts`
+- `src/map/geodata-processor/worker-style.js`
+- `src/map/geodata-processor/worker-linestring.js`
+- `src/renderer/draw.js`
 
 ## Layer-family structure
 
-In `src/core/map/style.ts`, both `LabelsLayer` and `LinesLayer` are
+In `src/map/style.ts`, both `LabelsLayer` and `LinesLayer` are
 aliases of the same `LetteringLayerBase` type.
 
 Practical consequence: `labels` and `lines` are not implemented as two
@@ -189,7 +189,7 @@ described numerically. They are authored as bitmap strips.
 
 There is currently a type/runtime mismatch.
 
-`src/core/map/style.ts` declares:
+`src/map/style.ts` declares:
 
 - `line-style: 'solid' | 'textured'`
 

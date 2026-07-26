@@ -1,6 +1,6 @@
 /*
  * viewer-config.test.js - unit tests for the config normalization in
- * src/core/viewer-config.ts
+ * src/viewer-config.ts
  *
  * Run with `npm run test:unit`, which compiles the module under test
  * to tmp/unit-build before mocha executes this file. Values are
@@ -21,7 +21,7 @@ const {
     publicConstructionConfigKeys,
     publicRuntimeConfigKeys,
     urlParseKind,
-} = require('../../tmp/unit-build/src/core/viewer-config');
+} = require('../../tmp/unit-build/src/viewer-config');
 
 describe('viewer-config normalization', function() {
 

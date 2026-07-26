@@ -8,10 +8,10 @@
     "noEmit": false
   },
   "include": [
-    "src/core/event-bus.ts",
-    "src/core/config-store.ts",
-    "src/core/viewer-config.ts",
-    "src/browser/url-config.ts",
+    "src/map/event-bus.ts",
+    "src/config-store.ts",
+    "src/viewer-config.ts",
+    "src/viewer/url-config.ts",
     "src/compat/mapconfig-to-style.ts",
     "src/compat/vts-stylesheet-linker.ts",
     "src/types/**/*"

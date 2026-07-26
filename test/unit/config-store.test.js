@@ -1,5 +1,5 @@
 /*
- * config-store.test.js - unit tests for src/core/config-store.ts
+ * config-store.test.js - unit tests for src/config-store.ts
  *
  * Run with `npm run test:unit`, which compiles the module under test
  * to tmp/unit-build before mocha executes this file.
@@ -8,7 +8,7 @@
 const assert = require('assert');
 
 const ConfigStore =
-    require('../../tmp/unit-build/src/core/config-store').default;
+    require('../../tmp/unit-build/src/config-store').default;
 
 describe('ConfigStore', function() {
 

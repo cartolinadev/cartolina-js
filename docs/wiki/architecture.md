@@ -36,9 +36,9 @@ worker concerns, or scheduled to absorb into one of them.
 
 | Class | File | Role |
 |---|---|---|
-| `Viewer` | [src/browser/viewer.ts](../../src/browser/viewer.ts) | The public API. Flat, typed, MapLibre-style method surface. The object `cartolina.map()` returns. |
-| `Map` | [src/core/map.ts](../../src/core/map.ts) | The typed map data model and logic. Owns the frame loop (per [rfc6-map-frame.md](rfc6-map-frame.md)), map loading, lifecycle, the event bus, and the constructed `Renderer` and `Inspector`. Not the public API class. |
-| `Renderer` | [src/core/renderer/renderer.ts](../../src/core/renderer/renderer.ts) | The WebGL2 graphics class. Owns the GL context, render targets, shader programs, and draw calls. Also serves as the public surface for custom drawing from inside overlay callbacks (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`). |
+| `Viewer` | [src/viewer/viewer.ts](../../src/viewer/viewer.ts) | The public API. Flat, typed, MapLibre-style method surface. The object `cartolina.map()` returns. |
+| `Map` | [src/map/map.ts](../../src/map/map.ts) | The typed map data model and logic. Owns the frame loop (per [rfc6-map-frame.md](rfc6-map-frame.md)), map loading, lifecycle, the event bus, and the constructed `Renderer` and `Inspector`. Not the public API class. |
+| `Renderer` | [src/renderer/renderer.ts](../../src/renderer/renderer.ts) | The WebGL2 graphics class. Owns the GL context, render targets, shader programs, and draw calls. Also serves as the public surface for custom drawing from inside overlay callbacks (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`). |
 
 The split is by concern: `Viewer` is the consumer-facing API and the
 home of UI conveniences; `Map` is the map model and frame
@@ -46,6 +46,12 @@ orchestration; `Renderer` is graphics. New code lands on the class
 whose concern it matches. New public API belongs on `Viewer`. New map
 data model state and per-frame state belongs on `Map`. New graphics
 work belongs on `Renderer`.
+
+The source tree follows the same split. `src/viewer/`, `src/map/`,
+`src/renderer/`, and `src/inspector/` contain code owned by those
+runtime concerns. Shared configuration, constants, and generated
+version metadata remain at the root of `src/`. The retired `browser`
+and `core` source layers have no forwarding modules or aliases.
 
 One other class exists as a transitional structure: `LegacyMap` is the
 JS half of `Map` being absorbed. It is not a separate subsystem of the
@@ -99,7 +105,7 @@ The webpack build has one application entry point:
 
 | Entry point | Output | Purpose |
 |---|---|---|
-| `src/browser/index.ts` | `cartolina.js` / `.esm.js` | Browser library |
+| `src/viewer/index.ts` | `cartolina.js` / `.esm.js` | Browser library |
 
 The public factory is `map()`. It returns a `Viewer` instance, exported
 as the public `Map` type alias. Legacy mapConfig documents load through
@@ -141,7 +147,7 @@ handling, camera animation, and presenter playback. Residual JavaScript
 children receive the `Viewer` and call its narrow internal accessors;
 they do not form another ownership layer.
 
-`Map` in `src/core/map.ts` is the typed map data model and logic.
+`Map` in `src/map/map.ts` is the typed map data model and logic.
 It is not the public API class — that is `Viewer`. `Map` owns the
 event bus, the `ready` Promise, lifecycle disposal, the
 `requestAnimationFrame` loop and per-frame entry point
@@ -151,7 +157,7 @@ constructed `Renderer` and `Inspector` (absorbed from the retired
 Legacy JS modules reach this instance through their `core`
 back-references.
 
-`LegacyMap` is the JS half of `Map` in `src/core/map/map.js`. It holds
+`LegacyMap` is the JS half of `Map` in `src/map/legacy-map.js`. It holds
 the parts of the map data model that have not been rewritten in
 TypeScript yet: the tile tree, loader, geodata processing, surface and
 free-layer registries, camera state, coordinate conversion, and

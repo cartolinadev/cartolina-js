@@ -424,9 +424,9 @@ checked for RF id consistency.
 ### Style-path loading (modern, canonical)
 
 Reference frame loading is driven by `MapStyle.loadStyle()` in
-[style.ts](../../src/core/map/style.ts), called from
+[style.ts](../../src/map/style.ts), called from
 `Map.createMapFromStyle()` in
-[map.js](../../src/core/map/map.js:113).
+[map.js](../../src/map/legacy-map.js:113).
 
 The sequence for each `cartolina-surface` source in the style:
 
@@ -462,7 +462,7 @@ documents convert through `mapConfigToStyle()` before construction.
 
 ### MapRefFrame construction
 
-`MapRefFrame` ([refframe.js](../../src/core/map/refframe.js)) parses
+`MapRefFrame` ([refframe.js](../../src/map/refframe.js)) parses
 the `referenceFrame` JSON object from the mapConfig:
 
 ```js

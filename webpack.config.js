@@ -40,7 +40,7 @@ var plugins = [
 // Base webpack config used by both outputs (global + ESM)
 const baseConfig = {
   entry: {
-    'cartolina': __dirname + '/src/browser/index'
+    'cartolina': __dirname + '/src/viewer/index'
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js"]
@@ -148,12 +148,12 @@ const baseConfig = {
   plugins: plugins  
 };
 
-// 1) Global build: window.cartolina.browser
+// 1) Global build: window.cartolina.map
 var globalConfig = Object.assign({}, baseConfig);
 globalConfig.name = 'global';
 
 
-// 2) ESM build: `import { browser } from 'cartolina.esm.js'`
+// 2) ESM build: `import { map } from 'cartolina.esm.js'`
 var esmConfig = Object.assign({}, baseConfig);
 esmConfig.name = 'esm';
 esmConfig.output = Object.assign({}, baseConfig.output, {
@@ -195,12 +195,12 @@ function makeWorker(name, entryRelPath, outFile) {
 // emit ONE copy of each worker, shared by global+esm bundles
 const workerMapLoader = makeWorker(
   'map-loader-worker',
-  'src/core/map/loader/worker-main.js',
+  'src/map/loader/worker-main.js',
   'map-loader-worker.js'
 );
 const workerGeodata = makeWorker(
   'geodata-processor-worker',
-  'src/core/map/geodata-processor/worker-main.js',
+  'src/map/geodata-processor/worker-main.js',
   'geodata-processor-worker.js'
 );
 

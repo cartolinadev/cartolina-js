@@ -128,7 +128,7 @@ markers that are not relevant to the current waypoint.
 
 ## Modified files
 
-### `src/browser/viewer.ts`
+### `src/viewer/viewer.ts`
 
 Two coordinate-conversion methods promoted from the legacy map wrapper
 to `Viewer` (in the "Hit testing and coordinate conversion" section):

@@ -30,6 +30,6 @@
     "src/**/*"
   ],
   "exclude": [
-    "src/core/map/geodata-processor/**"
+    "src/map/geodata-processor/**"
   ]
 }
