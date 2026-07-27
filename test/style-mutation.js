@@ -367,19 +367,6 @@ async function main() {
     mixedRuleProfileApplies,
   ]);
 
-  const loadStateTransitionsOnUnload = await page.evaluate(() => {
-    const loaded = window.v.mapLoaded;
-    window.v.destroyMap();
-    return loaded === true
-      && window.v.mapLoaded === false
-      && window.v.legacyMap === null;
-  });
-
-  results.push([
-    'map-loaded state resets on unload',
-    loadStateTransitionsOnUnload,
-  ]);
-
   let failed = 0;
 
   for (const [name, ok] of results) {

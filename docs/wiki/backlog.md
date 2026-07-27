@@ -1866,18 +1866,19 @@ or throw. An instance with no engine object is not a valid object.
 
 ### Done
 
-`Viewer` throws when WebGL2 support is absent. `map()` returns `Viewer`,
-not `Viewer | null`. Non-legacy demos no longer check the factory result
-for falsiness.
+`GpuDevice.checkSupport()` throws when WebGL2 support is absent. `map()`
+returns `Viewer`, not `Viewer | null`. Non-legacy demos no longer check
+the factory result for falsiness.
 
 `GpuDevice` now throws when canvas or WebGL2 context creation fails.
 `Map` keeps its `Core` reference non-null; after disposal, public
 methods throw instead of returning `null`.
 
-`GpuDevice.checkSupport()` is the canonical pre-flight probe; it is
-called by `Viewer` before DOM insertion. The legacy `checkSupport`
-function in `core.js` and its re-export from the public namespace are
-removed.
+`GpuDevice.checkSupport()` is the canonical throwing pre-flight probe.
+`Viewer` calls it before config validation or DOM insertion and does
+not interpret or replace its device-specific error. The legacy
+`checkSupport` function in `core.js` and its re-export from the public
+namespace are removed.
 
 Constructor-time config is stored before `Map` construction. `Viewer`
 rolls back a constructed map and UI wrapper if a later child constructor
@@ -1889,13 +1890,12 @@ The first audit found no remaining path where a public constructor can
 return an object without its construction-owned engine object. Remaining
 nullable returns mostly describe runtime states:
 
-- `Core.map` is `null` before async style or mapConfig load finishes,
-  and after `destroyMap()` / `unloadMap()`.
+- `Map.legacyMap` is `null` before asynchronous style loading finishes.
 - `Map` and `Viewer` coordinate conversion and hit/depth methods return
   `null` when the loaded map cannot answer the query.
 - Atmosphere access returns `null` when the loaded style has no
   atmosphere object.
-- `Viewer.assertAlive_()` handles calls after viewer disposal. This is
+- `Viewer.assertAlive()` handles calls after viewer disposal. This is
   lifecycle behavior, not construction failure.
 
 Keep this item open until one more focused audit confirms that nullable

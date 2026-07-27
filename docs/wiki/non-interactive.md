@@ -93,7 +93,7 @@ viewer.once('map-loaded', () => { /* fires once */ });
 |---|---|
 | `map-loaded` | terrain ready, first frame rendered |
 | `map-mapconfig-loaded` | mapConfig parsed (before terrain ready) |
-| `map-unloaded` | `unloadMap()` completes |
+| `map-unloaded` | viewer disposal releases the loaded map |
 | `map-update` | scene changed, redraw scheduled |
 | `map-position-changed` | camera position changes |
 | `tick` | every animation frame |

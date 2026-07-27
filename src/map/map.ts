@@ -279,7 +279,7 @@ class Map {
         if (this.disposed_) return;
         this.disposeOverlays();
         this.disposeTerrainMaskPool();
-        this.destroyMap_();
+        this.destroyLoadedMap();
         this.renderer[Symbol.dispose]();
         this.element = null;
         this.killed = true;
@@ -297,18 +297,6 @@ class Map {
     get loaded(): boolean {
 
         return this.mapLoadedFired_;
-    }
-
-    /**
-     * Unloads the currently loaded map. The `Map` instance stays
-     * alive and a new map can be loaded afterwards.
-     */
-    unloadMap(): void {
-
-        this.assertAlive();
-        this.mapLoadedFired_ = false;
-        this.disposeTerrainMaskPool();
-        this.destroyMap_();
     }
 
     /** Frame-loop entry: ticks, then schedules the next frame. */
@@ -332,7 +320,7 @@ class Map {
     }
 
     /** Kills and detaches the loaded legacy map, if any. */
-    private destroyMap_(): void {
+    private destroyLoadedMap(): void {
 
         if (!this.map) return;
 
@@ -1013,7 +1001,7 @@ class Map {
 
         const legacyMap = this.map;
 
-        // No map loaded (async style load or post-`destroyMap`).
+        // No map loaded while the style is loading.
         if (legacyMap == null) {
 
             this.bus_.emit('tick', {});

@@ -834,6 +834,37 @@ Do not rename existing private members only to satisfy this convention.
 Apply it to new members and to members already being changed for other
 reasons.
 
+**Declaration order exposes the public surface before its
+implementation.** Organize a module so a reader encounters its exported
+API before module-private helpers and state. Keep related declarations
+in functional groups; do not alphabetize declarations that are clearer
+in their usage order. Order public groups hierarchically, with common
+high-level operations before specialized or low-level operations. Use
+current application call sites to judge prominence when they provide
+evidence.
+
+Within a class, use this order:
+
+1. Constructor.
+2. Public fields, accessors, and methods, grouped by purpose.
+3. Protected fields, accessors, and methods, when present.
+4. Private accessors and methods.
+5. Private fields.
+
+This order applies to internal classes as well as exported classes. A
+private method belongs after the complete public surface even when the
+constructor or a public method calls it. Private field declarations
+belong at the end of the class. Field initializers execute in declaration
+order, so preserve any ordering dependency when reorganizing existing
+fields; runtime correctness overrides presentation order.
+
+At module scope, place exported declarations before non-exported helper
+functions, types, constants, and other implementation state. The more
+specific class-module layout below still governs default-export class
+modules. Runtime initialization order is the exception: keep a
+dependency before an eagerly evaluated declaration when moving it would
+create a temporal-dead-zone access or otherwise change behavior.
+
 ### Type aliases over interfaces
 
 Declare object and union types with `type`, not `interface`. The two are
@@ -941,7 +972,8 @@ out in this order:
 [tile-render-rig.ts](src/map/tile-render-rig.ts) follow this
 pattern. Do **not** put local types between the imports and the class
 — that pushes the class down and reads as if those types were part of
-the public surface.
+the public surface. Within the class itself, follow the public-first
+declaration order in **Coding style**.
 
 ### Documentation
 

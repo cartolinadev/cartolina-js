@@ -49,7 +49,6 @@ var UI = function(browser, element) {
     this.element = null;
     this.controls = [];
     this.killed = false;
-    this.init();
     //this.instanceId = utils.instanceCounter++;
 
     Object.defineProperty(this, 'dom', {
@@ -93,14 +92,20 @@ UI.prototype.init = function() {
 
 
 UI.prototype.kill = function() {
+    if (this.killed) return;
+
     this.killed = true;
+
+    this.credits?.kill();
 
     for (var key in this.controls) {
         delete this.controls[key];
     }
 
-    this.rootElement.removeChild(this.element);
-    delete this.element;
+    if (this.element?.parentNode) {
+        this.element.parentNode.removeChild(this.element);
+    }
+
     this.element = null;
 };
 
@@ -206,4 +211,3 @@ UI.prototype.tick = function(dirty) {
 
 
 export default UI;
-

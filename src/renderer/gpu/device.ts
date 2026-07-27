@@ -241,14 +241,16 @@ constructor(
 
 
 /**
- * Returns true when the browser can create a WebGL2 context.
- * Call this before constructing a map to detect unsupported
- * environments without inserting any DOM nodes.
+ * Verifies that the browser can create a WebGL2 context.
+ *
+ * @throws when WebGL2 context creation is unavailable
  */
-static checkSupport(): boolean {
+static checkSupport(): void {
 
     const canvas = document.createElement('canvas');
-    return !!canvas.getContext('webgl2');
+    if (!canvas.getContext('webgl2')) {
+        throw new Error('GpuDevice requires a WebGL2 context.');
+    }
 }
 
 

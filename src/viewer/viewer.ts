@@ -21,21 +21,6 @@ import Presenter from './presenter/presenter';
 import type { vec3 } from '../utils/math';
 
 
-// The complete public construction shape. Keeping this guard beside
-// Viewer.Config prevents the factory and constructor contracts from
-// drifting apart.
-const configKeys = new Set([
-    'container', 'style', 'position', 'options',
-    'transformRequest', 'interactive',
-]);
-
-const uiControlKeys: (keyof viewerConfig.ViewerConfig)[] = [
-    'controlCompass', 'controlZoom', 'controlMeasure', 'controlScale',
-    'controlLayers', 'controlSpace', 'controlSearch', 'controlLink',
-    'controlLogo', 'controlFullscreen', 'controlCredits',
-];
-
-
 /**
  * The public API object returned by the `map()` factory.
  * Exported as the type alias `Map` from the package index.
@@ -53,56 +38,6 @@ const uiControlKeys: (keyof viewerConfig.ViewerConfig)[] = [
  */
 class Viewer {
 
-    private readonly configStore:
-        ConfigStore<viewerConfig.ViewerConfig>;
-
-    /**
-     * Shared normalized configuration read by the remaining legacy
-     * UI and navigation modules.
-     */
-    private readonly config: Readonly<viewerConfig.ViewerConfig>;
-
-    private readonly map_: Map;
-    private readonly ui_: InstanceType<typeof UI>;
-    private readonly autopilot_: InstanceType<typeof Autopilot>;
-    private controlMode: InstanceType<typeof ControlMode>;
-    private readonly presenter_: InstanceType<typeof Presenter>;
-    private unsubscribes_: (() => void)[] = [];
-
-    private updatePosInUrl_ = false;
-    private lastUrlUpdateTime_ = 0;
-    private mapInteracted_ = false;
-    private dirty_ = false;
-    private disposed_ = false;
-
-    /**
-     * Internal event-emitter owner used by residual JS children.
-     * This property is private to the typed public surface.
-     */
-    private get map(): Map {
-
-        return this.map_;
-    }
-
-    private get legacyMap(): LegacyMap | null {
-
-        return this.map_.legacyMap;
-    }
-
-    private get renderer(): Renderer {
-
-        return this.map_.renderer;
-    }
-
-
-    /** Throws if the viewer has been destroyed. */
-    private assertAlive(): void {
-
-        if (this.disposed_) {
-            throw new Error('Viewer has been destroyed.');
-        }
-    }
-
     /**
      * Do not construct directly — use the `map()` factory function
      * exported from this package.
@@ -110,6 +45,8 @@ class Viewer {
      * @param config the complete configuration accepted by `map()`
      */
     constructor(config: Viewer.Config) {
+
+        GpuDevice.checkSupport();
 
         for (const key of Object.keys(config)) {
 
@@ -129,10 +66,6 @@ class Viewer {
         this.config = this.configStore.values;
         this.applyOptions(config.options || {});
 
-        if (!GpuDevice.checkSupport()) {
-            throw new Error('cartolina-js requires WebGL2.');
-        }
-
         const element = typeof config.container === 'string'
             ? document.getElementById(config.container)
             : config.container;
@@ -143,260 +76,34 @@ class Viewer {
             element.style.position = 'relative';
         }
 
-        this.ui_ = new UI(this, element);
-        let map: Map | null = null;
-
         try {
+
+            this.ui_ = new UI(this, element);
+            this.ui_.init();
 
             const mapElement = this.ui_.getMapControl()!
                 .getMapElement().getElement();
 
-            map = new Map(
+            this.map_ = new Map(
                 mapElement,
                 this.configStore,
                 config.style,
                 config.position,
                 config.transformRequest,
             );
-            this.map_ = map;
             this.autopilot_ = new Autopilot(this);
             this.controlMode = new ControlMode(
                 this, config.interactive ?? true);
             this.presenter_ = new Presenter(this);
 
-            this.unsubscribes_ = [
-                this.on('map-loaded', this.onMapLoaded_.bind(this)),
-                this.on('map-update', this.onMapUpdate_.bind(this)),
-                this.on(
-                    'map-position-changed',
-                    this.onMapPositionChanged_.bind(this),
-                ),
-                this.on(
-                    'map-position-fixed-height-changed',
-                    this.onMapPositionFixedHeightChanged_.bind(this),
-                ),
-                this.on(
-                    'map-position-panned',
-                    this.onMapPositionPanned_.bind(this),
-                ),
-                this.on(
-                    'map-position-rotated',
-                    this.onMapPositionRotated_.bind(this),
-                ),
-                this.on(
-                    'map-position-zoomed',
-                    this.onMapPositionZoomed_.bind(this),
-                ),
-                this.on('tick', this.onTick_.bind(this)),
-            ];
+            this.subscribeToMapEvents();
+            this.watchConfig();
 
-            this.watchConfig_();
         } catch (error) {
 
-            map?.[Symbol.dispose]();
-            this.ui_.kill();
-            this.disposed_ = true;
+            this[Symbol.dispose]();
             throw error;
         }
-    }
-
-    /** Applies normalized construction options to the shared config store. */
-    private applyOptions(options: object): void {
-
-        for (const [key, value] of Object.entries(options))
-            this.applyOption_(key, value);
-    }
-
-    /** Normalizes and applies one raw shared option. */
-    private applyOption_(key: string, value: unknown): void {
-
-        const patch = viewerConfig.normalizeConfigPatch(key, value);
-        if (!patch) {
-
-            if (viewerConfig.looksLikeConfigKey(key)) {
-                console.warn(
-                    `Unknown configuration key '${key}'; ignored.`);
-            }
-            return;
-        }
-
-        this.configStore.set(patch);
-    }
-
-    /** Registers Viewer-owned configuration reactions. */
-    private watchConfig_(): void {
-
-        for (const key of uiControlKeys) {
-
-            this.unsubscribes_.push(this.configStore.watch(
-                [key],
-                () => this.updateUI_(key),
-            ));
-        }
-
-        this.unsubscribes_.push(this.configStore.watch(
-            ['autoRotate', 'autoPan'],
-            (values) => {
-
-                if (this.legacyMap) {
-                    this.autopilot_.setAutorotate(values.autoRotate);
-                    this.autopilot_.setAutopan(
-                        values.autoPan[0], values.autoPan[1]);
-                }
-            },
-        ));
-    }
-
-    private updateUI_(key: keyof viewerConfig.ViewerConfig): void {
-
-        this.ui_.setParam(key);
-    }
-
-    /** Whether a map is loaded and ready. Read by UI controls. */
-    private get mapLoaded(): boolean {
-
-        return this.map_.loaded;
-    }
-
-    private onMapLoaded_(): void {
-
-        this.autopilot_.setAutorotate(this.config.autoRotate);
-        this.autopilot_.setAutopan(
-            this.config.autoPan[0], this.config.autoPan[1]);
-    }
-
-    private onMapUpdate_(): void {
-
-        this.dirty_ = true;
-    }
-
-    private onMapPositionChanged_(): void {
-
-        if (this.config.positionInUrl) this.updatePosInUrl_ = true;
-    }
-
-    private onMapPositionFixedHeightChanged_(): void {
-
-        if (this.config.positionInUrl) this.updatePosInUrl_ = true;
-    }
-
-    private onMapPositionPanned_(): void {
-
-        this.mapInteracted_ = true;
-    }
-
-    private onMapPositionRotated_(): void {
-
-        this.mapInteracted_ = true;
-    }
-
-    private onMapPositionZoomed_(): void {
-
-        this.mapInteracted_ = true;
-    }
-
-    private onTick_(): void {
-
-        if (this.disposed_) return;
-
-        this.autopilot_.tick();
-        this.ui_.tick(this.dirty_);
-        this.dirty_ = false;
-
-        if (!this.updatePosInUrl_) return;
-
-        const timer = performance.now();
-        if (timer - this.lastUrlUpdateTime_ <= 1000) return;
-
-        if (window.history.replaceState) {
-            window.history.replaceState(
-                {},
-                '',
-                this.getLinkWithCurrentPos_(),
-            );
-        }
-
-        this.updatePosInUrl_ = false;
-        this.lastUrlUpdateTime_ = timer;
-    }
-
-    private getLinkWithCurrentPos_(): string {
-
-        const map = this.legacyMap;
-        if (!map) return '';
-
-        const params = utils.getParamsFromUrl(
-            window.location.href) as Record<string, string>;
-        let position = map.getPosition();
-        position = map.convertPositionHeightMode(position, 'fix', true);
-
-        const coords = position.getCoords();
-        const orientation = position.getOrientation();
-        const serialized = [
-            position.getViewMode(),
-            coords[0].toFixed(6),
-            coords[1].toFixed(6),
-            position.getHeightMode(),
-            coords[2].toFixed(2),
-            orientation[0].toFixed(2),
-            orientation[1].toFixed(2),
-            orientation[2].toFixed(2),
-            position.getViewExtent().toFixed(2),
-            position.getFov().toFixed(2),
-        ].join(',');
-
-        params.pos = serialized;
-
-        if (this.mapInteracted_) {
-
-            if (params.rotate || this.configStore.get('autoRotate'))
-                params.rotate = '0';
-
-            const pan = this.configStore.get('autoPan');
-            if (params.pan || pan[0] || pan[1]) params.pan = '0,0';
-        }
-
-        const query = Object.entries(params)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('&');
-        const urlParts = window.location.href.split('?');
-        if (urlParts.length > 1) {
-
-            const extraParts = urlParts[1].split('#');
-            return `${urlParts[0]}?${query}${extraParts[1] || ''}`;
-        }
-
-        return `${urlParts[0]}?${query}`;
-    }
-
-    /**
-     * Internal map-model accessor used by residual JS Viewer children.
-     */
-    private getMap(): LegacyMap | null {
-
-        return this.legacyMap;
-    }
-
-    /**
-     * Internal renderer accessor used by residual JS Viewer children.
-     */
-    private getRenderer(): Renderer {
-
-        return this.renderer;
-    }
-
-    /**
-     * Internal URL helper used by the link and measurement controls.
-     */
-    private getLinkWithCurrentPos(): string {
-
-        return this.getLinkWithCurrentPos_();
-    }
-
-    /** The cartolina-js library version string. */
-    version(): string {
-
-        return getVersion();
     }
 
     // -------------------------------------------------------------------------
@@ -428,8 +135,9 @@ class Viewer {
             unsubscribe();
         this.unsubscribes_ = [];
 
-        this.map_[Symbol.dispose]();
-        this.ui_.kill();
+        // Fields are undefined only when construction failed before assignment.
+        this.map_?.[Symbol.dispose]();
+        this.ui_?.kill();
     }
 
     // -------------------------------------------------------------------------
@@ -495,106 +203,11 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Render control
-    // -------------------------------------------------------------------------
-
-    /** Marks the scene dirty, triggering a re-render on the next frame. */
-    redraw(): this {
-
-        this.assertAlive();
-        this.legacyMap?.markDirty();
-        return this;
-    }
-
-    /**
-     * Sets the atmosphere rendering parameters.
-     *
-     * @param spec atmosphere specification; partial updates are merged
-     *
-     * BUG: if the loaded style has no `atmosphere` section, `this.legacyMap.atmosphere`
-     * is null and the optional-chain silently discards the call. `getAtmosphere()`
-     * then continues to return null, giving no indication that the set failed.
-     * Styles without an atmosphere section must have one injected before map
-     * creation for `setAtmosphere` / `getAtmosphere` to work at all.
-     */
-    setAtmosphere(spec: Atmosphere.Specification): void {
-
-        this.assertAlive();
-        this.legacyMap?.atmosphere?.setRuntimeParameters(spec);
-    }
-
-    /** Returns the current runtime atmosphere rendering parameters. */
-    getAtmosphere(): Atmosphere.RuntimeParameters | null {
-
-        this.assertAlive();
-        return this.legacyMap?.atmosphere?.getRuntimeParameters() ?? null;
-    }
-
-    // -------------------------------------------------------------------------
     // Layer terrain applicability and visibility profiles
     //
     // All six methods require style readiness: they throw before the
     // `ready` promise resolves. There is no pending-operation queue.
     // -------------------------------------------------------------------------
-
-    /**
-     * Replaces one layer's active terrain-source list. An empty array
-     * makes the layer inactive on every terrain. Applies to every
-     * layer type; lettering rules are active exactly when their list
-     * intersects the active terrain stack.
-     *
-     * @param layerId id of the layer to mutate
-     * @param terrainIds terrain source ids
-     * @throws before `ready`, on an unknown layer id, or on an id
-     *   that is not a terrain source
-     */
-    setLayerTerrainSources(layerId: string, terrainIds: string[]): this {
-
-        this.assertAlive();
-        this.map_.setLayerTerrainSources(layerId, terrainIds);
-        return this;
-    }
-
-    /**
-     * Returns a copy of one layer's effective terrain-source list.
-     * Always an explicit array: an omitted authored `terrain`
-     * expanded at validation to every declared terrain source.
-     *
-     * @param layerId id of the layer to query
-     * @throws before `ready` or on an unknown layer id
-     */
-    getLayerTerrainSources(layerId: string): string[] {
-
-        this.assertAlive();
-        return this.map_.getLayerTerrainSources(layerId);
-    }
-
-    /**
-     * Replaces the active terrain stack, preserving the caller's
-     * back-to-front order. Layer terrain lists are unchanged and may
-     * name currently inactive terrain sources in preparation for a
-     * later terrain switch.
-     *
-     * @param sourceIds terrain source ids in stack order
-     * @throws before `ready` or on an id that is not a terrain source
-     */
-    setTerrainSources(sourceIds: string[]): this {
-
-        this.assertAlive();
-        this.map_.setTerrainSources(sourceIds);
-        return this;
-    }
-
-    /**
-     * Returns a copy of the effective active terrain stack.
-     *
-     * @throws before `ready`
-     */
-    getTerrainSources(): string[] {
-
-        this.assertAlive();
-        return this.map_.getTerrainSources();
-    }
 
     /**
      * Applies a complete visibility snapshot atomically: the active
@@ -674,6 +287,77 @@ class Viewer {
     }
 
     /**
+     * Replaces the active terrain stack, preserving the caller's
+     * back-to-front order. Layer terrain lists are unchanged and may
+     * name currently inactive terrain sources in preparation for a
+     * later terrain switch.
+     *
+     * @param sourceIds terrain source ids in stack order
+     * @throws before `ready` or on an id that is not a terrain source
+     */
+    setTerrainSources(sourceIds: string[]): this {
+
+        this.assertAlive();
+        this.map_.setTerrainSources(sourceIds);
+        return this;
+    }
+
+    /**
+     * Returns a copy of the effective active terrain stack.
+     *
+     * @throws before `ready`
+     */
+    getTerrainSources(): string[] {
+
+        this.assertAlive();
+        return this.map_.getTerrainSources();
+    }
+
+    /**
+     * Replaces one layer's active terrain-source list. An empty array
+     * makes the layer inactive on every terrain. Applies to every
+     * layer type; lettering rules are active exactly when their list
+     * intersects the active terrain stack.
+     *
+     * @param layerId id of the layer to mutate
+     * @param terrainIds terrain source ids
+     * @throws before `ready`, on an unknown layer id, or on an id
+     *   that is not a terrain source
+     */
+    setLayerTerrainSources(layerId: string, terrainIds: string[]): this {
+
+        this.assertAlive();
+        this.map_.setLayerTerrainSources(layerId, terrainIds);
+        return this;
+    }
+
+    /**
+     * Returns a copy of one layer's effective terrain-source list.
+     * Always an explicit array: an omitted authored `terrain`
+     * expanded at validation to every declared terrain source.
+     *
+     * @param layerId id of the layer to query
+     * @throws before `ready` or on an unknown layer id
+     */
+    getLayerTerrainSources(layerId: string): string[] {
+
+        this.assertAlive();
+        return this.map_.getLayerTerrainSources(layerId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------------------
+
+    /** Marks the scene dirty, triggering a re-render on the next frame. */
+    redraw(): this {
+
+        this.assertAlive();
+        this.legacyMap?.markDirty();
+        return this;
+    }
+
+    /**
      * Sets the illumination definition (light direction, shading weights, etc.)
      *
      * @param spec illumination definition
@@ -710,50 +394,6 @@ class Viewer {
     }
 
     /**
-     * Sets rendering feature flags (lighting, normal maps, atmosphere, etc.)
-     *
-     * @param options rendering options
-     */
-    setRenderingOptions(options: Renderer.RenderingOptions): void {
-
-        this.assertAlive();
-        this.renderer.setRenderingOptions(options);
-    }
-
-    /** Returns the current rendering options. */
-    getRenderingOptions(): Renderer.RenderingOptions | null {
-
-        this.assertAlive();
-        return this.renderer.getRenderingOptions();
-    }
-
-    // -------------------------------------------------------------------------
-    // Scale
-    // -------------------------------------------------------------------------
-
-    /**
-     * Returns the scale denominator for a given view extent.
-     *
-     * If `extent` is omitted, returns the denominator for the current
-     * selection position. During freeze diagnostics this matches the terrain
-     * selection context rather than the live navigation camera.
-     *
-     * @param extent view extent in metres
-     */
-    getScaleDenominator(extent?: number): number {
-
-        this.assertAlive();
-        const currentExtent = extent
-            ?? this.map_.getSelectionPosition()?.getViewExtent();
-
-        if (currentExtent === undefined) {
-            throw new Error('No map is loaded.');
-        }
-
-        return this.renderer.getScaleDenominator(currentExtent);
-    }
-
-    /**
      * Returns the vertical exaggeration scale factor at the given position.
      *
      * If `position` is omitted, returns the factor for the current selection
@@ -773,6 +413,49 @@ class Viewer {
         }
 
         return this.renderer.getVeScaleFactor(currentPosition);
+    }
+
+    /**
+     * Sets the atmosphere rendering parameters.
+     *
+     * @param spec atmosphere specification; partial updates are merged
+     *
+     * BUG: if the loaded style has no `atmosphere` section,
+     * `this.legacyMap.atmosphere` is null and the optional-chain silently
+     * discards the call. `getAtmosphere()` then continues to return null,
+     * giving no indication that the set failed. Styles without an atmosphere
+     * section must have one injected before map creation for
+     * `setAtmosphere` / `getAtmosphere` to work at all.
+     */
+    setAtmosphere(spec: Atmosphere.Specification): void {
+
+        this.assertAlive();
+        this.legacyMap?.atmosphere?.setRuntimeParameters(spec);
+    }
+
+    /** Returns the current runtime atmosphere rendering parameters. */
+    getAtmosphere(): Atmosphere.RuntimeParameters | null {
+
+        this.assertAlive();
+        return this.legacyMap?.atmosphere?.getRuntimeParameters() ?? null;
+    }
+
+    /**
+     * Sets rendering feature flags (lighting, normal maps, atmosphere, etc.)
+     *
+     * @param options rendering options
+     */
+    setRenderingOptions(options: Renderer.RenderingOptions): void {
+
+        this.assertAlive();
+        this.renderer.setRenderingOptions(options);
+    }
+
+    /** Returns the current rendering options. */
+    getRenderingOptions(): Renderer.RenderingOptions | null {
+
+        this.assertAlive();
+        return this.renderer.getRenderingOptions();
     }
 
     // -------------------------------------------------------------------------
@@ -835,7 +518,7 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Hit testing and coordinate conversion
+    // Coordinate conversion
     // -------------------------------------------------------------------------
 
     /**
@@ -874,6 +557,112 @@ class Viewer {
 
         this.assertAlive();
         return this.map_.convertCoordsFromNavToCanvas(pos, mode, lod);
+    }
+
+    /**
+     * Converts navigation coordinates to public (lon/lat/height) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     */
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+    ): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
+    }
+
+    /**
+     * Converts navigation coordinates to physical (ECEF) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     * @param applyVerticalExaggeration whether to apply vertical exaggeration
+     */
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+        applyVerticalExaggeration?: boolean,
+    ): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.convertCoordsFromNavToPhys(
+            pos, mode, lod, applyVerticalExaggeration);
+    }
+
+    /**
+     * Converts physical (ECEF) coordinates to camera space.
+     *
+     * @param pos `[x, y, z]` in physical space
+     */
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.convertCoordsFromPhysToCameraSpace(pos);
+    }
+
+    // -------------------------------------------------------------------------
+    // Hit testing
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the geographic coordinates at the given canvas pixel.
+     *
+     * @param screenX canvas X coordinate in CSS pixels
+     * @param screenY canvas Y coordinate in CSS pixels
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
+     */
+    getHitCoords(
+        screenX: number,
+        screenY: number,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+    ): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.getHitCoords(screenX, screenY, mode, lod);
+    }
+
+    // -------------------------------------------------------------------------
+    // Depth and visibility
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns terrain distance at a canvas pixel.
+     *
+     * @param screenX canvas X coordinate in CSS pixels
+     * @param screenY canvas Y coordinate in CSS pixels
+     * @param dilate optional dilation radius in pixels
+     * @param useGeometricIntersection compute a geometric ray intersection
+     * instead of sampling the depth hitmap. Geocentric maps intersect the
+     * ellipsoid; projected maps intersect the base plane.
+     * @returns `[hit, distanceMeters]`, or `null` when the map is not ready.
+     * `distanceMeters` is the Euclidean distance from the viewer to the
+     * terrain surface at that layout position. `hit` is false when no terrain
+     * covers the pixel; `distanceMeters` is then a sentinel value.
+     */
+    getScreenDepth(
+        screenX: number,
+        screenY: number,
+        dilate?: number,
+        useGeometricIntersection = false,
+    ): [boolean, number] | null {
+
+        this.assertAlive();
+        return this.map_.getScreenDepth(
+            screenX,
+            screenY,
+            dilate,
+            useGeometricIntersection,
+            'layout',
+        );
     }
 
     /**
@@ -965,104 +754,6 @@ class Viewer {
         }
 
         return (pointDepth - screenDepth[1]) <= (0.03 * pointDepth);
-    }
-
-    /**
-     * Returns the geographic coordinates at the given canvas pixel.
-     *
-     * @param screenX canvas X coordinate in CSS pixels
-     * @param screenY canvas Y coordinate in CSS pixels
-     * @param mode height mode (`'fix'` or `'float'`)
-     * @param lod optional level-of-detail hint
-     */
-    getHitCoords(
-        screenX: number,
-        screenY: number,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.getHitCoords(screenX, screenY, mode, lod);
-    }
-
-    /**
-     * Converts navigation coordinates to public (lon/lat/height) coordinates.
-     *
-     * @param pos `[x, y, z]` in navigation space
-     * @param mode height mode
-     * @param lod optional level-of-detail hint
-     */
-    convertCoordsFromNavToPublic(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
-    }
-
-    /**
-     * Converts navigation coordinates to physical (ECEF) coordinates.
-     *
-     * @param pos `[x, y, z]` in navigation space
-     * @param mode height mode
-     * @param lod optional level-of-detail hint
-     * @param applyVerticalExaggeration whether to apply vertical exaggeration
-     */
-    convertCoordsFromNavToPhys(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-        applyVerticalExaggeration?: boolean,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromNavToPhys(
-            pos, mode, lod, applyVerticalExaggeration);
-    }
-
-    /**
-     * Converts physical (ECEF) coordinates to camera space.
-     *
-     * @param pos `[x, y, z]` in physical space
-     */
-    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromPhysToCameraSpace(pos);
-    }
-
-    /**
-     * Returns terrain distance at a canvas pixel.
-     *
-     * @param screenX canvas X coordinate in CSS pixels
-     * @param screenY canvas Y coordinate in CSS pixels
-     * @param dilate optional dilation radius in pixels
-     * @param useGeometricIntersection compute a geometric ray intersection
-     * instead of sampling the depth hitmap. Geocentric maps intersect the
-     * ellipsoid; projected maps intersect the base plane.
-     * @returns `[hit, distanceMeters]`, or `null` when the map is not ready.
-     * `distanceMeters` is the Euclidean distance from the viewer to the
-     * terrain surface at that layout position. `hit` is false when no terrain
-     * covers the pixel; `distanceMeters` is then a sentinel value.
-     */
-    getScreenDepth(
-        screenX: number,
-        screenY: number,
-        dilate?: number,
-        useGeometricIntersection = false,
-    ): [boolean, number] | null {
-
-        this.assertAlive();
-        return this.map_.getScreenDepth(
-            screenX,
-            screenY,
-            dilate,
-            useGeometricIntersection,
-            'layout',
-        );
     }
 
     // -------------------------------------------------------------------------
@@ -1164,6 +855,32 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
+    // Scale
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the scale denominator for a given view extent.
+     *
+     * If `extent` is omitted, returns the denominator for the current
+     * selection position. During freeze diagnostics this matches the terrain
+     * selection context rather than the live navigation camera.
+     *
+     * @param extent view extent in metres
+     */
+    getScaleDenominator(extent?: number): number {
+
+        this.assertAlive();
+        const currentExtent = extent
+            ?? this.map_.getSelectionPosition()?.getViewExtent();
+
+        if (currentExtent === undefined) {
+            throw new Error('No map is loaded.');
+        }
+
+        return this.renderer.getScaleDenominator(currentExtent);
+    }
+
+    // -------------------------------------------------------------------------
     // Legacy shims — pending promotion to flat Viewer methods
     //
     // These three getters expose Viewer sub-objects directly. They exist
@@ -1213,14 +930,6 @@ class Viewer {
     // Legacy / compat
     // -------------------------------------------------------------------------
 
-    /** Unloads the current map. */
-    destroyMap(): this {
-
-        this.assertAlive();
-        this.map_.unloadMap();
-        return this;
-    }
-
     /**
      * Sets the navigation control mode.
      *
@@ -1249,7 +958,270 @@ class Viewer {
         return this.controlMode;
     }
 
+    // -------------------------------------------------------------------------
+    // Metadata
+    // -------------------------------------------------------------------------
+
+    /** The cartolina-js library version string. */
+    version(): string {
+
+        return getVersion();
+    }
+
+    // -------------------------------------------------------------------------
+    // Private implementation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Internal event-emitter owner used by residual JS children.
+     * This property is private to the typed public surface.
+     */
+    private get map(): Map {
+
+        return this.map_;
+    }
+
+    private get legacyMap(): LegacyMap | null {
+
+        return this.map_.legacyMap;
+    }
+
+    private get renderer(): Renderer {
+
+        return this.map_.renderer;
+    }
+
+    /** Whether a map is loaded and ready. Read by UI controls. */
+    private get mapLoaded(): boolean {
+
+        return this.map_.loaded;
+    }
+
+    /** Throws if the viewer has been destroyed. */
+    private assertAlive(): void {
+
+        if (this.disposed_) {
+            throw new Error('Viewer has been destroyed.');
+        }
+    }
+
+    /** Applies normalized construction options to the shared config store. */
+    private applyOptions(options: object): void {
+
+        for (const [key, value] of Object.entries(options))
+            this.applyOption(key, value);
+    }
+
+    /** Normalizes and applies one raw shared option. */
+    private applyOption(key: string, value: unknown): void {
+
+        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        if (!patch) {
+
+            if (viewerConfig.looksLikeConfigKey(key)) {
+                console.warn(
+                    `Unknown configuration key '${key}'; ignored.`);
+            }
+            return;
+        }
+
+        this.configStore.set(patch);
+    }
+
+    /** Registers Viewer-owned map-event reactions. */
+    private subscribeToMapEvents(): void {
+
+        const updatePositionInUrl = () => {
+
+            if (this.config.positionInUrl) this.updatePosInUrl_ = true;
+        };
+
+        const markMapInteracted = () => {
+
+            this.mapInteracted_ = true;
+        };
+
+        this.unsubscribes_.push(
+            this.on('map-loaded', () => {
+
+                this.autopilot_.setAutorotate(this.config.autoRotate);
+                this.autopilot_.setAutopan(
+                    this.config.autoPan[0], this.config.autoPan[1]);
+            }),
+            this.on('map-update', () => {
+
+                this.dirty_ = true;
+            }),
+            this.on('map-position-changed', updatePositionInUrl),
+            this.on(
+                'map-position-fixed-height-changed',
+                updatePositionInUrl,
+            ),
+            this.on('map-position-panned', markMapInteracted),
+            this.on('map-position-rotated', markMapInteracted),
+            this.on('map-position-zoomed', markMapInteracted),
+            this.on('tick', () => this.handleTick()),
+        );
+    }
+
+    /** Registers Viewer-owned configuration reactions. */
+    private watchConfig(): void {
+
+        for (const key of uiControlKeys) {
+
+            this.unsubscribes_.push(this.configStore.watch(
+                [key],
+                () => this.ui_.setParam(key),
+            ));
+        }
+
+        this.unsubscribes_.push(this.configStore.watch(
+            ['autoRotate', 'autoPan'],
+            (values) => {
+
+                if (this.legacyMap) {
+                    this.autopilot_.setAutorotate(values.autoRotate);
+                    this.autopilot_.setAutopan(
+                        values.autoPan[0], values.autoPan[1]);
+                }
+            },
+        ));
+    }
+
+    private handleTick(): void {
+
+        if (this.disposed_) return;
+
+        this.autopilot_.tick();
+        this.ui_.tick(this.dirty_);
+        this.dirty_ = false;
+
+        if (!this.updatePosInUrl_) return;
+
+        const timer = performance.now();
+        if (timer - this.lastUrlUpdateTime_ <= 1000) return;
+
+        if (window.history.replaceState) {
+            window.history.replaceState(
+                {},
+                '',
+                this.getLinkWithCurrentPos(),
+            );
+        }
+
+        this.updatePosInUrl_ = false;
+        this.lastUrlUpdateTime_ = timer;
+    }
+
+    /**
+     * Internal map-model accessor used by residual JS Viewer children.
+     */
+    private getMap(): LegacyMap | null {
+
+        return this.legacyMap;
+    }
+
+    /**
+     * Internal renderer accessor used by residual JS Viewer children.
+     */
+    private getRenderer(): Renderer {
+
+        return this.renderer;
+    }
+
+    /**
+     * Internal URL helper used by the link and measurement controls.
+     */
+    private getLinkWithCurrentPos(): string {
+
+        const map = this.legacyMap;
+        if (!map) return '';
+
+        const params = utils.getParamsFromUrl(
+            window.location.href) as Record<string, string>;
+        let position = map.getPosition();
+        position = map.convertPositionHeightMode(position, 'fix', true);
+
+        const coords = position.getCoords();
+        const orientation = position.getOrientation();
+        const serialized = [
+            position.getViewMode(),
+            coords[0].toFixed(6),
+            coords[1].toFixed(6),
+            position.getHeightMode(),
+            coords[2].toFixed(2),
+            orientation[0].toFixed(2),
+            orientation[1].toFixed(2),
+            orientation[2].toFixed(2),
+            position.getViewExtent().toFixed(2),
+            position.getFov().toFixed(2),
+        ].join(',');
+
+        params.pos = serialized;
+
+        if (this.mapInteracted_) {
+
+            if (params.rotate || this.configStore.get('autoRotate'))
+                params.rotate = '0';
+
+            const pan = this.configStore.get('autoPan');
+            if (params.pan || pan[0] || pan[1]) params.pan = '0,0';
+        }
+
+        const query = Object.entries(params)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('&');
+        const urlParts = window.location.href.split('?');
+        if (urlParts.length > 1) {
+
+            const extraParts = urlParts[1].split('#');
+            return `${urlParts[0]}?${query}${extraParts[1] || ''}`;
+        }
+
+        return `${urlParts[0]}?${query}`;
+    }
+
+    // -------------------------------------------------------------------------
+    // Private state
+    // -------------------------------------------------------------------------
+
+    private readonly configStore:
+        ConfigStore<viewerConfig.ViewerConfig>;
+
+    /**
+     * Shared normalized configuration read by the remaining legacy
+     * UI and navigation modules.
+     */
+    private readonly config: Readonly<viewerConfig.ViewerConfig>;
+
+    private readonly map_: Map;
+    private readonly ui_: InstanceType<typeof UI>;
+    private readonly autopilot_: InstanceType<typeof Autopilot>;
+    private controlMode: InstanceType<typeof ControlMode>;
+    private readonly presenter_: InstanceType<typeof Presenter>;
+    private unsubscribes_: (() => void)[] = [];
+
+    private updatePosInUrl_ = false;
+    private lastUrlUpdateTime_ = 0;
+    private mapInteracted_ = false;
+    private dirty_ = false;
+    private disposed_ = false;
+
 }
+
+// The complete public construction shape. Keeping this guard beside
+// Viewer.Config prevents the factory and constructor contracts from
+// drifting apart.
+const configKeys = new Set([
+    'container', 'style', 'position', 'options',
+    'transformRequest', 'interactive',
+]);
+
+const uiControlKeys: (keyof viewerConfig.ViewerConfig)[] = [
+    'controlCompass', 'controlZoom', 'controlMeasure', 'controlScale',
+    'controlLayers', 'controlSpace', 'controlSearch', 'controlLink',
+    'controlLogo', 'controlFullscreen', 'controlCredits',
+];
 
 namespace Viewer {
 

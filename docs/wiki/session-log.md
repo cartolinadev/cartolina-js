@@ -6,16 +6,32 @@ existing entry, even one added earlier in the same session.**
 ## 2026-07-27 — Cleanup across viewer, map, and renderer
 
 The cleanup removes dead internal code, gives associated types one qualified
-name, and corrects the Viewer load-state value after map unload.
+name, and organizes the Viewer around its public API.
 
 Removed the deprecated `Map.destroy()` shim. The internal `Map` is not
 exported and nothing called it; it only forwarded to `[Symbol.dispose]()`.
 
 `Viewer.mapLoaded` now delegates to `Map.loaded`, which reads the existing
 `mapLoadedFired_` lifecycle gate. Normal load timing remains tied to the
-`map-loaded` event. After `destroyMap()`, the value is now false; the former
-Viewer field stayed true because its unload handler was empty. A browser
-lifecycle check covers the true-to-false transition.
+`map-loaded` event. The getter remains for the search control. The unused
+public `Viewer.destroyMap()` shim and its browser assertion are gone.
+`Map.unloadMap()` then had no callers and was removed; final teardown remains
+owned by `Map[Symbol.dispose]()`.
+
+`Viewer` now presents its constructor and public API before private
+implementation and state. Public methods are grouped by application-facing
+purpose and prominence. Coordinate conversions are contiguous; screen depth
+and visibility are adjacent; `getVeScaleFactor()` sits with vertical
+exaggeration. Constructor event reactions live together in
+`subscribeToMapEvents()` as arrow callbacks, while the multi-step tick handler
+remains a private method. Constructor rollback always delegates to full
+Viewer disposal. UI construction assigns the side-effect-free shell before
+running `UI.init()`, so rollback can remove partially initialized DOM and
+controls. Disposal also tolerates a `Map` constructor failure and drains any
+event and configuration subscriptions registered before a later failure.
+The constructor now calls the throwing `GpuDevice.checkSupport()` assertion
+before config validation. The device owns its WebGL2-specific failure;
+`Viewer` no longer converts a boolean probe into a renderer-specific error.
 
 Reconciled the same-name namespace in `map.ts` with the
 TileRenderRig/Atmosphere model. The associated types owned here —
@@ -33,16 +49,18 @@ union types with `type`; reserve `interface` for an intentionally open,
 declaration-merged type. Converted the remaining `VisibilityProfile`
 interface in `Viewer`.
 
+Added a coding-style rule that modules and classes show their public surface
+before private implementation and state. Public groups follow their
+application-facing hierarchy rather than alphabetical order. Private method
+names have no trailing underscore; that suffix is reserved for fields.
+
 Renamed the private `Viewer` getter `_renderer` to `renderer` — the file's
 only leading-underscore identifier, now matching its sibling private getters
 `legacyMap` and `mapLoaded`. The `map`, `legacyMap`, and JS-facing
 `getRenderer()` accessors were kept: each has live TypeScript or `.js`
 consumers.
 
-The typecheck and all 79 unit tests pass. The browser lifecycle assertion
-confirmed that `mapLoaded` is true after readiness and false after
-`destroyMap()`. The wider browser run then lost access to public map
-resources; its unrelated network-dependent checks did not complete.
+The typecheck and all 79 unit tests pass.
 
 ## 2026-07-27 — Viewer construction configuration named explicitly
 

@@ -241,8 +241,7 @@ the config store and runs `Map.tick()`, which:
    legacy loader / worker work, draw, overlays, deferred geodata events,
    then public `tick`
 
-`Map.unloadMap()` resets the per-loaded-map `map-loaded` gate. The
-`ready` Promise remains one-shot for the typed `Map` wrapper.
+The `ready` Promise resolves once for the typed `Map` wrapper.
 
 ## Event Bus
 
@@ -252,8 +251,9 @@ both return an unsubscribe function; both are surfaced on `Viewer`.
 `Map.emit` is internal — applications only subscribe.
 
 `Map` emits its own lifecycle events (`tick`, `map-loaded`,
-`map-unloaded`, `map-update`, the position-change pair). The legacy emitters receive the bus instance
-at construction and publish through it directly: `LegacyMap`
+`map-unloaded`, `map-update`, the position-change pair). The legacy
+emitters receive the bus instance at construction and publish through
+it directly: `LegacyMap`
 (geo-feature events) and `GpuDevice` (context-loss events).
 Viewer-layer code emits through `Map.emit`.
 
@@ -301,10 +301,9 @@ Engine objects such as `Map` and `LegacyMap` hold a `killed` flag.
 After disposal or `kill()`, the animation frame callback and pending
 async callbacks check that flag before touching the object.
 
-`LegacyMap.kill()` releases map-owned resources but does not destroy
-the shared `Renderer`. `Map.unloadMap()` may unload one map and later
-load another through the same `Renderer`; `Map[Symbol.dispose]()`
-owns final renderer teardown.
+`LegacyMap.kill()` releases map-owned resources.
+`Map[Symbol.dispose]()` owns both loaded-map and final renderer
+teardown; there is no separate public partial-unload operation.
 
 The tile cache also evicts resources by calling `kill()`. Pending
 network fetches or GPU uploads check `this.killed` before writing
