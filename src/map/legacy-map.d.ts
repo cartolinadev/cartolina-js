@@ -21,7 +21,6 @@ import type {
 } from '../types';
 import type { vec3 } from '../utils/math';
 import type EventBus from './event-bus';
-import type { ViewerEventMap } from './map';
 
 type MapReferenceFrame = (MapRefFrame & {
     id: string;
@@ -70,7 +69,7 @@ export default class Map {
         core: unknown,
         path: string,
         config: Readonly<viewerConfig.ViewerConfig>,
-        bus: EventBus<ViewerEventMap>,
+        bus: EventBus<TypedMap.ViewerEventMap>,
     );
 
     /**
@@ -91,7 +90,7 @@ export default class Map {
 
     /** Event bus owned by the typed `Map`; geo-feature events publish
      * through it. */
-    bus: EventBus<ViewerEventMap>;
+    bus: EventBus<TypedMap.ViewerEventMap>;
 
     renderer: Renderer;
     url: MapUrl;

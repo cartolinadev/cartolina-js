@@ -71,7 +71,6 @@ class Viewer {
 
     private updatePosInUrl_ = false;
     private lastUrlUpdateTime_ = 0;
-    private mapLoaded = false;
     private mapInteracted_ = false;
     private dirty_ = false;
     private disposed_ = false;
@@ -90,7 +89,7 @@ class Viewer {
         return this.map_.legacyMap;
     }
 
-    private get _renderer(): Renderer {
+    private get renderer(): Renderer {
 
         return this.map_.renderer;
     }
@@ -167,7 +166,6 @@ class Viewer {
 
             this.unsubscribes_ = [
                 this.on('map-loaded', this.onMapLoaded_.bind(this)),
-                this.on('map-unloaded', this.onMapUnloaded_.bind(this)),
                 this.on('map-update', this.onMapUpdate_.bind(this)),
                 this.on(
                     'map-position-changed',
@@ -254,15 +252,17 @@ class Viewer {
         this.ui_.setParam(key);
     }
 
+    /** Whether a map is loaded and ready. Read by UI controls. */
+    private get mapLoaded(): boolean {
+
+        return this.map_.loaded;
+    }
+
     private onMapLoaded_(): void {
 
-        this.mapLoaded = true;
         this.autopilot_.setAutorotate(this.config.autoRotate);
         this.autopilot_.setAutopan(
             this.config.autoPan[0], this.config.autoPan[1]);
-    }
-
-    private onMapUnloaded_(): void {
     }
 
     private onMapUpdate_(): void {
@@ -382,7 +382,7 @@ class Viewer {
      */
     private getRenderer(): Renderer {
 
-        return this._renderer;
+        return this.renderer;
     }
 
     /**
@@ -681,14 +681,14 @@ class Viewer {
     setIllumination(spec: Renderer.IlluminationDef): void {
 
         this.assertAlive();
-        this._renderer.setIllumination(spec);
+        this.renderer.setIllumination(spec);
     }
 
     /** Returns the current illumination definition. */
     getIllumination(): Renderer.IlluminationDef | null {
 
         this.assertAlive();
-        return this._renderer.getIllumination();
+        return this.renderer.getIllumination();
     }
 
     /**
@@ -699,14 +699,14 @@ class Viewer {
     setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec): void {
 
         this.assertAlive();
-        this._renderer.setVerticalExaggeration(spec);
+        this.renderer.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration specification. */
     getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
 
         this.assertAlive();
-        return this._renderer.getVerticalExaggeration();
+        return this.renderer.getVerticalExaggeration();
     }
 
     /**
@@ -717,14 +717,14 @@ class Viewer {
     setRenderingOptions(options: Renderer.RenderingOptions): void {
 
         this.assertAlive();
-        this._renderer.setRenderingOptions(options);
+        this.renderer.setRenderingOptions(options);
     }
 
     /** Returns the current rendering options. */
     getRenderingOptions(): Renderer.RenderingOptions | null {
 
         this.assertAlive();
-        return this._renderer.getRenderingOptions();
+        return this.renderer.getRenderingOptions();
     }
 
     // -------------------------------------------------------------------------
@@ -750,7 +750,7 @@ class Viewer {
             throw new Error('No map is loaded.');
         }
 
-        return this._renderer.getScaleDenominator(currentExtent);
+        return this.renderer.getScaleDenominator(currentExtent);
     }
 
     /**
@@ -772,7 +772,7 @@ class Viewer {
             throw new Error('No map is loaded.');
         }
 
-        return this._renderer.getVeScaleFactor(currentPosition);
+        return this.renderer.getVeScaleFactor(currentPosition);
     }
 
     // -------------------------------------------------------------------------
@@ -900,7 +900,7 @@ class Viewer {
         this.assertAlive();
 
         const map = this.legacyMap;
-        const renderer = this._renderer;
+        const renderer = this.renderer;
 
         if (!map) {
             return null;
@@ -1284,10 +1284,10 @@ namespace Viewer {
      * value applied through `applyVisibilityProfile`; never part of
      * the authored style.
      */
-    export interface VisibilityProfile {
+    export type VisibilityProfile = {
         terrain: string[];
         layers: Record<string, string[]>;
-    }
+    };
 
     /**
      * The public runtime configuration map accepted and returned by
@@ -1303,8 +1303,8 @@ namespace Viewer {
      * forwards to the module that owns the type.
      */
     export type PositionInput = import('../map/types').PositionInput;
-    export type OverlaySpec = import('../map/map').OverlaySpec;
-    export type ViewerEventMap = import('../map/map').ViewerEventMap;
+    export type OverlaySpec = Map.OverlaySpec;
+    export type ViewerEventMap = Map.ViewerEventMap;
 }
 
 export default Viewer;

@@ -21,7 +21,7 @@ import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../map/event-bus';
 import type ConfigStore from '../config-store';
 import type * as viewerConfig from '../viewer-config';
-import type { ViewerEventMap } from '../map/map';
+import type TypedMap from '../map/map';
 import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
@@ -2666,7 +2666,7 @@ type Core = {
 
     map: LegacyMap | null;
     contextLost: boolean;
-    bus: EventBus<ViewerEventMap>;
+    bus: EventBus<TypedMap.ViewerEventMap>;
     configStore: ConfigStore<viewerConfig.ViewerConfig>;
 
 }

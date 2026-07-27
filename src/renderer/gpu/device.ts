@@ -3,7 +3,7 @@ import GpuProgram from './program';
 import GpuTexture from './texture';
 import Renderer from '../renderer';
 import type EventBus from '../../map/event-bus';
-import type { ViewerEventMap } from '../../map/map';
+import type TypedMap from '../../map/map';
 import * as utils from '../../utils/utils';
 
 
@@ -37,7 +37,7 @@ export class GpuDevice {
      * Event bus owned by the typed `Map`; context-loss events publish
      * through it.
      */
-    bus!: EventBus<ViewerEventMap>;
+    bus!: EventBus<TypedMap.ViewerEventMap>;
 
     /**
      * DOM container that receives the managed canvas.
@@ -152,7 +152,7 @@ constructor(
     keepFrameBuffer: boolean,
     antialias: boolean,
     aniso: GLfloat,
-    bus: EventBus<ViewerEventMap>
+    bus: EventBus<TypedMap.ViewerEventMap>
 ) {
 
     this.renderer = renderer;

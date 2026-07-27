@@ -834,6 +834,20 @@ Do not rename existing private members only to satisfy this convention.
 Apply it to new members and to members already being changed for other
 reasons.
 
+### Type aliases over interfaces
+
+Declare object and union types with `type`, not `interface`. The two are
+interchangeable for a plain shape, and the codebase standardises on
+`type` so there is one form to read. Reach for `interface` only for an
+open declaration that other code deliberately extends through declaration
+merging, such as augmentation of a third-party or global type.
+
+An `implements` clause accepts either form and remains structural; it is not
+an exception. A payload record, options bag, or event map is a `type`. A
+`type` is also closed — no stray declaration elsewhere can silently widen
+it — which is the safer default for an authoritative shape such as an event
+map.
+
 ### Where types live
 
 Put a type where its semantic owner is. A type belongs to the module
@@ -879,12 +893,13 @@ owned by another module keep one canonical definition there and are
 referenced with their owner's qualifier inside the codebase. **Do not
 convert these to named exports.**
 
-At the public `Viewer` surface, forward a type from its canonical owner
-with an inline `import()` type:
+At the public `Viewer` surface, forward a type through its canonical owner:
 
 ```ts
+import Map from '../map/map';
+
 namespace Viewer {
-    export type OverlaySpec = import('../map/map').OverlaySpec;
+    export type OverlaySpec = Map.OverlaySpec;
 }
 ```
 

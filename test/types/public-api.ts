@@ -29,6 +29,12 @@ const viewer: Map = map({
 const overlay: Map.OverlaySpec = { render: () => undefined };
 viewer.addOverlay('compile-contract', overlay);
 
+const profile: Map.VisibilityProfile = {
+    terrain: [],
+    layers: {},
+};
+viewer.applyVisibilityProfile(profile);
+
 viewer.on('map-loaded', (event) => {
     const browserOptions: Record<string, unknown> = event.browserOptions;
     void browserOptions;

@@ -3,6 +3,47 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-27 — Cleanup across viewer, map, and renderer
+
+The cleanup removes dead internal code, gives associated types one qualified
+name, and corrects the Viewer load-state value after map unload.
+
+Removed the deprecated `Map.destroy()` shim. The internal `Map` is not
+exported and nothing called it; it only forwarded to `[Symbol.dispose]()`.
+
+`Viewer.mapLoaded` now delegates to `Map.loaded`, which reads the existing
+`mapLoadedFired_` lifecycle gate. Normal load timing remains tied to the
+`map-loaded` event. After `destroyMap()`, the value is now false; the former
+Viewer field stayed true because its unload handler was empty. A browser
+lifecycle check covers the true-to-false transition.
+
+Reconciled the same-name namespace in `map.ts` with the
+TileRenderRig/Atmosphere model. The associated types owned here —
+`OverlayContext`, `OverlaySpec`, `ViewerEventMap`, `GeoFeatureEvent` — are now
+authored inside `namespace Map`, and the flat `export`s plus the
+`import('./map')` self-import aliases are gone, so each type has one name
+(`Map.*`) instead of a flat name and a namespaced one. The two event types
+changed from `interface` to `type`. Consumers that imported the flat
+`ViewerEventMap` (`renderer`, `device`, `legacy-map.d.ts`) now reach it
+through the typed-map default alias; `Viewer` forwards through the `Map` it
+already imports.
+
+Added an AGENTS.md rule under Source code conventions: declare object and
+union types with `type`; reserve `interface` for an intentionally open,
+declaration-merged type. Converted the remaining `VisibilityProfile`
+interface in `Viewer`.
+
+Renamed the private `Viewer` getter `_renderer` to `renderer` — the file's
+only leading-underscore identifier, now matching its sibling private getters
+`legacyMap` and `mapLoaded`. The `map`, `legacyMap`, and JS-facing
+`getRenderer()` accessors were kept: each has live TypeScript or `.js`
+consumers.
+
+The typecheck and all 79 unit tests pass. The browser lifecycle assertion
+confirmed that `mapLoaded` is true after readiness and false after
+`destroyMap()`. The wider browser run then lost access to public map
+resources; its unrelated network-dependent checks did not complete.
+
 ## 2026-07-27 — Viewer construction configuration named explicitly
 
 Renamed the complete factory and constructor input type from `Map.Options` to

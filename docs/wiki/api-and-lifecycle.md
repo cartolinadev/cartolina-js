@@ -246,7 +246,7 @@ the config store and runs `Map.tick()`, which:
 
 ## Event Bus
 
-The event bus is a typed `EventBus<ViewerEventMap>`
+The event bus is a typed `EventBus<Map.ViewerEventMap>`
 (`src/map/event-bus.ts`) owned by `Map`. `Map.on` and `Map.once`
 both return an unsubscribe function; both are surfaced on `Viewer`.
 `Map.emit` is internal — applications only subscribe.
@@ -267,7 +267,7 @@ match the MapLibre-style `on()` / `once()` API, allocates
 `CustomEvent` objects for frequent events, and still needs an
 adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
 
-Event names and payload types are defined by `ViewerEventMap` in
+Event names and payload types are defined by `Map.ViewerEventMap` in
 `src/map/map.ts`:
 
 - `map-loaded`

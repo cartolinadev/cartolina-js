@@ -148,7 +148,7 @@ class Map {
      * legacy emitters (`LegacyMap`, `GpuDevice`) at their
      * construction; they publish through it directly.
      */
-    private bus_: EventBus<ViewerEventMap> = new EventBus();
+    private bus_: EventBus<Map.ViewerEventMap> = new EventBus();
 
     /**
      * The runtime config store. Owned by `Viewer`, which seeds it
@@ -273,9 +273,6 @@ class Map {
      * Destroys the map and releases all owned resources. `onRemove`
      * fires for every added overlay before teardown so overlays can
      * still draw through the live renderer.
-     *
-     * Prefer the `using` statement with `[Symbol.dispose]()` in new
-     * code.
      */
     [Symbol.dispose](): void {
 
@@ -289,21 +286,17 @@ class Map {
         this.disposed_ = true;
     }
 
-    /**
-     * @deprecated Use `[Symbol.dispose]()` / `using` instead.
-     */
-    destroy(): void {
-
-        __DEV__ && utils.warnOnce(
-            '[Map] destroy() is deprecated. Use Symbol.dispose instead.', 1);
-        this[Symbol.dispose]();
-    }
-
     /** Resolves once the map is fully loaded and ready to render. */
     get ready(): Promise<void> {
 
         this.assertAlive();
         return this.readyPromise_;
+    }
+
+    /** Whether the current map has fired its `map-loaded` completion. */
+    get loaded(): boolean {
+
+        return this.mapLoadedFired_;
     }
 
     /**
@@ -413,7 +406,7 @@ class Map {
      *
      * @internal
      */
-    get bus(): EventBus<ViewerEventMap> {
+    get bus(): EventBus<Map.ViewerEventMap> {
 
         return this.bus_;
     }
@@ -439,9 +432,9 @@ class Map {
      * @param callback invoked each time the event fires
      * @returns unsubscribe function
      */
-    on<K extends keyof ViewerEventMap & string>(
+    on<K extends keyof Map.ViewerEventMap & string>(
         eventName: K,
-        callback: (event: ViewerEventMap[K]) => void,
+        callback: (event: Map.ViewerEventMap[K]) => void,
     ): (() => void) {
 
         this.assertAlive();
@@ -455,9 +448,9 @@ class Map {
      * @param callback invoked once when the event fires
      * @returns unsubscribe function
      */
-    once<K extends keyof ViewerEventMap & string>(
+    once<K extends keyof Map.ViewerEventMap & string>(
         eventName: K,
-        callback: (event: ViewerEventMap[K]) => void,
+        callback: (event: Map.ViewerEventMap[K]) => void,
     ): (() => void) {
 
         this.assertAlive();
@@ -472,9 +465,9 @@ class Map {
      * @param eventName event to fire
      * @param event payload passed to each listener
      */
-    emit<K extends keyof ViewerEventMap & string>(
+    emit<K extends keyof Map.ViewerEventMap & string>(
         eventName: K,
-        event: ViewerEventMap[K],
+        event: Map.ViewerEventMap[K],
     ): void {
 
         this.bus_.emit(eventName, event);
@@ -957,7 +950,7 @@ class Map {
      * @param name unique overlay id
      * @param spec lifecycle callbacks; only `render` is required
      */
-    addOverlay(name: string, spec: OverlaySpec): void {
+    addOverlay(name: string, spec: Map.OverlaySpec): void {
 
         this.assertAlive();
         if (this.findOverlayIndex(name) !== -1) return;
@@ -1383,7 +1376,7 @@ class Map {
         return -1;
     }
 
-    private overlayContext(): OverlayContext {
+    private overlayContext(): Map.OverlayContext {
 
         return { renderer: this.renderer };
     }
@@ -1595,7 +1588,7 @@ class Map {
 
 type OverlayEntry = {
     name: string;
-    spec: OverlaySpec;
+    spec: Map.OverlaySpec;
     enabled: boolean;
     added: boolean;
 };
@@ -1611,108 +1604,109 @@ function resolveMaskResolution(value: number | undefined): number {
 }
 
 
-/**
- * Per-frame context passed to overlay lifecycle callbacks.
- *
- * Overlays run as the explicit last step of the canvas-target frame,
- * after the engine has finished drawing terrain, free layers, and
- * label/icon jobs. Forward-compatible: new context fields may be
- * added; existing callbacks need no change.
- */
-export type OverlayContext = {
-    /**
-     * The renderer for issuing draw helpers
-     * (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`).
-     */
-    readonly renderer: Renderer;
-};
-
-/**
- * Lifecycle hooks for a custom overlay registered through
- * `viewer.addOverlay(name, spec)`.
- *
- * - `onAdd` fires once when the engine is ready to accept draw calls
- *   from the overlay (after `map-loaded`). Overlays registered before
- *   the engine is ready have `onAdd` deferred to that moment.
- * - `render` fires every frame, as the last step against the canvas
- *   target, after engine draws have completed.
- * - `onRemove` fires when the overlay is removed via
- *   `viewer.removeOverlay(name)` or when the viewer is disposed.
- */
-export type OverlaySpec = {
-    onAdd?: (ctx: OverlayContext) => void;
-    render: (ctx: OverlayContext) => void;
-    onRemove?: (ctx: OverlayContext) => void;
-};
-
-/**
- * Map from event name to its payload type. All events are public and
- * reachable through `Viewer.on()`.
- *
- * Known payload fields carry concrete types; `unknown` remains only
- * where the source is still untyped ES5 and the shape cannot be
- * verified without migrating that file.
- */
-export interface ViewerEventMap {
-    'map-loaded': { browserOptions: Record<string, unknown> };
-    'map-unloaded': Record<string, never>;
-    'map-update': Record<string, never>;
-    'map-position-changed': {
-        position: number[];
-        'last-position': number[];
-    };
-    'map-position-fixed-height-changed': {
-        height: number;
-        'last-height': number;
-    };
-    'map-position-panned': Record<string, never>;
-    'map-position-rotated': Record<string, never>;
-    'map-position-zoomed': Record<string, never>;
-    'tick': Record<string, never>;
-    'gpu-context-lost': Record<string, never>;
-    'gpu-context-restored': Record<string, never>;
-    'geo-feature-enter': GeoFeatureEvent;
-    'geo-feature-leave': GeoFeatureEvent;
-    'geo-feature-hover': GeoFeatureEvent;
-    'geo-feature-click': GeoFeatureEvent;
-    'autorotate-changed': { autorotate: number };
-    'fly-start': {
-        startPosition: unknown;
-        endPosition: unknown;
-        options: unknown;
-    };
-    'fly-final-phase': { position: unknown };
-    'fly-progress': { position: unknown; progress: number };
-    'fly-end': { position: unknown };
-    'loading-screen-hidden': Record<string, never>;
-}
-
-/**
- * Payload of the `geo-feature-*` pointer events emitted by
- * `LegacyMap` (`src/map/legacy-map.js`).
- */
-export interface GeoFeatureEvent {
-    feature: unknown;           // typed once LegacyMap migrates to TS
-    'canvas-coords': number[];
-    'physical-coords': number[];
-    state: unknown;
-    element: unknown;
-}
-
-
-/* Declaration merging: re-export public types under `Map.*`. Consumers
- * (`Viewer`, demos) should reference them as `Map.OverlaySpec`,
- * `Map.ViewerEventMap`, etc. rather than reaching into `map/types`.
- * Same-name namespace pattern is documented in AGENTS.md. */
+/* Public types exposed under `Map.*`. Consumers (`Viewer`, demos,
+ * sibling modules) reference them as `Map.OverlaySpec`,
+ * `Map.ViewerEventMap`, etc. Types owned by this module are authored
+ * here; types owned elsewhere forward to their canonical module. The
+ * same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
+
+    /**
+     * Per-frame context passed to overlay lifecycle callbacks.
+     *
+     * Overlays run as the explicit last step of the canvas-target
+     * frame, after the engine has finished drawing terrain, free
+     * layers, and label/icon jobs. Forward-compatible: new context
+     * fields may be added; existing callbacks need no change.
+     */
+    export type OverlayContext = {
+        /**
+         * The renderer for issuing draw helpers (`drawImage`,
+         * `drawLineString`, `createTexture`, `getCanvasSize`).
+         */
+        readonly renderer: Renderer;
+    };
+
+    /**
+     * Lifecycle hooks for a custom overlay registered through
+     * `viewer.addOverlay(name, spec)`.
+     *
+     * - `onAdd` fires once when the engine is ready to accept draw
+     *   calls from the overlay (after `map-loaded`). Overlays
+     *   registered before the engine is ready have `onAdd` deferred
+     *   to that moment.
+     * - `render` fires every frame, as the last step against the
+     *   canvas target, after engine draws have completed.
+     * - `onRemove` fires when the overlay is removed via
+     *   `viewer.removeOverlay(name)` or when the viewer is disposed.
+     */
+    export type OverlaySpec = {
+        onAdd?: (ctx: OverlayContext) => void;
+        render: (ctx: OverlayContext) => void;
+        onRemove?: (ctx: OverlayContext) => void;
+    };
+
+    /**
+     * Map from event name to its payload type. All events are public
+     * and reachable through `Viewer.on()`.
+     *
+     * Known payload fields carry concrete types; `unknown` remains
+     * only where the source is still untyped ES5 and the shape cannot
+     * be verified without migrating that file.
+     */
+    export type ViewerEventMap = {
+        'map-loaded': { browserOptions: Record<string, unknown> };
+        'map-unloaded': Record<string, never>;
+        'map-update': Record<string, never>;
+        'map-position-changed': {
+            position: number[];
+            'last-position': number[];
+        };
+        'map-position-fixed-height-changed': {
+            height: number;
+            'last-height': number;
+        };
+        'map-position-panned': Record<string, never>;
+        'map-position-rotated': Record<string, never>;
+        'map-position-zoomed': Record<string, never>;
+        'tick': Record<string, never>;
+        'gpu-context-lost': Record<string, never>;
+        'gpu-context-restored': Record<string, never>;
+        'geo-feature-enter': GeoFeatureEvent;
+        'geo-feature-leave': GeoFeatureEvent;
+        'geo-feature-hover': GeoFeatureEvent;
+        'geo-feature-click': GeoFeatureEvent;
+        'autorotate-changed': { autorotate: number };
+        'fly-start': {
+            startPosition: unknown;
+            endPosition: unknown;
+            options: unknown;
+        };
+        'fly-final-phase': { position: unknown };
+        'fly-progress': { position: unknown; progress: number };
+        'fly-end': { position: unknown };
+        'loading-screen-hidden': Record<string, never>;
+    };
+
+    /**
+     * Payload of the `geo-feature-*` pointer events emitted by
+     * `LegacyMap` (`src/map/legacy-map.js`).
+     */
+    export type GeoFeatureEvent = {
+        feature: unknown; // typed once LegacyMap migrates to TS
+        'canvas-coords': number[];
+        'physical-coords': number[];
+        state: unknown;
+        element: unknown;
+    };
+
+    // Types owned by other modules, forwarded to their canonical
+    // source so this namespace is the single public entry point.
 
     export type PositionInput = import('./types').PositionInput;
     export type ViewerConfig = import('../viewer-config').ViewerConfig;
-    export type ViewerEventMap = import('./map').ViewerEventMap;
     export type HeightMode = import('./types').HeightMode;
     export type Lod = import('./types').Lod;
-    export type OverlayContext = import('./map').OverlayContext;
-    export type OverlaySpec = import('./map').OverlaySpec;
 }
 
 
