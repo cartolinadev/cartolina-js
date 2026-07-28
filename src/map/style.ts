@@ -597,12 +597,15 @@ export class MapStyle {
                     // the services
                     map.services = mc.services ?? {};
 
-                    // atmosphere
+                    // the atmosphere subsystem exists whenever the
+                    // body carries atmosphere parameters and the
+                    // density service is available; the
+                    // mapFlagAtmosphere config flag controls whether
+                    // it renders
                     let body = map.referenceFrame.body;
                     let services = map.services;
 
-                    if (spec.atmosphere
-                        && body && body.atmosphere
+                    if (body && body.atmosphere
                         && services && services.atmdensity) {
 
                         let atmoSpec: Atmosphere.Specification = {
@@ -714,6 +717,15 @@ export class MapStyle {
                 const patch = viewerConfig.normalizeConfigPatch(key, value);
                 if (patch) map.core.configStore.set(patch);
             }
+        }
+
+        // a style with no atmosphere section starts with atmosphere
+        // rendering off; an explicit config value takes precedence
+        if (spec.config?.mapFlagAtmosphere === undefined) {
+
+            const patch = viewerConfig.normalizeConfigPatch(
+                'mapFlagAtmosphere', spec.atmosphere !== undefined);
+            if (patch) map.core.configStore.set(patch);
         }
 
         // done

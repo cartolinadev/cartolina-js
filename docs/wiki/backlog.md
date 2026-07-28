@@ -1893,8 +1893,9 @@ nullable returns mostly describe runtime states:
 - `Map.legacyMap` is `null` before asynchronous style loading finishes.
 - `Map` and `Viewer` coordinate conversion and hit/depth methods return
   `null` when the loaded map cannot answer the query.
-- Atmosphere access returns `null` when the loaded style has no
-  atmosphere object.
+- Atmosphere access returns `null` when the loaded map cannot render
+  an atmosphere (the body declares no atmosphere parameters or the
+  density service is missing).
 - `Viewer.assertAlive()` handles calls after viewer disposal. This is
   lifecycle behavior, not construction failure.
 
@@ -2037,7 +2038,16 @@ side effect of `Viewer.addFreeLayer()`.
 ## BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
 
 **Opened:** 2026-04-24
-**Status:** deferred
+**Status:** fixed 2026-07-28 — the `Atmosphere` subsystem is now created
+at style load whenever the reference-frame body carries atmosphere
+parameters and the `atmdensity` service is available, independent of the
+style's `atmosphere` section ([style.ts](../../src/map/style.ts)). The
+section now only supplies parameters; visibility is governed by
+`mapFlagAtmosphere`, which defaults to off when the style declares no
+`atmosphere` section. `setAtmosphere` / `getAtmosphere` are therefore
+symmetric on any atmosphere-capable body, and `Map.setAtmosphere` warns
+instead of silently discarding the call when the body cannot render an
+atmosphere at all.
 
 ### Symptom
 
@@ -2048,42 +2058,12 @@ discarded.
 
 ### Root cause
 
-`src/viewer/viewer.ts` — `setAtmosphere`:
-
-```ts
-this._map?.atmosphere?.setRuntimeParameters(spec);
-```
-
-When the style has no atmosphere section, `this._map.atmosphere` is `null` and
-the optional chain silently short-circuits. The get/set pair therefore lacks
-basic symmetry: a successful `setAtmosphere` call should be reflected by a
-subsequent `getAtmosphere`.
-
-The same code path also means enabling `mapFlagAtmosphere` via
-`setRenderingOptions` has no visible effect on styles that were created without
-an atmosphere section — there are no parameters for the renderer to use.
-
-### Workaround
-
-None viable in the demo without a cartolina-js fix. Injecting a default
-`atmosphere` section into the style before `cartolina.map()` does initialise
-the subsystem and makes `setAtmosphere` work, but it also activates the
-background sky shader unconditionally — `mapFlagAtmosphere: false` does not
-suppress it. The injection was tried and reverted.
-
-### Suggested fix
-
-`setAtmosphere` should create the atmosphere subsystem if it does not yet
-exist, rather than relying on optional chaining. `getAtmosphere` should return
-the live runtime parameters set via `setAtmosphere`, not just what the original
-style declared.
-
-### Relevant files
-
-| File | Note |
-|---|---|
-| `src/viewer/viewer.ts:205` | `setAtmosphere` — the silent no-op |
-| `src/viewer/viewer.ts:212` | `getAtmosphere` — always returns null when no style section |
+The atmosphere subsystem was only constructed at style load when the style
+declared an `atmosphere` section. `setAtmosphere` / `getAtmosphere`
+optional-chained into the missing subsystem, so the set was silently
+discarded and the get/set pair lacked basic symmetry. Enabling
+`mapFlagAtmosphere` via `setRenderingOptions` likewise had no visible
+effect — there was no subsystem for the renderer to use.
 
 ---
 

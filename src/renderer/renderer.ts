@@ -1136,8 +1136,9 @@ updateBuffers(
     gl.bufferSubData(gl.UNIFORM_BUFFER, 0, buf);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
-    // the uboAtm buffer
-    if (this.core.map!.atmosphere) {
+    // the uboAtm buffer, updated only while atmosphere rendering is on
+    if (this.core.map!.atmosphere
+            && (d.flagAtmosphere ?? cfg.mapFlagAtmosphere)) {
 
         let [view2ecef, _, eyePos] = this.calcEcefCamParams();
 

@@ -524,12 +524,26 @@ class Map {
     /**
      * Sets live atmosphere parameters on the loaded map.
      *
+     * Fields omitted from `spec` are cleared. When the loaded map
+     * cannot render an atmosphere, warns and leaves state unchanged.
+     *
      * @param spec atmosphere runtime parameters
      */
     setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
         this.assertAlive();
-        this.map?.atmosphere?.setRuntimeParameters(spec);
+        if (!this.map) return;
+
+        if (!this.map.atmosphere) {
+
+            utils.warnOnce(
+                'setAtmosphere ignored: this map cannot render an '
+                + 'atmosphere (the body declares no atmosphere '
+                + 'parameters or the density service is missing).');
+            return;
+        }
+
+        this.map.atmosphere.setRuntimeParameters(spec);
     }
 
     /** Returns live atmosphere parameters from the loaded map. */

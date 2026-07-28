@@ -3,6 +3,49 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-28 — Fix `setAtmosphere` no-op on atmosphere-less styles
+
+The `Atmosphere` subsystem is now created at style load whenever the
+reference-frame body carries atmosphere parameters and the `atmdensity`
+service is available, independent of the style's `atmosphere` section
+([style.ts](../../src/map/style.ts)). The style section only supplies
+parameters; visibility is governed by `mapFlagAtmosphere`, which the
+loader defaults to off when the style declares no `atmosphere` section
+(an explicit `config` value takes precedence). `setAtmosphere` /
+`getAtmosphere` are therefore symmetric on any atmosphere-capable body,
+and `setRenderingOptions({useAtmosphere: true})` can turn the atmosphere
+on at runtime.
+
+Key decision: existence expresses body capability; the flag expresses
+visibility. An earlier attempt (April, reverted) created the subsystem
+on demand inside the setter, which required invalidating lazily cached
+GPU programs (`uboAtm` binding baked in at first compile) and would
+today also leave every already-built per-tile `TileRenderRig` layer
+stack without its haze layer, since stacks are built in the rig
+constructor. Creating the subsystem at load sidesteps both: programs
+and layer stacks see the subsystem from the start.
+
+Supporting changes: `Viewer.setAtmosphere`/`getAtmosphere` delegate to
+`Map` instead of reaching into the legacy map, and the public setter
+takes `Atmosphere.RuntimeParameters` (the only fields it honors);
+`Map.setAtmosphere` warns instead of silently discarding the call when
+the body cannot render an atmosphere; the per-frame `uboAtm` update in
+the renderer is gated on the effective atmosphere flag, so maps that
+keep the atmosphere off pay no added per-frame cost.
+
+Known cost: on atmosphere-capable bodies the density texture is fetched
+once per map load even when the atmosphere stays off, because the haze
+layer's optional readiness check triggers the load.
+
+Validation: `npx tsc --noEmit` clean; `simple-terrain`,
+`complex-terrain`, and `full-terrain` render identically to prod (all
+three styles declare `atmosphere` sections, so their flag defaults to
+on). The relief-lab application driven by Playwright against a style
+with its `atmosphere` section stripped shows the fixed round trip —
+`getAtmosphere()` returns defaults, reflects set values, haze renders
+after enabling — while the published build reproduces the original
+silent no-op under the same script.
+
 ## 2026-07-27 — Cleanup across viewer, map, and renderer
 
 The cleanup removes dead internal code, gives associated types one qualified

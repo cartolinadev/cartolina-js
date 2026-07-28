@@ -416,28 +416,24 @@ class Viewer {
     }
 
     /**
-     * Sets the atmosphere rendering parameters.
+     * Sets the runtime atmosphere parameters.
      *
-     * @param spec atmosphere specification; partial updates are merged
+     * Fields omitted from `spec` are cleared. Atmosphere visibility is
+     * controlled separately by the `useAtmosphere` rendering option.
      *
-     * BUG: if the loaded style has no `atmosphere` section,
-     * `this.legacyMap.atmosphere` is null and the optional-chain silently
-     * discards the call. `getAtmosphere()` then continues to return null,
-     * giving no indication that the set failed. Styles without an atmosphere
-     * section must have one injected before map creation for
-     * `setAtmosphere` / `getAtmosphere` to work at all.
+     * @param spec runtime atmosphere parameters
      */
-    setAtmosphere(spec: Atmosphere.Specification): void {
+    setAtmosphere(spec: Atmosphere.RuntimeParameters): void {
 
         this.assertAlive();
-        this.legacyMap?.atmosphere?.setRuntimeParameters(spec);
+        this.map_.setAtmosphere(spec);
     }
 
     /** Returns the current runtime atmosphere rendering parameters. */
     getAtmosphere(): Atmosphere.RuntimeParameters | null {
 
         this.assertAlive();
-        return this.legacyMap?.atmosphere?.getRuntimeParameters() ?? null;
+        return this.map_.getAtmosphere();
     }
 
     /**
