@@ -665,14 +665,24 @@ class Viewer {
      * Returns whether a public-space point is visible in the current
      * terrain view.
      *
-     * This method is currently experimental and unreliable. The depth
-     * comparison it uses does not yet match the renderer's projection
-     * and hitmap conventions well enough for dependable application
-     * logic.
+     * A point is reported occluded when the terrain drawn at the pixel
+     * it projects to is nearer to the camera than the point itself.
+     * Both distances are taken in the rendered domain, so vertical
+     * exaggeration is applied to the point before its distance is
+     * measured, matching the exaggerated surface the depth pass drew.
      *
      * This uses the cached hitmap/depth-map path. Occlusion can lag
-     * slightly while the camera is moving because hitmap copies are
-     * throttled by runtime configuration.
+     * while the camera is moving because hitmap copies are throttled by
+     * `mapDMapCopyIntervalMs`; a point can therefore be tested against
+     * terrain depths up to that interval old.
+     *
+     * Terrain-anchored points are not reliable. A `'float'` height comes
+     * from the navigation height field, which sits some way off the mesh
+     * being drawn, and on steep ground that error moves the projection
+     * across a silhouette onto terrain much nearer, reporting occlusion
+     * that is not real. No application should depend on this method for
+     * such points; see the backlog entry "terrain-anchored points near
+     * silhouettes".
      *
      * @param pos `[lon, lat, height]` in public space
      * @param mode height mode (`'fix'` or `'float'`)
@@ -716,8 +726,11 @@ class Viewer {
             return false;
         }
 
+        // The depth pass writes the distance to the surface as drawn,
+        // which carries vertical exaggeration, so the point is
+        // exaggerated the same way before its distance is measured.
         const physCoords = this.convertCoordsFromNavToPhys(
-            navCoords, navMode
+            navCoords, navMode, undefined, true
         );
         if (!physCoords) {
             return false;
@@ -735,21 +748,22 @@ class Viewer {
             cameraSpaceCoords[1],
             cameraSpaceCoords[2],
         );
-        const dilate = map.config.mapDMapDilatePx ?? 0;
-        const screenDepth = map.getScreenDepth(
-            screenX, screenY, dilate, false, 'apparent');
 
-        __DEV__ && utils.logOnce(
-            '[checkVisibility] raw depth debug logging is enabled in '
-            + 'Viewer.checkVisibility(); replace it with targeted '
-            + 'instrumentation before relying on this API.'
-        );
+        // Dilation off: the sample is the terrain in the single texel
+        // the point falls in.
+        const screenDepth = map.getScreenDepth(
+            screenX, screenY, 0, false, 'apparent');
 
         if (!screenDepth || !screenDepth[0]) {
             return true;
         }
 
-        return (pointDepth - screenDepth[1]) <= (0.03 * pointDepth);
+        // A depth-map sample is the terrain depth somewhere inside a
+        // texel rather than exactly under the point, which spreads the
+        // two depths by up to 0.4% of the view distance.
+        const tolerance = 0.01;
+
+        return (pointDepth - screenDepth[1]) <= (tolerance * pointDepth);
     }
 
     // -------------------------------------------------------------------------

@@ -147,8 +147,11 @@ Also adds:
 checkVisibility(pos: vec3, mode: HeightMode): boolean | null
 ```
 
-This method is currently documented as experimental and unreliable, and
-the waypoint demo does not rely on it.
+This method is reliable for points with explicit (`'fix'`) heights.
+Terrain-anchored (`'float'`) points remain unreliable near silhouettes
+because their navigation-field height can differ from the rendered mesh.
+The waypoint demo uses terrain-anchored markers and therefore does not
+rely on it.
 
 ### `test/screenshot.js`
 

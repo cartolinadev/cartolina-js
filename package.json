@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.597-feature_rfc11_mapconfig_to_style.9babc683",
+  "version": "2.49.598-feature_rfc11_mapconfig_to_style.d123800e",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
@@ -20,7 +20,8 @@
     "perf:install": "npx playwright install chromium",
     "test": "npm run test:perf:headed",
     "test:unit": "node_modules/.bin/tsc -p tsconfig.unit.json && node_modules/.bin/tsc -p tsconfig.types.json && node_modules/.bin/mocha test/unit/*.test.js",
-    "test:rfc11": "npm run test:unit && node test/style-mutation.js && node test/mapconfig-corpus.js && node test/screenshot.js simple-terrain && node test/screenshot.js complex-terrain && node test/screenshot.js full-terrain",
+    "test:rfc11": "npm run test:unit && node test/style-mutation.js && node test/mapconfig-corpus.js && node test/vertical-exaggeration.js && node test/screenshot.js simple-terrain && node test/screenshot.js complex-terrain && node test/screenshot.js full-terrain",
+    "test:vertical-exaggeration": "node test/vertical-exaggeration.js",
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",
     "test:perf:debug": "PWDEBUG=1 node ./test/perf/run-bundle.js",

@@ -246,9 +246,12 @@ MapConvert.prototype.getPositionPhysCoords = function(position, lod, includeSE) 
         coords[2] += surfaceHeight[0]; 
     }
 
+    // The view-extent progression part of the vertical exaggeration
+    // scales with the camera's view extent, so the factor is taken from
+    // the map's current position.
     if (this.renderer.useSuperElevation && includeSE) {
         coords[2] = this.renderer.getSuperElevatedHeight(
-            coords[2], position);
+            coords[2], this.map.position);
     }
 
     return this.convertCoords(coords, 'navigation', 'physical');
@@ -264,8 +267,11 @@ MapConvert.prototype.getPositionCameraSpaceCoords = function(position, lod) {
         coords[2] += surfaceHeight[0]; 
     }
 
+    // The progression factor scales with the camera's view extent, so it
+    // is taken from the map's current position.
     if (this.renderer.useSuperElevation) {
-        coords[2] = this.renderer.getSuperElevatedHeight(coords[2], position);
+        coords[2] = this.renderer.getSuperElevatedHeight(
+            coords[2], this.map.position);
     }
 
     var worldPos = this.convertCoords(coords, 'navigation', 'physical');

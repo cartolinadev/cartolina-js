@@ -2353,79 +2353,125 @@ There is already tilt-aware runtime behavior in geodata reduction, so
 the renderer does have camera-angle information available. The missing
 piece is a render-time color / opacity path for geodata lines.
 
-## BUG: `Viewer.checkVisibility()` depth comparison is broken
+## BUG: `checkVisibility()` misjudges terrain-anchored points near silhouettes
 
 **Opened:** 2026-04-14
-**Status:** deferred — method kept on the API surface but marked
-experimental; the waypoint demo was reverted to not use it.
+**Status:** partly fixed 2026-07-28. The depth comparison itself is
+fixed and measured. Terrain-anchored (`'float'`) points remain wrong, so
+no caller performs the check; `demos/waypoint/waypoint.js` deliberately
+does not.
+**Related:** the navtile ranking entries above, [nav-tiles.md](nav-tiles.md)
 
-### Symptom
+### What was wrong, and is now fixed
 
-For a point sitting on the terrain surface the comparison always fails:
-`pointDepth` is consistently 700–10 000 m larger than `screenDepth`,
-so the method returns `false` (occluded) even when the point is plainly
-visible.
+Three defects made the comparison meaningless. All three are fixed.
 
-### Root cause (confirmed by instrumentation, 2026-05-04)
+1. **Wrong depth domain.** The depth pass writes the distance to the
+   surface as drawn, which carries vertical exaggeration. The point's
+   distance was computed without it, a systematic bias of up to +2.7% of
+   the view distance. `checkVisibility` now passes
+   `applyVerticalExaggeration`.
 
-`screenDepth` and `pointDepth` measure different things when vertical
-exaggeration (super-elevation) is active.
+2. **Exaggeration factor from the wrong position.**
+   `getPositionPhysCoords` and `getPositionCameraSpaceCoords` took the
+   view-extent progression factor from the throwaway per-point
+   `MapPosition`, whose view extent is hardcoded to 10. At a 500 km view
+   that gave 1.0 where the renderer had baked 3.16. Both now source it
+   from `this.map.position`, as `surface-tile.js` and `camera.js` do.
 
-* **`screenDepth`** — decoded from the hitmap texture. The GPU shader
-  writes the Euclidean distance from the camera to each rendered terrain
-  fragment. Because VE is applied on the GPU, this distance is to the
-  **visually rendered (VE-exaggerated) surface**.
+3. **Ramp inverse composed in the wrong order.**
+   `getUnsuperElevatedHeight` inverted the height ramp and then divided
+   out the progression factor. The forward transform is ramp first,
+   factor second, and the ramp is not linear, so the two did not compose
+   to the identity — up to 154 m of round-trip error. Now exact at every
+   extent measured.
 
-* **`pointDepth`** — computed as
-  `Math.hypot(...convertCoordsFromPhysToCameraSpace(physPos))`.
-  `convertCoordsFromPhysToCameraSpace` subtracts `map.camera.position`
-  from the physical (ECEF) world-space point. `getHitCoords` adds the
-  same quantity when reconstructing position from the hitmap, so the
-  two operations cancel and the coordinate arithmetic is correct.
-  However, `getHitCoords` applies `getUnsuperElevatedHeight` before
-  returning nav coords, stripping the VE height offset. When those
-  SE-adjusted nav coords are converted back to phys and then to
-  camera-space, the result is the distance to the **true geographic
-  surface**, not the rendered one.
+Scored against ground truth generated along the view ray (a point nearer
+than the terrain hit is visible, one beyond it is occluded), at view
+extents 33 km, 80 km and 500 km, for points given explicit heights:
 
-Verified by disabling VE at runtime: with VE off and `dilate=0`,
-`pointDepth` and `screenDepth` are identical. With VE on the gap is
-proportional to VE scale; at the test position (~33 km view distance)
-it was ~503 m.
+| | surface | in front | behind |
+|---|---|---|---|
+| before | 46-49 / 49 | 97 / 98 | 55-93 / 98 |
+| after | 49 / 49 | 98 / 98 | 95-98 / 98 |
 
-The camera-origin mismatch described in the earlier analysis was
-incorrect: `map.camera.position` is the correct reference, and
-`convertCoordsFromPhysToCameraSpace` produces the right result. The
-`// mmm` comment in `convert.js:280` refers to a different code path.
+Dilation was also dropped from the sample (it takes the nearest terrain
+over a neighbourhood, which label placement wants but which biases a
+point query toward occlusion by up to 9%), and the tolerance tightened
+from 3% to 1%, sized just above the 0.4% residual left by depth-map
+quantisation.
+
+### What is still wrong
+
+A `'float'` point's height comes from the navigation height field, which
+is a coarser sampling of the terrain than the mesh on screen. At the
+waypoint demo's Mount Whitney marker the field returns 3480 m where the
+mesh draws 3597 m, and no lod hint closes the gap — `getSurfaceHeight`
+saturates from lod 7 upward, because that is the finest navtile there is.
+
+117 m of height error is enough. At that view the anchor projects 3.8 px
+below where its ground is drawn, which puts it just across a silhouette
+edge onto a ridge 1.5 km nearer, and the depth test reports occlusion.
+A dense sweep of the depth map confirms the ground is visible: it is
+drawn at pixel (600, 392), 86 m from the requested position, less than
+one depth-map texel.
+
+The failure is therefore not a tolerance that needs tuning. Near a
+silhouette the depth test is ill-conditioned in the anchor height, and
+the anchor height is exactly what is uncertain.
+
+### Mitigations measured and rejected
+
+Ground truth for these came from sweeping every fifth pixel and
+collecting the surface point drawn there — those points are exactly the
+terrain the camera can see, so a position is visible when one lands on
+it and hidden when none comes close.
+
+**Horizontal separation** between the anchor and the ground drawn at
+its pixel. The two populations overlap completely: visible ground has
+median 209 m and p90 999 m, hidden ground median 475 m and p10 110 m.
+No threshold divides them.
+
+**Iterate the anchor** onto the drawn surface, adopting the height found
+at each step. Oscillates on the demo marker: 1443, 888, 362, 1286 m.
+
+**Allow any height within a window** above the anchor. Destroys
+occlusion detection: hidden ground correctly rejected falls from 53/162
+to 0/162 as the window grows wide enough to show the marker.
+
+**Search a pixel neighbourhood** for the requested ground. Recovers
+about 92% of visible ground at a radius of 3-4 texels and holds
+occlusion at about 85%, but costs roughly 50 `getHitCoords` calls per
+point per frame, and its verdict on the demo marker flips between runs
+as terrain streams in.
 
 ### Suggested fix direction
 
-`checkVisibility` must compare in the same domain. Two options:
-
-1. **Compare in the rendered domain.** Get the screen pixel the point
-   projects to, sample `getScreenDepth` there, then compare against the
-   distance from the camera to the VE-adjusted position of the point.
-   Requires applying VE to the point's position before computing
-   `pointDepth`.
-
-2. **Compare in the geographic domain.** Use `getHitCoords` at the
-   projected screen pixel to get the true surface position, convert to
-   phys, compute camera-space distance, and compare against the same for
-   the input point. Both values are then geographic distances with VE
-   stripped out.
+The instrument this needs is an anchor height that agrees with the mesh
+being drawn. A per-lod height map generated from the terrain itself,
+rather than from stored navtiles, would give one; the check then reduces
+to the depth comparison that already works for explicit heights. Revisit
+when that exists.
 
 ### Relevant files
 
 | File | Note |
 |---|---|
-| `src/viewer/viewer.ts` | `checkVisibility()` — the broken method |
-| `src/map/legacy-map.js` | `convertCoordsFromPhysToCameraSpace` |
-| `src/map/convert.js:258` | `getPositionCameraSpaceCoords` (flagged comment) |
-| `src/map/camera.js` | `MapCamera.update()` — shows GL eye is at `[0,0,0]` |
-| `src/renderer/gpu/shaders.js:850` | shader writes `camDist = length(camSpacePos.xyz)` |
-| `src/renderer/renderer.ts:1828` | `getDepth()` — decodes hitmap pixels |
-| `demos/waypoint/waypoint.js` | the demo that was reverted |
+| `src/viewer/viewer.ts` | `checkVisibility()` |
+| `src/map/convert.js` | exaggeration factor source |
+| `src/renderer/renderer.ts` | the two exaggeration height functions |
+| `src/map/measure.js` | `getSurfaceHeight`, the navtile field |
+| `src/map/legacy-map.js` | `getHitCoords`, `getScreenDepth` |
+| `demos/waypoint/waypoint.js` | marker loop; does not call the check |
 
+### Latent, not reached by any caller
+
+Three call sites pass too few arguments and would throw the moment a
+caller exercised them, all on `containsSE` paths that nothing currently
+takes: `convert.js` `getPositionCanvasCoords` and
+`transformPhysCoordsBySE` call `transformPointBySE` with one argument of
+three, and `convertCoordsFromPhysToNav` calls
+`getUnsuperElevatedHeight` with one of two.
 ---
 
 ## DONE: public `transformRequest` hook

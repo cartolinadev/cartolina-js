@@ -1845,18 +1845,20 @@ getUnsuperElevatedHeight(height: number, position: any) {
         throw new Error('Function now requires current position.');
     }
 
-    let retval: number;
+    let retval = height;
 
-    // heightRamp
-    if (this.seHeightRamp) {
-        retval = this.getUnsuperElevatedHeightRamp(height);
-    } else {
-        retval = height;
-    }
+    // getSuperElevatedHeight applies the ramp first and the progression
+    // second. The ramp is not linear in height, so the inverse composes
+    // back to the identity only when it undoes them in reverse.
 
     // progression
     if (this.veScaleRamp) {
         retval /= this.getVeScaleFactor(position);
+    }
+
+    // heightRamp
+    if (this.seHeightRamp) {
+        retval = this.getUnsuperElevatedHeightRamp(retval);
     }
 
     return retval;

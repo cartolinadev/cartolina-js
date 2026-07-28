@@ -3,6 +3,64 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-28 — Vertical exaggeration in the depth comparison
+
+`Viewer.checkVisibility()` compared distances measured in two different
+domains. The depth pass writes the distance to the surface as drawn,
+which carries vertical exaggeration; the point's distance was computed
+without it. Three defects, all fixed:
+
+- `checkVisibility` now passes `applyVerticalExaggeration` when
+  converting to physical coordinates. The old bias reached +2.7% of the
+  view distance, against a 3% tolerance.
+- `getPositionPhysCoords` and `getPositionCameraSpaceCoords`
+  ([convert.js](../../src/map/convert.js)) took the view-extent
+  progression factor from the throwaway per-point `MapPosition`, whose
+  view extent is hardcoded to 10. At a 500 km view that yields 1.0 where
+  the renderer baked 3.16. Both now read `this.map.position`, matching
+  `surface-tile.js` and `camera.js`.
+- `getUnsuperElevatedHeight` ([renderer.ts](../../src/renderer/renderer.ts))
+  inverted the height ramp before dividing out the progression factor.
+  The forward transform is ramp first, factor second, and the ramp is
+  not linear, so the pair did not compose to the identity — up to 154 m
+  of round-trip error. Now exact at every extent measured.
+
+Also dropped dilation from the depth sample (it takes the nearest
+terrain over a neighbourhood, which label placement wants but which
+biases a point query toward occlusion by up to 9%) and tightened the
+tolerance from 3% to 1%, sized just above the 0.4% residual left by
+depth-map quantisation.
+
+Consumers of the two conversion fixes, checked: `getUnsuperElevatedHeight`
+is reached through `getHitCoords`, used by the measure controls, the
+map-observer click path and the public API. The factor-source fix is
+reached through `convertCoordsFromNavToCanvas` (measure overlay,
+inspector radar, the waypoint demo's marker placement) and through
+`convertCoordsFromNavToPhys`. Measured effect on placement: a point at
+4000 m moves up to 14.4 px on a 1200x800 viewport at view extents
+between 100 km and 3000 km, and not at all at close views where the
+ramp is clamped.
+
+Scored against ground truth generated along the view ray, at extents
+33 km, 80 km and 500 km, for points with explicit heights: surface
+points 49/49 (was 46-49), points in front 98/98 (was 97), points behind
+terrain 95-98/98 (was 55-93).
+
+Not fixed, and documented in the backlog: terrain-anchored (`'float'`)
+points. Their height comes from the navigation height field, which
+saturates 117 m below the drawn mesh at the waypoint demo's Whitney
+marker, and near a silhouette that is enough to throw the projection
+onto a ridge 1.5 km nearer. Four mitigations were measured and rejected;
+the entry records the numbers. No caller performs the check, and the
+demo was left unchanged.
+
+Validation: `npx tsc --noEmit` clean; `npm run test:rfc11` green (79/79
+unit, mapConfig corpus converts clean, `simple-terrain`,
+`complex-terrain`, `full-terrain` screenshots ok). The permanent
+`test/vertical-exaggeration.js` browser gate now checks nonlinear
+forward/inverse round trips at three view extents and verifies that both
+affected coordinate conversions use the map's current position.
+
 ## 2026-07-28 — Fix `setAtmosphere` no-op on atmosphere-less styles
 
 The `Atmosphere` subsystem is now created at style load whenever the
