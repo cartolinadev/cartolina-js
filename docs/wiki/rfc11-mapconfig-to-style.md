@@ -3352,3 +3352,11 @@ inspected against their production counterparts. Matched local performance
 samples at the pre-refactor commit and the implementation use the same
 147-draw `simple-terrain` frame; the implementation is within 4% of baseline
 FPS. Repeat load and FPS runs remain inside the 30% and 10% limits.
+
+## Addendum — 2026-07-30 — raster-source validation record
+
+Commit `d2e5f7f6` contains the map-owned raster-source implementation and the
+preceding addendum. The recorded type, unit, lifecycle, corpus, build,
+screenshot, and performance gates ran against that implementation tree. The
+commit hook changed only generated version metadata after validation, which
+does not alter the validated behavior.
