@@ -3391,3 +3391,11 @@ strict four-document conversion corpus, the production build, and the four
 sequential render comparisons. The development renders reported no console,
 page, or network errors and were inspected beside their production
 counterparts.
+
+## Addendum — 2026-07-30 — typed raster-source validation record
+
+Commit `75618cae` contains the typed raster-source boundary implementation and
+the preceding addendum. The recorded type, unit, lifecycle, corpus, build,
+and screenshot gates ran against that implementation tree. The commit hook
+changed only generated version metadata after validation, which does not
+alter the validated behavior.

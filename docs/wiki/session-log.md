@@ -26,6 +26,8 @@ production build, and the four sequential render comparisons. All
 development captures were inspected and had no console, page, or network
 errors.
 
+The implementation is commit `75618cae`.
+
 ## 2026-07-30 — Replace bound layers with map-owned raster sources
 
 Replaced `MapBoundLayer` and the `LegacyMap.boundLayers` registry with an
