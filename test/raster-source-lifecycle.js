@@ -223,7 +223,13 @@ async function main() {
 
                     return new Promise(resolve => {
 
-                        if (requestUrl === urls.ready
+                        if (requestUrl === urls.terrain) {
+
+                            rasterAndTerrainOverlap ||=
+                                pending.has(urls.ready)
+                                || pending.has(urls.failed);
+
+                        } else if (requestUrl === urls.ready
                             || requestUrl === urls.failed) {
 
                             rasterAndTerrainOverlap ||= pending.has(

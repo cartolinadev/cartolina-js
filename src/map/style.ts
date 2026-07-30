@@ -533,9 +533,8 @@ export class MapStyle {
         const spec = MapStyle.validateAndNormalize(styleSpec);
 
         // Start every raster metadata request before the terrain documents
-        // are awaited. Promise.allSettled attaches rejection handlers now
-        // and lets the independent source requests overlap one another and
-        // the sequential first-surface setup below.
+        // are awaited. The async function also turns synchronous validation
+        // failures for inline definitions into rejected promises.
         const rasterIds: string[] = [];
         const rasterLoads: Promise<RasterSource>[] = [];
 
@@ -544,7 +543,7 @@ export class MapStyle {
             if (sourceSpec.type !== 'cartolina-tms') continue;
 
             rasterIds.push(id);
-            rasterLoads.push(Promise.resolve().then(async () => {
+            rasterLoads.push((async () => {
 
                 if (sourceSpec.url !== undefined) {
 
@@ -571,7 +570,7 @@ export class MapStyle {
                     sourceSpec.data,
                     sourceSpec.baseUrl,
                 );
-            }));
+            })());
         }
 
         const rasterResultsPromise = Promise.allSettled(rasterLoads);
