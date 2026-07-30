@@ -3399,3 +3399,14 @@ the preceding addendum. The recorded type, unit, lifecycle, corpus, build,
 and screenshot gates ran against that implementation tree. The commit hook
 changed only generated version metadata after validation, which does not
 alter the validated behavior.
+
+## Addendum — 2026-07-30 — immediate raster metadata dispatch
+
+Commit `b38ba8dd` removes the microtask delay before raster metadata loading.
+Each async load now starts as the source loop reaches it while retaining
+rejected-promise handling for synchronous inline-definition failures. The
+concurrency test now recognizes raster/terrain overlap independently of which
+request starts first.
+
+The typecheck, all 90 unit tests, and the deterministic 18-check raster-source
+lifecycle gate passed against this commit.

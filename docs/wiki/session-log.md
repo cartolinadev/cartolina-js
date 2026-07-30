@@ -26,7 +26,10 @@ production build, and the four sequential render comparisons. All
 development captures were inspected and had no console, page, or network
 errors.
 
-The implementation is commit `75618cae`.
+The typed-boundary implementation is commit `75618cae`. Follow-up commit
+`b38ba8dd` starts each raster metadata load immediately instead of delaying
+dispatch to microtask processing; the deterministic concurrency gate remains
+green.
 
 ## 2026-07-30 — Replace bound layers with map-owned raster sources
 
