@@ -1449,8 +1449,8 @@ class Map {
         try {
 
             // load style
-            await MapStyle.loadStyle(legacyMap,
-                style as MapStyle.StyleSpecification);
+            await MapStyle.loadStyle(
+                this, style as MapStyle.StyleSpecification);
 
             // no clue what these are
             const conv = new MapConvert(legacyMap);

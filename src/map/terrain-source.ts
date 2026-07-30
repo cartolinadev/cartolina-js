@@ -45,17 +45,13 @@ class TerrainSource {
         this.specificity =
             Math.pow(2, this.lodRange[1]) + this.lodRange[0];
 
-        if (definition.textureUrl !== undefined) {
-
+        if (definition.textureUrl !== undefined)
             this.textureUrl =
                 TerrainSource.resolveUrl(definition.textureUrl, baseUrl);
-        }
 
-        if (definition.normalsUrl !== undefined) {
-
+        if (definition.normalsUrl !== undefined)
             this.normalsUrl =
                 TerrainSource.resolveUrl(definition.normalsUrl, baseUrl);
-        }
 
         this.credits = Array.isArray(definition.credits)
             ? [...definition.credits]
@@ -150,10 +146,9 @@ class TerrainSource {
         skipBaseUrl?: boolean,
     ): string {
 
-        if (this.textureUrl === undefined) {
+        if (this.textureUrl === undefined)
             throw new Error(
                 `Terrain source "${this.id}" has no internal texture.`);
-        }
 
         return this.expandUrl(this.textureUrl, id, subId, skipBaseUrl);
     }
@@ -172,10 +167,9 @@ class TerrainSource {
         skipBaseUrl?: boolean,
     ): string {
 
-        if (this.normalsUrl === undefined) {
+        if (this.normalsUrl === undefined)
             throw new Error(
                 `Terrain source "${this.id}" has no normal maps.`);
-        }
 
         return this.expandUrl(this.normalsUrl, id, subId, skipBaseUrl);
     }
@@ -187,10 +181,9 @@ class TerrainSource {
 
         if (!credits) return [];
 
-        if (!map) {
+        if (!map)
             throw new Error(
                 'Cannot add terrain-source credits without a legacy map.');
-        }
 
         const ids: string[] = [];
 
@@ -212,10 +205,9 @@ class TerrainSource {
 
         const legacyMap = this.map_.legacyMap;
 
-        if (!legacyMap) {
+        if (!legacyMap)
             throw new Error(`Terrain source "${this.id}" cannot expand a URL `
                 + `without a loaded map.`);
-        }
 
         return legacyMap.url.makeUrl(
             template,
@@ -256,24 +248,20 @@ class TerrainSource {
         const navUrl = metadata.navUrl.trim();
         const meshUrl = metadata.meshUrl.trim();
 
-        if (metaUrl === '' || navUrl === '' || meshUrl === '') {
-
+        if (metaUrl === '' || navUrl === '' || meshUrl === '')
             throw new Error(`Terrain source "${sourceId}" needs a metatile, `
                 + `navigation tile, and mesh URL.`);
-        }
 
         const textureUrl = metadata.textureUrl?.trim();
         const normalsUrl = metadata.normalsUrl?.trim();
 
-        if (metadata.textureUrl !== undefined && textureUrl === '') {
+        if (metadata.textureUrl !== undefined && textureUrl === '')
             throw new Error(`Terrain source "${sourceId}" has an empty `
                 + `textureUrl.`);
-        }
 
-        if (metadata.normalsUrl !== undefined && normalsUrl === '') {
+        if (metadata.normalsUrl !== undefined && normalsUrl === '')
             throw new Error(`Terrain source "${sourceId}" has an empty `
                 + `normalsUrl.`);
-        }
 
         const lodRange = metadata.lodRange;
         const tileRange = metadata.tileRange;
@@ -284,23 +272,20 @@ class TerrainSource {
         ];
 
         if (!rangeValues.every(
-            (item) => Number.isSafeInteger(item) && item >= 0)) {
+            (item) => Number.isSafeInteger(item) && item >= 0))
 
             throw new Error(`Terrain source "${sourceId}" ranges must contain `
                 + `non-negative safe integers.`);
-        }
 
-        if (lodRange[0] > lodRange[1]) {
+        if (lodRange[0] > lodRange[1])
             throw new Error(`Terrain source "${sourceId}" has a descending `
                 + `lodRange.`);
-        }
 
         if (tileRange[0][0] > tileRange[1][0]
-            || tileRange[0][1] > tileRange[1][1]) {
+            || tileRange[0][1] > tileRange[1][1])
 
             throw new Error(`Terrain source "${sourceId}" has a descending `
                 + `tileRange.`);
-        }
 
         // tileRange is validated because every surface document declares
         // it, but tile presence is answered by metanodes, so nothing reads
@@ -326,15 +311,11 @@ class TerrainSource {
 
         if (trimmed.includes('://')) return trimmed;
 
-        if (trimmed.startsWith('//')) {
-
+        if (trimmed.startsWith('//'))
             return url.utilsUrl.getSchema(baseUrl) + trimmed;
-        }
 
-        if (trimmed.startsWith('/')) {
-
+        if (trimmed.startsWith('/'))
             return url.utilsUrl.getOrigin(baseUrl) + trimmed;
-        }
 
         const base = baseUrl.endsWith('/')
             ? baseUrl

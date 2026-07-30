@@ -11,6 +11,11 @@ const { chromium } = require('playwright');
 const BASE = 'http://localhost:8080';
 const STYLE_URL = BASE + '/demos/map/?style=complex';
 
+// Host of the synthetic inline sources built below. It does not
+// resolve, so the tile requests an accepted inline source goes on to
+// make are expected to fail and are not counted.
+const SYNTHETIC_HOST = 'https://terrain.example/';
+
 
 async function main() {
 
@@ -30,11 +35,16 @@ async function main() {
     });
 
     page.on('console', (message) => {
-        if (message.type() === 'error')
+
+        if (message.type() === 'error'
+            && !message.text().includes('ERR_NAME_NOT_RESOLVED'))
+
             failures.push('console: ' + message.text());
     });
 
     page.on('requestfailed', (request) => {
+
+        if (request.url().startsWith(SYNTHETIC_HOST)) return;
 
         const failure = request.failure();
         if (failure && !/ERR_ABORTED/.test(failure.errorText))
@@ -45,7 +55,7 @@ async function main() {
     await page.waitForFunction(() => globalThis.v, null, { timeout: 60000 });
     await page.evaluate(() => globalThis.v.ready);
 
-    const results = await page.evaluate(async () => {
+    const results = await page.evaluate(async (syntheticHost) => {
 
         const out = [];
         const check = (name, condition) => out.push([name, !!condition]);
@@ -232,7 +242,7 @@ async function main() {
                         terrain: {
                             type: 'cartolina-surface',
                             data: inlineDocument(surface),
-                            baseUrl: 'https://terrain.example/inline/',
+                            baseUrl: syntheticHost + 'inline/',
                         },
                     },
                     terrain: { sources: ['terrain'] },
@@ -263,7 +273,8 @@ async function main() {
 
             const source = inline.viewer.map.resolveTerrainSource('terrain');
             return source.id === 'terrain'
-                && source.meshUrl.startsWith('https://terrain.example/inline/');
+                && source.meshUrl.startsWith(
+                    syntheticHost + 'inline/');
         })());
 
         inline.viewer[Symbol.dispose]();
@@ -284,7 +295,7 @@ async function main() {
         missing.container.remove();
 
         return out;
-    });
+    }, SYNTHETIC_HOST);
 
     await browser.close();
 

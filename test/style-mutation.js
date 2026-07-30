@@ -250,7 +250,12 @@ async function main() {
         v.legacyMap.bus,
       );
       const terrainSources = new Map();
-      map.outerMap = {
+
+      // loadStyle takes the typed map and reaches the legacy half
+      // through it; this stub stands in for both
+      const outerMap = {
+        legacyMap: map,
+        terrainSources,
         setRasterSourceEntries() {},
         assertRasterSourcesAvailable() {},
         setTerrainSourceEntries(sources) {
@@ -266,15 +271,16 @@ async function main() {
           return source;
         },
       };
-      map.terrainSources = terrainSources;
-      return map;
+      map.outerMap = outerMap;
+      return outerMap;
     };
 
-    const inlineMap = makeTestMap();
+    const inlineOuter = makeTestMap();
+    const inlineMap = inlineOuter.legacyMap;
     const styleUrlObject = inlineMap.url;
-    await MapStyle.loadStyle(inlineMap, inlineStyle);
+    await MapStyle.loadStyle(inlineOuter, inlineStyle);
 
-    const inlineSources = [...inlineMap.terrainSources.values()];
+    const inlineSources = [...inlineOuter.terrainSources.values()];
     check('inline surface bases resolve independently',
       inlineSources[0].meshUrl.startsWith(baseA)
         && inlineSources[1].meshUrl.startsWith(baseB));
@@ -287,7 +293,8 @@ async function main() {
       inlineMap.url === styleUrlObject);
     inlineMap.kill();
 
-    const brokenMap = makeTestMap();
+    const brokenOuter = makeTestMap();
+    const brokenMap = brokenOuter.legacyMap;
     const brokenUrlObject = brokenMap.url;
     const brokenStyle = structuredClone(inlineStyle);
     const brokenSrsId = Object.keys(
@@ -299,7 +306,7 @@ async function main() {
 
     let constructionFailed = false;
     try {
-      await MapStyle.loadStyle(brokenMap, brokenStyle);
+      await MapStyle.loadStyle(brokenOuter, brokenStyle);
     } catch (_) {
       constructionFailed = true;
     }

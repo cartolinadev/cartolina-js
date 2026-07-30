@@ -19,6 +19,14 @@ only enabling flag was assigned inside the function that reads it. The
 per-surface style field held the same specification for every surface,
 so the draw path reads it from the map.
 
+Terrain and raster loading then converged on one shape. Both kinds
+dispatch in a single loop through a shared resolution step that fetches
+the URL form and takes the inline form as already-resolved data, and
+each is collected where its results are first needed, so terrain
+processing still overlaps raster metadata in flight. Style loading now
+takes the map being loaded rather than its legacy half, reaching that
+half through the map as the source constructors already do.
+
 Two fields needed a decision the client code alone does not settle. A
 surface resource's credits reach the client as 16-bit numeric ids in
 the metatile credit table, and the tileserver publishes the definitions
