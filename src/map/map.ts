@@ -79,6 +79,15 @@ class Map {
     map: LegacyMap | null = null;
 
     /**
+     * Legacy map currently being populated by the style loader.
+     *
+     * Kept separate from `map` so the frame loop cannot observe partial
+     * construction. Typed source constructors reach it through
+     * `legacyMap` until credit ownership moves into this class.
+     */
+    private loadingMap_: LegacyMap | null = null;
+
+    /**
      * The WebGL2 renderer owned by this map.
      *
      * @internal Reached as `core.renderer` by the legacy modules.
@@ -681,8 +690,7 @@ class Map {
         // not inherit fade state from the previous rule set
         if (letteringChanged) this.renderer.draw.clearJobHBuffer();
 
-        // viewCounter bump, sequence recompilation, dirty mark
-        this.map!.refreshView();
+        this.refreshStyle(this.map!);
     }
 
     /**
@@ -1401,6 +1409,7 @@ class Map {
         const legacyMap = new LegacyMap(
             this, path, this.config, this.bus_);
         legacyMap.outerMap = this;
+        this.loadingMap_ = legacyMap;
 
         try {
 
@@ -1418,23 +1427,19 @@ class Map {
             legacyMap.isGeocent =
                 !legacyMap.getNavigationSrs().isProjected();
 
-            // generate sequences
-            legacyMap.refreshView();
-
-            // force update
-            legacyMap.dirty = true;
-            legacyMap.hitMapDirty = true;
-            legacyMap.geoHitMapDirty = true;
+            this.refreshStyle(legacyMap);
 
             legacyMap.draw = new MapDraw(legacyMap);
             this.freeze = new FreezeCameraState(legacyMap);
             legacyMap.draw.setupDetailDegradation();  // probably not needed
 
             this.map = legacyMap;
+            this.loadingMap_ = null;
 
         } catch (error) {
 
             legacyMap.kill();
+            this.loadingMap_ = null;
             this.rasterSources_.clear();
             throw error;
         }
@@ -1443,6 +1448,20 @@ class Map {
     // -----------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------
+
+    /**
+     * Rebuilds derived style sequences and schedules a complete redraw.
+     *
+     * @param map legacy state still consumed by the renderer
+     */
+    private refreshStyle(map: LegacyMap): void {
+
+        map.viewCounter++;
+        map.style?.refreshSequences();
+        map.dirty = true;
+        map.hitMapDirty = true;
+        map.geoHitMapDirty = true;
+    }
 
     /** Throws if the map has been disposed. */
     private assertAlive(): void {
@@ -1670,7 +1689,8 @@ class Map {
     // -----------------------------------------------------------------
 
     /**
-     * The underlying legacy map, or `null` before a map has loaded.
+     * The underlying legacy map, including the map currently being
+     * populated by the style loader.
      *
      * @internal Internal browser infrastructure (inspector, control
      *   modes) still drives the full legacy map surface. These call
@@ -1680,7 +1700,7 @@ class Map {
     get legacyMap(): LegacyMap | null {
 
         this.assertAlive();
-        return this.map;
+        return this.map ?? this.loadingMap_;
     }
 }
 

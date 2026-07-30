@@ -325,7 +325,18 @@ async function main() {
                 style: healthyStyle,
             });
             let healthyLoaded = 0;
-            healthy.on('map-loaded', () => healthyLoaded++);
+            healthy.on('map-loaded', () => {
+
+                healthyLoaded++;
+
+                // This gate exercises source lifecycle, not rendering.
+                // Suppress the dirty-gated draw in this same tick before
+                // synthetic terrain URLs can enter the binary loader.
+                healthy.legacyMap.outerMap.renderer
+                    .ensureCanvasRenderTarget = () => false;
+                healthy.legacyMap.dirty = false;
+                healthy.legacyMap.dirtyCountdown = 0;
+            });
 
             await waitWithTimeout(
                 healthy.ready, 'inactive-failure viewer.ready');

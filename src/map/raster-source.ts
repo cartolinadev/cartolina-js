@@ -2,7 +2,10 @@
  * raster-source.ts - resolve and expose tiled-raster metadata
  */
 
+import type Map from './map';
 import type LegacyMap from './legacy-map';
+
+import typia from 'typia';
 
 import MapCredit from './credit';
 import * as url from '../utils/url';
@@ -18,21 +21,19 @@ import * as url from '../utils/url';
 class RasterSource {
 
     /**
-     * Resolves and normalizes one raster source definition.
+     * Constructs an immutable source from validated metadata.
      *
-     * @param map owning map data object
+     * @param map typed map that owns this source
      * @param sourceId style source id
-     * @param value source-definition JSON
+     * @param definition validated source definition
      * @param baseUrl URL used to resolve relative resource templates
      */
-    constructor(
-        map: LegacyMap,
+    private constructor(
+        map: Map,
         sourceId: string,
-        value: unknown,
+        definition: RasterSource.Definition,
         baseUrl: string,
     ) {
-
-        const definition = parseDefinition(sourceId, value);
 
         this.map_ = map;
         this.id = sourceId;
@@ -42,7 +43,10 @@ class RasterSource {
         this.isTransparent = definition.isTransparent ?? false;
         this.specificity =
             Math.pow(2, this.lodRange[1]) + this.lodRange[0] + 1;
-        this.credits = this.registerCredits(definition.credits);
+        this.credits = Array.isArray(definition.credits)
+            ? [...definition.credits]
+            : RasterSource.addCreditDefinitions(
+                map.legacyMap, definition.credits);
 
         if (definition.metaUrl && definition.maskUrl) {
 
@@ -63,6 +67,29 @@ class RasterSource {
         Object.freeze(this);
     }
 
+    /**
+     * Validates and resolves source-definition JSON.
+     *
+     * Both fetched metadata and inline style metadata enter through this
+     * boundary, so invalid data cannot reach the constructor.
+     *
+     * @param map typed map that will own the resolved source
+     * @param sourceId style source id
+     * @param value untrusted source-definition JSON
+     * @param baseUrl URL used to resolve relative resource templates
+     * @returns immutable resolved raster source
+     */
+    static fromMetadata(
+        map: Map,
+        sourceId: string,
+        value: unknown,
+        baseUrl: string,
+    ): RasterSource {
+
+        const definition = RasterSource.validateDefinition(sourceId, value);
+        return new RasterSource(map, sourceId, definition, baseUrl);
+    }
+
     readonly id: string;
     readonly url: string;
     readonly lodRange: RasterSource.LodRange;
@@ -73,16 +100,15 @@ class RasterSource {
     readonly coverage?: RasterSource.Coverage;
 
     /**
-     * Tests a tile against the source range.
+     * Classifies how this source can provide imagery for a tile.
      *
      * @param id tile address
-     * @returns zero outside the range, one for ancestor influence, or two
-     *   when the tile itself is available
+     * @returns direct, ancestor, or no static tile-range match
      */
-    hasTileOrInfluence(id: RasterSource.TileId): 0 | 1 | 2 {
+    matchTile(id: RasterSource.TileId): RasterSource.TileMatch {
 
         const shift = id[0] - this.lodRange[0];
-        if (shift < 0) return 0;
+        if (shift < 0) return RasterSource.TileMatch.None;
 
         const x = id[1] >> shift;
         const y = id[2] >> shift;
@@ -90,10 +116,12 @@ class RasterSource {
         if (x < this.tileRange[0][0] || x > this.tileRange[1][0]
             || y < this.tileRange[0][1] || y > this.tileRange[1][1]) {
 
-            return 0;
+            return RasterSource.TileMatch.None;
         }
 
-        return id[0] > this.lodRange[1] ? 1 : 2;
+        return id[0] > this.lodRange[1]
+            ? RasterSource.TileMatch.Ancestor
+            : RasterSource.TileMatch.Direct;
     }
 
     /**
@@ -105,10 +133,9 @@ class RasterSource {
      */
     getUrl(id: RasterSource.TileId, skipBaseUrl?: boolean): string {
 
-        return this.map_.url.makeUrl(
+        return this.expandUrl(
             this.url,
-            { lod: id[0], ix: id[1], iy: id[2] },
-            null,
+            id,
             skipBaseUrl,
         );
     }
@@ -130,10 +157,9 @@ class RasterSource {
                 `Raster source "${this.id}" has no coverage.`);
         }
 
-        return this.map_.url.makeUrl(
+        return this.expandUrl(
             this.coverage.metaUrl,
-            { lod: id[0], ix: id[1], iy: id[2] },
-            null,
+            id,
             skipBaseUrl,
         );
     }
@@ -155,25 +181,24 @@ class RasterSource {
                 `Raster source "${this.id}" has no coverage.`);
         }
 
-        return this.map_.url.makeUrl(
+        return this.expandUrl(
             this.coverage.maskUrl,
-            { lod: id[0], ix: id[1], iy: id[2] },
-            null,
+            id,
             skipBaseUrl,
         );
     }
 
-    private registerCredits(
-        credits: RasterSource.Definition['credits'],
+    private static addCreditDefinitions(
+        map: LegacyMap | null,
+        credits: Record<string, MapCredit.Definition> | undefined,
     ): string[] {
 
-        if (Array.isArray(credits)) {
-
-            return credits.filter(
-                (credit): credit is string => typeof credit === 'string');
-        }
-
         if (!credits) return [];
+
+        if (!map) {
+            throw new Error(
+                'Cannot add raster-source credits without a legacy map.');
+        }
 
         const ids: string[] = [];
         const resolved: Array<[string, MapCredit]> = [];
@@ -182,16 +207,130 @@ class RasterSource {
 
             ids.push(id);
             resolved.push([
-                id, new MapCredit(this.map_, definition),
+                id, new MapCredit(map, definition),
             ]);
         }
 
         for (const [id, credit] of resolved) {
 
-            this.map_.addCredit(id, credit);
+            map.addCredit(id, credit);
         }
 
         return ids;
+    }
+
+    private expandUrl(
+        template: string,
+        id: RasterSource.TileId,
+        skipBaseUrl?: boolean,
+    ): string {
+
+        const legacyMap = this.map_.legacyMap;
+
+        if (!legacyMap) {
+            throw new Error(`Raster source "${this.id}" cannot expand a URL `
+                + `without a loaded map.`);
+        }
+
+        return legacyMap.url.makeUrl(
+            template,
+            { lod: id[0], ix: id[1], iy: id[2] },
+            null,
+            skipBaseUrl,
+        );
+    }
+
+    /**
+     * Validates untrusted metadata and extracts its supported fields.
+     *
+     * @param sourceId style source id used in validation errors
+     * @param value source-definition JSON
+     * @returns normalized source definition
+     */
+    private static validateDefinition(
+        sourceId: string,
+        value: unknown,
+    ): RasterSource.Definition {
+
+        const result =
+            typia.validate<RasterSource.Definition>(value);
+
+        if (!result.success) {
+
+            const details = result.errors
+                .map((error) => `${error.path}: expected ${error.expected}`)
+                .join('; ');
+
+            throw new Error(`Raster source "${sourceId}" has invalid `
+                + `metadata: ${details}.`);
+        }
+
+        const metadata = result.data;
+        const tileUrl = metadata.url.trim();
+
+        if (tileUrl === '') {
+            throw new Error(`Raster source "${sourceId}" has no tile URL.`);
+        }
+
+        const lodRange = metadata.lodRange;
+        const tileRange = metadata.tileRange;
+        const rangeValues = [
+            ...lodRange,
+            ...tileRange[0],
+            ...tileRange[1],
+        ];
+
+        if (!rangeValues.every(
+            (item) => Number.isSafeInteger(item) && item >= 0)) {
+
+            throw new Error(`Raster source "${sourceId}" ranges must contain `
+                + `non-negative safe integers.`);
+        }
+
+        if (lodRange[0] > lodRange[1]) {
+            throw new Error(`Raster source "${sourceId}" has a descending `
+                + `lodRange.`);
+        }
+
+        if (tileRange[0][0] > tileRange[1][0]
+            || tileRange[0][1] > tileRange[1][1]) {
+
+            throw new Error(`Raster source "${sourceId}" has a descending `
+                + `tileRange.`);
+        }
+
+        const metaUrl = metadata.metaUrl?.trim();
+        const maskUrl = metadata.maskUrl?.trim();
+
+        if (metadata.metaUrl !== undefined && metaUrl === '') {
+            throw new Error(`Raster source "${sourceId}" has an empty `
+                + `metaUrl.`);
+        }
+
+        if (metadata.maskUrl !== undefined && maskUrl === '') {
+            throw new Error(`Raster source "${sourceId}" has an empty `
+                + `maskUrl.`);
+        }
+
+        if (metaUrl !== undefined && maskUrl === undefined) {
+            throw new Error(`Raster source "${sourceId}" provides metaUrl `
+                + `without maskUrl.`);
+        }
+
+        return {
+            url: tileUrl,
+            lodRange: [lodRange[0], lodRange[1]],
+            tileRange: [
+                [tileRange[0][0], tileRange[0][1]],
+                [tileRange[1][0], tileRange[1][1]],
+            ],
+            credits: typeof metadata.credits === 'string'
+                ? undefined
+                : metadata.credits,
+            metaUrl,
+            maskUrl,
+            isTransparent: metadata.isTransparent,
+        };
     }
 
     private static resolveUrl(urlValue: string, baseUrl: string): string {
@@ -217,112 +356,7 @@ class RasterSource {
         return base + trimmed;
     }
 
-    private readonly map_: LegacyMap;
-}
-
-
-function isNumberPair(value: unknown): value is [number, number] {
-
-    return Array.isArray(value)
-        && value.length === 2
-        && value.every((item) => typeof item === 'number');
-}
-
-
-function parseDefinition(
-    sourceId: string,
-    value: unknown,
-): RasterSource.Definition {
-
-    if (value === null || typeof value !== 'object'
-        || Array.isArray(value)) {
-
-        throw new Error(`Raster source "${sourceId}" definition is not `
-            + `an object.`);
-    }
-
-    const definition = value as Record<string, unknown>;
-    const tileUrl = definition.url;
-    const lodRange = definition.lodRange;
-    const tileRange = definition.tileRange;
-
-    if (typeof tileUrl !== 'string' || tileUrl.trim() === '') {
-
-        throw new Error(`Raster source "${sourceId}" has no tile URL.`);
-    }
-
-    if (!isNumberPair(lodRange)) {
-
-        throw new Error(`Raster source "${sourceId}" has an invalid `
-            + `lodRange.`);
-    }
-
-    if (!Array.isArray(tileRange)
-        || tileRange.length !== 2
-        || !isNumberPair(tileRange[0])
-        || !isNumberPair(tileRange[1])) {
-
-        throw new Error(`Raster source "${sourceId}" has an invalid `
-            + `tileRange.`);
-    }
-
-    const metaUrl = definition.metaUrl;
-    const maskUrl = definition.maskUrl;
-
-    if (metaUrl !== undefined
-        && (typeof metaUrl !== 'string' || metaUrl.trim() === '')) {
-
-        throw new Error(`Raster source "${sourceId}" has an invalid `
-            + `metaUrl.`);
-    }
-
-    if (maskUrl !== undefined
-        && (typeof maskUrl !== 'string' || maskUrl.trim() === '')) {
-
-        throw new Error(`Raster source "${sourceId}" has an invalid `
-            + `maskUrl.`);
-    }
-
-    if (metaUrl !== undefined && maskUrl === undefined) {
-
-        throw new Error(`Raster source "${sourceId}" provides metaUrl `
-            + `without maskUrl.`);
-    }
-
-    const credits = definition.credits;
-
-    if (credits !== undefined
-        && typeof credits !== 'string'
-        && !Array.isArray(credits)
-        && (credits === null || typeof credits !== 'object')) {
-
-        throw new Error(
-            `Raster source "${sourceId}" has invalid credits.`);
-    }
-
-    const isTransparent = definition.isTransparent;
-
-    if (isTransparent !== undefined
-        && typeof isTransparent !== 'boolean') {
-
-        throw new Error(`Raster source "${sourceId}" has an invalid `
-            + `isTransparent value.`);
-    }
-
-    return {
-        url: tileUrl,
-        lodRange: [...lodRange],
-        tileRange: [
-            [...tileRange[0]],
-            [...tileRange[1]],
-        ],
-        credits: typeof credits === 'string'
-            ? undefined
-            : credits as RasterSource.Definition['credits'],
-        metaUrl,
-        maskUrl,
-        isTransparent,
-    };
+    private readonly map_: Map;
 }
 
 
@@ -331,6 +365,12 @@ namespace RasterSource {
     export type TileId = [number, number, number];
     export type LodRange = [number, number];
     export type TileRange = [[number, number], [number, number]];
+
+    export enum TileMatch {
+        None,
+        Ancestor,
+        Direct,
+    }
 
     /**
      * Supported `cartolina-tms` source metadata.
@@ -343,7 +383,7 @@ namespace RasterSource {
         url: string;
         lodRange: LodRange;
         tileRange: TileRange;
-        credits?: string[] | Record<string, Record<string, unknown>>;
+        credits?: string[] | Record<string, MapCredit.Definition>;
         metaUrl?: string;
         maskUrl?: string;
         isTransparent?: boolean;

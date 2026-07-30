@@ -29,26 +29,29 @@ global.document = {
 
 const RasterSource =
     require('../../tmp/unit-build/src/map/raster-source').default;
+const TileMatch = RasterSource.TileMatch;
 
 
 function fakeMap() {
 
     const credits = new Map();
 
-    return {
-        map: {
-            url: {
-                makeUrl(template, vars) {
-                    return template
-                        .replace('{lod}', vars.lod)
-                        .replace('{x}', vars.ix)
-                        .replace('{y}', vars.iy);
-                },
-            },
-            addCredit(id, credit) {
-                credits.set(id, credit);
+    const creditMap = {
+        url: {
+            makeUrl(template, vars) {
+                return template
+                    .replace('{lod}', vars.lod)
+                    .replace('{x}', vars.ix)
+                    .replace('{y}', vars.iy);
             },
         },
+        addCredit(id, credit) {
+            credits.set(id, credit);
+        },
+    };
+
+    return {
+        map: { legacyMap: creditMap },
         credits,
     };
 }
@@ -71,7 +74,8 @@ describe('RasterSource', function() {
         function() {
 
         const { map, credits } = fakeMap();
-        const source = new RasterSource(map, 'imagery', definition({
+        const source = RasterSource.fromMetadata(
+            map, 'imagery', definition({
             credits: {
                 imagery: { id: 17, notice: 'Imagery credit' },
             },
@@ -116,55 +120,79 @@ describe('RasterSource', function() {
         const base = 'https://maps.example.com/metadata/source.json';
 
         assert.strictEqual(
-            new RasterSource(map, 'relative', definition(), base).url,
+            RasterSource.fromMetadata(
+                map, 'relative', definition(), base).url,
             'https://maps.example.com/metadata/tiles/'
                 + '{lod}-{x}-{y}.jpg');
         assert.strictEqual(
-            new RasterSource(map, 'protocol', definition({
+            RasterSource.fromMetadata(map, 'protocol', definition({
                 url: '//cdn.example.com/{lod}/{x}/{y}.png',
             }), base).url,
             'https://cdn.example.com/{lod}/{x}/{y}.png');
         assert.strictEqual(
-            new RasterSource(map, 'root', definition({
+            RasterSource.fromMetadata(map, 'root', definition({
                 url: '/tiles/{lod}/{x}/{y}.png',
             }), base).url,
             'https://maps.example.com/tiles/{lod}/{x}/{y}.png');
         assert.strictEqual(
-            new RasterSource(map, 'absolute', definition({
+            RasterSource.fromMetadata(map, 'absolute', definition({
                 url: 'http://cdn.example.com/{lod}/{x}/{y}.png',
             }), base).url,
             'http://cdn.example.com/{lod}/{x}/{y}.png');
     });
 
-    it('expands URLs and preserves tile-range influence tests',
+    it('expands URLs and classifies static tile-range matches',
         function() {
 
         const { map } = fakeMap();
-        const source = new RasterSource(
+        const source = RasterSource.fromMetadata(
             map, 'imagery', definition(),
             'https://maps.example.com/metadata/');
 
         assert.strictEqual(source.getUrl([3, 2, 3]),
             'https://maps.example.com/metadata/tiles/3-2-3.jpg');
-        assert.strictEqual(source.hasTileOrInfluence([0, 0, 0]), 0);
-        assert.strictEqual(source.hasTileOrInfluence([1, 0, 0]), 2);
-        assert.strictEqual(source.hasTileOrInfluence([4, 7, 7]), 2);
-        assert.strictEqual(source.hasTileOrInfluence([5, 14, 14]), 1);
-        assert.strictEqual(source.hasTileOrInfluence([5, 32, 32]), 0);
+        assert.strictEqual(source.matchTile([0, 0, 0]), TileMatch.None);
+        assert.strictEqual(source.matchTile([1, 0, 0]), TileMatch.Direct);
+        assert.strictEqual(source.matchTile([4, 7, 7]), TileMatch.Direct);
+        assert.strictEqual(source.matchTile([5, 14, 14]),
+            TileMatch.Ancestor);
+        assert.strictEqual(source.matchTile([5, 32, 32]),
+            TileMatch.None);
+    });
+
+    it('uses its typed map owner for runtime URL expansion', function() {
+
+        const { map } = fakeMap();
+        const source = RasterSource.fromMetadata(
+            map, 'imagery', definition(),
+            'https://maps.example.com/metadata/');
+
+        map.legacyMap = {
+            url: {
+                makeUrl() {
+                    return 'expanded-by-owner';
+                },
+            },
+        };
+
+        assert.strictEqual(source.getUrl([3, 2, 3]),
+            'expanded-by-owner');
     });
 
     it('enables only paired metatile and mask coverage', function() {
 
         const { map } = fakeMap();
         const base = 'https://maps.example.com/metadata/';
-        const paired = new RasterSource(map, 'paired', definition({
-            metaUrl: 'coverage/{lod}-{x}-{y}.png',
-            maskUrl: '/masks/{lod}-{x}-{y}.png',
-        }), base);
-        const maskOnly = new RasterSource(map, 'mask-only', definition({
-            maskUrl: 'masks/{lod}-{x}-{y}.png',
-        }), base);
-        const plain = new RasterSource(
+        const paired = RasterSource.fromMetadata(
+            map, 'paired', definition({
+                metaUrl: 'coverage/{lod}-{x}-{y}.png',
+                maskUrl: '/masks/{lod}-{x}-{y}.png',
+            }), base);
+        const maskOnly = RasterSource.fromMetadata(
+            map, 'mask-only', definition({
+                maskUrl: 'masks/{lod}-{x}-{y}.png',
+            }), base);
+        const plain = RasterSource.fromMetadata(
             map, 'plain', definition(), base);
 
         assert.deepStrictEqual(paired.coverage, {
@@ -190,20 +218,46 @@ describe('RasterSource', function() {
         const { map } = fakeMap();
         const base = 'https://maps.example.com/metadata/';
 
-        assert.throws(() => new RasterSource(
-            map, 'meta-only', definition({ metaUrl: 'meta.png' }), base),
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'meta-only',
+            definition({ metaUrl: 'meta.png' }), base),
         /metaUrl without maskUrl/);
-        assert.throws(() => new RasterSource(
-            map, 'empty-meta', definition({ metaUrl: '' }), base),
-        /invalid metaUrl/);
-        assert.throws(() => new RasterSource(
-            map, 'bad-range', definition({ lodRange: [1] }), base),
-        /invalid lodRange/);
-        assert.throws(() => new RasterSource(
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'empty-meta',
+            definition({ metaUrl: '' }), base),
+        /empty metaUrl/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'bad-range',
+            definition({ lodRange: [1] }), base),
+        /invalid metadata/);
+        assert.throws(() => RasterSource.fromMetadata(
             map, 'missing-url', {
                 lodRange: [1, 4],
                 tileRange: [[0, 0], [1, 1]],
             }, base),
-        /no tile URL/);
+        /invalid metadata/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'bad-credits',
+            definition({ credits: [17] }), base),
+        /invalid metadata/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'external-credits',
+            definition({ credits: 'credits.json' }), base),
+        /invalid metadata/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'fractional-range', definition({
+                lodRange: [1, 4.5],
+            }), base),
+        /non-negative safe integers/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'descending-lod', definition({
+                lodRange: [4, 1],
+            }), base),
+        /descending lodRange/);
+        assert.throws(() => RasterSource.fromMetadata(
+            map, 'descending-tiles', definition({
+                tileRange: [[2, 0], [1, 1]],
+            }), base),
+        /descending tileRange/);
     });
 });

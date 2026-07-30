@@ -14,6 +14,7 @@ import type * as viewerConfig from '../viewer-config';
 import Atmosphere from './atmosphere';
 import { grayPngDecodeAvailable } from '../utils/gray-png';
 import MapStyle from './style';
+import RasterSource from './raster-source';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
@@ -1250,20 +1251,21 @@ export class TileRenderRig {
             return tile;
         }
 
-        if (!source.hasTileOrInfluence(tile.id)) return undefined;
+        const tileMatch = source.matchTile(tile.id);
+        if (tileMatch === RasterSource.TileMatch.None) return undefined;
 
         let ancestorFallback = null;
 
-        if (propagate) {
+        if (propagate
+            && tileMatch === RasterSource.TileMatch.Ancestor) {
 
                 // normally, we want to fallback to higher lod tiles if
                 // tiles are not available on the requested lod. This provides
                 // necessary information to MapTexture. In some cases, like
                 // bump maps, this is not desirable.
-                if (tile.id[0] > source.lodRange[1])
-                    ancestorFallback = {
-                        sourceTile: clampToLodRange(tile, source.lodRange),
-                        sourceTexture: null, source, tile };
+                ancestorFallback = {
+                    sourceTile: clampToLodRange(tile, source.lodRange),
+                    sourceTexture: null, source, tile };
 
         }
 

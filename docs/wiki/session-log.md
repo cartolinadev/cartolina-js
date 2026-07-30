@@ -3,6 +3,29 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-30 — Type the raster-source boundary
+
+Reworked `RasterSource` as a native TypeScript model instead of a literal
+translation of the removed JavaScript class. A declaration-merged metadata
+type and Typia validator now form the JSON boundary; the constructor is
+private and receives normalized data. Static tile matching returns a named
+enum, malformed and descending ranges fail deterministically, and the local
+number-pair guard is gone. String-valued external credit documents are
+unsupported.
+
+The source now retains typed `Map`, which owns the source registry. Typed
+`Map` exposes its under-construction legacy state through the existing
+internal accessor only for the credit table and current URL-template
+implementation. Style loading no longer passes a second legacy-map argument.
+Typed `Map` also rebuilds style sequences and dirty flags directly at its two
+call sites instead of bouncing through `LegacyMap.refreshView()`.
+
+Validation passed the typecheck, 90 unit tests, the 18-check raster lifecycle
+gate, the 32-check style-mutation gate, the strict conversion corpus,
+production build, and the four sequential render comparisons. All
+development captures were inspected and had no console, page, or network
+errors.
+
 ## 2026-07-30 — Replace bound layers with map-owned raster sources
 
 Replaced `MapBoundLayer` and the `LegacyMap.boundLayers` registry with an

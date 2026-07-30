@@ -973,18 +973,6 @@ class ConversionContext {
 
             if (supported.has(key)) {
 
-                // A string credit value was an external URL that the legacy
-                // client stored but never loaded.
-                if (key === 'credits' && typeof value === 'string') {
-                    this.notes.push({
-                        code: 'ignored-field',
-                        path: `${path}.credits`,
-                        message: `The current client does not load external `
-                            + `raster credit URLs; the value was dropped.`,
-                    });
-                    continue;
-                }
-
                 output[key] = structuredClone(value);
                 continue;
             }

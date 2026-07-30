@@ -112,6 +112,8 @@ export default class Map {
 
     /** Set when the runtime decides the next frame must redraw. */
     dirty: boolean;
+    /** Revision of the compiled style sequences. */
+    viewCounter: number;
     /** Remaining frames to keep drawing after `dirty` flips false; lets
      * the scene reach a stable state across the configured refresh
      * cycles (`mapRefreshCycles`). */

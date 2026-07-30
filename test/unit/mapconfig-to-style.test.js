@@ -275,7 +275,6 @@ describe('mapConfigToStyle', function() {
             },
             options: { shaderFilter: 'retired' },
             shaderFilters: ['retired'],
-            credits: 'credits.json',
             metaUrl: 'coverage/{lod}-{x}-{y}.png',
             maskUrl: 'masks/{lod}-{x}-{y}.png',
             isTransparent: true,
@@ -311,7 +310,6 @@ describe('mapConfigToStyle', function() {
             'availability',
             'options',
             'shaderFilters',
-            'credits',
         ]) {
 
             assert.ok(notePaths.includes(

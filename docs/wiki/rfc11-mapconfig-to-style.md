@@ -3360,3 +3360,34 @@ preceding addendum. The recorded type, unit, lifecycle, corpus, build,
 screenshot, and performance gates ran against that implementation tree. The
 commit hook changed only generated version metadata after validation, which
 does not alter the validated behavior.
+
+## Addendum — 2026-07-30 — typed raster-source boundary
+
+`RasterSource` metadata now has one declaration-merged TypeScript contract.
+Typia validates fetched and inline JSON at the public construction boundary;
+the private constructor receives only normalized metadata. Additional JSON
+properties remain accepted at the boundary but cannot enter runtime state.
+Range ordering, safe integers, credit definitions, and coverage URL pairs are
+validated before an immutable source is created.
+String-valued external credit documents are unsupported.
+
+Static tile-range lookup now returns the `RasterSource.TileMatch` enum:
+`None`, `Ancestor`, or `Direct`. The renderer branches on those names instead
+of the old numeric convention. The parser and credit-definition helper are
+private static class members, and the ad hoc number-pair guard is gone.
+
+Each source retains its typed `Map` owner. During style construction, `Map`
+exposes the legacy state being populated through its existing internal
+`legacyMap` access, while keeping that state separate from the render-active
+map field. This supplies the credit table during construction and the current
+URL-template implementation after activation without making `LegacyMap` the
+source owner. Style refreshes now rebuild sequences and mark the three dirty
+flags directly in typed `Map`; the two typed call sites no longer invoke the
+legacy `refreshView()` wrapper.
+
+Validation passed the typecheck, all 90 unit tests, the deterministic
+18-check raster-source lifecycle gate, the 32-check style-mutation gate, the
+strict four-document conversion corpus, the production build, and the four
+sequential render comparisons. The development renders reported no console,
+page, or network errors and were inspected beside their production
+counterparts.

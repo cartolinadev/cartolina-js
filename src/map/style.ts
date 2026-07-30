@@ -82,7 +82,7 @@ export type SurfaceSourceDefinition = {
     } & Record<string, unknown>;
 
     surfaces: Array<Record<string, unknown>>;
-    credits?: Record<string, unknown>;
+    credits?: Record<string, MapCredit.Definition>;
 }
 
 /**
@@ -557,12 +557,20 @@ export class MapStyle {
                         'Source',
                     );
 
-                    return new RasterSource(
-                        map, id, definition, utilsUrl.getBase(path));
+                    return RasterSource.fromMetadata(
+                        map.outerMap,
+                        id,
+                        definition,
+                        utilsUrl.getBase(path),
+                    );
                 }
 
-                return new RasterSource(
-                    map, id, sourceSpec.data, sourceSpec.baseUrl);
+                return RasterSource.fromMetadata(
+                    map.outerMap,
+                    id,
+                    sourceSpec.data,
+                    sourceSpec.baseUrl,
+                );
             }));
         }
 
