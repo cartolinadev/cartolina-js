@@ -690,7 +690,7 @@ class Map {
         // not inherit fade state from the previous rule set
         if (letteringChanged) this.renderer.draw.clearJobHBuffer();
 
-        this.refreshStyle(this.map!);
+        this.refreshStyle();
     }
 
     /**
@@ -1427,7 +1427,7 @@ class Map {
             legacyMap.isGeocent =
                 !legacyMap.getNavigationSrs().isProjected();
 
-            this.refreshStyle(legacyMap);
+            this.refreshStyle();
 
             legacyMap.draw = new MapDraw(legacyMap);
             this.freeze = new FreezeCameraState(legacyMap);
@@ -1451,11 +1451,10 @@ class Map {
 
     /**
      * Rebuilds derived style sequences and schedules a complete redraw.
-     *
-     * @param map legacy state still consumed by the renderer
      */
-    private refreshStyle(map: LegacyMap): void {
+    private refreshStyle(): void {
 
+        const map = this.legacyMap!;
         map.viewCounter++;
         map.style?.refreshSequences();
         map.dirty = true;
