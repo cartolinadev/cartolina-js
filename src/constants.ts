@@ -2,18 +2,6 @@
 
 export const DRAWCOMMAND_GEODATA = 3;
 
-export const TEXTURECHECK_METATILE = 1;
-export const TEXTURECHECK_TYPE = 2;
-export const TEXTURECHECK_CODE = 3;
-export const TEXTURECHECK_SIZE = 4;
-
-export const TEXTURETYPE_COLOR = 0;
-export const TEXTURETYPE_HEIGHT = 1;
-export const TEXTURETYPE_CLASS = 2;
-export const TEXTURETYPE_NORMALMAP = 3;
-export const TEXTURETYPE_MASK = 4;
-export const TEXTURETYPE_ATMDENSITY = 5;
-
 export const JOB_FLAT_LINE = 1;
 export const JOB_FLAT_RLINE = 2;
 export const JOB_FLAT_TLINE = 3;

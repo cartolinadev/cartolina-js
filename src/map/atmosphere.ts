@@ -3,10 +3,10 @@ import MapBody from './body';
 import MapSrs from './srs';
 import MapTexture from './texture';
 import * as utils from '../utils/utils';
-import * as vts from '../constants';
 import * as math from '../utils/math';
 import {vec3, vec4, mat4} from '../utils/matrix';
 import Renderer from '../renderer/renderer';
+import GpuTexture from '../renderer/gpu/texture';
 
 /**
  * The map atmosphere object. Provides density texture retrieval and decoding,
@@ -93,7 +93,7 @@ class Atmosphere {
         let url = utils.simpleFmtObj(urlTemplate, { 'param(0)' : name });
     
         this.atmDensityTexture = new MapTexture(
-            map, url, vts.TEXTURETYPE_ATMDENSITY);
+            map, url, GpuTexture.Type.AtmosphereDensity);
 
         __DEV__ && utils.logOnce(`atmDensityTexture url: ${url}`);
     }

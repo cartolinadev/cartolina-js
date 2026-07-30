@@ -953,6 +953,53 @@ class ConversionContext {
         }
     }
 
+    /**
+     * Extracts the supported raster-source metadata from a legacy
+     * bound-layer definition. Unsupported fields stay at the conversion
+     * boundary and never enter the style runtime.
+     */
+    private rasterDefinition(
+        definition: Record<string, unknown>,
+        path: string,
+    ): MapStyle.TmsSourceDefinition {
+
+        const supported = new Set([
+            'url', 'lodRange', 'tileRange', 'credits',
+            'metaUrl', 'maskUrl', 'isTransparent',
+        ]);
+        const output: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(definition)) {
+
+            if (supported.has(key)) {
+
+                // A string credit value was an external URL that the legacy
+                // client stored but never loaded.
+                if (key === 'credits' && typeof value === 'string') {
+                    this.notes.push({
+                        code: 'ignored-field',
+                        path: `${path}.credits`,
+                        message: `The current client does not load external `
+                            + `raster credit URLs; the value was dropped.`,
+                    });
+                    continue;
+                }
+
+                output[key] = structuredClone(value);
+                continue;
+            }
+
+            this.notes.push({
+                code: 'ignored-field',
+                path: `${path}.${key}`,
+                message: `The raster runtime does not support legacy source `
+                    + `field "${key}"; the value was dropped.`,
+            });
+        }
+
+        return output as unknown as MapStyle.TmsSourceDefinition;
+    }
+
     /* Bound layers become inline cartolina-tms sources; a definition
      * that cannot be fetched falls back to a URL source. */
     private async convertBoundLayers(): Promise<void> {
@@ -981,10 +1028,12 @@ class ConversionContext {
                     absolutizeFields(definition,
                         ['url', 'metaUrl', 'maskUrl'],
                         definitionContext, path);
+                    const rasterDefinition =
+                        this.rasterDefinition(definition, path);
 
                     this.sources[sourceId] = {
                         type: 'cartolina-tms',
-                        data: definition,
+                        data: rasterDefinition,
                         baseUrl: definitionContext!.base,
                     };
 
@@ -1010,10 +1059,12 @@ class ConversionContext {
                 absolutizeFields(definition,
                     ['url', 'metaUrl', 'maskUrl'],
                     this.documentContext, path);
+                const rasterDefinition =
+                    this.rasterDefinition(definition, path);
 
                 this.sources[sourceId] = {
                     type: 'cartolina-tms',
-                    data: definition,
+                    data: rasterDefinition,
                     baseUrl: this.requireBase(path),
                 };
 

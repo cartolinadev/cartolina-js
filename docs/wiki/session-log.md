@@ -3,6 +3,36 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-30 — Replace bound layers with map-owned raster sources
+
+Replaced `MapBoundLayer` and the `LegacyMap.boundLayers` registry with an
+immutable `RasterSource` and a typed `Map` registry of ready or permanently
+failed entries. Raster metadata starts concurrently and overlaps terrain
+metadata loading. Initial activation rejects a failed effective source;
+visibility mutations validate their prospective effective style and throw
+synchronously without changing live state.
+
+The supported metadata is now tile and coverage URLs, LOD and tile ranges,
+credits, transparency, and paired metatile/mask coverage. Mask-only sources
+remain usable without coverage; meta-only sources fail. Availability probes,
+shader filters, the ESRI special case, classification textures, old options
+and lifecycle accessors, all `TEXTURECHECK_*` / `TEXTURETYPE_*` constants, and
+the HEAD-request helper were deleted. The compatibility converter strips
+discarded fields and reports them as notes.
+
+Renderer, tile, cache, fallback, coverage, credit, and diagnostic state now
+uses raster-source terminology. A browser trace found one timing dependency
+hidden by the deleted callbacks: first coverage use could request an
+aggregated metatile cache node before its branch existed. Coverage now creates
+that node explicitly, matching terrain metatile setup.
+
+Validation passed the typecheck, 89 unit tests, strict converter corpus,
+18-check raster lifecycle gate, style-mutation gate, production build, and
+the four required sequential screenshot comparisons. All development
+captures were inspected and had no console, page, or network errors.
+Matched local performance samples stayed within 4% of the pre-refactor FPS;
+repeat load measurements stayed inside the 30% limit.
+
 ## 2026-07-28 — Vertical exaggeration in the depth comparison
 
 `Viewer.checkVisibility()` compared distances measured in two different

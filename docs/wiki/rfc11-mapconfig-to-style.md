@@ -3311,3 +3311,44 @@ fallback in effect before the catalogue defaults changed.
 Focused compile contracts pin factory and constructor option equality. Unit
 tests pin both default profiles and the mapConfig valid-override and
 invalid-fallback behavior.
+
+## Addendum — 2026-07-30 — map-owned raster sources
+
+`MapBoundLayer` and the `LegacyMap.boundLayers` registry are gone. A
+`cartolina-tms` definition now resolves to an immutable `RasterSource`, while
+typed `Map` owns a registry containing either a ready source or its permanent
+metadata failure. Source URLs name the definition JSON directly; only a
+trailing slash appends the retained `boundlayer.json` protocol filename.
+
+Raster metadata requests start together and overlap terrain metadata loading.
+`Promise.allSettled()` records every result. Initial readiness rejects only
+when an effective raster layer uses a failed source. A prospective visibility
+mutation performs the same check before committing overrides or sequences, so
+an inactive failure can remain dormant and a later failed activation leaves
+the rendered state unchanged.
+
+The runtime metadata contract is now limited to tile and coverage URLs, LOD
+and tile ranges, credits, transparency, and paired metatile/mask coverage.
+Mask-only metadata is ignored; meta-only metadata fails the source. Legacy
+availability probes, shader filters, classification textures, numeric ids,
+options, and lifecycle accessors were deleted rather than translated. The
+compatibility converter emits only the supported inline fields and reports
+discarded legacy fields as notes.
+
+`TileRenderRig`, tile state, texture caches, coverage resources, credits, and
+diagnostics now use raster-source terminology. Coverage selects a raster tile
+or its ancestor directly from the metatile and loads a per-tile mask where
+needed. The cache creates its aggregated coverage node explicitly; the old
+callback timing had previously caused that branch to exist before first use.
+All `TEXTURECHECK_*` and `TEXTURETYPE_*` constants, header probes,
+`headRequest()`, and `GpuTexture.Type.Class` are deleted.
+
+Validation passed the typecheck, 89 unit tests, strict public converter corpus,
+the deterministic 18-check raster lifecycle gate, style-mutation gate,
+production build, and sequential `simple-terrain`, `complex-terrain`,
+`full-terrain`, and `legacy-benatky` screenshot comparisons. The four
+development captures had no console, page, or network errors and were
+inspected against their production counterparts. Matched local performance
+samples at the pre-refactor commit and the implementation use the same
+147-draw `simple-terrain` frame; the implementation is within 4% of baseline
+FPS. Repeat load and FPS runs remain inside the 30% and 10% limits.

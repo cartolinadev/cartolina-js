@@ -80,7 +80,6 @@ var Map = function(core, path, config, bus) {
     this.creditsByNumber = {};
     this.surfaces = [];
     this.freeLayers = {};
-    this.boundLayers = {};
     this.stylesheets = {};
     this.processingTasks = [];
     this.processingTasks2 = [];
@@ -339,57 +338,6 @@ Map.prototype.getSurfaces = function() {
         keys.push(this.surfaces[i].id);
     }
     return keys;
-};
-
-
-Map.prototype.addBoundLayer = function(id, layer) {
-    this.boundLayers[id] = layer;
-};
-
-
-Map.prototype.setBoundLayerOptions = function(id, options) {
-    if (this.boundLayers[id]) {
-        this.boundLayers[id].setOptions(options);
-    }
-};
-
-
-Map.prototype.getBoundLayerOptions = function(id) {
-    if (this.boundLayers[id]) {
-        return this.boundLayers[id].getOptions();
-    }
-    
-    return null;
-};
-
-
-Map.prototype.removeBoundLayer = function(id) {
-    if (this.boundLayers[id]) {
-        this.boundLayers[id].kill();
-        this.boundLayers[id] = null;
-    }
-};
-
-
-Map.prototype.getBoundLayerByNumber = function(number) {
-    var layers = this.boundLayers;
-    for (var key in layers) {
-        if (layers[key].numberId == number) {
-            return layers[key];
-        }
-    }
-
-    return null;
-};
-
-
-Map.prototype.getBoundLayerById = function(id) {
-    return this.boundLayers[id];
-};
-
-
-Map.prototype.getBoundLayers = function() {
-    return this.getMapKeys(this.boundLayers);
 };
 
 

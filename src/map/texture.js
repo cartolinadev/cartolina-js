@@ -1,9 +1,11 @@
 
 import MapSubtexture from './subtexture';
+import GpuTexture from '../renderer/gpu/texture';
 
-import * as vts from '../constants';
+var MapTexture = function(
+    map, path, type, ancestorFallback, textureContext, tile, internal
+) {
 
-var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal) {
     this.map = map;
     this.stats = map.stats;
     this.tile = tile; // used only for stats
@@ -23,30 +25,16 @@ var MapTexture = function(map, path, type, extraBound, extraInfo, tile, internal
     this.neverReady = false;
     this.maskTexture = null;
     this.mapLoaderUrl = path;
-    this.type = type || vts.TEXTURETYPE_COLOR;
-    this.extraBound = extraBound;
-    this.extraInfo = extraInfo;
+    this.type = type ?? GpuTexture.Type.Color;
+    this.ancestorFallback = ancestorFallback;
+    this.textureContext = textureContext;
     this.statsCounter = 0;
-    this.checkStatus = 0; // pre-load checks: 0=not checked, 1=in progress, 2=pass,-1=fail depending on the check)
-    this.checkType = null;
-    this.checkValue = null;
-    this.fastHeaderCheck = false;
+    this.coverageStatus = 'unchecked';
+    this.hasCoverage = !!textureContext?.source?.coverage;
+    this.ancestorMaskPending = false;
     this.fileSize = 0;
     this.bumpsApplied = [];
     this.missingParentWarned = false;
-
-    if (extraInfo && extraInfo.layer) {
-        var layer = extraInfo.layer;
-        
-        if (layer.availability) {
-            this.checkType = layer.availability.type;
-            switch (this.checkType) {
-            case vts.TEXTURECHECK_TYPE: this.checkValue = layer.availability.mime; break;
-            case vts.TEXTURECHECK_CODE: this.checkValue = layer.availability.codes; break;
-            case vts.TEXTURECHECK_SIZE: this.checkValue = layer.availability.size; break;
-            }
-        }       
-    }
 };
 
 
@@ -76,7 +64,7 @@ MapTexture.prototype.noteBump = function(layerId) {
 
 /**
  * Log a tile whose parent link is missing, once per texture.
- * The availability fallback walk cannot continue past such a
+ * The raster fallback walk cannot continue past such a
  * tile; callers report the texture as not ready.
  */
 MapTexture.prototype.warnMissingParent = function(tile) {
@@ -87,7 +75,7 @@ MapTexture.prototype.warnMissingParent = function(tile) {
     this.missingParentWarned = true;
 
     console.log('WARN: no parent link for tile '
-        + tile.id.join('-') + ' while checking bound texture '
+        + tile.id.join('-') + ' while checking raster texture '
         + this.mapLoaderUrl);
 };
 
@@ -100,33 +88,37 @@ MapTexture.prototype.killGpuTexture = function() {
 };
 
 
-MapTexture.prototype.setBoundTexture = function(tile, layer, hmap) {
+MapTexture.prototype.setAncestorTexture = function(tile, source, hmap) {
     if (tile) {
         if (hmap) {
-            this.extraBound.sourceTile = tile;
-            this.extraBound.hmap = hmap;
+            this.ancestorFallback.sourceTile = tile;
+            this.ancestorFallback.hmap = hmap;
 
             if (!tile.hmap) {
                 var path = tile.resourceSurface.getHMapUrl(tile.id, true);
                 tile.hmap = tile.resources.getTexture(path, null, null, {tile: tile, hmap: hmap}, this.tile, this.internal);
             }
 
-            this.extraBound.texture = tile.hmap; 
+            this.ancestorFallback.texture = tile.hmap;
 
-        } else if (layer) {
-            this.extraBound.sourceTile = tile;
-            this.extraBound.layer = layer;
+        } else if (source) {
+            this.ancestorFallback.sourceTile = tile;
+            this.ancestorFallback.source = source;
             
-            if (!tile.boundTextures[layer.id]) {
-                tile.boundLayers[layer.id] = layer;
-                var path = layer.getUrl(tile.id);
-                tile.boundTextures[layer.id] = tile.resources.getTexture(path, null, null, {tile: tile, layer: layer}, this.tile, this.internal);
+            if (!tile.rasterTextures[source.id]) {
+                tile.rasterSources[source.id] = source;
+                var path = source.getUrl(tile.id);
+                tile.rasterTextures[source.id] = tile.resources.getTexture(
+                    path, null, null, {tile: tile, source: source},
+                    this.tile, this.internal);
             }
 
-            this.extraBound.texture = tile.boundTextures[layer.id]; 
+            this.ancestorFallback.texture = tile.rasterTextures[source.id];
         }
         
-        this.extraBound.transform = this.map.draw.drawTiles.getTileTextureTransform(tile, this.extraBound.tile);
+        this.ancestorFallback.transform =
+            this.map.draw.drawTiles.getTileTextureTransform(
+                tile, this.ancestorFallback.tile);
         this.map.markDirty();
     }
 };
@@ -142,22 +134,24 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
     var parent;
    
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
 
-            // extraBound is a tile clamped to the available lodRange for the layer
-            while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
-//            while (this.extraBound.texture.checkStatus == -1) {
-                parent = this.extraBound.sourceTile.parent;
+            // Start at the highest tile inside the source LOD range.
+            while (this.ancestorFallback.texture.ancestorFallback
+                || this.ancestorFallback.texture.coverageStatus
+                    === 'missing') {
 
-                if (this.extraBound.hmap) {
+                parent = this.ancestorFallback.sourceTile.parent;
+
+                if (this.ancestorFallback.hmap) {
                     if (!parent || parent.id[0] < 1) {
                         this.neverReady = true;
-                        this.extraBound.tile.resetDrawCommands = true;
+                        this.ancestorFallback.tile.resetDrawCommands = true;
                         this.map.markDirty();
                         return false;
                     }
-                } else if (this.extraBound.layer) {
+                } else if (this.ancestorFallback.source) {
 
                     // a tile with a null parent link is the tree root
                     // or no longer belongs to the tile tree; there is
@@ -165,178 +159,168 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                     // the state unchanged so a live tile can re-claim
                     // this texture through the resource cache.
                     if (!parent) {
-                        this.warnMissingParent(this.extraBound.sourceTile);
+                        this.warnMissingParent(
+                            this.ancestorFallback.sourceTile);
                         return false;
                     }
 
-                    if (parent.id[0] < this.extraBound.layer.lodRange[0]) {
+                    if (parent.id[0]
+                        < this.ancestorFallback.source.lodRange[0]) {
+
                         this.neverReady = true;
-                        this.extraBound.tile.resetDrawCommands = true;
+                        this.ancestorFallback.tile.resetDrawCommands = true;
                         this.map.markDirty();
                         return false;
                     }
                 }
  
-                this.setBoundTexture(parent, this.extraBound.layer);
+                this.setAncestorTexture(parent, this.ancestorFallback.source);
             }
             
-            var ready = this.extraBound.texture.isReady(doNotLoad, priority, doNotCheckGpu);
+            var ready = this.ancestorFallback.texture.isReady(
+                doNotLoad, priority, doNotCheckGpu);
             
-            if (ready && this.checkMask) {
-                this.extraBound.tile.resetDrawCommands = (this.extraBound.texture.getMaskTexture() != null);
-                this.checkMask = false;
+            if (ready && this.ancestorMaskPending) {
+                this.ancestorFallback.tile.resetDrawCommands =
+                    (this.ancestorFallback.texture.getMaskTexture() != null);
+                this.ancestorMaskPending = false;
             }
 
             return ready;
             
-        } // if (this.extraBound.texture)
+        } // if (this.ancestorFallback.texture)
 
         else {
 
-            // if (! this.extraBound.texture)
+            // if (! this.ancestorFallback.texture)
 
-            this.setBoundTexture(this.extraBound.sourceTile, this.extraBound.layer, this.extraBound.hmap);        
+            this.setAncestorTexture(
+                this.ancestorFallback.sourceTile,
+                this.ancestorFallback.source,
+                this.ancestorFallback.hmap);
             return this.isReady(doNotLoad, priority, doNotCheckGpu);
         }
-    } // if (this.extraBound)
+    } // if (this.ancestorFallback)
 
-    switch (this.checkType) {
-    case vts.TEXTURECHECK_METATILE:
+    if (this.hasCoverage) {
 
-//        if (this.checkStatus != 2) {
-            if (this.checkStatus == 0) { // not checked
-                if (this.extraInfo && this.extraInfo.tile) {
+        if (this.coverageStatus === 'unchecked') {
 
-                    var metaresources = this.extraInfo.tile.boundmetaresources;
-                    if (!metaresources) {
+            const tile = this.textureContext.tile;
+            let metaResources = tile.rasterMetaResources;
 
-                        metaresources = this.map.resourcesTree.findAgregatedNode(this.extraInfo.tile.id, 8);
-                        this.extraInfo.tile.boundmetaresources = metaresources;
-                    }
-                        
-                    var layer = this.extraInfo.layer;
-                    var path = this.extraInfo.metaPath;
+            if (!metaResources) {
+                metaResources =
+                    this.map.resourcesTree.findAgregatedNode(
+                        tile.id, 8, true);
+                tile.rasterMetaResources = metaResources;
+            }
 
-                    if(!this.extraInfo.metaPath) {
-                        path = layer.getMetatileUrl(metaresources.id);	
-                        this.extraInfo.metaPath = path;
-                    }
+            const source = this.textureContext.source;
 
-                    // type = vts.TEXTURETYPE_HEIGHT ensures we get an RGBA array
-                    // instead of the browser-native bitmap
-                    var texture = metaresources.getTexture(path,
-                        vts.TEXTURETYPE_HEIGHT, null, null, this.tile, this.internal);
-                        
-                    if (this.maskTexture) {
-                        if (this.maskTexture.isReady(doNotLoad, priority, doNotCheckGpu, this)) {
-                            this.checkStatus = 2;
-                        }
-                    } else {
-                        // checkStatus == 0 && this.extraInfo && this.extraInfo.tile && ! this.maskTexture
-                        if (texture.isReady(doNotLoad, priority, doNotCheckGpu)) {
+            if (!this.textureContext.metaPath) {
+                this.textureContext.metaPath =
+                    source.getMetatileUrl(metaResources.id);
+            }
 
-                            var tile = this.extraInfo.tile;
+            // Height decoding exposes the metatile's RGBA bytes to the CPU.
+            const metatileTexture = metaResources.getTexture(
+                this.textureContext.metaPath, GpuTexture.Type.Height,
+                null, null, this.tile, this.internal);
 
-                            // read bl metatile value
-                            var value = texture.getHeightMapValue(tile.id[1] & 255, tile.id[2] & 255);
-
-                            // the highest bit seems to indicate tile existence
-                            this.checkStatus = (value & 128) ? 2 : -1;
-                                
-                            if (this.checkStatus == 2) {
-
-                                // the 2nd highest bit seems to indicate tile is watertight
-                                if (!(value & 64)) {
-
-                                    //load mask
-                                    path = layer.getMaskUrl(tile.id);
-                                    this.maskTexture = tile.resources.getTexture(path,
-                                        vts.TEXTURETYPE_MASK, null, null, this.tile, this.internal);
-
-                                    // possible race condition here: checkStatus flashes to 2
-                                    // before being reset to 0. And should checkStatus be 0
-                                    // anyway? We're just waiting for the mask to load.
-                                    this.checkStatus = 0;
-                                }
-                            }
-
-                            // reset draw commands to add mask
-                            tile.resetDrawCommands = true;
-                            this.map.markDirty();
-                        }
-                    }
-                } // if (this.extraInfo && this.extraInfo.tile)
+            if (!metatileTexture.isReady(
+                doNotLoad, priority, doNotCheckGpu)) {
 
                 return false;
             }
-                
-            if (this.checkStatus == -1) { // fail or nonexistent tile
-                if (!this.extraBound) {
 
-                    parent = this.extraInfo.tile.parent;
+            const value = metatileTexture.getHeightMapValue(
+                tile.id[1] & 255, tile.id[2] & 255);
 
-                    // a tile with a null parent link is the tree root
-                    // or no longer belongs to the tile tree; there is
-                    // no hierarchy to walk. Report not ready and keep
-                    // the state unchanged so a live tile can re-claim
-                    // this texture through the resource cache.
-                    if (!parent) {
-                        this.warnMissingParent(this.extraInfo.tile);
-                        return false;
-                    }
+            if (!(value & 128)) {
+                this.coverageStatus = 'missing';
+            } else if (!(value & 64)) {
 
-                    if (parent.id[0] < this.extraInfo.layer.lodRange[0]) {
-                        this.neverReady = true;
-                        this.extraInfo.tile.resetDrawCommands = true;
-                        this.map.markDirty();
-                        return false;
-                    }
+                const path = source.getMaskUrl(tile.id);
+                this.maskTexture = tile.resources.getTexture(
+                    path, GpuTexture.Type.Mask,
+                    null, null, this.tile, this.internal);
+                this.coverageStatus = 'mask-loading';
 
-                    this.extraBound = { tile: this.extraInfo.tile, layer: this.extraInfo.layer};
-                    this.setBoundTexture(this.extraBound.tile.parent, this.extraBound.layer);
-                    this.checkMask = true;
+            } else {
+                this.coverageStatus = 'present';
+            }
+
+            tile.resetDrawCommands = true;
+            this.map.markDirty();
+        }
+
+        if (this.coverageStatus === 'mask-loading') {
+
+            if (!this.maskTexture.isReady(
+                doNotLoad, priority, doNotCheckGpu, this)) {
+
+                return false;
+            }
+
+            this.coverageStatus = 'present';
+        }
+
+        if (this.coverageStatus === 'missing') {
+
+            if (!this.ancestorFallback) {
+
+                parent = this.textureContext.tile.parent;
+
+                if (!parent) {
+                    this.warnMissingParent(this.textureContext.tile);
+                    return false;
                 }
 
-                while (this.extraBound.texture.extraBound || this.extraBound.texture.checkStatus == -1) {
-
-                    // move up the hierarchy
-                    parent = this.extraBound.sourceTile.parent;
-
-                    // a tile with a null parent link is the tree root
-                    // or no longer belongs to the tile tree; there is
-                    // no hierarchy to walk. Report not ready and keep
-                    // the state unchanged so a live tile can re-claim
-                    // this texture through the resource cache.
-                    if (!parent) {
-                        this.warnMissingParent(this.extraBound.sourceTile);
-                        return false;
-                    }
-
-                    if (parent.id[0] < this.extraBound.layer.lodRange[0]) {
-                        this.neverReady = true;
-                        this.extraBound.tile.resetDrawCommands = true;
-                        this.map.markDirty();
-                        return false;
-                    }
-                        
-                    this.setBoundTexture(parent, this.extraBound.layer);        
+                if (parent.id[0] < this.textureContext.source.lodRange[0]) {
+                    this.neverReady = true;
+                    this.textureContext.tile.resetDrawCommands = true;
+                    this.map.markDirty();
+                    return false;
                 }
 
-                return false;
+                this.ancestorFallback = {
+                    tile: this.textureContext.tile,
+                    source: this.textureContext.source,
+                };
+                this.setAncestorTexture(
+                    parent, this.ancestorFallback.source);
+                this.ancestorMaskPending = true;
             }
 
-            if (this.checkStatus == 1) { // in progress
-                return false;
+            while (this.ancestorFallback.texture.ancestorFallback
+                || this.ancestorFallback.texture.coverageStatus
+                    === 'missing') {
+
+                parent = this.ancestorFallback.sourceTile.parent;
+
+                if (!parent) {
+                    this.warnMissingParent(
+                        this.ancestorFallback.sourceTile);
+                    return false;
+                }
+
+                if (parent.id[0]
+                    < this.ancestorFallback.source.lodRange[0]) {
+
+                    this.neverReady = true;
+                    this.ancestorFallback.tile.resetDrawCommands = true;
+                    this.map.markDirty();
+                    return false;
+                }
+
+                this.setAncestorTexture(
+                    parent, this.ancestorFallback.source);
             }
 
-            if (this.checkStatus != 2) { // sanity
-                console.log('WARN: unknown check status.');
-                return false;
-            }
-//        } // if (this.checkStatus != 2)
-        
-        break;
-    } // switch (this.checkType)
+            return false;
+        }
+    }
 
     var maskState = true;
 
@@ -351,32 +335,28 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 MapTexture.prototype.isMaskPossible = function() {
     var texture = this;
 
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
-            texture = this.extraBound.texture;
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
+            texture = this.ancestorFallback.texture;
         }
     }
 
-    if (texture.checkType == vts.TEXTURECHECK_METATILE) {
-        return true;
-    } else {
-        return false;
-    }
+    return texture.hasCoverage;
 };
 
 MapTexture.prototype.isMaskInfoReady = function() {
     var texture = this;
 
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
-            texture = this.extraBound.texture;
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
+            texture = this.ancestorFallback.texture;
         }
     }
 
-    if (texture.checkType == vts.TEXTURECHECK_METATILE) {
-        // check for maskTexture bellow probably redundant, could be
-        // if (texture.checkStatus == 2 || texture.checkStatus ==  -1) {
-        if (this.maskTexture || texture.checkStatus == 2 || this.neverReady /* || texture.checkStatus ==  -1 */) {
+    if (texture.hasCoverage) {
+        if (this.maskTexture || texture.coverageStatus === 'present'
+            || this.neverReady) {
+
             return true;
         }
 
@@ -387,9 +367,9 @@ MapTexture.prototype.isMaskInfoReady = function() {
 }
 
 MapTexture.prototype.getGpuTexture = function() {
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
-            return this.extraBound.texture.getGpuTexture();
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
+            return this.ancestorFallback.texture.getGpuTexture();
         }
         return null;
     } 
@@ -399,9 +379,9 @@ MapTexture.prototype.getGpuTexture = function() {
 
 
 MapTexture.prototype.getMaskTexture = function() {
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
-            return this.extraBound.texture.getMaskTexture();
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
+            return this.ancestorFallback.texture.getMaskTexture();
         }
     } 
 
@@ -410,9 +390,11 @@ MapTexture.prototype.getMaskTexture = function() {
 
 
 MapTexture.prototype.getGpuMaskTexture = function() {
-    if (this.extraBound) {
-        if (this.extraBound.texture && this.extraBound.texture.maskTexture) {
-            return this.extraBound.texture.getGpuMaskTexture();
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture
+            && this.ancestorFallback.texture.maskTexture) {
+
+            return this.ancestorFallback.texture.getGpuMaskTexture();
         }
         return null;
     } 
@@ -444,9 +426,9 @@ MapTexture.prototype.getHeightMapValue = function(x, y) {
 
 
 MapTexture.prototype.getTransform = function() {
-    if (this.extraBound) {
-        if (this.extraBound.texture) {
-            return this.extraBound.transform;
+    if (this.ancestorFallback) {
+        if (this.ancestorFallback.texture) {
+            return this.ancestorFallback.transform;
         }
         return null;
     } 
@@ -456,4 +438,3 @@ MapTexture.prototype.getTransform = function() {
 
 
 export default MapTexture;
-

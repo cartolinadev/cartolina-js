@@ -90,7 +90,10 @@ Runtime layer visibility is the terrain-applicability API on
 `Viewer`: `setLayerTerrainSources` / `getLayerTerrainSources`,
 `setTerrainSources` / `getTerrainSources`, and the atomic
 `applyVisibilityProfile` / `getVisibilityProfile` pair. All six
-methods throw before the `ready` promise resolves.
+methods throw before the `ready` promise resolves. A proposed mutation
+that would activate a failed raster source also throws synchronously.
+The authored overrides, effective style, render sequences, and rendered
+map remain unchanged after either validation failure.
 
 ## Configuration
 
@@ -218,15 +221,24 @@ array:
 ## Async Initialization
 
 `Map.map` (the loaded `LegacyMap`) is `null` at construction time. It
-is set after the style is fetched and parsed:
+is set after the style and its required source metadata are fetched and
+parsed:
 
 1. The `Map` constructor starts the style load.
-2. On success, `Map.map` is assigned.
-3. `Map.tick` emits `map-loaded` after the reference frame is ready
+2. Raster metadata requests start concurrently and overlap terrain
+   metadata loading. Successful sources and permanent failures enter the
+   map-owned raster registry.
+3. The effective initial style rejects any failed raster source that it
+   activates. Failures used only by inactive layers remain recorded.
+4. On success, `Map.map` is assigned.
+5. `Map.tick` emits `map-loaded` after the reference frame is ready
    and resolves the one-shot `ready` Promise.
 
+An asynchronous construction error rejects `ready`, disposes the partial
+legacy map, and leaves `Map.map` null. It does not emit `map-loaded`.
 Viewer methods that reach into the legacy map guard with optional
-chaining, so they are no-ops before `ready` resolves.
+chaining, so they are no-ops before `ready` resolves or after failed
+construction.
 
 ## Render Loop
 

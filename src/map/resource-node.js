@@ -100,11 +100,11 @@ getMesh(path, tile) {
 // Geodata ---------------------------------
 
 
-getGeodata(path, extraInfo) {
+getGeodata(path, textureContext) {
     var geodata = this.geodata[path];
     
     if (!geodata) {
-        geodata = new MapGeodata(this.map, path, extraInfo);
+        geodata = new MapGeodata(this.map, path, textureContext);
         this.geodata[path] = geodata;
     }
     
@@ -115,33 +115,37 @@ getGeodata(path, extraInfo) {
 // Textures ---------------------------------
 
 
-getTexture(path, type, extraBound, extraInfo, tile, internal) {
+getTexture(path, type, ancestorFallback, textureContext, tile, internal) {
     var texture;
-    if (extraInfo && (extraInfo.layer || extraInfo.hmap)) {
-        var id = path + (extraInfo.hmap ? '' : extraInfo.layer.id);
+    if (textureContext && (textureContext.source || textureContext.hmap)) {
+        var id = path + (textureContext.hmap ? '' : textureContext.source.id);
         texture = this.textures[id];
         
         if (!texture) {
-            texture = new MapTexture(this.map, path, type, extraBound, extraInfo, tile, internal);
+            texture = new MapTexture(
+                this.map, path, type, ancestorFallback,
+                textureContext, tile, internal);
             this.textures[id] = texture;
 
-        } else if (!texture.extraInfo
-                   || texture.extraInfo.tile !== extraInfo.tile) {
+        } else if (!texture.textureContext
+                   || texture.textureContext.tile !== textureContext.tile) {
 
             // the cached texture outlives the tile it was created
             // for: the tile tree kills and recreates tiles while this
             // cache keeps the texture. A killed tile has its parent
-            // link set to null, so availability fallbacks walking up
+            // link set to null, so raster fallbacks walking up
             // from it would fail. Re-point the texture at the
             // caller's tile so the walks follow live parent links.
-            texture.extraInfo = extraInfo;
-            texture.extraBound = extraBound;
+            texture.textureContext = textureContext;
+            texture.ancestorFallback = ancestorFallback;
         }
     } else {
         texture = this.textures[path];
         
         if (!texture) {
-            texture = new MapTexture(this.map, path, type, extraBound, extraInfo, tile, internal);
+            texture = new MapTexture(
+                this.map, path, type, ancestorFallback,
+                textureContext, tile, internal);
             this.textures[path] = texture;
         }
     }
@@ -153,11 +157,16 @@ getTexture(path, type, extraBound, extraInfo, tile, internal) {
 // SubTextures ---------------------------------
 
 
-getSubtexture(texture, path, type, extraBound, extraInfo, tile, internal) {
+getSubtexture(
+    texture, path, type, ancestorFallback, textureContext, tile, internal
+) {
+
     texture = this.subtextures[path];
     
     if (!texture) {
-        texture = new MapSubtexture(this.map, path, type, extraBound, extraInfo, tile, internal);
+        texture = new MapSubtexture(
+            this.map, path, type, ancestorFallback,
+            textureContext, tile, internal);
         this.subtextures[path] = texture;
     }
     
@@ -213,5 +222,3 @@ getMetatile(surface, allowCreation, tile) {
 
 
 export default MapResourceNode;
-
-

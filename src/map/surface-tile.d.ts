@@ -2,7 +2,7 @@ import type MapResourceNode from './resource-node';
 import type MapSurface from './surface';
 import type MapMesh from './mesh';
 import type MapTexture from './texture';
-import type MapBoundLayer from './bound-layer';
+import type RasterSource from './raster-source';
 import type Map from './legacy-map';
 import type MapSurfaceTree from './surface-tree';
 import type MapMetanode from './metanode';
@@ -30,9 +30,9 @@ export class MapSurfaceTile {
 
     surfaceMesh: MapMesh;
 
-    boundTextures: { [key: string]: MapTexture };
+    rasterTextures: { [key: string]: MapTexture };
 
-    boundLayers: { [key: string]: MapBoundLayer };
+    rasterSources: { [key: string]: RasterSource };
 
     /** Children in NW, NE, SW, SE quadrant order. */
     children: [MapSurfaceTile | null, MapSurfaceTile | null,

@@ -7,8 +7,6 @@ import {
     decodeGrayPng, grayPngDecodeAvailable
 } from '../utils/gray-png';
 
-import * as vts from '../constants';
-
 var MapSubtexture = function(map, path, type, tile, internal) {
     this.map = map;
     this.stats = map.stats;
@@ -23,12 +21,8 @@ var MapSubtexture = function(map, path, type, tile, internal) {
     this.loadErrorCounter = 0;
     this.neverReady = false;
     this.mapLoaderUrl = path;
-    this.type = Number(type) || vts.TEXTURETYPE_COLOR; // necessary normalization, due to faulty callers using true instead of vts.TEXTURETYPE_HEIGHT etc.
+    this.type = Number(type) || GpuTexture.Type.Color;
     this.statsCounter = 0;
-    this.checkStatus = 0;
-    this.checkType = null;
-    this.checkValue = null;
-    this.fastHeaderCheck = false;
     this.gpuSize = 0;
     this.fileSize = 0;
     this.cacheItem = null; //store killImage
@@ -110,49 +104,12 @@ MapSubtexture.prototype.killGpuTexture = function(killedByCache) {
 };
 
 
-MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, texture) {
+MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
     var doNotUseGpu = (this.map.stats.gpuRenderUsed >= this.map.draw.maxGpuUsed);
     doNotLoad = doNotLoad || doNotUseGpu;
     
     if (this.neverReady) {
         return false;
-    }
-
-    switch (texture.checkType) {
-    case vts.TEXTURECHECK_TYPE:
-    case vts.TEXTURECHECK_CODE:
-    case vts.TEXTURECHECK_SIZE:
-        
-        if (this.checkStatus != 2) {
-            this.checkType = texture.checkType;
-            this.checkValue = texture.checkValue;
-
-            if (this.checkStatus == 0) {
-                this.scheduleHeadRequest(priority, (this.checkType == vts.TEXTURECHECK_SIZE));
-            } else if (this.checkStatus == 3) { //loadError
-                if (this.loadErrorCounter <= this.map.config.mapLoadErrorMaxRetryCount &&
-                        performance.now() > this.loadErrorTime + this.map.config.mapLoadErrorRetryTime) {
-                    this.scheduleHeadRequest(priority, (this.checkType == vts.TEXTURECHECK_SIZE));
-                }
-            } else if (this.checkStatus == -1) {
-            
-                if (texture.extraInfo) { //find at least texture with lower resolution
-                    if (!texture.extraBound) {
-                        texture.extraBound = { tile: texture.extraInfo.tile, layer: texture.extraInfo.layer};
-                        texture.setBoundTexture(texture.extraBound.tile.parent, texture.extraBound.layer);        
-                    }
-        
-                    while (texture.extraBound.texture.extraBound || texture.extraBound.texture.checkStatus == -1) {
-                        //while (texture.extraBound.texture.checkStatus == -1) {
-                        texture.setBoundTexture(texture.extraBound.sourceTile.parent, texture.extraBound.layer);        
-                    }
-                }
-            }
-    
-            return false;
-        }
-            
-        break;
     }
 
     if (this.loadState == 2) { //loaded
@@ -166,7 +123,7 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
 
         switch(this.type) {
 
-            case vts.TEXTURETYPE_HEIGHT:
+            case GpuTexture.Type.Height:
 
                 if (!this.imageData) {
 
@@ -178,7 +135,7 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
 
                 return true;
 
-            case vts.TEXTURETYPE_ATMDENSITY:
+            case GpuTexture.Type.AtmosphereDensity:
 
                 if (!this.decoded) {
 
@@ -255,29 +212,26 @@ MapSubtexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu, t
 };
 
 
-MapSubtexture.prototype.scheduleLoad = function(priority, header) {
-    this.map.loader.load(this.mapLoaderUrl, this.onLoad.bind(this, header), priority, this.tile, this.internal ? 'texture-in' : 'texture-ex');
+MapSubtexture.prototype.scheduleLoad = function(priority) {
+    this.map.loader.load(this.mapLoaderUrl, this.onLoad.bind(this),
+        priority, this.tile, this.internal ? 'texture-in' : 'texture-ex');
 };
 
 
-MapSubtexture.prototype.onLoad = function(header, url, onLoaded, onError) {
+MapSubtexture.prototype.onLoad = function(url, onLoaded, onError) {
     this.mapLoaderCallLoaded = onLoaded;
     this.mapLoaderCallError = onError;
 
     var onerror = this.onLoadError.bind(this);
     var onload = this.onLoaded.bind(this);
 
-    if (header) {
-        this.checkStatus = 1;
-    } else {
-        this.loadState = 1;
-    }
+    this.loadState = 1;
 
     // the atmosphere density texture carries encoded numbers, not
     // colors. The browser image pipeline color-manages PNG pixels (on
     // iOS this changes the bytes and corrupts the encoding), so the
     // PNG is fetched raw and decoded by the gray-png module instead.
-    if (this.type == vts.TEXTURETYPE_ATMDENSITY
+    if (this.type == GpuTexture.Type.AtmosphereDensity
         && grayPngDecodeAvailable()) {
 
         this.map.loader.processLoadBinary(url,
@@ -323,16 +277,6 @@ MapSubtexture.prototype.onLoadError = function(killBlob) {
 
 
 MapSubtexture.prototype.onBinaryLoaded = function(data, direct, filesize) {
-
-    if (this.fastHeaderCheck && this.checkType && this.checkType != vts.TEXTURECHECK_METATILE) {
-        this.onHeadLoaded(null, data, null /*status*/);
-        
-        if (this.checkStatus == -1) {
-            this.mapLoaderCallLoaded();
-            return;
-        }
-    }
-
 
     if (direct) {
         // worker decoded image (mapAsynbcImageDecode), data is image bitmap
@@ -429,132 +373,6 @@ MapSubtexture.prototype.onLoaded = function(killBlob, bitmap) {
 };
 
 
-MapSubtexture.prototype.scheduleHeadRequest = function(priority, downloadAll) {
-    if (this.map.config.mapXhrImageLoad && this.fastHeaderCheck) {
-        this.scheduleLoad(priority, true);
-    } else {
-        this.map.loader.load(this.mapLoaderUrl, this.onLoadHead.bind(this, downloadAll), priority, this.tile, this.internal, this.internal ? 'texture-in' : 'texture-ex');
-    }
-};
-
-
-MapSubtexture.prototype.onLoadHead = function(downloadAll, url, onLoaded, onError) {
-    this.mapLoaderCallLoaded = onLoaded;
-    this.mapLoaderCallError = onError;
-
-    var onerror = this.onLoadHeadError.bind(this, downloadAll);
-    var onload = this.onHeadLoaded.bind(this, downloadAll);
-
-    this.checkStatus = 1;
-
-    if (downloadAll) {
-        //utils.loadBinary(url, onload, onerror, (utils.useCredentials ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1) : false), this.map.core.xhrParams, 'blob');
-        this.map.loader.processLoadBinary(url, onLoad, onerror, null, 'texture');
-    } else {
-        utils.headRequest(
-            url, onload, onerror,
-            (utils.useCredentials
-                ? (this.mapLoaderUrl.indexOf(this.map.url.baseUrl) != -1)
-                : false),
-            this.map.core.xhrParams,
-            this.map.core.transformRequest,
-            'Image');
-    }
-};
-
-
-MapSubtexture.prototype.onLoadHeadError = function() {
-    if (this.map.killed){
-        return;
-    }
-
-    this.checkStatus = 3;
-    this.loadErrorTime = performance.now();
-    this.loadErrorCounter ++;
-    
-    //make sure we try to load it again
-    if (this.loadErrorCounter <= this.map.config.mapLoadErrorMaxRetryCount) { 
-        setTimeout((function(){ if (!this.map.killed) { this.map.markDirty(); } }).bind(this), this.map.config.mapLoadErrorRetryTime);
-    }    
-    
-    this.mapLoaderCallError();
-};
-
-
-MapSubtexture.prototype.onHeadLoaded = function(downloadAll, data, status) {
-    if (this.map.killed){
-        return;
-    }
-
-    this.checkStatus = 2;
-    this.loadErrorTime = null;
-    this.loadErrorCounter = 0;
-
-    if (this.map.config.mapXhrImageLoad && this.fastHeaderCheck) {
-
-        switch (this.checkType) {
-        case vts.TEXTURECHECK_SIZE:
-            if (data) {
-                if (data.size == this.checkValue) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-                
-        case vts.TEXTURECHECK_TYPE:
-            if (data) {
-                if (data.type == this.checkValue) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-                
-        case vts.TEXTURECHECK_CODE:
-            if (status) {
-                if (this.checkValue.indexOf(status) != -1) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-        }
-
-    } else {
-
-        switch (this.checkType) {
-        case vts.TEXTURECHECK_SIZE:
-            if (data) {
-                if (data.byteLength == this.checkValue) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-                
-        case vts.TEXTURECHECK_TYPE:
-            if (data) {
-                //if (!data.indexOf) {
-                  //  data = data;
-                //}
-                    
-                if (data.indexOf(this.checkValue) != -1) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-                
-        case vts.TEXTURECHECK_CODE:
-            if (status) {
-                if (this.checkValue.indexOf(status) != -1) {
-                    this.checkStatus = -1;
-                }
-            }
-            break;
-        }
-        
-        this.mapLoaderCallLoaded();
-    }
-};
-
-
 MapSubtexture.prototype.buildGpuTexture = function () {
     /*if (this.map.config.mapCheckTextureSize && (this.image.naturalWidth > 1024 || this.image.naturalHeight > 1024)) {
         console.log('very large texture: ' + this.image.naturalWidth + 'x' + this.image.naturalHeight + ' ' + this.mapLoaderUrl);
@@ -585,13 +403,12 @@ MapSubtexture.prototype.buildGpuTexture = function () {
 
     switch (this.type) {
 
-        case vts.TEXTURETYPE_NORMALMAP:
-        case vts.TEXTURETYPE_CLASS:
+        case GpuTexture.Type.NormalMap:
             this.gpuTexture.createFromImage(
                 this.image, this.type, 'nearest', false);
             break;
 
-        case vts.TEXTURETYPE_ATMDENSITY:
+        case GpuTexture.Type.AtmosphereDensity:
 
             //console.log('creating atmdensity gpu texture');
 

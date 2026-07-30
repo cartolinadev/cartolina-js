@@ -53,7 +53,7 @@ var MapSurfaceTile = function(map, parent, id) {
 
     this.metanode = null;  //[metanode, cacheItem]
     this.lastMetanode = null;
-    this.boundmetaresources = null; //link to bound layers metatile storage
+    this.rasterMetaResources = null;
 
     this.surface = null;
     this.surfaceMesh = null;
@@ -66,8 +66,8 @@ var MapSurfaceTile = function(map, parent, id) {
     this.drawCommands = [[], [], []];
 
     this.bounds = {};
-    this.boundLayers = {};
-    this.boundTextures = {};
+    this.rasterSources = {};
+    this.rasterTextures = {};
     this.updateBounds = true;
 
     this.hmap = null;
@@ -78,8 +78,6 @@ var MapSurfaceTile = function(map, parent, id) {
     
     this.resources = this.map.resourcesTree.findNode(id, true);   // link to resource tree
     this.metaresources = this.map.resourcesTree.findAgregatedNode(id, 5, true); //link to meta resource tree
-    this.boundresources = this.map.resourcesTree.findAgregatedNode(id, 8, true); //link to meta resource tree
-    
     this.children = [null, null, null, null];
 
     // temporary TileRenderRig (the new aproach to drawing mesh tiles) integration
@@ -98,6 +96,7 @@ MapSurfaceTile.prototype.kill = function() {
     }
     this.resources = null;
     this.metaresources = null;
+    this.rasterMetaResources = null;
     this.metanode = null;
 
     this.surface = null;
@@ -108,8 +107,8 @@ MapSurfaceTile.prototype.kill = function() {
     this.resourceSurface = null;
 
     this.bounds = {};
-    this.boundLayers = {};
-    this.boundTextures = {};
+    this.rasterSources = {};
+    this.rasterTextures = {};
     this.updateBounds = true;
 
     //this.renderReady = false;
@@ -154,7 +153,7 @@ MapSurfaceTile.prototype.viewSwitched = function() {
     this.lastState = {
         surfaceMesh : this.surfaceMesh,
         surfaceTextures : this.surfaceTextures,
-        boundTextures : this.boundTextures,
+        rasterTextures : this.rasterTextures,
         surfaceGeodata : this.surfaceGeodata,
         surfaceGeodataView : this.surfaceGeodataView,
         resourceSurface : this.resourceSurface 
@@ -192,8 +191,8 @@ MapSurfaceTile.prototype.viewSwitched = function() {
         };
     }
 
-    this.boundLayers = {};
-    this.boundTextures = {};
+    this.rasterSources = {};
+    this.rasterTextures = {};
     this.updateBounds = true;
     this.transparentBounds = false;
 
@@ -216,7 +215,7 @@ MapSurfaceTile.prototype.restoreLastState = function() {
     }
     this.surfaceMesh = this.lastState.surfaceMesh;
     this.surfaceTextures = this.lastState.surfaceTextures; 
-    this.boundTextures = this.lastState.boundTextures;
+    this.rasterTextures = this.lastState.rasterTextures;
     this.surfaceGeodata = this.lastState.surfaceGeodata;
     this.surfaceGeodataView = this.lastState.surfaceGeodataView;
     this.resourceSurface = this.lastState.resourceSurface; 
@@ -771,18 +770,18 @@ MapSurfaceTile.prototype.addSubmeshCredits = function(index, activeLayers = null
     for (let k = 0, lk = this.metanode.credits.length; k < lk; k++)
         this.imageryCredits[this.metanode.credits[k]] = specificity;
 
-    // process bound layers
-    if (!activeLayers) activeLayers = this.boundLayers;
+    // process raster sources
+    if (!activeLayers) activeLayers = this.rasterSources;
     if (!Array.isArray(activeLayers)) activeLayers = [ activeLayers ];
 
     activeLayers.forEach((id) => {
 
-        let layer = this.boundLayers[id];
-        if (!layer) return;
+        let source = this.rasterSources[id];
+        if (!source) return;
 
-        let credits = layer.credits;
+        let credits = source.credits;
         for (let k = 0; k < credits.length; k++)
-            this.imageryCredits[credits[k]] = layer.specificity;
+            this.imageryCredits[credits[k]] = source.specificity;
     });
 }
 

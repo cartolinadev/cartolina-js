@@ -1,7 +1,6 @@
 
 import GpuTexture from './texture';
 import * as utils from '../../utils/utils';
-import * as vts from '../../constants';
 
 
 var GpuFont = function(gpu, core, font, size, path) {
@@ -55,7 +54,7 @@ GpuFont.prototype.onError = function() {
 GpuFont.prototype.onFileLoaded = function(index, data) {
     this.core.markDirty();
     this.textures[index].createFromData(256, 256, new Uint8Array(data),
-                                        vts.TEXTURETYPE_COLOR, 'linear');
+                                        GpuTexture.Type.Color, 'linear');
 };
 
 GpuFont.prototype.onFileLoadError = function() {

@@ -1,6 +1,5 @@
 import type Atmosphere from './atmosphere';
 import type MapBody from './body';
-import type MapBoundLayer from './bound-layer';
 import type MapCredit from './credit';
 import type MapCamera from './camera';
 import type MapPosition from './position';
@@ -142,7 +141,6 @@ export default class Map {
     credits: Record<string, MapCredit>;
     surfaces: MapSurface[];
     freeLayers: Record<string, FreeLayer | null>;
-    boundLayers: Record<string, MapBoundLayer | null>;
     stylesheets: Record<string, unknown>;
 
     freeLayerSequence: FreeLayer[];
@@ -213,7 +211,6 @@ export default class Map {
     addBody(id: string, body: MapBody): void;
     addCredit(id: string, credit: MapCredit): void;
     addSurface(id: string, surface: MapSurface): void;
-    addBoundLayer(id: string, layer: MapBoundLayer): void;
     addFreeLayer(id: string, layer: unknown): void;
     removeFreeLayer(id: string): void;
 
@@ -259,7 +256,6 @@ export default class Map {
     ): vec3 | null;
 
     getFreeLayer(id: string): FreeLayer | undefined;
-    getBoundLayerById(id: string): MapBoundLayer | undefined;
     getNavigationSrs(): MapSrs;
     getPhysicalSrs(): MapSrs;
     getSrsInfo(srsId: string): Record<string, unknown>;

@@ -147,7 +147,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                     var submeshSurface = tile.resourceSurface;
 
                     // we are either drawing the tile for the first time, or
-                    // there has been a boundlayer fallback, or a view
+                    // there has been a raster fallback, or a view
                     // has been switched
                     if (!tile.tileRenderRig[i] || tile.updateBounds) {
 
@@ -211,20 +211,22 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                             tileDidDraw = true;
 
                             // process layer credits (only active layers)
-                            let activeLayerIds = rigToDraw.activeLayerIds();
+                            let activeRasterSourceIds =
+                                rigToDraw.activeRasterSourceIds();
 
-                            activeLayerIds.forEach((id) => {
+                            activeRasterSourceIds.forEach((id) => {
 
-                                let layer = tile.boundLayers[id];
-                                if (!layer) return;
+                                let source = tile.rasterSources[id];
+                                if (!source) return;
 
-                                let credits = layer.credits;
+                                let credits = source.credits;
                                 for (let k = 0; k < credits.length; k++)
                                     tile.imageryCredits[credits[k]] =
-                                        layer.specificity;
+                                        source.specificity;
                             });
 
-                            tile.addSubmeshCredits(i, activeLayerIds);
+                            tile.addSubmeshCredits(
+                                i, activeRasterSourceIds);
 
                             // extract and flush credits
                             this.map.applyCredits(tile);

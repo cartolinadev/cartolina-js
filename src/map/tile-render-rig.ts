@@ -19,7 +19,6 @@ import * as illumination from './illumination';
 import * as math from '../utils/math';
 import {vec3} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import * as vts from '../constants';
 
 
 //import * as utils from '../utils/utils';
@@ -30,10 +29,9 @@ import * as vts from '../constants';
   * accurately, for a tile submesh, but tiles with more than one submesh are
   * an oddity).
   *
-  * It resolves and prepares the necessary resources for rendering, keeps track
-  * of their availability (or readiness in vts terminology) and eventually,
-  * draws the tile using MapMesh.draw2, after binding textures and setting all
-  * the necessary uniforms and samplers.
+  * It resolves and prepares the resources needed for rendering, checks their
+  * readiness, and draws the tile with `MapMesh.draw2` after binding textures
+  * and setting uniforms and samplers.
   *
   * The rig replaced the old terrain draw-command path. It renders each tile
   * in one pass with one program, including optional atmospheric scattering.
@@ -76,9 +74,6 @@ export class TileRenderRig {
         cacheItem: object;
         layerIndices: number[];
     } | null = null;
-
-    // a failed rig, waiting to be replaced
-    private isAborted = false;
 
     private rt : {
         illumination: boolean,
@@ -168,9 +163,6 @@ export class TileRenderRig {
 
         let layerStack = this.rt.layerStack;
 
-        // premature exit for a failed rig
-        if (this.isAborted) return false;
-
         // if we have any 'notSureYet' masks, initiate checks and exit
         // gracefully
         let unsureMasks = false;
@@ -188,7 +180,7 @@ export class TileRenderRig {
                 //console.log(
                 //    'Checking mask for %s (%s): ',
                 //    this.tile.id.join('-'),
-                //    item.rt.layerId);
+                //    item.rt.rasterSourceId);
 
                 console.assert(
                     item.source === 'texture', 'incompatible layer params');
@@ -568,7 +560,7 @@ export class TileRenderRig {
 
                     //console.log(
                     //    `${this.logSign()}: binding `
-                    //    + `${layer.rt.layerId} main.`);
+                    //    + `${layer.rt.rasterSourceId} main.`);
                     renderer.gpu.bindTexture(main, mainUnit);
                 }
 
@@ -581,7 +573,7 @@ export class TileRenderRig {
 
                     //console.log(
                     //    `${this.logSign()}: binding `
-                    //    + `${layer.rt.layerId} mask.`);
+                    //    + `${layer.rt.rasterSourceId} mask.`);
                     renderer.gpu.bindTexture(mask, maskUnit);
                 }
 
@@ -671,7 +663,7 @@ export class TileRenderRig {
 
         let renderer = this.renderer;
 
-        // normalize viewdep alphas for bound layers
+        // normalize view-dependent alphas for raster layers
         let vdalphaSum = 0;
         const epsilon = 1E-3;
 
@@ -732,13 +724,11 @@ export class TileRenderRig {
     }
 
     /**
-     * retrieve a list of *active* layerIds from the tile, i.e. ids of layers
-     * that have beeen actually used in rendering. This is used for
-     * assembling tile
-     * credits.
+     * Retrieves the raster source ids that contributed a ready texture to
+     * this tile. Used to assemble imagery credits.
      */
 
-    activeLayerIds(readiness: TileRenderRig.ReadinessLevels
+    activeRasterSourceIds(readiness: TileRenderRig.ReadinessLevels
         = { minimum: 'full', desired: 'full' }): string[] {
 
         const options: TileRenderRig.IsReadyOptions
@@ -751,8 +741,8 @@ export class TileRenderRig {
             // priority is irelevant, we load nothing
             if (this.isLayerReady(item, readiness,
                 TileRenderRig.DefaultPriority, options)
-                && item.rt && item.rt.layerId)
-                ret.push(item.rt.layerId);
+                && item.rt && item.rt.rasterSourceId)
+                ret.push(item.rt.rasterSourceId);
         });
 
         //console.log(this.logSign(), ret);
@@ -812,7 +802,7 @@ export class TileRenderRig {
                     tile.id, this.submeshIndex);
 
                 const normalMap = tile.resources.getTexture(
-                    path, vts.TEXTURETYPE_NORMALMAP, null, null, tile, true);
+                    path, GpuTexture.Type.NormalMap, null, null, tile, true);
                 this.normalMap = normalMap;
 
                 rt.layerStack.push({
@@ -865,7 +855,7 @@ export class TileRenderRig {
             let path = tile.resourceSurface.getTextureUrl(
                 tile.id, this.submeshIndex);
             let internalTexture = tile.resources.getTexture(
-                path, vts.TEXTURETYPE_COLOR, null, null, tile, true);
+                path, GpuTexture.Type.Color, null, null, tile, true);
 
             rt.layerStack.push({
                 target: 'color',
@@ -910,7 +900,7 @@ export class TileRenderRig {
             });
         }
 
-        // add specular bound layers (if illuminated)
+        // add specular raster layers (if illuminated)
         if (rt.illumination && speculars.length > 0) {
 
             const specularMask = Renderer.RenderFlags.FlagLighting
@@ -1249,12 +1239,8 @@ export class TileRenderRig {
 
 
         let tile = this.tile;
-        const layer = tile.map.getBoundLayerById(layerSpec.source);
-
-        if (!layer) {
-            throw new Error(`unknown layer reference in style: `
-                + `'${layerSpec.source}'.`);
-        }
+        const source =
+            tile.map.outerMap.getRasterSource(layerSpec.source);
 
         let clampToLodRange = (tile: MapSurfaceTile, lodRange: number[]) => {
 
@@ -1264,19 +1250,9 @@ export class TileRenderRig {
             return tile;
         }
 
-        // if the layer is not ready, the rig will be never ready and waits
-        // to be replaced once the layer initializes. A better solution would
-        // be to finish the layer setup when a layer promise resolves
-        if (!layer.ready) {
-            //__DEV__ && console.log(
-            //    `${this.logSign()}: unready layer ${layer.id}.`);
-            this.isAborted = true; return undefined;
-        }
+        if (!source.hasTileOrInfluence(tile.id)) return undefined;
 
-
-        if (!layer.hasTileOrInfluence(tile.id)) return undefined;
-
-        let extraBound = null;
+        let ancestorFallback = null;
 
         if (propagate) {
 
@@ -1284,29 +1260,29 @@ export class TileRenderRig {
                 // tiles are not available on the requested lod. This provides
                 // necessary information to MapTexture. In some cases, like
                 // bump maps, this is not desirable.
-                if (tile.id[0] > layer.lodRange[1])
-                    extraBound = {
-                        sourceTile: clampToLodRange(tile, layer.lodRange),
-                        sourceTexture: null, layer: layer, tile: tile };
+                if (tile.id[0] > source.lodRange[1])
+                    ancestorFallback = {
+                        sourceTile: clampToLodRange(tile, source.lodRange),
+                        sourceTexture: null, source, tile };
 
         }
 
-        let texture: MapTexture = tile.boundTextures[layer.id];
+        let texture: MapTexture = tile.rasterTextures[source.id];
 
         if (!texture) {
 
-                let path = layer.getUrl(tile.id);
+                let path = source.getUrl(tile.id);
 
                 texture = tile.resources.getTexture(
-                    path, layer.dataType, extraBound,
-                    {tile: tile, layer: layer}, tile, false);
+                    path, GpuTexture.Type.Color, ancestorFallback,
+                    {tile, source}, tile, false);
 
-                if (texture.checkType == vts.TEXTURECHECK_METATILE) {
-                    texture.checkMask = true;
+                if (source.coverage) {
+                    texture.ancestorMaskPending = true;
                 }
 
                 texture.isReady(true); //check metatile/mask but do not load
-                tile.boundTextures[layer.id] = texture;
+                tile.rasterTextures[source.id] = texture;
         }
 
         if (texture.neverReady) return;
@@ -1320,14 +1296,14 @@ export class TileRenderRig {
         // moved to readiness check
         /*let isWatertight = !(hasMask != 'no' || alpha.value < 1.0
                 || alpha.mode != 'constant' || mode != 'overlay'
-                || layer.isTransparent);*/
+                || source.isTransparent);*/
 
 
         let whitewash = layerSpec.whitewash ?? 0.0;
 
         // not a pretty side effect, copied verbatim from old code.
         // needed for credits extraction
-        this.tile.boundLayers[layer.id] = layer;
+        this.tile.rasterSources[source.id] = source;
 
 
         return ({
@@ -1348,10 +1324,10 @@ export class TileRenderRig {
             flagMask: flagMask,
 
             rt: {
-                layerId: layer.id,
+                rasterSourceId: source.id,
                 //isWatertight: isWatertight,
                 //hasMask: hasMask,
-                isTransparent: layer.isTransparent
+                isTransparent: source.isTransparent
             }
         });
 
@@ -1537,7 +1513,7 @@ type MaskStatus = 'yes' | 'no' | 'notSureYet';
 
 type LayerRuntime = {
 
-    layerId?: string,
+    rasterSourceId?: string,
     hasMask?: MaskStatus,
     isTransparent?: boolean,
     isWatertight?: boolean,

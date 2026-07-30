@@ -6,7 +6,7 @@ import {utilsUrl} from './url';
 /**
  * Resource category passed to `transformRequest`.
  *
- * `Source` covers style source and legacy surface or bound-layer JSON.
+ * `Source` covers style, terrain-source, and raster-source JSON.
  * `Tile` covers terrain, metadata, texture, and geodata tile payloads.
  * `Glyph` covers binary font metadata and font atlas pages.
  */
@@ -373,8 +373,6 @@ export function getHashColor2(counter: number) {
 type XhrParams = Record<string, string> | null | undefined;
 type XhrCallback = ((data: any) => void) | null | undefined;
 type XhrErrCallback = ((status?: number) => void) | null | undefined;
-type HeadCallback =
-    ((headers: string, status: number) => void) | null | undefined;
 
 export function loadText(
     path: string, onLoaded: XhrCallback, onError: XhrErrCallback,
@@ -419,10 +417,13 @@ export async function loadJson(
         if (!r.ok) throw new Error(`HTTP ${r.status}.`);
         retval = await r.json();
 
-    } catch(err) {
+    } catch (error) {
 
-        console.error(`Failed to load or parse ${path}:`, err);
-        throw new Error();
+        const detail = error instanceof Error
+            ? error.message
+            : String(error);
+        throw new Error(
+            `Failed to load or parse "${path}": ${detail}`);
 
     }
 
@@ -568,57 +569,6 @@ export function loadBinary(
 
     xhr.open('GET', request.url, true);
     xhr.responseType = responseType ? responseType : 'arraybuffer';
-    xhr.withCredentials = resolveRequestWithCredentials(
-        withCredentials, request.credentials);
-    setRequestHeaders(xhr, request.headers);
-
-    xhr.send('');
-};
-
-
-export function headRequest(
-    url: string, onLoaded: HeadCallback, onError: XhrErrCallback,
-    withCredentials: boolean, xhrParams: XhrParams,
-    transformRequest?: TransformRequestCallback,
-    resourceType: RequestResourceType = 'Other',
-) {
-    var xhr = new XMLHttpRequest();
-    const request = transformResourceRequest(
-        url, resourceType, transformRequest);
-
-    xhr.onreadystatechange = () => {
-
-        switch (xhr.readyState) {
-        case 0 : // UNINITIALIZED
-        case 1 : // LOADING
-        case 2 : // LOADED
-        case 3 : // INTERACTIVE
-            break;
-        case 4 : // COMPLETED
-            if (onLoaded != null) {
-                onLoaded(xhr.getAllResponseHeaders(), xhr.status);
-            }
-            break;
-
-        default:
-
-            if (onError != null) {
-                onError();
-            }
-
-            break;
-        }
-
-    };
-
-    xhr.onerror = () => {
-        if (onError != null) {
-            onError();
-        }
-    };
-
-    xhr.open('HEAD', request.url, true);
-    //xhr.responseType = responseType ? responseType : "arraybuffer";
     xhr.withCredentials = resolveRequestWithCredentials(
         withCredentials, request.credentials);
     setRequestHeaders(xhr, request.headers);

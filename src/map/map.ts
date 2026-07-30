@@ -31,6 +31,7 @@ import MapSurfaceTree from './surface-tree';
 import type MapSurface from './surface';
 import DrawTraversalMaskPool from './draw-traversal-mask';
 import { drawTerrainTraversal } from './draw-traversal';
+import type RasterSource from './raster-source';
 
 
 /**
@@ -142,6 +143,15 @@ class Map {
     private readyPromise_: Promise<void>;
     private readyResolved_ = false;
     private resolveReady_: (() => void) | null = null;
+    private rejectReady_: ((reason: Error) => void) | null = null;
+
+    /**
+     * Resolved raster sources and permanent load failures, keyed by style
+     * source id. Raster source instances are owned here rather than by the
+     * legacy JavaScript half of the map.
+     */
+    private rasterSources_ =
+        new globalThis.Map<string, Map.RasterSourceEntry>();
 
     /**
      * The event bus behind `on`, `once`, and `emit`. Handed to the
@@ -255,8 +265,9 @@ class Map {
         this.transformRequest = transformRequest;
         this.element = element;
 
-        this.readyPromise_ = new Promise((resolve) => {
+        this.readyPromise_ = new Promise((resolve, reject) => {
             this.resolveReady_ = resolve;
+            this.rejectReady_ = reject;
         });
 
         this.inspector = Inspector != null ? new Inspector(this) : null;
@@ -264,7 +275,12 @@ class Map {
 
         platform.init();
 
-        this.loadMapFromStyle(style, position);
+        void this.loadMapFromStyle(style, position).catch((error: unknown) => {
+            const reason = error instanceof Error
+                ? error
+                : new Error(String(error));
+            this.rejectReady_?.(reason);
+        });
 
         window.requestAnimationFrame(this.onUpdate_.bind(this));
     }
@@ -280,6 +296,7 @@ class Map {
         this.disposeOverlays();
         this.disposeTerrainMaskPool();
         this.destroyLoadedMap();
+        this.rasterSources_.clear();
         this.renderer[Symbol.dispose]();
         this.element = null;
         this.killed = true;
@@ -317,6 +334,8 @@ class Map {
         if (this.readyResolved_) return;
         this.readyResolved_ = true;
         if (this.resolveReady_) this.resolveReady_();
+        this.resolveReady_ = null;
+        this.rejectReady_ = null;
     }
 
     /** Kills and detaches the loaded legacy map, if any. */
@@ -558,6 +577,78 @@ class Map {
     // -----------------------------------------------------------------
 
     /**
+     * Installs the complete result of raster metadata resolution.
+     *
+     * @internal Called once by `MapStyle.loadStyle`.
+     */
+    setRasterSourceEntries(
+        entries: globalThis.Map<string, Map.RasterSourceEntry>,
+    ): void {
+
+        this.rasterSources_ = entries;
+    }
+
+    /**
+     * Returns a usable raster source for the render path.
+     *
+     * @internal Effective-style validation guarantees that rendering never
+     * reaches a failed source. An exception here is therefore an invariant
+     * violation rather than a recoverable load event.
+     */
+    getRasterSource(sourceId: string): RasterSource {
+
+        const entry = this.rasterSources_.get(sourceId);
+
+        if (!entry) {
+            throw new Error(`Raster source "${sourceId}" is not registered.`);
+        }
+
+        if (entry.status === 'failed') {
+            throw new Error(`Active raster source "${sourceId}" is in the `
+                + `failed state: ${entry.error.message}`);
+        }
+
+        return entry.source;
+    }
+
+    /**
+     * Verifies that every effective texture layer has a usable source.
+     *
+     * @internal Used for initial activation and prospective style mutations.
+     */
+    assertRasterSourcesAvailable(
+        spec: MapStyle.StyleSpecification,
+    ): void {
+
+        const activeTerrain = new Set(spec.terrain.sources);
+
+        for (const layer of spec.layers ?? []) {
+
+            const type = layer.type ?? 'diffuse-map';
+            if (!['diffuse-map', 'bump-map', 'specular-map'].includes(type)) {
+                continue;
+            }
+
+            const terrain = layer.terrain ?? [];
+            if (!terrain.some((id) => activeTerrain.has(id))) continue;
+
+            const sourceId = layer.source as string;
+            const entry = this.rasterSources_.get(sourceId);
+
+            if (!entry) {
+                throw new Error(`Raster layer "${layer.id}" references `
+                    + `unregistered source "${sourceId}".`);
+            }
+
+            if (entry.status === 'failed') {
+                throw new Error(`Raster layer "${layer.id}" cannot be `
+                    + `activated because source "${sourceId}" failed to `
+                    + `load: ${entry.error.message}`);
+            }
+        }
+    }
+
+    /**
      * Whether the `ready` promise has resolved. The runtime style
      * mutation methods throw while this is `false`.
      *
@@ -585,7 +676,6 @@ class Map {
         const style = this.requireReadyStyle();
 
         const { letteringChanged } = style.applyMutations(mutations);
-        style.rebuildEffectiveState();
 
         // reset the label hysteresis buffer so recompiled rules do
         // not inherit fade state from the previous rule set
@@ -1312,33 +1402,42 @@ class Map {
             this, path, this.config, this.bus_);
         legacyMap.outerMap = this;
 
-        // load style
-        await MapStyle.loadStyle(legacyMap,
-            style as MapStyle.StyleSpecification);
+        try {
 
-        // no clue what these are
-        const conv = new MapConvert(legacyMap);
-        legacyMap.convert = conv;
-        const meas = new MapMeasure(legacyMap);
-        legacyMap.measure = meas;
-        conv.measure = meas;
+            // load style
+            await MapStyle.loadStyle(legacyMap,
+                style as MapStyle.StyleSpecification);
 
-        legacyMap.isGeocent =
-            !legacyMap.getNavigationSrs().isProjected();
+            // no clue what these are
+            const conv = new MapConvert(legacyMap);
+            legacyMap.convert = conv;
+            const meas = new MapMeasure(legacyMap);
+            legacyMap.measure = meas;
+            conv.measure = meas;
 
-        // generate sequences
-        legacyMap.refreshView();
+            legacyMap.isGeocent =
+                !legacyMap.getNavigationSrs().isProjected();
 
-        // force update
-        legacyMap.dirty = true;
-        legacyMap.hitMapDirty = true;
-        legacyMap.geoHitMapDirty = true;
+            // generate sequences
+            legacyMap.refreshView();
 
-        legacyMap.draw = new MapDraw(legacyMap);
-        this.freeze = new FreezeCameraState(legacyMap);
-        legacyMap.draw.setupDetailDegradation();  // probably not needed
+            // force update
+            legacyMap.dirty = true;
+            legacyMap.hitMapDirty = true;
+            legacyMap.geoHitMapDirty = true;
 
-        this.map = legacyMap;
+            legacyMap.draw = new MapDraw(legacyMap);
+            this.freeze = new FreezeCameraState(legacyMap);
+            legacyMap.draw.setupDetailDegradation();  // probably not needed
+
+            this.map = legacyMap;
+
+        } catch (error) {
+
+            legacyMap.kill();
+            this.rasterSources_.clear();
+            throw error;
+        }
     }
 
     // -----------------------------------------------------------------
@@ -1612,6 +1711,10 @@ function resolveMaskResolution(value: number | undefined): number {
  * here; types owned elsewhere forward to their canonical module. The
  * same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
+
+    export type RasterSourceEntry =
+        | { status: 'ready'; source: RasterSource }
+        | { status: 'failed'; error: Error };
 
     /**
      * Per-frame context passed to overlay lifecycle callbacks.

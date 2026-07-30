@@ -145,6 +145,8 @@ describe('mapConfigToStyle', function() {
         assert.strictEqual(tms.type, 'cartolina-tms');
         assert.strictEqual(tms.data.url,
             'https://cdn.example.com/bl/imagery/{lod}-{x}-{y}.jpg');
+        assert.strictEqual(tms.data.id, undefined);
+        assert.strictEqual(tms.data.type, undefined);
 
         // terrain stack and the translated raster layer
         assert.deepStrictEqual(
@@ -166,7 +168,9 @@ describe('mapConfigToStyle', function() {
             conversion.viewerOptions, mapConfigViewerDefaults);
         assert.deepStrictEqual(conversion.profiles, {});
         assert.deepStrictEqual(conversion.warnings, []);
-        assert.deepStrictEqual(conversion.notes, []);
+        assert.deepStrictEqual(
+            conversion.notes.map((note) => note.path),
+            ['boundLayers.imagery.id', 'boundLayers.imagery.type']);
     });
 
     it('does not mutate an object input', async function() {
@@ -252,6 +256,67 @@ describe('mapConfigToStyle', function() {
         assert.ok(note);
         assert.strictEqual(note.code, 'ignored-field');
         assert.deepStrictEqual(conversion.warnings, []);
+    });
+
+    it('emits only supported raster source metadata', async function() {
+
+        const doc = baseMapConfig();
+        const fixtures = baseFixtures(doc);
+        fixtures[
+            'https://cdn.example.com/bl/imagery/boundlayer.json'
+        ] = {
+            ...boundLayerDefinition(),
+            tileSize: [512, 512],
+            currentAlpha: 0.4,
+            dataType: 'classification',
+            availability: {
+                type: 'negative-code',
+                codes: [404],
+            },
+            options: { shaderFilter: 'retired' },
+            shaderFilters: ['retired'],
+            credits: 'credits.json',
+            metaUrl: 'coverage/{lod}-{x}-{y}.png',
+            maskUrl: 'masks/{lod}-{x}-{y}.png',
+            isTransparent: true,
+        };
+
+        const conversion = await convert(doc, fixtures);
+        const definition = conversion.style.sources.imagery.data;
+
+        assert.deepStrictEqual(Object.keys(definition).sort(), [
+            'isTransparent',
+            'lodRange',
+            'maskUrl',
+            'metaUrl',
+            'tileRange',
+            'url',
+        ]);
+        assert.strictEqual(definition.metaUrl,
+            'https://cdn.example.com/bl/imagery/'
+                + 'coverage/{lod}-{x}-{y}.png');
+        assert.strictEqual(definition.maskUrl,
+            'https://cdn.example.com/bl/imagery/'
+                + 'masks/{lod}-{x}-{y}.png');
+        assert.strictEqual(definition.isTransparent, true);
+
+        const notePaths = conversion.notes.map((note) => note.path);
+
+        for (const field of [
+            'id',
+            'type',
+            'tileSize',
+            'currentAlpha',
+            'dataType',
+            'availability',
+            'options',
+            'shaderFilters',
+            'credits',
+        ]) {
+
+            assert.ok(notePaths.includes(
+                `boundLayers.imagery.${field}`));
+        }
     });
 
     it('rejects unsupported raster parameter values', async function() {

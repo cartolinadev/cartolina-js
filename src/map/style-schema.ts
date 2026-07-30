@@ -228,5 +228,21 @@ export function validateAndNormalizeStyle(
         throw new Error(msg);
     }
 
+    for (const layer of spec.layers ?? []) {
+
+        const type = layer.type ?? 'diffuse-map';
+        if (!['diffuse-map', 'bump-map', 'specular-map'].includes(type)) {
+            continue;
+        }
+
+        const sourceId = layer.source as string;
+        const source = spec.sources[sourceId];
+
+        if (!source || source.type !== 'cartolina-tms') {
+            throw new Error(`Raster style layer "${layer.id}" references `
+                + `"${sourceId}", which is not a cartolina-tms source.`);
+        }
+    }
+
     return spec;
 }

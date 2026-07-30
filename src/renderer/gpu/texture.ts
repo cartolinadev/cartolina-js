@@ -463,9 +463,6 @@ export namespace GpuTexture {
 
     /**
      * Texture storage and upload format.
-     *
-     * Values match the legacy `TEXTURETYPE_*` constants while JavaScript
-     * callers are still being migrated.
      */
     export enum Type {
         /** Standard RGBA8 colour texture. Used for imagery and user images. */
@@ -476,12 +473,6 @@ export namespace GpuTexture {
          * for metatile and height-value lookups.
          */
         Height = 1,
-
-        /**
-         * Classification texture from bound layers. Uploaded as RGBA8 with
-         * nearest filtering by current legacy callers.
-         */
-        Class = 2,
 
         /** Normal map texture. Uploaded as RG8 from two-channel images. */
         NormalMap = 3,

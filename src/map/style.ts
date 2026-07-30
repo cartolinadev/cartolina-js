@@ -8,7 +8,8 @@ import MapBody from './body';
 import Atmosphere from './atmosphere';
 import MapSurface from './surface';
 import MapCredit from './credit';
-import MapBoundLayer from './bound-layer';
+import RasterSource from './raster-source';
+import type Map from './map';
 import { utilsUrl } from '../utils/url';
 
 import * as styleSchema from './style-schema';
@@ -88,7 +89,8 @@ export type SurfaceSourceDefinition = {
  * Inline data of a `cartolina-tms` source: a tiled raster source
  * definition, the same shape a `cartolina-tms` URL resolves to.
  */
-export type TmsSourceDefinition = Record<string, unknown>;
+export type TmsSourceDefinition =
+    RasterSource.Definition & Record<string, unknown>;
 
 /**
  * Inline data of a `cartolina-freelayer` source: a monolithic
@@ -518,7 +520,7 @@ export class MapStyle {
 
     /**
      * Load a map from style specification. This entails retrieving the sources,
-     * building the list of surfaces, bound layers and free layers, and serves
+     * building the terrain, raster and free-layer source registries, and serves
      * also as a factory to initialize the mapStyle object itself and set it
      * to style property in the map.
      *
@@ -530,6 +532,42 @@ export class MapStyle {
 
         const spec = MapStyle.validateAndNormalize(styleSpec);
 
+        // Start every raster metadata request before the terrain documents
+        // are awaited. Promise.allSettled attaches rejection handlers now
+        // and lets the independent source requests overlap one another and
+        // the sequential first-surface setup below.
+        const rasterIds: string[] = [];
+        const rasterLoads: Promise<RasterSource>[] = [];
+
+        for (const [id, sourceSpec] of Object.entries(spec.sources)) {
+
+            if (sourceSpec.type !== 'cartolina-tms') continue;
+
+            rasterIds.push(id);
+            rasterLoads.push(Promise.resolve().then(async () => {
+
+                if (sourceSpec.url !== undefined) {
+
+                    const path = MapStyle.slapResource(
+                        map.url.processUrl(sourceSpec.url),
+                        'boundlayer.json');
+                    const definition = await utils.loadJson(
+                        path,
+                        map.core.transformRequest,
+                        'Source',
+                    );
+
+                    return new RasterSource(
+                        map, id, definition, utilsUrl.getBase(path));
+                }
+
+                return new RasterSource(
+                    map, id, sourceSpec.data, sourceSpec.baseUrl);
+            }));
+        }
+
+        const rasterResultsPromise = Promise.allSettled(rasterLoads);
+
         // wipe the map clean
         map.referenceFrame = null;
         map.srses = {}
@@ -537,7 +575,6 @@ export class MapStyle {
         map.credits = {}
         map.surfaces = []
         map.freeLayers = {}
-        map.boundLayers = {}
         map.stylesheets = {}
         map.services = {}
 
@@ -642,29 +679,6 @@ export class MapStyle {
                     map.addCredit(key, new MapCredit(map, mc.credits[key]));
             }
 
-        // parse bound layers from sources
-        for (const [id, sourceSpec] of Object.entries(spec.sources))
-            if (sourceSpec.type === 'cartolina-tms') {
-
-                if (sourceSpec.url !== undefined) {
-
-                    const path = MapStyle.slapResource(
-                        map.url.processUrl(sourceSpec.url),
-                        'boundlayer.json');
-
-                    // asynchronous: callbacks force repeated
-                    // map.refreshView()
-                    let bl = new MapBoundLayer(map, path, id);
-                    map.addBoundLayer(id, bl);
-
-                } else {
-
-                    let bl = new MapBoundLayer(
-                        map, sourceSpec.data, id, sourceSpec.baseUrl);
-                    map.addBoundLayer(id, bl);
-                }
-            }
-
         // parse free layers from sources
         for (const [id, sourceSpec] of Object.entries(spec.sources))
             if (sourceSpec.type === 'cartolina-freelayer') {
@@ -684,6 +698,28 @@ export class MapStyle {
                 let fl = new MapSurface(map, path, 'free');
                 map.addFreeLayer(id, fl);
             }
+
+        const rasterResults = await rasterResultsPromise;
+        const rasterEntries =
+            new globalThis.Map<string, Map.RasterSourceEntry>();
+
+        rasterResults.forEach((result, index) => {
+
+            const id = rasterIds[index];
+
+            if (result.status === 'fulfilled') {
+                rasterEntries.set(
+                    id, { status: 'ready', source: result.value });
+                return;
+            }
+
+            const error = result.reason instanceof Error
+                ? result.reason
+                : new Error(String(result.reason));
+            rasterEntries.set(id, { status: 'failed', error });
+        });
+
+        map.outerMap.setRasterSourceEntries(rasterEntries);
 
 
         // illumination
@@ -730,7 +766,9 @@ export class MapStyle {
 
         // done
         //__DEV__ && console.log(map);
-        map.style = new MapStyle(map, spec);
+        const style = new MapStyle(map, spec);
+        map.outerMap.assertRasterSourcesAvailable(style.style());
+        map.style = style;
     }
 
 
@@ -768,8 +806,8 @@ export class MapStyle {
     /**
      * Applies a batch of primitive style mutations atomically: every
      * mutation is validated before any state is written, so an
-     * invalid batch changes nothing. The caller commits the result by
-     * rebuilding the effective state and recompiling sequences.
+     * invalid batch changes nothing. The caller recompiles sequences
+     * after this method commits the already-validated effective state.
      *
      * @param mutations primitive mutations in application order
      * @returns whether the batch can affect lettering compilation
@@ -797,30 +835,42 @@ export class MapStyle {
             }
         }
 
-        const hasLettering = (this.authoredSpec_.layers ?? []).some(
-            (layer) => ['labels', 'lines'].includes(layer.type ?? ''));
-
-        let letteringChanged = false;
+        const nextLayerOverrides =
+            new globalThis.Map(this.layerTerrainOverrides_);
+        let nextTerrainOverride = this.terrainOverride_ === null
+            ? null
+            : [...this.terrainOverride_];
 
         for (const mutation of mutations) {
 
             if (mutation.kind === 'layer-terrain') {
 
-                this.layerTerrainOverrides_.set(
+                nextLayerOverrides.set(
                     mutation.layerId, [...mutation.terrain]);
-
-                if (this.isLetteringLayer(mutation.layerId))
-                    letteringChanged = true;
 
             } else {
 
-                this.terrainOverride_ = [...mutation.sources];
-
-                // a stack change can activate or deactivate rules
-                // through the stack-intersection contract
-                if (hasLettering) letteringChanged = true;
+                nextTerrainOverride = [...mutation.sources];
             }
         }
+
+        const nextSpec = this.buildEffectiveState(
+            nextTerrainOverride, nextLayerOverrides);
+
+        // The prospective state is checked before any live override or
+        // effective-style field changes.
+        this.map.outerMap.assertRasterSourcesAvailable(nextSpec);
+
+        const hasLettering = (this.authoredSpec_.layers ?? []).some(
+            (layer) => ['labels', 'lines'].includes(layer.type ?? ''));
+        const letteringChanged = mutations.some((mutation) =>
+            mutation.kind === 'layer-terrain'
+                ? this.isLetteringLayer(mutation.layerId)
+                : hasLettering);
+
+        this.layerTerrainOverrides_ = nextLayerOverrides;
+        this.terrainOverride_ = nextTerrainOverride;
+        this.effectiveSpec_ = nextSpec;
 
         return { letteringChanged };
     }
@@ -878,20 +928,30 @@ export class MapStyle {
      */
     rebuildEffectiveState(): void {
 
+        this.effectiveSpec_ = this.buildEffectiveState(
+            this.terrainOverride_, this.layerTerrainOverrides_);
+    }
+
+    private buildEffectiveState(
+        terrainOverride: string[] | null,
+        layerTerrainOverrides:
+            globalThis.Map<string, string[]>,
+    ): MapStyle.StyleSpecification {
+
         const spec = structuredClone(this.authoredSpec_);
 
-        if (this.terrainOverride_) {
-            spec.terrain.sources = [...this.terrainOverride_];
+        if (terrainOverride) {
+            spec.terrain.sources = [...terrainOverride];
         }
 
         for (const layer of spec.layers ?? []) {
 
             const override =
-                this.layerTerrainOverrides_.get(layer.id as string);
+                layerTerrainOverrides.get(layer.id as string);
             if (override) layer.terrain = [...override];
         }
 
-        this.effectiveSpec_ = spec;
+        return spec;
     }
 
     /**
@@ -920,8 +980,8 @@ export class MapStyle {
     }
 
     /**
-     * refresh the map surfaceSequence, boundLayerSequence and freeLayerSequence
-     * objects according to the style content.
+     * Refreshes terrain applicability and the free-layer sequence from the
+     * effective style.
      */
     refreshSequences(): void {
 

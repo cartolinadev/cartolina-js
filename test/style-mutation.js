@@ -242,12 +242,19 @@ async function main() {
 
     const LegacyMap = v.legacyMap.constructor;
     const MapStyle = v.legacyMap.style.constructor;
-    const makeTestMap = () => new LegacyMap(
-      v.legacyMap.core,
-      'http://localhost:8080/style-context/style.json',
-      v.legacyMap.config,
-      v.legacyMap.bus,
-    );
+    const makeTestMap = () => {
+      const map = new LegacyMap(
+        v.legacyMap.core,
+        'http://localhost:8080/style-context/style.json',
+        v.legacyMap.config,
+        v.legacyMap.bus,
+      );
+      map.outerMap = {
+        setRasterSourceEntries() {},
+        assertRasterSourcesAvailable() {},
+      };
+      return map;
+    };
 
     const inlineMap = makeTestMap();
     const styleUrlObject = inlineMap.url;

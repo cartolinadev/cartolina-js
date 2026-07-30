@@ -255,7 +255,7 @@ graph can be emitted self-contained, but only by giving every legacy ES5
 (TS9005/TS9006 "requires using private name"); ~17 are reachable from the
 public surface (the `Map`/`Core`/`LegacyMap` halves slated for TS
 absorption — see architecture.md, plus `position`, `srs`, `surface*`,
-`texture`, `camera`, `bound-layer`, `credit`, `refframe`, `url`,
+`texture`, `camera`, `credit`, `refframe`, `url`,
 `division-node`, `inspector`). The project already types some of these with
 co-located hand-written `.d.ts` sidecars. Completing the set means either
 *faithful* sidecars (petrifies legacy code we want gone) or *opaque* `any`
@@ -288,7 +288,7 @@ surface-packaging support
 
 Current cartolina-js does not consume configured metatile packaging
 values. Terrain metatile fetches use a literal aggregation order 5 in
-`src/map/surface-tile.js`; bound-layer texture metatiles use a
+`src/map/surface-tile.js`; raster-source texture metatiles use a
 literal order 8 in `src/map/texture.js`. Parsed reference-frame
 and surface `metaBinaryOrder` values are currently dead.
 
@@ -318,7 +318,7 @@ blocks with shallow-subtree delivery to cut the metatile descent
 ping-pong (a LOD-15 descent: ~16 fetch phases to ~4 at
 `metaDepth = 4`). Scope when taken up: teach cartolina-js to read the
 mapConfig `metaBinaryOrder`/`metaDepth` (advertised by the server
-since RFC 7), replace the hardcoded terrain and bound-layer orders,
+since RFC 7), replace the hardcoded terrain and raster-source orders,
 define the multi-LOD metatile binary (a v7 break), trim the dead v6
 fields, ship the operator packaging-rebrick tool, and choose the
 default `metaDepth` from measurements. The decision inputs RFC 7
@@ -1911,32 +1911,6 @@ has already been returned.
   unloaded-map state.
 - `src/renderer/renderer.ts`: keep `core.map?.markDirty()` checks
   that allow renderer settings before a map has loaded.
-
----
-
-## REFACTOR: migrate `TEXTURETYPE_*` constants to a `GpuTexture.Type` enum
-
-**Opened:** 2026-05-19
-**Status:** partially implemented
-
-### Motivation
-
-`TEXTURETYPE_*` are legacy numeric constants in `src/constants.ts`.
-They are imported into `texture.ts` to tag texture formats, which is
-workable but relies on an untyped numeric namespace. Moving them to a
-`GpuTexture.Type` const enum (or a plain enum on the `GpuTexture`
-namespace) would give call sites exhaustiveness checking and remove the
-dependency on the legacy constants file from typed GPU code.
-
-### Scope
-
-- Done: define `GpuTexture.Type` enum in
-  `src/renderer/gpu/texture.ts`.
-- Done: replace all `vts.TEXTURETYPE_*` references in `texture.ts` with
-  the new enum members.
-- Done: update TypeScript call sites that create `GpuTexture` directly.
-- Remaining: update legacy JavaScript map/resource call sites that pass
-  `TEXTURETYPE_*` values through older texture APIs.
 
 ---
 

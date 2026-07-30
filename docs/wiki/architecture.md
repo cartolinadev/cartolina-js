@@ -181,6 +181,26 @@ Terrain rendering starts with a style source. The source points at a
 tileserver resource; the resource `mapConfig.json` supplies URL
 templates, credits, reference frame data, and tile format metadata.
 
+Raster imagery comes from `cartolina-tms` style sources. A source URL is
+the raster-definition JSON itself; a trailing slash retains the
+`boundlayer.json` filename convention at the tileserver boundary. The
+definition resolves to an immutable `RasterSource` in
+`src/map/raster-source.ts`. `Map` owns the registry of resolved sources
+and permanent source-load failures.
+
+All raster metadata requests start together and overlap terrain metadata
+loading. A failed raster source can remain dormant: initial readiness and
+later style mutations reject it only when an effective raster layer uses
+it on the active terrain stack. Style mutation validates the proposed
+state before committing terrain applicability or rebuilding render
+sequences.
+
+A raster source may supply paired metatile and per-tile mask templates.
+The renderer uses the metatile to select the source tile or an ancestor
+fallback, and loads a mask where the metatile marks partial coverage.
+Texture and subtexture caches keep their existing source-qualified
+identity across that fallback.
+
 The client loads metatiles before mesh tiles. Metatiles carry compact
 metanodes that describe tile existence, extents, height range, child
 availability, and screen-space error data. The tile tree uses those
@@ -189,10 +209,10 @@ values for culling, LOD selection, and scheduling. See
 [lod-selection.md](lod-selection.md).
 
 `TileRenderRig` is the current terrain tile renderer. It resolves the
-mesh and layer resources for one tile, tracks readiness, builds the
-style layer stack, and renders terrain color and depth passes. The old
-multi-command mesh draw path has been partly deleted; remaining draw
-modules still serve mapConfig-era paths and geodata. See
+mesh and map-owned raster sources for one tile, tracks resource
+readiness, builds the style layer stack, and renders terrain color and
+depth passes. The old multi-command mesh draw path has been partly
+deleted; remaining draw modules still serve geodata paths. See
 [rendering-architecture.md](rendering-architecture.md) and
 [rfc3-draw-traversal.md](rfc3-draw-traversal.md).
 
