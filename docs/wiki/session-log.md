@@ -29,7 +29,9 @@ errors.
 The typed-boundary implementation is commit `75618cae`. Follow-up commit
 `b38ba8dd` starts each raster metadata load immediately instead of delaying
 dispatch to microtask processing; the deterministic concurrency gate remains
-green.
+green. Commit `3a252065` removes the redundant style-refresh target parameter
+and uses the map-owned legacy-state accessor in both construction and mutation
+paths.
 
 ## 2026-07-30 — Replace bound layers with map-owned raster sources
 

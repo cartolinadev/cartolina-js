@@ -3410,3 +3410,13 @@ request starts first.
 
 The typecheck, all 90 unit tests, and the deterministic 18-check raster-source
 lifecycle gate passed against this commit.
+
+## Addendum — 2026-07-30 — map-owned style refresh target
+
+Commit `3a252065` removes the redundant legacy-map parameter from the typed
+style-refresh helper. Construction and runtime mutation already expose their
+respective legacy state through `Map.legacyMap`, so both paths now use that
+single map-owned access.
+
+The typecheck, deterministic 18-check raster-source lifecycle gate, and
+32-check style-mutation gate passed against this commit.
