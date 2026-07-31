@@ -929,15 +929,17 @@ class ConversionContext {
         };
 
         const surfaceUrlFields = ['meshUrl', 'metaUrl', 'navUrl',
-            'hmapUrl', 'normalsUrl', 'textureUrl', 'geodataUrl'];
+            'normalsUrl', 'textureUrl'];
 
         for (const rawSurface of doc['surfaces'] as unknown[]) {
 
-            const surface =
-                structuredClone(rawSurface) as Record<string, unknown>;
-            const legacyId = surface['id'] as string;
+            const rawEntry = rawSurface as Record<string, unknown>;
+            const legacyId = rawEntry['id'] as string;
             const sourceId =
                 this.surfaceSourceIds.get(legacyId) as string;
+
+            const surface = this.terrainDefinition(
+                rawEntry, `surfaces.${legacyId}`);
 
             absolutizeFields(surface, surfaceUrlFields,
                 this.documentContext, `surfaces.${legacyId}`);
@@ -951,6 +953,41 @@ class ConversionContext {
                 baseUrl: this.requireBase(`surfaces.${legacyId}`),
             };
         }
+    }
+
+    /**
+     * Extracts the supported terrain-source metadata from a legacy
+     * surface entry. Unsupported fields stay at the conversion
+     * boundary and never enter the style runtime.
+     */
+    private terrainDefinition(
+        definition: Record<string, unknown>,
+        path: string,
+    ): Record<string, unknown> {
+
+        const supported = new Set([
+            'lodRange', 'tileRange', 'metaUrl', 'navUrl',
+            'meshUrl', 'textureUrl', 'normalsUrl', 'credits',
+        ]);
+        const output: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(definition)) {
+
+            if (supported.has(key)) {
+
+                output[key] = structuredClone(value);
+                continue;
+            }
+
+            this.notes.push({
+                code: 'ignored-field',
+                path: `${path}.${key}`,
+                message: `The terrain runtime does not support legacy `
+                    + `surface field "${key}"; the value was dropped.`,
+            });
+        }
+
+        return output;
     }
 
     /**
@@ -1159,7 +1196,7 @@ class ConversionContext {
             // "style" is the free layer's own legacy default
             // stylesheet pointer. The convert-time resolution below
             // still needs it (this.freeLayerDefinitions keeps the
-            // original), but the runtime must not see it: MapSurface
+            // original), but the runtime must not see it: MapFreeLayer
             // reads a free-layer source's own "style" field and
             // independently fetches it as a legacy per-surface
             // stylesheet — a fetch made redundant by this RFC, since

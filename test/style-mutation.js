@@ -249,10 +249,24 @@ async function main() {
         v.legacyMap.config,
         v.legacyMap.bus,
       );
+      const terrainSources = new Map();
       map.outerMap = {
         setRasterSourceEntries() {},
         assertRasterSourcesAvailable() {},
+        setTerrainSourceEntries(sources) {
+          terrainSources.clear();
+          for (const [id, source] of sources)
+            terrainSources.set(id, source);
+        },
+        resolveTerrainSource(id) {
+          const source = terrainSources.get(id);
+          if (!source)
+            throw new Error(`terrain.sources references "${id}" but `
+              + 'no surface was loaded for that source');
+          return source;
+        },
       };
+      map.terrainSources = terrainSources;
       return map;
     };
 
@@ -260,9 +274,10 @@ async function main() {
     const styleUrlObject = inlineMap.url;
     await MapStyle.loadStyle(inlineMap, inlineStyle);
 
+    const inlineSources = [...inlineMap.terrainSources.values()];
     check('inline surface bases resolve independently',
-      inlineMap.surfaces[0].meshUrl.startsWith(baseA)
-        && inlineMap.surfaces[1].meshUrl.startsWith(baseB));
+      inlineSources[0].meshUrl.startsWith(baseA)
+        && inlineSources[1].meshUrl.startsWith(baseB));
     check('inline SRS and atmosphere use the first source base',
       inlineMap.srses[srsId].geoidGridMap.mapLoaderUrl
         === baseA + 'grids/test-grid.png'

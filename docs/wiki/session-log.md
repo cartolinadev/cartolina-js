@@ -3,6 +3,34 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-31 — Typed terrain source
+
+Split `MapSurface` along the boundary it already had. The terrain half
+became `TerrainSource`, an immutable class behind a Typia-validated
+metadata boundary owned by the typed `Map` and keyed by style source
+id; the geodata half stayed in JavaScript as `MapFreeLayer`. The style
+source id is now the only identity a terrain source has.
+
+Most of the class did not survive the split. The tile-range predicates
+had lost their last caller with the multi-surface teardown, and
+`tileRange` has had no reader since — it is validated at the boundary
+and discarded. The heightmap URL path turned out to be unreachable: its
+only enabling flag was assigned inside the function that reads it. The
+per-surface style field held the same specification for every surface,
+so the draw path reads it from the map.
+
+Two fields needed a decision the client code alone does not settle. A
+surface resource's credits reach the client as 16-bit numeric ids in
+the metatile credit table, and the tileserver publishes the definitions
+in the map configuration rather than in the surface entry.
+`TerrainSource` accepts a surface-entry credit table anyway, on the
+same terms as `RasterSource`, and a tileserver backlog entry proposes
+publishing the definitions alongside. Display size is a geodata
+construct: the geodata generators are the ones that pass a display size
+into metatile generation and publish the same number in the free-layer
+document, so the client keeps the value `parseMetanode()` decodes
+instead of substituting a surface-level one.
+
 ## 2026-07-30 — Inline sources lost their credits to the map wipe
 
 The `legacy-benatky` mapConfig case stopped rendering. Immediate raster

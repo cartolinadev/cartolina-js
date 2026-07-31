@@ -123,7 +123,7 @@ async function main() {
                 ...testTerrain.surfaces[0],
                 id: 'raster-test-terrain',
                 lodRange: [1, 1],
-                tileRange: [[-1, -1], [-1, -1]],
+                tileRange: [[0, 0], [0, 0]],
             };
 
             const readyDefinition = {

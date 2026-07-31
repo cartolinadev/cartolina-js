@@ -70,7 +70,6 @@ var MapSurfaceTile = function(map, parent, id) {
     this.rasterTextures = {};
     this.updateBounds = true;
 
-    this.hmap = null;
     this.heightMap = null;
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
@@ -115,7 +114,6 @@ MapSurfaceTile.prototype.kill = function() {
     this.lastSurface = null;
     this.lastState = null;
         
-    this.hmap = null;
     this.heightMap = null;
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};

@@ -10,6 +10,7 @@
   "include": [
     "src/map/event-bus.ts",
     "src/map/raster-source.ts",
+    "src/map/terrain-source.ts",
     "src/config-store.ts",
     "src/viewer-config.ts",
     "src/viewer/url-config.ts",

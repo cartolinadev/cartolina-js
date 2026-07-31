@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.605-feature_rfc11_mapconfig_to_style.9db69008",
+  "version": "2.49.607-feature_rfc11_mapconfig_to_style.85749d6c",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
@@ -21,7 +21,8 @@
     "test": "npm run test:perf:headed",
     "test:unit": "node_modules/.bin/tsc -p tsconfig.unit.json && node_modules/.bin/tsc -p tsconfig.types.json && node_modules/.bin/mocha test/unit/*.test.js",
     "test:raster-sources": "node test/raster-source-lifecycle.js",
-    "test:rfc11": "npm run test:unit && npm run test:raster-sources && node test/style-mutation.js && node test/mapconfig-corpus.js && node test/vertical-exaggeration.js && node test/screenshot.js simple-terrain && node test/screenshot.js complex-terrain && node test/screenshot.js full-terrain",
+    "test:terrain-sources": "node test/terrain-source-lifecycle.js",
+    "test:rfc11": "npm run test:unit && npm run test:raster-sources && npm run test:terrain-sources && node test/style-mutation.js && node test/mapconfig-corpus.js && node test/vertical-exaggeration.js && node test/screenshot.js simple-terrain && node test/screenshot.js complex-terrain && node test/screenshot.js full-terrain",
     "test:vertical-exaggeration": "node test/vertical-exaggeration.js",
     "test:perf": "node ./test/perf/run-bundle.js",
     "test:perf:headed": "PWDEBUG=console node ./test/perf/run-bundle.js",

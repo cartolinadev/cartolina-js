@@ -159,9 +159,11 @@ back-references.
 
 `LegacyMap` is the JS half of `Map` in `src/map/legacy-map.js`. It holds
 the parts of the map data model that have not been rewritten in
-TypeScript yet: the tile tree, loader, geodata processing, surface and
-free-layer registries, camera state, coordinate conversion, and
-measurement. TypeScript files import it as `LegacyMap` to avoid
+TypeScript yet: the tile tree, loader, geodata processing, the
+free-layer registry, camera state, coordinate conversion, and
+measurement. Terrain and raster sources are owned by the typed `Map`
+as `TerrainSource` and `RasterSource` instances, keyed by style
+source id. TypeScript files import it as `LegacyMap` to avoid
 colliding with the newer `Map` class. It is not a separate subsystem;
 the name describes implementation status, not a logical boundary.
 

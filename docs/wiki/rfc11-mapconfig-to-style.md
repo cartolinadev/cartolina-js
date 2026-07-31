@@ -3442,3 +3442,56 @@ Validation: typecheck, 90 unit tests, the 18-check raster-source lifecycle
 gate, the 32-check style-mutation gate, the strict conversion corpus, and
 render comparisons for the `simple-terrain`, `complex-terrain`, and
 `full-terrain` style cases and the `legacy-benatky` mapConfig case.
+
+## Addendum — 2026-07-31 — typed terrain source
+
+`MapSurface` served two disjoint roles: the terrain source behind a
+`cartolina-surface` style source, and the geodata free layer behind a
+`cartolina-freelayer` one. Neither used more than about half its
+fields, and both wrote the same `style` field with unrelated meanings —
+the effective style specification for terrain, a vts stylesheet
+reference for a free layer.
+
+The terrain role is now `TerrainSource`, an immutable TypeScript class
+built through a Typia-validated boundary, matching `RasterSource`. Its
+contract is the metatile, navigation tile, and mesh URLs, the optional
+internal texture and normal-map URLs, the LOD range, and credits.
+`tileRange` is validated and discarded: every surface document declares
+it, but tile presence is answered by metanodes. The style source id is
+the source identity, so the document-level id, `styleSourceId`, and the
+registration index collapse into one name.
+
+Typed `Map` owns the sources, keyed by style source id. There is no
+ready-or-failed entry union as there is for raster sources: an
+unreachable surface document leaves the style unusable, so the first
+failure rejects style loading. Surface documents are now requested
+alongside the raster metadata and consumed in source order, so the
+first document still supplies the reference frame and shared metadata.
+
+The remainder of the class is `MapFreeLayer` in `free-layer.js`,
+holding only the geodata role. Deleted rather than translated: the
+tile-range predicates `hasTile`, `hasTile2`, and `hasMetatile`, whose
+last caller went with the multi-surface teardown; the heightmap URL
+path, which no entry point could reach; `metaBinaryOrder`, `navDelta`,
+`textureLayer`, `zFactor`, `geodataNavtileInfo`, and the surface credit
+number list, none of which had readers; the free-layer option
+accessors; and the per-surface style field, which held the same
+specification for every surface and is read from the map instead.
+
+The per-node display size is no longer overwritten by a surface-level
+value. `parseMetanode()` decodes the field and substitutes 256 whenever
+`applyDisplaySize` is clear, which is what the fallback formulas in
+`updateTexelSize()` read. A surface-level display size is a geodata
+construct: the geodata generators are the ones that pass a display size
+into metatile generation, and they publish the same number in the
+free-layer document, so substituting it could only restate the decoded
+value or contradict the flag.
+
+Validation: typecheck, 98 unit tests, the 20-check terrain-source
+lifecycle gate, the 18-check raster-source lifecycle gate, the 32-check
+style-mutation gate, the strict conversion corpus, the production
+build, and render comparisons for the `simple-terrain`,
+`complex-terrain`, and `full-terrain` style cases and the
+`legacy-benatky` mapConfig case. The simple and full terrain captures
+are pixel-identical to production and the complex capture differs at
+label edges.

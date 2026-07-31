@@ -186,7 +186,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     tile.updateTexelSize();
 
     var geodata = tile.surface ? tile.surface.geodata : null;
-    var maxLod = tile.surface.maxLod || tile.surface.lodRange[1];
+    var maxLod = tile.surface.lodRange[1];
     var checkGpu = true;
     
     var lodShift = 4;//this.freeLayerSurface ? 1 : 1;

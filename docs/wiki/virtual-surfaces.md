@@ -7,6 +7,9 @@ See [index.md](index.md) for the wiki table of contents.
 > "virtual" described below: `MapVirtualSurface` and its
 > `sourceReference` redirection, the glue/`surfaceSequence` seam
 > machinery, and `checkSurface`'s multi-surface source selection. The
+> tile-range predicates it relied on (`hasTile`, `hasTile2`,
+> `hasMetatile`) were deleted with the terrain-source rewrite; tile
+> presence is answered by metanodes. The
 > recursive terrain traversal renders plain surfaces directly via mask
 > compositing ([rfc3-draw-traversal.md](rfc3-draw-traversal.md)). The
 > mapConfig `virtualSurfaces` and `glue` arrays are no longer parsed by

@@ -28,10 +28,10 @@ import MapDraw from './draw';
 import MapConvert from './convert';
 import MapMeasure from './measure';
 import MapSurfaceTree from './surface-tree';
-import type MapSurface from './surface';
 import DrawTraversalMaskPool from './draw-traversal-mask';
 import { drawTerrainTraversal } from './draw-traversal';
 import type RasterSource from './raster-source';
+import type TerrainSource from './terrain-source';
 
 
 /**
@@ -161,6 +161,13 @@ class Map {
      */
     private rasterSources_ =
         new globalThis.Map<string, Map.RasterSourceEntry>();
+
+    /**
+     * Resolved terrain sources, keyed by style source id. A surface
+     * document that fails to load rejects style loading, so a
+     * registered entry is always usable.
+     */
+    private terrainSources_ = new globalThis.Map<string, TerrainSource>();
 
     /**
      * The event bus behind `on`, `once`, and `emit`. Handed to the
@@ -306,6 +313,7 @@ class Map {
         this.disposeTerrainMaskPool();
         this.destroyLoadedMap();
         this.rasterSources_.clear();
+        this.terrainSources_.clear();
         this.renderer[Symbol.dispose]();
         this.element = null;
         this.killed = true;
@@ -584,6 +592,37 @@ class Map {
     // -----------------------------------------------------------------
     // Runtime style mutation
     // -----------------------------------------------------------------
+
+    /**
+     * Installs the complete result of terrain metadata resolution.
+     *
+     * @internal Called once by `MapStyle.loadStyle`.
+     */
+    setTerrainSourceEntries(
+        sources: globalThis.Map<string, TerrainSource>,
+    ): void {
+
+        this.terrainSources_ = sources;
+    }
+
+    /**
+     * Returns the terrain source a style source id resolves to.
+     *
+     * @internal Style loading registers every terrain source before the
+     * style becomes effective, so an exception here is an invariant
+     * violation rather than a recoverable load event.
+     */
+    resolveTerrainSource(sourceId: string): TerrainSource {
+
+        const source = this.terrainSources_.get(sourceId);
+
+        if (!source) {
+            throw new Error(`terrain.sources references "${sourceId}" but `
+                + `no surface was loaded for that source`);
+        }
+
+        return source;
+    }
 
     /**
      * Installs the complete result of raster metadata resolution.
@@ -1347,10 +1386,6 @@ class Map {
                         && layer.stylesheet.isReady()
                         && channel === 'color') {
 
-                        if (layer.zFactor) {
-                            mapDraw.zbufferOffset = layer.zFactor;
-                        }
-
                         if (layer.type === 'geodata') {
                             // monolithic geodata job collection
                             mapDraw.drawMonoliticGeodata(layer);
@@ -1441,6 +1476,7 @@ class Map {
             legacyMap.kill();
             this.loadingMap_ = null;
             this.rasterSources_.clear();
+            this.terrainSources_.clear();
             throw error;
         }
     }
@@ -1613,7 +1649,7 @@ class Map {
      * The order comes from the effective style state's terrain
      * sources array.
      */
-    surfaceList(): MapSurface[] {
+    surfaceList(): TerrainSource[] {
 
         const legacyMap = this.map;
         if (!legacyMap?.style) return [];
@@ -1621,19 +1657,8 @@ class Map {
         // terrain.sources order: back-to-front, front at last index
         const sources = legacyMap.style.style().terrain?.sources ?? [];
 
-        return sources.map(sourceId => {
-
-            const surface = legacyMap.surfaces.find(
-                s => s.styleSourceId === sourceId);
-
-            if (!surface) {
-                throw new Error(`terrain.sources references `
-                    + `"${sourceId}" but no surface was loaded `
-                    + `for that source`);
-            }
-
-            return surface;
-        });
+        return sources.map(
+            sourceId => this.resolveTerrainSource(sourceId));
     }
 
     /**

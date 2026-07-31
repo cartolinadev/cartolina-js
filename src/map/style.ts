@@ -6,9 +6,10 @@ import MapRefFrame from './refframe';
 import MapSrs from './srs';
 import MapBody from './body';
 import Atmosphere from './atmosphere';
-import MapSurface from './surface';
+import MapFreeLayer from './free-layer';
 import MapCredit from './credit';
 import RasterSource from './raster-source';
+import TerrainSource from './terrain-source';
 import type Map from './map';
 import { utilsUrl } from '../utils/url';
 
@@ -537,7 +538,6 @@ export class MapStyle {
         map.srses = {}
         map.bodies = {}
         map.credits = {}
-        map.surfaces = []
         map.freeLayers = {}
         map.stylesheets = {}
         map.services = {}
@@ -589,36 +589,55 @@ export class MapStyle {
 
         const rasterResultsPromise = Promise.allSettled(rasterLoads);
 
-        // parse surfaces from style sources
-        // (with special handling of the first surface, extracting ref frame, body and services
-        for (const [id, sourceSpec] of Object.entries(spec.sources))
-            if (sourceSpec.type === 'cartolina-surface') {
+        // Surface documents are requested alongside the raster metadata
+        // rather than one after another. Their results are consumed in
+        // source order below, so the first document still supplies the
+        // reference frame and the shared map metadata.
+        const terrainIds: string[] = [];
+        const terrainLoads:
+            Promise<[MapStyle.SurfaceSourceDefinition, string]>[] = [];
 
-                // resolve the surface document: fetch the URL form,
-                // take the inline form as already-resolved data
-                let path: string;
-                let mc: MapStyle.SurfaceSourceDefinition;
+        for (const [id, sourceSpec] of Object.entries(spec.sources)) {
+
+            if (sourceSpec.type !== 'cartolina-surface') continue;
+
+            terrainIds.push(id);
+            terrainLoads.push((async () => {
 
                 if (sourceSpec.url !== undefined) {
 
-                    path = MapStyle.slapResource(
+                    const path = MapStyle.slapResource(
                         map.url.processUrl(sourceSpec.url),
                         'mapConfig.json');
 
-                    mc = await utils.loadJson(
+                    const document = await utils.loadJson(
                         path,
                         map.core.transformRequest,
                         'MapConfig',
                     ) as MapStyle.SurfaceSourceDefinition;
 
-                } else {
-
-                    path = sourceSpec.baseUrl;
-                    mc = sourceSpec.data;
+                    return [document, path];
                 }
 
-                // TODO: validation
-                //__DEV__ && console.log(mc);
+                return [sourceSpec.data, sourceSpec.baseUrl];
+            })());
+        }
+
+        const terrainResults = await Promise.allSettled(terrainLoads);
+        const terrainSources = new globalThis.Map<string, TerrainSource>();
+
+        // parse surfaces from style sources
+        // (with special handling of the first surface, extracting ref frame, body and services
+        for (let index = 0; index < terrainIds.length; index++) {
+
+                const id = terrainIds[index];
+                const result = terrainResults[index];
+
+                // a surface document that cannot be retrieved leaves the
+                // style unusable, so the first failure ends the load
+                if (result.status === 'rejected') throw result.reason;
+
+                const [mc, path] = result.value;
 
                 // sanity: all surfaces need to share the same frame of reference
                 if (map.referenceFrame)
@@ -678,17 +697,18 @@ export class MapStyle {
                         + `exactly one surface, bailing out.`);
                 }
 
-                // the resolved document and its base reach the surface
-                // constructor explicitly for both URL and inline sources
-                let surface = new MapSurface(
-                    map, mc.surfaces[0], undefined, path);
-                surface.styleSourceId = id;
-                map.addSurface(surface.id, surface);
-
-                // the credits
+                // the credit definitions are registered before the source
+                // resolves, so a surface credit list can name them
                 if (mc.credits) for (let key in mc.credits)
                     map.addCredit(key, new MapCredit(map, mc.credits[key]));
+
+                // the resolved surface entry and the document base reach
+                // the source boundary for both URL and inline sources
+                terrainSources.set(id, TerrainSource.fromMetadata(
+                    map.outerMap, id, mc.surfaces[0], path));
             }
+
+        map.outerMap.setTerrainSourceEntries(terrainSources);
 
         // parse free layers from sources
         for (const [id, sourceSpec] of Object.entries(spec.sources))
@@ -696,8 +716,8 @@ export class MapStyle {
 
                 if (sourceSpec.data !== undefined) {
 
-                    let fl = new MapSurface(
-                        map, sourceSpec.data, 'free', sourceSpec.baseUrl);
+                    let fl = new MapFreeLayer(
+                        map, sourceSpec.data, sourceSpec.baseUrl);
                     map.addFreeLayer(id, fl);
                     continue;
                 }
@@ -706,7 +726,7 @@ export class MapStyle {
                     map.url.processUrl(sourceSpec.url), 'freelayer.json');
 
                 // asynchronous: callbacks force repeated map.refreshView()
-                let fl = new MapSurface(map, path, 'free');
+                let fl = new MapFreeLayer(map, path);
                 map.addFreeLayer(id, fl);
             }
 
@@ -999,21 +1019,9 @@ export class MapStyle {
         let map = this.map;
         const spec = this.effectiveSpec_;
 
-        spec.terrain.sources.forEach((sourceId: string) => {
-
-            const surface = map.surfaces.find((s: MapSurface) =>
-                s.styleSourceId === sourceId);
-
-            if (!surface) {
-                throw new Error(`terrain.sources references `
-                    + `"${sourceId}" but no surface was loaded for `
-                    + `that source`);
-            }
-
-            // surface layer sequence is the style spec itself
-            surface.style = spec;
-        })
-
+        // every active terrain source must have resolved during loading
+        spec.terrain.sources.forEach((sourceId: string) =>
+            map.outerMap.resolveTerrainSource(sourceId));
 
         // compile free layer stylesheets from style layers and set them
         let freeLayerStyles: Record<string, vtsStylesheet> = {};
@@ -1069,7 +1077,7 @@ export class MapStyle {
             // copied from Map.refreshFreeLayersInView
             //
             // registration already guarantees the surviving geodata
-            // form (addFreeLayer, MapSurface's fetched-layer
+            // form (addFreeLayer, MapFreeLayer's fetched-layer
             // validation), so this path trusts the registry: a
             // registered free layer is either present and eligible,
             // or the registry entry is null.
@@ -1078,10 +1086,6 @@ export class MapStyle {
             if (freeLayer) {
 
                 freeLayer.options = {};
-
-                // WARN: investigage, possibly add to layer properties
-                //freeLayer.zFactor = stylesheet['depthOffset'];
-                //freeLayer.maxLod = stylesheet['maxLod'];
 
                 map.freeLayerSequence.push(freeLayer);
                 freeLayer.setStyle(stylesheet);

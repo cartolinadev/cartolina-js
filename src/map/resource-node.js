@@ -117,8 +117,8 @@ getGeodata(path, textureContext) {
 
 getTexture(path, type, ancestorFallback, textureContext, tile, internal) {
     var texture;
-    if (textureContext && (textureContext.source || textureContext.hmap)) {
-        var id = path + (textureContext.hmap ? '' : textureContext.source.id);
+    if (textureContext && textureContext.source) {
+        var id = path + textureContext.source.id;
         texture = this.textures[id];
         
         if (!texture) {

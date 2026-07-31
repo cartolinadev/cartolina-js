@@ -6,7 +6,7 @@ import type MapPosition from './position';
 import type MapRefFrame from './refframe';
 import type MapSrs from './srs';
 import type MapStyle from './style';
-import type MapSurface from './surface';
+import type MapFreeLayer from './free-layer';
 import type MapUrl from './url';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
@@ -43,16 +43,10 @@ type MapServices = {
     };
 } & Record<string, unknown>;
 
-type FreeLayer = MapSurface & {
-    geodata?: unknown;
+type FreeLayer = MapFreeLayer & {
     options: Record<string, unknown>;
-    setStyle(style: unknown): void;
-
-    ready?: boolean;
-    tree?: { draw(): void } | null;
-    stylesheet?: { isReady(): boolean } | null;
-    type?: string;
-    zFactor?: number | null;
+    tree: { draw(): void } | null;
+    stylesheet: { isReady(): boolean } | null;
 };
 
 /**
@@ -141,7 +135,6 @@ export default class Map {
     srses: Record<string, MapSrs>;
     bodies: Record<string, MapBody>;
     credits: Record<string, MapCredit>;
-    surfaces: MapSurface[];
     freeLayers: Record<string, FreeLayer | null>;
     stylesheets: Record<string, unknown>;
 
@@ -212,7 +205,6 @@ export default class Map {
     addSrs(id: string, srs: MapSrs): void;
     addBody(id: string, body: MapBody): void;
     addCredit(id: string, credit: MapCredit): void;
-    addSurface(id: string, surface: MapSurface): void;
     addFreeLayer(id: string, layer: unknown): void;
     removeFreeLayer(id: string): void;
 

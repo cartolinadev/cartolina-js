@@ -161,7 +161,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
 
                         // create new rig from submeshSurface layer sequence
                         tile.tileRenderRig[i] = new TileRenderRig(
-                            i, submeshSurface.style, tile, this.renderer,
+                            i, this.map.style.style(), tile, this.renderer,
                             this.config);
                     }
 
@@ -464,9 +464,7 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
         }
 
         if (debug.drawSurfaces2) {
-            //c = utils.getHashColor(text);
-            c = utils.getHashColor2(tile.surface.surfaceCounter);
-            //c = [c[0]/255,c[1]/255,c[2]/255,1];
+            c = utils.getHashColor(text);
             c = [c[0],c[1],c[2],1];
         } else {
             c = [1,1,1,1];

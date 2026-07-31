@@ -774,8 +774,7 @@ export class TileRenderRig {
 
             let item_ = item as MapStyle.TileLayer;
 
-            const terrainSourceId = this.tile.resourceSurface.styleSourceId
-                ?? this.tile.resourceSurface.id;
+            const terrainSourceId = this.tile.resourceSurface.id;
             let pertinent = !item_.terrain
                 || item_.terrain.includes(terrainSourceId);
             if (!pertinent) return;

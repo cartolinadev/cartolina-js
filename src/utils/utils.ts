@@ -352,23 +352,6 @@ export function getHashColor(str: string) {
 };
 
 
-export function getHashColor2(counter: number) {
-    var h = Math.floor(counter / 18);
-    var l = 50;
-
-    if (h >= 1) {
-        if (h % 2) {
-            l = 50 + ((l * 10) % 30);
-        } else {
-            l = 50 - (((l-1) * 10) % 30);
-        }
-     }
-
-    h = (counter % 18) * 20;
-
-    return convertHSL2RGB(h,100,l);
-};
-
 
 type XhrParams = Record<string, string> | null | undefined;
 type XhrCallback = ((data: any) => void) | null | undefined;

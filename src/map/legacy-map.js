@@ -17,7 +17,7 @@ import * as Illumination from './illumination';
 import Atmosphere from './atmosphere';
 import MapStyle from './style';
 import MapTrajectory from './trajectory';
-import MapSurface from './surface';
+import MapFreeLayer from './free-layer';
 import MapGeodataBuilder from './geodata-builder';
 
 
@@ -78,7 +78,6 @@ var Map = function(core, path, config, bus) {
     this.services = {};
     this.credits = {};
     this.creditsByNumber = {};
-    this.surfaces = [];
     this.freeLayers = {};
     this.stylesheets = {};
     this.processingTasks = [];
@@ -89,7 +88,6 @@ var Map = function(core, path, config, bus) {
 
     this.viewCounter = 0;
     this.srsReady = false;
-    this.surfaceCounter = 0;
 
     this.freeLayerSequence = [];
 
@@ -321,32 +319,12 @@ Map.prototype.getVisibleCredits = function() {
 };
 
 
-Map.prototype.addSurface = function(id, surface) {
-    this.surfaces.push(surface);
-    surface.index = this.surfaces.length - 1; 
-};
-
-
-Map.prototype.getSurface = function(id) {
-    return this.searchArrayById(this.surfaces, id);
-};
-
-
-Map.prototype.getSurfaces = function() {
-    var keys = [];
-    for (var i = 0, li = this.surfaces.length; i < li; i++) {
-        keys.push(this.surfaces[i].id);
-    }
-    return keys;
-};
-
-
 // The only surviving free-layer source kinds are 'geodata' and
-// 'geodata-tiles'. URL-backed surfaces are checked once loaded in
-// MapSurface's onLoaded (surface.js).
+// 'geodata-tiles'. URL-backed layers are checked once loaded in
+// MapFreeLayer's onLoaded (free-layer.js).
 function isRecognizedFreeLayerType(layer) {
     if (typeof layer === 'string') return true;
-    if (layer instanceof MapSurface) return !layer.ready || layer.geodata;
+    if (layer instanceof MapFreeLayer) return !layer.ready || layer.geodata;
     if (layer == null || typeof layer !== 'object') return false;
     return layer['type'] === 'geodata' || layer['type'] === 'geodata-tiles';
 }
@@ -364,8 +342,8 @@ Map.prototype.addFreeLayer = function(id, layer) {
         return;
     }
 
-    if (!(layer instanceof MapSurface)) {
-        layer = new MapSurface(this, layer, 'free');
+    if (!(layer instanceof MapFreeLayer)) {
+        layer = new MapFreeLayer(this, layer);
     }
 
     this.freeLayers[id] = layer;
@@ -379,22 +357,6 @@ Map.prototype.removeFreeLayer = function(id) {
         this.freeLayers[id] = null;
         this.markDirty();
     }
-};
-
-
-Map.prototype.setFreeLayerOptions = function(id, options) {
-    if (this.freeLayers[id]) {
-        this.freeLayers[id].setOptions(options);
-    }
-};
-
-
-Map.prototype.getFreeLayerOptions = function(id) {
-    if (this.freeLayers[id]) {
-        return this.freeLayers[id].getOptions();
-    }
-    
-    return null;
 };
 
 

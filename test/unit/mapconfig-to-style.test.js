@@ -170,7 +170,8 @@ describe('mapConfigToStyle', function() {
         assert.deepStrictEqual(conversion.warnings, []);
         assert.deepStrictEqual(
             conversion.notes.map((note) => note.path),
-            ['boundLayers.imagery.id', 'boundLayers.imagery.type']);
+            ['surfaces.terrain-a.id', 'boundLayers.imagery.id',
+                'boundLayers.imagery.type']);
     });
 
     it('does not mutate an object input', async function() {
@@ -256,6 +257,62 @@ describe('mapConfigToStyle', function() {
         assert.ok(note);
         assert.strictEqual(note.code, 'ignored-field');
         assert.deepStrictEqual(conversion.warnings, []);
+    });
+
+    it('emits only supported terrain source metadata', async function() {
+
+        const doc = baseMapConfig();
+        doc.surfaces[0] = {
+            ...doc.surfaces[0],
+            normalsUrl: '{lod}-{x}-{y}-{sub}.nm',
+            textureUrl: '{lod}-{x}-{y}-{sub}.jpg',
+            credits: ['c1'],
+            metaBinaryOrder: 5,
+            metaDepth: 1,
+            displaySize: 1024,
+            textureLayer: 3,
+            navDelta: 8,
+            hmapUrl: '{lod}-{x}-{y}.hmap',
+            geodataUrl: '{lod}-{x}-{y}.geo',
+            '2d': { metaUrl: 'x.meta', maskUrl: 'x.mask' },
+        };
+
+        const conversion = await convert(doc, baseFixtures(doc));
+        const surface =
+            conversion.style.sources['terrain-a'].data.surfaces[0];
+
+        assert.deepStrictEqual(Object.keys(surface).sort(), [
+            'credits',
+            'lodRange',
+            'meshUrl',
+            'metaUrl',
+            'navUrl',
+            'normalsUrl',
+            'textureUrl',
+            'tileRange',
+        ]);
+
+        // the surviving URL fields are still absolutized
+        assert.strictEqual(surface.normalsUrl,
+            'https://maps.example.com/map/{lod}-{x}-{y}-{sub}.nm');
+
+        const notePaths = conversion.notes.map((note) => note.path);
+
+        for (const field of [
+            'id',
+            'metaBinaryOrder',
+            'metaDepth',
+            'displaySize',
+            'textureLayer',
+            'navDelta',
+            'hmapUrl',
+            'geodataUrl',
+            '2d',
+        ]) {
+
+            assert.ok(notePaths.includes(`surfaces.terrain-a.${field}`),
+                field);
+        }
     });
 
     it('emits only supported raster source metadata', async function() {

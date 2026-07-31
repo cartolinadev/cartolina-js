@@ -7,7 +7,8 @@
  */
 
 import type LegacyMap from './legacy-map';
-import type MapSurface from './surface';
+import type TerrainSource from './terrain-source';
+import type MapFreeLayer from './free-layer';
 import type MapSurfaceTile from './surface-tile';
 import type MapMetanode from './metanode';
 
@@ -16,7 +17,7 @@ export default class MapSurfaceTree {
     constructor(
         map: LegacyMap,
         freeLayer: boolean,
-        freeLayerSurface?: MapSurface,
+        freeLayerSurface?: TerrainSource | MapFreeLayer,
     );
 
     map: LegacyMap;
@@ -27,7 +28,7 @@ export default class MapSurfaceTree {
      * per-surface helper trees of the recursive draw traversal and for
      * free layers.
      */
-    freeLayerSurface: MapSurface | null;
+    freeLayerSurface: TerrainSource | MapFreeLayer | null;
 
     updateNodeHeightExtents(
         tile: MapSurfaceTile,

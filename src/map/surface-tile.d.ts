@@ -1,5 +1,6 @@
 import type MapResourceNode from './resource-node';
-import type MapSurface from './surface';
+import type TerrainSource from './terrain-source';
+import type MapFreeLayer from './free-layer';
 import type MapMesh from './mesh';
 import type MapTexture from './texture';
 import type RasterSource from './raster-source';
@@ -22,8 +23,13 @@ export class MapSurfaceTile {
 
     resources: MapResourceNode;
 
-    /** The surface that owns the mesh and texture resources. */
-    resourceSurface: MapSurface;
+    /** The source this tile binds to: a terrain source for the
+     * per-surface helper trees, a free layer for geodata trees. */
+    surface: TerrainSource | MapFreeLayer;
+
+    /** The terrain source that owns the mesh and texture resources.
+     * Only the terrain draw path reads it. */
+    resourceSurface: TerrainSource;
 
     /** Metanode selected for this tile address, or null until loaded. */
     metanode: MapMetanode | null;

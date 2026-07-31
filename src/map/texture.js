@@ -88,20 +88,9 @@ MapTexture.prototype.killGpuTexture = function() {
 };
 
 
-MapTexture.prototype.setAncestorTexture = function(tile, source, hmap) {
+MapTexture.prototype.setAncestorTexture = function(tile, source) {
     if (tile) {
-        if (hmap) {
-            this.ancestorFallback.sourceTile = tile;
-            this.ancestorFallback.hmap = hmap;
-
-            if (!tile.hmap) {
-                var path = tile.resourceSurface.getHMapUrl(tile.id, true);
-                tile.hmap = tile.resources.getTexture(path, null, null, {tile: tile, hmap: hmap}, this.tile, this.internal);
-            }
-
-            this.ancestorFallback.texture = tile.hmap;
-
-        } else if (source) {
+        if (source) {
             this.ancestorFallback.sourceTile = tile;
             this.ancestorFallback.source = source;
             
@@ -144,14 +133,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
                 parent = this.ancestorFallback.sourceTile.parent;
 
-                if (this.ancestorFallback.hmap) {
-                    if (!parent || parent.id[0] < 1) {
-                        this.neverReady = true;
-                        this.ancestorFallback.tile.resetDrawCommands = true;
-                        this.map.markDirty();
-                        return false;
-                    }
-                } else if (this.ancestorFallback.source) {
+                if (this.ancestorFallback.source) {
 
                     // a tile with a null parent link is the tree root
                     // or no longer belongs to the tile tree; there is
@@ -196,8 +178,7 @@ MapTexture.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
             this.setAncestorTexture(
                 this.ancestorFallback.sourceTile,
-                this.ancestorFallback.source,
-                this.ancestorFallback.hmap);
+                this.ancestorFallback.source);
             return this.isReady(doNotLoad, priority, doNotCheckGpu);
         }
     } // if (this.ancestorFallback)

@@ -162,7 +162,7 @@ MapMesh.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
 
 MapMesh.prototype.scheduleLoad = function(priority) {
     if (!this.mapLoaderUrl) {
-        this.mapLoaderUrl = this.map.url.makeUrl(this.tile.resourceSurface.meshUrl, {lod:this.tile.id[0], ix:this.tile.id[1], iy:this.tile.id[2] });
+        this.mapLoaderUrl = this.tile.resourceSurface.getMeshUrl(this.tile.id);
     }
 
     this.map.loader.load(this.mapLoaderUrl, this.onLoad.bind(this), priority, this.tile, 'mesh');
