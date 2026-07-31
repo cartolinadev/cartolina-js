@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-30 — Inline sources lost their credits to the map wipe
+
+The `legacy-benatky` mapConfig case stopped rendering. Immediate raster
+dispatch had moved the source loop ahead of the block that clears the map,
+and an inline source definition constructs its `RasterSource` without ever
+suspending. Its credits were therefore registered and then discarded, while
+URL definitions await their fetch and kept theirs.
+
+The visible failure was not a missing attribution line. `Map.getCreditInfo`
+returns an empty record for an unregistered id, the credits control reads a
+missing `html` field from it, and the resulting exception aborted the tick
+handler every frame, so the map stayed on its loading indicator.
+`MapStyle.loadStyle` now clears the map before dispatching any load.
+
+The regression was confirmed by comparing the registered credit table
+against the parent commit, which retains the inline credit.
+
 ## 2026-07-30 — Type the raster-source boundary
 
 Reworked `RasterSource` as a native TypeScript model instead of a literal

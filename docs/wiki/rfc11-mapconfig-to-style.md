@@ -3420,3 +3420,25 @@ single map-owned access.
 
 The typecheck, deterministic 18-check raster-source lifecycle gate, and
 32-check style-mutation gate passed against this commit.
+
+## Addendum — 2026-07-30 — inline source construction precedes the map wipe
+
+Immediate raster dispatch (`b38ba8dd`) left the map-clearing block after the
+source loop. An inline definition resolves without ever suspending, so its
+`RasterSource` was constructed while that loop ran and registered its credits
+into a table the following statement replaced. URL definitions await their
+fetch and were unaffected.
+
+`mapConfigToStyle()` emits an inline definition for every source it
+converts and the demo styles state URL sources, so the mapConfig route is
+where this ran. The loss was not confined to attribution: an unregistered
+credit id makes `Map.getCreditInfo` return an empty record, and the credits
+control reads a missing `html` field, so every frame threw inside the tick
+handler and the map never rendered.
+
+`MapStyle.loadStyle` now clears the map before dispatching any source load.
+
+Validation: typecheck, 90 unit tests, the 18-check raster-source lifecycle
+gate, the 32-check style-mutation gate, the strict conversion corpus, and
+render comparisons for the `simple-terrain`, `complex-terrain`, and
+`full-terrain` style cases and the `legacy-benatky` mapConfig case.

@@ -532,9 +532,23 @@ export class MapStyle {
 
         const spec = MapStyle.validateAndNormalize(styleSpec);
 
+        // wipe the map clean
+        map.referenceFrame = null;
+        map.srses = {}
+        map.bodies = {}
+        map.credits = {}
+        map.surfaces = []
+        map.freeLayers = {}
+        map.stylesheets = {}
+        map.services = {}
+
         // Start every raster metadata request before the terrain documents
         // are awaited. The async function also turns synchronous validation
         // failures for inline definitions into rejected promises.
+        //
+        // An inline definition resolves without ever suspending, so its
+        // source is constructed while this loop runs and registers its
+        // credits into the table wiped above.
         const rasterIds: string[] = [];
         const rasterLoads: Promise<RasterSource>[] = [];
 
@@ -574,16 +588,6 @@ export class MapStyle {
         }
 
         const rasterResultsPromise = Promise.allSettled(rasterLoads);
-
-        // wipe the map clean
-        map.referenceFrame = null;
-        map.srses = {}
-        map.bodies = {}
-        map.credits = {}
-        map.surfaces = []
-        map.freeLayers = {}
-        map.stylesheets = {}
-        map.services = {}
 
         // parse surfaces from style sources
         // (with special handling of the first surface, extracting ref frame, body and services
