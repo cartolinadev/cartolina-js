@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** Implemented
+**Status:** In review
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -25,6 +25,10 @@ contract, omitted `terrain` expands against all declared
 stylesheet identity escaping into profile construction. Sections 4, 7.1,
 and 8.3 gain the explicitly transitional stylesheet-scope terminology;
 see round 6 below.
+**Updated:** 2026-07-31 — post-implementation review round 10: reopened
+because the URL-or-inline source union puts compatibility construction data
+into the public style specification, contradicting the boundary established
+in review round 1.
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -3495,3 +3499,147 @@ build, and render comparisons for the `simple-terrain`,
 `legacy-benatky` mapConfig case. The simple and full terrain captures
 are pixel-identical to production and the complex capture differs at
 label edges.
+
+## Review round 10 — post-implementation review
+
+This review covers the source-location design and terrain-source work in
+commits `c4fd2801`, `ac512132`, and `fb56eed5`. Typecheck and all 98 unit tests
+pass at `fb56eed5`. The active implementation range has already been rewritten
+to satisfy the public documentation rules. The findings below block renewed
+sign-off.
+
+No finding asks the implementation to support source or credit ids that name
+`Object.prototype` members. Such names may be rejected once at the validation
+boundary; do not change storage throughout the codebase for them. For keyed
+structures, use an ordinary object for fixed fields, `Record<string, T>` for
+domain dictionaries that are serialized or exposed as data, and `Map<K, V>`
+only for an internal index whose contract is map operations or non-string
+keys. String keys, mutability, and the word "registry" do not select `Map`.
+Choose the representation at the owning boundary and do not convert it merely
+to satisfy a style preference or test shape.
+
+1. RFC 11 put compatibility construction data into the public style
+   specification, contradicting its own boundary.
+
+   Round-1 note 1 says this RFC deletes mapConfig but does not redesign style.
+   It draws the conversion boundary as existing style version 2 plus
+   construction values. Section 7.1 nevertheless added `SourceLocation<T>` so
+   the converter could place already-fetched mapConfig resource documents in
+   style source entries. Its `data`, `baseUrl`, and forbidden optional
+   properties encode loader provenance, not authored style meaning.
+
+   Round-1 note 11 found the resulting metadata duplication, URL provenance,
+   and conflict-handling problems, but accepted inline style sources as
+   fixed. The response made that representation more precise instead of
+   applying note 1. The implementation exposes the resulting cost:
+   `MapStyle.resolveSourceDefinition()` accepts the provenance union, and the
+   source and shared-metadata constructors must receive the `baseUrl` stored in
+   each style entry. The style loader remains the correct single construction
+   path, but its public input contract now records compatibility fetch history.
+
+   Keep the current single style-construction path and the inline definitions,
+   but remove the compatibility provenance from the public shape. Spell each
+   source-specific union directly instead of exposing a generic loader
+   location type. For example:
+
+   ```typescript
+   type CartolinaSurfaceSource =
+       | { type: 'cartolina-surface'; url: string }
+       | {
+           type: 'cartolina-surface';
+           definition: SurfaceSourceDefinition;
+       };
+   ```
+
+   The schema validator rejects both `url` and `definition` being present or
+   both being absent. Raster and free-layer sources use the same explicit
+   pattern with their own definition types. This remains an addition to the
+   style format, but it describes what the style contains rather than where a
+   loader happened to obtain it.
+
+   Relative URLs in an authored inline definition resolve against the
+   containing style document, just like the rest of the style. The style
+   loader already retains that document path in `LegacyMap.url`. The converter
+   continues making every embedded URL absolute, so converted definitions do
+   not depend on a base at all. Remove `baseUrl` from the public specification
+   and pass either the fetched source-document path or the containing
+   style-document path to the existing source constructors.
+
+   `mapConfigToStyle()` still returns a standalone serializable style, and
+   `MapStyle.loadStyle()` remains the only map initialization path. Do not add
+   another construction value or model. Test the shared URL-or-definition
+   rule, both URL-resolution bases, and rejection of ambiguous entries. Add
+   source-specific cases only where their constructors behave differently.
+
+2. The `MapFreeLayer` extraction changes string-valued credits into
+   per-character credit ids.
+
+   `MapSurface.parseJson()` handled a string-valued `credits` field by storing
+   the external-document URL and replacing `this.credits` with an empty array.
+   `MapFreeLayer.parseJson()` handles only object tables; a string remains in
+   `this.credits`. `MapDraw.drawMonoliticGeodata()` then iterates
+   `surface.credits` by index, treating every character in the URL as a credit
+   id and adding those characters to `visibleCredits.mapdata`.
+
+   Preserve the previous handling by replacing the string with an empty credit
+   list. Add one regression covering a monolithic free-layer definition whose
+   `credits` value is a string.
+
+3. Source construction mutates the global credit registry in
+   request-completion order.
+
+   `RasterSource.fromMetadata()` runs in a promise continuation as each raster
+   request resolves and registers credit definitions immediately.
+   `TerrainSource.fromMetadata()` registers its definitions later, after every
+   terrain request has settled. `LegacyMap.addCredit()` overwrites by id.
+   Therefore the final definition for an id shared by terrain and raster
+   sources depends on whether the raster request finishes before or after the
+   terrain batch. The map-clearing regression fixed by `c4fd2801` was another
+   consequence of constructors mutating shared map state during loading.
+
+   Fetch the terrain and raster definitions concurrently, then consume the
+   settled results in source declaration order. After a source validates,
+   register its credit definitions directly in that loop; the existing
+   `addCredit()` overwrite behavior then gives a later declared source the
+   final definition. Source constructors retain the credit ids but do not
+   mutate the map. No staging model or registry abstraction is needed. Keep
+   the current rule that the first declared terrain source supplies shared map
+   metadata; `MapStyle.initializeMapMetadata()` must say "declared," not
+   "to arrive." Add one reversed-completion regression that checks both rules.
+
+4. Inline credit validation covers only the top-level terrain definition.
+
+   `checkInlineSurfaceConsistency()` examines the outer `credits` table of an
+   inline `cartolina-surface` definition. It does not examine a surface
+   entry's own table, an inline `cartolina-tms` definition, or an inline
+   `cartolina-freelayer` definition. It also returns before checking credits
+   when fewer than two inline terrain sources exist. Conflicting inline TMS
+   definitions therefore pass validation and are resolved later by registry
+   write order.
+
+   Validate the effective inline credit tables for all three source kinds
+   before constructing sources. Equal definitions may repeat; differing
+   definitions for one id must fail with both source ids. A terrain surface
+   entry overrides the outer definition for its own effective table. Cover an
+   equal cross-kind case, a conflicting non-terrain case, and the distinct
+   surface-entry override case. URL free layers keep their existing
+   asynchronous registration and are outside the source-order guarantee.
+
+5. The display-size change left current documentation false.
+
+   Commit `ac512132` removes the assignment that overwrote a decoded metanode
+   display size with a surface-level value. `docs/wiki/lod-selection.md` still
+   says that `displaySize` comes from `metatile.surface.displaySize` and that
+   `parseMetanode()` performs the overwrite.
+
+   Update the LOD documentation in the corrected implementation commit. State
+   the current decoded-value path and the effect of `applyDisplaySize` as the
+   code implements them.
+
+6. The RFC 11 compatibility modules use `interface` for fixed object shapes.
+
+   `src/compat/mapconfig-to-style.ts` declares four such interfaces and
+   `src/compat/vts-stylesheet-linker.ts` declares five. None is intended for
+   declaration merging. Convert those nine declarations to type aliases, as
+   required by the repository's TypeScript conventions. This is a mechanical
+   correction and requires no runtime change or new test.

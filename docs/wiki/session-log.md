@@ -3,6 +3,21 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-07-31 — RFC 11 post-implementation review round 10
+
+Reworked the post-implementation review against the active implementation
+commits `c4fd2801`, `ac512132`, and `fb56eed5`. The review keeps the useful
+source-shape correction: public source entries use either `url` or
+`definition`, without exposing compatibility loader provenance.
+
+The remaining findings cover string-valued free-layer credits, deterministic
+terrain and raster consumption, incomplete inline credit validation, stale
+LOD documentation, and nine fixed object shapes declared as interfaces. The
+review explicitly rejects a container mandate: string keys, mutability, and
+the word "registry" do not select `Map`, and no representation change is
+requested. Typecheck and all 98 unit tests pass at `fb56eed5`; they do not
+cover the listed defects. RFC 11 remains `In review`.
+
 ## 2026-07-31 — Typed terrain source
 
 Split `MapSurface` along the boundary it already had. The terrain half
