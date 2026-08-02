@@ -119,10 +119,9 @@ describe('mapConfigToStyle', function() {
         // one inline surface source with absolute embedded URLs
         const surfaceSource = conversion.style.sources['terrain-a'];
         assert.strictEqual(surfaceSource.type, 'cartolina-surface');
-        assert.strictEqual(
-            surfaceSource.baseUrl, 'https://maps.example.com/map/');
+        assert.strictEqual(surfaceSource.baseUrl, undefined);
 
-        const surface = surfaceSource.data.surfaces[0];
+        const surface = surfaceSource.definition.surfaces[0];
         assert.strictEqual(surface.meshUrl,
             'https://cdn.example.com/a/{lod}-{x}-{y}.bin');
         assert.strictEqual(surface.metaUrl,
@@ -132,21 +131,21 @@ describe('mapConfigToStyle', function() {
 
         // shared metadata absolutized
         assert.strictEqual(
-            surfaceSource.data.srses['geographic-wgs84']
+            surfaceSource.definition.srses['geographic-wgs84']
                 .geoidGrid.definition,
             'https://maps.example.com/map/grid.jpg');
         assert.strictEqual(
-            surfaceSource.data.services.atmdensity.url,
+            surfaceSource.definition.services.atmdensity.url,
             'https://maps.example.com/map/atmdensity.png'
             + '?def={param(0)}');
 
         // inline bound layer with absolute tile template
         const tms = conversion.style.sources['imagery'];
         assert.strictEqual(tms.type, 'cartolina-tms');
-        assert.strictEqual(tms.data.url,
+        assert.strictEqual(tms.definition.url,
             'https://cdn.example.com/bl/imagery/{lod}-{x}-{y}.jpg');
-        assert.strictEqual(tms.data.id, undefined);
-        assert.strictEqual(tms.data.type, undefined);
+        assert.strictEqual(tms.definition.id, undefined);
+        assert.strictEqual(tms.definition.type, undefined);
 
         // terrain stack and the translated raster layer
         assert.deepStrictEqual(
@@ -279,7 +278,7 @@ describe('mapConfigToStyle', function() {
 
         const conversion = await convert(doc, baseFixtures(doc));
         const surface =
-            conversion.style.sources['terrain-a'].data.surfaces[0];
+            conversion.style.sources['terrain-a'].definition.surfaces[0];
 
         assert.deepStrictEqual(Object.keys(surface).sort(), [
             'credits',
@@ -338,7 +337,7 @@ describe('mapConfigToStyle', function() {
         };
 
         const conversion = await convert(doc, fixtures);
-        const definition = conversion.style.sources.imagery.data;
+        const definition = conversion.style.sources.imagery.definition;
 
         assert.deepStrictEqual(Object.keys(definition).sort(), [
             'isTransparent',
@@ -650,7 +649,7 @@ describe('mapConfigToStyle', function() {
             ['terrain-a', 'terrain-b']);
 
         // both surfaces carry the same shared metadata inline
-        assert.ok(conversion.style.sources['terrain-b'].data);
+        assert.ok(conversion.style.sources['terrain-b'].definition);
         assert.deepStrictEqual(conversion.warnings, []);
     });
 
@@ -975,8 +974,8 @@ describe('mapConfigToStyle stylesheet linking', function() {
 
         const source = conversion.style.sources['beta-source'];
         assert.strictEqual(source.type, 'cartolina-freelayer');
-        assert.strictEqual(source.data.type, 'geodata');
-        assert.strictEqual(source.data.geodata,
+        assert.strictEqual(source.definition.type, 'geodata');
+        assert.strictEqual(source.definition.geodata,
             'https://cdn.example.com/fl/b/geo?viewspec={viewspec}');
     });
 
@@ -1142,11 +1141,11 @@ describe('mapConfigToStyle transformRequest', function() {
             // the emitted style stores logical URLs: the relative
             // dependency resolved against the logical document URL
             assert.strictEqual(
-                conversion.style.sources['imagery'].data.url,
+                conversion.style.sources['imagery'].definition.url,
                 'https://cdn.example.com/bl/imagery/'
                 + '{lod}-{x}-{y}.jpg');
             assert.strictEqual(
-                conversion.style.sources['terrain-a'].data
+                conversion.style.sources['terrain-a'].definition
                     .surfaces[0].navUrl,
                 'https://maps.example.com/map/nav/{lod}-{x}-{y}.nav');
 

@@ -98,7 +98,7 @@ describe('RasterSource', function() {
         assert.deepStrictEqual(source.credits, ['imagery']);
         assert.strictEqual(source.specificity, 18);
         assert.strictEqual(source.isTransparent, true);
-        assert.ok(credits.has('imagery'));
+        assert.strictEqual(credits.size, 0);
 
         for (const key of [
             'numberId', 'type', 'tileSize', 'currentAlpha', 'dataType',

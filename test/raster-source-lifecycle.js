@@ -125,6 +125,13 @@ async function main() {
                 lodRange: [1, 1],
                 tileRange: [[0, 0], [0, 0]],
             };
+            testTerrain.credits = {
+                ...testTerrain.credits,
+                'source-order': {
+                    id: 9002,
+                    notice: 'Terrain declared first',
+                },
+            };
 
             const readyDefinition = {
                 url: 'tiles/{lod}-{x}-{y}.jpg',
@@ -134,6 +141,10 @@ async function main() {
                     'raster-test-credit': {
                         id: 9001,
                         notice: 'Raster test credit',
+                    },
+                    'source-order': {
+                        id: 9002,
+                        notice: 'Raster declared later',
                     },
                 },
                 id: 20,
@@ -192,10 +203,10 @@ async function main() {
                 if (!required.every(url => pending.has(url))) return;
 
                 concurrentDispatch = true;
-                pending.get(urls.terrain)(jsonResponse(testTerrain));
                 pending.get(urls.ready)(jsonResponse(readyDefinition));
                 pending.get(urls.failed)(
                     jsonResponse({ message: 'unavailable' }, 503));
+                pending.get(urls.terrain)(jsonResponse(testTerrain));
                 pending.clear();
                 loadingFirstViewer = false;
             };
@@ -257,6 +268,7 @@ async function main() {
             const inactiveTerrain = structuredClone(testTerrain);
             inactiveTerrain.surfaces[0].id =
                 'raster-test-terrain-inactive';
+            inactiveTerrain.services = { marker: 'completion-first' };
 
             const healthyStyle = {
                 version: 2,
@@ -267,8 +279,7 @@ async function main() {
                     },
                     'terrain-inactive': {
                         type: 'cartolina-surface',
-                        data: inactiveTerrain,
-                        baseUrl: 'https://raster.example/terrain/',
+                        definition: inactiveTerrain,
                     },
                     ready: {
                         type: 'cartolina-tms',
@@ -284,21 +295,15 @@ async function main() {
                     },
                     paired: {
                         type: 'cartolina-tms',
-                        data: pairedDefinition,
-                        baseUrl:
-                            'https://raster.example/paired/source.json',
+                        definition: pairedDefinition,
                     },
                     'mask-only': {
                         type: 'cartolina-tms',
-                        data: maskOnlyDefinition,
-                        baseUrl:
-                            'https://raster.example/mask-only/',
+                        definition: maskOnlyDefinition,
                     },
                     'meta-only': {
                         type: 'cartolina-tms',
-                        data: metaOnlyDefinition,
-                        baseUrl:
-                            'https://raster.example/meta-only/',
+                        definition: metaOnlyDefinition,
                     },
                 },
                 terrain: { sources: ['terrain-active'] },
@@ -351,6 +356,8 @@ async function main() {
                 concurrentDispatch && rasterRequestsOverlap);
             check('raster metadata overlaps terrain metadata',
                 rasterAndTerrainOverlap);
+            check('first declared terrain supplies shared metadata',
+                healthy.legacyMap.services.marker === undefined);
             check('mixed allSettled results allow readiness',
                 healthyLoaded === 1);
             check('trailing slash appends boundlayer.json',
@@ -374,12 +381,15 @@ async function main() {
                 ready.credits[0] === 'raster-test-credit'
                     && healthy.legacyMap.getCreditById(
                         'raster-test-credit') !== undefined);
+            check('later declared source credit wins completion reversal',
+                healthy.legacyMap.getCreditById('source-order').notice
+                    === 'Raster declared later');
             check('paired coverage resolves both URLs',
                 paired.coverage.metaUrl ===
-                    'https://raster.example/paired/'
+                    'http://localhost:8080/demos/map/'
                     + 'coverage/{lod}-{x}-{y}.png'
                     && paired.coverage.maskUrl ===
-                    'https://raster.example/masks/'
+                    'http://localhost:8080/masks/'
                     + '{lod}-{x}-{y}.png');
             check('mask-only coverage is ignored',
                 maskOnly.coverage === undefined);
@@ -458,9 +468,7 @@ async function main() {
                 sources: {
                     terrain: {
                         type: 'cartolina-surface',
-                        data: testTerrain,
-                        baseUrl:
-                            'https://raster.example/bad-terrain/',
+                        definition: testTerrain,
                     },
                     failed: {
                         type: 'cartolina-tms',

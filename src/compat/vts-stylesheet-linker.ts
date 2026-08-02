@@ -17,7 +17,7 @@ export type VtsStylesheetData = {
 /**
  * One resolved VTS stylesheet entering the linker.
  */
-export interface VtsStylesheetInput {
+export type VtsStylesheetInput = {
 
     /** Style source id of the geodata source this stylesheet styles. */
     sourceId: string;
@@ -31,19 +31,19 @@ export interface VtsStylesheetInput {
 }
 
 /** One output rule bound to its geodata source. */
-export interface LinkedLayer {
+export type LinkedLayer = {
     id: string;
     sourceId: string;
     rule: Record<string, unknown>;
 }
 
-export interface LinkerNote {
+export type LinkerNote = {
     code: string;
     path: string;
     message: string;
 }
 
-export interface LinkerWarning {
+export type LinkerWarning = {
     code: string;
     path: string;
     message: string;
@@ -51,7 +51,7 @@ export interface LinkerWarning {
 }
 
 /** The merged symbol spaces plus diagnostics. */
-export interface LinkerResult {
+export type LinkerResult = {
     constants: Record<string, unknown>;
     fonts: Record<string, string>;
     bitmaps: Record<string, unknown>;

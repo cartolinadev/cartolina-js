@@ -113,9 +113,15 @@ MapFreeLayer.prototype.parseJson = function(json) {
 
     this.specificity = Math.pow(2, this.lodRange[1]) + this.lodRange[0];
 
+    // a URL names an external credit document, which is not loaded here
+    if (typeof this.credits === 'string') {
+        this.credits = [];
+    }
+
     // a credit table carries inline definitions to register; a plain
     // list only names credits the map already knows
-    if (typeof this.credits === 'object' && !Array.isArray(this.credits)) {
+    if (typeof this.credits === 'object'
+        && !Array.isArray(this.credits)) {
 
         var credits = this.credits;
         this.credits = [];

@@ -224,16 +224,23 @@ async function main() {
       meshUrl: 'mesh/b-{lod}-{x}-{y}.bin',
     }];
 
-    const baseA = 'http://localhost:8080/test/inline-a/';
-    const baseB = 'http://localhost:8080/test/inline-b/';
+    const styleBase = 'http://localhost:8080/style-context/';
     const inlineStyle = {
       version: 2,
       sources: {
         'inline-a': {
-          type: 'cartolina-surface', data: sourceA, baseUrl: baseA,
+          type: 'cartolina-surface', definition: sourceA,
         },
         'inline-b': {
-          type: 'cartolina-surface', data: sourceB, baseUrl: baseB,
+          type: 'cartolina-surface', definition: sourceB,
+        },
+        'external-credits': {
+          type: 'cartolina-freelayer',
+          definition: {
+            type: 'geodata',
+            geodata: 'geodata/features.json',
+            credits: 'credits/credits.json',
+          },
         },
       },
       terrain: { sources: [] },
@@ -281,14 +288,17 @@ async function main() {
     await MapStyle.loadStyle(inlineOuter, inlineStyle);
 
     const inlineSources = [...inlineOuter.terrainSources.values()];
-    check('inline surface bases resolve independently',
-      inlineSources[0].meshUrl.startsWith(baseA)
-        && inlineSources[1].meshUrl.startsWith(baseB));
-    check('inline SRS and atmosphere use the first source base',
+    check('inline surfaces resolve against the style document',
+      inlineSources[0].meshUrl.startsWith(styleBase)
+        && inlineSources[1].meshUrl.startsWith(styleBase));
+    check('inline SRS and atmosphere use the style document base',
       inlineMap.srses[srsId].geoidGridMap.mapLoaderUrl
-        === baseA + 'grids/test-grid.png'
+        === styleBase + 'grids/test-grid.png'
       && inlineMap.atmosphere.atmDensityTexture.mapLoaderUrl
-        .startsWith(baseA + 'atmosphere/density.png?def='));
+        .startsWith(styleBase + 'atmosphere/density.png?def='));
+    check('string-valued free-layer credits become an empty list',
+      Array.isArray(inlineMap.getFreeLayer('external-credits').credits)
+        && inlineMap.getFreeLayer('external-credits').credits.length === 0);
     check('inline construction preserves style URL context',
       inlineMap.url === styleUrlObject);
     inlineMap.kill();
@@ -298,10 +308,10 @@ async function main() {
     const brokenUrlObject = brokenMap.url;
     const brokenStyle = structuredClone(inlineStyle);
     const brokenSrsId = Object.keys(
-      brokenStyle.sources['inline-a'].data.srses)[0];
-    brokenStyle.sources['inline-a'].data.srses[brokenSrsId].srsDef =
+      brokenStyle.sources['inline-a'].definition.srses)[0];
+    brokenStyle.sources['inline-a'].definition.srses[brokenSrsId].srsDef =
       '+proj=not-a-real-projection';
-    brokenStyle.sources['inline-b'].data.srses[brokenSrsId].srsDef =
+    brokenStyle.sources['inline-b'].definition.srses[brokenSrsId].srsDef =
       '+proj=not-a-real-projection';
 
     let constructionFailed = false;

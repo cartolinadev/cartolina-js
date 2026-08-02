@@ -228,6 +228,17 @@ async function main() {
                 ...document_.surfaces[0], ...surface,
             };
 
+            for (const field of [
+                'metaUrl', 'navUrl', 'meshUrl',
+                'textureUrl', 'normalsUrl',
+            ]) {
+
+                const value = document_.surfaces[0][field];
+                if (value !== undefined)
+                    document_.surfaces[0][field] =
+                        new URL(value, syntheticHost + 'inline/').href;
+            }
+
             return document_;
         };
 
@@ -241,8 +252,7 @@ async function main() {
                     sources: {
                         terrain: {
                             type: 'cartolina-surface',
-                            data: inlineDocument(surface),
-                            baseUrl: syntheticHost + 'inline/',
+                            definition: inlineDocument(surface),
                         },
                     },
                     terrain: { sources: ['terrain'] },
@@ -267,7 +277,7 @@ async function main() {
 
         check('an inline surface document loads', inline.error === '');
 
-        check('the inline source resolves against its own base', (() => {
+        check('the inline source keeps absolute converter URLs', (() => {
 
             if (inline.error !== '') return false;
 

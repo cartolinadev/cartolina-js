@@ -29,6 +29,9 @@ see round 6 below.
 because the URL-or-inline source union puts compatibility construction data
 into the public style specification, contradicting the boundary established
 in review round 1.
+**Updated:** 2026-08-02 — review round 10 author response: source entries now
+contain either `url` or `definition`; source and credit loading follow source
+declaration order.
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -449,8 +452,9 @@ After this RFC:
 8. `Viewer` expands a visibility profile into primitive style mutations.
    Core `Map`, `MapStyle`, traversal, and rendering have no profile type,
    registry, active-profile field, or profile-specific branch.
-9. Source URLs and inline source data have an explicit base URL. Relative
-   resource paths never depend on the page URL after conversion.
+9. A URL source resolves relative resources against its fetched definition;
+   an inline source resolves them against the containing style document.
+   Converted definitions contain absolute resource URLs.
 10. `StyleSpecification` contains no visibility-profile fields.
 11. “Bound layer” does not appear outside the compatibility converter
     and references to code being removed. “Free layer” survives only
@@ -835,35 +839,33 @@ loader must be able to consume the resource definitions already present in
 that document without pretending that each one has an independent endpoint.
 
 Each style source specification therefore accepts exactly one of a URL
-or inline data. The addition is additive to the existing version-2
+or inline definition. The addition is additive to the existing version-2
 specifications; URL-only sources stay valid unchanged:
 
 ```ts
-type SourceLocation<T> =
-    | { url: string; data?: never }
-    | { data: T; baseUrl: string; url?: never };
-
-interface StyleSpecification {
-    sources: {
-        [sourceId: string]: SourceSpecification;
-    };
-}
+type StyleSpecification = {
+    sources: Record<string, SourceSpecification>;
+};
 
 // Sketch of one variant; the other discriminators follow the same
 // pattern with their own definition types.
 type SurfaceSourceSpecification = {
     type: 'cartolina-surface';
-} & SourceLocation<SurfaceSourceDefinition>;
+    url: string;
+} | {
+    type: 'cartolina-surface';
+    definition: SurfaceSourceDefinition;
+};
 ```
 
 The existing source types combine their discriminator with the relevant
 inline definition:
 
-- `cartolina-surface` inline data is one terrain resource definition
+- `cartolina-surface` inline `definition` is one terrain resource definition
   plus the reference-frame, SRS, body, service, and credit metadata
   needed to initialize it;
-- `cartolina-tms` inline data is a tiled raster source definition;
-- `cartolina-freelayer` inline data is a union of the monolithic and
+- `cartolina-tms` inline `definition` is a tiled raster source definition;
+- `cartolina-freelayer` inline `definition` is a union of the monolithic and
   tiled geodata definitions that `MapSurface` already accepts. The
   draw loop already routes monolithic geodata through
   `drawMonoliticGeodata()` and tiled geodata through the tile tree;
@@ -873,13 +875,14 @@ inline definition:
   URL.
 
 Inline source support is part of the style loader, not a mapConfig escape
-hatch. Each source's own object — `MapSurface`, `MapBoundLayer` — receives
-its resolved source data and base URL directly, the same constructor path
-for a URL or an inline source. Shared first-surface metadata follows the same
-rule. `MapSrs` receives the source base for relative geoid-grid resolution,
-and `MapStyle.loadStyle()` resolves the atmosphere service URL from that base
-before constructing `Atmosphere`. `MapBody` and `MapRefFrame` do not resolve
-URLs. Source construction never replaces the style-level `LegacyMap.url`.
+hatch. A URL source resolves relative resources against its fetched source
+document. An inline source resolves them against the containing style
+document retained by `LegacyMap.url`. Shared first-surface metadata follows
+the same rule. `MapSrs` receives the selected document path for relative
+geoid-grid resolution, and `MapStyle.loadStyle()` resolves the atmosphere
+service URL from that path before constructing `Atmosphere`. `MapBody` and
+`MapRefFrame` do not resolve URLs. Source construction never replaces the
+style-level `LegacyMap.url`.
 
 For a legacy mapConfig with several surfaces, the converter emits one
 terrain source per surface. Shared reference metadata is copied into each
@@ -894,12 +897,11 @@ agreement — so every existing URL-only style loads unchanged. A future
 proposal may strengthen URL-source consistency after auditing authored
 styles; conversion work must not introduce that break.
 
-- converter output is fully normalized: every URL embedded in inline
-  data is absolute, so a single `baseUrl` per source is sufficient and
-  no per-field provenance is needed;
+- converter output is fully normalized: every URL embedded in an inline
+  definition is absolute, so no loader provenance is stored in the style;
 - authored styles may use either the URL or the inline form; relative
-  URLs inside inline data resolve against that source's `baseUrl`
-  only;
+  URLs inside an inline definition resolve against the containing style
+  document;
 - the loader requires the reference frame and the shared SRS, body,
   and service definitions to be structurally equal across all inline
   terrain sources in one style; an inconsistency is a load error
@@ -1349,10 +1351,10 @@ Every step is additive; existing authored styles remain valid unchanged.
 1. Add optional `id` to the common layer base. Validation assigns
    deterministic generated ids to anonymous layers in runtime state and
    rejects duplicate explicit ids.
-2. Add URL-or-inline source locations with explicit base URLs to the
-   existing source specifications, including the monolithic-or-tiled
-   union for `cartolina-freelayer`, and the inline terrain metadata
-   consistency rules (section 7.1).
+2. Add explicit URL-or-definition unions to the existing source
+   specifications, including the monolithic-or-tiled union for
+   `cartolina-freelayer`, and the inline metadata consistency rules
+   (section 7.1).
 3. Move `terrain` to the common base shared by every layer type and
    define an empty list as inactive everywhere; validation expands an
    omitted list to every `cartolina-surface` source-dictionary entry
@@ -3571,6 +3573,13 @@ to satisfy a style preference or test shape.
    rule, both URL-resolution bases, and rejection of ambiguous entries. Add
    source-specific cases only where their constructors behave differently.
 
+   *Adopted.* Section 7.1 and the style types now spell the three
+   source-specific URL-or-definition unions directly. Inline definitions use
+   the containing style document as their URL base, while fetched definitions
+   use their own document URL. The converter emits `definition` with absolute
+   embedded URLs and no `baseUrl`. Schema and browser regressions cover the
+   exclusive union and both resolution bases.
+
 2. The `MapFreeLayer` extraction changes string-valued credits into
    per-character credit ids.
 
@@ -3584,6 +3593,11 @@ to satisfy a style preference or test shape.
    Preserve the previous handling by replacing the string with an empty credit
    list. Add one regression covering a monolithic free-layer definition whose
    `credits` value is a string.
+
+   *Adopted.* `MapFreeLayer.parseJson()` now replaces a string-valued credit
+   field with an empty list before draw code can iterate it. The style browser
+   gate constructs an inline monolithic free layer and checks the normalized
+   list.
 
 3. Source construction mutates the global credit registry in
    request-completion order.
@@ -3607,6 +3621,13 @@ to satisfy a style preference or test shape.
    metadata; `MapStyle.initializeMapMetadata()` must say "declared," not
    "to arrive." Add one reversed-completion regression that checks both rules.
 
+   *Adopted.* `MapStyle.loadStyle()` dispatches all terrain and raster
+   definition requests together, awaits their settled results, and consumes
+   them in source dictionary order. Constructors retain credit ids without
+   registering definitions; the loader registers validated definitions while
+   consuming each source. The lifecycle gate reverses request completion and
+   checks both the shared-metadata owner and the later-declared credit value.
+
 4. Inline credit validation covers only the top-level terrain definition.
 
    `checkInlineSurfaceConsistency()` examines the outer `credits` table of an
@@ -3625,6 +3646,12 @@ to satisfy a style preference or test shape.
    surface-entry override case. URL free layers keep their existing
    asynchronous registration and are outside the source-order guarantee.
 
+   *Adopted.* Pre-construction validation now derives the effective credit
+   table of every inline source. A terrain surface entry overrides its outer
+   table. Unit cases cover equal cross-kind definitions, conflicting raster
+   and free-layer definitions, and the terrain-entry override. URL free layers
+   retain their asynchronous behavior.
+
 5. The display-size change left current documentation false.
 
    Commit `ac512132` removes the assignment that overwrote a decoded metanode
@@ -3636,6 +3663,10 @@ to satisfy a style preference or test shape.
    the current decoded-value path and the effect of `applyDisplaySize` as the
    code implements them.
 
+   *Adopted.* [lod-selection.md](lod-selection.md) now states that
+   `parseMetanode()` keeps the decoded uint16 value when `applyDisplaySize` is
+   set and substitutes 256 when it is clear.
+
 6. The RFC 11 compatibility modules use `interface` for fixed object shapes.
 
    `src/compat/mapconfig-to-style.ts` declares four such interfaces and
@@ -3643,3 +3674,6 @@ to satisfy a style preference or test shape.
    declaration merging. Convert those nine declarations to type aliases, as
    required by the repository's TypeScript conventions. This is a mechanical
    correction and requires no runtime change or new test.
+
+   *Adopted.* All nine fixed compatibility shapes are now type aliases. No
+   runtime code changed for this finding.

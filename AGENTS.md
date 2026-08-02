@@ -800,6 +800,17 @@ conditioned independent blocks when the cases are separate. Reach for
 `else if` only when there is a strong reason not to express the control
 flow in one of those clearer forms.
 
+**Handle alternatives symmetrically.** When one block handles several
+alternative values or source types, give every alternative its own explicitly
+conditioned `if` block. Do not implement one alternative as an early exit and
+leave another as implicit fallthrough. Start each alternative block with a
+concise in-block comment stating what that block does.
+
+**Label non-obvious closing braces.** Add a concise trailing `//` comment to
+the closing brace of a long or deeply nested loop, conditional, or other block
+when the opening line is no longer obvious at the closing line. Name the
+condition, iteration, or block being closed.
+
 **In-block comments** use `//` lines, even when they span multiple
 lines. Reserve block comments (`/* ... */`) for module headers,
 JSDoc, and other file- or declaration-level comments outside executable

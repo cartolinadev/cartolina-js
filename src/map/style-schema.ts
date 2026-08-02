@@ -43,13 +43,9 @@ function canonicalJson(value: unknown): string {
 
 
 /*
- * Validates the consistency rules for inline `cartolina-surface`
- * sources: the reference frame and the shared SRS, body, and service
- * definitions must be structurally equal across all inline terrain
- * sources, and two inline definitions of the same credit id must be
- * structurally equal. Throws before any map object is constructed.
- * URL sources are not checked; they keep the historical
- * first-document acceptance behavior.
+ * Validates shared terrain metadata and credit definitions in inline
+ * sources before any map object is constructed. URL sources are not
+ * checked; they keep the historical first-document acceptance behavior.
  */
 export function checkInlineSurfaceConsistency(
     sources: Record<string, MapStyle.SourceSpecification>,
@@ -59,55 +55,93 @@ export function checkInlineSurfaceConsistency(
 
     for (const [id, sourceSpec] of Object.entries(sources))
         if (sourceSpec.type === 'cartolina-surface'
-            && sourceSpec.data !== undefined) {
+            && 'definition' in sourceSpec) {
 
-            inline.push([id, sourceSpec.data]);
+            inline.push([id, sourceSpec.definition]);
         }
 
-    if (inline.length < 2) return;
+    if (inline.length > 1) {
 
-    const [firstId, first] = inline[0];
+        const [firstId, first] = inline[0];
 
-    const sharedKeys =
-        ['referenceFrame', 'srses', 'bodies', 'services'] as const;
+        const sharedKeys =
+            ['referenceFrame', 'srses', 'bodies', 'services'] as const;
 
-    for (let i = 1; i < inline.length; i++) {
+        for (let i = 1; i < inline.length; i++) {
 
-        const [otherId, other] = inline[i];
+            const [otherId, other] = inline[i];
 
-        for (const key of sharedKeys) {
+            for (const key of sharedKeys) {
 
-            if (canonicalJson(first[key]) !== canonicalJson(other[key])) {
+                if (canonicalJson(first[key])
+                    !== canonicalJson(other[key])) {
 
-                throw new Error(`Inline terrain sources "${firstId}" and `
-                    + `"${otherId}" carry different "${key}" definitions; `
-                    + `inline surface metadata must be structurally equal.`);
+                    throw new Error(`Inline terrain sources "${firstId}" and `
+                        + `"${otherId}" carry different "${key}" `
+                        + `definitions; inline surface metadata must be `
+                        + `structurally equal.`);
+                }
             }
         }
     }
 
-    // credits merge by id; same id requires a structurally equal value
+    // same-id inline credits must carry structurally equal definitions
     const creditOwners: Record<string, [string, string]> = {};
 
-    for (const [id, definition] of inline) {
+    for (const [id, sourceSpec] of Object.entries(sources)) {
 
-        if (!definition.credits) continue;
+        if (!('definition' in sourceSpec)) continue;
 
-        for (const [creditId, credit] of Object.entries(definition.credits)) {
+        const credits = effectiveCreditDefinitions(sourceSpec);
+
+        for (const [creditId, credit] of Object.entries(credits)) {
 
             const canonical = canonicalJson(credit);
-            const existing = creditOwners[creditId];
+            const hasExisting = Object.prototype.hasOwnProperty.call(
+                creditOwners, creditId);
+            const existing = hasExisting
+                ? creditOwners[creditId]
+                : undefined;
 
             if (existing && existing[1] !== canonical) {
 
                 throw new Error(`Credit "${creditId}" is defined differently `
-                    + `by inline terrain sources "${existing[0]}" and `
+                    + `by inline sources "${existing[0]}" and `
                     + `"${id}".`);
             }
 
             if (!existing) creditOwners[creditId] = [id, canonical];
         }
     }
+}
+
+
+function effectiveCreditDefinitions(
+    sourceSpec: MapStyle.SourceSpecification & { definition: unknown },
+): Record<string, unknown> {
+
+    const definition = sourceSpec.definition as Record<string, unknown>;
+
+    if (sourceSpec.type !== 'cartolina-surface')
+        return creditTable(definition.credits);
+
+    const outer = creditTable(definition.credits);
+    const surfaces = definition.surfaces as unknown[];
+    const surface = surfaces[0] as Record<string, unknown>;
+
+    return {
+        ...outer,
+        ...creditTable(surface?.credits),
+    };
+}
+
+
+function creditTable(value: unknown): Record<string, unknown> {
+
+    if (value === null || typeof value !== 'object'
+        || Array.isArray(value)) return {};
+
+    return value as Record<string, unknown>;
 }
 
 

@@ -21,14 +21,13 @@ function style(layer, sources = {}) {
             },
             imagery: {
                 type: 'cartolina-tms',
-                data: {
+                definition: {
                     url: 'tiles/{lod}-{x}-{y}.jpg',
                     lodRange: [0, 4],
                     tileRange: [[0, 0], [0, 0]],
                     id: 12,
                     dataType: 'classification',
                 },
-                baseUrl: 'https://maps.example.com/imagery/',
             },
             ...sources,
         },
@@ -50,7 +49,7 @@ describe('style raster source correspondence', function() {
         }));
 
         assert.strictEqual(
-            normalized.sources.imagery.data.dataType,
+            normalized.sources.imagery.definition.dataType,
             'classification');
     });
 
@@ -92,5 +91,103 @@ describe('style raster source correspondence', function() {
                 url: 'https://maps.example.com/freelayer.json',
             },
         })));
+    });
+});
+
+
+describe('inline style sources', function() {
+
+    const credit = (notice) => ({ id: notice, notice });
+    const terrainDefinition = (outerCredits, surfaceCredits) => ({
+        referenceFrame: { id: 'test-frame' },
+        srses: {},
+        surfaces: [{ credits: surfaceCredits }],
+        credits: outerCredits,
+    });
+    const rasterDefinition = (credits) => ({
+        url: 'tiles/{lod}-{x}-{y}.jpg',
+        lodRange: [0, 4],
+        tileRange: [[0, 0], [0, 0]],
+        credits,
+    });
+
+    it('requires exactly one of url and definition', function() {
+
+        const both = style({ type: 'constant', source: [1, 1, 1] }, {
+            broken: {
+                type: 'cartolina-tms',
+                url: 'https://maps.example.com/source.json',
+                definition: rasterDefinition(),
+            },
+        });
+        const neither = style({ type: 'constant', source: [1, 1, 1] }, {
+            broken: { type: 'cartolina-freelayer' },
+        });
+
+        assert.throws(() => validateAndNormalizeStyle(both), /Invalid style/);
+        assert.throws(
+            () => validateAndNormalizeStyle(neither), /Invalid style/);
+    });
+
+    it('accepts equal inline credit definitions across source kinds',
+        function() {
+
+        const shared = credit('shared');
+        const input = style({ type: 'constant', source: [1, 1, 1] }, {
+            surface: {
+                type: 'cartolina-surface',
+                definition: terrainDefinition({ shared }),
+            },
+            raster: {
+                type: 'cartolina-tms',
+                definition: rasterDefinition({ shared }),
+            },
+            free: {
+                type: 'cartolina-freelayer',
+                definition: { type: 'geodata', credits: { shared } },
+            },
+        });
+
+        assert.doesNotThrow(() => validateAndNormalizeStyle(input));
+    });
+
+    it('rejects conflicting inline non-terrain credits', function() {
+
+        const input = style({ type: 'constant', source: [1, 1, 1] }, {
+            raster: {
+                type: 'cartolina-tms',
+                definition: rasterDefinition({
+                    shared: credit('raster'),
+                }),
+            },
+            free: {
+                type: 'cartolina-freelayer',
+                definition: {
+                    type: 'geodata',
+                    credits: { shared: credit('free') },
+                },
+            },
+        });
+
+        assert.throws(() => validateAndNormalizeStyle(input),
+            /"raster" and "free"/);
+    });
+
+    it('uses a terrain entry credit over its outer definition', function() {
+
+        const effective = credit('surface entry');
+        const input = style({ type: 'constant', source: [1, 1, 1] }, {
+            surface: {
+                type: 'cartolina-surface',
+                definition: terrainDefinition(
+                    { shared: credit('outer') }, { shared: effective }),
+            },
+            raster: {
+                type: 'cartolina-tms',
+                definition: rasterDefinition({ shared: effective }),
+            },
+        });
+
+        assert.doesNotThrow(() => validateAndNormalizeStyle(input));
     });
 });

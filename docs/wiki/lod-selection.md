@@ -185,9 +185,9 @@ screenPixelSize =
   / displaySize;
 ```
 
-`displaySize` comes from `metatile.surface.displaySize` in current
-client code. The uint16 `displaySize` value stored in the metanode is
-read, then overwritten by the surface value in `parseMetanode()`.
+`parseMetanode()` reads `displaySize` from the metanode's uint16 field. It
+keeps that decoded value when `applyDisplaySize` is set and substitutes 256
+when the flag is clear.
 
 For metatile version 5 and newer, `generateCullingHelpers()` computes
 `bboxMaxSize` from the physical bbox points when `applyDisplaySize` is

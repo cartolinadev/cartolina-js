@@ -187,7 +187,7 @@ describe('TerrainSource', function() {
             'https://example.com/s/1-0-0.bin');
     });
 
-    it('registers inline credit definitions and passes id lists through',
+    it('retains credit ids without registering definitions',
         function() {
 
         const inline = fakeMap();
@@ -197,7 +197,7 @@ describe('TerrainSource', function() {
             }), 'https://example.com/s/');
 
         assert.deepStrictEqual(withTable.credits, ['usgs']);
-        assert.ok(inline.credits.has('usgs'));
+        assert.strictEqual(inline.credits.size, 0);
 
         const listed = fakeMap();
         const withList = TerrainSource.fromMetadata(

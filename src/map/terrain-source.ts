@@ -3,11 +3,10 @@
  */
 
 import type Map from './map';
-import type LegacyMap from './legacy-map';
 
 import typia from 'typia';
 
-import MapCredit from './credit';
+import type MapCredit from './credit';
 import * as url from '../utils/url';
 
 
@@ -55,8 +54,7 @@ class TerrainSource {
 
         this.credits = Array.isArray(definition.credits)
             ? [...definition.credits]
-            : TerrainSource.addCreditDefinitions(
-                map.legacyMap, definition.credits);
+            : Object.keys(definition.credits ?? {});
 
         Object.freeze(this.lodRange);
         Object.freeze(this.credits);
@@ -172,28 +170,6 @@ class TerrainSource {
                 `Terrain source "${this.id}" has no normal maps.`);
 
         return this.expandUrl(this.normalsUrl, id, subId, skipBaseUrl);
-    }
-
-    private static addCreditDefinitions(
-        map: LegacyMap | null,
-        credits: Record<string, MapCredit.Definition> | undefined,
-    ): string[] {
-
-        if (!credits) return [];
-
-        if (!map)
-            throw new Error(
-                'Cannot add terrain-source credits without a legacy map.');
-
-        const ids: string[] = [];
-
-        for (const [id, definition] of Object.entries(credits)) {
-
-            ids.push(id);
-            map.addCredit(id, new MapCredit(map, definition));
-        }
-
-        return ids;
     }
 
     private expandUrl(

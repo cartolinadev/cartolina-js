@@ -40,8 +40,8 @@ RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
 - RFC 11 [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md) —
-  reopened after post-implementation review found loader provenance in the
-  public style shape and defects in source-order and credit handling
+  author response to post-implementation review removes loader provenance
+  from the public style shape and fixes source-order and credit handling
 - RFC 8 [rfc8-context-loss-recovery.md](rfc8-context-loss-recovery.md) —
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile

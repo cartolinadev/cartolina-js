@@ -54,16 +54,7 @@ export type SourceSpecification =
     | CartolinaFreeLayerSource;
 
 /**
- * Where a source definition comes from: a URL to fetch it from, or
- * the definition inline together with the base URL that resolves any
- * relative URLs inside it.
- */
-export type SourceLocation<T> =
-    | { url: string, data?: never, baseUrl?: never }
-    | { data: T, baseUrl: string, url?: never };
-
-/**
- * Inline data of a `cartolina-surface` source: a single-surface
+ * Inline definition of a `cartolina-surface` source: a single-surface
  * document carrying the surface resource definition plus the
  * reference-frame, SRS, body, service, and credit metadata needed to
  * initialize it. The same shape a surface URL resolves to.
@@ -87,14 +78,14 @@ export type SurfaceSourceDefinition = {
 }
 
 /**
- * Inline data of a `cartolina-tms` source: a tiled raster source
+ * Inline definition of a `cartolina-tms` source: a tiled raster source
  * definition, the same shape a `cartolina-tms` URL resolves to.
  */
 export type TmsSourceDefinition =
     RasterSource.Definition & Record<string, unknown>;
 
 /**
- * Inline data of a `cartolina-freelayer` source: a monolithic
+ * Inline definition of a `cartolina-freelayer` source: a monolithic
  * (`type: 'geodata'`) or tiled (`type: 'geodata-tiles'`) geodata
  * definition, the same shapes a `cartolina-freelayer` URL resolves
  * to.
@@ -103,17 +94,23 @@ export type FreeLayerSourceDefinition =
     | ({ type: 'geodata' } & Record<string, unknown>)
     | ({ type: 'geodata-tiles' } & Record<string, unknown>);
 
-export type CartolinaSurfaceSource = {
-    type: 'cartolina-surface'
-} & SourceLocation<SurfaceSourceDefinition>;
+export type CartolinaSurfaceSource =
+    | { type: 'cartolina-surface', url: string }
+    | {
+        type: 'cartolina-surface',
+        definition: SurfaceSourceDefinition,
+    };
 
-export type CartolinaTmsSource = {
-    type: 'cartolina-tms'
-} & SourceLocation<TmsSourceDefinition>;
+export type CartolinaTmsSource =
+    | { type: 'cartolina-tms', url: string }
+    | { type: 'cartolina-tms', definition: TmsSourceDefinition };
 
-export type CartolinaFreeLayerSource = {
-    type: 'cartolina-freelayer'
-} & SourceLocation<FreeLayerSourceDefinition>;
+export type CartolinaFreeLayerSource =
+    | { type: 'cartolina-freelayer', url: string }
+    | {
+        type: 'cartolina-freelayer',
+        definition: FreeLayerSourceDefinition,
+    };
 
 export type TerrainSpecification = {
 
@@ -547,95 +544,148 @@ export class MapStyle {
         legacyMap.stylesheets = {}
         legacyMap.services = {}
 
-        // request every source before awaiting any, so they load together
-        const terrainIds: string[] = [];
-        const terrainLoads:
-            Promise<[MapStyle.SurfaceSourceDefinition, string]>[] = [];
-
-        const rasterIds: string[] = [];
-        const rasterLoads: Promise<RasterSource>[] = [];
+        // request every terrain and raster definition before awaiting any
+        const sourceLoads: Array<{
+            id: string,
+            spec: MapStyle.CartolinaSurfaceSource
+                | MapStyle.CartolinaTmsSource,
+            load: Promise<[unknown, string]>,
+        }> = [];
 
         for (const [id, sourceSpec] of Object.entries(spec.sources)) {
 
             if (sourceSpec.type === 'cartolina-surface') {
 
-                terrainIds.push(id);
-                terrainLoads.push(MapStyle.resolveSourceDefinition<
-                    MapStyle.SurfaceSourceDefinition>(
-                    map, sourceSpec, 'mapConfig.json', 'MapConfig'));
+                // Start one terrain-definition request.
+                sourceLoads.push({
+                    id,
+                    spec: sourceSpec,
+                    load: MapStyle.resolveSourceDefinition(
+                        map, sourceSpec, 'mapConfig.json', 'MapConfig'),
+                });
             }
 
             if (sourceSpec.type === 'cartolina-tms') {
 
-                rasterIds.push(id);
-                rasterLoads.push(MapStyle.resolveSourceDefinition(
-                    map, sourceSpec, 'boundlayer.json', 'Source')
-                    .then(([definition, path]) => RasterSource.fromMetadata(
-                        map, id, definition, path)));
+                // Start one raster-definition request.
+                sourceLoads.push({
+                    id,
+                    spec: sourceSpec,
+                    load: MapStyle.resolveSourceDefinition(
+                        map, sourceSpec, 'boundlayer.json', 'Source'),
+                });
             }
         }
 
-        const terrainResults = Promise.allSettled(terrainLoads);
-        const rasterResults = Promise.allSettled(rasterLoads);
+        const sourceResults = await Promise.allSettled(
+            sourceLoads.map(({ load }) => load));
 
-        // the terrain sources; the first mapConfig also carries the
-        // reference frame and the rest of the shared map metadata
+        // the first declared terrain source carries the reference frame
+        // and the rest of the shared map metadata
         const terrainSources = new globalThis.Map<string, TerrainSource>();
 
-        (await terrainResults).forEach((result, index) => {
-
-            // a mapConfig that cannot be retrieved leaves the style
-            // unusable, so the first failure ends the load
-            if (result.status === 'rejected') throw result.reason;
-
-            const id = terrainIds[index];
-            const [mc, path] = result.value;
-
-            // every surface shares one frame of reference
-            console.assert(!legacyMap.referenceFrame
-                || mc.referenceFrame.id === legacyMap.referenceFrame.id);
-
-            if (!legacyMap.referenceFrame)
-                MapStyle.initializeMapMetadata(map, spec, mc, path);
-
-            if (mc.surfaces.length != 1)
-                throw Error(`The url for source ${id} does not define `
-                    + `exactly one surface, bailing out.`);
-
-            // credits register before the source, so a surface credit
-            // list can name them
-            for (const key in mc.credits)
-                legacyMap.addCredit(
-                    key, new MapCredit(legacyMap, mc.credits[key]));
-
-            terrainSources.set(id, TerrainSource.fromMetadata(
-                map, id, mc.surfaces[0], path));
-        });
-
-        map.setTerrainSourceEntries(terrainSources);
-
-        // the raster sources; a failed one is recorded rather than
-        // thrown, and blocks the style only once a layer uses it
         const rasterEntries =
             new globalThis.Map<string, Map.RasterSourceEntry>();
+        let mapMetadataInitialized = false;
 
-        (await rasterResults).forEach((result, index) => {
+        for (let index = 0; index < sourceResults.length; index++) {
 
-            const id = rasterIds[index];
+            const result = sourceResults[index];
+            const { id, spec: sourceSpec } = sourceLoads[index];
 
-            if (result.status === 'fulfilled') {
+            if (sourceSpec.type === 'cartolina-surface') {
 
-                rasterEntries.set(
-                    id, { status: 'ready', source: result.value });
-                return;
-            }
+                // Build one required terrain source.
+                if (result.status === 'rejected') {
 
-            const error = result.reason instanceof Error
-                ? result.reason
-                : new Error(String(result.reason));
-            rasterEntries.set(id, { status: 'failed', error });
-        });
+                    // A missing terrain definition makes the style unusable.
+                    throw result.reason;
+                }
 
+                if (result.status === 'fulfilled') {
+
+                    // Validate and register the resolved terrain definition.
+                    const [definition, path] = result.value;
+                    const mc =
+                        definition as MapStyle.SurfaceSourceDefinition;
+
+                    if (mapMetadataInitialized) {
+
+                        // Verify that later terrain uses the shared frame.
+                        console.assert(mc.referenceFrame.id
+                            === legacyMap.referenceFrame!.id);
+                    }
+
+                    if (!mapMetadataInitialized) {
+
+                        // Initialize shared state from the first terrain.
+                        MapStyle.initializeMapMetadata(
+                            map, spec, mc, path);
+                        mapMetadataInitialized = true;
+                    }
+
+                    if (mc.surfaces.length != 1)
+                        throw Error(`The url for source ${id} does not define `
+                            + `exactly one surface, bailing out.`);
+
+                    const surfaceDefinition = mc.surfaces[0];
+                    const source = TerrainSource.fromMetadata(
+                        map, id, surfaceDefinition, path);
+
+                    MapStyle.registerCreditDefinitions(
+                        legacyMap, mc.credits);
+                    MapStyle.registerCreditDefinitions(
+                        legacyMap,
+                        surfaceDefinition.credits as
+                            | Record<string, MapCredit.Definition>
+                            | string[]
+                            | undefined,
+                    );
+                    terrainSources.set(id, source);
+                } // result.status === 'fulfilled'
+            } // sourceSpec.type === 'cartolina-surface'
+
+            if (sourceSpec.type === 'cartolina-tms') {
+
+                // Build one optional raster source or retain its failure.
+                if (result.status === 'rejected') {
+
+                    // Keep the failure until an active layer requests it.
+                    const error = result.reason instanceof Error
+                        ? result.reason
+                        : new Error(String(result.reason));
+                    rasterEntries.set(id, { status: 'failed', error });
+                }
+
+                if (result.status === 'fulfilled') {
+
+                    // Validate and register the resolved raster definition.
+                    const [definition, path] = result.value;
+
+                    try {
+
+                        const source = RasterSource.fromMetadata(
+                            map, id, definition, path);
+                        MapStyle.registerCreditDefinitions(
+                            legacyMap,
+                            (definition as MapStyle.TmsSourceDefinition)
+                                .credits,
+                        );
+                        rasterEntries.set(
+                            id, { status: 'ready', source });
+
+                    } catch (reason) {
+
+                        const error = reason instanceof Error
+                            ? reason
+                            : new Error(String(reason));
+                        rasterEntries.set(id, { status: 'failed', error });
+                    }
+                } // result.status === 'fulfilled'
+            } // sourceSpec.type === 'cartolina-tms'
+        } // iterate sourceResults
+
+        map.setTerrainSourceEntries(terrainSources);
         map.setRasterSourceEntries(rasterEntries);
 
         // the free layers; a URL layer loads asynchronously and its
@@ -644,9 +694,10 @@ export class MapStyle {
 
             if (sourceSpec.type !== 'cartolina-freelayer') continue;
 
-            legacyMap.addFreeLayer(id, sourceSpec.data !== undefined
+            legacyMap.addFreeLayer(id, 'definition' in sourceSpec
                 ? new MapFreeLayer(
-                    legacyMap, sourceSpec.data, sourceSpec.baseUrl)
+                    legacyMap, sourceSpec.definition,
+                    legacyMap.url.baseUrl)
                 : new MapFreeLayer(legacyMap, MapStyle.slapResource(
                     legacyMap.url.processUrl(sourceSpec.url),
                     'freelayer.json')));
@@ -696,8 +747,8 @@ export class MapStyle {
 
     /**
      * Reads the reference frame, SRSes, bodies, services, and atmosphere
-     * that every surface in a style shares, from the first mapConfig to
-     * arrive.
+     * that every surface in a style shares, from the first declared
+     * terrain source.
      *
      * @param map the map being loaded
      * @param spec the style being loaded
@@ -1046,9 +1097,19 @@ export class MapStyle {
         return path;
     }
 
+    private static registerCreditDefinitions(
+        map: LegacyMap,
+        credits: Record<string, MapCredit.Definition> | string[] | undefined,
+    ): void {
+
+        if (!credits || Array.isArray(credits)) return;
+
+        for (const [id, definition] of Object.entries(credits))
+            map.addCredit(id, new MapCredit(map, definition));
+    }
+
     /**
-     * Resolves where a source definition comes from: fetches the URL
-     * form, takes the inline form as already-resolved data.
+     * Resolves a source definition from its URL or inline form.
      *
      * Called before any await in `loadStyle`, so the request starts as
      * the source loop reaches it. Being async also turns a synchronous
@@ -1062,15 +1123,15 @@ export class MapStyle {
      */
     private static async resolveSourceDefinition<T>(
         map: Map,
-        sourceSpec: MapStyle.SourceLocation<T>,
+        sourceSpec: { url: string } | { definition: T },
         resource: string,
         resourceType: utils.RequestResourceType,
     ): Promise<[T, string]> {
 
-        if (sourceSpec.url === undefined)
-            return [sourceSpec.data, sourceSpec.baseUrl];
-
         const legacyMap = map.legacyMap!;
+
+        if ('definition' in sourceSpec)
+            return [sourceSpec.definition, legacyMap.url.baseUrl];
 
         const path = MapStyle.slapResource(
             legacyMap.url.processUrl(sourceSpec.url), resource);

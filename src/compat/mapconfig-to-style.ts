@@ -19,7 +19,7 @@ export type MapConfigInput = string | Record<string, unknown>;
  * A recovered conversion: a deterministic fallback produced a usable
  * result that may differ from the legacy rendering.
  */
-export interface MapConfigConversionWarning {
+export type MapConfigConversionWarning = {
     code: string;
     path: string;
     message: string;
@@ -31,7 +31,7 @@ export interface MapConfigConversionWarning {
  * deterministic symbol rename or a dropped construct the current
  * client already ignores.
  */
-export interface MapConfigConversionNote {
+export type MapConfigConversionNote = {
     code: string;
     path: string;
     message: string;
@@ -41,7 +41,7 @@ export interface MapConfigConversionNote {
  * The conversion result: the style plus the construction values a
  * mapConfig carries beside authored rendering state.
  */
-export interface MapConfigConversion {
+export type MapConfigConversion = {
 
     style: MapStyle.StyleSpecification;
 
@@ -69,7 +69,7 @@ export type MapConfigViewDefinition = {
     options?: Record<string, unknown>;
 };
 
-export interface MapConfigToStyleOptions {
+export type MapConfigToStyleOptions = {
 
     /** Base URL for relative references of an object input. */
     baseUrl?: string;
@@ -946,11 +946,10 @@ class ConversionContext {
 
             this.sources[sourceId] = {
                 type: 'cartolina-surface',
-                data: {
+                definition: {
                     ...structuredClone(shared),
                     surfaces: [surface],
                 },
-                baseUrl: this.requireBase(`surfaces.${legacyId}`),
             };
         }
     }
@@ -1058,8 +1057,7 @@ class ConversionContext {
 
                     this.sources[sourceId] = {
                         type: 'cartolina-tms',
-                        data: rasterDefinition,
-                        baseUrl: definitionContext!.base,
+                        definition: rasterDefinition,
                     };
 
                 } catch (error) {
@@ -1089,8 +1087,7 @@ class ConversionContext {
 
                 this.sources[sourceId] = {
                     type: 'cartolina-tms',
-                    data: rasterDefinition,
-                    baseUrl: this.requireBase(path),
+                    definition: rasterDefinition,
                 };
 
             } else {
@@ -1208,10 +1205,8 @@ class ConversionContext {
 
             this.sources[sourceId] = {
                 type: 'cartolina-freelayer',
-                data: sourceData,
-                baseUrl: definitionContext
-                    ? definitionContext.base
-                    : this.requireBase(path),
+                definition: sourceData as
+                    MapStyle.FreeLayerSourceDefinition,
             };
 
             this.freeLayerDefinitions.set(key, definition);

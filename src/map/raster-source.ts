@@ -3,11 +3,10 @@
  */
 
 import type Map from './map';
-import type LegacyMap from './legacy-map';
 
 import typia from 'typia';
 
-import MapCredit from './credit';
+import type MapCredit from './credit';
 import * as url from '../utils/url';
 
 
@@ -45,8 +44,7 @@ class RasterSource {
             Math.pow(2, this.lodRange[1]) + this.lodRange[0] + 1;
         this.credits = Array.isArray(definition.credits)
             ? [...definition.credits]
-            : RasterSource.addCreditDefinitions(
-                map.legacyMap, definition.credits);
+            : Object.keys(definition.credits ?? {});
 
         if (definition.metaUrl && definition.maskUrl) {
 
@@ -186,37 +184,6 @@ class RasterSource {
             id,
             skipBaseUrl,
         );
-    }
-
-    private static addCreditDefinitions(
-        map: LegacyMap | null,
-        credits: Record<string, MapCredit.Definition> | undefined,
-    ): string[] {
-
-        if (!credits) return [];
-
-        if (!map) {
-            throw new Error(
-                'Cannot add raster-source credits without a legacy map.');
-        }
-
-        const ids: string[] = [];
-        const resolved: Array<[string, MapCredit]> = [];
-
-        for (const [id, definition] of Object.entries(credits)) {
-
-            ids.push(id);
-            resolved.push([
-                id, new MapCredit(map, definition),
-            ]);
-        }
-
-        for (const [id, credit] of resolved) {
-
-            map.addCredit(id, credit);
-        }
-
-        return ids;
     }
 
     private expandUrl(

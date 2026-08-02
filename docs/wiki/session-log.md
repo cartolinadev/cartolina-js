@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-02 — RFC 11 review round 10 author response
+
+Replaced the generic source-location type with source-specific `url` or
+`definition` unions. Inline definitions now resolve relative resources
+against the containing style document; converted definitions contain absolute
+URLs and no loader provenance.
+
+Terrain and raster definitions still load concurrently, but their settled
+results and credit definitions are consumed in source declaration order.
+Source constructors retain credit ids without mutating the map. Inline credit
+validation now covers terrain entry overrides, raster sources, and free-layer
+sources. String-valued free-layer credits normalize to an empty list. The nine
+fixed compatibility shapes now use type aliases, and the LOD notes describe
+the decoded metanode display size.
+
+Validation passed: typecheck, 102 unit tests, the terrain and raster lifecycle
+gates, the style-mutation gate, strict conversion of all four public mapConfig
+cases, and inspected dev/production render pairs for `simple-terrain`,
+`complex-terrain`, and `full-terrain`. RFC 11 remains `In review` pending
+reviewer sign-off.
+
 ## 2026-07-31 — RFC 11 post-implementation review round 10
 
 Reworked the post-implementation review against the active implementation
