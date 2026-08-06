@@ -1,6 +1,6 @@
 # RFC 11: retire legacy mapConfig support from Cartolina proper
 
-**Status:** In review
+**Status:** Implemented
 **Opened:** 2026-07-13
 **Updated:** 2026-07-16 — scope revision: `map()` factory kept, free-layer
 machinery untouched, `Browser` dissolution added, open questions resolved
@@ -32,6 +32,8 @@ in review round 1.
 **Updated:** 2026-08-02 — review round 10 author response: source entries now
 contain either `url` or `definition`; source and credit loading follow source
 declaration order.
+**Updated:** 2026-08-06 — review round 12 sign-off: post-implementation
+findings resolved; implementation closed.
 **Context:** the style contract already drives new terrain rendering, while
 mapConfig loading still creates a second initialization path and a second
 runtime model in `Viewer`, `Map`, and `LegacyMap`.
@@ -3735,3 +3737,27 @@ One documentation finding blocks renewed sign-off:
 
 No implementation or design-body finding remains. The RFC stays `In review`
 until the current backlog entry is corrected.
+
+## Review round 12 — sign-off
+
+The round 11 finding is resolved. The obsolete automation entry is absent
+from [backlog.md](backlog.md). Deleting the complete entry is consistent with
+the approved test policy: its existing-gate claims named removed programs,
+and none of its four proposed additions had a demonstrated current feature or
+coverage gap that justified permanent code or data.
+
+Commit `35ee3fa4` changes documentation only. It adds the author response,
+removes the stale backlog entry, and records the response in the session log;
+the runtime and validation coverage reviewed in round 11 are unchanged. No
+new execution is warranted for this documentation-only correction.
+
+Rounds 10 through 12 confirm the implementation after the terrain- and
+raster-source work: the public style shape contains authored source meaning
+without loader provenance, source and credit processing is deterministic,
+inline credit consistency is checked across source kinds, the free-layer and
+display-size regressions are corrected, and the compatibility declarations
+follow the TypeScript conventions. The later test cleanup removes no runtime
+source and leaves real-map checks for the observable behavior.
+
+No design, implementation, validation, or documentation finding remains. The
+post-implementation review is accepted and RFC 11 is `Implemented`.

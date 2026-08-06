@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-06 — RFC 11 post-implementation review signed off
+
+Round 12 accepts the round 11 response. The obsolete RFC 11 automation entry
+is gone, and no design, implementation, validation, or documentation finding
+remains. The response changed documentation only, so the round 11 runtime and
+real-map evidence remains applicable without another execution.
+
+RFC 11 is `Implemented` and has moved from the active RFC list to
+[rfcs-implemented.md](rfcs-implemented.md).
+
 ## 2026-08-06 — RFC 11 review round 11 author response
 
 Round 11 found the six implementation findings resolved and no remaining

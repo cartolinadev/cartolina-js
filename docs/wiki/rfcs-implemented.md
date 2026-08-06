@@ -2,6 +2,12 @@
 
 Archive of RFCs whose implementation is complete. Newest first.
 
+- RFC 11 [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md) —
+  legacy mapConfig support retired from Cartolina proper: the exported
+  `mapConfigToStyle()` converter produces styles and construction values
+  before initialization, named views become Viewer visibility profiles, and
+  the second runtime map model is deleted; post-implementation review closed
+  2026-08-06
 - RFC 1 [rfc1-config-store.md](rfc1-config-store.md) — single
   `ConfigStore<ViewerConfig>` replacing the three config objects and
   the stringly-typed `setConfigParam` routing; subsystems watch their
