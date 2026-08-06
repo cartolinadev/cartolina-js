@@ -3684,3 +3684,48 @@ The hand-written converter unit suite and live corpus script were removed with
 the repository's ritual unit-test tier. The legacy converter is evaluated
 through real applications when compatibility work changes it; it has no
 permanent converter-specific test harness.
+
+## Review round 11 — post-implementation review
+
+The six round 10 findings are resolved in `a49edabd`:
+
+1. Public source entries now use source-specific `url` or `definition`
+   unions. Inline definitions resolve from the style document, fetched
+   definitions resolve from their own document, and converter output contains
+   absolute embedded URLs without loader provenance.
+2. `MapFreeLayer` replaces a string-valued credit document reference with an
+   empty credit-id list.
+3. Terrain and raster requests start together, but their definitions and
+   credits are consumed in source declaration order. The first declared
+   terrain supplies shared metadata and a later declared source wins a credit
+   overwrite independently of completion order.
+4. Pre-construction credit validation covers every inline source kind and
+   uses a terrain entry's credit definition in preference to the containing
+   terrain document's definition.
+5. [lod-selection.md](lod-selection.md) describes the decoded metanode
+   `displaySize` and the `applyDisplaySize` fallback as implemented.
+6. The nine fixed compatibility shapes named in round 10 are type aliases.
+
+The approved test-policy cleanup in `1b73ec0e` changes no runtime source. The
+remaining browser gates cover the URL bases, string-valued free-layer credits,
+request overlap, declaration-order metadata and credits, and the real
+mapConfig route. A current-tip browser probe also confirmed the exclusive
+URL-or-definition rule, equal cross-kind credits, conflicting non-terrain
+credits, and the terrain-entry override after the permanent unit suite was
+removed. The typecheck, focused `ConfigStore` and `EventBus` checks,
+production build, source lifecycle gates, style-mutation gate, and the three
+canonical render comparisons pass. The render pairs were inspected.
+
+One documentation finding blocks renewed sign-off:
+
+1. [backlog.md](backlog.md), "RFC 11 validation items not yet automated," is
+   no longer factual after the test cleanup. It says the implementation covers
+   the conversion corpus and strict closure gate even though their script was
+   removed, and it still prescribes three unit or Playwright additions without
+   applying the approved test policy. Revise the entry to describe only
+   current evidence and retain a proposed check only when it meets that
+   policy. The project-controlled real-map fixture may remain as a separate
+   forward-looking item.
+
+No implementation or design-body finding remains. The RFC stays `In review`
+until the current backlog entry is corrected.
