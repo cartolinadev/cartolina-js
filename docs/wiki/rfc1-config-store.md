@@ -1441,3 +1441,10 @@ the three regression URLs render correctly; live probes confirmed
 unknown-key, non-public-key, and alias throws, the URL typo
 warning on both ingestion paths, and the autopilot URL-link reads
 (`autoRotate` / `autoPan`) unchanged.
+
+## Addendum — 2026-08-06 — prescribed unit tier removed
+
+The prescribed Mocha suites were removed with the repository's ritual
+unit-test tier. Four focused `ConfigStore` scheduling checks remain in
+`test/config-store.test.js`. Compile-only public API examples now run with
+`npm run typecheck`.

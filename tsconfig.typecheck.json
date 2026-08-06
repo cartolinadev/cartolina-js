@@ -3,5 +3,9 @@
   "compilerOptions": {
     "noEmit": true,
     "plugins": []
-  }
+  },
+  "include": [
+    "src/**/*",
+    "test/types/**/*"
+  ]
 }

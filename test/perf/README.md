@@ -1,8 +1,10 @@
 # VTS Browser JS – Performance/Regression Tests
 
-Collects FPS, LCP, Finish (time to network idle), and Transferred bytes for pages you choose.
+Collects FPS, LCP, Finish (time to network idle), and transferred bytes for
+pages you choose.
 
 ## Install
 ```bash
-npm i -D @playwright/test
+npm install
 npm run perf:install
+```

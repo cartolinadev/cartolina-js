@@ -3677,3 +3677,10 @@ to satisfy a style preference or test shape.
 
    *Adopted.* All nine fixed compatibility shapes are now type aliases. No
    runtime code changed for this finding.
+
+## Addendum — 2026-08-06 — converter test tier removed
+
+The hand-written converter unit suite and live corpus script were removed with
+the repository's ritual unit-test tier. The legacy converter is evaluated
+through real applications when compatibility work changes it; it has no
+permanent converter-specific test harness.

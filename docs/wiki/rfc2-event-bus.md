@@ -769,3 +769,9 @@ temporary `Core.bus` field described in section 6.1 and the
 implementation note no longer exists. `inspector.js` now subscribes
 through the same field on the `Map` instance its `core` reference
 holds.
+
+## Addendum — 2026-08-06 — prescribed unit tier removed
+
+The prescribed Mocha suite was removed with the repository's ritual
+unit-test tier. Three focused dispatch checks remain in
+`test/event-bus.test.js`.

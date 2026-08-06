@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-06 — restore the bias toward useful code
+
+Permanent code must justify its maintenance cost. This cleanup removes test
+infrastructure that had become self-perpetuating work rather than useful
+regression evidence, restoring the project's feature-driven bias without
+prohibiting unit tests.
+
+The 102-assertion Mocha tier and its Mocha and Chai dependencies were removed.
+Seven focused `ConfigStore` and `EventBus` checks remain because they protect
+scheduling and dispatch behaviour that real-map checks do not expose clearly;
+they now use Node's built-in test runner.
+
+Compile-only public API examples now run with the normal typecheck. Legacy
+mapConfig converter tests and their stored inputs were removed instead of
+making compatibility work part of routine library development. Repository
+guidance now treats visual comparison, derived-data consistency, and matched
+performance measurements on real maps as the primary regression evidence,
+with unit tests admitted only for a demonstrated gap.
+
 ## 2026-08-02 — RFC 11 review round 10 author response
 
 Replaced the generic source-location type with source-specific `url` or

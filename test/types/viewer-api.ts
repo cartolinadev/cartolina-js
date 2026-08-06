@@ -1,6 +1,6 @@
 /*
  * viewer-api.ts - compile-time contract of the public Viewer runtime
- * configuration API; compiled by tsconfig.types.json, never executed
+ * configuration API; compiled by the normal typecheck, never executed
  */
 
 import { map } from '../../src/viewer/index';

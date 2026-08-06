@@ -124,7 +124,7 @@ typo fails loudly. `setParam` normalizes the value
 (`normalizeConfigPatch`) and writes the patch to the store;
 `getParam` reads `store.get()`. The contract is pinned by
 compile-time tests in `test/types/viewer-api.ts`, run by
-`npm run test:unit`.
+`npm run typecheck`.
 
 The complete factory input is `Map.Config`. Its nested `options` bag is typed by
 `PublicConstructionConfig`: the public store-backed runtime keys plus

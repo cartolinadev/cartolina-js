@@ -8,14 +8,7 @@
     "noEmit": false
   },
   "include": [
-    "src/map/event-bus.ts",
-    "src/map/raster-source.ts",
-    "src/map/terrain-source.ts",
     "src/config-store.ts",
-    "src/viewer-config.ts",
-    "src/viewer/url-config.ts",
-    "src/compat/mapconfig-to-style.ts",
-    "src/compat/vts-stylesheet-linker.ts",
-    "src/types/**/*"
+    "src/map/event-bus.ts"
   ]
 }

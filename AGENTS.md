@@ -516,6 +516,23 @@ keyboard or mouse interaction) surface as `pageerror` events, not as
 `console` errors. A test that only monitors the `console` channel will
 silently miss these failures.
 
+### Test policy
+
+Permanent tests follow the same rule as production code: each line must
+justify its maintenance cost. The primary regression evidence comes from
+real maps: direct visual comparison, comparative consistency checks over
+derived or diagnostic data, and comparative performance measurements under
+matched conditions. Use the canonical public cases above.
+
+Unit tests are exceptional. Add one only when it protects a named observable
+invariant, a plausible accidental edit can break it, the real-map checks would
+not expose the failure clearly, and the proposed test is shown to detect that
+edit. Do not add tests for counts, validation lines, routine implementation
+details, hypothetical cases without a caller, deliberate design changes, or
+failures already exposed by the real applications. Remove a test when its
+reason for existing disappears. Passing is normal, not news; do not report it.
+Mention a check only when it failed, its coverage changed, or it was skipped.
+
 ### No cargo-cult fixes
 
 Do not make speculative fixes and leave them in the tree. Every change
