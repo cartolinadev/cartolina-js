@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Relief Lab — cartolina</title>
-<script src="../../build/cartolina.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet" />
 <style>
   /* ── tokens ─────────────────────────────────────────────── */
@@ -877,8 +876,12 @@
   <div id="map"></div>
 </div>
 
-<script>
-'use strict';
+<script type="module">
+
+import {
+  map as createMap,
+  runtimeOptionsFromUrl
+} from '../../build/cartolina.esm.js';
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -2244,9 +2247,9 @@ async function main() {
     return;
   }
 
-  const options = cartolina.runtimeOptionsFromUrl({ positionInUrl: true });
+  const options = runtimeOptionsFromUrl({ positionInUrl: true });
 
-  map = cartolina.map({
+  map = createMap({
     container: 'map',
     style,
     position,

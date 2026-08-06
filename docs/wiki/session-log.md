@@ -3,6 +3,62 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-06 — Styles carry a default camera position
+
+`StyleSpecification` gains an optional `position`, a 10-component
+vts-geospatial position array. `Map.loadMapFromStyle` applies it only
+when the caller passed no position, so an explicit `map({ position })`
+still wins. This follows MapLibre, whose root `center`, `zoom`, `bearing`
+and `pitch` are documented as applying "only if the map has not been
+positioned by other means".
+
+Before this, a style-only map constructed without a position started at
+`["obj",0,0,"fix",0,0,0,0,0,0]` — latitude and longitude zero at zero
+view extent — because nothing supplied a default. Verified after the
+change: a style-supplied position is adopted, and an explicit argument
+overrides it.
+
+The reason to add it now is the tileserver introspection page. Once the
+style carries the position and the runtime options, that page needs no
+per-resource generation and can be a static template again.
+
+## 2026-08-06 — Consumers moved to the ES module; compat UMD build deleted
+
+Surveyed which builds each known consumer actually loads. The library ESM
+is what the cartolina.dev site and the tileserver introspection pages
+import; the eight demos in this repository were the only remaining
+consumers of the global build, and `cartolina-compat.js` had none outside
+`demos/map`.
+
+The webpack `compat-global` target is deleted. `src/compat/index` is
+emitted only as `cartolina-compat.esm.js`, and `demos/map` reaches it
+through `await import()` on its `?mapConfig=` route, publishing the
+module as `window.cartolinaCompat` beside the existing `window.v` handle.
+[test/style-mutation.js](../../test/style-mutation.js) asserts the same
+split-load contract against the ESM filename and passes 25/25.
+
+All eight demos are now module scripts importing `cartolina.esm.js`.
+`demos/waypoint/waypoint.js` no longer reads a global: `WaypointMap`
+takes cartolina's `map()` factory as a constructor option, so the page
+owns the choice of build and URL. The deployed copy of `relief-lab` on
+the cartolina.dev site was updated in step.
+
+The library global build still ships. It is no longer used or advertised
+— README.md describes the ES module and records the global build as
+retained for pre-existing deployments — and its withdrawal is a backlog
+entry blocked on those deployments.
+
+The tileserver introspection pages were converted as part of the same
+change, in the `cartolina-tileserver` repository. Both are now static
+templates in the vts-libs submodule, one per manifest kind: a stored
+tileset's page converts `mapConfig.json` through the compatibility
+entry, and a generated surface's page loads `style.json` directly. The
+page mapproxy used to build in C++ is deleted, as is the routing branch
+that shadowed the compiled-in template, and so is the dependency on the
+deployed `support/launch.js` — that script called `cartolina.browser()`
+and `cartolina.utils`, neither of which the RFC 11 entry point
+exports.
+
 ## 2026-08-06 — RFC 11 post-implementation review signed off
 
 Round 12 accepts the round 11 response. The obsolete RFC 11 automation entry

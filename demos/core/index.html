@@ -3,7 +3,6 @@
 <head>
 <title>cartolina-js: non-interactive demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="../../build/cartolina.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet"/>
 <style>
   body { margin: 0; padding: 0; }
@@ -24,7 +23,10 @@
 <body>
 <div id="map"></div>
 <div id="coords">click map for coordinates</div>
-<script>
+<script type="module">
+
+import { map as createMap } from '../../build/cartolina.esm.js';
+
 /* Non-interactive demo: cartolina renders the map; this script wires
  * all camera control and vector overlay by hand.
  *
@@ -32,7 +34,7 @@
  * listeners. Pan, orbit, zoom, hit-testing, and geodata are then the
  * application's responsibility.
  */
-const viewer = cartolina.map({
+const viewer = createMap({
     container: 'map',
     style: './style.json',
     position: [

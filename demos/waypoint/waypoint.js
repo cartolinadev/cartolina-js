@@ -1,14 +1,18 @@
 /**
  * WaypointMap — geographic story / presentation module.
  *
- * A self-contained ES module that wraps cartolina.js and provides
+ * An ES module that wraps a cartolina viewer and provides
  * keyboard-navigable flythrough between a JSON-configured list of map
  * positions, with image markers anchored to geographic coordinates.
+ * The caller supplies cartolina's `map()` factory, so this module
+ * imports nothing from cartolina itself.
  *
  * USAGE — standalone:
  *
+ *   import { map as createMap } from '<cartolina esm build>';
  *   import { WaypointMap } from './waypoint.js';
  *   const map = new WaypointMap('container-id', {
+ *     map:    createMap,
  *     style:  './style.json',
  *     config: './journey.json',
  *     keys:   true           // default
@@ -17,6 +21,7 @@
  * USAGE — reveal.js (one slide per waypoint):
  *
  *   const map = new WaypointMap('map', {
+ *     map: createMap,
  *     style: './style.json', config: './journey.json', keys: false
  *   });
  *   Reveal.on('slidechanged', (e) => {
@@ -107,6 +112,9 @@ export class WaypointMap {
      * @param {string|HTMLElement} container
      *   CSS selector, element id, or DOM element for the map container.
      * @param {object} options
+     * @param {Function}      options.map     cartolina's `map()` factory.
+     *   Passed in rather than imported so the page decides which build
+     *   of cartolina to load and from where.
      * @param {string|object} options.style   Style URL or object.
      * @param {string|object} options.config  Config URL or object.
      * @param {boolean}       [options.keys=true]
@@ -235,7 +243,7 @@ export class WaypointMap {
         const firstPos =
             (config.positions ?? [])[0]?.position ?? null;
 
-        this._viewer = cartolina.map({
+        this._viewer = opts.map({
             container: this._container,
             style:     style,
             position:  firstPos,

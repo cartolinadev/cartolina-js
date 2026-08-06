@@ -6,6 +6,30 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## TOOLING: withdraw the global/UMD library build
+
+**Opened:** 2026-08-06
+**Blocked on:** deployment of the ESM-converted consumers
+**Related:** [architecture.md](architecture.md), README.md
+
+`cartolina.js` / `cartolina.min.js` is a second full compilation of
+`src/viewer/index.ts` that exists only to define `window.cartolina`. No
+consumer in this repository loads it any more: every demo imports the ES
+module, as do the cartolina.dev site and the tileserver introspection
+pages.
+
+It cannot be deleted yet because the published artifact is what already
+deployed pages fetch — the tileserver introspection templates in
+particular are compiled into mapproxy and vtsd binaries, so a deployment
+has to reach every running server before the URL can stop resolving.
+
+When those are deployed: delete `globalConfig` from
+[webpack.config.js](../../webpack.config.js) and its entry in the
+exported array, and drop the paragraph in README.md that describes the
+global build as still published. The dev build then compiles the library
+ESM, two workers and the compatibility entry — four outputs, plus the
+dev-only sandbox.
+
 ## Switch class modules from default to named exports
 
 **Opened:** 2026-07-24

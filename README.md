@@ -59,7 +59,7 @@ and I have no desire to maintain backward compatibility in any future release.
 
 ## Usage
 
-There is both a global/UMD and an ESM build hosted at 
+The library is an ES module, hosted at 
 
 ```
 https://cdn.tspl.re/libs/cartolina/dist/current/
@@ -77,7 +77,7 @@ Place the following in the head section of your page
 <link rel="stylesheet" type="text/css" href="https://cdn.tspl.re/libs/cartolina/dist/current/cartolina.min.css" />
 ```
 
-To use the ESM build (preferred), do:
+Then, in the body:
 
 ```html
 <div id="map"></div>
@@ -93,20 +93,10 @@ let map = createMap({
 </script>
 ```
 
-To use the UMD build
-
-```html
-<div id="map"></div>
-<script src="../../build/cartolina.js">
-
-let map = cartolina.map({
-    container: 'map',
-    style: './style.json',
-    position: ['obj', 15, 50, 'fix', 3313, -133, -25, 0.00, 33347, 45]
-  });
-
-</script>
-```
+A global/UMD build (`cartolina.min.js`, exposing `window.cartolina`)
+is still published next to the ES module. It exists for deployments
+that predate the ES module and is not the way to start a new
+application; it will be withdrawn once those have migrated.
 
 ### Minimal map style
 
@@ -176,7 +166,7 @@ Once you're happy with your changes (if any), you can do
 npm run dist
 ```
 
-to obtain both the UMD and ESM production builds of `cartolina-js`. Find them in 
+to obtain the production builds of `cartolina-js`. Find them in 
 the `./dist/<version>-branch.<short-hash>` directory.
 
 

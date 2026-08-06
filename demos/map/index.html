@@ -3,7 +3,6 @@
 <head>
 <title>Cartolina JS: A trivial map application (supports styles with placeholders)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="../../build/cartolina.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet"/>
 <style>
   body { margin: 0; padding: 0; }
@@ -12,7 +11,12 @@
 </head>
 <body>
 <div id="map"></div>
-<script>
+<script type="module">
+
+import {
+  map as createMap,
+  runtimeOptionsFromUrl
+} from '../../build/cartolina.esm.js';
 
 const translationDict = {
   backend: {
@@ -72,17 +76,15 @@ function expandStyleTemplate(styleText, params) {
   });
 }
 
-function loadCompatibilityEntry() {
-  if (window.cartolinaCompat) return Promise.resolve();
+async function loadCompatibilityEntry() {
+  if (window.cartolinaCompat) return window.cartolinaCompat;
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = '../../build/cartolina-compat.js';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(
-      `Failed to load compatibility entry "${script.src}".`));
-    document.head.appendChild(script);
-  });
+  // exposed like the viewer handle below, so console experiments and
+  // test/style-mutation.js reach the very module this page loaded
+  window.cartolinaCompat =
+    await import('../../build/cartolina-compat.esm.js');
+
+  return window.cartolinaCompat;
 }
 
 /**
@@ -141,7 +143,7 @@ async function main() {
     );
   }
 
-  const options = cartolina.runtimeOptionsFromUrl({
+  const options = runtimeOptionsFromUrl({
     positionInUrl: true,
     mapExposeFpsToWindow: true
   });
@@ -150,8 +152,8 @@ async function main() {
     // legacy mapConfigs load through the compatibility converter,
     // loaded on demand from its own entry point; every legacy dev URL
     // is thereby a living converter regression
-    await loadCompatibilityEntry();
-    const conversion = await cartolinaCompat.mapConfigToStyle(mapConfigUrl);
+    const compat = await loadCompatibilityEntry();
+    const conversion = await compat.mapConfigToStyle(mapConfigUrl);
 
     for (const note of conversion.notes) {
       console.log(`mapConfigToStyle note [${note.code}] ${note.path}: ${note.message}`);
@@ -162,7 +164,7 @@ async function main() {
 
     const urlPos = posFromURL();
 
-    window.v = cartolina.map({
+    window.v = createMap({
       container: 'map',
       style: conversion.style,
       position: urlPos ?? conversion.position ?? undefined,
@@ -180,7 +182,7 @@ async function main() {
   const style = await loadStyle(params);
 
   // the viewer handle, exposed for console experiments
-  window.v = cartolina.map({
+  window.v = createMap({
     container: 'map',
     style: style,
     position: position,

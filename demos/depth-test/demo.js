@@ -24,9 +24,11 @@
  * so the camera is closer to them. With VE off the two values are
  * identical. Use the VE button to observe the effect.
  */
+import { map as createMap } from '../../build/cartolina.esm.js';
+
 (function () {
 
-    var viewer = cartolina.map({
+    var viewer = createMap({
         container: 'map',
         style: './style.json',
         position: [

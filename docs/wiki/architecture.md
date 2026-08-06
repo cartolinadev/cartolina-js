@@ -101,15 +101,23 @@ compatibility rules.
 
 ## Build And Entry Point
 
-The webpack build has one application entry point:
+The webpack build has two application entry points:
 
 | Entry point | Output | Purpose |
 |---|---|---|
-| `src/viewer/index.ts` | `cartolina.js` / `.esm.js` | Browser library |
+| `src/viewer/index.ts` | `cartolina.esm.js`, `cartolina.js` | Browser library |
+| `src/compat/index.ts` | `cartolina-compat.esm.js` | mapConfig converter |
 
 The public factory is `map()`. It returns a `Viewer` instance, exported
 as the public `Map` type alias. Legacy mapConfig documents load through
-the exported `mapConfigToStyle()` converter followed by `map()`.
+the `mapConfigToStyle()` converter, exported from the separate
+compatibility entry, followed by `map()`.
+
+The library is an ES module. `cartolina.js` is a global/UMD build of the
+same entry, kept for deployments made before the ES module existed; no
+application in this repository loads it. The compatibility entry is
+emitted only as an ES module, because it postdates that transition and
+has no global-build consumers to carry.
 
 Worker bundles such as `map-loader-worker.js` and
 `geodata-processor-worker.js` are produced separately. They are loaded by

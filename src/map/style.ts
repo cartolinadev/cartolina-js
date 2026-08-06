@@ -29,6 +29,9 @@ export interface StyleSpecification  {
     version: 2;
     'reference-frame'?: string;
 
+    /** Default camera position; a `map()` `position` overrides it. */
+    position?: (number | string)[];
+
     sources: Record<string, SourceSpecification>;
 
     terrain: TerrainSpecification;

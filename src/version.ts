@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.49.613-feature_rfc11_mapconfig_to_style.a1e2ab00';
+    return '2.49.614-feature_rfc11_mapconfig_to_style.d059b7be';
 }

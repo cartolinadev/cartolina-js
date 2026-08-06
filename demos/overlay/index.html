@@ -3,7 +3,6 @@
 <head>
 <title>cartolina-js: custom overlay demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="../../build/cartolina.js"></script>
 <link href="../../build/cartolina.css" rel="stylesheet"/>
 <style>
   body { margin: 0; padding: 0; font: 13px/1.4 system-ui, sans-serif; }
@@ -40,7 +39,10 @@
     </div>
     <div id="status">waiting for map…</div>
 </div>
-<script>
+<script type="module">
+
+import { map as createMap } from '../../build/cartolina.esm.js';
+
 /* Custom overlay demo: registers an overlay through
  * viewer.addOverlay(name, spec). The overlay draws a billboard icon
  * at a fixed geographic position on every canvas-target frame.
@@ -56,7 +58,7 @@
 const MARKER_NAME = 'demo-marker';
 const MARKER_POS = [14.42, 50.09, 0];  // Prague
 
-const viewer = cartolina.map({
+const viewer = createMap({
     container: 'map',
     style: './style.json',
     position: [

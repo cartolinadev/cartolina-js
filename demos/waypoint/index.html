@@ -29,6 +29,7 @@
 <div id="hud">1 / 1</div>
 <script type="module">
 
+import { map as createMap } from '../../build/cartolina.esm.js';
 import { WaypointMap } from './waypoint.js';
 
 const BACKEND = {
@@ -72,6 +73,7 @@ const hud       = document.getElementById('hud');
 const style = await loadStyle(styleUrl);
 
 const map = new WaypointMap('map', {
+    map:    createMap,
     style:  style,
     config: configUrl,
     keys:   true

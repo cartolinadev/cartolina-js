@@ -206,17 +206,8 @@ const workerGeodata = makeWorker(
 
 // 4) Compat build: the legacy mapConfig-to-style converter
 // (cartolina/compat), a separate entry so applications that only
-// construct maps from styles do not pay for it in cartolina.js
-var compatGlobalConfig = Object.assign({}, baseConfig);
-compatGlobalConfig.name = 'compat-global';
-compatGlobalConfig.entry = {
-  'cartolina-compat': __dirname + '/src/compat/index'
-};
-compatGlobalConfig.output = Object.assign({}, baseConfig.output, {
-  library: 'cartolinaCompat'
-});
-delete compatGlobalConfig.devServer;      // independent of the dev server
-
+// construct maps from styles do not pay for it in cartolina.js.
+// ESM only: every consumer reaches it through a dynamic import.
 var compatEsmConfig = Object.assign({}, baseConfig);
 compatEsmConfig.name = 'compat-esm';
 compatEsmConfig.entry = {
@@ -270,6 +261,6 @@ var sandboxConfig = {
 
 module.exports = [
   globalConfig, esmConfig, workerMapLoader, workerGeodata,
-  compatGlobalConfig, compatEsmConfig,
+  compatEsmConfig,
 ];
 if (!isProd) module.exports.push(sandboxConfig);

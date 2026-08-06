@@ -384,7 +384,13 @@ class Map {
 
         await this.createMapFromStyle(styleSpec, path);
 
-        if (position) this.map!.setPosition(position);
+        // the style's position applies when the caller passed none
+        const stylePosition =
+            (styleSpec as MapStyle.StyleSpecification).position;
+
+        const initialPosition = position ?? stylePosition;
+
+        if (initialPosition) this.map!.setPosition(initialPosition);
 
         // initialize ubos
         this.renderer.createBuffers();

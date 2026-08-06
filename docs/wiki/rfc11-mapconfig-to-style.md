@@ -3761,3 +3761,39 @@ source and leaves real-map checks for the observable behavior.
 
 No design, implementation, validation, or documentation finding remains. The
 post-implementation review is accepted and RFC 11 is `Implemented`.
+
+## Addendum — 2026-08-06 — the compatibility entry is an ES module
+
+The compatibility entry is loaded by dynamic `import()` of
+`cartolina-compat.esm.js`. The global build described earlier in this
+document (`cartolina-compat.js` with the `cartolinaCompat` webpack
+library name, injected as a classic script) no longer exists: the webpack
+`compat-global` target is deleted, and `src/compat/index` is emitted only
+as an ES module.
+
+Nothing about the split-load contract changes. `demos/map` still loads the
+converter only on its `?mapConfig=` route, and
+[test/style-mutation.js](../../test/style-mutation.js) still asserts both
+halves — the style route requests no compatibility bundle, the mapConfig
+route requests one — now against the ESM filename.
+
+The demo assigns the imported module to `window.cartolinaCompat`, beside
+the `window.v` viewer handle it already publishes. That handle is a demo
+page convenience for console experiments and for the runtime test; it is
+not a library export. Keeping the test on the demo's own module instance
+is deliberate: a test that imported the bundle itself would still pass if
+the demo's load path broke.
+
+The tileserver introspection page is a second consumer of the converter.
+The tileserver repository carries two static templates in its vts-libs
+submodule, and each server serves the one that matches what it
+publishes. A stored tileset publishes only a mapConfig, so that template
+imports the compatibility entry and converts `./mapConfig.json`; it
+replaces the removed `cartolina.browser()` call the page previously
+reached through a deployed `launch.js`. A generated surface publishes a
+style, so that template loads `./style.json` and never fetches the
+compatibility entry at all.
+
+The converter returns the initial position beside the style, so the
+converting template passes it to `map()` explicitly. The style template
+does not: a style carries its own default position.

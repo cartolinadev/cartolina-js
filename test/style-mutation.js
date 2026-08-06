@@ -328,7 +328,7 @@ async function main() {
   }, TERRAIN);
 
   const compatRequest = url =>
-    new URL(url).pathname.endsWith('/build/cartolina-compat.js');
+    new URL(url).pathname.endsWith('/build/cartolina-compat.esm.js');
 
   results.push([
     'style route does not request compatibility bundle',
