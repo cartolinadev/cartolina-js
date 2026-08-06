@@ -31,31 +31,6 @@ module's `export default Foo` becomes `export { Foo }`, each importer's
 its example change to match. Do it as one deliberate commit, not by
 making any single module a lone exception.
 
-## RFC 11 validation items not yet automated
-
-**Opened:** 2026-07-19
-**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md)
-(sections 13.1 and 13.2, implementation addendum)
-
-The RFC 11 implementation covers the conversion corpus, the strict
-closure gate, and the core runtime-mutation contract. Four validation
-items from the RFC's test lists remain unautomated:
-
-- linker unit tests for layer-id collisions combined with `inherit`
-  and `visibility-switch` references (the rewrite code exists; no
-  corpus input exercises it);
-- the two-lettering-rule multi-terrain test: rules over one geodata
-  source with different terrain lists, compiled in and out across a
-  direct terrain switch in both directions;
-- validation of a style containing an anonymous layer beside an
-  explicit id equal to the would-be generated id;
-- a project-controlled public mapConfig fixture whose converted
-  render exercises terrain and visibility-profile switches across
-  raster-derived and geodata-derived layers (section 13.3).
-
-The first three are unit or Playwright tests; the last needs a small
-public fixture dataset.
-
 ## BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10

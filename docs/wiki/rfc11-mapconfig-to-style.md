@@ -3727,5 +3727,11 @@ One documentation finding blocks renewed sign-off:
    policy. The project-controlled real-map fixture may remain as a separate
    forward-looking item.
 
+   *Adopted.* The backlog entry was deleted. Its existing-gate claims referred
+   to removed programs, the three proposed automatic tests had no demonstrated
+   gap under the current test policy, and the proposed public fixture had no
+   active feature need to justify its maintenance cost. The signed-off
+   validation lists remain as historical design text.
+
 No implementation or design-body finding remains. The RFC stays `In review`
 until the current backlog entry is corrected.

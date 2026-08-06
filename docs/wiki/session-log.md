@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-06 — RFC 11 review round 11 author response
+
+Round 11 found the six implementation findings resolved and no remaining
+source or design issue. The obsolete RFC 11 automation backlog entry was
+deleted: it referred to removed gates, its proposed automatic tests had no
+demonstrated gap under the current policy, and its proposed public fixture had
+no active feature need. RFC 11 remains `In review` pending reviewer sign-off.
+
 ## 2026-08-06 — restore the bias toward useful code
 
 Permanent code must justify its maintenance cost. This cleanup removes test
