@@ -291,9 +291,7 @@ class RasterSource {
                 [tileRange[0][0], tileRange[0][1]],
                 [tileRange[1][0], tileRange[1][1]],
             ],
-            credits: typeof metadata.credits === 'string'
-                ? undefined
-                : metadata.credits,
+            credits: metadata.credits,
             metaUrl,
             maskUrl,
             isTransparent: metadata.isTransparent,

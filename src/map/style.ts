@@ -155,8 +155,13 @@ export class MapStyle {
 
                         // verify that later terrain uses the same reference 
                         // frame as the first
-                        console.assert(definition.referenceFrame.id
-                            === legacyMap.referenceFrame!.id);
+                        const frameId = definition.referenceFrame.id;
+
+                        if (frameId !== legacyMap.referenceFrame!.id)
+                            utils.warnOnce(`Terrain source "${id}" declares `
+                                + `reference frame "${frameId}"; the map uses `
+                                + `"${legacyMap.referenceFrame!.id}" from the `
+                                + `first terrain source.`);
                     }
 
                     // a terrain source must define exactly one surface.
@@ -437,7 +442,8 @@ export class MapStyle {
         const map = this.map;
         const spec = this.spec_;
 
-        // Resolve the active terrain stack before compiling lettering.
+        // Every active terrain source must resolve before lettering is
+        // compiled; resolveTerrainSource throws when one does not.
         spec.terrain.sources.forEach((sourceId: string) =>
             map.outerMap.resolveTerrainSource(sourceId));
 
@@ -483,7 +489,6 @@ export class MapStyle {
             const freeLayer = map.getFreeLayer(id);
             if (!freeLayer) continue;
 
-            freeLayer.options = {};
             map.freeLayerSequence.push(freeLayer);
             freeLayer.setStyle(stylesheet);
         }

@@ -3,6 +3,57 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-07 — Pre-merge review of the RFC 11 branch
+
+A full review of `feature/rfc11-mapconfig-to-style` before merging it to
+`main`. The branch is 63 commits: the mapConfig runtime deleted, terrain and
+raster sources typed and map-owned, `src/core` and `src/browser` dissolved
+into `src/map`, `src/viewer`, `src/renderer`, and `src/inspector`, and the
+converter moved to its own ES-module entry.
+
+Nothing in the review changed behavior. The `legacy-benatky` capture is
+byte-identical before and after the changes below, which is how the
+credit-strip difference against that entry's production URL was shown to be
+pre-existing: the production side is an older `vts-geospatial` deployment,
+not the current library.
+
+Two review findings were withdrawn after checking them properly. The first
+claimed that dropping the string-valued `credits` form from
+`RasterSource.Definition` was a compatibility regression, on the grounds
+that `MapBoundLayer` had handled it and `MapFreeLayer` still does. The
+deletion is recorded as deliberate in the RFC 11 addendum of 2026-07-30,
+which lists the legacy raster fields removed rather than translated; the
+leftover `typeof metadata.credits === 'string'` ternary is residue of that
+deletion, not evidence of intent, and is now gone. The second claimed the
+unexported `StyleSpecification` forces consumers to declare their own
+types. It does not: a consumer that loads the library from a URL declares
+the whole surface regardless, including the types that are exported,
+because there is no package to import from. The general lesson is recorded
+in the review method below.
+
+Code cleanups, none observable: the dead `ConversionContext.requireBase`;
+the free-layer `options = {}` write in `refreshFreeLayerSequence`, whose
+only reader was `surface.options.fastParse` in `drawMonoliticGeodata` and
+which no longer had any way of being set; and a stylesheet dedup key built
+with `\\u0000`, which in a template literal is a literal backslash rather
+than the intended separator — it is now `JSON.stringify([key, url])`, which
+needs no escape at all. A reference-frame mismatch between terrain sources
+raised a message-free `console.assert`; it now names both frames through
+`utils.warnOnce` and still accepts the first definition, which is the
+documented rule for URL sources.
+
+`style-schema.ts` declared eleven `interface`s against the project's
+`type`-over-`interface` rule. `StyleSpecification` is the type the style
+validator is generated from, so leaving it open to declaration merging was
+the one that mattered. `ExpressionArray` became a plain recursive alias.
+
+**Review method.** Three of the original findings used "differs from `main`"
+as the standard for a regression. That is the wrong standard. This project
+removes functionality on purpose, and the RFC addenda say which removals
+were deliberate and on what evidence. Two of the three findings dissolved
+once those addenda were read. Check what the design record already decided
+before writing a compatibility finding, not after.
+
 ## 2026-08-07 — Surface source definitions are validated before use
 
 An external review of `ad42e9a5` raised four findings. Three changed code.

@@ -7,7 +7,7 @@ import type RasterSource from './raster-source';
 import type Atmosphere from './atmosphere';
 
 
-export interface StyleSpecification  {
+export type StyleSpecification = {
 
     version: 2;
     'reference-frame'?: string;
@@ -32,7 +32,7 @@ export interface StyleSpecification  {
     shadows?: Record<string, never>;
 
     config?: Record<string, unknown>;
-}
+};
 
 export type SourceSpecification =
     | CartolinaSurfaceSource
@@ -126,7 +126,8 @@ export type TileLayer = TileTextureLayer | TileConstantLayer;
 
 export type LetteringLayer = LabelsLayer | LinesLayer
 
-export type TileTextureLayer = DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
+export type TileTextureLayer =
+    DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
 
 export type TileConstantLayer = DiffuseConstantLayer;
 
@@ -267,11 +268,11 @@ export type LetteringLayerProperties = {
 type ExpressionScalar = string | number | boolean | null;
 type Stops = Array<[number, Expression]>;
 
-interface IfExpression {
+type IfExpression = {
     if: [Expression, Expression, Expression];
-}
+};
 
-interface BinaryMathExpression {
+type BinaryMathExpression = {
     add?: [Expression, Expression];
     sub?: [Expression, Expression];
     mul?: [Expression, Expression];
@@ -281,9 +282,9 @@ interface BinaryMathExpression {
     tofixed?: [Expression, Expression];
     atan2?: [Expression, Expression];
     random?: [Expression, Expression];
-}
+};
 
-interface UnaryMathExpression {
+type UnaryMathExpression = {
     sgn?: Expression;
     sin?: Expression;
     cos?: Expression;
@@ -299,9 +300,9 @@ interface UnaryMathExpression {
     ceil?: Expression;
     deg2rad?: Expression;
     rad2deg?: Expression;
-}
+};
 
-interface UnaryStringExpression {
+type UnaryStringExpression = {
     strlen?: Expression;
     trim?: Expression;
     str2num?: Expression;
@@ -311,29 +312,29 @@ interface UnaryStringExpression {
     'has-fonts'?: Expression;
     'has-latin'?: Expression;
     'is-cjk'?: Expression;
-}
+};
 
-interface BinaryStringExpression {
+type BinaryStringExpression = {
     find?: [Expression, Expression];
-}
+};
 
-interface TernaryStringExpression {
+type TernaryStringExpression = {
     replace?: [Expression, Expression, Expression];
-}
+};
 
-interface StringSliceExpression {
+type StringSliceExpression = {
     substr?: [Expression, Expression]
         | [Expression, Expression, Expression];
-}
+};
 
-interface ExtremumExpression {
+type ExtremumExpression = {
     min?: Expression[];
     max?: Expression[];
-}
+};
 
-interface ClampExpression {
+type ClampExpression = {
     clamp: [Expression, Expression, Expression];
-}
+};
 
 type LogScaleExpression =
     | { logScale: [Expression, Expression]
@@ -368,7 +369,7 @@ type ExpressionObject =
     | MapExpression
     | LinearExpression;
 
-interface ExpressionArray extends Array<Expression> {}
+type ExpressionArray = Expression[];
 
 export type Expression = ExpressionScalar | ExpressionArray | ExpressionObject;
 

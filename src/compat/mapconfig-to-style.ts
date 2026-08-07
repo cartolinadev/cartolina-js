@@ -1626,7 +1626,8 @@ class ConversionContext {
 
                 if (data === null) continue;
 
-                const stylesheetKey = `${key}\\u0000${data.url}`;
+                const stylesheetKey =
+                    JSON.stringify([key, data.url]);
                 let stylesheet = stylesheets.get(stylesheetKey);
 
                 if (!stylesheet) {
@@ -2013,21 +2014,5 @@ class ConversionContext {
         }
 
         return viewerOptions;
-    }
-
-    // -----------------------------------------------------------------
-    // Misc
-    // -----------------------------------------------------------------
-
-    private requireBase(path: string): string {
-
-        if (this.documentContext === null) {
-
-            throw new Error(`mapConfigToStyle: inline data at ${path} `
-                + `needs a base URL; pass options.baseUrl for object `
-                + `input.`);
-        }
-
-        return this.documentContext.base;
     }
 }
