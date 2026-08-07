@@ -21,11 +21,11 @@ What the library does today:
 - `GpuDevice` listens for `webglcontextlost`, calls `preventDefault()`
   (which tells the browser the page intends to handle restoration),
   sets `core.contextLost`, and fires the public `gpu-context-lost`
-  event ([device.ts](../../src/core/renderer/gpu/device.ts)).
-- `Core.onUpdate` stops scheduling animation frames while
-  `core.contextLost` is set ([core.js](../../src/core/core.js)), and
+  event ([device.ts](../../src/renderer/gpu/device.ts)).
+- `Map.onUpdate_` stops scheduling animation frames while
+  `core.contextLost` is set ([map.ts](../../src/map/map.ts)), and
   `MapLoader.update` stops issuing downloads
-  ([loader.js](../../src/core/map/loader/loader.js)). The freeze is
+  ([loader.js](../../src/map/loader/loader.js)). The freeze is
   clean.
 - On `webglcontextrestored`, `contextRestored()` fires the public
   `gpu-context-restored` event and does nothing else. No GL object is
@@ -53,11 +53,11 @@ bookkeeping.
 
 **Tile resources already rebuild themselves.** Every tile-shaped GPU
 resource is registered in `Map.gpuCache` with a destructor: subtexture
-GPU textures ([subtexture.js](../../src/core/map/subtexture.js)),
-mesh GPU submeshes ([mesh.js](../../src/core/map/mesh.js)), geodata
-views ([geodata-view.js](../../src/core/map/geodata-view.js)), and
+GPU textures ([subtexture.js](../../src/map/subtexture.js)),
+mesh GPU submeshes ([mesh.js](../../src/map/mesh.js)), geodata
+views ([geodata-view.js](../../src/map/geodata-view.js)), and
 collapsed rig normal textures
-([tile-render-rig.ts](../../src/core/map/tile-render-rig.ts)). The
+([tile-render-rig.ts](../../src/map/tile-render-rig.ts)). The
 gpu-cache eviction path — destroy the GPU object, reset the load
 state, re-download and re-upload on demand — runs in production every
 time the cache budget is exceeded. Since the decoded-image release fix
@@ -100,12 +100,12 @@ Static today (created in constructors or `RenderInit`):
 
 | owner | objects |
 |---|---|
-| `RenderInit` ([init.js](../../src/core/renderer/init.js)) | legacy `prog*` programs, heightmap/geo-hitmap/red/white/black/text textures, rect and bbox buffers |
+| `RenderInit` ([init.js](../../src/renderer/init.js)) | legacy `prog*` programs, heightmap/geo-hitmap/red/white/black/text textures, rect and bbox buffers |
 | `Renderer` | lazy `programs{}`, hitmap texture + framebuffer, `uboFrame`, frustum VAO, `nmblender` (`TextureBlend` FBOs) |
 | `GpuDevice` | cached fixed-function state, framebuffer-binding cache, extension objects |
 | `Atmosphere` | `uboAtm`, quad VAO and buffers |
 | `DrawTraversalMaskPool` | per-depth mask textures + framebuffers, scratch/consume masks, quad and rect VAOs |
-| `GpuFont` ([font.js](../../src/core/renderer/gpu/font.js)) | glyph textures |
+| `GpuFont` ([font.js](../../src/renderer/gpu/font.js)) | glyph textures |
 | `TileRenderRig` | `uboLayers` (per rig, created lazily, not cache-tracked) |
 
 Outside both classes today, to be resolved during implementation:

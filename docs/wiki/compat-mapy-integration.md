@@ -26,9 +26,10 @@ path in
 See [nav-tiles.md](nav-tiles.md) for the full navtile analysis.
 
 Current cartolina-js applications do not access a `cartolina.core()`
-factory object. They call `cartolina.map(options)` for style-based maps
-or `cartolina.browser(element, config)` for legacy mapConfig maps. Both
-return the `Viewer` class from `src/viewer/viewer.ts`. Package
+factory object. They call `cartolina.map(options)`, which is now the
+only factory; a legacy mapConfig reaches it through
+`mapConfigToStyle()` first. It
+returns the `Viewer` class from `src/viewer/viewer.ts`. Package
 consumers see that class through the exported `Map` type alias.
 Promoted public methods should appear as flat methods on `Viewer`.
 Many of those methods delegate through `src/map/map.ts`, which is the

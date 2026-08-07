@@ -6,6 +6,45 @@ Work confined to `cartolina-tileserver` is tracked in the
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## The VTS stylesheet linker's collision paths are unexercised
+
+**Opened:** 2026-08-07
+**Related:** [rfc11-mapconfig-to-style.md](rfc11-mapconfig-to-style.md),
+`src/compat/vts-stylesheet-linker.ts`
+
+`linkStylesheets` only renames, coalesces, or rewrites references when
+two resolved stylesheets define the same constant, font, bitmap, or
+layer name differently. No entry in [urls.json](../../test/urls.json)
+and no demo produces that collision, so `planRenames`,
+`rewriteAliasRefs`, and `rewriteLayerRefs` never run their interesting
+branches during any current check. The evidence for them was the
+converter unit suite, removed under the current test policy.
+
+This is a note, not a request for a unit test: nothing has demonstrated
+a failure, and a test with no observed defect behind it would not meet
+the policy. Record it so that whoever next changes the linker knows the
+existing gates will not catch a regression there, and arranges evidence
+as part of that change.
+
+## Converter source fetches are serial
+
+**Opened:** 2026-08-07
+**Related:** `src/compat/mapconfig-to-style.ts`
+
+`convertBoundLayers`, `convertFreeLayers`, and
+`collectResolvedStylesheets` each `await` inside a `for` loop, so a
+mapConfig with several bound layers pays one round trip per layer
+before `map()` is called. The style loader it feeds does the opposite
+deliberately: `MapStyle.loadStyle` starts every source request together
+and settles them with `Promise.allSettled`.
+
+No measurement has shown this to matter, which is why it is here rather
+than in the code. If it is taken up: the emitted `sources` key order is
+the runtime's source declaration order, and rounds 10 and 11 made that
+order load-bearing for shared metadata and credit precedence. So the
+fetches may overlap but the assignments into `this.sources` must stay
+in declaration order.
+
 ## TOOLING: withdraw the global/UMD library build
 
 **Opened:** 2026-08-06

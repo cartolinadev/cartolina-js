@@ -273,9 +273,11 @@ described in the first section runs as usual.
 intended for deployments where the server manages large storage with
 many surfaces and pre-bakes the composites. The only known live user is
 an older mapy.com deployment running the upstream vts-browser-js.
-Cartolina-tileserver does not produce this field; cartolina-js parses
-and executes it correctly but it is never activated in practice.
+Cartolina-tileserver does not produce this field, and cartolina-js no
+longer reads it.
 
-The feature flag is `mapVirtualSurfaces` (default `true`). Setting it
-to `false` skips `parseVirtualSurfaces` entirely. The guard is in
-[config.js:149](../../src/core/map/config.js#L149).
+The `mapVirtualSurfaces` feature flag and the `parseVirtualSurfaces`
+guard it gated were deleted together with the mapConfig runtime. A
+legacy mapConfig that still carries the field converts through
+`mapConfigToStyle()`, which drops it and records an `ignored-field`
+note.
