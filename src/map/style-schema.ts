@@ -1,282 +1,435 @@
 /*
- * style-schema.ts - style validation and id normalization: schema
- * conformance, inline surface consistency, and unique layer ids
- *
- * Deliberately free of any runtime dependency beyond `typia`: `Map`,
- * `Viewer`, and the renderer classes are not imported here, so this
- * module can be pulled into a lightweight context — such as the
- * `cartolina/compat` converter — without dragging in the GPU
- * rendering pipeline.
+ * style-schema.ts - the style specification
  */
 
-import typia from 'typia';
-
-import type { MapStyle } from './style';
-
-
-export const validateStyle =
-    typia.createValidateEquals<MapStyle.StyleSpecification>();
+import type MapCredit from './credit';
+import type RasterSource from './raster-source';
+import type Atmosphere from './atmosphere';
 
 
-/*
- * Structural equality for inline source metadata: object key order is
- * irrelevant, array order and value identity are significant.
- */
-function canonicalJson(value: unknown): string {
+export interface StyleSpecification  {
 
-    if (Array.isArray(value)) {
-        return '[' + value.map(canonicalJson).join(',') + ']';
-    }
+    version: 2;
+    'reference-frame'?: string;
 
-    if (value !== null && typeof value === 'object') {
+    /** Default camera position; a `map()` `position` overrides it. */
+    position?: (number | string)[];
 
-        const record = value as Record<string, unknown>;
-        const keys = Object.keys(record).sort();
+    sources: Record<string, SourceSpecification>;
 
-        return '{' + keys.map(
-            (key) => JSON.stringify(key) + ':'
-                + canonicalJson(record[key])).join(',') + '}';
-    }
+    terrain: TerrainSpecification;
 
-    return JSON.stringify(value) ?? 'undefined';
+    layers?: LayerSpecification[];
+
+    constants?: Record<string, Expression>;
+    bitmaps?: Record<string, BitmapSpecification>;
+    fonts?: Record<string, string>;
+
+    illumination?: IlluminationSpecification;
+    'vertical-exaggeration'?: VerticalExaggerationSpecification;
+
+    atmosphere?: AtmosphereSpecification;
+    shadows?: Record<string, never>;
+
+    config?: Record<string, unknown>;
 }
 
+export type SourceSpecification =
+    | CartolinaSurfaceSource
+    | CartolinaTmsSource
+    | CartolinaFreeLayerSource;
 
-/*
- * Validates shared terrain metadata and credit definitions in inline
- * sources before any map object is constructed. URL sources are not
- * checked; they keep the historical first-document acceptance behavior.
+/**
+ * Inline definition of a `cartolina-surface` source: a single-surface
+ * document carrying the surface resource definition plus the
+ * reference-frame, SRS, body, service, and credit metadata needed to
+ * initialize it. The same shape a surface URL resolves to.
  */
-export function checkInlineSurfaceConsistency(
-    sources: Record<string, MapStyle.SourceSpecification>,
-): void {
+export type SurfaceSourceDefinition = {
 
-    const inline: Array<[string, MapStyle.SurfaceSourceDefinition]> = [];
+    referenceFrame: {
+        id: string;
+    } & Record<string, unknown>;
 
-    for (const [id, sourceSpec] of Object.entries(sources))
-        if (sourceSpec.type === 'cartolina-surface'
-            && 'definition' in sourceSpec) {
+    srses: Record<string, unknown>;
+    bodies?: Record<string, Record<string, unknown>>;
+    services?: {
+        atmdensity?: {
+            url: string;
+        };
+    } & Record<string, unknown>;
 
-            inline.push([id, sourceSpec.definition]);
-        }
-
-    if (inline.length > 1) {
-
-        const [firstId, first] = inline[0];
-
-        const sharedKeys =
-            ['referenceFrame', 'srses', 'bodies', 'services'] as const;
-
-        for (let i = 1; i < inline.length; i++) {
-
-            const [otherId, other] = inline[i];
-
-            for (const key of sharedKeys) {
-
-                if (canonicalJson(first[key])
-                    !== canonicalJson(other[key])) {
-
-                    throw new Error(`Inline terrain sources "${firstId}" and `
-                        + `"${otherId}" carry different "${key}" `
-                        + `definitions; inline surface metadata must be `
-                        + `structurally equal.`);
-                }
-            }
-        }
-    }
-
-    // same-id inline credits must carry structurally equal definitions
-    const creditOwners: Record<string, [string, string]> = {};
-
-    for (const [id, sourceSpec] of Object.entries(sources)) {
-
-        if (!('definition' in sourceSpec)) continue;
-
-        const credits = effectiveCreditDefinitions(sourceSpec);
-
-        for (const [creditId, credit] of Object.entries(credits)) {
-
-            const canonical = canonicalJson(credit);
-            const hasExisting = Object.prototype.hasOwnProperty.call(
-                creditOwners, creditId);
-            const existing = hasExisting
-                ? creditOwners[creditId]
-                : undefined;
-
-            if (existing && existing[1] !== canonical) {
-
-                throw new Error(`Credit "${creditId}" is defined differently `
-                    + `by inline sources "${existing[0]}" and `
-                    + `"${id}".`);
-            }
-
-            if (!existing) creditOwners[creditId] = [id, canonical];
-        }
-    }
+    surfaces: Array<Record<string, unknown>>;
+    credits?: Record<string, MapCredit.Definition>;
 }
 
+/**
+ * Inline definition of a `cartolina-tms` source: a tiled raster source
+ * definition, the same shape a `cartolina-tms` URL resolves to.
+ */
+export type TmsSourceDefinition =
+    RasterSource.Definition & Record<string, unknown>;
 
-function effectiveCreditDefinitions(
-    sourceSpec: MapStyle.SourceSpecification & { definition: unknown },
-): Record<string, unknown> {
+/**
+ * Inline definition of a `cartolina-freelayer` source: a monolithic
+ * (`type: 'geodata'`) or tiled (`type: 'geodata-tiles'`) geodata
+ * definition, the same shapes a `cartolina-freelayer` URL resolves
+ * to.
+ */
+export type FreeLayerSourceDefinition =
+    | ({ type: 'geodata' } & Record<string, unknown>)
+    | ({ type: 'geodata-tiles' } & Record<string, unknown>);
 
-    const definition = sourceSpec.definition as Record<string, unknown>;
-
-    if (sourceSpec.type !== 'cartolina-surface')
-        return creditTable(definition.credits);
-
-    const outer = creditTable(definition.credits);
-    const surfaces = definition.surfaces as unknown[];
-    const surface = surfaces[0] as Record<string, unknown>;
-
-    return {
-        ...outer,
-        ...creditTable(surface?.credits),
+export type CartolinaSurfaceSource =
+    | { type: 'cartolina-surface', url: string }
+    | {
+        type: 'cartolina-surface',
+        definition: SurfaceSourceDefinition,
     };
+
+export type CartolinaTmsSource =
+    | { type: 'cartolina-tms', url: string }
+    | { type: 'cartolina-tms', definition: TmsSourceDefinition };
+
+export type CartolinaFreeLayerSource =
+    | { type: 'cartolina-freelayer', url: string }
+    | {
+        type: 'cartolina-freelayer',
+        definition: FreeLayerSourceDefinition,
+    };
+
+export type TerrainSpecification = {
+
+    sources: string[]
 }
-
-
-function creditTable(value: unknown): Record<string, unknown> {
-
-    if (value === null || typeof value !== 'object'
-        || Array.isArray(value)) return {};
-
-    return value as Record<string, unknown>;
-}
-
 
 /**
- * Builds the normalized runtime clone of an authored style: every
- * layer gets a unique id and an explicit terrain list, while the
- * caller's object stays untouched.
- *
- * Anonymous layers receive a deterministic generated id derived
- * from the layer's effective type (after the omitted diffuse type
- * default) and its array position; while the candidate equals an
- * explicit authored id, a deterministic `-anon` suffix is appended
- * until it is unique. Duplicate explicit ids are rejected. An
- * omitted layer `terrain` expands to the explicit list of every
- * `cartolina-surface` entry in the `sources` dictionary,
- * independent of the initial `terrain.sources` stack.
- *
- * @param styleSpec the validated authored style
- * @returns the normalized clone
+ * One entry of the root `bitmaps` table: the bitmap URL, or an
+ * object carrying the URL with the optional filter and tiling
+ * flags the geodata processor accepts.
  */
-export function normalizeStyle(
-    styleSpec: MapStyle.StyleSpecification,
-): MapStyle.StyleSpecification {
+export type BitmapSpecification =
+    | string
+    | {
+        url: string,
+        filter?: string,
+        tiled?: boolean,
+    };
 
-    const spec = structuredClone(styleSpec);
-    const layers = spec.layers ?? [];
 
-    // duplicate explicit ids are authoring errors
-    const explicitIds = new Set<string>();
+export type LayerSpecification =
+    | TileLayer
+    | LetteringLayer;
 
-    for (const layer of layers) {
 
-        if (layer.id === undefined) continue;
+export type TileLayer = TileTextureLayer | TileConstantLayer;
 
-        if (explicitIds.has(layer.id)) {
-            throw new Error(
-                `Duplicate style layer id "${layer.id}".`);
-        }
+export type LetteringLayer = LabelsLayer | LinesLayer
 
-        explicitIds.add(layer.id);
-    }
+export type TileTextureLayer = DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
 
-    const surfaceSourceIds = Object.entries(spec.sources)
-        .filter(([, sourceSpec]) =>
-            sourceSpec.type === 'cartolina-surface')
-        .map(([id]) => id);
+export type TileConstantLayer = DiffuseConstantLayer;
 
-    layers.forEach((layer, index) => {
+export type LayerBase<TType extends string> = {
 
-        if (layer.id === undefined) {
-
-            const effectiveType = layer.type ?? 'diffuse-map';
-            let candidate = `${effectiveType}-${index}`;
-
-            while (explicitIds.has(candidate)) candidate += '-anon';
-            layer.id = candidate;
-        }
-
-        if (layer.terrain === undefined) {
-            layer.terrain = [...surfaceSourceIds];
-        }
-    });
-
-    return spec;
+    type: TType,
+    id?: string,
+    terrain?: string[],
+    necessity?: 'optional' | 'essential'
 }
 
+export type TileLayerBase<TType extends string> = LayerBase<TType> & {
+
+    source: string,
+    whitewash?: number,
+    blendMode?: BlendMode,
+    alpha?: Alpha
+}
+
+export type DiffuseLayer = DiffuseMapLayer | DiffuseConstantLayer;
+
+export type DiffuseMapLayer = Omit<TileLayerBase<'diffuse-map'>, 'type'> & {
+
+    type?: 'diffuse-map',
+}
+
+export type DiffuseConstantLayer = Omit<TileLayerBase<
+    'constant' | 'diffuse-constant'>, 'source'> & {
+
+    source: Color3Spec
+}
+
+export type SpecularMapLayer = TileLayerBase<'specular-map'>;
+export type BumpMapLayer = TileLayerBase<'bump-map'>;
+
+export type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
+
+    id: string,
+    type: TType,
+    source: string,
+
+    filter?: FilterCondition
+
+} & Partial<LetteringLayerProperties> & {
+
+    [key: `&${string}`]: Expression | undefined;
+}
+
+export type LabelsLayer = LetteringLayerBase<'labels'>;
+export type LinesLayer = LetteringLayerBase<'lines'>;
+
+export type LetteringLayerProperties = {
+
+    inherit : string,
+
+    'importance-source': Property<number>,
+    'importance-weight': Property<number>,
+
+    pack: Property<boolean>,
+    hysteresis: [number, number, string, boolean],
+
+
+    line: Property<boolean>,
+    'line-flat': Property<boolean>,
+    'line-width': Property<number>,
+    'line-width-units': 'pixels' | 'meters' | 'ratio',
+    'line-style':  'solid' | 'textured',
+    'line-style-texture': [string, number, number],
+    'line-style-background': Property<Color4Spec>,
+    'line-color': Property<Color4Spec>,
+    'line-label': Property<boolean>,
+    'line-label-font': Property<string[]>,
+    'line-label-color': Property<Color4Spec>,
+    'line-label-color2': Property<Color4Spec>,
+    'line-label-outline': Property<[number, number, number, number]>,
+    'line-label-source': Property<string>,
+    'line-label-size': Property<number>,
+    'line-label-type': Property<string>,
+    'line-label-offset': Property<number>,
+    'line-label-no-overlap': Property<boolean>,
+    'line-label-no-overlap-margin': Property<number>,
+
+    point: Property<boolean>,
+    'point-flat': Property<boolean>,
+    'point-radius': Property<number>,
+    'point-style': 'solid',
+    'point-color': Property<Color4Spec>,
+
+    icon: Property<boolean>,
+    'icon-source': Property<[string, number, number, number]>,
+    'icon-scale': Property<number>,
+    'icon-color': Property<Color4Spec>,
+    'icon-no-overlap': Property<boolean>,
+    'icon-offset': Property<[number, number]>,
+    'icon-origin': Property<number[]>,
+    'icon-stick': Property<number[]>,
+
+    label: Property<boolean>,
+    'label-font': Property<string[]>,
+    'label-source': Property<string>,
+    'label-size': Property<number>,
+    'label-spacing': Property<number>,
+    'label-line-height': Property<number>,
+    'label-color': Property<Color4Spec>,
+    'label-color2': Property<Color4Spec>,
+
+    'label-outline': Property<[number, number, number, number]>,
+    'label-offset': Property<[number, number]>,
+    'label-origin': Property<string>,
+    'label-align': 'left' | 'right' | 'center',
+    'label-width': Property<number>,
+    'label-stick': Property<number[]>,
+    'label-no-overlap': boolean,
+    'label-no-overlap-margin': [number, number],
+
+    polygon: boolean,
+    'polygon-color': Property<Color4Spec>,
+
+    'z-index': Property<number>,
+    'zbuffer-offset': Property<[number, number, number]>,
+    'selected-layer' : Property<string>,
+    'selected-hover-layer': Property<string>,
+    'enter-event': Property<boolean>,
+    'leave-event': Property<boolean>,
+    'hover-event': Property<boolean>,
+    'hover-layer': Property<string>,
+    'click-event': Property<boolean>,
+    'advanced-hit': Property<boolean>
+
+    'visible': Property<boolean>,
+    'visibility': Property<number>,
+    'visibility-abs': Property<[number, number]>,
+    'visibility-rel': Property<[number, number, number, number]>,
+    'visibility-switch': Array<[string, string | null]>,
+    'culling': Property<number>,
+
+    'next-pass': [number, string]
+}
+
+type ExpressionScalar = string | number | boolean | null;
+type Stops = Array<[number, Expression]>;
+
+interface IfExpression {
+    if: [Expression, Expression, Expression];
+}
+
+interface BinaryMathExpression {
+    add?: [Expression, Expression];
+    sub?: [Expression, Expression];
+    mul?: [Expression, Expression];
+    div?: [Expression, Expression];
+    mod?: [Expression, Expression];
+    pow?: [Expression, Expression];
+    tofixed?: [Expression, Expression];
+    atan2?: [Expression, Expression];
+    random?: [Expression, Expression];
+}
+
+interface UnaryMathExpression {
+    sgn?: Expression;
+    sin?: Expression;
+    cos?: Expression;
+    tan?: Expression;
+    asin?: Expression;
+    acos?: Expression;
+    atan?: Expression;
+    sqrt?: Expression;
+    abs?: Expression;
+    log?: Expression;
+    round?: Expression;
+    floor?: Expression;
+    ceil?: Expression;
+    deg2rad?: Expression;
+    rad2deg?: Expression;
+}
+
+interface UnaryStringExpression {
+    strlen?: Expression;
+    trim?: Expression;
+    str2num?: Expression;
+    lowercase?: Expression;
+    uppercase?: Expression;
+    capitalize?: Expression;
+    'has-fonts'?: Expression;
+    'has-latin'?: Expression;
+    'is-cjk'?: Expression;
+}
+
+interface BinaryStringExpression {
+    find?: [Expression, Expression];
+}
+
+interface TernaryStringExpression {
+    replace?: [Expression, Expression, Expression];
+}
+
+interface StringSliceExpression {
+    substr?: [Expression, Expression]
+        | [Expression, Expression, Expression];
+}
+
+interface ExtremumExpression {
+    min?: Expression[];
+    max?: Expression[];
+}
+
+interface ClampExpression {
+    clamp: [Expression, Expression, Expression];
+}
+
+type LogScaleExpression =
+    | { logScale: [Expression, Expression]
+        | [Expression, Expression, Expression]
+        | [Expression, Expression, Expression, Expression] }
+    | { 'log-scale': [Expression, Expression]
+        | [Expression, Expression, Expression]
+        | [Expression, Expression, Expression, Expression] };
+
+type MapExpression = {
+    map: [Expression, Array<[Expression, Expression]>, Expression];
+};
+
+type LinearExpression =
+    | { linear: Stops }
+    | { discrete: Stops }
+    | { linear2: [Expression, Stops] }
+    | { discrete2: [Expression, Stops] }
+    | { 'lod-scaled': [number, number | Stops, number] };
+
+type ExpressionObject =
+    | IfExpression
+    | BinaryMathExpression
+    | UnaryMathExpression
+    | UnaryStringExpression
+    | BinaryStringExpression
+    | TernaryStringExpression
+    | StringSliceExpression
+    | ExtremumExpression
+    | ClampExpression
+    | LogScaleExpression
+    | MapExpression
+    | LinearExpression;
+
+interface ExpressionArray extends Array<Expression> {}
+
+export type Expression = ExpressionScalar | ExpressionArray | ExpressionObject;
+
+export type Property<T> = T | Expression;
+
+export type FilterCondition = Expression[];
+
+export type Color3Spec = [number, number, number]
+export type Color4Spec = [number, number, number, number]
+
+export type BlendMode = 'overlay' | 'add' | 'multiply'
+
+export type Alpha = number
+    | { mode: 'constant', value: number }
+    | { mode: 'viewdep', value: number, illumination: [number, number] }
+
+export type IlluminationSpecification = {
+
+    light: LightSpecification | LegacyLightSpecification,
+    useLighting?: boolean,
+    ambientCoef?: number,
+    shadingLambertianWeight?: number,
+    shadingSlopeWeight?: number,
+    shadingAspectWeight?: number
+}
+
+export type LegacyLightSpecification = ['tracking', number, number]
+
+export type LightSpecification = {
+    type: 'tracking' | 'geographic',
+    azimuth: number,
+    elevation: number,
+    diffuseColor?: Color3Spec,
+    specularColor?: Color3Spec
+}
+
+export type VerticalExaggerationSpecification =
+    | {
+        elevationRamp?: {
+            min: [number, number];
+            max: [number, number];
+        };
+        scaleRamp?: {
+            min: [number, number];
+            max: [number, number];
+        };
+    }
+    /** @deprecated Use the scale-denominator format above instead. */
+    | {
+        heightRamp?: [[number, number], [number, number]];
+        viewExtentProgression?: [number, number, number, number, number];
+    };
+
+export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 
 /**
- * Validates an authored style against the schema and the inline
- * surface consistency rules, then returns the normalized runtime
- * clone via `normalizeStyle`. Throws before any map object is
- * constructed: on a schema violation, inconsistent inline surface
- * metadata, a duplicate explicit layer id, or a `terrain.sources`
- * entry naming an unknown surface source.
- *
- * Shared by `MapStyle.loadStyle` and by `mapConfigToStyle()`, so a
- * conversion result is rejected at conversion time rather than only
- * when a `Viewer` later loads it.
- *
- * @param styleSpec the authored style
- * @returns the normalized clone
+ * One primitive runtime style mutation, submitted through the core
+ * map's atomic style-mutation batch.
  */
-export function validateAndNormalizeStyle(
-    styleSpec: MapStyle.StyleSpecification,
-): MapStyle.StyleSpecification {
-
-    const res = validateStyle(styleSpec);
-
-    if (!res.success) {
-
-        let errs = 'errors' in res ? res.errors : [];
-
-        for (const e of errs)
-            console.error(`${e.path}: expected ${e.expected}, got ${JSON.stringify(e.value)}`);
-
-        throw new Error(`Invalid style (${errs.length} errors)`);
-    }
-
-    // inline surface metadata must be consistent before any map
-    // object is constructed
-    checkInlineSurfaceConsistency(styleSpec.sources);
-
-    // normalized runtime clone; the caller's object stays untouched
-    const spec = normalizeStyle(styleSpec);
-
-    const styleSurfaceSourceIds = Object.entries(spec.sources)
-        .filter(([, sourceSpec]) => sourceSpec.type === 'cartolina-surface')
-        .map(([id]) => id);
-    const unknownTerrainSources = spec.terrain.sources
-        .filter((id) => !styleSurfaceSourceIds.includes(id));
-
-    if (unknownTerrainSources.length > 0) {
-        const msg = 'Invalid style terrain.sources: unknown style surface source id(s): '
-            + unknownTerrainSources.join(', ')
-            + '. Expected one of: ' + styleSurfaceSourceIds.join(', ');
-
-        console.error(msg);
-        throw new Error(msg);
-    }
-
-    for (const layer of spec.layers ?? []) {
-
-        const type = layer.type ?? 'diffuse-map';
-        if (!['diffuse-map', 'bump-map', 'specular-map'].includes(type)) {
-            continue;
-        }
-
-        const sourceId = layer.source as string;
-        const source = spec.sources[sourceId];
-
-        if (!source || source.type !== 'cartolina-tms') {
-            throw new Error(`Raster style layer "${layer.id}" references `
-                + `"${sourceId}", which is not a cartolina-tms source.`);
-        }
-    }
-
-    return spec;
-}
+export type StyleMutation =
+    | { kind: 'layer-terrain', layerId: string, terrain: string[] }
+    | { kind: 'terrain-sources', sources: string[] };

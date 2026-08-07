@@ -13,7 +13,7 @@ import GpuTexture from '../renderer/gpu/texture';
 import type * as viewerConfig from '../viewer-config';
 import Atmosphere from './atmosphere';
 import { grayPngDecodeAvailable } from '../utils/gray-png';
-import MapStyle from './style';
+import type * as StyleSchema from './style-schema';
 import RasterSource from './raster-source';
 
 import * as illumination from './illumination';
@@ -97,7 +97,7 @@ export class TileRenderRig {
      * A new tile render rig.
      */
 
-    constructor(submeshIndex: number, style: MapStyle.StyleSpecification,
+    constructor(submeshIndex: number, style: StyleSchema.StyleSpecification,
         tile: MapSurfaceTile, renderer: Renderer,
         config: Readonly<viewerConfig.ViewerConfig>) {
 
@@ -752,7 +752,7 @@ export class TileRenderRig {
     }
 
 
-    private buildLayerStack(style: MapStyle.StyleSpecification) {
+    private buildLayerStack(style: StyleSchema.StyleSpecification) {
 
         // build the stack
         const rt = this.rt;
@@ -760,19 +760,19 @@ export class TileRenderRig {
 
         // first scan the style, and obtain bump, diffuse and specular layers
         // pertaining to the active surface
-        let bumps: MapStyle.BumpMapLayer[] = [];
-        let diffuses: (MapStyle.DiffuseLayer) [] = [];
-        let speculars: MapStyle.SpecularMapLayer[] =  []
+        let bumps: StyleSchema.BumpMapLayer[] = [];
+        let diffuses: (StyleSchema.DiffuseLayer) [] = [];
+        let speculars: StyleSchema.SpecularMapLayer[] =  []
 
         style.layers && style.layers.forEach(
-            (item: MapStyle.LayerSpecification) => {
+            (item: StyleSchema.LayerSpecification) => {
 
             let type_ = item.type ?? 'diffuse-map';
 
             if (!['bump-map', 'diffuse-map', 'constant', 'diffuse-constant',
                 'specular-map'].includes(type_)) return;
 
-            let item_ = item as MapStyle.TileLayer;
+            let item_ = item as StyleSchema.TileLayer;
 
             const terrainSourceId = this.tile.resourceSurface.id;
             let pertinent = !item_.terrain
@@ -780,13 +780,13 @@ export class TileRenderRig {
             if (!pertinent) return;
 
             if (type_ === 'bump-map')
-                bumps.push(item_ as MapStyle.BumpMapLayer);
+                bumps.push(item_ as StyleSchema.BumpMapLayer);
 
             if (type_ === 'specular-map')
-                speculars.push(item_ as MapStyle.SpecularMapLayer);
+                speculars.push(item_ as StyleSchema.SpecularMapLayer);
 
             if (['diffuse-map', 'diffuse-constant', 'constant'].includes(type_))
-                diffuses.push(item_ as MapStyle.DiffuseLayer);
+                diffuses.push(item_ as StyleSchema.DiffuseLayer);
         });
 
         // target 'normal' layers need to come first, so that updated normal
@@ -1211,7 +1211,7 @@ export class TileRenderRig {
      */
 
     private layerFromDef(
-        layerSpec: MapStyle.TileLayer,
+        layerSpec: StyleSchema.TileLayer,
         necessity: Necessity, propagate: boolean,
         target: 'color' | 'normal',
         flagMask: Renderer.RenderFlags): Layer | undefined {
@@ -1221,17 +1221,17 @@ export class TileRenderRig {
         if (['diffuse-map', 'bump-map', 'specular-map'].includes(type_)) {
 
             return this.textureLayerFromDef(
-                layerSpec as MapStyle.TileTextureLayer, necessity, propagate,
+                layerSpec as StyleSchema.TileTextureLayer, necessity, propagate,
                 target, flagMask);
         }
 
         if (type_ === 'constant' || type_ === 'diffuse-constant')
             return this.constantLayerFromDef(
-                layerSpec as MapStyle.DiffuseConstantLayer,
+                layerSpec as StyleSchema.DiffuseConstantLayer,
                 necessity, propagate, target, flagMask);
     }
 
-    private textureLayerFromDef(layerSpec: MapStyle.TileTextureLayer,
+    private textureLayerFromDef(layerSpec: StyleSchema.TileTextureLayer,
                          necessity: Necessity,
                          propagate: boolean,
                          target: 'color' | 'normal',
@@ -1334,7 +1334,7 @@ export class TileRenderRig {
 
     } // textureLayerFromDef
 
-    private constantLayerFromDef(layerSpec: MapStyle.DiffuseConstantLayer,
+    private constantLayerFromDef(layerSpec: StyleSchema.DiffuseConstantLayer,
                          necessity: Necessity,
                          propagate: boolean,
                          target: 'color' | 'normal',
@@ -1346,7 +1346,7 @@ export class TileRenderRig {
         let isWatertight = !(alpha.value < 1.0
             || alpha.mode != 'constant' || mode != 'overlay');
 
-        let srcConstant = layerSpec.source.slice() as MapStyle.Color3Spec;
+        let srcConstant = layerSpec.source.slice() as StyleSchema.Color3Spec;
 
         for (let i = 0; i < 3 ; i++) srcConstant[i] /= 255.;
 
@@ -1367,7 +1367,7 @@ export class TileRenderRig {
     }
 
     private static blendInfoFromDef(
-        layerSpec: MapStyle.TileLayer): [BlendMode, Alpha] {
+        layerSpec: StyleSchema.TileLayer): [BlendMode, Alpha] {
 
         let mode: BlendMode = layerSpec.blendMode ?? 'overlay';
 

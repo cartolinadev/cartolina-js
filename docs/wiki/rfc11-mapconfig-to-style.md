@@ -3762,6 +3762,50 @@ source and leaves real-map checks for the observable behavior.
 No design, implementation, validation, or documentation finding remains. The
 post-implementation review is accepted and RFC 11 is `Implemented`.
 
+## Addendum — 2026-08-06 — one current style document
+
+`MapStyle` now follows MapLibre's current-style ownership model: property
+mutations change the current style, and no immutable authored baseline is
+retained. The implementation is informed by MapLibre's
+[`setLayoutProperty()`][ml] and [`serialize()`][ml]
+behavior without adopting MapLibre's complete style schema.
+
+Loading validates and clones the supplied style, then assigns missing runtime
+layer ids. It does not expand omitted terrain lists or fill other defaults.
+An omitted layer `terrain` continues to mean every declared terrain source;
+rendering, getters, and profile capture resolve that meaning when needed.
+
+The concrete visibility setters edit a candidate clone of the current style,
+validate its raster-source availability, and replace the retained style
+atomically. `Viewer`, core `Map`, and `MapStyle` use the same six operation
+names; the generic mutation command type and batch entry points are removed.
+`MapStyle` also rebuilds its derived free-layer sequence and invalidates
+rendering after commit; core `Map` only enforces readiness before delegating
+visibility calls.
+The authored/effective pair, terrain override collections, reconstruction
+methods, and style-normalization functions are also removed.
+
+Style code is split across three modules. `src/map/style-schema.ts` holds the
+specification types and no code, `src/map/style-validation.ts` validates a
+supplied specification against them, and `src/map/style.ts` holds the
+`MapStyle` class. Validation stays dependency-light so the compatibility entry
+does not import rendering code. The first two are imported as the namespaces
+`StyleSchema` and `StyleValidation`, so a style type or the validation call
+names its origin at the use site.
+
+Terrain credit definitions come from the surface document's top-level
+`credits` table. Numeric ids decoded from metanodes select the credits that
+apply to each terrain tile. The unused surface-entry credit table and
+`TerrainSource` credit list recorded in review rounds 10–12 are removed;
+whole-surface attribution requires a complete producer-to-renderer change.
+
+Layer ids remain optional in version 2. Every runtime layer nevertheless has
+an id, so a later style version can require authored ids without changing the
+runtime visibility or visibility-profile model. The six `Viewer` methods and
+the version-2 style schema are unchanged.
+
+[ml]: https://github.com/maplibre/maplibre-gl-js/blob/main/src/style/style.ts
+
 ## Addendum — 2026-08-06 — the compatibility entry is an ES module
 
 The compatibility entry is loaded by dynamic `import()` of

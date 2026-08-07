@@ -58,6 +58,8 @@ async function main() {
     const results = await page.evaluate(async (syntheticHost) => {
 
         const out = [];
+        const { map: createMap } =
+            await import('/build/cartolina.esm.js');
         const check = (name, condition) => out.push([name, !!condition]);
 
         const viewer = globalThis.v;
@@ -245,7 +247,7 @@ async function main() {
         const buildViewer = async (surface) => {
 
             const container = addContainer();
-            const viewer_ = cartolina.map({
+            const viewer_ = createMap({
                 container,
                 style: {
                     version: 2,

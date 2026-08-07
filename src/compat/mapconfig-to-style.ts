@@ -3,8 +3,8 @@
  * Cartolina style plus construction values
  */
 
-import type { MapStyle } from '../map/style';
-import { validateAndNormalizeStyle } from '../map/style-schema';
+import type * as StyleSchema from '../map/style-schema';
+import * as StyleValidation from '../map/style-validation';
 import type { PositionInput } from '../map/types';
 import * as utils from '../utils/utils';
 import type Viewer from '../viewer/viewer';
@@ -43,7 +43,7 @@ export type MapConfigConversionNote = {
  */
 export type MapConfigConversion = {
 
-    style: MapStyle.StyleSpecification;
+    style: StyleSchema.StyleSpecification;
 
     /** Converted initial position for the `map()` factory. */
     position: PositionInput | null;
@@ -785,11 +785,11 @@ class ConversionContext {
         // duplicate explicit layer id from a raster/lettering
         // collision) is fatal at conversion time, in both normal and
         // strict mode; the caller must not receive an unloadable style
-        validateAndNormalizeStyle(
-            style as unknown as MapStyle.StyleSpecification);
+        StyleValidation.validateSpecification(
+            style as unknown as StyleSchema.StyleSpecification);
 
         return {
-            style: style as unknown as MapStyle.StyleSpecification,
+            style: style as unknown as StyleSchema.StyleSpecification,
             position,
             viewerOptions,
             profiles,
@@ -966,7 +966,7 @@ class ConversionContext {
 
         const supported = new Set([
             'lodRange', 'tileRange', 'metaUrl', 'navUrl',
-            'meshUrl', 'textureUrl', 'normalsUrl', 'credits',
+            'meshUrl', 'textureUrl', 'normalsUrl',
         ]);
         const output: Record<string, unknown> = {};
 
@@ -997,7 +997,7 @@ class ConversionContext {
     private rasterDefinition(
         definition: Record<string, unknown>,
         path: string,
-    ): MapStyle.TmsSourceDefinition {
+    ): StyleSchema.TmsSourceDefinition {
 
         const supported = new Set([
             'url', 'lodRange', 'tileRange', 'credits',
@@ -1021,7 +1021,7 @@ class ConversionContext {
             });
         }
 
-        return output as unknown as MapStyle.TmsSourceDefinition;
+        return output as unknown as StyleSchema.TmsSourceDefinition;
     }
 
     /* Bound layers become inline cartolina-tms sources; a definition
@@ -1206,7 +1206,7 @@ class ConversionContext {
             this.sources[sourceId] = {
                 type: 'cartolina-freelayer',
                 definition: sourceData as
-                    MapStyle.FreeLayerSourceDefinition,
+                    StyleSchema.FreeLayerSourceDefinition,
             };
 
             this.freeLayerDefinitions.set(key, definition);

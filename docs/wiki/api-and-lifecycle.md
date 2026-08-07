@@ -73,10 +73,16 @@ terrain under the cursor or an unloaded map property.
 ## Style And MapConfig
 
 The style specification is the only authored map contract. It is
-represented by `MapStyle.StyleSpecification` in
-`src/map/style.ts`. Every successfully constructed map has a
+represented by `StyleSchema.StyleSpecification` in
+`src/map/style-schema.ts`. Every successfully constructed map has a
 validated style; core map and renderer code cannot observe whether
 the style was authored directly or converted.
+
+Loading clones the authored style and assigns ids to anonymous layers. The
+clone is the current mutable style; `MapStyle` does not retain an authored
+baseline or separate override state. Omitted layer `terrain` remains omitted
+and resolves to every declared terrain source when rendering, querying, or
+capturing a visibility profile.
 
 Legacy `mapConfig.json` documents are an import format
 (rfc11-mapconfig-to-style.md). The exported `mapConfigToStyle()`
@@ -90,10 +96,10 @@ Runtime layer visibility is the terrain-applicability API on
 `Viewer`: `setLayerTerrainSources` / `getLayerTerrainSources`,
 `setTerrainSources` / `getTerrainSources`, and the atomic
 `applyVisibilityProfile` / `getVisibilityProfile` pair. All six
-methods throw before the `ready` promise resolves. A proposed mutation
-that would activate a failed raster source also throws synchronously.
-The authored overrides, effective style, render sequences, and rendered
-map remain unchanged after either validation failure.
+methods throw before the `ready` promise resolves. A proposed visibility
+change that would activate a failed raster source also throws synchronously.
+The current style, free-layer sequence, and rendered map remain unchanged
+after either validation failure.
 
 ## Configuration
 
@@ -228,7 +234,7 @@ parsed:
 2. Raster metadata requests start concurrently and overlap terrain
    metadata loading. Successful sources and permanent failures enter the
    map-owned raster registry.
-3. The effective initial style rejects any failed raster source that it
+3. The current initial style rejects any failed raster source that it
    activates. Failures used only by inactive layers remain recorded.
 4. On success, `Map.map` is assigned.
 5. `Map.tick` emits `map-loaded` after the reference frame is ready

@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.49.614-feature_rfc11_mapconfig_to_style.d059b7be",
+  "version": "2.49.615-feature_rfc11_mapconfig_to_style.6d8e2c23",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {

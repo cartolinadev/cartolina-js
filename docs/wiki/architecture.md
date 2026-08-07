@@ -200,10 +200,10 @@ and permanent source-load failures.
 
 All raster metadata requests start together and overlap terrain metadata
 loading. A failed raster source can remain dormant: initial readiness and
-later style mutations reject it only when an effective raster layer uses
-it on the active terrain stack. Style mutation validates the proposed
-state before committing terrain applicability or rebuilding render
-sequences.
+later visibility changes reject it only when a current raster layer uses it
+on the active terrain stack. A visibility setter validates a candidate copy
+of the current style before replacing the retained style and rebuilding
+the free-layer sequence.
 
 A raster source may supply paired metatile and per-tile mask templates.
 The renderer uses the metatile to select the source tile or an ancestor

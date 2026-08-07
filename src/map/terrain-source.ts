@@ -6,7 +6,6 @@ import type Map from './map';
 
 import typia from 'typia';
 
-import type MapCredit from './credit';
 import * as url from '../utils/url';
 
 
@@ -52,12 +51,7 @@ class TerrainSource {
             this.normalsUrl =
                 TerrainSource.resolveUrl(definition.normalsUrl, baseUrl);
 
-        this.credits = Array.isArray(definition.credits)
-            ? [...definition.credits]
-            : Object.keys(definition.credits ?? {});
-
         Object.freeze(this.lodRange);
-        Object.freeze(this.credits);
         Object.freeze(this);
     }
 
@@ -91,7 +85,6 @@ class TerrainSource {
     readonly meshUrl: string;
     readonly textureUrl?: string;
     readonly normalsUrl?: string;
-    readonly credits: string[];
     readonly specificity: number;
 
     /**
@@ -277,7 +270,6 @@ class TerrainSource {
             meshUrl,
             textureUrl,
             normalsUrl,
-            credits: metadata.credits,
         };
     }
 
@@ -325,7 +317,6 @@ namespace TerrainSource {
         meshUrl: string;
         textureUrl?: string;
         normalsUrl?: string;
-        credits?: string[] | Record<string, MapCredit.Definition>;
     };
 }
 

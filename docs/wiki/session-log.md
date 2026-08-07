@@ -35,7 +35,9 @@ emitted only as `cartolina-compat.esm.js`, and `demos/map` reaches it
 through `await import()` on its `?mapConfig=` route, publishing the
 module as `window.cartolinaCompat` beside the existing `window.v` handle.
 [test/style-mutation.js](../../test/style-mutation.js) asserts the same
-split-load contract against the ESM filename and passes 25/25.
+split-load contract against the ESM filename and passes 25/25. The raster-
+and terrain-source lifecycle harnesses construct their extra viewers from
+`await import('/build/cartolina.esm.js')` instead of the retired global.
 
 All eight demos are now module scripts importing `cartolina.esm.js`.
 `demos/waypoint/waypoint.js` no longer reads a global: `WaypointMap`
@@ -58,6 +60,35 @@ that shadowed the compiled-in template, and so is the dependency on the
 deployed `support/launch.js` — that script called `cartolina.browser()`
 and `cartolina.utils`, neither of which the RFC 11 entry point
 exports.
+
+## 2026-08-06 — Style state reduced to one current document
+
+`MapStyle` now keeps the cloned current style instead of an authored baseline,
+an effective clone, and two override collections. Loading assigns ids to
+anonymous layers but preserves omitted terrain lists. Getters and render
+consumers resolve omitted applicability when they need an explicit list.
+
+The concrete visibility setters validate and edit a candidate clone, check its
+raster sources, and replace the current style atomically. `Viewer`, core
+`Map`, and `MapStyle` use the same six operation names; the generic mutation
+command type and batch entry points are gone. `MapStyle` rebuilds its derived
+free-layer sequence and invalidates rendering after commit; core `Map` only
+enforces readiness before delegation. Normalization helpers and terminology
+are also gone. The six public `Viewer` methods and version-2 style shape are
+unchanged.
+
+`src/map/style.ts` is now the `MapStyle` class alone. The specification types
+stay in `src/map/style-schema.ts`, which keeps no code, and validation moves
+to a new `src/map/style-validation.ts` that imports the schema instead of the
+class. Both are imported as namespaces — `StyleSchema` and `StyleValidation`
+— so every style type and the one validation entry point name their origin
+at the use site. The compatibility entry still reaches validation without
+pulling in rendering code.
+
+Terrain credits keep the existing mapConfig contract: the source document's
+top-level table defines credits, and metanode ids select them per tile. The
+unused surface-entry table handling and retained `TerrainSource` credit list
+are deleted; whole-surface attribution remains an end-to-end future change.
 
 ## 2026-08-06 — RFC 11 post-implementation review signed off
 

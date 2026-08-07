@@ -24,6 +24,7 @@ import FreezeCameraState from './freeze-camera-state';
 import { defaultOverrides, type Overrides } from './overrides';
 import FrameProfiler from './frame-profiler';
 import MapStyle from './style';
+import type * as StyleSchema from './style-schema';
 import MapDraw from './draw';
 import MapConvert from './convert';
 import MapMeasure from './measure';
@@ -271,7 +272,7 @@ class Map {
     constructor(
         element: HTMLElement,
         configStore: ConfigStore<viewerConfig.ViewerConfig>,
-        style: string | MapStyle.StyleSpecification,
+        style: string | StyleSchema.StyleSpecification,
         position?: PositionInput,
         transformRequest?: utils.TransformRequestCallback,
     ) {
@@ -368,7 +369,7 @@ class Map {
 
     /** Loads a map from a style URL or parsed style object. */
     private async loadMapFromStyle(
-        style: string | MapStyle.StyleSpecification,
+        style: string | StyleSchema.StyleSpecification,
         position?: PositionInput,
     ): Promise<void> {
 
@@ -386,7 +387,7 @@ class Map {
 
         // the style's position applies when the caller passed none
         const stylePosition =
-            (styleSpec as MapStyle.StyleSpecification).position;
+            (styleSpec as StyleSchema.StyleSpecification).position;
 
         const initialPosition = position ?? stylePosition;
 
@@ -596,7 +597,7 @@ class Map {
     }
 
     // -----------------------------------------------------------------
-    // Runtime style mutation
+    // Runtime visibility
     // -----------------------------------------------------------------
 
     /**
@@ -666,12 +667,12 @@ class Map {
     }
 
     /**
-     * Verifies that every effective texture layer has a usable source.
+     * Verifies that every current texture layer has a usable source.
      *
-     * @internal Used for initial activation and prospective style mutations.
+     * @internal Used for initial activation and prospective visibility state.
      */
     assertRasterSourcesAvailable(
-        spec: MapStyle.StyleSpecification,
+        spec: StyleSchema.StyleSpecification,
     ): void {
 
         const activeTerrain = new Set(spec.terrain.sources);
@@ -683,8 +684,11 @@ class Map {
                 continue;
             }
 
-            const terrain = layer.terrain ?? [];
-            if (!terrain.some((id) => activeTerrain.has(id))) continue;
+            // Resolve omitted applicability against every active terrain.
+            const active = layer.terrain === undefined
+                ? activeTerrain.size > 0
+                : layer.terrain.some((id) => activeTerrain.has(id));
+            if (!active) continue;
 
             const sourceId = layer.source as string;
             const entry = this.rasterSources_.get(sourceId);
@@ -703,8 +707,8 @@ class Map {
     }
 
     /**
-     * Whether the `ready` promise has resolved. The runtime style
-     * mutation methods throw while this is `false`.
+     * Whether the `ready` promise has resolved. The runtime visibility
+     * methods throw while this is `false`.
      *
      * @internal
      */
@@ -714,46 +718,61 @@ class Map {
     }
 
     /**
-     * Applies a batch of primitive style mutations atomically: the
-     * complete batch is validated before any state changes, sequences
-     * recompile once, geodata hysteresis clears once when lettering
-     * changed, and the map is marked dirty once. A frame sees either
-     * the old or the complete new visibility state.
+     * Applies a complete visibility profile atomically.
      *
-     * @param mutations primitive mutations in application order
-     * @throws before readiness or on any invalid mutation, in which
-     *   case nothing changes
+     * @param profile active terrain sources and every layer's terrain list
+     * @throws before readiness or when the profile is invalid
      */
-    mutateStyle(mutations: MapStyle.StyleMutation[]): void {
+    applyVisibilityProfile(profile: Map.VisibilityProfile): void {
 
         this.assertAlive();
-        const style = this.requireReadyStyle();
+        this.requireReadyStyle().applyVisibilityProfile(profile);
+    }
 
-        const { letteringChanged } = style.applyMutations(mutations);
+    /** Returns a complete copy of the current visibility state. */
+    getVisibilityProfile(): Map.VisibilityProfile {
 
-        // reset the label hysteresis buffer so recompiled rules do
-        // not inherit fade state from the previous rule set
-        if (letteringChanged) this.renderer.draw.clearJobHBuffer();
+        this.assertAlive();
+        return this.requireReadyStyle().getVisibilityProfile();
+    }
 
-        this.refreshStyle();
+    /**
+     * Replaces the active terrain stack, preserving source order.
+     *
+     * @param sourceIds terrain source ids in stack order
+     * @throws before readiness, on an invalid source id, or when the change
+     *   would activate an unavailable raster source
+     */
+    setTerrainSources(sourceIds: string[]): void {
+
+        this.assertAlive();
+        this.requireReadyStyle().setTerrainSources(sourceIds);
+    }
+
+    /** Returns a copy of the current active terrain stack. */
+    getTerrainSources(): string[] {
+
+        this.assertAlive();
+        return this.requireReadyStyle().getTerrainSources();
     }
 
     /**
      * Replaces one layer's active terrain-source list. An empty array
      * makes the layer inactive on every terrain.
      *
-     * @param layerId id of the layer to mutate
+     * @param layerId id of the layer to change
      * @param terrainIds terrain source ids
+     * @throws before readiness, on an invalid layer or source id, or when the
+     *   change would activate an unavailable raster source
      */
     setLayerTerrainSources(layerId: string, terrainIds: string[]): void {
 
-        this.mutateStyle([
-            { kind: 'layer-terrain', layerId, terrain: terrainIds },
-        ]);
+        this.assertAlive();
+        this.requireReadyStyle().setLayerTerrainSources(layerId, terrainIds);
     }
 
     /**
-     * Returns a copy of one layer's effective terrain-source list.
+     * Returns a copy of one layer's current terrain-source list.
      *
      * @param layerId id of the layer to query
      */
@@ -764,40 +783,9 @@ class Map {
     }
 
     /**
-     * Replaces the active terrain stack, preserving the caller's
-     * back-to-front order.
-     *
-     * @param sourceIds terrain source ids in stack order
-     */
-    setTerrainSources(sourceIds: string[]): void {
-
-        this.mutateStyle([
-            { kind: 'terrain-sources', sources: sourceIds },
-        ]);
-    }
-
-    /** Returns a copy of the effective active terrain stack. */
-    getTerrainSources(): string[] {
-
-        this.assertAlive();
-        return this.requireReadyStyle().getTerrainSources();
-    }
-
-    /**
-     * Returns the ids of every style layer in array order.
-     *
-     * @internal `Viewer` uses this to validate visibility profiles.
-     */
-    getStyleLayerIds(): string[] {
-
-        this.assertAlive();
-        return this.requireReadyStyle().getLayerIds();
-    }
-
-    /**
      * Returns the loaded map's style state, throwing before
      * `viewer.ready` resolves: no validated layer ids, source ids, or
-     * normalized terrain lists exist to mutate or query earlier.
+     * current terrain lists exist to change or query earlier.
      */
     private requireReadyStyle(): MapStyle {
 
@@ -805,7 +793,7 @@ class Map {
 
         if (!style) {
             throw new Error('The style is not ready; await '
-                + '`viewer.ready` before style mutations or queries.');
+                + '`viewer.ready` before visibility changes or queries.');
         }
 
         return style;
@@ -1456,7 +1444,7 @@ class Map {
 
             // load style
             await MapStyle.loadStyle(
-                this, style as MapStyle.StyleSpecification);
+                this, style as StyleSchema.StyleSpecification);
 
             // no clue what these are
             const conv = new MapConvert(legacyMap);
@@ -1467,8 +1455,6 @@ class Map {
 
             legacyMap.isGeocent =
                 !legacyMap.getNavigationSrs().isProjected();
-
-            this.refreshStyle();
 
             legacyMap.draw = new MapDraw(legacyMap);
             this.freeze = new FreezeCameraState(legacyMap);
@@ -1490,19 +1476,6 @@ class Map {
     // -----------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------
-
-    /**
-     * Rebuilds derived style sequences and schedules a complete redraw.
-     */
-    private refreshStyle(): void {
-
-        const map = this.legacyMap!;
-        map.viewCounter++;
-        map.style?.refreshSequences();
-        map.dirty = true;
-        map.hitMapDirty = true;
-        map.geoHitMapDirty = true;
-    }
 
     /** Throws if the map has been disposed. */
     private assertAlive(): void {
@@ -1652,8 +1625,7 @@ class Map {
      * in back-to-front order (front surface at the last index). Plain
      * surfaces only — glues and virtual surfaces are skipped.
      *
-     * The order comes from the effective style state's terrain
-     * sources array.
+     * The order comes from the current style's terrain sources array.
      */
     surfaceList(): TerrainSource[] {
 
@@ -1765,6 +1737,15 @@ namespace Map {
     export type RasterSourceEntry =
         | { status: 'ready'; source: RasterSource }
         | { status: 'failed'; error: Error };
+
+    /**
+     * A complete visibility snapshot: the active terrain stack plus
+     * the active terrain-source list of every style layer.
+     */
+    export type VisibilityProfile = {
+        terrain: string[];
+        layers: Record<string, string[]>;
+    };
 
     /**
      * Per-frame context passed to overlay lifecycle callbacks.

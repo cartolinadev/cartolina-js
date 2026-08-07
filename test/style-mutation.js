@@ -108,8 +108,8 @@ async function main() {
     check('explicit lettering ids kept',
       ids.includes('places') && ids.includes('peaks'));
 
-    // omitted terrain expanded to the declared terrain source
-    check('omitted terrain expands to declared surfaces',
+    // omitted terrain resolves to the declared terrain sources
+    check('omitted terrain resolves to declared surfaces',
       profile.layers['bump-map-0'].length === 1
       && profile.layers['bump-map-0'][0] === TERRAIN);
 

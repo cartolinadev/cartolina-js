@@ -6,12 +6,12 @@
 import { map } from '../../src/viewer/index';
 import type { Map as PublicMap } from '../../src/viewer/index';
 import Viewer from '../../src/viewer/viewer';
-import type MapStyle from '../../src/map/style';
+import type * as StyleSchema from '../../src/map/style-schema';
 import type * as viewerConfig from '../../src/viewer-config';
 
 declare const viewer: PublicMap;
 declare const container: HTMLElement;
-declare const style: MapStyle.StyleSpecification;
+declare const style: StyleSchema.StyleSpecification;
 declare const position: PublicMap.PositionInput;
 
 // The namespace re-export and the internal definition are the same type.

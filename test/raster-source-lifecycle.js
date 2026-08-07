@@ -61,6 +61,8 @@ async function main() {
             results = await page.evaluate(async () => {
 
             const out = [];
+            const { map: createMap } =
+                await import('/build/cartolina.esm.js');
             const check = (name, condition) => {
 
                 out.push([name, Boolean(condition)]);
@@ -331,7 +333,7 @@ async function main() {
             };
 
             const healthyContainer = addContainer();
-            const healthy = cartolina.map({
+            const healthy = createMap({
                 container: healthyContainer,
                 style: healthyStyle,
             });
@@ -484,7 +486,7 @@ async function main() {
                 }],
             };
             const badContainer = addContainer();
-            const bad = cartolina.map({
+            const bad = createMap({
                 container: badContainer,
                 style: badStyle,
             });

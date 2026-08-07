@@ -475,7 +475,7 @@ Map.prototype.refreshGeodataStylesheets = function() {
 Map.prototype.refreshView = function() {
     this.viewCounter++;
 
-    if (this.style) this.style.refreshSequences();
+    if (this.style) this.style.refreshFreeLayerSequence();
 
     this.markDirty();
 };

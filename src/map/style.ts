@@ -1,3 +1,6 @@
+/*
+ * style.ts - define style data and apply it to a map
+ */
 
 import type LegacyMap from './legacy-map';
 
@@ -13,545 +16,69 @@ import TerrainSource from './terrain-source';
 import type Map from './map';
 import { utilsUrl } from '../utils/url';
 
-import * as styleSchema from './style-schema';
+import type * as StyleSchema from './style-schema';
+import * as StyleValidation from './style-validation';
 
 
 import * as utils from '../utils/utils';
 
-/**
- * The style specification.
- */
 
-export namespace MapStyle {
 
-export interface StyleSpecification  {
-
-    version: 2;
-    'reference-frame'?: string;
-
-    /** Default camera position; a `map()` `position` overrides it. */
-    position?: (number | string)[];
-
-    sources: Record<string, SourceSpecification>;
-
-    terrain: TerrainSpecification;
-
-    layers?: LayerSpecification[];
-
-    constants?: Record<string, Expression>;
-    bitmaps?: Record<string, BitmapSpecification>;
-    fonts?: Record<string, string>;
-
-    illumination?: IlluminationSpecification;
-    'vertical-exaggeration'?: VerticalExaggerationSpecification;
-
-    atmosphere?: AtmosphereSpecification;
-    shadows?: Record<string, never>;
-
-    config?: Record<string, unknown>;
-}
-
-export type SourceSpecification =
-    | CartolinaSurfaceSource
-    | CartolinaTmsSource
-    | CartolinaFreeLayerSource;
-
-/**
- * Inline definition of a `cartolina-surface` source: a single-surface
- * document carrying the surface resource definition plus the
- * reference-frame, SRS, body, service, and credit metadata needed to
- * initialize it. The same shape a surface URL resolves to.
- */
-export type SurfaceSourceDefinition = {
-
-    referenceFrame: {
-        id: string;
-    } & Record<string, unknown>;
-
-    srses: Record<string, unknown>;
-    bodies?: Record<string, Record<string, unknown>>;
-    services?: {
-        atmdensity?: {
-            url: string;
-        };
-    } & Record<string, unknown>;
-
-    surfaces: Array<Record<string, unknown>>;
-    credits?: Record<string, MapCredit.Definition>;
-}
-
-/**
- * Inline definition of a `cartolina-tms` source: a tiled raster source
- * definition, the same shape a `cartolina-tms` URL resolves to.
- */
-export type TmsSourceDefinition =
-    RasterSource.Definition & Record<string, unknown>;
-
-/**
- * Inline definition of a `cartolina-freelayer` source: a monolithic
- * (`type: 'geodata'`) or tiled (`type: 'geodata-tiles'`) geodata
- * definition, the same shapes a `cartolina-freelayer` URL resolves
- * to.
- */
-export type FreeLayerSourceDefinition =
-    | ({ type: 'geodata' } & Record<string, unknown>)
-    | ({ type: 'geodata-tiles' } & Record<string, unknown>);
-
-export type CartolinaSurfaceSource =
-    | { type: 'cartolina-surface', url: string }
-    | {
-        type: 'cartolina-surface',
-        definition: SurfaceSourceDefinition,
-    };
-
-export type CartolinaTmsSource =
-    | { type: 'cartolina-tms', url: string }
-    | { type: 'cartolina-tms', definition: TmsSourceDefinition };
-
-export type CartolinaFreeLayerSource =
-    | { type: 'cartolina-freelayer', url: string }
-    | {
-        type: 'cartolina-freelayer',
-        definition: FreeLayerSourceDefinition,
-    };
-
-export type TerrainSpecification = {
-
-    sources: string[]
-}
-
-/**
- * One entry of the root `bitmaps` table: the bitmap URL, or an
- * object carrying the URL with the optional filter and tiling
- * flags the geodata processor accepts.
- */
-export type BitmapSpecification =
-    | string
-    | {
-        url: string,
-        filter?: string,
-        tiled?: boolean,
-    };
-
-
-export type LayerSpecification =
-    | TileLayer
-    | LetteringLayer;
-
-
-export type TileLayer = TileTextureLayer | TileConstantLayer;
-
-export type LetteringLayer = LabelsLayer | LinesLayer
-
-export type TileTextureLayer = DiffuseMapLayer | BumpMapLayer | SpecularMapLayer;
-
-export type TileConstantLayer = DiffuseConstantLayer;
-
-export type LayerBase<TType extends string> = {
-
-    type: TType,
-    id?: string,
-    terrain?: string[],
-    necessity?: 'optional' | 'essential'
-}
-
-export type TileLayerBase<TType extends string> = LayerBase<TType> & {
-
-    source: string,
-    whitewash?: number,
-    blendMode?: BlendMode,
-    alpha?: Alpha
-}
-
-export type DiffuseLayer = DiffuseMapLayer | DiffuseConstantLayer;
-
-export type DiffuseMapLayer = Omit<TileLayerBase<'diffuse-map'>, 'type'> & {
-
-    type?: 'diffuse-map',
-}
-
-export type DiffuseConstantLayer = Omit<TileLayerBase<
-    'constant' | 'diffuse-constant'>, 'source'> & {
-
-    source: Color3Spec
-}
-
-export type SpecularMapLayer = TileLayerBase<'specular-map'>;
-export type BumpMapLayer = TileLayerBase<'bump-map'>;
-
-export type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
-
-    id: string,
-    type: TType,
-    source: string,
-
-    filter?: FilterCondition
-
-} & Partial<LetteringLayerProperties> & {
-
-    [key: `&${string}`]: Expression | undefined;
-}
-
-export type LabelsLayer = LetteringLayerBase<'labels'>;
-export type LinesLayer = LetteringLayerBase<'lines'>;
-
-export type LetteringLayerProperties = {
-
-    inherit : string,
-
-    'importance-source': Property<number>,
-    'importance-weight': Property<number>,
-
-    pack: Property<boolean>,
-    hysteresis: [number, number, string, boolean],
-
-
-    line: Property<boolean>,
-    'line-flat': Property<boolean>,
-    'line-width': Property<number>,
-    'line-width-units': 'pixels' | 'meters' | 'ratio',
-    'line-style':  'solid' | 'textured',
-    'line-style-texture': [string, number, number],
-    'line-style-background': Property<Color4Spec>,
-    'line-color': Property<Color4Spec>,
-    'line-label': Property<boolean>,
-    'line-label-font': Property<string[]>,
-    'line-label-color': Property<Color4Spec>,
-    'line-label-color2': Property<Color4Spec>,
-    'line-label-outline': Property<[number, number, number, number]>,
-    'line-label-source': Property<string>,
-    'line-label-size': Property<number>,
-    'line-label-type': Property<string>,
-    'line-label-offset': Property<number>,
-    'line-label-no-overlap': Property<boolean>,
-    'line-label-no-overlap-margin': Property<number>,
-
-    point: Property<boolean>,
-    'point-flat': Property<boolean>,
-    'point-radius': Property<number>,
-    'point-style': 'solid',
-    'point-color': Property<Color4Spec>,
-
-    icon: Property<boolean>,
-    'icon-source': Property<[string, number, number, number]>,
-    'icon-scale': Property<number>,
-    'icon-color': Property<Color4Spec>,
-    'icon-no-overlap': Property<boolean>,
-    'icon-offset': Property<[number, number]>,
-    'icon-origin': Property<number[]>,
-    'icon-stick': Property<number[]>,
-
-    label: Property<boolean>,
-    'label-font': Property<string[]>,
-    'label-source': Property<string>,
-    'label-size': Property<number>,
-    'label-spacing': Property<number>,
-    'label-line-height': Property<number>,
-    'label-color': Property<Color4Spec>,
-    'label-color2': Property<Color4Spec>,
-
-    'label-outline': Property<[number, number, number, number]>,
-    'label-offset': Property<[number, number]>,
-    'label-origin': Property<string>,
-    'label-align': 'left' | 'right' | 'center',
-    'label-width': Property<number>,
-    'label-stick': Property<number[]>,
-    'label-no-overlap': boolean,
-    'label-no-overlap-margin': [number, number],
-
-    polygon: boolean,
-    'polygon-color': Property<Color4Spec>,
-
-    'z-index': Property<number>,
-    'zbuffer-offset': Property<[number, number, number]>,
-    'selected-layer' : Property<string>,
-    'selected-hover-layer': Property<string>,
-    'enter-event': Property<boolean>,
-    'leave-event': Property<boolean>,
-    'hover-event': Property<boolean>,
-    'hover-layer': Property<string>,
-    'click-event': Property<boolean>,
-    'advanced-hit': Property<boolean>
-
-    'visible': Property<boolean>,
-    'visibility': Property<number>,
-    'visibility-abs': Property<[number, number]>,
-    'visibility-rel': Property<[number, number, number, number]>,
-    'visibility-switch': Array<[string, string | null]>,
-    'culling': Property<number>,
-
-    'next-pass': [number, string]
-}
-
-type ExpressionScalar = string | number | boolean | null;
-type Stops = Array<[number, Expression]>;
-
-interface IfExpression {
-    if: [Expression, Expression, Expression];
-}
-
-interface BinaryMathExpression {
-    add?: [Expression, Expression];
-    sub?: [Expression, Expression];
-    mul?: [Expression, Expression];
-    div?: [Expression, Expression];
-    mod?: [Expression, Expression];
-    pow?: [Expression, Expression];
-    tofixed?: [Expression, Expression];
-    atan2?: [Expression, Expression];
-    random?: [Expression, Expression];
-}
-
-interface UnaryMathExpression {
-    sgn?: Expression;
-    sin?: Expression;
-    cos?: Expression;
-    tan?: Expression;
-    asin?: Expression;
-    acos?: Expression;
-    atan?: Expression;
-    sqrt?: Expression;
-    abs?: Expression;
-    log?: Expression;
-    round?: Expression;
-    floor?: Expression;
-    ceil?: Expression;
-    deg2rad?: Expression;
-    rad2deg?: Expression;
-}
-
-interface UnaryStringExpression {
-    strlen?: Expression;
-    trim?: Expression;
-    str2num?: Expression;
-    lowercase?: Expression;
-    uppercase?: Expression;
-    capitalize?: Expression;
-    'has-fonts'?: Expression;
-    'has-latin'?: Expression;
-    'is-cjk'?: Expression;
-}
-
-interface BinaryStringExpression {
-    find?: [Expression, Expression];
-}
-
-interface TernaryStringExpression {
-    replace?: [Expression, Expression, Expression];
-}
-
-interface StringSliceExpression {
-    substr?: [Expression, Expression]
-        | [Expression, Expression, Expression];
-}
-
-interface ExtremumExpression {
-    min?: Expression[];
-    max?: Expression[];
-}
-
-interface ClampExpression {
-    clamp: [Expression, Expression, Expression];
-}
-
-type LogScaleExpression =
-    | { logScale: [Expression, Expression]
-        | [Expression, Expression, Expression]
-        | [Expression, Expression, Expression, Expression] }
-    | { 'log-scale': [Expression, Expression]
-        | [Expression, Expression, Expression]
-        | [Expression, Expression, Expression, Expression] };
-
-type MapExpression = {
-    map: [Expression, Array<[Expression, Expression]>, Expression];
-};
-
-type LinearExpression =
-    | { linear: Stops }
-    | { discrete: Stops }
-    | { linear2: [Expression, Stops] }
-    | { discrete2: [Expression, Stops] }
-    | { 'lod-scaled': [number, number | Stops, number] };
-
-type ExpressionObject =
-    | IfExpression
-    | BinaryMathExpression
-    | UnaryMathExpression
-    | UnaryStringExpression
-    | BinaryStringExpression
-    | TernaryStringExpression
-    | StringSliceExpression
-    | ExtremumExpression
-    | ClampExpression
-    | LogScaleExpression
-    | MapExpression
-    | LinearExpression;
-
-interface ExpressionArray extends Array<Expression> {}
-
-export type Expression = ExpressionScalar | ExpressionArray | ExpressionObject;
-
-export type Property<T> = T | Expression;
-
-export type FilterCondition = Expression[];
-
-export type Color3Spec = [number, number, number]
-export type Color4Spec = [number, number, number, number]
-
-export type BlendMode = 'overlay' | 'add' | 'multiply'
-
-export type Alpha = number
-    | { mode: 'constant', value: number }
-    | { mode: 'viewdep', value: number, illumination: [number, number] }
-
-export type IlluminationSpecification = {
-
-    light: LightSpecification | LegacyLightSpecification,
-    useLighting?: boolean,
-    ambientCoef?: number,
-    shadingLambertianWeight?: number,
-    shadingSlopeWeight?: number,
-    shadingAspectWeight?: number
-}
-
-export type LegacyLightSpecification = ['tracking', number, number]
-
-export type LightSpecification = {
-    type: 'tracking' | 'geographic',
-    azimuth: number,
-    elevation: number,
-    diffuseColor?: Color3Spec,
-    specularColor?: Color3Spec
-}
-
-export type VerticalExaggerationSpecification =
-    | {
-        elevationRamp?: {
-            min: [number, number];
-            max: [number, number];
-        };
-        scaleRamp?: {
-            min: [number, number];
-            max: [number, number];
-        };
-    }
-    /** @deprecated Use the scale-denominator format above instead. */
-    | {
-        heightRamp?: [[number, number], [number, number]];
-        viewExtentProgression?: [number, number, number, number, number];
-    };
-
-export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
-
-/**
- * One primitive runtime style mutation, submitted through the core
- * map's atomic style-mutation batch.
- */
-export type StyleMutation =
-    | { kind: 'layer-terrain', layerId: string, terrain: string[] }
-    | { kind: 'terrain-sources', sources: string[] };
-
-} // export namespace MapStyle
-
-/// vts stylesheet shape, compile from style for goedata free layer rendering
+// Legacy VTS stylesheet compiled for geodata free-layer rendering.
 
 type VtsStylesheetLayer =
-    Omit<MapStyle.LetteringLayer, 'id' | 'type' | 'source' | 'terrain'>;
+    Omit<StyleSchema.LetteringLayer, 'id' | 'type' | 'source' | 'terrain'>;
 
-type vtsStylesheet = {
+type VtsStylesheet = {
 
-    constants?: Record<string, MapStyle.Expression>;
-    bitmaps?: Record<string, MapStyle.BitmapSpecification>;
+    constants?: Record<string, StyleSchema.Expression>;
+    bitmaps?: Record<string, StyleSchema.BitmapSpecification>;
     fonts?: Record<string, string>;
-    layers?: Record<string, VtsStylesheetLayer>
-}
+    layers?: Record<string, VtsStylesheetLayer>;
+};
 
-/*
- * Class map style, provides a method to initialize the map object according
- * to a style spec.
+/**
+ * Loads map resources from a style and owns its current mutable runtime state.
  */
-
 export class MapStyle {
 
     /**
-     * Builds the normalized runtime clone of an authored style: every
-     * layer gets a unique id and an explicit terrain list, while the
-     * caller's object stays untouched.
-     *
-     * Anonymous layers receive a deterministic generated id derived
-     * from the layer's effective type (after the omitted diffuse type
-     * default) and its array position; while the candidate equals an
-     * explicit authored id, a deterministic `-anon` suffix is appended
-     * until it is unique. Duplicate explicit ids are rejected. An
-     * omitted layer `terrain` expands to the explicit list of every
-     * `cartolina-surface` entry in the `sources` dictionary,
-     * independent of the initial `terrain.sources` stack.
-     *
-     * @param styleSpec the validated authored style
-     * @returns the normalized clone
-     */
-    static normalizeStyle(
-        styleSpec: MapStyle.StyleSpecification,
-    ): MapStyle.StyleSpecification {
-
-        return styleSchema.normalizeStyle(styleSpec);
-    }
-
-    /**
-     * Validates an authored style against the schema and the inline
-     * surface consistency rules, then returns the normalized runtime
-     * clone via `normalizeStyle`. Throws before any map object is
-     * constructed: on a schema violation, inconsistent inline surface
-     * metadata, a duplicate explicit layer id, or a `terrain.sources`
-     * entry naming an unknown surface source.
-     *
-     * Shared by `loadStyle` and by `mapConfigToStyle()`, so a
-     * conversion result is rejected at conversion time rather than
-     * only when a `Viewer` later loads it.
-     *
-     * @param styleSpec the authored style
-     * @returns the normalized clone
-     */
-    static validateAndNormalize(
-        styleSpec: MapStyle.StyleSpecification,
-    ): MapStyle.StyleSpecification {
-
-        return styleSchema.validateAndNormalizeStyle(styleSpec);
-    }
-
-    /**
-     * Load a map from style specification. This entails retrieving the sources,
-     * building the terrain, raster and free-layer source registries, and serves
-     * also as a factory to initialize the mapStyle object itself and set it
-     * to style property in the map.
+     * Loads source definitions and installs the prepared style on the map.
      *
      * @param map the map being loaded
      * @param styleSpec the style specification
      */
 
-    static async loadStyle(map: Map, styleSpec: MapStyle.StyleSpecification) {
+    static async loadStyle(
+        map: Map,
+        styleSpec: StyleSchema.StyleSpecification,
+    ): Promise<void> {
 
-        const spec = MapStyle.validateAndNormalize(styleSpec);
+        // validate style and test for consistency
+        StyleValidation.validateSpecification(styleSpec);
+
+        // clone style, creating ids for anonymous layers
+        const spec = MapStyle.prepareStyle(styleSpec);
         const legacyMap = map.legacyMap;
 
         if (!legacyMap)
             throw new Error('A style loads only into a map under '
                 + 'construction.');
 
-        // wipe the map clean
+        // wipe map clean
         legacyMap.referenceFrame = null;
-        legacyMap.srses = {}
-        legacyMap.bodies = {}
-        legacyMap.credits = {}
-        legacyMap.freeLayers = {}
-        legacyMap.stylesheets = {}
-        legacyMap.services = {}
+        legacyMap.srses = {};
+        legacyMap.bodies = {};
+        legacyMap.credits = {};
+        legacyMap.freeLayers = {};
+        legacyMap.stylesheets = {};
+        legacyMap.services = {};
 
-        // request every terrain and raster definition before awaiting any
+        // load every source definition, terrain and raster, in parallel
         const sourceLoads: Array<{
             id: string,
-            spec: MapStyle.CartolinaSurfaceSource
-                | MapStyle.CartolinaTmsSource,
+            spec: StyleSchema.CartolinaSurfaceSource
+                | StyleSchema.CartolinaTmsSource,
             load: Promise<[unknown, string]>,
         }> = [];
 
@@ -559,7 +86,7 @@ export class MapStyle {
 
             if (sourceSpec.type === 'cartolina-surface') {
 
-                // Start one terrain-definition request.
+                // terrain-definition request.
                 sourceLoads.push({
                     id,
                     spec: sourceSpec,
@@ -570,7 +97,7 @@ export class MapStyle {
 
             if (sourceSpec.type === 'cartolina-tms') {
 
-                // Start one raster-definition request.
+                // raster-definition request.
                 sourceLoads.push({
                     id,
                     spec: sourceSpec,
@@ -580,15 +107,19 @@ export class MapStyle {
             }
         }
 
+        // wait for all requests to settle
         const sourceResults = await Promise.allSettled(
             sourceLoads.map(({ load }) => load));
 
-        // the first declared terrain source carries the reference frame
-        // and the rest of the shared map metadata
+        // terrain and rester sources are treated differently. A terrain
+        // failure is fatal; a raster failure is retained until an active layer 
+        // requests it.
         const terrainSources = new globalThis.Map<string, TerrainSource>();
-
         const rasterEntries =
             new globalThis.Map<string, Map.RasterSourceEntry>();
+
+
+        // iterate through source results
         let mapMetadataInitialized = false;
 
         for (let index = 0; index < sourceResults.length; index++) {
@@ -596,86 +127,94 @@ export class MapStyle {
             const result = sourceResults[index];
             const { id, spec: sourceSpec } = sourceLoads[index];
 
+            // terrain source
             if (sourceSpec.type === 'cartolina-surface') {
 
-                // Build one required terrain source.
-                if (result.status === 'rejected') {
-
-                    // A missing terrain definition makes the style unusable.
+                // a failed terrain source makes the style unusable.
+                if (result.status === 'rejected')
                     throw result.reason;
-                }
 
+                // process the definition
                 if (result.status === 'fulfilled') {
 
-                    // Validate and register the resolved terrain definition.
-                    const [definition, path] = result.value;
-                    const mc =
-                        definition as MapStyle.SurfaceSourceDefinition;
-
-                    if (mapMetadataInitialized) {
-
-                        // Verify that later terrain uses the shared frame.
-                        console.assert(mc.referenceFrame.id
-                            === legacyMap.referenceFrame!.id);
-                    }
+                    const [definitionValue, path] = result.value;
+                    // TODO: it would be cleaner to have a validation here instead of a cast
+                    const definition = definitionValue as
+                        StyleSchema.SurfaceSourceDefinition;
 
                     if (!mapMetadataInitialized) {
 
-                        // Initialize shared state from the first terrain.
+                        // the first terain source initializes the map's 
+                        // reference frame, SRSes, bodies, and credits.
                         MapStyle.initializeMapMetadata(
-                            map, spec, mc, path);
+                            map, spec, definition, path);
                         mapMetadataInitialized = true;
+
+                    } else {
+
+                        // verify that later terrain uses the same reference 
+                        // frame as the first
+                        console.assert(definition.referenceFrame.id
+                            === legacyMap.referenceFrame!.id);
                     }
 
-                    if (mc.surfaces.length != 1)
+                    // a terrain source must define exactly one surface.
+                    if (definition.surfaces.length != 1)
                         throw Error(`The url for source ${id} does not define `
                             + `exactly one surface, bailing out.`);
 
-                    const surfaceDefinition = mc.surfaces[0];
+                    // initialize and register the terrain source.
+                    // note that terrain source constructor currently does 
+                    // not work with per-surface credits - credits are based
+                    // on metanode content. This is the legacy VTS data model
+                    // to be replaced with per-surface credit definition.
+                    const surfaceDefinition = definition.surfaces[0];
                     const source = TerrainSource.fromMetadata(
                         map, id, surfaceDefinition, path);
 
-                    MapStyle.registerCreditDefinitions(
-                        legacyMap, mc.credits);
-                    MapStyle.registerCreditDefinitions(
-                        legacyMap,
-                        surfaceDefinition.credits as
-                            | Record<string, MapCredit.Definition>
-                            | string[]
-                            | undefined,
-                    );
                     terrainSources.set(id, source);
+
+                    // update the global credit lookup table
+                    MapStyle.registerCreditDefinitions(
+                        legacyMap, definition.credits);
+
                 } // result.status === 'fulfilled'
+
             } // sourceSpec.type === 'cartolina-surface'
 
+            // raster source
             if (sourceSpec.type === 'cartolina-tms') {
 
-                // Build one optional raster source or retain its failure.
+                // a failed raster source is retained and not fatal until
+                // an active layer requests it.
                 if (result.status === 'rejected') {
 
-                    // Keep the failure until an active layer requests it.
                     const error = result.reason instanceof Error
                         ? result.reason
                         : new Error(String(result.reason));
                     rasterEntries.set(id, { status: 'failed', error });
                 }
 
+                // process the definition
                 if (result.status === 'fulfilled') {
 
-                    // Validate and register the resolved raster definition.
                     const [definition, path] = result.value;
 
                     try {
 
+                        // initialize and register the raster source
                         const source = RasterSource.fromMetadata(
                             map, id, definition, path);
-                        MapStyle.registerCreditDefinitions(
-                            legacyMap,
-                            (definition as MapStyle.TmsSourceDefinition)
-                                .credits,
-                        );
+
                         rasterEntries.set(
                             id, { status: 'ready', source });
+
+                        // update the global credit lookup table
+                        MapStyle.registerCreditDefinitions(
+                            legacyMap,
+                            (definition as StyleSchema.TmsSourceDefinition)
+                                .credits,
+                        );
 
                     } catch (reason) {
 
@@ -684,15 +223,18 @@ export class MapStyle {
                             : new Error(String(reason));
                         rasterEntries.set(id, { status: 'failed', error });
                     }
+
                 } // result.status === 'fulfilled'
+
             } // sourceSpec.type === 'cartolina-tms'
+
         } // iterate sourceResults
 
+        // pass the completed source registries to the map.
         map.setTerrainSourceEntries(terrainSources);
         map.setRasterSourceEntries(rasterEntries);
 
-        // the free layers; a URL layer loads asynchronously and its
-        // callbacks force repeated legacyMap.refreshView()
+        // load legacy geodata free layers 
         for (const [id, sourceSpec] of Object.entries(spec.sources)) {
 
             if (sourceSpec.type !== 'cartolina-freelayer') continue;
@@ -742,16 +284,279 @@ export class MapStyle {
             if (patch) legacyMap.core.configStore.set(patch);
         }
 
-        // done
+        // Install the style and its free-layer sequence as one completed load.
         const style = new MapStyle(legacyMap, spec);
         map.assertRasterSourcesAvailable(style.style());
         legacyMap.style = style;
+        style.refresh(false);
     }
 
     /**
-     * Reads the reference frame, SRSes, bodies, services, and atmosphere
-     * that every surface in a style shares, from the first declared
-     * terrain source.
+     * Returns the current runtime style.
+     */
+    style(): StyleSchema.StyleSpecification {
+
+        return this.spec_;
+    }
+
+    /**
+     * Applies a complete visibility profile atomically.
+     *
+     * @param profile active terrain sources and every layer's terrain list
+     * @throws when the profile is invalid or would activate an unavailable
+     *   raster source
+     */
+    applyVisibilityProfile(profile: Map.VisibilityProfile): void {
+
+        // Validate profile completeness before preparing any new state.
+        const profileIds = new Set(Object.keys(profile.layers));
+
+        for (const layer of this.spec_.layers ?? []) {
+
+            const id = layer.id as string;
+
+            if (!profileIds.has(id))
+                throw new Error(`Visibility profile omits layer "${id}".`);
+
+            profileIds.delete(id);
+        }
+
+        if (profileIds.size > 0) {
+
+            throw new Error(`Visibility profile names unknown layer(s): `
+                + `${[...profileIds].join(', ')}.`);
+        }
+
+        this.validateTerrainIds(profile.terrain);
+
+        for (const terrainIds of Object.values(profile.layers))
+            this.validateTerrainIds(terrainIds);
+
+        // Prepare the complete profile on a clone of the current style.
+        const nextSpec = structuredClone(this.spec_);
+        const nextLayersById = MapStyle.indexLayers(nextSpec);
+
+        nextSpec.terrain.sources = [...profile.terrain];
+
+        for (const [id, terrainIds] of Object.entries(profile.layers))
+            nextLayersById.get(id)!.terrain = [...terrainIds];
+
+        // Commit only after every prospective raster source is available.
+        this.commitCandidate(
+            nextSpec, nextLayersById, this.hasLetteringLayers());
+    }
+
+    /** Returns a complete copy of the current visibility state. */
+    getVisibilityProfile(): Map.VisibilityProfile {
+
+        const layers: Record<string, string[]> = {};
+
+        for (const layer of this.spec_.layers ?? [])
+            layers[layer.id as string] =
+                [...this.terrainSourcesForLayer(layer)];
+
+        return {
+            terrain: this.getTerrainSources(),
+            layers,
+        };
+    }
+
+    /**
+     * Replaces the active terrain stack.
+     *
+     * @param sourceIds terrain source ids in stack order
+     * @throws on an invalid terrain source id or an unavailable raster source
+     */
+    setTerrainSources(sourceIds: string[]): void {
+
+        this.validateTerrainIds(sourceIds);
+
+        const nextSpec = structuredClone(this.spec_);
+        const nextLayersById = MapStyle.indexLayers(nextSpec);
+
+        nextSpec.terrain.sources = [...sourceIds];
+        this.commitCandidate(
+            nextSpec, nextLayersById, this.hasLetteringLayers());
+    }
+
+    /** Returns a copy of the current active terrain stack. */
+    getTerrainSources(): string[] {
+
+        return [...this.spec_.terrain.sources];
+    }
+
+    /**
+     * Replaces one layer's active terrain-source list.
+     *
+     * @param layerId id of the layer to change
+     * @param terrainIds terrain source ids
+     * @throws on an unknown layer, an invalid terrain source id, or an
+     *   unavailable raster source
+     */
+    setLayerTerrainSources(layerId: string, terrainIds: string[]): void {
+
+        if (!this.layersById_.has(layerId))
+            throw new Error(`Unknown style layer id "${layerId}".`);
+
+        this.validateTerrainIds(terrainIds);
+
+        const nextSpec = structuredClone(this.spec_);
+        const nextLayersById = MapStyle.indexLayers(nextSpec);
+
+        nextLayersById.get(layerId)!.terrain = [...terrainIds];
+        this.commitCandidate(
+            nextSpec, nextLayersById, this.isLetteringLayer(layerId));
+    }
+
+    /**
+     * Returns a copy of one layer's current terrain-source list.
+     * An omitted list resolves to every declared terrain source.
+     *
+     * @param layerId id of the layer to query
+     * @throws on an unknown layer id
+     */
+    getLayerTerrainSources(layerId: string): string[] {
+
+        const layer = this.layersById_.get(layerId);
+        if (!layer) {
+            throw new Error(`Unknown style layer id "${layerId}".`);
+        }
+
+        return [...this.terrainSourcesForLayer(layer)];
+    }
+
+    /**
+     * Rebuilds the legacy map free-layer sequence and its lettering styles.
+     *
+     * @internal Called after style changes and by legacy free-layer callbacks.
+     */
+    refreshFreeLayerSequence(): void {
+
+        const map = this.map;
+        const spec = this.spec_;
+
+        // Resolve the active terrain stack before compiling lettering.
+        spec.terrain.sources.forEach((sourceId: string) =>
+            map.outerMap.resolveTerrainSource(sourceId));
+
+        // Compile the lettering rules selected by the active terrain stack.
+        const freeLayerStyles: Record<string, VtsStylesheet> = {};
+        const activeTerrain = spec.terrain.sources;
+
+        for (const layer of spec.layers ?? []) {
+
+            if (!['labels', 'lines'].includes(layer.type ?? '')) continue;
+
+            const ruleTerrain = this.terrainSourcesForLayer(layer);
+            if (!ruleTerrain.some((id) => activeTerrain.includes(id)))
+                continue;
+
+            const freeLayerId = layer.source as string;
+            let stylesheet = freeLayerStyles[freeLayerId];
+
+            if (!stylesheet) {
+
+                // Copy shared style values into a new VTS stylesheet.
+                stylesheet = freeLayerStyles[freeLayerId] = {};
+                if (spec.fonts) stylesheet.fonts = spec.fonts;
+                if (spec.constants) stylesheet.constants = spec.constants;
+                if (spec.bitmaps) stylesheet.bitmaps = spec.bitmaps;
+                stylesheet.layers = {};
+            }
+
+            // Remove Cartolina-only fields from the lettering rule.
+            const clonedLayer = structuredClone(
+                layer) as StyleSchema.LetteringLayer;
+            const { id, type, source, terrain, ...stylesheetLayer }
+                = clonedLayer;
+
+            stylesheet.layers![id] = stylesheetLayer;
+        }
+
+        // Install the compiled stylesheets in draw and hit-test order.
+        map.freeLayerSequence = [];
+
+        for (const [id, stylesheet] of Object.entries(freeLayerStyles)) {
+
+            const freeLayer = map.getFreeLayer(id);
+            if (!freeLayer) continue;
+
+            freeLayer.options = {};
+            map.freeLayerSequence.push(freeLayer);
+            freeLayer.setStyle(stylesheet);
+        }
+    }
+
+    /**
+     * Creates the style owner after source loading has prepared the style.
+     * 
+     * Not called directly, invoked by the loadStyle() factory method.
+     *
+     * @param map legacy map receiving the style-derived free-layer sequence
+     * @param spec current style with a runtime id on every layer
+     */
+    private constructor(map: LegacyMap, spec: StyleSchema.StyleSpecification) {
+
+        this.map = map;
+        this.spec_ = spec;
+        this.layersById_ = MapStyle.indexLayers(spec);
+
+        for (const [id, sourceSpec] of Object.entries(spec.sources)) {
+
+            if (sourceSpec.type === 'cartolina-surface')
+                this.surfaceSourceIds_.push(id);
+        }
+    }
+
+    /** Clones an authored style and assigns missing runtime layer ids. */
+    private static prepareStyle(
+        styleSpec: StyleSchema.StyleSpecification,
+    ): StyleSchema.StyleSpecification {
+
+        const spec = structuredClone(styleSpec);
+        const layers = spec.layers ?? [];
+
+        // Reserve every explicit authored id before assigning any ids.
+        const ids = new Set<string>();
+
+        for (const layer of layers) {
+
+            if (layer.id !== undefined) ids.add(layer.id);
+        }
+
+        // Assign anonymous layers deterministic runtime identity.
+        layers.forEach((layer, index) => {
+
+            if (layer.id !== undefined) return;
+
+            const type = layer.type ?? 'diffuse-map';
+            let candidate = `${type}-${index}`;
+
+            while (ids.has(candidate)) candidate += '-anon';
+
+            layer.id = candidate;
+            ids.add(candidate);
+        });
+
+        return spec;
+    }
+
+    /** Builds the layer-id index for one prepared style. */
+    private static indexLayers(
+        spec: StyleSchema.StyleSpecification,
+    ): globalThis.Map<string, StyleSchema.LayerSpecification> {
+
+        const layersById = new globalThis.Map<
+            string, StyleSchema.LayerSpecification>();
+
+        for (const layer of spec.layers ?? [])
+            layersById.set(layer.id as string, layer);
+
+        return layersById;
+    }
+
+    /**
+     * Reads the shared map metadata from the first terrain source.
      *
      * @param map the map being loaded
      * @param spec the style being loaded
@@ -760,13 +565,14 @@ export class MapStyle {
      */
     private static initializeMapMetadata(
         map: Map,
-        spec: MapStyle.StyleSpecification,
-        mc: MapStyle.SurfaceSourceDefinition,
+        spec: StyleSchema.StyleSpecification,
+        mc: StyleSchema.SurfaceSourceDefinition,
         path: string,
     ): void {
 
         const legacyMap = map.legacyMap!;
 
+        // Install the coordinate and body definitions.
         for (const key in mc.srses)
             legacyMap.addSrs(key,
                 new MapSrs(legacyMap, key, mc.srses[key], path));
@@ -779,12 +585,10 @@ export class MapStyle {
             new MapRefFrame(legacyMap, mc.referenceFrame);
         legacyMap.services = mc.services ?? {};
 
+        // Create atmosphere state only when its two inputs exist.
         const body = legacyMap.referenceFrame.body;
         const services = legacyMap.services;
 
-        // the atmosphere exists whenever the body carries atmosphere
-        // parameters and the density service is available; the
-        // mapFlagAtmosphere config flag controls whether it renders
         if (!body?.atmosphere || !services?.atmdensity) return;
 
         const atmoSpec: Atmosphere.Specification = {
@@ -801,297 +605,76 @@ export class MapStyle {
             legacyMap);
     }
 
+    /** Resolves an omitted list to every declared terrain source. */
+    private terrainSourcesForLayer(
+        layer: StyleSchema.LayerSpecification,
+    ): readonly string[] {
 
-    map: LegacyMap;
-
-    /** The normalized authored style: the immutable runtime baseline. */
-    private authoredSpec_: MapStyle.StyleSpecification;
-
-    /** The effective style state: authored plus runtime overrides. */
-    private effectiveSpec_: MapStyle.StyleSpecification;
-
-    /** Layer index over the authored clone, keyed by layer id. */
-    private layersById_ = new globalThis.Map<
-        string, MapStyle.LayerSpecification>();
-
-    /** Ids of every `cartolina-surface` entry in `sources`. */
-    private surfaceSourceIds_ = new Set<string>();
-
-    /** Runtime per-layer terrain-list overrides, keyed by layer id. */
-    private layerTerrainOverrides_ = new globalThis.Map<string, string[]>();
-
-    /** Runtime active-terrain-stack override, or `null` for authored. */
-    private terrainOverride_: string[] | null = null;
-
-
-    /**
-     * Returns the effective style state: the authored baseline with
-     * runtime terrain and layer-applicability overrides applied.
-     */
-    style(): MapStyle.StyleSpecification {
-
-        return this.effectiveSpec_;
+        return layer.terrain ?? this.surfaceSourceIds_;
     }
 
-    /**
-     * Applies a batch of primitive style mutations atomically: every
-     * mutation is validated before any state is written, so an
-     * invalid batch changes nothing. The caller recompiles sequences
-     * after this method commits the already-validated effective state.
-     *
-     * @param mutations primitive mutations in application order
-     * @returns whether the batch can affect lettering compilation
-     */
-    applyMutations(
-        mutations: MapStyle.StyleMutation[],
-    ): { letteringChanged: boolean } {
+    /** Commits a prepared style and refreshes its derived render state. */
+    private commitCandidate(
+        spec: StyleSchema.StyleSpecification,
+        layersById:
+            globalThis.Map<string, StyleSchema.LayerSpecification>,
+        clearLetteringHysteresis: boolean,
+    ): void {
 
-        // validation pass: nothing is written until every mutation
-        // checks out
-        for (const mutation of mutations) {
+        this.map.outerMap.assertRasterSourcesAvailable(spec);
+        this.spec_ = spec;
+        this.layersById_ = layersById;
+        this.refresh(clearLetteringHysteresis);
+    }
 
-            if (mutation.kind === 'layer-terrain') {
+    /** Rebuilds derived state and schedules a complete redraw. */
+    private refresh(clearLetteringHysteresis: boolean): void {
 
-                if (!this.layersById_.has(mutation.layerId)) {
-                    throw new Error(
-                        `Unknown style layer id "${mutation.layerId}".`);
-                }
+        // Recompiled lettering must not inherit the previous rules' fades.
+        if (clearLetteringHysteresis)
+            this.map.renderer.draw.clearJobHBuffer();
 
-                this.validateTerrainIds(mutation.terrain);
+        // Rebuild the free-layer sequence before the next rendered frame.
+        this.map.viewCounter++;
+        this.refreshFreeLayerSequence();
+        this.map.dirty = true;
+        this.map.hitMapDirty = true;
+        this.map.geoHitMapDirty = true;
+    }
 
-            } else {
+    /** Returns whether the style contains a lettering layer. */
+    private hasLetteringLayers(): boolean {
 
-                this.validateTerrainIds(mutation.sources);
-            }
-        }
-
-        const nextLayerOverrides =
-            new globalThis.Map(this.layerTerrainOverrides_);
-        let nextTerrainOverride = this.terrainOverride_ === null
-            ? null
-            : [...this.terrainOverride_];
-
-        for (const mutation of mutations) {
-
-            if (mutation.kind === 'layer-terrain') {
-
-                nextLayerOverrides.set(
-                    mutation.layerId, [...mutation.terrain]);
-
-            } else {
-
-                nextTerrainOverride = [...mutation.sources];
-            }
-        }
-
-        const nextSpec = this.buildEffectiveState(
-            nextTerrainOverride, nextLayerOverrides);
-
-        // The prospective state is checked before any live override or
-        // effective-style field changes.
-        this.map.outerMap.assertRasterSourcesAvailable(nextSpec);
-
-        const hasLettering = (this.authoredSpec_.layers ?? []).some(
+        return (this.spec_.layers ?? []).some(
             (layer) => ['labels', 'lines'].includes(layer.type ?? ''));
-        const letteringChanged = mutations.some((mutation) =>
-            mutation.kind === 'layer-terrain'
-                ? this.isLetteringLayer(mutation.layerId)
-                : hasLettering);
-
-        this.layerTerrainOverrides_ = nextLayerOverrides;
-        this.terrainOverride_ = nextTerrainOverride;
-        this.effectiveSpec_ = nextSpec;
-
-        return { letteringChanged };
     }
 
-    /**
-     * Returns a copy of one layer's effective terrain-source list.
-     * Always an explicit array; an omitted authored list was expanded
-     * at validation.
-     *
-     * @param layerId id of the layer to query
-     * @throws on an unknown layer id
-     */
-    getLayerTerrainSources(layerId: string): string[] {
-
-        const layer = this.layersById_.get(layerId);
-        if (!layer) {
-            throw new Error(`Unknown style layer id "${layerId}".`);
-        }
-
-        const override = this.layerTerrainOverrides_.get(layerId);
-        return [...(override ?? layer.terrain ?? [])];
-    }
-
-    /** Returns a copy of the effective active terrain stack. */
-    getTerrainSources(): string[] {
-
-        return [...(this.terrainOverride_
-            ?? this.authoredSpec_.terrain.sources)];
-    }
-
-    /** Returns the ids of every style layer in array order. */
-    getLayerIds(): string[] {
-
-        return (this.authoredSpec_.layers ?? []).map(
-            (layer) => layer.id as string);
-    }
-
-    /**
-     * Returns whether a layer id names a lettering (`labels` or
-     * `lines`) layer.
-     *
-     * @param layerId id of the layer to query
-     */
-    isLetteringLayer(layerId: string): boolean {
+    /** Returns whether an id names a lettering layer. */
+    private isLetteringLayer(layerId: string): boolean {
 
         const layer = this.layersById_.get(layerId);
         return layer !== undefined
             && ['labels', 'lines'].includes(layer.type ?? '');
     }
 
-    /**
-     * Rebuilds the effective style state from the authored baseline
-     * and the current runtime overrides. Called by the style-mutation
-     * commit before sequences recompile.
-     */
-    rebuildEffectiveState(): void {
-
-        this.effectiveSpec_ = this.buildEffectiveState(
-            this.terrainOverride_, this.layerTerrainOverrides_);
-    }
-
-    private buildEffectiveState(
-        terrainOverride: string[] | null,
-        layerTerrainOverrides:
-            globalThis.Map<string, string[]>,
-    ): MapStyle.StyleSpecification {
-
-        const spec = structuredClone(this.authoredSpec_);
-
-        if (terrainOverride) {
-            spec.terrain.sources = [...terrainOverride];
-        }
-
-        for (const layer of spec.layers ?? []) {
-
-            const override =
-                layerTerrainOverrides.get(layer.id as string);
-            if (override) layer.terrain = [...override];
-        }
-
-        return spec;
-    }
-
-    /**
-     * Validates a terrain-source id list: every id must name a
-     * `cartolina-surface` source and appear only once.
-     */
+    /** Validates terrain-source identity and uniqueness. */
     private validateTerrainIds(sourceIds: string[]): void {
 
         const seen = new Set<string>();
 
         for (const id of sourceIds) {
 
-            if (!this.surfaceSourceIds_.has(id)) {
+            if (!this.surfaceSourceIds_.includes(id)) {
                 throw new Error(
                     `"${id}" is not a terrain (cartolina-surface) `
                     + `source of this style.`);
             }
 
-            if (seen.has(id)) {
-                throw new Error(
-                    `Duplicate terrain source id "${id}".`);
-            }
+            if (seen.has(id))
+                throw new Error(`Duplicate terrain source id "${id}".`);
 
             seen.add(id);
         }
-    }
-
-    /**
-     * Refreshes terrain applicability and the free-layer sequence from the
-     * effective style.
-     */
-    refreshSequences(): void {
-
-        let map = this.map;
-        const spec = this.effectiveSpec_;
-
-        // every active terrain source must have resolved during loading
-        spec.terrain.sources.forEach((sourceId: string) =>
-            map.outerMap.resolveTerrainSource(sourceId));
-
-        // compile free layer stylesheets from style layers and set them
-        let freeLayerStyles: Record<string, vtsStylesheet> = {};
-
-        // the active terrain stack gates lettering rules below
-        const activeTerrain = spec.terrain.sources;
-
-        // iterate through layes, compiling layer style sheets along the way
-        spec.layers && spec.layers.forEach((layer) => {
-
-            if (['labels', 'lines'].includes(layer.type ?? '')) {
-
-                // a lettering rule is active exactly when its terrain
-                // list intersects the active terrain stack
-                const ruleTerrain = layer.terrain ?? [];
-                if (!ruleTerrain.some((id) => activeTerrain.includes(id)))
-                    return;
-
-                let freelayerId = layer.source as string;
-                let stylesheet: vtsStylesheet = freeLayerStyles[freelayerId];
-
-
-                // copy global properties into the layer stylesheet
-                if (!stylesheet) {
-
-                    stylesheet = freeLayerStyles[freelayerId] = {}
-                    if (spec.fonts) stylesheet.fonts = spec.fonts;
-                    if (spec.constants) stylesheet.constants = spec.constants;
-                    if (spec.bitmaps) stylesheet.bitmaps = spec.bitmaps;
-                    stylesheet.layers = {};
-
-                }
-
-                const clonedLayer = structuredClone(
-                    layer) as MapStyle.LetteringLayer;
-
-                // remove fields specific to cartolina style layers and
-                // not present in vts stylesheets
-                const { id, type, source, terrain, ...stylesheetLayer }
-                    = clonedLayer;
-
-                // final stylesheet
-                stylesheet.layers![id] = stylesheetLayer;
-            }
-        })
-
-        // build free layer sequence
-        map.freeLayerSequence = [];
-
-        for (const [id, stylesheet] of Object.entries(freeLayerStyles)) {
-
-            // copied from generatesurfacesequenece
-            // copied from Map.refreshFreeLayersInView
-            //
-            // registration already guarantees the surviving geodata
-            // form (addFreeLayer, MapFreeLayer's fetched-layer
-            // validation), so this path trusts the registry: a
-            // registered free layer is either present and eligible,
-            // or the registry entry is null.
-            let freeLayer = map.getFreeLayer(id);
-
-            if (freeLayer) {
-
-                freeLayer.options = {};
-
-                map.freeLayerSequence.push(freeLayer);
-                freeLayer.setStyle(stylesheet);
-            }
-        }
-
-        //console.log(map.freeLayerSequence);
     }
 
     private static slapResource(path: string, resource: string): string {
@@ -1120,14 +703,14 @@ export class MapStyle {
      *
      * @param map map whose URL context resolves a relative source URL
      * @param sourceSpec the URL or inline form of one source
-     * @param resource default document name a trailing slash gets
+     * @param filename default document filename, appended to a trailing slash
      * @param resourceType resource kind reported to the request hook
      * @returns the definition and the path its relative URLs resolve against
      */
     private static async resolveSourceDefinition<T>(
         map: Map,
         sourceSpec: { url: string } | { definition: T },
-        resource: string,
+        filename: string,
         resourceType: utils.RequestResourceType,
     ): Promise<[T, string]> {
 
@@ -1137,7 +720,7 @@ export class MapStyle {
             return [sourceSpec.definition, legacyMap.url.baseUrl];
 
         const path = MapStyle.slapResource(
-            legacyMap.url.processUrl(sourceSpec.url), resource);
+            legacyMap.url.processUrl(sourceSpec.url), filename);
 
         const definition = await utils.loadJson(
             path, legacyMap.core.transformRequest, resourceType) as T;
@@ -1145,31 +728,18 @@ export class MapStyle {
         return [definition, path];
     }
 
-    /**
-     * The bare bones constructor (to be invoked from the static
-     * factory func). `style` must be the normalized clone produced by
-     * `normalizeStyle`: every layer carries a unique id and an
-     * explicit terrain list.
-     */
-    constructor(map: LegacyMap, style: MapStyle.StyleSpecification) {
+    /** Legacy map receiving the style-derived free-layer sequence. */
+    map: LegacyMap;
 
-        this.map = map;
-        this.authoredSpec_ = style;
-        this.effectiveSpec_ = style;
+    /** The current mutable style. */
+    private spec_: StyleSchema.StyleSpecification;
 
-        for (const layer of style.layers ?? []) {
-            this.layersById_.set(layer.id as string, layer);
-        }
+    /** Current layers keyed by runtime id. */
+    private layersById_: globalThis.Map<
+        string, StyleSchema.LayerSpecification>;
 
-        for (const [id, sourceSpec] of Object.entries(style.sources))
-            if (sourceSpec.type === 'cartolina-surface') {
-                this.surfaceSourceIds_.add(id);
-            }
-
-        // materialize the effective clone so later commits never
-        // hand out the authored baseline for mutation
-        this.rebuildEffectiveState();
-    }
+    /** Declared `cartolina-surface` ids in source order. */
+    private surfaceSourceIds_: string[] = [];
 }
 
 

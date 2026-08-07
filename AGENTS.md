@@ -833,6 +833,32 @@ lines. Reserve block comments (`/* ... */`) for module headers,
 JSDoc, and other file- or declaration-level comments outside executable
 blocks.
 
+## <span style="color:red">NEVER TOUCH USER-AUTHORED COMMENTS DURING REVIEW</span>
+
+User-authored comments and JSDoc are protected work. A request to review,
+investigate, or fix code does not authorize changing them. Never rewrite,
+shorten, expand, capitalize, reformat, move, or delete a comment merely to
+match these guidelines or an agent's preferred wording.
+
+When an explicitly requested structural change requires moving commented
+code, preserve every comment verbatim, including spelling, capitalization,
+line breaks, and whitespace. Change a comment only when the user explicitly
+asks for that specific comment to change.
+
+If an agent changes a protected comment accidentally, stop editing that file.
+Restore the comment byte-for-byte from an exact pre-edit snapshot and verify
+the restoration by direct comparison. Never reconstruct the wording from
+memory, infer it from an older revision, substitute a similar comment, or
+claim faithful restoration without an exact comparison. If no exact snapshot
+exists, state that restoration cannot be guaranteed and ask the user how to
+proceed.
+
+**Make sequencing constraints visible.** When a call must occur before or
+after surrounding initialization, put a concise in-block comment at the call
+that names the dependency. Do not separate a step from the operation it
+completes unless intervening work is required. A reviewer should not have to
+reverse-engineer whether intervening statements justify delayed execution.
+
 **Do not use underscore import shims.** Import symbols under the name
 used in the file. Do not write `import Foo_ ...; var Foo = Foo_;` or
 `//get rid of compiler mess`. When editing a file that still has this

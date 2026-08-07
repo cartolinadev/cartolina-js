@@ -8,7 +8,7 @@ import Renderer from '../renderer/renderer';
 import ConfigStore from '../config-store';
 import { GpuDevice } from '../renderer/gpu/device';
 import * as viewerConfig from '../viewer-config';
-import MapStyle from '../map/style';
+import type * as StyleSchema from '../map/style-schema';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/legacy-map';
 import * as utils from '../utils/utils';
@@ -214,7 +214,7 @@ class Viewer {
      * terrain stack plus the active terrain list of every style
      * layer. The profile is fully validated first; an invalid
      * profile changes nothing. Applying a profile is a one-time
-     * write of ordinary visibility state — later direct mutations
+     * write of ordinary visibility state — later direct changes
      * and later profiles follow normal call order.
      *
      * @param profile the complete visibility snapshot
@@ -224,42 +224,7 @@ class Viewer {
     applyVisibilityProfile(profile: Viewer.VisibilityProfile): this {
 
         this.assertAlive();
-
-        // completeness: the profile must cover exactly the style's
-        // layers, so reapplying a captured profile restores all state
-        const layerIds = this.map_.getStyleLayerIds();
-        const profileIds = new Set(Object.keys(profile.layers));
-
-        for (const id of layerIds) {
-
-            if (!profileIds.has(id)) {
-                throw new Error(`Visibility profile omits layer `
-                    + `"${id}".`);
-            }
-
-            profileIds.delete(id);
-        }
-
-        if (profileIds.size > 0) {
-            throw new Error(`Visibility profile names unknown `
-                + `layer(s): ${[...profileIds].join(', ')}.`);
-        }
-
-        // expand into the same primitives as the direct methods; the
-        // batch validates terrain ids and commits atomically
-        const mutations: MapStyle.StyleMutation[] = [
-            { kind: 'terrain-sources', sources: profile.terrain },
-        ];
-
-        for (const id of layerIds) {
-            mutations.push({
-                kind: 'layer-terrain',
-                layerId: id,
-                terrain: profile.layers[id],
-            });
-        }
-
-        this.map_.mutateStyle(mutations);
+        this.map_.applyVisibilityProfile(profile);
         return this;
     }
 
@@ -273,17 +238,7 @@ class Viewer {
     getVisibilityProfile(): Viewer.VisibilityProfile {
 
         this.assertAlive();
-
-        const layers: Record<string, string[]> = {};
-
-        for (const id of this.map_.getStyleLayerIds()) {
-            layers[id] = this.map_.getLayerTerrainSources(id);
-        }
-
-        return {
-            terrain: this.map_.getTerrainSources(),
-            layers,
-        };
+        return this.map_.getVisibilityProfile();
     }
 
     /**
@@ -303,7 +258,7 @@ class Viewer {
     }
 
     /**
-     * Returns a copy of the effective active terrain stack.
+     * Returns a copy of the current active terrain stack.
      *
      * @throws before `ready`
      */
@@ -319,7 +274,7 @@ class Viewer {
      * layer type; lettering rules are active exactly when their list
      * intersects the active terrain stack.
      *
-     * @param layerId id of the layer to mutate
+     * @param layerId id of the layer to change
      * @param terrainIds terrain source ids
      * @throws before `ready`, on an unknown layer id, or on an id
      *   that is not a terrain source
@@ -332,9 +287,9 @@ class Viewer {
     }
 
     /**
-     * Returns a copy of one layer's effective terrain-source list.
-     * Always an explicit array: an omitted authored `terrain`
-     * expanded at validation to every declared terrain source.
+     * Returns a copy of one layer's current terrain-source list.
+     * An omitted authored `terrain` resolves to every declared
+     * terrain source when queried.
      *
      * @param layerId id of the layer to query
      * @throws before `ready` or on an unknown layer id
@@ -1242,7 +1197,7 @@ namespace Viewer {
         container: HTMLElement | string;
 
         /** A parsed map style or the URL of one. */
-        style: string | MapStyle.StyleSpecification;
+        style: string | StyleSchema.StyleSpecification;
 
         /** Initial ten-component position; omitted to use the style default. */
         position?: Map.PositionInput;
@@ -1266,10 +1221,7 @@ namespace Viewer {
      * value applied through `applyVisibilityProfile`; never part of
      * the authored style.
      */
-    export type VisibilityProfile = {
-        terrain: string[];
-        layers: Record<string, string[]>;
-    };
+    export type VisibilityProfile = Map.VisibilityProfile;
 
     /**
      * The public runtime configuration map accepted and returned by
