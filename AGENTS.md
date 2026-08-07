@@ -899,11 +899,18 @@ evidence.
 
 Within a class, use this order:
 
-1. Constructor.
-2. Public fields, accessors, and methods, grouped by purpose.
-3. Protected fields, accessors, and methods, when present.
-4. Private accessors and methods.
-5. Private fields.
+1. Public constructor, when the class has one.
+2. Public methods and accessors, grouped by purpose.
+3. Public fields. These are rare; when they exist they follow the
+   public methods.
+4. Protected members, when present.
+5. Private constructor, accessors, and methods.
+6. Private fields.
+
+The consumer's information comes first. A class built through a static
+factory therefore opens with that factory, and its private constructor
+sits with the other private members — a private constructor is not part
+of the public surface and does not belong at the top.
 
 This order applies to internal classes as well as exported classes. A
 private method belongs after the complete public surface even when the
@@ -911,6 +918,10 @@ constructor or a public method calls it. Private field declarations
 belong at the end of the class. Field initializers execute in declaration
 order, so preserve any ordering dependency when reorganizing existing
 fields; runtime correctness overrides presentation order.
+
+Do not reorder an existing class only to satisfy this rule. Apply it to
+new classes and to classes already being restructured for another
+reason; older classes that predate it are left alone.
 
 At module scope, place exported declarations before non-exported helper
 functions, types, constants, and other implementation state. The more
