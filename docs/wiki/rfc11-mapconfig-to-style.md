@@ -3866,3 +3866,18 @@ validator is generated from that type, so the redeclaration rejected an
 anonymous `labels` or `lines` layer at load time, contradicting the
 version-2 rule that any authored layer may omit its id and receive a runtime
 one. The converter continues to emit explicit ids.
+
+## Addendum — 2026-08-07 — surface terminology settled
+
+A **surface definition** is what a `cartolina-surface` source resolves to,
+inline or fetched; it is the terrain source. Its type is
+`StyleSchema.SurfaceSourceDefinition`. A **surface entry** is the one entry
+in its `surfaces` table, typed `TerrainSource.Definition`.
+
+"Surface document" was a coinage for the first of these. It is retired from
+the source, the tests, and the current wiki pages; the occurrences left in
+this RFC sit in frozen text and stay as written.
+
+Should `SurfaceSourceDefinition` be renamed, `TerrainSourceDefinition` is the
+name to use, with `TerrainSource.Definition` renamed in the same change so
+the two do not read as one type.

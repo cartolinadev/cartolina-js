@@ -38,7 +38,8 @@ with a unique numeric tail, or that plus `-anon`, so two of them cannot
 collide.
 
 AGENTS.md gains a rule beside the jargon ban: never coin a term when the
-codebase already names the thing.
+codebase already names the thing. The coinage that prompted it, "surface
+document", is retired; RFC 11 settles the terminology in a dated addendum.
 
 ## 2026-08-06 — Style state reduced to one current document
 
