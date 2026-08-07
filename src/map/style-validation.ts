@@ -86,6 +86,40 @@ export function validateSpecification(
 }
 
 
+/**
+ * Validates a surface definition before its metadata reaches any map
+ * object.
+ *
+ * Covers the fields the style loader reads from the definition itself:
+ * the reference frame, the SRS, body and service tables, the credit
+ * table, and the surface list. Each surface entry stays the
+ * responsibility of `TerrainSource.fromMetadata`.
+ *
+ * @param sourceId style source id, named in the error message
+ * @param value untrusted surface definition
+ * @returns the validated definition
+ */
+export function validateSurfaceDefinition(
+    sourceId: string,
+    value: unknown,
+): StyleSchema.SurfaceSourceDefinition {
+
+    const result = typia.validate<StyleSchema.SurfaceSourceDefinition>(value);
+
+    if (!result.success) {
+
+        const details = result.errors
+            .map((error) => `${error.path}: expected ${error.expected}`)
+            .join('; ');
+
+        throw new Error(`Terrain source "${sourceId}" has an invalid surface `
+            + `definition: ${details}.`);
+    }
+
+    return result.data;
+}
+
+
 const validateStyle =
     typia.createValidateEquals<StyleSchema.StyleSpecification>();
 
@@ -117,7 +151,7 @@ function canonicalJson(value: unknown): string {
 /*
  * Validates shared terrain metadata and credit definitions in inline
  * sources before any map object is constructed. URL sources are not
- * checked; they keep the historical first-document acceptance behavior.
+ * checked; they keep the historical first-definition acceptance behavior.
  */
 function checkInlineSurfaceConsistency(
     sources: Record<string, StyleSchema.SourceSpecification>,

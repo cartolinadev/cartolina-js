@@ -165,7 +165,7 @@ class Map {
 
     /**
      * Resolved terrain sources, keyed by style source id. A surface
-     * document that fails to load rejects style loading, so a
+     * definition that fails to load rejects style loading, so a
      * registered entry is always usable.
      */
     private terrainSources_ = new globalThis.Map<string, TerrainSource>();

@@ -138,9 +138,10 @@ export class MapStyle {
                 if (result.status === 'fulfilled') {
 
                     const [definitionValue, path] = result.value;
-                    // TODO: it would be cleaner to have a validation here instead of a cast
-                    const definition = definitionValue as
-                        StyleSchema.SurfaceSourceDefinition;
+
+                    const definition =
+                        StyleValidation.validateSurfaceDefinition(
+                            id, definitionValue);
 
                     if (!mapMetadataInitialized) {
 
@@ -206,15 +207,16 @@ export class MapStyle {
                         const source = RasterSource.fromMetadata(
                             map, id, definition, path);
 
-                        rasterEntries.set(
-                            id, { status: 'ready', source });
-
                         // update the global credit lookup table
                         MapStyle.registerCreditDefinitions(
                             legacyMap,
                             (definition as StyleSchema.TmsSourceDefinition)
                                 .credits,
                         );
+
+                        // publish the entry after every step that can fail
+                        rasterEntries.set(
+                            id, { status: 'ready', source });
 
                     } catch (reason) {
 
@@ -470,7 +472,7 @@ export class MapStyle {
             const { id, type, source, terrain, ...stylesheetLayer }
                 = clonedLayer;
 
-            stylesheet.layers![id] = stylesheetLayer;
+            stylesheet.layers![id as string] = stylesheetLayer;
         }
 
         // Install the compiled stylesheets in draw and hit-test order.
@@ -535,7 +537,6 @@ export class MapStyle {
             while (ids.has(candidate)) candidate += '-anon';
 
             layer.id = candidate;
-            ids.add(candidate);
         });
 
         return spec;

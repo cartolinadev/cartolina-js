@@ -3,6 +3,83 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-07 — Surface source definitions are validated before use
+
+An external review of `ad42e9a5` raised four findings. Three changed code.
+
+A surface definition fetched from a URL was cast, not validated, so
+`referenceFrame`, `srses`, `bodies`, `services`, `credits`, and `surfaces`
+were read from an unchecked object and a malformed one produced a TypeError
+from an anonymous property read. `validateSurfaceSourceDefinition` in
+`src/map/style-validation.ts` now checks it. The same shape was already
+validated on the inline path through `validateSpecification` — strictly
+enough that `mapConfigToStyle()` hand-assembles a six-key definition to get
+through it — while the URL path had no boundary at all. The new check uses
+`typia.validate`, not `createValidateEquals`: a legacy `mapConfig.json`
+carries about a dozen further top-level keys, and equality semantics would
+reject every document that has them.
+
+`LetteringLayerBase` redeclared `id` as required over the optional `id` it
+inherits from `LayerBase`. Because typia generates the style validator from
+that type, an anonymous `labels` or `lines` layer was rejected at load even
+though `prepareStyle` was already prepared to name it. The redeclaration is
+gone, and `refreshFreeLayerSequence` gained the `as string` that the three
+other id readers in that file already use.
+
+In the raster branch of `loadStyle` the registry entry was published before
+credit registration, so the catch had to overwrite an entry it had just
+written. The reported partial-credit-table failure is not reachable —
+`RasterSource.Definition` covers `credits`, so typia has already validated
+them, and `MapCredit` and `addCredit` are assignments over a null-safe
+helper — but the entry is now published last, which removes the
+publish-then-overwrite sequence. The fourth finding, a redundant insert into
+the generated-id set, was dead code: a generated candidate is `type-index`
+with a unique numeric tail, or that plus `-anon`, so two of them cannot
+collide.
+
+AGENTS.md gains a rule beside the jargon ban: never coin a term when the
+codebase already names the thing.
+
+## 2026-08-06 — Style state reduced to one current document
+
+`MapStyle` now keeps the cloned current style instead of an authored baseline,
+an effective clone, and two override collections. Loading assigns ids to
+anonymous layers but preserves omitted terrain lists. Getters and render
+consumers resolve omitted applicability when they need an explicit list.
+
+The concrete visibility setters validate and edit a candidate clone, check its
+raster sources, and replace the current style atomically. `Viewer`, core
+`Map`, and `MapStyle` use the same six operation names; the generic mutation
+command type and batch entry points are gone. `MapStyle` rebuilds its derived
+free-layer sequence and invalidates rendering after commit; core `Map` only
+enforces readiness before delegation. The six public `Viewer` methods and
+version-2 style shape are unchanged.
+
+Style normalization is gone as a concept, and its three jobs are separated.
+`normalizeStyle` used to reject duplicate explicit layer ids, generate an id
+for each anonymous layer, and expand an omitted layer `terrain` to every
+declared `cartolina-surface` id. The duplicate-id check moves into
+validation. Id generation survives as the private `MapStyle.prepareStyle`.
+The terrain expansion is deleted: an omitted list stays omitted in the
+stored style and resolves on read. `validateAndNormalizeStyle`, which
+combined validation and normalization for both `loadStyle` and
+`mapConfigToStyle()`, is replaced by validation alone; only `loadStyle`
+prepares runtime ids.
+
+`src/map/style.ts` is now the `MapStyle` class alone. The specification types
+stay in `src/map/style-schema.ts`, which keeps no code, and validation moves
+to a new `src/map/style-validation.ts` that imports the schema instead of the
+class. Both are imported as namespaces — `StyleSchema` and `StyleValidation`
+— so every style type and the one validation entry point name their origin
+at the use site. The compatibility entry still reaches validation without
+pulling in rendering code.
+
+Terrain credits keep the existing mapConfig contract: the surface
+definition's top-level table defines credits, and metanode ids select them
+per tile. The
+unused surface-entry table handling and retained `TerrainSource` credit list
+are deleted; whole-surface attribution remains an end-to-end future change.
+
 ## 2026-08-06 — Styles carry a default camera position
 
 `StyleSpecification` gains an optional `position`, a 10-component
@@ -60,35 +137,6 @@ that shadowed the compiled-in template, and so is the dependency on the
 deployed `support/launch.js` — that script called `cartolina.browser()`
 and `cartolina.utils`, neither of which the RFC 11 entry point
 exports.
-
-## 2026-08-06 — Style state reduced to one current document
-
-`MapStyle` now keeps the cloned current style instead of an authored baseline,
-an effective clone, and two override collections. Loading assigns ids to
-anonymous layers but preserves omitted terrain lists. Getters and render
-consumers resolve omitted applicability when they need an explicit list.
-
-The concrete visibility setters validate and edit a candidate clone, check its
-raster sources, and replace the current style atomically. `Viewer`, core
-`Map`, and `MapStyle` use the same six operation names; the generic mutation
-command type and batch entry points are gone. `MapStyle` rebuilds its derived
-free-layer sequence and invalidates rendering after commit; core `Map` only
-enforces readiness before delegation. Normalization helpers and terminology
-are also gone. The six public `Viewer` methods and version-2 style shape are
-unchanged.
-
-`src/map/style.ts` is now the `MapStyle` class alone. The specification types
-stay in `src/map/style-schema.ts`, which keeps no code, and validation moves
-to a new `src/map/style-validation.ts` that imports the schema instead of the
-class. Both are imported as namespaces — `StyleSchema` and `StyleValidation`
-— so every style type and the one validation entry point name their origin
-at the use site. The compatibility entry still reaches validation without
-pulling in rendering code.
-
-Terrain credits keep the existing mapConfig contract: the source document's
-top-level table defines credits, and metanode ids select them per tile. The
-unused surface-entry table handling and retained `TerrainSource` credit list
-are deleted; whole-surface attribution remains an end-to-end future change.
 
 ## 2026-08-06 — RFC 11 post-implementation review signed off
 

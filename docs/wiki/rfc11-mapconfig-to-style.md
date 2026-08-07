@@ -3841,3 +3841,28 @@ compatibility entry at all.
 The converter returns the initial position beside the style, so the
 converting template passes it to `map()` explicitly. The style template
 does not: a style carries its own default position.
+
+## Addendum — 2026-08-07 — surface definitions are validated
+
+A surface definition fetched from a URL reached
+`MapStyle.initializeMapMetadata` through a cast. Its reference frame, SRS,
+body, service, and credit tables, and the surface list itself, were read
+without a check, so a malformed one surfaced as a TypeError on an
+anonymous property read rather than a named error.
+
+`validateSurfaceDefinition` in `src/map/style-validation.ts` now
+validates it, for both the inline and the URL form. The inline form was
+already covered by `validateSpecification`, which is why `mapConfigToStyle()`
+assembles a definition carrying only the six declared keys. The check uses
+`typia.validate` rather than `createValidateEquals`, because a legacy
+`mapConfig.json` carries further top-level keys — `version`, `position`,
+`view`, `namedViews`, `boundLayers`, `freeLayers`, `glue`, and more — that
+equality semantics would reject. Individual surface entries and raster
+definitions stay the responsibility of `TerrainSource.fromMetadata` and
+`RasterSource.fromMetadata`.
+
+`LetteringLayerBase` no longer redeclares `id` as required. The style
+validator is generated from that type, so the redeclaration rejected an
+anonymous `labels` or `lines` layer at load time, contradicting the
+version-2 rule that any authored layer may omit its id and receive a runtime
+one. The converter continues to emit explicit ids.

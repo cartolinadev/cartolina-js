@@ -1150,6 +1150,21 @@ Every sentence in documentation must be checkable against the code.
 If a sentence cannot be verified by reading the source, rewrite it
 until it can.
 
+**Never coin a term when the codebase already has one.** This carries
+the same weight as the jargon ban. Before naming a thing in prose, a
+comment, a commit message, or an identifier, find what the project
+calls it and use exactly that. What a `cartolina-surface` source
+resolves to is a surface definition, which is the terrain source; the
+one entry in its `surfaces` table is a surface entry. Neither is a
+"surface document". A coined synonym forces every reader to work out
+whether it names the same thing or a second one.
+
+Search first: the type name, the field name, the existing function
+name. If no name exists and one is genuinely needed, say so plainly
+rather than slipping a new word in as though it were established.
+When the established name is ambiguous or reads badly, ask — do not
+resolve it by inventing a third form.
+
 
 ## WebGL2 shaders
 

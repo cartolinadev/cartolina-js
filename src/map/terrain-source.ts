@@ -13,7 +13,7 @@ import * as url from '../utils/url';
  * A resolved `cartolina-surface` source owned by `Map`.
  *
  * Construction extracts the supported metadata from the surface entry
- * of a surface document into immutable state, so every instance is
+ * of a surface definition into immutable state, so every instance is
  * complete and ready for resource URL queries. A retrieval failure
  * rejects style loading and produces no instance.
  */
@@ -56,10 +56,10 @@ class TerrainSource {
     }
 
     /**
-     * Validates and resolves the surface entry of a surface document.
+     * Validates and resolves the surface entry of a surface definition.
      *
-     * Both fetched documents and inline style metadata enter through
-     * this boundary, so invalid data cannot reach the constructor.
+     * Both fetched and inline definitions enter through this boundary,
+     * so invalid data cannot reach the constructor.
      *
      * @param map typed map that will own the resolved source
      * @param sourceId style source id
@@ -256,7 +256,7 @@ class TerrainSource {
             throw new Error(`Terrain source "${sourceId}" has a descending `
                 + `tileRange.`);
 
-        // tileRange is validated because every surface document declares
+        // tileRange is validated because every surface definition declares
         // it, but tile presence is answered by metanodes, so nothing reads
         // it after this point
         return {

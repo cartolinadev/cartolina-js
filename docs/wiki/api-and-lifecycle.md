@@ -78,6 +78,15 @@ represented by `StyleSchema.StyleSpecification` in
 validated style; core map and renderer code cannot observe whether
 the style was authored directly or converted.
 
+Source metadata crosses three validation boundaries, all in
+`src/map/style-validation.ts` and the two source classes.
+`validateSpecification` checks the style itself, including any inline
+source definition. `validateSurfaceDefinition` checks each surface
+definition, whether inline or fetched from a URL, before the reference
+frame, SRS, body, service, or credit tables are read from it.
+`TerrainSource.fromMetadata` and `RasterSource.fromMetadata` check the
+individual surface entry and raster definition.
+
 Loading clones the authored style and assigns ids to anonymous layers. The
 clone is the current mutable style; `MapStyle` does not retain an authored
 baseline or separate override state. Omitted layer `terrain` remains omitted

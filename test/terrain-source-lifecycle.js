@@ -154,7 +154,7 @@ async function main() {
 
         // --- credits -------------------------------------------------
 
-        check('surface document credits stay registered',
+        check('surface definition credits stay registered',
             Object.keys(legacy.credits).length > 0);
 
         // the visible set fills as tiles draw, not at readiness
@@ -202,7 +202,7 @@ async function main() {
                 }),
             ]);
 
-        // the live surface document supplies the shared metadata an
+        // the live surface definition supplies the shared metadata an
         // inline source needs; only its surface entry is varied
         const terrainSpec = styleSpec.sources[terrainIds[0]];
         const terrainUrl = new URL('mapConfig.json', terrainSpec.url).href;
@@ -277,7 +277,7 @@ async function main() {
             tileRange: [[0, 0], [0, 0]],
         });
 
-        check('an inline surface document loads', inline.error === '');
+        check('an inline surface definition loads', inline.error === '');
 
         check('the inline source keeps absolute converter URLs', (() => {
 

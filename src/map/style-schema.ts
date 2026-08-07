@@ -41,7 +41,7 @@ export type SourceSpecification =
 
 /**
  * Inline definition of a `cartolina-surface` source: a single-surface
- * document carrying the surface resource definition plus the
+ * definition carrying the surface resource definition plus the
  * reference-frame, SRS, body, service, and credit metadata needed to
  * initialize it. The same shape a surface URL resolves to.
  */
@@ -164,8 +164,6 @@ export type BumpMapLayer = TileLayerBase<'bump-map'>;
 
 export type LetteringLayerBase<TType extends string> = LayerBase<TType> & {
 
-    id: string,
-    type: TType,
     source: string,
 
     filter?: FilterCondition
