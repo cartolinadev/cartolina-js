@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo-white.png">
-    <img width="320" alt="cartolina-js" src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/brand/cartolina-logo.png">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/media/logo-composite-b.webp">
+    <img alt="cartolina-js" src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/media/logo-composite-w.webp">
   </picture>
 </p>
 
@@ -16,13 +16,6 @@ which was authored and developed by Melown Technologies/Leica Geosystems in
 
 Please refer to the [cartolina website](http://cartolina.dev/) for more information,
 live examples, etc.
-
-<p align="center">
-  <picture>
-    <img src="https://raw.githubusercontent.com/cartolinadev/assets/refs/heads/main/media/complex2-03.jpg">
-  </picture>
-</p>
-
 
 ## Features
 
