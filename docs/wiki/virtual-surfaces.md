@@ -11,7 +11,7 @@ See [index.md](index.md) for the wiki table of contents.
 > `hasMetatile`) were deleted with the terrain-source rewrite; tile
 > presence is answered by metanodes. The
 > recursive terrain traversal renders plain surfaces directly via mask
-> compositing ([rfc3-draw-traversal.md](rfc3-draw-traversal.md)). The
+> compositing ([rfc03-draw-traversal.md](rfc03-draw-traversal.md)). The
 > mapConfig `virtualSurfaces` and `glue` arrays are no longer parsed by
 > cartolina-js. This page is retained as a record of the VTS concept,
 > which still exists server-side and may be revived in modified form.

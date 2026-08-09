@@ -145,7 +145,7 @@ GPU 15.58 ms → 11.05 ms — the predicted ~29%, with the clock-drift
 confound removed.
 
 **Update (2026-06-08).** The quadrant-clip discard site is gone:
-rfc3-draw-traversal step 8 removed `applyTileClip` and
+rfc03-draw-traversal step 8 removed `applyTileClip` and
 `tile-clip.inc.glsl` with the legacy traversal. The discarding program's
 only remaining `discard` is the `uMaskEnabled` coverage test; the
 discard-free program is unchanged.

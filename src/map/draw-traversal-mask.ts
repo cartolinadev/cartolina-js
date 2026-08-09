@@ -488,7 +488,7 @@ class DrawTraversalMaskPool {
         // as a gradient that the tile shader thresholds at 0.5 to recover
         // the edge. Rectangular coverage does not rely on this — it is
         // rasterized exactly at the consumer's resolution in `materialize`.
-        // See phase 2 post-impl notes in docs/wiki/rfc3-draw-traversal.md.
+        // See phase 2 post-impl notes in docs/wiki/rfc03-draw-traversal.md.
         texture.createFromData(
             this.resolution,
             this.resolution,

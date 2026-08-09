@@ -37,7 +37,7 @@ worker concerns, or scheduled to absorb into one of them.
 | Class | File | Role |
 |---|---|---|
 | `Viewer` | [src/viewer/viewer.ts](../../src/viewer/viewer.ts) | The public API. Flat, typed, MapLibre-style method surface. The object `cartolina.map()` returns. |
-| `Map` | [src/map/map.ts](../../src/map/map.ts) | The typed map data model and logic. Owns the frame loop (per [rfc6-map-frame.md](rfc6-map-frame.md)), map loading, lifecycle, the event bus, and the constructed `Renderer` and `Inspector`. Not the public API class. |
+| `Map` | [src/map/map.ts](../../src/map/map.ts) | The typed map data model and logic. Owns the frame loop (per [rfc06-map-frame.md](rfc06-map-frame.md)), map loading, lifecycle, the event bus, and the constructed `Renderer` and `Inspector`. Not the public API class. |
 | `Renderer` | [src/renderer/renderer.ts](../../src/renderer/renderer.ts) | The WebGL2 graphics class. Owns the GL context, render targets, shader programs, and draw calls. Also serves as the public surface for custom drawing from inside overlay callbacks (`drawImage`, `drawLineString`, `createTexture`, `getCanvasSize`). |
 
 The split is by concern: `Viewer` is the consumer-facing API and the
@@ -159,9 +159,9 @@ they do not form another ownership layer.
 It is not the public API class — that is `Viewer`. `Map` owns the
 event bus, the `ready` Promise, lifecycle disposal, the
 `requestAnimationFrame` loop and per-frame entry point
-(post-[rfc6-map-frame.md](rfc6-map-frame.md)), map loading, and the
+(post-[rfc06-map-frame.md](rfc06-map-frame.md)), map loading, and the
 constructed `Renderer` and `Inspector` (absorbed from the retired
-`core.js` shell per [rfc1-config-store.md](rfc1-config-store.md)).
+`core.js` shell per [rfc01-config-store.md](rfc01-config-store.md)).
 Legacy JS modules reach this instance through their `core`
 back-references.
 
@@ -224,7 +224,7 @@ readiness, builds the style layer stack, and renders terrain color and
 depth passes. The old multi-command mesh draw path has been partly
 deleted; remaining draw modules still serve geodata paths. See
 [rendering-architecture.md](rendering-architecture.md) and
-[rfc3-draw-traversal.md](rfc3-draw-traversal.md).
+[rfc03-draw-traversal.md](rfc03-draw-traversal.md).
 
 ## Public API Direction
 

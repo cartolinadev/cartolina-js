@@ -158,7 +158,7 @@ never occurs, so `sampleOctBilinear` is conservative but harmless.
 
 ## Bump-map collapse and TextureBlend
 
-The `TileRenderRig` bump-layer collapse (see [rfc4-bump-bake.md]) bakes
+The `TileRenderRig` bump-layer collapse (see [rfc04-bump-bake.md]) bakes
 bump-map textures into a rig-local collapsed normal texture using
 `nmblender` (`TextureBlend`). This collapses one UBO slot, one texture
 unit, and one shader loop iteration per bump layer for the lifetime of
@@ -193,4 +193,4 @@ compute from the un-collapsed layer stack.
 `TileRenderRig.collapseNormalStack` passes `'oct-normal'` to
 `nmblender.init()`; all other callers use the default `'trivial'`.
 
-[rfc4-bump-bake.md]: rfc4-bump-bake.md
+[rfc04-bump-bake.md]: rfc04-bump-bake.md

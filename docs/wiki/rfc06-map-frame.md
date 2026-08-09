@@ -4,7 +4,7 @@
 **Context:** Promotes step 2 of
 [REFACTOR: replace legacy map draw path with `TileRenderRig`](backlog.md)
 to a full design. Complementary to
-[rfc3-draw-traversal.md](rfc3-draw-traversal.md), which covers step 3
+[rfc03-draw-traversal.md](rfc03-draw-traversal.md), which covers step 3
 (the unified surface-tree traversal). This RFC owns the per-frame
 entry points above the traversal; the two RFCs can land in either
 order.
@@ -79,7 +79,7 @@ frame entry point.
 **Out of scope** (already tracked elsewhere, not blocking):
 
 - The unified recursive tile-tree traversal —
-  [rfc3-draw-traversal.md](rfc3-draw-traversal.md), step 3 of the draw
+  [rfc03-draw-traversal.md](rfc03-draw-traversal.md), step 3 of the draw
   refactor.
 - `withNavigationCamera` / `withSelectionCamera` — slated for removal
   by "REFACTOR: pass explicit draw contexts" in

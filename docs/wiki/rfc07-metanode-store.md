@@ -892,7 +892,7 @@ still a design.
 ## 8. Implementation plan
 
 The plan mirrors the staged, independently-verifiable shape of
-[rfc3-draw-traversal.md](rfc3-draw-traversal.md): each phase lands a
+[rfc03-draw-traversal.md](rfc03-draw-traversal.md): each phase lands a
 testable artifact, and the risky assumptions are measured before they
 are built upon. **Validation uses small, controllable datasets** —
 few-degree cuts from Copernicus GLO-30, one mountainous and one

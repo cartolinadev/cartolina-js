@@ -6,7 +6,7 @@ import * as utils from './utils/utils';
 
 
 /**
- * Where a config key is visible (rfc1-config-store.md §4.5):
+ * Where a config key is visible (rfc01-config-store.md §4.5):
  *
  * - `runtime` — public through `Viewer.setParam` / `getParam` and
  *   the factory option bags; a change after construction takes
@@ -207,7 +207,7 @@ const spec = <T, V extends ConfigKeyVisibility>(
  * documentation, default, normalization, URL parse kind, and
  * visibility. Every other per-key artifact in this module derives
  * from this object; no key exists unless it is declared here
- * (rfc1-config-store.md §4.5).
+ * (rfc01-config-store.md §4.5).
  *
  * Values stored under these keys are already normalized. Watchers
  * and readers may treat them as valid. `mapSplitSpace` is the one
@@ -552,7 +552,7 @@ const catalogue = {
     }),
 
     /** Coverage fraction below which a tile's traversal mask
-     *  counts as insufficient (see `rfc3-draw-traversal.md`). */
+     *  counts as insufficient (see `rfc03-draw-traversal.md`). */
     mapTraversalMaskThreshold: num(0, 1, 0.5, 'internal'),
 
     /** Erosion strength applied to traversal masks before the
@@ -565,7 +565,7 @@ const catalogue = {
 
     /** Brake on descending through geometry-less metanode chains:
      *  the allowed cell-span growth per structural step (see
-     *  `rfc9-metadata-first-traversal.md`). */
+     *  `rfc09-metadata-first-traversal.md`). */
     mapStructuralDescentBrake: num(0, 1, 0.25, 'internal'),
 
     /** Unchecked legacy payload (octant-splitting demo hook). */

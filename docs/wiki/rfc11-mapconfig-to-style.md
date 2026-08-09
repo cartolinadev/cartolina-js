@@ -2970,7 +2970,7 @@ fix.
    Removed the stale "named views" mention from `Map`'s class doc; `Map`
    does not hold visibility profiles, which are application-level
    values (section 6.4). Left the `map-loaded` event's always-empty
-   `browserOptions` payload field as is: `rfc2-event-bus.md`'s and this
+   `browserOptions` payload field as is: `rfc02-event-bus.md`'s and this
    RFC's own implementation-note addenda already record it as a
    deliberate, dated deviation, which post-acceptance addenda cannot be
    rewritten to reverse.

@@ -8,7 +8,7 @@ See [index.md](index.md) for the wiki table of contents.
 > glue entries in `surfaceSequence`, and the glue generation in
 > `surface-sequence.ts`. The recursive terrain traversal renders plain
 > surfaces directly via mask compositing
-> ([rfc3-draw-traversal.md](rfc3-draw-traversal.md)); glues and the alien
+> ([rfc03-draw-traversal.md](rfc03-draw-traversal.md)); glues and the alien
 > flag no longer exist in cartolina-js. This page is retained as a
 > record of the VTS concept, which still exists server-side and may be
 > revived in modified form (a server-side unification of metanode

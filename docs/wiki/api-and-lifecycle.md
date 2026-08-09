@@ -114,7 +114,7 @@ after either validation failure.
 
 Runtime configuration lives in one `ConfigStore<ViewerConfig>`
 (`src/config-store.ts`), implemented by
-[rfc1-config-store.md](rfc1-config-store.md). The single-source
+[rfc01-config-store.md](rfc01-config-store.md). The single-source
 `catalogue` object (`src/viewer-config.ts`) declares every
 valid key exactly once — doc comment, producer default,
 normalizer, URL parse kind, and visibility class — and the
@@ -292,7 +292,7 @@ emit still do. A throwing listener aborts the remaining listeners in
 the same emit call. `EventTarget` was rejected because it does not
 match the MapLibre-style `on()` / `once()` API, allocates
 `CustomEvent` objects for frequent events, and still needs an
-adapter. See [rfc2-event-bus.md](rfc2-event-bus.md).
+adapter. See [rfc02-event-bus.md](rfc02-event-bus.md).
 
 Event names and payload types are defined by `Map.ViewerEventMap` in
 `src/map/map.ts`:

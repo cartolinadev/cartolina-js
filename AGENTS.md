@@ -140,14 +140,15 @@ authoritative until the feature is fully implemented, then become
 historical record.
 
 RFC files live in `docs/wiki/` and are named `rfc<N>-<slug>.md`,
-where `<N>` is the RFC number. They are listed in the **RFCs**
-section of `index.md`.
+where `<N>` is the RFC number, zero-padded to two digits (`rfc01`
+through `rfc99`) so filenames align in a directory listing. They are
+listed in the **RFCs** section of `index.md`.
 
 RFCs are numbered in a single plain-integer sequence in order of
 creation. A new RFC takes the next unused integer, counting RFCs
-that exist only on unmerged design branches. The number appears in
-the filename, in the document title (`# RFC 7: ...`), and in the
-index listings.
+that exist only on unmerged design branches. The number appears
+zero-padded in the filename, but as a plain integer in the document
+title (`# RFC 7: ...`) and in the index listings.
 
 **Lifecycle:**
 
@@ -259,6 +260,30 @@ Add new entries to [docs/wiki/backlog.md](docs/wiki/backlog.md) directly below
 its introduction, newest first. Work confined to `cartolina-tileserver`
 belongs in the tileserver backlog:
 <https://github.com/cartolinadev/cartolina-tileserver/blob/main/docs/backlog.md>.
+
+Backlog entries are numbered in the heading (`## N. ...`) in the order
+they were opened. The number is assigned once and never reused or
+renumbered; a new entry takes the next unused number, regardless of
+where in the file it is inserted (entries stay newest-first by
+position, so number order and file order diverge over time — that is
+expected).
+
+[docs/wiki/backlog-archive.md](docs/wiki/backlog-archive.md) holds
+entries that are resolved, implemented, or closed for another reason
+(superseded, subsumed by another change). When closing a backlog
+entry, move it there, keeping its number, instead of deleting it or
+leaving it in the active file.
+
+**Promotion to an RFC does not by itself close a backlog entry.**
+Promoting or elevating an entry to an RFC (or noting it is "subsumed
+by" one) hands off *tracking*, not completion — the underlying work
+is not done until that RFC is implemented. An entry promoted to an
+RFC stays in the active backlog, status noting the RFC, until the RFC
+reaches `Implemented` status (see [rfcs-implemented.md](rfcs-implemented.md)
+in `index.md`'s **RFC archive**); only then does the backlog entry
+move to backlog-archive.md. Archiving on promotion alone would let a
+high-importance bug quietly vanish from the active backlog the moment
+someone opens a draft RFC for it, long before the fix ships.
 
 When closing a backlog entry, remove any working hypotheses that were
 not confirmed as the root cause. Keep only what remains true and

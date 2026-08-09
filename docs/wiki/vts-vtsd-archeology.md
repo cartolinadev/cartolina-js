@@ -4,7 +4,7 @@ See [index.md](index.md) for the wiki table of contents.
 
 Notes on how `vts-vtsd` operates, gathered while rolling out the v6
 watertight metatile format (RFC stage 5,
-[rfc3-draw-traversal.md](rfc3-draw-traversal.md)). `vts-vtsd` is a
+[rfc03-draw-traversal.md](rfc03-draw-traversal.md)). `vts-vtsd` is a
 sunsetting component still used in some deployments; this page records
 the reusable findings so the next person does not have to re-derive
 them.
@@ -240,4 +240,4 @@ cd vtsd/build
   [vts-storage-and-virtual-surfaces.md](vts-storage-and-virtual-surfaces.md),
   [glue-alien-flag.md](glue-alien-flag.md).
 - The v6 rollout that produced these notes:
-  [rfc3-draw-traversal.md](rfc3-draw-traversal.md) §4.5 and stage 5.
+  [rfc03-draw-traversal.md](rfc03-draw-traversal.md) §4.5 and stage 5.

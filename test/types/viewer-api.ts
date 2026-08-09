@@ -20,7 +20,7 @@ const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
 // The audited 61-key public runtime subset, pinned as a lasting
-// compile-time contract (rfc1-config-store.md, step 8): an
+// compile-time contract (rfc01-config-store.md, step 8): an
 // incidental visibility edit in the catalogue fails here and
 // requires an explicit test update. RFC 11 promoted the corpus
 // browserOptions destinations: the label-density keys

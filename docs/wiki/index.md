@@ -12,7 +12,11 @@ then branch into more specific documents as needed.
 - [architecture.md](architecture.md) — broad system structure, object
   ownership, and links to focused topic notes
 - [backlog.md](backlog.md) — deferred bugs, follow-up work, and
-  documentation restructuring tasks
+  documentation restructuring tasks; entries numbered by when they
+  were opened
+- [backlog-archive.md](backlog-archive.md) — closed backlog entries
+  (resolved, implemented, or superseded), numbers kept from
+  backlog.md
 - [session-log.md](session-log.md) — chronological record of significant
   work sessions and non-obvious findings
 
@@ -39,12 +43,12 @@ then branch into more specific documents as needed.
 RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
-- RFC 10 [rfc-terrain-tile-container.md](rfc10-terrain-tile-container.md) —
+- RFC 10 [rfc10-terrain-tile-container.md](rfc10-terrain-tile-container.md) —
   serve mesh and KTX2 normal map as one terrain-tile container file
   (mesh format v4): one DEM warp and one fetch per shaded tile, direct
   GPU upload, single-geometry client model, unified mesh parser
 
-- RFC 8 [rfc-context-loss-recovery.md](rfc8-context-loss-recovery.md) —
+- RFC 8 [rfc08-context-loss-recovery.md](rfc08-context-loss-recovery.md) —
   recover from WebGL context loss at the map level: flush GPU caches,
   re-create renderer statics from one entry point, let the lazy tile
   machinery repopulate
@@ -188,6 +192,3 @@ affect ownership across subsystems.
 Always use link syntax for cross-references to other wiki pages:
 `[filename.md](filename.md)`. Do not use backtick code format for
 file names that are navigation references.
-
-The current structure mixes levels 2 and 3. The split into separate subsystem 
-and topic sections has not happened yet.
