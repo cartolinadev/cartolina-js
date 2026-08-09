@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.3-65ceb4a7",
+  "version": "2.50.4-9089eed7",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
@@ -8,7 +8,7 @@
     "./compat": "./src/compat/index.ts"
   },
   "engines": {
-    "node": ">=18.20.0"
+    "node": ">=22.15.0"
   },
   "scripts": {
     "install": "",
@@ -50,11 +50,10 @@
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
     "babel-loader": "^8.4.1",
-    "copy-webpack-plugin": "^6.0.2",
+    "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^4.3.0",
     "husky": "^8.0.0",
-    "install": "^0.13.0",
     "license-webpack-plugin": "^2.2.0",
     "mini-css-extract-plugin": "^2.9.3",
     "playwright": "^1.56.1",
@@ -67,12 +66,11 @@
     "typia": "^9.7.2",
     "webpack": "^5.101.0",
     "webpack-cli": "^6.0.1",
-    "webpack-dev-server": ">=5.2.4"
+    "webpack-dev-server": "^6.0.0"
   },
   "dependencies": {
     "earcut": "^2.2.2",
     "geographiclib": "^1.50.0",
-    "npm": "^10.9.3",
     "proj4": "^2.19.10",
     "ts-loader": "^8.4.0"
   }

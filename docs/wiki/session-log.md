@@ -3,6 +3,29 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-10 — Node 22, and a clean dependency audit
+
+`npm audit` reported 33 vulnerabilities. Most of them came from two
+packages that nothing imports: `npm` itself, listed as a runtime
+dependency, and `install`. Removing them dropped 198 packages from the
+tree and took the count to 18.
+
+`webpack-dev-server` was declared as `>=5.2.4`, an open range that let
+npm resolve version 6. That version needs Node 22, so on Node 18 the
+lockfile could not settle on a fixed answer; it is now `^6.0.0` with
+`.nvmrc` and `engines.node` moved to Node 22. `copy-webpack-plugin`
+goes from 6 to 14, which is what clears the `serialize-javascript` and
+`node-tar` chains. Both majors work with the existing configuration
+unchanged — the `devServer` block needed no edits, and the plugin's
+single `from`/`to` pattern is the same API in 14 as in 6.
+
+The audit now reports zero. Every remaining entry before these two
+bumps was build tooling, never shipped code; `npm audit --omit=dev` was
+already clean after the first step.
+
+Verified on Node 22.23.2: typecheck, unit tests, a full `npm run dist`,
+and the three regression captures from `test/urls.json`.
+
 ## 2026-08-09 — Unresolved style references rendered as "undefined"
 
 An unresolved `{...}` reference was concatenated into the label text as

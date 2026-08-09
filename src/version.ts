@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.3-65ceb4a7';
+    return '2.50.4-9089eed7';
 }
