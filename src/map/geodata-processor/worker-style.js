@@ -47,7 +47,7 @@ var getLayerExpresionValue = function(layer, value, feature, lod, key, depth) {
                     finalValue = getLayerPropertyValueInnerString(layer, key, feature, lod, value, depth + 1);
 
                     if (typeof finalValue == 'undefined') {
-                        logError('wrong-expresion', layer['$$layer-id'], value, value, null, 'feature-property');
+                        logError('wrong-expresion', layer['$$layer-id'], key, value, null, 'feature-property');
                     }
 
                     return finalValue;
@@ -67,10 +67,14 @@ var getLayerExpresionValue = function(layer, value, feature, lod, key, depth) {
 
                             finalValue = getLayerPropertyValueInnerString(layer, key, feature, lod, str, depth + 1);
 
+                            //the result is concatenated into the formatted
+                            //string, so an unresolved reference contributes
+                            //nothing rather than the word 'undefined'
                             if (typeof finalValue == 'undefined') {
-                                logError('wrong-expresion', layer['$$layer-id'], value, value, null, 'feature-property');
+                                logError('wrong-expresion', layer['$$layer-id'], key, str, null, 'feature-property');
+                                return "";
                             }
-        
+
                             return finalValue;
                     }
 
@@ -80,12 +84,12 @@ var getLayerExpresionValue = function(layer, value, feature, lod, key, depth) {
                             str = str.replace(/'/g, '"');
                             finalValue = JSON.parse(str);
                         } catch(e) {
-                            logError('wrong-expresion', layer['$$layer-id'], value, value, null, 'feature-property');
+                            logError('wrong-expresion', layer['$$layer-id'], key, str, null, 'feature-property');
                             return "";
                         }
 
                         if (typeof finalValue == 'undefined') {
-                            logError('wrong-expresion', layer['$$layer-id'], value, value, null, 'feature-property');
+                            logError('wrong-expresion', layer['$$layer-id'], key, str, null, 'feature-property');
                             return "";
                         } else {
                             return getLayerPropertyValueInner(layer, key, feature, lod, finalValue, depth + 1);
@@ -96,6 +100,9 @@ var getLayerExpresionValue = function(layer, value, feature, lod, key, depth) {
                     }
 
                 }
+
+                //an empty placeholder contributes nothing
+                return "";
 
             }));
         }
@@ -780,6 +787,10 @@ var logError = function(errorType, layerId, key, value, index, subkey) {
 
     case 'wrong-bitmap':
         str = 'Error: wrong definition of bitmap: ' + layerId;
+        break;
+
+    case 'wrong-expresion':
+        str = 'Error: unresolved ' + subkey + ' expresion: ' + layerId + '.' + key + ' -> ' + value;
         break;
 
     case 'custom':

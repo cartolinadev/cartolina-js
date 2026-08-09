@@ -22,6 +22,34 @@ fully separate style systems. They share one broader lettering-oriented
 property family, which is why line, point, icon, and label properties
 appear together in one property block.
 
+## A free layer's served stylesheet is not in scope
+
+`MapStyle.refreshFreeLayerSequence` compiles one VTS stylesheet per
+free-layer source out of the Cartolina style's own `constants`, `fonts`,
+`bitmaps`, and `labels`/`lines` layers, then calls
+`MapFreeLayer.setStyle` with it. That call replaces the stylesheet the
+free layer serves at its own `style.json`.
+
+Practical consequence: a `@constant` that exists only in the served
+stylesheet does not resolve when referenced from a Cartolina style. Every
+constant, font, and bitmap a lettering layer uses must be declared in the
+style itself.
+
+## An unresolved reference contributes nothing
+
+When a `#`, `$`, `@`, `&`, or `%` reference inside a `{...}` placeholder
+does not resolve, `getLayerExpresionValue` substitutes an empty string
+and the worker logs:
+
+```
+Error: unresolved feature-property expresion: <layer>.<key> -> @missing
+```
+
+Practical consequence: a label whose whole text expression fails to
+resolve produces an empty string, and `processPointArrayPass` draws no
+label for that feature. A missing name is therefore silent on screen —
+check the console when a feature you expect to be labelled has none.
+
 ## Property values can be expressions
 
 Properties such as `line-width` are declared as `Property<T>`, not just

@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-09 — Unresolved style references rendered as "undefined"
+
+An unresolved `{...}` reference was concatenated into the label text as
+the word `undefined`; `getLayerExpresionValue` now substitutes an empty
+string, so the label is dropped instead. `logError` had no case for
+`wrong-expresion`, so its four call sites were silent; it has one now.
+The free-layer stylesheet scoping rule behind the unresolved reference
+is recorded in `label-styling-engine.md`.
+
 ## 2026-08-09 — RFC filename padding; backlog numbered and archived
 
 Two mechanical documentation changes, plus a correction found while

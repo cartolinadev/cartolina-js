@@ -310,6 +310,14 @@ it reflects the current state of things. Do not add session-log entries
 for trivial changes merely because they are being committed at the
 user's request.
 
+**Size the write-up to the change.** A four-line fix gets a few
+sentences, not a report. Do not narrate the investigation, restate the
+diff in prose, walk through the mechanism a reader can see in the code,
+or list routine verification that passed. State what was wrong and what
+the change does; stop there. This governs commit messages, session-log
+entries, and review notes alike. Prose that carries no information a
+reader lacks is noise, and its cost scales with how often it is read.
+
 Commit only when the user asks, or automatically before starting a new
 unrelated body of work when uncommitted, unrelated changes already exist.
 Do not create a commit after every small change — this produces an
