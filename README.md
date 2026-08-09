@@ -41,40 +41,6 @@ live examples, etc.
 - point labels with well defined visual hierarchy 
 
 
-## What's different from legacy vts-browser-js
-
-Unlike its predecessor, which strived to be a general-purpose web-based 3D 
-mapping engine, `cartolina-js` has a more narrow focus: cartographic 
-3D terrain representation. 
-
-To achieve the desired functionality, I made numerous changes to the 
-original code and data design. Most importantly:
-
-- the complex multi-component architecture has been radically simplified: there
-  are now only two components, the
-  [tileserver backend](https://github.com/cartolinadev/cartolina-tileserver)
-  and this frontend
-
-- a new API, using map styles (loosely inspired by Mapbox /
-  MapLibre GL JS), has replaced the legacy map configurations. The
-  legacy configurations are still supported through a separate
-  compatibility endpoint
-
-- the unwieldy server-side terrain merging pipeline has been retired
-  and replaced by more flexible on-the-fly, client-side terrain fusion
-
-These changes were feature-driven, but I have also tried to make the
-code more modern. The new code (currently about 30% of the codebase)
-is strict TypeScript, and the rendering engine is now WebGL2. Much of
-the legacy tile-rendering pipeline has been redesigned and rewritten.
-
-`cartolina-js` still retains a large part of the legacy
-`vts-browser-js` codebase and some degree of backward compatibility.
-The old vts-geospatial map configurations usually still work, or can
-be ported easily. I make no guarantee that they will keep working and
-have no incentive to maintain vts-geospatial compatibility in any
-future release.
-
 ## Usage
 
 The library is an ES module, hosted at 
@@ -225,13 +191,46 @@ Afterwards, you can see the performance metrics at
 `http://localhost:8080/test/perf`.
 
 
+## What's different from legacy vts-browser-js
+
+Unlike its predecessor, which strived to be a general-purpose web-based 3D 
+mapping engine, `cartolina-js` has a more narrow focus: cartographic 
+3D terrain representation. 
+
+To achieve the desired functionality, I made numerous changes to the 
+original code and data design. Most importantly:
+
+- the complex multi-component architecture has been radically simplified: there
+  are now only two components, the
+  [tileserver backend](https://github.com/cartolinadev/cartolina-tileserver)
+  and this frontend
+
+- a new API, using map styles (loosely inspired by Mapbox /
+  MapLibre GL JS), has replaced the legacy map configurations. The
+  legacy configurations are still supported through a separate
+  compatibility endpoint
+
+- the unwieldy server-side terrain merging pipeline has been retired
+  and replaced by more flexible on-the-fly, client-side terrain fusion
+
+These changes were feature-driven, but I have also tried to make the
+code more modern. The new code (currently about 30% of the codebase)
+is strict TypeScript, and the rendering engine is now WebGL2. Much of
+the legacy tile-rendering pipeline has been redesigned and rewritten.
+
+`cartolina-js` still retains a large part of the legacy
+`vts-browser-js` codebase and some degree of backward compatibility.
+The old vts-geospatial map configurations usually still work, or can
+be ported easily. I make no guarantee that they will keep working and
+have no incentive to maintain vts-geospatial compatibility in any
+future release.
+
 ## Work in progress
 
 `cartolina-js` is a work in progress. There are bugs and rough edges. There may 
 be breaking changes to the API, to the runtime defaults etc. in future releases. 
 Lock to the specific version you base your application on and test well before 
 deploying or upgrading.
-
 
 ## How to contribute
 
