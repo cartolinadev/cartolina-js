@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.4-9089eed7';
+    return '2.50.5-feature_body_surface_color.ac3eb937';
 }

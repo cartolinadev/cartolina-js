@@ -6,6 +6,7 @@ import MapMesh from './mesh';
 import MapSubmesh from './submesh';
 import MapTexture from './texture';
 import MapSurfaceTile from './surface-tile'
+import MapBody from './body';
 import Renderer from '../renderer/renderer';
 import GpuProgram from '../renderer/gpu/program';
 import GpuMesh from '../renderer/gpu/mesh';
@@ -838,13 +839,14 @@ export class TileRenderRig {
 
         // target 'color'
 
-        // push a constant (default) color as background
+        // push the body's surface color as background
         rt.layerStack.push({
             target: 'color',
             source: 'constant',
             operation: 'push',
             necessity: 'essential',
-            srcConstant: [0.9, 0.9, 0.8], // this could be configurable
+            srcConstant: tile.map.referenceFrame?.body?.surfaceColor
+                ?? MapBody.DefaultSurfaceColor,
             tgtColorWhitewash: 0,
             rt: {},
         });

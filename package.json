@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.4-9089eed7",
+  "version": "2.50.5-feature_body_surface_color.ac3eb937",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {

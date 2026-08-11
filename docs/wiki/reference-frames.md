@@ -263,11 +263,23 @@ record. The `Earth` body definition (also in `mapConfig.json`) carries:
 - `srs`: references to the geographic and geocentric WGS84 SRSes
 - `atmosphere`: default atmosphere parameters (colours, thickness,
   visibility) used when no `atmosphere` block is provided in the style
+- `surfaceColor`: `[230, 230, 204]` — the colour terrain renders in
+  where no diffuse map covers it
 - `defaultGeoidGrid`: `"egm96_15.gtx"` — the full-resolution geoid for
   server-side synthesis operations
 - `parent`: `"Sun"` — body hierarchy used for illumination geometry
 
 The `Sun` body (`class: "star"`) is the root of the body tree.
+
+`surfaceColor` is optional and its components run 0–255, like the
+atmosphere colours beside it. `TileRenderRig` pushes it as the constant
+background of every tile's colour stack, so it shows through wherever
+the diffuse layers leave the terrain uncovered — a terrain-only style,
+a tile outside every imagery layer's extent, or imagery that has not
+arrived yet. A body that declares no `surfaceColor`, and a reference
+frame that names no body at all, both fall back to
+`MapBody.DefaultSurfaceColor`.
+`Mars` declares `[176, 145, 142]`.
 
 
 ## Other reference frames in the registry

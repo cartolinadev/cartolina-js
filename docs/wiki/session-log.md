@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-11 — Surface colour comes from the body
+
+The constant colour a tile shows where no diffuse map covers it was a
+literal in `TileRenderRig.buildLayerStack`. It now comes from the
+reference frame's body, as an optional `surfaceColor` field with 0–255
+components, matching the atmosphere colours beside it.
+
+`MapBody.DefaultSurfaceColor` keeps the old literal for a body that
+declares nothing and for a reference frame with no body.
+
+The tileserver needed no change: `vts-libs` keeps the body's authored
+JSON in `Body::json` and re-emits it verbatim into `mapConfig.json`, so
+any field the parser ignores still reaches the client.
+
 ## 2026-08-10 — Node 22, and a clean dependency audit
 
 `npm audit` reported 33 vulnerabilities. Most of them came from two
