@@ -3,6 +3,26 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-11 — Vertical exaggeration comes from the body
+
+Every cartolina style carried the same exaggeration block, and
+mapproxy's introspection generator hardcoded the same numbers in C++ —
+so `mars-qsc` resources were exaggerated on Earth's terms. The ramps
+now live on the body, under `verticalExaggeration`, in the
+`elevationRamp` / `scaleRamp` form.
+
+The rule follows atmosphere: the body carries the parameters, the style
+decides whether the feature is on and may override part of it. No
+`vertical-exaggeration` section means no exaggeration, unchanged; `{}`
+means the body's ramps; a ramp the style names replaces that one ramp
+and leaves the other. `{}` previously fell through to the deprecated
+branch and cleared both ramps, so the branch test now keys on the
+deprecated field names rather than on the current ones.
+
+Repo demo styles and the introspection style now carry `{}`. They
+render flat against any backend whose registry predates the body field,
+including the public CDN, until the registry ships.
+
 ## 2026-08-11 — Surface colour comes from the body
 
 The constant colour a tile shows where no diffuse map covers it was a

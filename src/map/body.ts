@@ -1,5 +1,6 @@
 
 import type Map from './legacy-map';
+import type Renderer from '../renderer/renderer';
 import type * as StyleSchema from './style-schema';
 import * as math from '../utils/math';
 
@@ -32,6 +33,12 @@ class MapBody {
             ? json.surfaceColor.map((c) => c / 255) as math.vec3
             : [...MapBody.DefaultSurfaceColor];
 
+        if (json.verticalExaggeration) {
+
+            this.verticalExaggeration =
+                structuredClone(json.verticalExaggeration);
+        }
+
         if (json.atmosphere) {
 
             this.atmosphere =
@@ -51,6 +58,10 @@ class MapBody {
             comment: this.comment,
             parent: this.parent,
             surfaceColor: [...this.surfaceColor],
+
+            verticalExaggeration: this.verticalExaggeration
+                ? structuredClone(this.verticalExaggeration)
+                : undefined,
 
             // the deep copy contract, copied from old js file
             atmosphere: this.atmosphere
@@ -73,6 +84,13 @@ class MapBody {
      * wherever no diffuse map covers the terrain.
      */
     surfaceColor: math.vec3;
+
+    /**
+     * Vertical-exaggeration ramps a style gets when it asks for
+     * exaggeration without naming its own. Undefined for a body that
+     * declares none.
+     */
+    verticalExaggeration?: Renderer.VerticalExaggerationSpec;
 
     /**
      * Atmosphere parameters, merged over `DefaultAtmosphere`. Undefined for
@@ -106,6 +124,7 @@ namespace MapBody {
         comment: string;
         parent: string;
         surfaceColor: math.vec3;
+        verticalExaggeration?: Renderer.VerticalExaggerationSpec;
         atmosphere?: Atmosphere;
     };
 

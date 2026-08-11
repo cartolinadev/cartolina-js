@@ -263,13 +263,26 @@ export class MapStyle {
         const veSpec = spec['vertical-exaggeration'];
 
         if (veSpec) {
+
             legacyMap.renderer.setSuperElevationState(true);
 
-            if ('elevationRamp' in veSpec || 'scaleRamp' in veSpec)
-                legacyMap.renderer.setVerticalExaggeration(veSpec);
-            else
-                // @deprecated legacy heightRamp / viewExtentProgression format
+            if ('heightRamp' in veSpec || 'viewExtentProgression' in veSpec) {
+
+                // @deprecated legacy heightRamp / viewExtentProgression
+                // format, applied as authored
                 legacyMap.renderer.setSuperElevation(veSpec as any);
+
+            } else {
+
+                // the body carries the ramps; a ramp the style names of
+                // its own replaces the body's
+                const body = map.legacyMap!.referenceFrame?.body;
+
+                legacyMap.renderer.setVerticalExaggeration({
+                    ...body?.verticalExaggeration,
+                    ...veSpec,
+                });
+            }
         }
 
         // options

@@ -265,11 +265,22 @@ record. The `Earth` body definition (also in `mapConfig.json`) carries:
   visibility) used when no `atmosphere` block is provided in the style
 - `surfaceColor`: `[230, 230, 204]` — the colour terrain renders in
   where no diffuse map covers it
+- `verticalExaggeration`: the ramps a style gets when it asks for
+  exaggeration without naming its own
 - `defaultGeoidGrid`: `"egm96_15.gtx"` — the full-resolution geoid for
   server-side synthesis operations
 - `parent`: `"Sun"` — body hierarchy used for illumination geometry
 
 The `Sun` body (`class: "star"`) is the root of the body tree.
+
+
+#### Body-supplied rendering defaults
+
+Three body fields carry parameters a style would otherwise have to
+restate: `atmosphere`, `surfaceColor`, and `verticalExaggeration`. They
+follow one rule — the body says what the right value is for that
+planet, the style says whether the feature is on and may override any
+part of it.
 
 `surfaceColor` is optional and its components run 0–255, like the
 atmosphere colours beside it. `TileRenderRig` pushes it as the constant
@@ -279,7 +290,28 @@ a tile outside every imagery layer's extent, or imagery that has not
 arrived yet. A body that declares no `surfaceColor`, and a reference
 frame that names no body at all, both fall back to
 `MapBody.DefaultSurfaceColor`.
-`Mars` declares `[176, 145, 142]`.
+
+`verticalExaggeration` holds the `elevationRamp` / `scaleRamp` pair in
+the same form a style writes:
+
+```json
+"verticalExaggeration": {
+    "elevationRamp": { "min": [ 0, 1.5 ], "max": [ 4000, 1.3 ] },
+    "scaleRamp": { "min": [ 199218.8, 1 ], "max": [ 53937538.5, 13.5 ] }
+}
+```
+
+A style with no `vertical-exaggeration` section does not exaggerate. A
+style with `"vertical-exaggeration": {}` gets the body's ramps. A style
+that names a ramp of its own replaces that one ramp and keeps the
+other. The deprecated `heightRamp` / `viewExtentProgression` form is
+applied exactly as authored and never merges with the body.
+
+The values above are Earth's, and reproduce the exaggeration every
+cartolina style used before the body carried it. `Mars` declares a
+`scaleRamp` only — an elevation ramp has no cartographic meaning there —
+and a shallower one, topping out at 7.25 rather than 13.5, because the
+relief is already far more pronounced.
 
 
 ## Other reference frames in the registry
