@@ -3,25 +3,42 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-12 — Vertical exaggeration moves onto the map
+
+Exaggeration is authored map state — coordinate conversion, camera
+height, tile bounding volumes and the atmosphere all read it — but the
+state, the maths and the API lived on `Renderer`. They now live in
+`src/map/vertical-exaggeration.ts`, owned by `Map`.
+
+`Renderer` forwards the members legacy JavaScript calls, under their
+retired `superelevation` names, so no legacy module changed. The
+cartolina-era three had their callers patched instead. Public `Viewer`
+signatures are unchanged.
+
+Removed as unreachable: the bare-array authored form (`mapconfig-to-style`
+normalises legacy arrays before they become a style, and typia rejects an
+array from one), `getSuperElevationState`, the branch that disabled
+exaggeration wholesale when both elevation factors were 1, and the
+redundant enable in `style.ts`. The progression guard tested its fourth
+element twice and never the ratio it feeds to `Math.log2`, where 1
+divides by zero; fixed.
+
 ## 2026-08-11 — Vertical exaggeration comes from the body
 
-Every cartolina style carried the same exaggeration block, and
-mapproxy's introspection generator hardcoded the same numbers in C++ —
-so `mars-qsc` resources were exaggerated on Earth's terms. The ramps
-now live on the body, under `verticalExaggeration`, in the
-`elevationRamp` / `scaleRamp` form.
+Every style restated the same exaggeration block and mapproxy's
+introspection generator hardcoded it in C++, so `mars-qsc` resources were
+exaggerated on Earth's terms. The ramps now live on the body under
+`verticalExaggeration`.
 
 The rule follows atmosphere: the body carries the parameters, the style
 decides whether the feature is on and may override part of it. No
-`vertical-exaggeration` section means no exaggeration, unchanged; `{}`
-means the body's ramps; a ramp the style names replaces that one ramp
-and leaves the other. `{}` previously fell through to the deprecated
-branch and cleared both ramps, so the branch test now keys on the
-deprecated field names rather than on the current ones.
+`vertical-exaggeration` section still means none; `{}` means the body's
+ramps; a named ramp replaces that one and leaves the other. `{}`
+previously fell through to the deprecated branch and cleared both ramps,
+so that branch now keys on the deprecated field names.
 
-Repo demo styles and the introspection style now carry `{}`. They
-render flat against any backend whose registry predates the body field,
-including the public CDN, until the registry ships.
+Demo styles and the introspection style now carry `{}`, so they render
+flat against any backend whose registry predates the field.
 
 ## 2026-08-11 — Surface colour comes from the body
 

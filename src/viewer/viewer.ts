@@ -11,6 +11,7 @@ import * as viewerConfig from '../viewer-config';
 import type * as StyleSchema from '../map/style-schema';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/legacy-map';
+import type VerticalExaggeration from '../map/vertical-exaggeration';
 import * as utils from '../utils/utils';
 import getVersion from '../version';
 import UI from './ui/ui';
@@ -335,17 +336,17 @@ class Viewer {
      *
      * @param spec vertical exaggeration specification
      */
-    setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec): void {
+    setVerticalExaggeration(spec: VerticalExaggeration.Spec): void {
 
         this.assertAlive();
-        this.renderer.setVerticalExaggeration(spec);
+        this.map_.setVerticalExaggeration(spec);
     }
 
     /** Returns the current vertical exaggeration specification. */
-    getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
+    getVerticalExaggeration(): VerticalExaggeration.Spec | null {
 
         this.assertAlive();
-        return this.renderer.getVerticalExaggeration();
+        return this.map_.getVerticalExaggeration();
     }
 
     /**
@@ -367,7 +368,7 @@ class Viewer {
             throw new Error('No map is loaded.');
         }
 
-        return this.renderer.getVeScaleFactor(currentPosition);
+        return this.map_.getVeScaleFactor(currentPosition);
     }
 
     /**
@@ -842,7 +843,7 @@ class Viewer {
             throw new Error('No map is loaded.');
         }
 
-        return this.renderer.getScaleDenominator(currentExtent);
+        return this.map_.getScaleDenominator(currentExtent);
     }
 
     // -------------------------------------------------------------------------
@@ -1239,6 +1240,7 @@ namespace Viewer {
     export type PositionInput = import('../map/types').PositionInput;
     export type OverlaySpec = Map.OverlaySpec;
     export type ViewerEventMap = Map.ViewerEventMap;
+    export type VerticalExaggerationSpec = Map.VerticalExaggerationSpec;
 }
 
 export default Viewer;

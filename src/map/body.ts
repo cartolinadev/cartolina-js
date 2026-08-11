@@ -1,6 +1,6 @@
 
 import type Map from './legacy-map';
-import type Renderer from '../renderer/renderer';
+import type VerticalExaggeration from './vertical-exaggeration';
 import type * as StyleSchema from './style-schema';
 import * as math from '../utils/math';
 
@@ -90,7 +90,7 @@ class MapBody {
      * exaggeration without naming its own. Undefined for a body that
      * declares none.
      */
-    verticalExaggeration?: Renderer.VerticalExaggerationSpec;
+    verticalExaggeration?: VerticalExaggeration.Spec;
 
     /**
      * Atmosphere parameters, merged over `DefaultAtmosphere`. Undefined for
@@ -124,7 +124,7 @@ namespace MapBody {
         comment: string;
         parent: string;
         surfaceColor: math.vec3;
-        verticalExaggeration?: Renderer.VerticalExaggerationSpec;
+        verticalExaggeration?: VerticalExaggeration.Spec;
         atmosphere?: Atmosphere;
     };
 

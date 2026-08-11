@@ -17,6 +17,7 @@ import RendererRMap from './rmap';
 import * as IlluminationMath from '../map/illumination';
 import MapPosition from '../map/position';
 import type LegacyMap from '../map/legacy-map';
+import type VerticalExaggeration from '../map/vertical-exaggeration';
 import { defaultOverrides, type Overrides } from '../map/overrides';
 import type EventBus from '../map/event-bus';
 import type ConfigStore from '../config-store';
@@ -212,11 +213,6 @@ export class Renderer {
     progText: Optional<GpuProgram> = null;
 
 
-    // vertical exaggeration
-    useSuperElevation = false;
-    seHeightRamp?: SeRamp; // 7 elements
-    veScaleRamp?: VeScaleRamp;
-
     // these values, important for vertical exaggeration, are calculated from
     // navigationSrs in MapDraw.drawMap as a side effect of drawing the skydome
     // (which is not guaranteed). TODO: move their initilization here, or drop
@@ -349,17 +345,6 @@ export class Renderer {
 
     gridHmax = 0;
     gridHmin = 0;
-
-    /**
-     * Version stamp of the superelevation configuration. Consumers cache
-     * the value they last baked against (`tile.seCounter`,
-     * `job.seCounter`) and re-derive their SE-dependent data when this
-     * has moved past their copy. It advances when the exaggeration
-     * settings change (enable/disable, ramp setup), not on camera
-     * movement. The zoom-dependent scale factor is tracked separately,
-     * per node, by `MapSurfaceTile.isMetanodeReady`.
-     */
-    seCounter = 0;
 
     // temporary objects hoisted as class members to reduce garbage collection
     seTmpVec = [0,0,0];
@@ -1545,349 +1530,37 @@ getIlluminationAmbientCoef() {
     return this.illumination.ambientCoef;
 };
 
-setSuperElevationState(state: boolean) {
-
-    if (this.useSuperElevation != state) {
-        this.useSuperElevation = state;
-        this.seCounter++;
-    }
-};
-
-getSuperElevationState(): boolean {
-    return this.useSuperElevation;
-};
-
-/**
- * @deprecated Use {@link setVerticalExaggeration} instead.
- *   Kept for the deprecated style vertical-exaggeration form.
+/*
+ * Vertical exaggeration lives on the map: see
+ * `src/map/vertical-exaggeration.ts`. The members below forward to it
+ * for the legacy JavaScript call sites that still name it in the
+ * retired `superelevation` vocabulary.
  */
-setSuperElevation(seDefinition : Renderer.SeDefinition) {
 
-    // old format
-    if (Array.isArray(seDefinition)){
+get useSuperElevation(): boolean {
 
-        return this.setSuperElevationRamp(seDefinition);
-    }
-
-    // new format
-    if (typeof seDefinition === 'object' && seDefinition !== null
-        && !Array.isArray(seDefinition)) {
-
-        // heightRamp
-        if (seDefinition.heightRamp && Array.isArray(seDefinition.heightRamp)) {
-
-            this.setSuperElevationRamp(seDefinition.heightRamp);
-
-        } else {
-
-            delete this.seHeightRamp;
-        }
-
-        // viewExtentProgression
-        if (seDefinition.viewExtentProgression
-            && Array.isArray(seDefinition.viewExtentProgression)) {
-
-            this.setVeScaleRampFromProgression(
-                seDefinition.viewExtentProgression);
-
-        } else {
-
-            delete this.veScaleRamp;
-        }
-
-        return;
-    }
-
-    throw new Error("Unsupported super elevation option.");
+    return this.core.verticalExaggeration.enabled;
 }
 
-/**
- * Set vertical exaggeration using the new cartographic interface.
- *
- * @param spec - elevation and/or scale-denominator ramp pivots;
- *   see {@link Renderer.VerticalExaggerationSpec}
- */
-setVerticalExaggeration(spec: Renderer.VerticalExaggerationSpec) {
+get seCounter(): number {
 
-    if (spec.elevationRamp) {
-
-        const { min, max } = spec.elevationRamp;
-        this.setSuperElevationRamp([[min[0], max[0]], [min[1], max[1]]]);
-
-    } else {
-
-        delete this.seHeightRamp;
-    }
-
-    if (spec.scaleRamp) {
-
-        const { min, max } = spec.scaleRamp;
-        this.veScaleRamp = this.makeVeScaleRamp(
-            min[0], min[1], max[0], max[1]);
-
-    } else {
-
-        delete this.veScaleRamp;
-    }
-
-    this.useSuperElevation = true;
-    this.seCounter++;
-    this.core.map?.markDirty();
+    return this.core.verticalExaggeration.counter;
 }
 
+getSuperElevation(position: MapPosition | number) {
 
-getVerticalExaggeration(): Renderer.VerticalExaggerationSpec {
-
-    const spec: Renderer.VerticalExaggerationSpec = {};
-
-    if (this.seHeightRamp) {
-
-        spec.elevationRamp = {
-            min: [this.seHeightRamp[0], this.seHeightRamp[1]],
-            max: [this.seHeightRamp[2], this.seHeightRamp[3]]
-        };
-    }
-
-    if (this.veScaleRamp) {
-
-        spec.scaleRamp = {
-            min: [this.veScaleRamp.sd0, this.veScaleRamp.va0],
-            max: [this.veScaleRamp.sd1, this.veScaleRamp.va1]
-        };
-    }
-
-    return spec;
+    return this.core.verticalExaggeration.vaParams(position);
 }
-
-/**
- * @deprecated Use {@link setVerticalExaggeration} instead.
- *   Converts a legacy `viewExtentProgression` spec to a {@link VeScaleRamp}
- *   using a canonical canvas height of 1113 CSS px for a 1:1 behavioural match.
- */
-private setVeScaleRampFromProgression(progression: SeProgressionDef) {
-
-    if (!(progression && progression[0] && progression[1] && progression[3]
-            && progression[3] && progression[4])) {
-        throw new Error("Unsupported super elevation option.");
-    }
-
-    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    const canonicalH = 1113; // CSS px — matches legacy tuning baseline
-    const toSd = (ext: number) => ext / (canonicalH / cssDpi * 0.0254);
-
-    const baseValue  = progression[0];
-    const baseExtent = progression[1];
-    const exponent   = Math.log2(progression[2]);
-    const min        = progression[3];
-    const max        = progression[4];
-
-    // Invert the old formula: extent at which old VA equals `va`
-    const extfromva = (va: number) =>
-        Math.pow(va / baseValue, 1 / exponent) * baseExtent;
-
-    this.veScaleRamp = this.makeVeScaleRamp(
-        toSd(extfromva(min)), min,
-        toSd(extfromva(max)), max
-    );
-
-    this.useSuperElevation = true;
-}
-
-/**
- * Return the current map scale denominator computed from the given
- * view extent and the current canvas dimensions.
- *
- * @param extent - view extent in map units (metres)
- */
-getScaleDenominator(extent: number): number {
-
-    return this.currentScaleDenominator(extent);
-}
-
-/** Compute scale denominator from a view extent value. */
-private currentScaleDenominator(extent: number): number {
-
-    const cssDpi = (this.config.rendererCssDpi as number | undefined) ?? 96;
-    const height = this.gpu.canvasRenderTarget.apparentSize[1];
-    return extent / (height / cssDpi * 0.0254);
-}
-
-/** Build a VeScaleRamp from two pivot pairs, precomputing the exponent. */
-private makeVeScaleRamp(
-    sd0: number, va0: number,
-    sd1: number, va1: number
-): VeScaleRamp {
-
-    return {
-        sd0, va0, sd1, va1,
-        exponent: Math.log(va1 / va0) / Math.log(sd1 / sd0)
-    };
-}
-
-
-private setSuperElevationRamp(se: [[number, number], [number, number]]) {
-
-    if (!(se && se[0] && se[1] && se[0].length >=2 && se[1].length >=2)) {
-        throw new Error("Unsupported super elevation option.");
-    }
-
-    let h1 = se[0][0]; let f1 = se[1][0]; let h2 = se[0][1]; let f2 = se[1][1];
-
-    if (f1 == 1 && f2 == 1) {
-        if (this.useSuperElevation != false) {
-            this.useSuperElevation = false;
-            this.seCounter++;
-        }
-
-        if (h1 == h2) { h2 = h1 + 1; }
-        this.seHeightRamp = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
-        return;
-    }
-
-    if (h1 == h2) { h2 = h1 + 1; }
-    this.seHeightRamp = [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)];
-    this.seCounter++;
-};
-
-getVeScaleFactor(position: MapPosition | number) {
-
-    if (arguments.length !== 1)
-        throw new Error('function now requires current position');
-
-    if (!this.veScaleRamp) return 1.0;
-
-    const extent = typeof position === 'number'
-        ? position : position.pos[8];
-    const r = this.veScaleRamp;
-    const sd = this.currentScaleDenominator(extent);
-    const clamped = math.clamp(sd, r.sd0, r.sd1);
-    return r.va0 * Math.pow(clamped / r.sd0, r.exponent);
-}
-
-
-/**
- * @param position current map position, or a vertical extent value
- *   directly (the value normally sourced from `position.pos[8]`)
- * @returns a tuple of 7 numbers describing the vertical exaggeration.
- *   If the original ramp spec was [h1, h2, f1, f2], the returned
- *   value is something like:
- *   [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
- */
-getSuperElevation(position: MapPosition | number) : SeRamp {
-
-    if (arguments.length !== 1) {
-        throw new Error('Function now requires current position.');
-    }
-
-    let retval: number[];
-
-    // heightRamp
-    if (this.seHeightRamp) {
-        retval = this.seHeightRamp.slice();
-    } else {
-        retval = [0, 1, 1000, 1, 1000, 0, 1.0 / 1000];
-    }
-
-    // progression
-    if (this.veScaleRamp) {
-        retval[1] *= this.getVeScaleFactor(position);
-        retval[3] *= this.getVeScaleFactor(position);
-
-        retval[5] = retval[3] - retval[1];
-    }
-
-    return retval as SeRamp;
-};
-
 
 getSuperElevatedHeight(height: number, position: MapPosition | number) {
 
-    if (arguments.length !== 2) {
-        throw new Error('Function now requires current position.');
-    }
-
-    let retval: number;
-
-    // heightRamp
-    if (this.seHeightRamp) {
-        retval = this.getSuperElevatedHeightRamp(height);
-    } else {
-        retval = height;
-    }
-
-    // progression
-    if (this.veScaleRamp) {
-        retval *= this.getVeScaleFactor(position);
-    }
-
-    return retval;
+    return this.core.verticalExaggeration.apply(height, position);
 }
 
-getSuperElevatedHeightRamp(height: number) {
+getUnsuperElevatedHeight(height: number, position: MapPosition | number) {
 
-    let se = this.seHeightRamp, h = height;
-    if (!se) throw new Error('No super elevation ramp defined.');
-
-    if (h < se[0]) {  // 0 - h1, 1 - f1, 2 - h2, 3 - f2, 4 - dh, 5 - df, 6 - invdh
-        h = se[0];
-    }
-
-    if (h > se[2]) {
-        h = se[2];
-    }
-
-    return height * (se[1] + ((h - se[0]) * se[6]) * se[5]);
-};
-
-getUnsuperElevatedHeight(height: number, position: any) {
-
-    if (arguments.length !== 2) {
-        throw new Error('Function now requires current position.');
-    }
-
-    let retval = height;
-
-    // getSuperElevatedHeight applies the ramp first and the progression
-    // second. The ramp is not linear in height, so the inverse composes
-    // back to the identity only when it undoes them in reverse.
-
-    // progression
-    if (this.veScaleRamp) {
-        retval /= this.getVeScaleFactor(position);
-    }
-
-    // heightRamp
-    if (this.seHeightRamp) {
-        retval = this.getUnsuperElevatedHeightRamp(retval);
-    }
-
-    return retval;
+    return this.core.verticalExaggeration.unapply(height, position);
 }
-
-
-getUnsuperElevatedHeightRamp(height: number) {
-    let se = this.seHeightRamp, s = height;
-    if (!se) throw new Error('No super elevation ramp defined.');
-
-    if (se[1] == se[3]) {
-        return s / se[1];
-    }
-
-    if (s <= se[0] * se[1]) {  // 0 - h1, 1 - f1, 2 - h2, 3 - f2, 4 - dh, 5 - df, 6 - invdh
-        return s / se[1];
-    }
-
-    if (s >= se[2] * se[3]) {
-        return s / se[3];
-    }
-
-
-    var h1 = se[0], f1 = se[1], h2 = se[2], f2 = se[3];
-
-    // and f1!=f2 and h1!=h2
-
-    return -(Math.sqrt(-2*f2*(f1*h1*h2 + 2*h1*s - 2*h2*s) + f1*(f1*h2*h2 + 4*h1*s - 4*h2*s) + f2*f2*h1*h1) - f1*h2 + f2*h1)/(2*(f1 - f2));
-};
 
 
 /*getEllipsoidHeight(pos, shift) {
@@ -2606,34 +2279,6 @@ type LegacyGpuBBox = {
     draw(program: GpuProgram, attrPosition: string): void;
 };
 
-type VeScaleRamp = {
-
-    // scale denominator at lower pivot
-    sd0: number;
-
-    // VA factor at lower pivot
-    va0: number;
-
-    // scale denominator at upper pivot
-    sd1: number;
-
-    // VA factor at upper pivot
-    va1: number;
-
-    // log(va1/va0)/log(sd1/sd0), precomputed
-    exponent: number;
-}
-
-type SeRamp =
-    [number, number, number, number, number, number, number];
-
-/** @deprecated Part of the legacy superelevation API. */
-type SeProgressionDef = [number, number, number, number, number];
-
-/** @deprecated Part of the legacy superelevation API. */
-type SeRampDef = [[number, number], [number, number]];
-
-
 type Illumination = {
 
     // the normalized style-facing definition
@@ -2671,6 +2316,7 @@ type Core = {
     contextLost: boolean;
     bus: EventBus<TypedMap.ViewerEventMap>;
     configStore: ConfigStore<viewerConfig.ViewerConfig>;
+    verticalExaggeration: VerticalExaggeration;
 
 }
 
@@ -2771,27 +2417,6 @@ export type RenderingOptions = {
     useShadingSlope?:      boolean;
     useShadingAspect?:     boolean;
 }
-
-/**
- * @deprecated Use {@link VerticalExaggerationSpec} instead.
- *   Kept for the deprecated style vertical-exaggeration form.
- */
-export type SeDefinition = SeRampDef | {
-    heightRamp?: SeRampDef;
-    viewExtentProgression?: SeProgressionDef;
-}
-
-export type VerticalExaggerationSpec = {
-    elevationRamp?: {
-        min: [number, number];
-        max: [number, number];
-    };
-    scaleRamp?: {
-        min: [number, number];
-        max: [number, number];
-    };
-}
-
 
 /* Uniform buffer object binding points. */
 

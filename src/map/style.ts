@@ -264,13 +264,11 @@ export class MapStyle {
 
         if (veSpec) {
 
-            legacyMap.renderer.setSuperElevationState(true);
-
             if ('heightRamp' in veSpec || 'viewExtentProgression' in veSpec) {
 
                 // @deprecated legacy heightRamp / viewExtentProgression
                 // format, applied as authored
-                legacyMap.renderer.setSuperElevation(veSpec as any);
+                map.verticalExaggeration.setDeprecated(veSpec);
 
             } else {
 
@@ -278,7 +276,7 @@ export class MapStyle {
                 // its own replaces the body's
                 const body = map.legacyMap!.referenceFrame?.body;
 
-                legacyMap.renderer.setVerticalExaggeration({
+                map.verticalExaggeration.set({
                     ...body?.verticalExaggeration,
                     ...veSpec,
                 });

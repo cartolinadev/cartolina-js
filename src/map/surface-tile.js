@@ -316,7 +316,8 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
     // at the current bake position against the one last baked into this
     // node and rebake when it differs.
     var seFactor = renderer.useSuperElevation
-        ? renderer.getVeScaleFactor(this.map.position) : 1;
+        ? this.map.outerMap.verticalExaggeration.scaleFactor(
+            this.map.position) : 1;
 
     if (this.seCounter != renderer.seCounter
             || node.veBakedFactor !== seFactor) {

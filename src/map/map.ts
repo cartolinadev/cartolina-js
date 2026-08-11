@@ -24,6 +24,7 @@ import FreezeCameraState from './freeze-camera-state';
 import { defaultOverrides, type Overrides } from './overrides';
 import FrameProfiler from './frame-profiler';
 import MapStyle from './style';
+import VerticalExaggeration from './vertical-exaggeration';
 import type * as StyleSchema from './style-schema';
 import MapDraw from './draw';
 import MapConvert from './convert';
@@ -94,6 +95,15 @@ class Map {
      * @internal Reached as `core.renderer` by the legacy modules.
      */
     renderer!: Renderer;
+
+    /**
+     * Vertical exaggeration of the terrain, applied to model heights
+     * before anything is drawn.
+     *
+     * @internal Reached as `core.verticalExaggeration` by `Renderer`,
+     * which forwards to it for the legacy JavaScript call sites.
+     */
+    verticalExaggeration!: VerticalExaggeration;
 
     /**
      * The diagnostics inspector, or `null` when its module is
@@ -289,6 +299,11 @@ class Map {
 
         this.inspector = Inspector != null ? new Inspector(this) : null;
         this.renderer = new Renderer(this, element, this.config);
+
+        // after the renderer: the scale denominator reads the canvas
+        // size from it
+        this.verticalExaggeration =
+            new VerticalExaggeration(this.renderer, this.config);
 
         platform.init();
 
@@ -545,23 +560,47 @@ class Map {
     }
 
     /**
-     * Sets the vertical exaggeration ramps used by the renderer.
+     * Sets the vertical exaggeration ramps.
      *
      * @param spec vertical exaggeration ramp specification
      */
     setVerticalExaggeration(
-        spec: Renderer.VerticalExaggerationSpec,
+        spec: VerticalExaggeration.Spec,
     ): void {
 
         this.assertAlive();
-        this.renderer.setVerticalExaggeration(spec);
+        this.verticalExaggeration.set(spec);
+        this.markDirty();
     }
 
     /** Returns the current vertical exaggeration ramps. */
-    getVerticalExaggeration(): Renderer.VerticalExaggerationSpec | null {
+    getVerticalExaggeration(): VerticalExaggeration.Spec | null {
 
         this.assertAlive();
-        return this.renderer.getVerticalExaggeration();
+        return this.verticalExaggeration.get();
+    }
+
+    /**
+     * Returns the map scale denominator for the given view extent.
+     *
+     * @param extent view extent in map units (metres)
+     */
+    getScaleDenominator(extent: number): number {
+
+        this.assertAlive();
+        return this.verticalExaggeration.scaleDenominator(extent);
+    }
+
+    /**
+     * Returns the vertical exaggeration scale-ramp factor at the given
+     * position.
+     *
+     * @param position current map position, or a view extent value
+     */
+    getVeScaleFactor(position: MapPosition | number): number {
+
+        this.assertAlive();
+        return this.verticalExaggeration.scaleFactor(position);
     }
 
     /**
@@ -1843,6 +1882,7 @@ namespace Map {
     export type ViewerConfig = import('../viewer-config').ViewerConfig;
     export type HeightMode = import('./types').HeightMode;
     export type Lod = import('./types').Lod;
+    export type VerticalExaggerationSpec = VerticalExaggeration.Spec;
 }
 
 

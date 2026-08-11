@@ -194,12 +194,14 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
             text3 += 'TexelsPerPoly: ' + (stats.meshesUVArea / Math.max(1,stats.meshesFaces)).toFixed(2) +'<br/><br/>';
         }
 
-        if (renderer && renderer.veScaleRamp) {
+        const verticalExaggeration = map.outerMap.verticalExaggeration;
+
+        if (verticalExaggeration.scaleRamp) {
             const position = map.outerMap.getSelectionPosition();
             text2 += '<br/>VE scale factor: ' +
-                renderer.getVeScaleFactor(position).toFixed(2) + '<br/>';
+                verticalExaggeration.scaleFactor(position).toFixed(2) + '<br/>';
             text2 += 'Map scale : 1 : ' +
-                Math.round(renderer.getScaleDenominator(
+                Math.round(verticalExaggeration.scaleDenominator(
                     position.pos[8])).toLocaleString() + '<br/>';
         }
     }

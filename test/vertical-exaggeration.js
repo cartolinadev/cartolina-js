@@ -57,7 +57,11 @@ async function main() {
 
             const viewer = globalThis.v;
             const legacyMap = viewer.legacyMap;
-            const renderer = viewer.renderer;
+
+            // the map owns the exaggeration; the renderer only forwards
+            // to it, so probing the renderer would prove nothing beyond
+            // the forwarder being reached
+            const exaggeration = legacyMap.outerMap.verticalExaggeration;
 
             viewer.setVerticalExaggeration({
                 elevationRamp: {
@@ -73,10 +77,8 @@ async function main() {
             const roundTrips = [];
             for (const extent of [33000, 80000, 500000]) {
                 for (const height of [-200, 0, 500, 2000, 4000, 6000]) {
-                    const elevated = renderer.getSuperElevatedHeight(
-                        height, extent);
-                    const restored = renderer.getUnsuperElevatedHeight(
-                        elevated, extent);
+                    const elevated = exaggeration.apply(height, extent);
+                    const restored = exaggeration.unapply(elevated, extent);
                     roundTrips.push({
                         extent,
                         height,
@@ -86,12 +88,11 @@ async function main() {
             }
 
             const positions = [];
-            const getSuperElevatedHeight =
-                renderer.getSuperElevatedHeight.bind(renderer);
-            renderer.getSuperElevatedHeight = (height, position) => {
+            const apply = exaggeration.apply.bind(exaggeration);
+            exaggeration.apply = (height, position) => {
 
                 positions.push(position === legacyMap.position);
-                return getSuperElevatedHeight(height, position);
+                return apply(height, position);
             };
 
             const coords = legacyMap.position.getCoords();

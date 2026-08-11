@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.6-feature_body_defaults.32b351a9';
+    return '2.50.7-feature_body_defaults.98459cb6';
 }
