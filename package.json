@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.7-feature_body_defaults.98459cb6",
+  "version": "2.50.8-feature_body_defaults.7fa45841",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
@@ -69,7 +69,7 @@
     "webpack-dev-server": "^6.0.0"
   },
   "dependencies": {
-    "earcut": "^2.2.2",
+    "earcut": "^3.2.3",
     "geographiclib": "^1.50.0",
     "proj4": "^2.19.10",
     "ts-loader": "^8.4.0"

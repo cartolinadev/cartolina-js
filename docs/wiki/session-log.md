@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-12 — Restore geodata polygon triangulation
+
+`MapGeodataBuilder.addPolygon3` called `vts.earcut`, but current builds expose
+`cartolina` and no longer define the old global. It now imports Earcut directly
+and uses Earcut 3.2.3, which includes its own TypeScript declarations. The
+unused local declaration was removed.
+
+Verified with typecheck, unit tests, production builds, and a browser check
+covering a polygon and a polygon with a hole.
+
 ## 2026-08-12 — Vertical exaggeration moves onto the map
 
 Exaggeration is authored map state — coordinate conversion, camera

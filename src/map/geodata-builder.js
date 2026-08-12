@@ -1,6 +1,7 @@
 
 //import Delaunator_ from './geodata-utils';
 import proj4 from 'proj4';
+import earcut from 'earcut';
 import MapGeodataGeometry_ from './geodata-geometry';
 import MapGeodataImportGeoJSON_ from './geodata-import/geojson';
 import MapGeodataImportVTSGeodata_ from './geodata-import/vts-geodata';
@@ -1022,7 +1023,7 @@ MapGeodataBuilder.prototype.addPolygon3 = function(shape, holes, middle, heightM
 
     }
 
-    var surface = vts.earcut(flatShape, holesIndices, 3);
+    var surface = earcut(flatShape, holesIndices, 3);
 
     var maxFaceLength = Number.POSITIVE_INFINITY;
 
