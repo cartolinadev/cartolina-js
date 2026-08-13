@@ -285,13 +285,17 @@ move to backlog-archive.md. Archiving on promotion alone would let a
 high-importance bug quietly vanish from the active backlog the moment
 someone opens a draft RFC for it, long before the fix ships.
 
-When closing a backlog entry, remove any working hypotheses that were
-not confirmed as the root cause. Keep only what remains true and
-useful: the reproduction steps, the confirmed root cause in the status
-line, and any forward-looking open questions that warrant their own
-entry. Failed hypotheses are context baggage — a future reader has no
-way to know they were wrong without re-reading an investigation that no
-longer exists.
+A backlog entry may be rewritten freely while it is still open — including
+trimming working hypotheses that turned out wrong, once that happens as
+part of ordinary editing of an open entry. When closing an entry and moving
+it to backlog-archive.md, never rewrite it — a rewritten resolution loses
+the original argument and becomes noise duplicating the commit message and
+session log. This applies to partial resolutions too: append a
+`Resolution:` (or partial-resolution) paragraph below the original text
+describing what was actually done and, if relevant, which recorded
+hypotheses turned out wrong; do not erase or paraphrase the original report
+to make room for it. Keep the entry's text exactly as it was, changing only
+the status line.
 
 ## Commits
 
