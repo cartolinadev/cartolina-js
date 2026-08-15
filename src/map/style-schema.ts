@@ -406,22 +406,20 @@ export type LightSpecification = {
     specularColor?: Color3Spec
 }
 
-export type VerticalExaggerationSpecification =
-    | {
-        elevationRamp?: {
-            min: [number, number];
-            max: [number, number];
-        };
-        scaleRamp?: {
-            min: [number, number];
-            max: [number, number];
-        };
-    }
-    /** @deprecated Use the scale-denominator format above instead. */
-    | {
-        heightRamp?: [[number, number], [number, number]];
-        viewExtentProgression?: [number, number, number, number, number];
+export type VerticalExaggerationSpecification = {
+    elevationRamp?: {
+        min: [number, number];
+        max: [number, number];
     };
+    scaleRamp?: {
+        min: [number, number];
+        max: [number, number];
+    };
+    /** @deprecated Use elevationRamp instead. */
+    heightRamp?: [[number, number], [number, number]];
+    /** @deprecated Use scaleRamp instead. */
+    viewExtentProgression?: [number, number, number, number, number];
+};
 
 export type AtmosphereSpecification = Partial<Atmosphere.Specification>;
 

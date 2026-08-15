@@ -87,21 +87,15 @@ frame, SRS, body, service, or credit tables are read from it.
 `TerrainSource.fromMetadata` and `RasterSource.fromMetadata` check the
 individual surface entry and raster definition.
 
-`validateSpecification` separates two kinds of mismatch. A key the
-schema does not know is written to the console as a warning and ignored;
-a key it knows whose value has the wrong shape throws. The style
-document is authored by a tileserver that versions separately from this
-library, so a key added on the server must not stop an older client from
-rendering the parts it does understand. The other three boundaries use
-`typia.validate`, which ignores unknown keys already.
-
-`validateSpecification` reads its two cases off the generated
-`createValidateEquals` result: an unknown key is reported as a property
-expecting `undefined`. When a style fails for any reason, typia reports
-the errors of the union branch it selected, so a style using the
-deprecated `vertical-exaggeration` form can draw warnings naming that
-form's keys alongside the real finding. They are warnings only and the
-load is unaffected.
+`validateSpecification` warns about an unknown style key and ignores it.
+A known field with the wrong shape throws. The style document is authored
+by a tileserver that versions separately from this library, so a key added
+on the server must not stop an older client from rendering the parts it
+does understand. It uses exact and ordinary validation together to
+distinguish unknown keys from malformed known fields. Deprecated fields
+remain ordinary schema members, so they need no validation special case.
+The other three validation boundaries use `typia.validate`, which ignores
+unknown keys.
 
 Loading clones the authored style and assigns ids to anonymous layers. The
 clone is the current mutable style; `MapStyle` does not retain an authored
@@ -275,9 +269,9 @@ decides for itself what the user sees. `EventBus.emit` returns whether
 the event reached anyone, which is what `Map` tests. For that test to
 mean anything the library must not subscribe to its own public event,
 so `Viewer` stops the loading indicator from the `ready` rejection
-instead. `Map` also attaches a no-op handler to the `ready` promise at
-construction, so an application that never reads `ready` does not see
-an unhandled rejection.
+instead. `Viewer` attaches that handler immediately after constructing
+`Map`, so an application that never reads `ready` does not see an
+unhandled rejection.
 Viewer methods that reach into the legacy map guard with optional
 chaining, so they are no-ops before `ready` resolves or after failed
 construction.

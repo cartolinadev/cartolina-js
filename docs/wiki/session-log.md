@@ -72,7 +72,7 @@ logged, no event carried it, and the loading indicator only stops on
 progress a map that never loaded cannot report.
 
 Three changes. `validateSpecification` now warns about an unrecognized
-key and throws only when a key it knows carries the wrong shape — the
+key and throws only when a known field carries the wrong shape — the
 style document is authored by a tileserver that versions separately, so
 an added key must not stop an older client. `Map.reportLoadFailure`
 rejects `ready` and emits a new public `error` event, writing to the
@@ -83,14 +83,11 @@ an application that never reads it from seeing an unhandled rejection.
 than by subscribing to `error`, so the library does not count as a
 listener for its own public event.
 
-Checked against a style carrying an unknown top-level key (warns,
+Checked against a style carrying an unknown top-level key (warns and
 renders) and one carrying a malformed known key, the latter both with
 and without an application `error` listener: the event fires and the
 indicator stops either way, the console write happens only without a
-listener, and no unhandled rejection appears. When a style fails for any
-reason, typia reports the errors of the union branch it selected, so a
-style using the deprecated `vertical-exaggeration` form draws extra
-warnings naming that form's keys; they do not affect the load.
+listener, and no unhandled rejection appears.
 
 ## 2026-08-12 — Restore geodata polygon triangulation
 

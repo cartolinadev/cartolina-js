@@ -1856,8 +1856,9 @@ namespace Map {
 
         /**
          * A failure that left the map unloaded, most often an invalid
-         * style or an unreachable style URL. The same error is written
-         * to the console and rejects `Viewer.ready`.
+         * style or an unreachable style URL. The same error rejects
+         * `Viewer.ready` and is written to the console only when no
+         * `error` listener receives it.
          */
         'error': { error: Error };
 

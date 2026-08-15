@@ -14,8 +14,8 @@ import type * as StyleSchema from './style-schema';
  * layer ids, terrain source references, and raster source references.
  * The input remains unchanged.
  *
- * A key the schema does not know is warned about and ignored; a key it
- * knows but whose value has the wrong shape fails the load. The style
+ * A key the schema does not know is warned about and ignored. A known
+ * field whose value has the wrong shape fails the load. The style
  * document is written by a tileserver that versions separately from
  * this library, so a key added there must not stop an older client from
  * rendering what it does understand.
@@ -26,35 +26,31 @@ export function validateSpecification(
     styleSpec: StyleSchema.StyleSpecification,
 ): void {
 
-    // Validate the authored object shape. `validateEquals` reports an
-    // unrecognized key as a property expecting `undefined`, which
-    // separates the two cases above.
-    const res = validateStyle(styleSpec);
+    const exact = validateStyleExactly(styleSpec);
 
-    if (!res.success) {
+    if (!exact.success) {
 
-        const errs = 'errors' in res ? res.errors : [];
+        // Exact validation reports unknown keys and malformed known
+        // fields alike. Ordinary validation ignores unknown keys, so
+        // it distinguishes the malformed case without trying to infer
+        // meaning from an error selected inside a union branch.
+        const known = validateKnownStyle(styleSpec);
 
-        const unknownKeys = errs.filter(
-            (error) => error.expected === 'undefined');
-        const malformed = errs.filter(
-            (error) => error.expected !== 'undefined');
-
-        for (const error of unknownKeys)
-            console.warn(`Unknown style key ${error.path}; ignored.`);
-
-        if (malformed.length > 0) {
+        if (!known.success) {
 
             // the cause travels in the message, so an application
             // handling the failure receives it rather than having to
             // read a separate console line
-            const details = malformed
+            const details = known.errors
                 .map((error) => `${error.path}: expected ${error.expected}, `
                     + `got ${JSON.stringify(error.value)}`)
                 .join('; ');
 
             throw new Error(`Invalid style: ${details}.`);
         }
+
+        for (const error of exact.errors)
+            console.warn(`Unknown style key ${error.path}; ignored.`);
     }
 
     // Validate relationships between authored source definitions.
@@ -140,8 +136,11 @@ export function validateSurfaceDefinition(
 }
 
 
-const validateStyle =
+const validateStyleExactly =
     typia.createValidateEquals<StyleSchema.StyleSpecification>();
+
+const validateKnownStyle =
+    typia.createValidate<StyleSchema.StyleSpecification>();
 
 
 /*
