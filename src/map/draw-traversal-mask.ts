@@ -476,7 +476,7 @@ class DrawTraversalMaskPool {
         const texture = new GpuTexture(
             this.renderer_.gpu,
             null,
-            this.renderer_.core,
+            this.renderer_.map,
         );
         const data = new Uint8Array(this.resolution * this.resolution);
 

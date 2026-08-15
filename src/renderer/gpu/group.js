@@ -827,7 +827,7 @@ GpuGroup.prototype.draw = function(mv, mvp, applyOrigin, tiltAngle, texelSize) {
 
     var renderer = this.renderer;
     var renderCounter = [[renderer.geoRenderCounter, mv, mvp, this]];
-    var map = renderer.core.map;
+    var map = renderer.map.legacyMap;
     this.map = map;
     
     if (applyOrigin) {

@@ -16,13 +16,9 @@ import RendererRMap from './rmap';
 
 import * as IlluminationMath from '../map/illumination';
 import MapPosition from '../map/position';
-import type LegacyMap from '../map/legacy-map';
-import type VerticalExaggeration from '../map/vertical-exaggeration';
 import { defaultOverrides, type Overrides } from '../map/overrides';
-import type EventBus from '../map/event-bus';
-import type ConfigStore from '../config-store';
 import type * as viewerConfig from '../viewer-config';
-import type TypedMap from '../map/map';
+import type Map from '../map/map';
 import { TextureBlend } from './textureblend';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
@@ -87,7 +83,12 @@ import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 export class Renderer {
 
     config: Readonly<viewerConfig.ViewerConfig>;
-    core: Core;
+    /**
+     * The typed `Map` that owns this renderer. Legacy JavaScript
+     * modules reach it as `renderer.map` and the loaded legacy map as
+     * `renderer.map.legacyMap`.
+     */
+    map: Map;
     div: HTMLElement;
 
     marginFlags = 0; // see rmap.js
@@ -366,10 +367,10 @@ export class Renderer {
     disposed_ = false;
 
 
-constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerConfig>) {
+constructor(map: Map, div: HTMLElement, config: Readonly<viewerConfig.ViewerConfig>) {
 
     this.config = config; // || {};
-    this.core = core;
+    this.map = map;
     this.div = div;
 
     // device
@@ -401,7 +402,7 @@ constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerCo
         !! this.config.rendererAllowScreenshots,
         !! this.config.rendererAntialiasing,
         this.config.rendererAnisotropic,
-        core.bus);
+        map.bus);
 
     const canvasTarget = this.gpu.updateCanvasRenderTarget();
     this.setProjection(canvasTarget.apparentSize);
@@ -422,12 +423,12 @@ constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerCo
     // label passes read. The other renderer keys are fixed at WebGL
     // context or texture creation — see their notes in
     // `ViewerConfig`.
-    this.unwatchConfig_ = core.configStore.watch(
+    this.unwatchConfig_ = map.configStore.watch(
         ['rendererCssDpi', 'mapLabelFreeMargins'],
         (values) => {
 
             this.labelFreeMargins = values.mapLabelFreeMargins;
-            this.core.map?.markDirty();
+            this.map.legacyMap?.markDirty();
         },
     );
 };
@@ -513,7 +514,7 @@ private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
 
     let atmBindings = {}
 
-    if (this.core.map!.atmosphere) {
+    if (this.map.legacyMap!.atmosphere) {
 
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
     }
@@ -538,7 +539,7 @@ programBackground() : GpuProgram {
 
     let atmBindings = {}
 
-    if (this.core.map!.atmosphere) {
+    if (this.map.legacyMap!.atmosphere) {
 
         atmBindings = { uboAtm: Renderer.UniformBlockName.Atmosphere }
 
@@ -796,7 +797,7 @@ createBuffers() {
         this.uboFrame);
 
     // uboAtmosphere initialized in the atmosphere object
-    if (this.core.map!.atmosphere) this.core.map!.atmosphere.createBuffers();
+    if (this.map.legacyMap!.atmosphere) this.map.legacyMap!.atmosphere.createBuffers();
 
     // uboLayers not initialized here: each submesh keeps its own
 
@@ -811,7 +812,7 @@ createBuffers() {
  */
 initFrame(): void {
 
-    const map = this.core.map!;
+    const map = this.map.legacyMap!;
     const config = map.config;
     const overrides = map.outerMap.overrides;
 
@@ -830,7 +831,7 @@ initFrame(): void {
         // consume-once: reset through the store so the shared value
         // map stays consistent
         if (forcedFrameTime !== -1) {
-            this.core.configStore.set({ mapForceFrameTime: -1 });
+            this.map.configStore.set({ mapForceFrameTime: -1 });
         }
 
     } else {
@@ -881,7 +882,7 @@ initFrame(): void {
  */
 syncCameraState(): void {
 
-    const map = this.core.map!;
+    const map = this.map.legacyMap!;
     const camera = map.camera;
     const position = map.position;
 
@@ -926,13 +927,13 @@ syncCameraState(): void {
  */
 
 updateBuffers(
-    position: MapPosition | number = this.core.map!.outerMap.getNavigationPosition()!
+    position: MapPosition | number = this.map.legacyMap!.outerMap.getNavigationPosition()!
 ) {
 
     let renderFlags: Renderer.RenderFlags = Renderer.RenderFlags.FlagNone;
 
     // map
-    let map = this.core.map!;
+    let map = this.map.legacyMap!;
 
     // one backing buffer, two typed views.
     const buf = new ArrayBuffer(UboFrameSize);
@@ -947,7 +948,7 @@ updateBuffers(
 
     // obtain the data: body params and vertical exaggeration
     let se = this.getSuperElevation(position);
-    let srsInfo = this.core.map!.getPhysicalSrs().getSrsInfo();
+    let srsInfo = this.map.legacyMap!.getPhysicalSrs().getSrsInfo();
     let majorAxis = srsInfo.a;
     let minorAxis = srsInfo.b;
 
@@ -1033,8 +1034,8 @@ updateBuffers(
 
     // clip params; y carries the fallback-coverage discard threshold
     data.clipParams = [
-        this.core.map!.config.mapSplitMargin,
-        this.core.map!.config.mapTraversalMaskThreshold,
+        this.map.legacyMap!.config.mapSplitMargin,
+        this.map.legacyMap!.config.mapTraversalMaskThreshold,
         0,
         0,
     ];
@@ -1113,15 +1114,15 @@ updateBuffers(
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
     // the uboAtm buffer, updated only while atmosphere rendering is on
-    if (this.core.map!.atmosphere
+    if (this.map.legacyMap!.atmosphere
             && (d.flagAtmosphere ?? cfg.mapFlagAtmosphere)) {
 
         let [view2ecef, _, eyePos] = this.calcEcefCamParams();
 
-        //console.log(this.core.map.camera.position);
+        //console.log(this.map.legacyMap.camera.position);
         //console.log(view2ecef);
 
-        this.core.map!.atmosphere.updateBuffers(
+        this.map.legacyMap!.atmosphere.updateBuffers(
             eyePos,
             map.position.getViewDistance(),
             view2ecef as math.mat4);
@@ -1131,7 +1132,7 @@ updateBuffers(
 
 drawBackground() {
 
-    let atmosphere = this.core.map!.atmosphere;
+    let atmosphere = this.map.legacyMap!.atmosphere;
 
     if (atmosphere && atmosphere.isReady()) {
 
@@ -1147,7 +1148,7 @@ private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
     // true physical world coordinates - they are translated relative to
     // camera center to avoid quantization errors. Hence this.
     let view2ecef = mat4.translate(mat4.identity(mat4.create()),
-                                       this.core.map!.camera.position);
+                                       this.map.legacyMap!.camera.position);
     let clip2ecef = [...view2ecef];
 
     mat4.multiply(view2ecef, this.camera.modelviewinverse);
@@ -1156,7 +1157,7 @@ private calcEcefCamParams(): [math.mat4, math.mat4, math.vec3] {
     return [
         view2ecef as math.mat4,
         clip2ecef as math.mat4,
-        this.core.map!.camera.position as math.vec3];
+        this.map.legacyMap!.camera.position as math.vec3];
 }
 
 
@@ -1384,12 +1385,12 @@ setIllumination(definition: Renderer.IlluminationDef) {
         this.illumination.vectorNED = [...this.illumination.authoredVector];
     }
 
-    if (this.core.map?.position) {
+    if (this.map.legacyMap?.position) {
 
-        this.updateIllumination(this.core.map!.position);
+        this.updateIllumination(this.map.legacyMap!.position);
     }
 
-    this.core.map?.markDirty();
+    this.map.legacyMap?.markDirty();
 
     //__DEV__ && console.log("Illumination: ", this.illumination);
 };
@@ -1456,7 +1457,7 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
     if (options.useShadingAspect !== undefined)
         d.flagShadingAspect = options.useShadingAspect;
 
-    this.core.map?.markDirty();
+    this.map.legacyMap?.markDirty();
 
 };
 
@@ -1530,27 +1531,27 @@ getIlluminationAmbientCoef() {
 
 get useSuperElevation(): boolean {
 
-    return this.core.verticalExaggeration.enabled;
+    return this.map.verticalExaggeration.enabled;
 }
 
 get seCounter(): number {
 
-    return this.core.verticalExaggeration.counter;
+    return this.map.verticalExaggeration.counter;
 }
 
 getSuperElevation(position: MapPosition | number) {
 
-    return this.core.verticalExaggeration.vaParams(position);
+    return this.map.verticalExaggeration.vaParams(position);
 }
 
 getSuperElevatedHeight(height: number, position: MapPosition | number) {
 
-    return this.core.verticalExaggeration.apply(height, position);
+    return this.map.verticalExaggeration.apply(height, position);
 }
 
 getUnsuperElevatedHeight(height: number, position: MapPosition | number) {
 
-    return this.core.verticalExaggeration.unapply(height, position);
+    return this.map.verticalExaggeration.unapply(height, position);
 }
 
 
@@ -2102,7 +2103,7 @@ getBitmap(
     var texture = this.bitmaps[id];
     if (!texture && url) {
         texture = new GpuTexture(
-            this.gpu, url, this.core, null, undefined, tiled, filter);
+            this.gpu, url, this.map, null, undefined, tiled, filter);
         this.bitmaps[id] = texture;
     }
 
@@ -2113,7 +2114,7 @@ getBitmap(
 getFont(url: string) {
     var font = this.fonts[url];
     if (!font) {
-        font = new GpuFont(this.gpu, this.core, null, null, url);
+        font = new GpuFont(this.gpu, this.map, null, null, url);
         this.fonts[url] = font;
     }
 
@@ -2151,7 +2152,7 @@ createTexture(options: any): GpuTexture | null {
 
         if (width && height) {
 
-            const texture = new GpuTexture(this.gpu, null, this.core);
+            const texture = new GpuTexture(this.gpu, null, this.map);
             texture.createFromData(
                 width, height, source, GpuTexture.Type.Color, filter, repeat
             );
@@ -2161,7 +2162,7 @@ createTexture(options: any): GpuTexture | null {
 
     if (source instanceof Image) {
 
-        const texture = new GpuTexture(this.gpu, null, this.core);
+        const texture = new GpuTexture(this.gpu, null, this.map);
         texture.createFromImage(source, GpuTexture.Type.Color, filter, repeat);
         return texture;
     }
@@ -2294,21 +2295,6 @@ type Illumination = {
     shadingAspectWeight: number;
 
     useLighting: boolean;
-}
-
-/**
- * The slice of the typed `Map` this renderer works with. The name
- * survives from the retired `core.js` shell; the object behind it is
- * the `Map` instance.
- */
-type Core = {
-
-    map: LegacyMap | null;
-    contextLost: boolean;
-    bus: EventBus<TypedMap.ViewerEventMap>;
-    configStore: ConfigStore<viewerConfig.ViewerConfig>;
-    verticalExaggeration: VerticalExaggeration;
-
 }
 
 /** Fixed texture indices - the actual index is computed as

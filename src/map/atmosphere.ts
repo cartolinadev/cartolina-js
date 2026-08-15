@@ -207,7 +207,7 @@ class Atmosphere {
             delete this.params.edgeDistanceToEyeDistance;
         }
 
-        this.renderer.core.map!.markDirty();
+        this.renderer.map.legacyMap!.markDirty();
     }
 
     /**
@@ -271,7 +271,7 @@ class Atmosphere {
         // density texture stores ray integrals only down to
         // 1 - boundaryThickness, which caps how deep the sphere may
         // sink; the reference ellipsoid caps it from above.
-        const map = this.renderer.core.map!;
+        const map = this.renderer.map.legacyMap!;
         const heightRange = map.referenceFrame?.getGlobalHeightRange();
         let solidBodyRadius = 1.0;
 

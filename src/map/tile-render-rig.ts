@@ -287,10 +287,10 @@ export class TileRenderRig {
 
         // this shouldn't be necessary, this is set once per frame in
         // renderer.updateBuffer. Oddly, we keep loosing the binding
-        /*if (false && this.renderer.core.map.atmosphere) {
+        /*if (false && this.renderer.map.legacyMap.atmosphere) {
 
             this.renderer.gpu.bindTexture(
-                this.renderer.core.map.atmosphere.atmDensityTexture
+                this.renderer.map.legacyMap.atmosphere.atmDensityTexture
                     .getGpuTexture(),
                 this.renderer.textureIdxs.atmosphere);
 
@@ -1144,7 +1144,7 @@ export class TileRenderRig {
         if (this.collapsed) normalGpu = this.collapsed.normalGpu;
         else {
             normalGpu = new GpuTexture(
-                this.renderer.gpu, null, this.renderer.core);
+                this.renderer.gpu, null, this.renderer.map);
             normalGpu.createFromData(
                 256, 256, new Uint8Array(256 * 256 * 4),
                 GpuTexture.Type.Color, 'linear');

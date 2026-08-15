@@ -19,12 +19,12 @@ var GpuTexture = GpuTexture_;
 
 var RendererInit = function(renderer) {
     this.renderer = renderer;
-    this.core = renderer.core;
+    this.map = renderer.map;
     this.gpu = renderer.gpu;
 
-    //renderer.font = new GpuFont(this.gpu, this.core);
+    //renderer.font = new GpuFont(this.gpu, this.map);
     //renderer.fonts['#default'] = renderer.font;
-    //renderer.font = new GpuFont(this.gpu, this.core, null, null, './allinone.fnt');
+    //renderer.font = new GpuFont(this.gpu, this.map, null, null, './allinone.fnt');
 
     this.initShaders();
     this.initHeightmap();
@@ -97,7 +97,7 @@ RendererInit.prototype.initShaders = function() {
 
 RendererInit.prototype.initHeightmap = function() {
     var renderer = this.renderer;
-    var use16Bit = renderer.core.config.map16bitMeshes;
+    var use16Bit = renderer.map.config.map16bitMeshes;
     var gpu = this.gpu;
 
 
@@ -206,7 +206,7 @@ RendererInit.prototype.initTextMap = function() {
     //font texture
     var texture = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAACAAgMAAACZ21+ZAAAADFBMVEUAAAAAAAAAAAD///81VxGEAAAAAXRSTlMAQObYZgAAA25JREFUaN7tmFtu7CAMQC1lAd5KFxCJrUfqAu5WLPUXiRseBhuchMxM1Z8QTUl4nAS/MAXYC+0/xPxLD/sf5/fn2B4AQmqzCrVKAkgAXAT4G4Cwv46WDdY1A9IQ1ONr2ceZgDhhCiDb69tLBy+Bn2m9AMRSAWsEUOvbB3pvANYOUJdApRYAJ9q4rhNtwKYAuE0Acgcl4RLC8AX9ElgJAyAJrwNYMsDeLHgJFoC14GcAa7RF1DLgBwZ4oQQlRDZlFlRvyhJAx4A4Kbf2zkQW4E55adIpQFpeundU7+WvFz3x3AEQLgBrq8pcAq7jtVB2qPyTVw1W9UMIDABu5wA232TuCYAk0Hsok29T09ubedlZ504D/AWgrn1lAAn/D1StkB2rFyKpT9mffrY3AaHYLn8yTyTQdR/FgGOkvwlA+SnUdKmURQcAVmN8iYhG9wAsL5S+oE3Wvq8YYcrVIW4BZKijP48FWQahfCZ0NX86lZDWlhGEwQnA1tWTgKiQ9LgrtnddViQqx8r+4/npFmBpgGAD4ByAWwNsDAg3AA4q4IcYsGAVHk9ImviXo1UzW0o7FAPIiy/Q1saqNABBABwDvvHQfWqg7WWQ7svIrxDmAYsYs1Qt9OHbBpDp8J8ANLPUpqxMlrT58hV0h3amacDfl+a6oFy4v1Ifpz/U5YZ9HJgBLF6E9V6vFgCKEXE0RjQBMAA8W1wxYyxj1nbYOAc4zIEGiiujGDMFwFAGe5Gh7DcbfMlDRhOiAuxuG4WV9kKdh2g1zgBwOwDUAME9HSAuoYig7Y0DwI+AJH3KQuQsnVp+1wHcaAdJ+pRBze2PADgCkvRJtpV5yzYCuq0qS9239poKFymGGYAMNqeAdz35fQANyUM76mi7ISAryfg9gJHW/B4gmMccUJsuiBRgOApNA/AAYEVBHI4bOsHoDiKTAH8AaKG8nZstANvN5wHW9o4GuC4BXgW4A4ClxiE7LWoMovXUDkzAcgCY8feXfP8lAJ71hba9B49/AQB5aA8fAgwqPMhQmnkbu/MZgDOU/B8uffg0EwyEgwylBJNhnVeAmqE4uALA6MYlweAU52IJGsD5AQMWgnMhctBgAOcHGFqKcwvA+UEExX4HBwC5bfESZH6QMhS2A2HKlwCVH8wAXs4D3gY85SlPecpTnvKUp3TlPzpx58f+rik4AAAAAElFTkSuQmCC';
 
-    renderer.textTexture2 = new GpuTexture(this.gpu, texture, this.core, null, true);
+    renderer.textTexture2 = new GpuTexture(this.gpu, texture, this.map, null, true);
 };
 
 
@@ -306,8 +306,8 @@ RendererInit.prototype.initLines = function() {
     var gpu = this.gpu;
     var renderer = this.renderer;
     renderer.plineBuffer = new Float32Array(32*3);
-    renderer.plines = new GpuPixelLine3(gpu, this.core, true, 64, true, 8);
-    renderer.plineJoints = new GpuPixelLine3(gpu, this.core, false, 64, true, 8);
+    renderer.plines = new GpuPixelLine3(gpu, this.map, true, 64, true, 8);
+    renderer.plineJoints = new GpuPixelLine3(gpu, this.map, false, 64, true, 8);
 
     renderer.backgroundState = gpu.createState({ztest:false, zwrite:false});
     renderer.stencilLineState = gpu.createState({blend:true, stencil:true, culling: false});

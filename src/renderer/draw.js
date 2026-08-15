@@ -17,7 +17,7 @@ var radixDepthSortFeatures = radixDepthSortFeatures_;
 
 var RendererDraw = function(renderer) {
     this.renderer = renderer;
-    this.core = renderer.core;
+    this.map = renderer.map;
     this.gpu = renderer.gpu;
     this.gl = renderer.gpu.gl;
     this.rmap = renderer.rmap;
@@ -837,7 +837,7 @@ RendererDraw.prototype.drawGpuJobs = function(position) {
     }
 
     if (forceUpdate) {
-        this.core.markDirty();
+        this.map.markDirty();
     }
 
     renderer.jobsTimer2 = performance.now();

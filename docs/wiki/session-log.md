@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-15 — The renderer names its owner `map`
+
+`Renderer.core` was typed as `Core`, a structural type listing the five
+members of the typed `Map` the renderer happened to use. The typed `Map`
+has all five publicly, so the type is gone and the field is `map: Map`.
+The loaded legacy map is reached as `renderer.map.legacyMap`, the form
+the field's own doc prescribes for typed code.
+
+`renderer.ts` also imported the class under the alias `TypedMap`. It
+has no use of the global `Map` to collide with, so it imports it under
+its own name, as `viewer.ts` does. The alias stays where it earns its
+keep: `gpu/device.ts` holds a `new Map<GLenum, ...>`, and
+`legacy-map.d.ts` declares its own class `Map`.
+
+`RenderInit` and `RenderDraw` copied the field under the old name; they
+now copy it under the new one. The `core` constructor parameter of the
+GPU resource classes (`GpuTexture`, `GpuFont`, `GpuPixelLine3`,
+`GpuLine`) keeps its name — a separate family, untouched.
+
 ## 2026-08-15 — Close the leftovers from the error-reporting change
 
 AGENTS gains a "No loose ends" rule: a change removes the code it makes

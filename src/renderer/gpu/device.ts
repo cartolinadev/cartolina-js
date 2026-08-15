@@ -268,7 +268,7 @@ contextLost(event: Event) {
 
     console.error('WebGL context lost', new Date().toISOString());
     event.preventDefault();
-    this.renderer.core.contextLost = true;
+    this.renderer.map.contextLost = true;
     this.bus.emit('gpu-context-lost', {});
 };
 
