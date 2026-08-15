@@ -64,210 +64,6 @@ import type TerrainSource from './terrain-source';
 class Map {
 
     // -----------------------------------------------------------------
-    // Fields
-    // -----------------------------------------------------------------
-
-    private disposed_ = false;
-
-    /**
-     * The loaded legacy map, or `null` before a map has loaded and
-     * between loads.
-     *
-     * @internal The legacy field name is kept because the JS map,
-     *   renderer, and inspector modules reach the loaded map as
-     *   `core.map`, where `core` is this instance. Typed code should
-     *   read `legacyMap`.
-     */
-    map: LegacyMap | null = null;
-
-    /**
-     * Legacy map currently being populated by the style loader.
-     *
-     * Kept separate from `map` so the frame loop cannot observe partial
-     * construction. Typed source constructors reach it through
-     * `legacyMap` until credit ownership moves into this class.
-     */
-    private loadingMap_: LegacyMap | null = null;
-
-    /**
-     * The WebGL2 renderer owned by this map.
-     *
-     * @internal Reached as `core.renderer` by the legacy modules.
-     */
-    renderer!: Renderer;
-
-    /**
-     * Vertical exaggeration of the terrain, applied to model heights
-     * before anything is drawn.
-     *
-     * @internal Reached as `core.verticalExaggeration` by `Renderer`,
-     * which forwards to it for the legacy JavaScript call sites.
-     */
-    verticalExaggeration!: VerticalExaggeration;
-
-    /**
-     * The diagnostics inspector, or `null` when its module is
-     * excluded from the build.
-     *
-     * @internal
-     */
-    inspector: Inspector | null = null;
-
-    /**
-     * Set by `GpuDevice` when the WebGL context is lost; stops the
-     * frame loop.
-     *
-     * @internal
-     */
-    contextLost = false;
-
-    /**
-     * Legacy alias of the disposed state; checked by async resource
-     * callbacks (`GpuTexture`) before touching the object.
-     *
-     * @internal
-     */
-    killed = false;
-
-    /**
-     * Request parameters for legacy binary loads.
-     *
-     * @internal
-     */
-    xhrParams: Record<string, unknown> = {};
-
-    /**
-     * The container element the canvas renders into; `null` after
-     * disposal.
-     *
-     * @internal
-     */
-    element: HTMLElement | null;
-
-    /**
-     * The live, normalized config value map — the single config
-     * object shared by the map, renderer, and browser layers.
-     *
-     * @internal
-     */
-    config: Readonly<viewerConfig.ViewerConfig>;
-
-    /**
-     * Application hook applied to every external resource request.
-     *
-     * @internal
-     */
-    readonly transformRequest:
-        utils.TransformRequestCallback | undefined;
-
-    private readyPromise_: Promise<void>;
-    private readyResolved_ = false;
-    private resolveReady_: (() => void) | null = null;
-    private rejectReady_: ((reason: Error) => void) | null = null;
-
-    /**
-     * Resolved raster sources and permanent load failures, keyed by style
-     * source id. Raster source instances are owned here rather than by the
-     * legacy JavaScript half of the map.
-     */
-    private rasterSources_ =
-        new globalThis.Map<string, Map.RasterSourceEntry>();
-
-    /**
-     * Resolved terrain sources, keyed by style source id. A surface
-     * definition that fails to load rejects style loading, so a
-     * registered entry is always usable.
-     */
-    private terrainSources_ = new globalThis.Map<string, TerrainSource>();
-
-    /**
-     * The event bus behind `on`, `once`, and `emit`. Handed to the
-     * legacy emitters (`LegacyMap`, `GpuDevice`) at their
-     * construction; they publish through it directly.
-     */
-    private bus_: EventBus<Map.ViewerEventMap> = new EventBus();
-
-    /**
-     * The runtime config store. Owned by `Viewer`, which seeds it
-     * with the caller's options before constructing this `Map`;
-     * `Map.tick` flushes it at the start of every frame so watchers
-     * reconfigure before the draw.
-     */
-    private configStore_: ConfigStore<viewerConfig.ViewerConfig>;
-
-    /**
-     * Runtime rendering overrides: diagnostic draw flags and per-frame
-     * render-flag overrides. `Renderer.initFrame` caches a reference to
-     * this object; all flag reads in a frame see the same snapshot.
-     *
-     * `draw*` fields default to `false`. `flag*` fields default to
-     * `undefined`, which defers to the corresponding `ViewerConfig`
-     * value. See `Overrides` in `src/map/overrides.ts` for the
-     * full list.
-     */
-    overrides: Overrides = { ...defaultOverrides };
-
-    /**
-     * Camera-state swapper for diagnostic freeze mode. `null` while no
-     * map is loaded and between loads. Created by
-     * `createMapFromStyle`. JS callers that still hold a `LegacyMap`
-     * reference access this through `legacyMap.outerMap.freeze`.
-     *
-     * See `FreezeCameraState` in
-     * `src/map/freeze-camera-state.ts`.
-     */
-    freeze: FreezeCameraState | null = null;
-
-    /**
-     * Active rendering channel for the current frame.
-     *
-     * - `'color'`: visual canvas pass.
-     * - `'depth'`: depth / hit pass that feeds the hitmap.
-     */
-    drawChannel: 'color' | 'depth' = 'color';
-
-    /**
-     * Registered overlays in registration order. `onAdd` fires the
-     * first time an entry runs through `runOverlays_`; `onRemove`
-     * fires when the entry is removed or when the `Map` is disposed.
-     */
-    private overlays_: OverlayEntry[] = [];
-
-    /** Did the one-time `map-loaded` completion fire for the loaded
-     * map already? Reset implicitly by replacing the typed `Map`. */
-    private mapLoadedFired_ = false;
-
-    /**
-     * UV-space mask pool used by the recursive terrain traversal.
-     * Lazily allocated on first use by `drawTerrainRecursive` and
-     * disposed on map unload and `[Symbol.dispose]()`. Removal
-     * target in phase 8 alongside the legacy traversal.
-     */
-    private terrainMaskPool_: DrawTraversalMaskPool | null = null;
-
-    /**
-     * Per-drawn-frame timing (cpu, gpu, draw-call and FBO-switch counts),
-     * feeding the inspector panel and `window.__vtsPerf`. Lazily created
-     * on the first drawn frame once the GPU device exists.
-     */
-    private frameProfiler_: FrameProfiler | null = null;
-
-    /** Throttle for publishing profiler results (every Nth drawn frame). */
-    private profileWrite_ = 0;
-
-    /**
-     * Per-surface helper trees used by the recursive draw traversal
-     * (rfc03-draw-traversal.md §2.1). Keyed by surface id. Each tree is
-     * a single-surface `MapSurfaceTree` constructed with the surface
-     * as its `freeLayerSurface`, so every tile binds directly to that
-     * surface. The cache is refreshed against
-     * the current `surfaceList()` on every draw; entries for surfaces
-     * that have left the view are dropped.
-     */
-    private surfaceTrees_: globalThis.Map<string, MapSurfaceTree>
-        = new globalThis.Map();
-
-    // -----------------------------------------------------------------
     // Lifecycle
     // -----------------------------------------------------------------
 
@@ -348,96 +144,6 @@ class Map {
     get loaded(): boolean {
 
         return this.mapLoadedFired_;
-    }
-
-    /** Frame-loop entry: ticks, then schedules the next frame. */
-    private onUpdate_(): void {
-
-        if (this.killed || this.contextLost) return;
-
-        this.tick();
-        window.requestAnimationFrame(this.onUpdate_.bind(this));
-    }
-
-    /**
-     * Resolves the `ready` Promise. Called once per map load by
-     * `tick` when the reference frame first becomes ready.
-     */
-    private markReady_(): void {
-
-        if (this.readyResolved_) return;
-        this.readyResolved_ = true;
-        this.resolveReady_?.();
-        this.resolveReady_ = null;
-        this.rejectReady_ = null;
-    }
-
-    /**
-     * Reports a failure that left the map unloaded: logs it, rejects
-     * `ready`, and fires the public `error` event.
-     *
-     * The error reaches the console only when no `error` listener is
-     * registered, so an application that handles the event decides for
-     * itself what the user sees.
-     *
-     * `ready` is rejected before the event so that a listener throwing
-     * cannot leave it pending forever.
-     *
-     * @param cause the rejection value. Anything that is not an `Error`
-     *   is wrapped in one, so `ready` and the event payload always
-     *   carry the `Error` their types promise.
-     */
-    private reportLoadFailure(cause: unknown): void {
-
-        const reason = cause instanceof Error
-            ? cause
-            : new Error(String(cause));
-
-        this.rejectReady_?.(reason);
-
-        if (!this.bus_.emit('error', { error: reason }))
-            console.error(reason);
-    }
-
-    /** Kills and detaches the loaded legacy map, if any. */
-    private destroyLoadedMap(): void {
-
-        if (!this.map) return;
-
-        this.map.kill();
-        this.map = null;
-        this.freeze = null;
-        this.bus_.emit('map-unloaded', {});
-    }
-
-    /** Loads a map from a style URL or parsed style object. */
-    private async loadMapFromStyle(
-        style: string | StyleSchema.StyleSpecification,
-        position?: PositionInput,
-    ): Promise<void> {
-
-        let styleSpec: unknown = style;
-        let path = window.location.href;
-
-        if (typeof style === 'string') {
-
-            path = utilsUrl.getProcessUrl(style, path);
-            styleSpec = await utils.loadJson(
-                path, this.transformRequest, 'Style');
-        }
-
-        await this.createMapFromStyle(styleSpec, path);
-
-        // the style's position applies when the caller passed none
-        const stylePosition =
-            (styleSpec as StyleSchema.StyleSpecification).position;
-
-        const initialPosition = position ?? stylePosition;
-
-        if (initialPosition) this.map!.setPosition(initialPosition);
-
-        // initialize ubos
-        this.renderer.createBuffers();
     }
 
     // -----------------------------------------------------------------
@@ -847,23 +553,6 @@ class Map {
 
         this.assertAlive();
         return this.requireReadyStyle().getLayerTerrainSources(layerId);
-    }
-
-    /**
-     * Returns the loaded map's style state, throwing before
-     * `viewer.ready` resolves: no validated layer ids, source ids, or
-     * current terrain lists exist to change or query earlier.
-     */
-    private requireReadyStyle(): MapStyle {
-
-        const style = this.readyResolved_ ? this.map?.style : null;
-
-        if (!style) {
-            throw new Error('The style is not ready; await '
-                + '`viewer.ready` before visibility changes or queries.');
-        }
-
-        return style;
     }
 
     // -----------------------------------------------------------------
@@ -1319,47 +1008,6 @@ class Map {
         this.bus_.emit('tick', {});
     }
 
-    /** The frame profiler, created on first use once the device exists. */
-    private frameProfiler(): FrameProfiler {
-
-        if (!this.frameProfiler_) {
-
-            this.frameProfiler_ = new FrameProfiler(this.renderer.gpu);
-        }
-
-        return this.frameProfiler_;
-    }
-
-    /**
-     * Publish the profiler result to the inspector stats and (when
-     * `mapExposeFpsToWindow` is set) to `window`. Throttled because each
-     * result sorts the sample windows; medians move slowly so a few
-     * updates per second suffice.
-     */
-    private publishFrameProfile(): void {
-
-        if ((this.profileWrite_++ % 15) !== 0) return;
-
-        const legacyMap = this.map;
-        if (!legacyMap) return;
-
-        const profile = this.frameProfiler_!.result();
-        legacyMap.stats.frameProfile = profile;
-
-        if (legacyMap.config.mapExposeFpsToWindow
-                && typeof window !== 'undefined') {
-
-            const target = window as unknown as {
-                __vtsFps?: number | null;
-                __vtsPerf?: { frame?: FrameProfiler.Result };
-            };
-
-            target.__vtsFps = profile.limitFps;
-            target.__vtsPerf = target.__vtsPerf ?? {};
-            target.__vtsPerf.frame = profile;
-        }
-    }
-
     /**
      * Draws one frame against the current render target. Called from
      * `Map.tick` for the canvas frame and from `MapDraw.drawHitmap`
@@ -1494,6 +1142,182 @@ class Map {
     }
 
     // -----------------------------------------------------------------
+    // Surface trees
+    // -----------------------------------------------------------------
+
+    /**
+     * Returns the per-surface helper trees the recursive draw
+     * traversal will descend this frame, in `surfaceList()` order.
+     * Allocates the trees on demand and drops stale cache entries.
+     *
+     * Intended for terrain queries such as
+     * `MapMeasure.getSurfaceHeight`: they should iterate this list
+     * front-to-back (last index first) and return the first tree whose
+     * trace yields data.
+     *
+     * Returns an empty array when the recursive path is not active or
+     * when no surface is in view.
+     */
+    surfaceTreesForQuery(): MapSurfaceTree[] {
+        return this.resolveSurfaceTrees();
+    }
+
+    /**
+     * Returns the surfaces the recursive draw traversal should render,
+     * in back-to-front order (front surface at the last index). Plain
+     * surfaces only — glues and virtual surfaces are skipped.
+     *
+     * The order comes from the current style's terrain sources array.
+     */
+    surfaceList(): TerrainSource[] {
+
+        const legacyMap = this.map;
+        if (!legacyMap?.style) return [];
+
+        // terrain.sources order: back-to-front, front at last index
+        const sources = legacyMap.style.style().terrain?.sources ?? [];
+
+        return sources.map(
+            sourceId => this.resolveTerrainSource(sourceId));
+    }
+
+    // -----------------------------------------------------------------
+    // Migration shim
+    // -----------------------------------------------------------------
+
+    /**
+     * The underlying legacy map, including the map currently being
+     * populated by the style loader.
+     *
+     * @internal Internal browser infrastructure (inspector, control
+     *   modes) still drives the full legacy map surface. These call
+     *   sites are migration scaffolding rather than external
+     *   consumers. Goes away with the legacy map.
+     */
+    get legacyMap(): LegacyMap | null {
+
+        this.assertAlive();
+        return this.map ?? this.loadingMap_;
+    }
+
+    // -----------------------------------------------------------------
+    // Fields
+    // -----------------------------------------------------------------
+
+    /**
+     * The loaded legacy map, or `null` before a map has loaded and
+     * between loads.
+     *
+     * @internal The legacy field name is kept because the JS map,
+     *   renderer, and inspector modules reach the loaded map as
+     *   `core.map`, where `core` is this instance. Typed code should
+     *   read `legacyMap`.
+     */
+    map: LegacyMap | null = null;
+
+    /**
+     * The WebGL2 renderer owned by this map.
+     *
+     * @internal Reached as `core.renderer` by the legacy modules.
+     */
+    renderer!: Renderer;
+
+    /**
+     * Vertical exaggeration of the terrain, applied to model heights
+     * before anything is drawn.
+     *
+     * @internal Reached as `core.verticalExaggeration` by `Renderer`,
+     * which forwards to it for the legacy JavaScript call sites.
+     */
+    verticalExaggeration!: VerticalExaggeration;
+
+    /**
+     * The diagnostics inspector, or `null` when its module is
+     * excluded from the build.
+     *
+     * @internal
+     */
+    inspector: Inspector | null;
+
+    /**
+     * Set by `GpuDevice` when the WebGL context is lost; stops the
+     * frame loop.
+     *
+     * @internal
+     */
+    contextLost = false;
+
+    /**
+     * Legacy alias of the disposed state; checked by async resource
+     * callbacks (`GpuTexture`) before touching the object.
+     *
+     * @internal
+     */
+    killed = false;
+
+    /**
+     * Request parameters for legacy binary loads.
+     *
+     * @internal
+     */
+    xhrParams: Record<string, unknown> = {};
+
+    /**
+     * The container element the canvas renders into; `null` after
+     * disposal.
+     *
+     * @internal
+     */
+    element: HTMLElement | null;
+
+    /**
+     * The live, normalized config value map — the single config
+     * object shared by the map, renderer, and browser layers.
+     *
+     * @internal
+     */
+    config: Readonly<viewerConfig.ViewerConfig>;
+
+    /**
+     * Application hook applied to every external resource request.
+     *
+     * @internal
+     */
+    readonly transformRequest:
+        utils.TransformRequestCallback | undefined;
+
+    /**
+     * Runtime rendering overrides: diagnostic draw flags and per-frame
+     * render-flag overrides. `Renderer.initFrame` caches a reference to
+     * this object; all flag reads in a frame see the same snapshot.
+     *
+     * `draw*` fields default to `false`. `flag*` fields default to
+     * `undefined`, which defers to the corresponding `ViewerConfig`
+     * value. See `Overrides` in `src/map/overrides.ts` for the
+     * full list.
+     */
+    overrides: Overrides = { ...defaultOverrides };
+
+    /**
+     * Camera-state swapper for diagnostic freeze mode. `null` while no
+     * map is loaded and between loads. Created by
+     * `createMapFromStyle`. JS callers that still hold a `LegacyMap`
+     * reference access this through `legacyMap.outerMap.freeze`.
+     *
+     * See `FreezeCameraState` in
+     * `src/map/freeze-camera-state.ts`.
+     */
+    freeze: FreezeCameraState | null = null;
+
+    /**
+     * Active rendering channel for the current frame.
+     *
+     * - `'color'`: visual canvas pass.
+     * - `'depth'`: depth / hit pass that feeds the hitmap.
+     */
+    drawChannel: 'color' | 'depth' = 'color';
+
+    // -----------------------------------------------------------------
     // LegacyMap factories
     // -----------------------------------------------------------------
 
@@ -1543,6 +1367,154 @@ class Map {
     // -----------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------
+
+    /** Frame-loop entry: ticks, then schedules the next frame. */
+    private onUpdate_(): void {
+
+        if (this.killed || this.contextLost) return;
+
+        this.tick();
+        window.requestAnimationFrame(this.onUpdate_.bind(this));
+    }
+
+    /**
+     * Resolves the `ready` Promise. Called once per map load by
+     * `tick` when the reference frame first becomes ready.
+     */
+    private markReady_(): void {
+
+        if (this.readyResolved_) return;
+        this.readyResolved_ = true;
+        this.resolveReady_?.();
+        this.resolveReady_ = null;
+        this.rejectReady_ = null;
+    }
+
+    /**
+     * Reports a failure that left the map unloaded: logs it, rejects
+     * `ready`, and fires the public `error` event.
+     *
+     * The error reaches the console only when no `error` listener is
+     * registered, so an application that handles the event decides for
+     * itself what the user sees.
+     *
+     * `ready` is rejected before the event so that a listener throwing
+     * cannot leave it pending forever.
+     *
+     * @param cause the rejection value. Anything that is not an `Error`
+     *   is wrapped in one, so `ready` and the event payload always
+     *   carry the `Error` their types promise.
+     */
+    private reportLoadFailure(cause: unknown): void {
+
+        const reason = cause instanceof Error
+            ? cause
+            : new Error(String(cause));
+
+        this.rejectReady_?.(reason);
+
+        if (!this.bus_.emit('error', { error: reason }))
+            console.error(reason);
+    }
+
+    /** Kills and detaches the loaded legacy map, if any. */
+    private destroyLoadedMap(): void {
+
+        if (!this.map) return;
+
+        this.map.kill();
+        this.map = null;
+        this.freeze = null;
+        this.bus_.emit('map-unloaded', {});
+    }
+
+    /** Loads a map from a style URL or parsed style object. */
+    private async loadMapFromStyle(
+        style: string | StyleSchema.StyleSpecification,
+        position?: PositionInput,
+    ): Promise<void> {
+
+        let styleSpec: unknown = style;
+        let path = window.location.href;
+
+        if (typeof style === 'string') {
+
+            path = utilsUrl.getProcessUrl(style, path);
+            styleSpec = await utils.loadJson(
+                path, this.transformRequest, 'Style');
+        }
+
+        await this.createMapFromStyle(styleSpec, path);
+
+        // the style's position applies when the caller passed none
+        const stylePosition =
+            (styleSpec as StyleSchema.StyleSpecification).position;
+
+        const initialPosition = position ?? stylePosition;
+
+        if (initialPosition) this.map!.setPosition(initialPosition);
+
+        // initialize ubos
+        this.renderer.createBuffers();
+    }
+
+    /**
+     * Returns the loaded map's style state, throwing before
+     * `viewer.ready` resolves: no validated layer ids, source ids, or
+     * current terrain lists exist to change or query earlier.
+     */
+    private requireReadyStyle(): MapStyle {
+
+        const style = this.readyResolved_ ? this.map?.style : null;
+
+        if (!style) {
+            throw new Error('The style is not ready; await '
+                + '`viewer.ready` before visibility changes or queries.');
+        }
+
+        return style;
+    }
+
+    /** The frame profiler, created on first use once the device exists. */
+    private frameProfiler(): FrameProfiler {
+
+        if (!this.frameProfiler_) {
+
+            this.frameProfiler_ = new FrameProfiler(this.renderer.gpu);
+        }
+
+        return this.frameProfiler_;
+    }
+
+    /**
+     * Publish the profiler result to the inspector stats and (when
+     * `mapExposeFpsToWindow` is set) to `window`. Throttled because each
+     * result sorts the sample windows; medians move slowly so a few
+     * updates per second suffice.
+     */
+    private publishFrameProfile(): void {
+
+        if ((this.profileWrite_++ % 15) !== 0) return;
+
+        const legacyMap = this.map;
+        if (!legacyMap) return;
+
+        const profile = this.frameProfiler_!.result();
+        legacyMap.stats.frameProfile = profile;
+
+        if (legacyMap.config.mapExposeFpsToWindow
+                && typeof window !== 'undefined') {
+
+            const target = window as unknown as {
+                __vtsFps?: number | null;
+                __vtsPerf?: { frame?: FrameProfiler.Result };
+            };
+
+            target.__vtsFps = profile.limitFps;
+            target.__vtsPerf = target.__vtsPerf ?? {};
+            target.__vtsPerf.frame = profile;
+        }
+    }
 
     /** Throws if the map has been disposed. */
     private assertAlive(): void {
@@ -1648,8 +1620,7 @@ class Map {
      */
     private drawTerrainRecursive(): void {
 
-        const resolution = resolveMaskResolution(
-            this.map?.config.mapTraversalMaskResolution);
+        const resolution = this.config.mapTraversalMaskResolution;
 
         if (this.terrainMaskPool_
                 && this.terrainMaskPool_.resolution !== resolution) {
@@ -1668,42 +1639,6 @@ class Map {
         if (trees.length === 0) return;
 
         drawTerrainTraversal(this, trees, this.terrainMaskPool_!);
-    }
-
-    /**
-     * Returns the per-surface helper trees the recursive draw
-     * traversal will descend this frame, in `surfaceList()` order.
-     * Allocates the trees on demand and drops stale cache entries.
-     *
-     * Intended for terrain queries such as
-     * `MapMeasure.getSurfaceHeight`: they should iterate this list
-     * front-to-back (last index first) and return the first tree whose
-     * trace yields data.
-     *
-     * Returns an empty array when the recursive path is not active or
-     * when no surface is in view.
-     */
-    surfaceTreesForQuery(): MapSurfaceTree[] {
-        return this.resolveSurfaceTrees();
-    }
-
-    /**
-     * Returns the surfaces the recursive draw traversal should render,
-     * in back-to-front order (front surface at the last index). Plain
-     * surfaces only — glues and virtual surfaces are skipped.
-     *
-     * The order comes from the current style's terrain sources array.
-     */
-    surfaceList(): TerrainSource[] {
-
-        const legacyMap = this.map;
-        if (!legacyMap?.style) return [];
-
-        // terrain.sources order: back-to-front, front at last index
-        const sources = legacyMap.style.style().terrain?.sources ?? [];
-
-        return sources.map(
-            sourceId => this.resolveTerrainSource(sourceId));
     }
 
     /**
@@ -1754,23 +1689,98 @@ class Map {
     }
 
     // -----------------------------------------------------------------
-    // Migration shim
+    // Private fields
     // -----------------------------------------------------------------
 
-    /**
-     * The underlying legacy map, including the map currently being
-     * populated by the style loader.
-     *
-     * @internal Internal browser infrastructure (inspector, control
-     *   modes) still drives the full legacy map surface. These call
-     *   sites are migration scaffolding rather than external
-     *   consumers. Goes away with the legacy map.
-     */
-    get legacyMap(): LegacyMap | null {
+    private disposed_ = false;
 
-        this.assertAlive();
-        return this.map ?? this.loadingMap_;
-    }
+    /**
+     * Legacy map currently being populated by the style loader.
+     *
+     * Kept separate from `map` so the frame loop cannot observe partial
+     * construction. Typed source constructors reach it through
+     * `legacyMap` until credit ownership moves into this class.
+     */
+    private loadingMap_: LegacyMap | null = null;
+
+    private readyPromise_: Promise<void>;
+
+    private readyResolved_ = false;
+
+    private resolveReady_: (() => void) | null = null;
+
+    private rejectReady_: ((reason: Error) => void) | null = null;
+
+    /**
+     * Resolved raster sources and permanent load failures, keyed by style
+     * source id. Raster source instances are owned here rather than by the
+     * legacy JavaScript half of the map.
+     */
+    private rasterSources_ =
+        new globalThis.Map<string, Map.RasterSourceEntry>();
+
+    /**
+     * Resolved terrain sources, keyed by style source id. A surface
+     * definition that fails to load rejects style loading, so a
+     * registered entry is always usable.
+     */
+    private terrainSources_ = new globalThis.Map<string, TerrainSource>();
+
+    /**
+     * The event bus behind `on`, `once`, and `emit`. Handed to the
+     * legacy emitters (`LegacyMap`, `GpuDevice`) at their
+     * construction; they publish through it directly.
+     */
+    private bus_: EventBus<Map.ViewerEventMap> = new EventBus();
+
+    /**
+     * The runtime config store. Owned by `Viewer`, which seeds it
+     * with the caller's options before constructing this `Map`;
+     * `Map.tick` flushes it at the start of every frame so watchers
+     * reconfigure before the draw.
+     */
+    private configStore_: ConfigStore<viewerConfig.ViewerConfig>;
+
+    /**
+     * Registered overlays in registration order. `onAdd` fires the
+     * first time an entry runs through `runOverlays_`; `onRemove`
+     * fires when the entry is removed or when the `Map` is disposed.
+     */
+    private overlays_: OverlayEntry[] = [];
+
+    /** Did the one-time `map-loaded` completion fire for the loaded
+     * map already? Reset implicitly by replacing the typed `Map`. */
+    private mapLoadedFired_ = false;
+
+    /**
+     * UV-space mask pool used by the recursive terrain traversal.
+     * Lazily allocated on first use by `drawTerrainRecursive` and
+     * disposed on map unload and `[Symbol.dispose]()`. Removal
+     * target in phase 8 alongside the legacy traversal.
+     */
+    private terrainMaskPool_: DrawTraversalMaskPool | null = null;
+
+    /**
+     * Per-drawn-frame timing (cpu, gpu, draw-call and FBO-switch counts),
+     * feeding the inspector panel and `window.__vtsPerf`. Lazily created
+     * on the first drawn frame once the GPU device exists.
+     */
+    private frameProfiler_: FrameProfiler | null = null;
+
+    /** Throttle for publishing profiler results (every Nth drawn frame). */
+    private profileWrite_ = 0;
+
+    /**
+     * Per-surface helper trees used by the recursive draw traversal
+     * (rfc03-draw-traversal.md §2.1). Keyed by surface id. Each tree is
+     * a single-surface `MapSurfaceTree` constructed with the surface
+     * as its `freeLayerSurface`, so every tile binds directly to that
+     * surface. The cache is refreshed against
+     * the current `surfaceList()` on every draw; entries for surfaces
+     * that have left the view are dropped.
+     */
+    private surfaceTrees_: globalThis.Map<string, MapSurfaceTree>
+        = new globalThis.Map();
 }
 
 
@@ -1782,16 +1792,6 @@ type OverlayEntry = {
     enabled: boolean;
     added: boolean;
 };
-
-
-/**
- * Resolves the configured mask resolution. The config setter enforces
- * power-of-two and bounds; this only guards startup-race / undefined.
- */
-function resolveMaskResolution(value: number | undefined): number {
-
-    return typeof value === 'number' ? value : 256;
-}
 
 
 /* Public types exposed under `Map.*`. Consumers (`Viewer`, demos,

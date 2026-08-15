@@ -95,7 +95,7 @@ export class Renderer {
     uboFrame!: WebGLBuffer;
 
     // label-free margins on  the map: [top, right, bottom, left]
-    labelFreeMargins: [number, number, number, number] = [0, 0, 0, 0];
+    labelFreeMargins!: [number, number, number, number];
 
     /**
      * Return the active renderer margin flags.
@@ -266,17 +266,17 @@ export class Renderer {
 
     /** copied from config.mapDMapSize. hitmap (depth map) linear size in
      *  pixels. */
-    hitmapSize: number = 1024;
+    hitmapSize!: number;
 
     /**
      *  copied from config.mapDMapMode. Governs getDepth behaviour.
      *  0, 1, 2 - readFramebufferPixels for each getDepth call
      *  3 - call copyHitmap once per frame, then sample it per getDepth call (faster)
      */
-    hitmapMode: number = 3;
+    hitmapMode!: number;
 
     /** interval between hitmap updates */
-    hitmapCopyIntervalMs: number = 200;
+    hitmapCopyIntervalMs!: number;
 
     updateHitmap = true;
     updateGeoHitmap = true;
@@ -322,7 +322,7 @@ export class Renderer {
     radixCountBuffer32 = new Uint32Array(256*4);
 
     buffFloat32 = new Float32Array(1);
-    buffUint32 = new Uint32Array(this.buffFloat32.buffer);
+    buffUint32!: Uint32Array;
 
     bitmaps: { [key: string] : any } = {};  // array of GpuTextures, used from gpugroup and geodata
 
@@ -355,9 +355,9 @@ export class Renderer {
     lastHitPosition = [0,0,100];
 
     // encapsulated objects
-    init : any = null;
-    rmap: any = null; // RenderRM
-    draw: any = null;
+    init : any;
+    rmap: any; // RenderRM
+    draw: any;
     nmblender!: TextureBlend;
 
     /** Unsubscribes the renderer-key config watcher on dispose. */
@@ -371,19 +371,14 @@ constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerCo
     this.config = config; // || {};
     this.core = core;
     this.div = div;
-    this.geometries = {};
-    this.stencilLineState = null;
 
     // device
     this.camera = new Camera(this, 45, 2, 1200000.0);
 
-    if (config.mapLabelFreeMargins)
-        this.labelFreeMargins = config.mapLabelFreeMargins;
-
-    this.hitmapSize = config.mapDMapSize ?? this.hitmapSize;
-    this.hitmapMode = config.mapDMapMode ?? this.hitmapMode;
-    this.hitmapCopyIntervalMs
-        = config.mapDMapCopyIntervalMs ?? this.hitmapCopyIntervalMs;
+    this.labelFreeMargins = config.mapLabelFreeMargins;
+    this.hitmapSize = config.mapDMapSize;
+    this.hitmapMode = config.mapDMapMode;
+    this.hitmapCopyIntervalMs = config.mapDMapCopyIntervalMs;
 
     __DEV__ && console.log(`hitmapCopyIntervalMs: ${this.hitmapCopyIntervalMs}`);
 
@@ -399,17 +394,13 @@ constructor(core: Core, div: HTMLElement, config: Readonly<viewerConfig.ViewerCo
         this.gmap3Size[i] = 0;
     }
 
-    this.radixCountBuffer16 = new Uint16Array(256*4);
-    this.radixCountBuffer32 = new Uint32Array(256*4);
-
-    this.buffFloat32 = new Float32Array(1);
     this.buffUint32 = new Uint32Array(this.buffFloat32.buffer);
 
     // device
     this.gpu = new GpuDevice(this, div,
         !! this.config.rendererAllowScreenshots,
         !! this.config.rendererAntialiasing,
-        this.config.rendererAnisotropic ?? 0,
+        this.config.rendererAnisotropic,
         core.bus);
 
     const canvasTarget = this.gpu.updateCanvasRenderTarget();
@@ -1473,7 +1464,7 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
 getRenderingOptions(): Renderer.RenderingOptions {
 
     const d = this.overrides;
-    const cfg = this.core.map?.config ?? this.config;
+    const cfg = this.config;
 
     return {
         useLighting:

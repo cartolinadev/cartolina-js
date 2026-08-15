@@ -960,6 +960,12 @@ Do not reorder an existing class only to satisfy this rule. Apply it to
 new classes and to classes already being restructured for another
 reason; older classes that predate it are left alone.
 
+**Initialize a field where its value comes from.** A constant initial
+value — a literal, an empty container, a fresh object that reads nothing
+else — belongs at the declaration. A value that reads a constructor
+argument or another field belongs in the constructor, with the
+declaration left bare.
+
 At module scope, place exported declarations before non-exported helper
 functions, types, constants, and other implementation state. The more
 specific class-module layout below still governs default-export class

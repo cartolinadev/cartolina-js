@@ -52,7 +52,7 @@ export function drawTerrainTraversal(
     const renderer = legacyMap.renderer;
     const screenTarget = renderer.gpu.currentRenderTarget;
     const cameraPos = legacyMap.camera.position;
-    const fallbackCadence = Number(legacyMap.config.mapFallbackCadence ?? 3);
+    const fallbackCadence = map.config.mapFallbackCadence;
 
     // Root rule (RFC 9): every configured terrain surface is a candidate
     // at the root. A root whose metanode is not ready is pending, not
@@ -424,7 +424,7 @@ function renderTile(
     // Sample prior coverage (finer descendants and higher-priority
     // surfaces drawn before this one) only when some exists; materialize
     // rasterizes the rectangle list and footprint texture on demand.
-    const erosion = Number(legacyMap.config.mapTraversalMaskErosion ?? 1);
+    const erosion = legacyMap.config.mapTraversalMaskErosion;
     const maskTexture = maskPool.hasCoverage(depth)
         ? maskPool.materialize(depth, erosion)
         : undefined;
@@ -531,7 +531,7 @@ function needsFinerDetail(
     if (tile.texelSize !== Infinity)
         return tile.texelSize > texelSizeFit;
 
-    const brake = Number(tile.map.config.mapStructuralDescentBrake ?? 0.25);
+    const brake = tile.map.config.mapStructuralDescentBrake;
     return tile.fallbackTexelSize > texelSizeFit * brake;
 }
 

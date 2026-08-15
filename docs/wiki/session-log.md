@@ -3,6 +3,44 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-15 — Settle where a field is initialized
+
+`renderer.ts` initialized twelve fields both at the declaration and in
+the constructor, so neither site was authoritative. AGENTS now states
+the rule the newer modules already follow: a constant initial value
+belongs at the declaration, a value read from a constructor argument or
+another field belongs in the constructor.
+
+Applying it to `renderer.ts` removed four declaration defaults that were
+dead and disagreed with the real ones — `hitmapSize` read 1024 against a
+configured 512, `hitmapCopyIntervalMs` 200 against 1500,
+`labelFreeMargins` `[0,0,0,0]` against `[30,30,30,30]`. The config store
+always supplies these keys, so `?? this.field` never reached its
+fallback; the resolved values are unchanged, checked in the browser.
+`map.ts` had one such pair, `inspector`.
+
+Five config reads re-validated a value the store had already normalized,
+each restating the catalogued default a second time: `resolveMaskResolution`
+in `map.ts` (now deleted), three `Number(config.x ?? default)` reads in
+`draw-traversal.ts`, and `rendererAnisotropic ?? 0`. `getRenderingOptions`
+also selected between `core.map?.config` and `this.config`, which are the
+same object. The catalogue states that stored values are already
+normalized, so readers may use them directly; every restated default
+matched, and the resolved values are unchanged.
+
+`MapStyle` held the legacy map and reached the typed one back through
+`map.outerMap`. It now holds the typed `Map` and reaches the legacy map
+through `Map.legacyMap`, which resolves the loading map before the
+loaded one, so a style installed mid-load still finds it. The field is
+private; nothing outside `style.ts` read it.
+
+`map.ts` members are now in the order AGENTS prescribes: constructor,
+public methods, public fields, private methods, private fields. Two
+public methods that sat among the private helpers, `surfaceTreesForQuery`
+and `surfaceList`, moved into the public surface. The reorder was
+generated and checked by comparing the multiset of body lines before and
+after, so nothing was dropped or reworded.
+
 ## 2026-08-15 — A failed style load is now reported
 
 A tileserver serving a style key the client's schema does not know left

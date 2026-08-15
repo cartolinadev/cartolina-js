@@ -303,7 +303,7 @@ export class MapStyle {
         }
 
         // Install the style and its free-layer sequence as one completed load.
-        const style = new MapStyle(legacyMap, spec);
+        const style = new MapStyle(map, spec);
         map.assertRasterSourcesAvailable(style.style());
         legacyMap.style = style;
         style.refresh(false);
@@ -450,13 +450,13 @@ export class MapStyle {
      */
     refreshFreeLayerSequence(): void {
 
-        const map = this.map;
+        const legacyMap = this.map_.legacyMap!;
         const spec = this.spec_;
 
         // Every active terrain source must resolve before lettering is
         // compiled; resolveTerrainSource throws when one does not.
         spec.terrain.sources.forEach((sourceId: string) =>
-            map.outerMap.resolveTerrainSource(sourceId));
+            this.map_.resolveTerrainSource(sourceId));
 
         // Compile the lettering rules selected by the active terrain stack.
         const freeLayerStyles: Record<string, VtsStylesheet> = {};
@@ -493,14 +493,14 @@ export class MapStyle {
         }
 
         // Install the compiled stylesheets in draw and hit-test order.
-        map.freeLayerSequence = [];
+        legacyMap.freeLayerSequence = [];
 
         for (const [id, stylesheet] of Object.entries(freeLayerStyles)) {
 
-            const freeLayer = map.getFreeLayer(id);
+            const freeLayer = legacyMap.getFreeLayer(id);
             if (!freeLayer) continue;
 
-            map.freeLayerSequence.push(freeLayer);
+            legacyMap.freeLayerSequence.push(freeLayer);
             freeLayer.setStyle(stylesheet);
         }
     }
@@ -510,12 +510,12 @@ export class MapStyle {
      * 
      * Not called directly, invoked by the loadStyle() factory method.
      *
-     * @param map legacy map receiving the style-derived free-layer sequence
+     * @param map the map receiving the style-derived free-layer sequence
      * @param spec current style with a runtime id on every layer
      */
-    private constructor(map: LegacyMap, spec: StyleSchema.StyleSpecification) {
+    private constructor(map: Map, spec: StyleSchema.StyleSpecification) {
 
-        this.map = map;
+        this.map_ = map;
         this.spec_ = spec;
         this.layersById_ = MapStyle.indexLayers(spec);
 
@@ -638,7 +638,7 @@ export class MapStyle {
         clearLetteringHysteresis: boolean,
     ): void {
 
-        this.map.outerMap.assertRasterSourcesAvailable(spec);
+        this.map_.assertRasterSourcesAvailable(spec);
         this.spec_ = spec;
         this.layersById_ = layersById;
         this.refresh(clearLetteringHysteresis);
@@ -649,14 +649,16 @@ export class MapStyle {
 
         // Recompiled lettering must not inherit the previous rules' fades.
         if (clearLetteringHysteresis)
-            this.map.renderer.draw.clearJobHBuffer();
+            this.map_.renderer.draw.clearJobHBuffer();
+
+        const legacyMap = this.map_.legacyMap!;
 
         // Rebuild the free-layer sequence before the next rendered frame.
-        this.map.viewCounter++;
+        legacyMap.viewCounter++;
         this.refreshFreeLayerSequence();
-        this.map.dirty = true;
-        this.map.hitMapDirty = true;
-        this.map.geoHitMapDirty = true;
+        legacyMap.dirty = true;
+        legacyMap.hitMapDirty = true;
+        legacyMap.geoHitMapDirty = true;
     }
 
     /** Returns whether the style contains a lettering layer. */
@@ -745,8 +747,8 @@ export class MapStyle {
         return [definition, path];
     }
 
-    /** Legacy map receiving the style-derived free-layer sequence. */
-    map: LegacyMap;
+    /** The map this style is installed on. */
+    private map_: Map;
 
     /** The current mutable style. */
     private spec_: StyleSchema.StyleSpecification;
