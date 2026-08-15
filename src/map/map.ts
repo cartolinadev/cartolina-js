@@ -297,6 +297,11 @@ class Map {
             this.rejectReady_ = reject;
         });
 
+        // a failed load rejects `ready` whether or not the application
+        // awaits it; this handler keeps that rejection from reaching the
+        // console as an unhandled one on top of the reported error
+        void this.readyPromise_.catch(() => { });
+
         this.inspector = Inspector != null ? new Inspector(this) : null;
         this.renderer = new Renderer(this, element, this.config);
 
@@ -307,12 +312,8 @@ class Map {
 
         platform.init();
 
-        void this.loadMapFromStyle(style, position).catch((error: unknown) => {
-            const reason = error instanceof Error
-                ? error
-                : new Error(String(error));
-            this.rejectReady_?.(reason);
-        });
+        void this.loadMapFromStyle(style, position).catch(
+            (error: unknown) => this.reportLoadFailure(error));
 
         window.requestAnimationFrame(this.onUpdate_.bind(this));
     }
@@ -366,9 +367,36 @@ class Map {
 
         if (this.readyResolved_) return;
         this.readyResolved_ = true;
-        if (this.resolveReady_) this.resolveReady_();
+        this.resolveReady_?.();
         this.resolveReady_ = null;
         this.rejectReady_ = null;
+    }
+
+    /**
+     * Reports a failure that left the map unloaded: logs it, rejects
+     * `ready`, and fires the public `error` event.
+     *
+     * The error reaches the console only when no `error` listener is
+     * registered, so an application that handles the event decides for
+     * itself what the user sees.
+     *
+     * `ready` is rejected before the event so that a listener throwing
+     * cannot leave it pending forever.
+     *
+     * @param cause the rejection value. Anything that is not an `Error`
+     *   is wrapped in one, so `ready` and the event payload always
+     *   carry the `Error` their types promise.
+     */
+    private reportLoadFailure(cause: unknown): void {
+
+        const reason = cause instanceof Error
+            ? cause
+            : new Error(String(cause));
+
+        this.rejectReady_?.(reason);
+
+        if (!this.bus_.emit('error', { error: reason }))
+            console.error(reason);
     }
 
     /** Kills and detaches the loaded legacy map, if any. */
@@ -1830,6 +1858,14 @@ namespace Map {
      * be verified without migrating that file.
      */
     export type ViewerEventMap = {
+
+        /**
+         * A failure that left the map unloaded, most often an invalid
+         * style or an unreachable style URL. The same error is written
+         * to the console and rejects `Viewer.ready`.
+         */
+        'error': { error: Error };
+
         'map-loaded': { browserOptions: Record<string, unknown> };
         'map-unloaded': Record<string, never>;
         'map-update': Record<string, never>;

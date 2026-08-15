@@ -87,6 +87,22 @@ frame, SRS, body, service, or credit tables are read from it.
 `TerrainSource.fromMetadata` and `RasterSource.fromMetadata` check the
 individual surface entry and raster definition.
 
+`validateSpecification` separates two kinds of mismatch. A key the
+schema does not know is written to the console as a warning and ignored;
+a key it knows whose value has the wrong shape throws. The style
+document is authored by a tileserver that versions separately from this
+library, so a key added on the server must not stop an older client from
+rendering the parts it does understand. The other three boundaries use
+`typia.validate`, which ignores unknown keys already.
+
+`validateSpecification` reads its two cases off the generated
+`createValidateEquals` result: an unknown key is reported as a property
+expecting `undefined`. When a style fails for any reason, typia reports
+the errors of the union branch it selected, so a style using the
+deprecated `vertical-exaggeration` form can draw warnings naming that
+form's keys alongside the real finding. They are warnings only and the
+load is unaffected.
+
 Loading clones the authored style and assigns ids to anonymous layers. The
 clone is the current mutable style; `MapStyle` does not retain an authored
 baseline or separate override state. Omitted layer `terrain` remains omitted
@@ -249,8 +265,19 @@ parsed:
 5. `Map.tick` emits `map-loaded` after the reference frame is ready
    and resolves the one-shot `ready` Promise.
 
-An asynchronous construction error rejects `ready`, disposes the partial
-legacy map, and leaves `Map.map` null. It does not emit `map-loaded`.
+An asynchronous construction error rejects `ready`, emits `error`,
+disposes the partial legacy map, and leaves `Map.map` null. It does not
+emit `map-loaded`.
+
+The error reaches the console only when no `error` listener is
+registered, following MapLibre: an application that handles the event
+decides for itself what the user sees. `EventBus.emit` returns whether
+the event reached anyone, which is what `Map` tests. For that test to
+mean anything the library must not subscribe to its own public event,
+so `Viewer` stops the loading indicator from the `ready` rejection
+instead. `Map` also attaches a no-op handler to the `ready` promise at
+construction, so an application that never reads `ready` does not see
+an unhandled rejection.
 Viewer methods that reach into the legacy map guard with optional
 chaining, so they are no-ops before `ready` resolves or after failed
 construction.
@@ -286,7 +313,9 @@ Viewer-layer code emits through `Map.emit`.
 
 Dispatch is per event name: `emit` visits only listeners registered
 for the emitted name and returns without allocation when none are
-registered. `emit` iterates a snapshot of the listener set; listeners
+registered. It returns whether the event reached at least one listener,
+so a caller can fall back to its own reporting when nothing listens.
+`emit` iterates a snapshot of the listener set; listeners
 added during an emit do not receive it, listeners removed during an
 emit still do. A throwing listener aborts the remaining listeners in
 the same emit call. `EventTarget` was rejected because it does not
@@ -297,6 +326,7 @@ adapter. See [rfc02-event-bus.md](rfc02-event-bus.md).
 Event names and payload types are defined by `Map.ViewerEventMap` in
 `src/map/map.ts`:
 
+- `error`
 - `map-loaded`
 - `map-unloaded`
 - `map-update`

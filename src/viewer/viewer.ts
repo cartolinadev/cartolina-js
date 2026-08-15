@@ -1007,6 +1007,19 @@ class Viewer {
             this.mapInteracted_ = true;
         };
 
+        // Not an event subscription: the loading indicator stops on
+        // loading progress reported by a loaded map, which a failed load
+        // never produces. Reacting to the `ready` rejection rather than
+        // to the public `error` event leaves that event with no
+        // listener of ours, so `Map` can tell whether the application
+        // handles it.
+        void this.map_.ready.catch(() => {
+
+            // `UI.init` assigns the control outside the constructor, so
+            // its inferred type stays optional here
+            if (!this.disposed_) this.ui_.loading?.hide();
+        });
+
         this.unsubscribes_.push(
             this.on('map-loaded', () => {
 

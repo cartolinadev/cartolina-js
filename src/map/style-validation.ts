@@ -14,26 +14,43 @@ import type * as StyleSchema from './style-schema';
  * layer ids, terrain source references, and raster source references.
  * The input remains unchanged.
  *
+ * A key the schema does not know is warned about and ignored; a key it
+ * knows but whose value has the wrong shape fails the load. The style
+ * document is written by a tileserver that versions separately from
+ * this library, so a key added there must not stop an older client from
+ * rendering what it does understand.
+ *
  * @param styleSpec the authored style
  */
 export function validateSpecification(
     styleSpec: StyleSchema.StyleSpecification,
 ): void {
 
-    // Validate the authored object shape.
+    // Validate the authored object shape. `validateEquals` reports an
+    // unrecognized key as a property expecting `undefined`, which
+    // separates the two cases above.
     const res = validateStyle(styleSpec);
 
     if (!res.success) {
 
         const errs = 'errors' in res ? res.errors : [];
 
-        for (const error of errs) {
+        const unknownKeys = errs.filter(
+            (error) => error.expected === 'undefined');
+        const malformed = errs.filter(
+            (error) => error.expected !== 'undefined');
+
+        for (const error of unknownKeys)
+            console.warn(`Unknown style key ${error.path}; ignored.`);
+
+        for (const error of malformed) {
 
             console.error(`${error.path}: expected ${error.expected}, got `
                 + JSON.stringify(error.value));
         }
 
-        throw new Error(`Invalid style (${errs.length} errors)`);
+        if (malformed.length > 0)
+            throw new Error(`Invalid style (${malformed.length} errors)`);
     }
 
     // Validate relationships between authored source definitions.
