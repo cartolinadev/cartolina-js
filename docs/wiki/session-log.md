@@ -3,6 +3,27 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-15 — Close the leftovers from the error-reporting change
+
+AGENTS gains a "No loose ends" rule: a change removes the code it makes
+redundant rather than reporting it, and adopting an API means sweeping
+its callers for what the new guarantee obsoletes.
+
+Applied to the leftovers of the previous entry. `Map` no longer attaches
+a no-op handler to `ready`; `Viewer` attaches the real one immediately
+after constructing `Map`, early enough that a load failing before the
+rest of the viewer is built is still handled. `validateSpecification`
+carries the failing paths in the thrown `Error` instead of writing them
+to the console beside a count, so an application handling `error`
+receives the cause and nothing bypasses the no-listener gate; the
+terrain-sources check no longer logs the message it also throws.
+
+Credit ownership, the one leftover that is genuinely separate work, is
+backlog entry 51. The tolerant config reads remaining in legacy
+JavaScript were checked and are not defects: `controlSearchSrs` and
+`controlSearchUrl` are nullable by catalogue, and the `surface-tile.js`
+and `metanode.js` cases are logical disjunctions, not fallbacks.
+
 ## 2026-08-15 — Settle where a field is initialized
 
 `renderer.ts` initialized twelve fields both at the declaration and in

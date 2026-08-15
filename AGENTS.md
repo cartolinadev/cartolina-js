@@ -584,6 +584,27 @@ run the relevant check, then either turn it into the minimal confirmed
 fix or discard it. Do not stack new hypotheses on top of failed trial
 code.
 
+### No loose ends
+
+Finish what the change starts. Code that a change makes redundant is
+removed by that same change, not listed as a follow-up. A step the
+change leaves half-done is completed before the work is reported as
+done. This is not tidiness: code kept past its purpose is liability, and
+an unproductive line left behind is the same debt as an unproductive
+line added.
+
+This binds hardest to loose ends the current session created. Reporting
+one as a known leftover does not discharge it — it records a defect the
+same session chose not to fix. When a leftover genuinely belongs to
+separate work, say why it is separate and open a backlog entry; do not
+leave it as a remark.
+
+**Adopting an API obsoletes code elsewhere; go and delete it.** A new
+abstraction takes over work its callers used to do by hand. Sweep them
+for no-ops, stale workarounds, dead branches, and state the new owner
+now holds — a copy left behind drifts from the original silently. The
+adopting change removes them, not a later cleanup.
+
 ### No hand-waving
 
 Hand-waving is prohibited, in code comments and in the wiki

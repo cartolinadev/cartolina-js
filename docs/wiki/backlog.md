@@ -19,6 +19,19 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+## 51. Credit ownership still sits on the legacy map
+
+`MapStyle` now holds the typed `Map` and reaches the legacy map through
+`Map.legacyMap`, but `MapStyle.registerCreditDefinitions` still takes a
+`LegacyMap` because `addCredit` and the credit table live there.
+`Map.credits` does not exist yet, so the parameter cannot simply change
+type.
+
+Moving credits into `Map` is the remaining piece of that inversion. It
+touches `credit.ts`, the legacy credit table, and the credit-rendering
+call sites in the UI, which is why it is separate from the style-owner
+change rather than part of it.
+
 ## 50. The VTS stylesheet linker's collision paths are unexercised
 
 **Opened:** 2026-08-07

@@ -93,11 +93,6 @@ class Map {
             this.rejectReady_ = reject;
         });
 
-        // a failed load rejects `ready` whether or not the application
-        // awaits it; this handler keeps that rejection from reaching the
-        // console as an unhandled one on top of the reported error
-        void this.readyPromise_.catch(() => { });
-
         this.inspector = Inspector != null ? new Inspector(this) : null;
         this.renderer = new Renderer(this, element, this.config);
 

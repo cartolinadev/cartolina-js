@@ -43,14 +43,18 @@ export function validateSpecification(
         for (const error of unknownKeys)
             console.warn(`Unknown style key ${error.path}; ignored.`);
 
-        for (const error of malformed) {
+        if (malformed.length > 0) {
 
-            console.error(`${error.path}: expected ${error.expected}, got `
-                + JSON.stringify(error.value));
+            // the cause travels in the message, so an application
+            // handling the failure receives it rather than having to
+            // read a separate console line
+            const details = malformed
+                .map((error) => `${error.path}: expected ${error.expected}, `
+                    + `got ${JSON.stringify(error.value)}`)
+                .join('; ');
+
+            throw new Error(`Invalid style: ${details}.`);
         }
-
-        if (malformed.length > 0)
-            throw new Error(`Invalid style (${malformed.length} errors)`);
     }
 
     // Validate relationships between authored source definitions.
@@ -68,7 +72,6 @@ export function validateSpecification(
             + unknownTerrainSources.join(', ')
             + '. Expected one of: ' + surfaceSourceIds.join(', ');
 
-        console.error(msg);
         throw new Error(msg);
     }
 
