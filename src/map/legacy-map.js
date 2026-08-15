@@ -620,18 +620,6 @@ Map.prototype.convertCoordsFromPublicToNav = function(pos, mode, lod) {
 };
 
 
-Map.prototype.convertCoordsFromPhysToPublic = function(pos, containsSE) {
-
-    if (containsSE && this.renderer.useSuperElevation) {
-
-        var p = this.renderer.transformPointBySE(pos);
-        return this.convert.convertCoords(p, 'physical', 'public');
-    }
-
-    return this.convert.convertCoords(pos, 'physical', 'public');
-};
-
-
 Map.prototype.convertCoordsFromNavToPhys = function(
     pos, mode, lod, includeSE) {
 

@@ -3,7 +3,7 @@
  */
 
 import type MapPosition from './position';
-import type Renderer from '../renderer/renderer';
+import type Map from './map';
 import type * as viewerConfig from '../viewer-config';
 import * as math from '../utils/math';
 
@@ -32,16 +32,17 @@ import * as math from '../utils/math';
 class VerticalExaggeration {
 
     /**
-     * @param renderer supplies the canvas size the scale denominator
-     *                 needs
-     * @param config   runtime configuration, read for `rendererCssDpi`
+     * @param map    supplies the body's reference ellipsoid and, through
+     *               its renderer, the canvas size the scale denominator
+     *               needs
+     * @param config runtime configuration, read for `rendererCssDpi`
      */
     constructor(
-        renderer: Renderer,
+        map: Map,
         config: Readonly<viewerConfig.ViewerConfig>,
     ) {
 
-        this.renderer_ = renderer;
+        this.map_ = map;
         this.config_ = config;
     }
 
@@ -242,6 +243,81 @@ class VerticalExaggeration {
     }
 
     /**
+     * Exaggerates a point in physical coordinates, returning the moved
+     * point and the displacement that moved it.
+     *
+     * This mirrors `applyVerticalExaggeration` in
+     * `renderer/shaders/includes/frame.inc.glsl` step for step, so a
+     * point moves the way the tile vertex shader moves a vertex. The
+     * shader adds the eye position to reach physical coordinates; this
+     * one is given them.
+     *
+     * @param point    physical coordinates
+     * @param position current map position, or a vertical extent value
+     */
+    applyPhys2(
+        point: math.vec3,
+        position: MapPosition | number,
+    ): { point: math.vec3, displacement: math.vec3 } {
+
+        // this is in an approximation, but sufficient for the purpose
+        // we use an estimate of ellipsoidal height to apply exaggeration
+
+        const majorAxis = this.map_.bodyMajorAxis;
+        const majorToMinor = this.map_.bodyMajorToMinor;
+
+        // approximate ellipsoid by a sphere
+        const geoPosZ = point[2] * majorToMinor;
+
+        // distance from center
+        const ll = Math.sqrt(point[0] * point[0]
+            + point[1] * point[1] + geoPosZ * geoPosZ);
+
+        // ellipsoidal height approximation
+        const h = ll - majorAxis;
+
+        // obtain exaggerated height
+        const hNew = this.apply(h, position);
+
+        // local normal (on sphere) is [point[0], point[1], geoPosZ];
+        // back to ellipsoid coordinates (transpose of inverse, hence
+        // multiply)
+        const normalZ = geoPosZ * majorToMinor;
+
+        const normalLength = Math.sqrt(point[0] * point[0]
+            + point[1] * point[1] + normalZ * normalZ);
+
+        // the shader normalizes; the added epsilon guards a point at
+        // the center, where the length is zero
+        const scale = (hNew - h) / (normalLength + 0.0001);
+
+        // move the point along the normal by the height difference
+        const displacement: math.vec3 =
+            [point[0] * scale, point[1] * scale, normalZ * scale];
+
+        return {
+            point: [point[0] + displacement[0],
+                    point[1] + displacement[1],
+                    point[2] + displacement[2]],
+            displacement
+        };
+    }
+
+    /**
+     * Exaggerates a point in physical coordinates.
+     *
+     * @param point    physical coordinates
+     * @param position current map position, or a vertical extent value
+     */
+    applyPhys(
+        point: math.vec3,
+        position: MapPosition | number,
+    ): math.vec3 {
+
+        return this.applyPhys2(point, position).point;
+    }
+
+    /**
      * The scale ramp's factor at the given position.
      *
      * @param position current map position, or a vertical extent value
@@ -268,7 +344,8 @@ class VerticalExaggeration {
 
         const cssDpi = (this.config_.rendererCssDpi as number | undefined)
             ?? 96;
-        const height = this.renderer_.gpu.canvasRenderTarget.apparentSize[1];
+        const height =
+            this.map_.renderer.gpu.canvasRenderTarget.apparentSize[1];
         return extent / (height / cssDpi * 0.0254);
     }
 
@@ -371,7 +448,7 @@ class VerticalExaggeration {
     private elevationRamp_?: ElevationRamp; // 7 elements
     private scaleRamp_?: ScaleRamp;
 
-    private readonly renderer_: Renderer;
+    private readonly map_: Map;
     private readonly config_: Readonly<viewerConfig.ViewerConfig>;
 
 } // class VerticalExaggeration

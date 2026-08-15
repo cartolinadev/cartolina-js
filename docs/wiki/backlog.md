@@ -1467,12 +1467,9 @@ when that exists.
 | `src/map/legacy-map.js` | `getHitCoords`, `getScreenDepth` |
 | `demos/waypoint/waypoint.js` | marker loop; does not call the check |
 
-### Latent, not reached by any caller
+### Latent, not reached by any caller — closed
 
-Three call sites pass too few arguments and would throw the moment a
-caller exercised them, all on `containsSE` paths that nothing currently
-takes: `convert.js` `getPositionCanvasCoords` and
-`transformPhysCoordsBySE` call `transformPointBySE` with one argument of
-three, and `convertCoordsFromPhysToNav` calls
-`getUnsuperElevatedHeight` with one of two.
+The three call sites that passed too few arguments now pass the current
+map position, so the `containsSE` paths no longer throw when a caller
+reaches them.
 ---

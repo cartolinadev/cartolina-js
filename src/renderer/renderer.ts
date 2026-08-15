@@ -214,14 +214,6 @@ export class Renderer {
     progText: Optional<GpuProgram> = null;
 
 
-    // these values, important for vertical exaggeration, are calculated from
-    // navigationSrs in MapDraw.drawMap as a side effect of drawing the skydome
-    // (which is not guaranteed). TODO: move their initilization here, or drop
-    // them altogether and use the map object
-    earthRadius: Optional<number> = null; // major axis
-    earthRadius2: Optional<number> = null; // minor axis
-    earthERatio: Optional<number> = null;
-
     // illumination
     illumination:  Optional<Illumination> = null;
 
@@ -346,11 +338,6 @@ export class Renderer {
 
     gridHmax = 0;
     gridHmin = 0;
-
-    // temporary objects hoisted as class members to reduce garbage collection
-    seTmpVec = [0,0,0];
-    seTmpVec2 = [0,0,0];
-    seTmpVec3 = [0,0,0];
 
     // hit test
     lastHitPosition = [0,0,100];
@@ -850,11 +837,6 @@ initFrame(): void {
     this.fmaxDist = Number.NEGATIVE_INFINITY;
     this.fminDist = Number.POSITIVE_INFINITY;
 
-    const navigationSrsInfo = map.getNavigationSrs().getSrsInfo();
-    this.earthRadius = navigationSrsInfo.a;
-    this.earthRadius2 = navigationSrsInfo.b;
-    this.earthERatio = navigationSrsInfo.a / navigationSrsInfo.b;
-
     const updateFrameBuffers = () => {
 
         map.camera.update();
@@ -948,11 +930,9 @@ updateBuffers(
 
     // obtain the data: body params and vertical exaggeration
     let se = this.getSuperElevation(position);
-    let srsInfo = this.map.legacyMap!.getPhysicalSrs().getSrsInfo();
-    let majorAxis = srsInfo.a;
-    let minorAxis = srsInfo.b;
 
-    data.bodyParams = [majorAxis, majorAxis / minorAxis, 0, 0];
+    data.bodyParams =
+        [this.map.bodyMajorAxis, this.map.bodyMajorToMinor, 0, 0];
     data.vaParams1 = se.slice(0,4);
     data.vaParams2 = se.slice(4,7).concat(0);
 
@@ -1555,101 +1535,49 @@ getUnsuperElevatedHeight(height: number, position: MapPosition | number) {
 }
 
 
-/*getEllipsoidHeight(pos, shift) {
-    var p, p2;
-    this.seTmpVec3 = [0,0,0];
-
-    if (shift) {
-        p = this.seTmpVec;
-        p2 = [pos[0] + shift[0], pos[1] + shift[1], (pos[2] + shift[2]) * this.earthERatio];
-    } else {
-        p = pos;
-        p2 = [p[0], p[1], p[2] * this.earthERatio];
-    }
-
-    var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
-
-    return l - this.earthRadius;
-};*/
-
-
+/** @deprecated Use `VerticalExaggeration.applyPhys` instead. */
 transformPointBySE(
-    pos: math.vec3, shift: math.vec3 | null | undefined,
+    pos: math.vec3,
     position: MapPosition | number,
 ) {
-    if (arguments.length !== 3)
+    if (arguments.length !== 2)
         throw new Error('function now requires current position');
 
-    var p = pos, p2: number[];
-    this.seTmpVec3 = [0,0,0];
-
-    if (shift) {
-        p2 = [pos[0] + shift[0], pos[1] + shift[1],
-              (pos[2] + shift[2]) * this.earthERatio!];
-    } else {
-        p2 = [p[0], p[1], p[2] * this.earthERatio!];
-    }
-
-    var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
-    var v = this.seTmpVec2;
-
-    var m = (1.0/(l+0.0001));
-    v[0] = p2[0] * m;
-    v[1] = p2[1] * m;
-    v[2] = p2[2] * m;
-
-    var h = l - this.earthRadius!;
-    var h2 = this.getSuperElevatedHeight(h, position);
-    m = (h2 - h);
-
-    p2[0] = p[0] + v[0] * m;
-    p2[1] = p[1] + v[1] * m;
-    p2[2] = p[2] + v[2] * m;
-
-    return p2;
+    return this.map.verticalExaggeration.applyPhys(pos, position);
 };
 
 
+/**
+ * Exaggerates a label point and records the displacement in it.
+ *
+ * The label draw code reads the moved point at `[0..2]` and adds the
+ * displacement at `[13..15]` to the label offset it keeps at `[4..6]`.
+ *
+ * @deprecated Use `VerticalExaggeration.applyPhys2` instead.
+ */
 transformPointBySE2(
-    pos: number[], shift: math.vec3 | null | undefined,
+    pos: number[],
     position: MapPosition | number,
 ) {
-    if (arguments.length !== 3)
+    if (arguments.length !== 2)
         throw new Error('function now requires current position');
 
-    var p = pos, p2: number[];
-    this.seTmpVec3 = [0,0,0];
+    // the label point carries more than a position; only its first
+    // three components are one
+    const moved = this.map.verticalExaggeration.applyPhys2(
+        pos as math.vec3, position);
 
-    if (shift) {
-        p2 = [pos[0] + shift[0], pos[1] + shift[1],
-              (pos[2] + shift[2]) * this.earthERatio!];
-    } else {
-        p2 = [p[0], p[1], p[2] * this.earthERatio!];
-    }
+    const result = pos.slice();
 
-    var l = Math.sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
-    var v = this.seTmpVec2;
+    result[0] = moved.point[0];
+    result[1] = moved.point[1];
+    result[2] = moved.point[2];
 
-    var m = (1.0/(l+0.0001));
-    v[0] = p2[0] * m;
-    v[1] = p2[1] * m;
-    v[2] = p2[2] * m;
+    result[13] = moved.displacement[0];
+    result[14] = moved.displacement[1];
+    result[15] = moved.displacement[2];
 
-    var h = l - this.earthRadius!;
-    var h2 = this.getSuperElevatedHeight(h, position);
-    m = (h2 - h);// * 10;
-
-    pos = pos.slice();
-
-    pos[0] = p[0] + v[0] * m;
-    pos[1] = p[1] + v[1] * m;
-    pos[2] = p[2] + v[2] * m;
-
-    pos[13] = v[0] * m;
-    pos[14] = v[1] * m;
-    pos[15] = v[2] * m;
-
-    return pos;
+    return result;
 };
 
 getScreenRay(

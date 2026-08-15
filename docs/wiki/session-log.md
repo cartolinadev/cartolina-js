@@ -3,6 +3,43 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-15 — Exaggerated points move along the ellipsoid normal
+
+`transformPointBySE` and `transformPointBySE2` moved a point along
+`normalize(x, y, z·majorToMinor)` — the radial direction in the sphere
+the ellipsoid maps onto. `applyVerticalExaggeration` in
+`shaders/includes/frame.inc.glsl` carries the ratio a second time,
+`normalize(x, y, z·majorToMinor²)`, which is the ellipsoid normal and
+matches `computeEllipsoidZenith` beside it. Terrain moved one way and
+the labels and converted coordinates on it moved another.
+
+Both functions are now shims over `VerticalExaggeration.applyPhys2`,
+which returns the moved point and the displacement, and `applyPhys`,
+which returns the point alone. `applyPhys2` transcribes the shader
+function step for step, comments included. The label-buffer packing —
+moved point at `[0..2]`, displacement at `[13..15]` — stays on the
+renderer with the label code that reads it.
+
+The `shift` argument is gone from both functions and their ten remaining
+call sites, which pass physical coordinates already — the role the shader
+fills by adding the eye position. Its three scratch fields
+(`seTmpVec`, `seTmpVec2`, `seTmpVec3`) and the commented-out
+`getEllipsoidHeight` beside them are gone with it.
+
+The body's axes left the renderer, where they were assigned per frame
+from the navigation srs while drawing the skydome and were `null` until
+the first frame. They are now `Map.bodyMajorAxis` and
+`Map.bodyMajorToMinor`, read from the physical srs — the same srs the
+frame UBO and hence the shader read. `MapSrs` derives the ratio with the
+axes, at parse time. The legacy geodata `uParamsSE` path changes srs
+with them, which is inert: a reference frame's geographic and geocentric
+srs share a datum, so their axes agree.
+
+The three call sites recorded in the backlog as latent, which passed one
+argument of three or two, now pass the current map position. The unused
+`convertCoordsFromPhysToPublic` wrapper is gone instead of preserving its
+unverified `containsSE` branch.
+
 ## 2026-08-15 — The renderer names its owner `map`
 
 `Renderer.core` was typed as `Core`, a structural type listing the five

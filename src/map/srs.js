@@ -35,9 +35,12 @@ var MapSrs = function(map, id, json, baseUrl) {
     // melowntech-proj4 provided a non-standard info method, we raplace it here
     const _proj = proj4(this.srsDef);
 
+    // majorToMinor is derived here, with the axes and from the same
+    // parse, so it shares their lifetime: the srs never changes again
     this.srsInfo = {
           "a": _proj.oProj.a,
           "b": _proj.oProj.b,
+          "majorToMinor": _proj.oProj.a / _proj.oProj.b,
           "proj-name": _proj.oProj.projName
     };
 

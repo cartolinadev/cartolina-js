@@ -567,8 +567,16 @@ not expose the failure clearly, and the proposed test is shown to detect that
 edit. Do not add tests for counts, validation lines, routine implementation
 details, hypothetical cases without a caller, deliberate design changes, or
 failures already exposed by the real applications. Remove a test when its
-reason for existing disappears. Passing is normal, not news; do not report it.
-Mention a check only when it failed, its coverage changed, or it was skipped.
+reason for existing disappears.
+
+Passing is normal, not news. This holds everywhere, not only in a reply:
+a session log entry, a commit message, or a wiki page must not recite
+which checks were run, what they measured, or that they came out as
+expected. A change is assumed to have been verified — that is the price
+of committing it, not a result to publish. Write about a check only when
+it failed, when it revealed something the code does not already say,
+when its coverage changed, or when it was skipped and something is
+therefore unverified.
 
 ### No cargo-cult fixes
 

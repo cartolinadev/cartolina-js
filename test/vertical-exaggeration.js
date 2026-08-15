@@ -61,7 +61,8 @@ async function main() {
             // the map owns the exaggeration; the renderer only forwards
             // to it, so probing the renderer would prove nothing beyond
             // the forwarder being reached
-            const exaggeration = legacyMap.outerMap.verticalExaggeration;
+            const outerMap = legacyMap.outerMap;
+            const exaggeration = outerMap.verticalExaggeration;
 
             viewer.setVerticalExaggeration({
                 elevationRamp: {
@@ -87,6 +88,103 @@ async function main() {
                 }
             }
 
+            // applyPhys2 must move a point the way the tile vertex
+            // shader moves a vertex, or terrain and the things drawn on
+            // it drift apart. This transcribes
+            // applyVerticalExaggeration from
+            // shaders/includes/frame.inc.glsl, independently of the
+            // implementation under test.
+            const shaderApply = (point, extent) => {
+
+                const majorAxis = outerMap.bodyMajorAxis;
+                const majorToMinor = outerMap.bodyMajorToMinor;
+                const va = exaggeration.vaParams(extent);
+                const h1 = va[0], f1 = va[1], h2 = va[2], f2 = va[3];
+
+                const geo = [point[0], point[1], point[2] * majorToMinor];
+
+                const ll = Math.sqrt(geo[0] * geo[0]
+                    + geo[1] * geo[1] + geo[2] * geo[2]);
+
+                const height = ll - majorAxis;
+                const clamped = Math.min(Math.max(height, h1), h2);
+
+                const factor = f1 + (clamped - h1) / (h2 - h1) * (f2 - f1);
+                const raised = height * factor;
+
+                const normal = [geo[0], geo[1], geo[2] * majorToMinor];
+
+                const length = Math.sqrt(normal[0] * normal[0]
+                    + normal[1] * normal[1] + normal[2] * normal[2]);
+
+                return normal.map((component, axis) =>
+                    point[axis] + component / length * (raised - height));
+            };
+
+            // physical points over a spread of latitudes: the direction
+            // correction vanishes at the equator and at the pole, and
+            // peaks in between
+            const samples = [];
+
+            const sampleRamps = () => {
+
+                for (const latitude of [0, 15, 30, 45, 60, 75, 89.5]) {
+                    for (const height of [-100, 0, 1500, 5000]) {
+
+                        const point = legacyMap.convertCoordsFromNavToPhys(
+                            [14.5, latitude, height], 'fix');
+
+                        const extent = legacyMap.position.pos[8];
+                        const expected = shaderApply(point, extent);
+                        const got = exaggeration.applyPhys2(point, extent);
+                        const simple = exaggeration.applyPhys(point, extent);
+
+                        samples.push({
+                            latitude,
+                            height,
+
+                            // agreement with the shader
+                            shaderError: Math.max(...expected.map(
+                                (value, axis) =>
+                                    Math.abs(value - got.point[axis]))),
+
+                            // the displacement is what actually moved it
+                            displacementError: Math.max(...got.point.map(
+                                (value, axis) =>
+                                    Math.abs(value - point[axis]
+                                        - got.displacement[axis]))),
+
+                            // the simple form is the other one's point
+                            simpleError: Math.max(...simple.map(
+                                (value, axis) =>
+                                    Math.abs(value - got.point[axis]))),
+                        });
+                    }
+                }
+            };
+
+            sampleRamps();
+
+            // again with a scale ramp and no elevation ramp, a shape a
+            // body may declare: there `apply` is a plain factor
+            viewer.setVerticalExaggeration({
+                scaleRamp: {
+                    min: [100000, 1],
+                    max: [1000000, 3],
+                },
+            });
+
+            sampleRamps();
+
+            const worst = key => Math.max(
+                ...samples.map(sample => sample[key]));
+
+            // the axes the shader reads come from the physical srs; the
+            // legacy geodata path reads them for the same points, so
+            // the two srs must describe the same ellipsoid
+            const navigationInfo = legacyMap.getNavigationSrs().getSrsInfo();
+            const physicalInfo = legacyMap.getPhysicalSrs().getSrsInfo();
+
             const positions = [];
             const apply = exaggeration.apply.bind(exaggeration);
             exaggeration.apply = (height, position) => {
@@ -105,6 +203,14 @@ async function main() {
                     ...roundTrips.map(item => item.error)),
                 conversionsUseCurrentPosition:
                     positions.length === 2 && positions.every(Boolean),
+
+                maxShaderError: worst('shaderError'),
+                maxDisplacementError: worst('displacementError'),
+                maxSimpleFormError: worst('simpleError'),
+
+                sameEllipsoid:
+                    navigationInfo.a === physicalInfo.a
+                    && navigationInfo.b === physicalInfo.b,
             };
         });
 
@@ -117,6 +223,30 @@ async function main() {
         if (!result.conversionsUseCurrentPosition) {
             errors.push(
                 'coordinate conversion did not use the current map position'
+            );
+        }
+        if (result.maxShaderError > 1e-6) {
+            errors.push(
+                'applyPhys2 disagrees with the tile vertex shader by '
+                + result.maxShaderError + ' m'
+            );
+        }
+        if (result.maxDisplacementError > 1e-9) {
+            errors.push(
+                'applyPhys2 displacement does not account for the move: '
+                + result.maxDisplacementError + ' m'
+            );
+        }
+        if (result.maxSimpleFormError > 0) {
+            errors.push(
+                'applyPhys and applyPhys2 returned different points: '
+                + result.maxSimpleFormError + ' m'
+            );
+        }
+        if (!result.sameEllipsoid) {
+            errors.push(
+                'navigation and physical srs describe different ellipsoids, '
+                + 'so the legacy geodata exaggeration path changed body'
             );
         }
 

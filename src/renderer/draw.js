@@ -1195,8 +1195,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             m[12] = se[6]; // inv dh
             m[13] = se[5]; // df
 
-            m[14] = renderer.earthRadius;
-            m[15] = renderer.earthERatio;
+            m[14] = renderer.map.bodyMajorAxis;
+            m[15] = renderer.map.bodyMajorToMinor;
 
             prog.setMat4('uParamsSE', m);
         }
@@ -1322,8 +1322,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             m[12] = se[6]; // inv dh
             m[13] = se[5]; // df
 
-            m[14] = renderer.earthRadius;
-            m[15] = renderer.earthERatio;
+            m[14] = renderer.map.bodyMajorAxis;
+            m[15] = renderer.map.bodyMajorToMinor;
 
             gpu.useProgram(prog, advancedHitPass ? ['aPosition','aNormal','aElement'] : ['aPosition','aNormal']);
             prog.setMat4('uParamsSE', m);
@@ -1392,7 +1392,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 job.seCounter = renderer.seCounter;
                 job.labelPointsBuffer.id = -1;
                 job.center2 = renderer.transformPointBySE(job.center,
-                                                          undefined, position);
+                                                          position);
             }
         } else {
             job.center2 = job.center;
@@ -1529,8 +1529,8 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
             m[12] = se[6]; // inv dh
             m[13] = se[5]; // df
 
-            m[14] = renderer.earthRadius;
-            m[15] = renderer.earthERatio;
+            m[14] = renderer.map.bodyMajorAxis;
+            m[15] = renderer.map.bodyMajorToMinor;
 
             prog.setMat4('uParamsSE', m);
         }  
@@ -1691,7 +1691,7 @@ RendererDraw.prototype.drawGpuJob = function(gpu, gl, renderer, job, screenPixel
                 job.seCounter = renderer.seCounter;
 
                 job.center2 = renderer.transformPointBySE(
-                    job.center, undefined, position);
+                    job.center, position);
             }
 
         } else {
@@ -2128,7 +2128,7 @@ RendererDraw.prototype.drawGpuSubJob = function(gpu, gl, renderer, screenPixelSi
     if (renderer.useSuperElevation) {
         if (job.seCounter != renderer.seCounter) {
             job.seCounter = renderer.seCounter;
-            job.center2 = renderer.transformPointBySE(job.center, undefined, position);
+            job.center2 = renderer.transformPointBySE(job.center, position);
         }
     } else {
         job.center2 = job.center;
@@ -2555,7 +2555,7 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, _, s
         if (job.seCounter != renderer.seCounter) {
             job.seCounter = renderer.seCounter;
             job.labelPointsBuffer.id = -1;
-            job.center2 = renderer.transformPointBySE(job.center, undefined, position);
+            job.center2 = renderer.transformPointBySE(job.center, position);
         }
     } else {
         job.center2 = job.center;
@@ -2626,8 +2626,8 @@ RendererDraw.prototype.drawGpuSubJobLineLabel = function(gpu, gl, renderer, _, s
                 var sePoints2 = buffer.points2;
 
                 for(j = 0, lj = points.length; j < lj; j++) {
-                    sePoints[j] = renderer.transformPointBySE2(points[j], undefined, position);
-                    sePoints2[j] = renderer.transformPointBySE2(points2[j], undefined, position);
+                    sePoints[j] = renderer.transformPointBySE2(points[j], position);
+                    sePoints2[j] = renderer.transformPointBySE2(points2[j], position);
                 }
 
                 points = sePoints;

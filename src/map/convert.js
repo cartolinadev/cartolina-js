@@ -292,7 +292,8 @@ MapConvert.prototype.getPositionCanvasCoords = function(position, lod, physical,
         var coords = position.getCoords();
 
         if (this.renderer.useSuperElevation && !containsSE) {
-            coords = this.renderer.transformPointBySE(coords);
+            coords = this.renderer.transformPointBySE(
+                coords, this.map.position);
         }
 
         worldPos = [coords[0] - camPos[0], coords[1] - camPos[1], coords[2] - camPos[2]];
@@ -309,7 +310,7 @@ MapConvert.prototype.transformPhysCoordsBySE = function(coords) {
         return coords;
     }
 
-    return this.renderer.transformPointBySE(coords);
+    return this.renderer.transformPointBySE(coords, this.map.position);
 };
 
 
@@ -317,7 +318,8 @@ MapConvert.prototype.convertCoordsFromPhysToNav = function(coords, mode, lod, co
     coords = this.convertCoords(coords, 'physical', 'navigation');
 
     if (this.renderer.useSuperElevation && containsSE) {
-        coords[2] = this.renderer.getUnsuperElevatedHeight(coords[2]);
+        coords[2] = this.renderer.getUnsuperElevatedHeight(
+            coords[2], this.map.position);
     }
 
     if (mode == 'float') {

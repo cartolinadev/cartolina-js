@@ -452,8 +452,8 @@ RendererRMap.prototype.addLineLabel = function(subjob, position) {
             var sePoints2 = buffer.points2;
 
             for(i = 0, li = points.length; i < li; i++) {
-                sePoints[i] = renderer.transformPointBySE2(points[i], undefined, position);
-                sePoints2[i] = renderer.transformPointBySE2(points2[i], undefined, position);
+                sePoints[i] = renderer.transformPointBySE2(points[i], position);
+                sePoints2[i] = renderer.transformPointBySE2(points2[i], position);
             }
 
             points = sePoints;

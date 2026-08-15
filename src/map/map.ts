@@ -97,9 +97,9 @@ class Map {
         this.renderer = new Renderer(this, element, this.config);
 
         // after the renderer: the scale denominator reads the canvas
-        // size from it
+        // size through it
         this.verticalExaggeration =
-            new VerticalExaggeration(this.renderer, this.config);
+            new VerticalExaggeration(this, this.config);
 
         platform.init();
 
@@ -330,6 +330,31 @@ class Map {
 
         this.assertAlive();
         return this.verticalExaggeration.scaleFactor(position);
+    }
+
+    /**
+     * Semi-major axis of the body's reference ellipsoid, in metres,
+     * read from the physical SRS.
+     *
+     * @internal Reached as `renderer.map.bodyMajorAxis` by the legacy
+     *   JavaScript draw code.
+     */
+    get bodyMajorAxis(): number {
+
+        return this.map!.getPhysicalSrs().getSrsInfo().a;
+    }
+
+    /**
+     * Ratio of the body's semi-major to its semi-minor axis. Scaling a
+     * physical z coordinate by it maps the ellipsoid onto a sphere of
+     * the semi-major axis.
+     *
+     * @internal Reached as `renderer.map.bodyMajorToMinor` by the
+     *   legacy JavaScript draw code.
+     */
+    get bodyMajorToMinor(): number {
+
+        return this.map!.getPhysicalSrs().getSrsInfo().majorToMinor;
     }
 
     /**
