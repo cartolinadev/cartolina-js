@@ -267,6 +267,15 @@ export default class InspectorInput {
                             'Aspect shading ' + (rfX ? 'on' : 'off'));
                         hit = true; break;
                     }
+                    case 86: case 118: {  // v — vertical exaggeration
+
+                        const rfV = !(debug.flagVerticalExaggeration
+                            ?? map.config.mapFlagVerticalExaggeration);
+                        debug.flagVerticalExaggeration = rfV;
+                        inspector.showNotification(
+                            'Vertical exaggeration ' + (rfV ? 'on' : 'off'));
+                        hit = true; break;
+                    }
                     }
                 }
 
@@ -457,11 +466,6 @@ export default class InspectorInput {
 
                 case 75: case 107:  // Shift+K — all labels
                     debug.drawAllLabels = !debug.drawAllLabels; hit = true; break;
-
-                case 85: case 117:  // Shift+U — vertical exaggeration toggle
-                    map.outerMap.verticalExaggeration.enabled =
-                        !map.outerMap.verticalExaggeration.enabled;
-                    hit = true; break;
 
                 case 71: case 103:  // Shift+G — mesh stats
                     debug.meshStats = !debug.meshStats; hit = true; break;

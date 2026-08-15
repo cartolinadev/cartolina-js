@@ -277,7 +277,7 @@ class Atmosphere {
 
         if (heightRange) {
 
-            const minHeight = this.renderer.getSuperElevatedHeight(
+            const minHeight = this.renderer.map.verticalExaggeration.apply(
                 heightRange[0], map.position);
 
             solidBodyRadius = math.clamp(

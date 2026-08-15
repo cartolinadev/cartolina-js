@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-16 — Vertical exaggeration has one effective-state predicate
+
+`VerticalExaggeration.enabled()` now derives whether height transforms can
+change their inputs instead of storing a second state flag. The
+counter synchronizes render-flag changes when read. The old Shift+U
+toggle changed only CPU behavior while the shader stayed exaggerated;
+rendering options and both relief labs now expose the effective flag.
+Redundant identity guards and the obsolete relief-lab specification are
+removed.
+
 ## 2026-08-15 — Exaggerated points move along the ellipsoid normal
 
 `transformPointBySE` and `transformPointBySE2` moved a point along

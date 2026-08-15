@@ -186,17 +186,6 @@ what to draw; renderer code issues the GPU work. See [rendering-architecture.md]
 Low-level fixed-function GL state is covered in
 [gpu-subsystem.md](gpu-subsystem.md).
 
-`VerticalExaggeration` in
-[src/map/vertical-exaggeration.ts](../../src/map/vertical-exaggeration.ts)
-scales model heights before anything is drawn. It is map state, not
-graphics state: coordinate conversion, camera height, tile bounding
-volumes, and the atmosphere's solid radius read it, and the style and
-the reference frame's body author it. `Renderer` forwards to it under
-the retired `superelevation` names — `useSuperElevation`, `seCounter`,
-`getSuperElevation`, `getSuperElevatedHeight`,
-`getUnsuperElevatedHeight` — for the legacy JavaScript call sites that
-still use them.
-
 ## Terrain Data Flow
 
 Terrain rendering starts with a style source. The source points at a

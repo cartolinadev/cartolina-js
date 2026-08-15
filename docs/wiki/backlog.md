@@ -19,6 +19,29 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+## 52. Stale vertical-exaggeration state in the legacy modules
+
+**Opened:** 2026-08-16
+**Status:** open
+**Related:** `src/map/surface-tile.js`, `src/renderer/draw.js`
+
+Two leftovers found while making `VerticalExaggeration.enabled()` a
+derived predicate. Neither was in scope for that change.
+
+`gridPoints` in `MapSurfaceTile` is assigned at two sites — once in the
+constructor area and once when the exaggeration bake goes stale — and
+read nowhere. Either it lost its reader or it never had one.
+
+The label jobs in `draw.js` bake `job.center2` when
+`job.seCounter != renderer.seCounter`. `seCounter` advances on
+configuration change and never on zoom, while the scale ramp's factor
+is a function of the view extent. With a scale ramp installed the label
+anchors would then be baked at whatever zoom the job first drew at. That
+is the staleness backlog-archive #33 fixed for the debug bboxes by
+comparing the baked factor alongside the counter. Not confirmed
+visually — labels have not been seen to drift, so establish whether the
+defect is real before fixing it.
+
 ## 51. Credit ownership still sits on the legacy map
 
 `MapStyle` now holds the typed `Map` and reaches the legacy map through

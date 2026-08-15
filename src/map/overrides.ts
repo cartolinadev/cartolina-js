@@ -54,6 +54,7 @@ export const defaultOverrides = {
     flagShadingLambertian : undefined as boolean | undefined,
     flagShadingSlope      : undefined as boolean | undefined,
     flagShadingAspect     : undefined as boolean | undefined,
+    flagVerticalExaggeration : undefined as boolean | undefined,
 };
 
 export type Overrides = typeof defaultOverrides;

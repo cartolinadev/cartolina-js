@@ -74,7 +74,6 @@ class VerticalExaggeration {
             delete this.scaleRamp_;
         }
 
-        this.enabled_ = true;
         this.counter_++;
     }
 
@@ -134,22 +133,19 @@ class VerticalExaggeration {
             delete this.scaleRamp_;
         }
 
-        this.enabled_ = true;
         this.counter_++;
     }
 
-    /** Whether exaggeration applies at all. */
-    get enabled(): boolean {
+    /**
+     * Whether exaggeration currently changes heights. Reads the map's
+     * render override and runtime configuration on every call.
+     */
+    enabled(): boolean {
 
-        return this.enabled_;
-    }
+        const flag = this.map_.overrides.flagVerticalExaggeration
+            ?? this.config_.mapFlagVerticalExaggeration;
 
-    set enabled(state: boolean) {
-
-        if (this.enabled_ != state) {
-            this.enabled_ = state;
-            this.counter_++;
-        }
+        return flag && !this.isIdentity();
     }
 
     /**
@@ -162,6 +158,14 @@ class VerticalExaggeration {
      * per node, by `MapSurfaceTile.isMetanodeReady`.
      */
     get counter(): number {
+
+        // Synchronize the counter with the externally owned render flag.
+        const enabled = this.enabled();
+        if (this.lastEnabled_ !== enabled) {
+
+            this.lastEnabled_ = enabled;
+            this.counter_++;
+        }
 
         return this.counter_;
     }
@@ -181,6 +185,8 @@ class VerticalExaggeration {
      *   [h1, f1, h2, f2, h2-h1, f2-f1, 1.0 / (h2-h1)]
      */
     vaParams(position: MapPosition | number): ElevationRamp {
+
+        if (!this.enabled()) return [0, 1, 1000, 1, 1000, 0, 1.0 / 1000];
 
         // elevation ramp
         const retval: number[] = this.elevationRamp_
@@ -206,6 +212,8 @@ class VerticalExaggeration {
      */
     apply(height: number, position: MapPosition | number): number {
 
+        if (!this.enabled()) return height;
+
         // elevation ramp
         let retval = this.elevationRamp_
             ? this.applyElevationRamp(height) : height;
@@ -223,6 +231,8 @@ class VerticalExaggeration {
      * @param position current map position, or a vertical extent value
      */
     unapply(height: number, position: MapPosition | number): number {
+
+        if (!this.enabled()) return height;
 
         let retval = height;
 
@@ -324,7 +334,7 @@ class VerticalExaggeration {
      */
     scaleFactor(position: MapPosition | number): number {
 
-        if (!this.scaleRamp_) return 1.0;
+        if (!this.enabled() || !this.scaleRamp_) return 1.0;
 
         const extent = typeof position === 'number'
             ? position : position.pos[8];
@@ -431,6 +441,18 @@ class VerticalExaggeration {
             / (2*(f1 - f2));
     }
 
+    /** Whether both height mappings leave their inputs unchanged. */
+    private isIdentity(): boolean {
+
+        const elevationFlat = !this.elevationRamp_
+            || (this.elevationRamp_[1] === 1 && this.elevationRamp_[3] === 1);
+
+        const scaleFlat = !this.scaleRamp_
+            || (this.scaleRamp_.va0 === 1 && this.scaleRamp_.va1 === 1);
+
+        return elevationFlat && scaleFlat;
+    }
+
     /** Build a ScaleRamp from two pivot pairs, precomputing the exponent. */
     private static makeScaleRamp(
         sd0: number, va0: number,
@@ -443,7 +465,8 @@ class VerticalExaggeration {
         };
     }
 
-    private enabled_ = false;
+    // `enabled()` as of the last counter synchronization
+    private lastEnabled_ = false;
     private counter_ = 0;
     private elevationRamp_?: ElevationRamp; // 7 elements
     private scaleRamp_?: ScaleRamp;

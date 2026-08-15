@@ -44,9 +44,7 @@ MapCamera.prototype.update = function() {
         height += surfaceHeight[0];
     }
 
-    if (map.renderer.useSuperElevation) {
-        height = map.renderer.getSuperElevatedHeight(height, map.position);
-    }
+    height = map.renderer.getSuperElevatedHeight(height, map.position);
 
     var camInfo = map.measure.getPositionCameraInfo(map.position, map.getNavigationSrs().isProjected());
 

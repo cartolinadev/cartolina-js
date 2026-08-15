@@ -954,6 +954,12 @@ Do not rename existing private members only to satisfy this convention.
 Apply it to new members and to members already being changed for other
 reasons.
 
+**Getters expose receiver-owned state.** Use a getter only for a value
+derived from state the object owns or fully encapsulates. A query that
+reads mutable state owned by another object is a method, so its call
+sites show evaluation. A getter may lazily synchronize its own cached
+state when that read contract is documented.
+
 **Declaration order exposes the public surface before its
 implementation.** Organize a module so a reader encounters its exported
 API before module-private helpers and state. Keep related declarations

@@ -109,8 +109,6 @@ in [AGENTS.md](../../AGENTS.md).
   and extent-proximity short-flight patch
 - [waypoint-spec.md](waypoint-spec.md) — design and behavior notes for
   the waypoint demo
-- [relief-lab-spec.md](relief-lab-spec.md) — design and behavior notes
-  for the relief-lab demo
 - [label-regression-diagnostics.md](label-regression-diagnostics.md) —
   workflow for empirical label-pipeline regression tracing
 - [testing-notes.md](testing-notes.md) — non-obvious regression-test

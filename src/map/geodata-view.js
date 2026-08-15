@@ -260,7 +260,6 @@ MapGeodataView.prototype.draw = function(cameraPos) {
 
         var renderer = this.renderer;
         var tiltAngle = this.tile ? Math.abs(this.tile.tiltAngle) : renderer.cameraTiltFator;
-        var useSuperElevation = renderer.useSuperElevation;
 
         for (var i = 0, li = this.gpuGroups.length; i < li; i++) {
             var group = this.gpuGroups[i]; 
@@ -273,13 +272,9 @@ MapGeodataView.prototype.draw = function(cameraPos) {
             var mv = group.mv;
             var mtmp = mvp; //use it as tmp matrix
 
-            if (useSuperElevation) {
-                //mat4.set(renderer.camera.getModelviewFMatrix(), mv);
-                mat4.multiply(renderer.camera.getModelviewFMatrix(), this.getWorldMatrix(group.bbox, cameraPos, mtmp), mv);
-            } else {
-                mat4.multiply(renderer.camera.getModelviewFMatrix(), this.getWorldMatrix(group.bbox, cameraPos, mtmp), mv);
-            }     
-        
+            mat4.multiply(renderer.camera.getModelviewFMatrix(),
+                this.getWorldMatrix(group.bbox, cameraPos, mtmp), mv);
+
             var proj = renderer.camera.getProjectionFMatrix();
             mat4.multiply(proj, mv, mvp);
             

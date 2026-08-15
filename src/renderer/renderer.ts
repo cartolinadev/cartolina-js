@@ -929,7 +929,7 @@ updateBuffers(
     data.projection = this.camera.getProjectionFMatrix();
 
     // obtain the data: body params and vertical exaggeration
-    let se = this.getSuperElevation(position);
+    let se = this.map.verticalExaggeration.vaParams(position);
 
     data.bodyParams =
         [this.map.bodyMajorAxis, this.map.bodyMajorToMinor, 0, 0];
@@ -1437,6 +1437,9 @@ setRenderingOptions(options: Renderer.RenderingOptions) {
     if (options.useShadingAspect !== undefined)
         d.flagShadingAspect = options.useShadingAspect;
 
+    if (options.useVerticalExaggeration !== undefined)
+        d.flagVerticalExaggeration = options.useVerticalExaggeration;
+
     this.map.legacyMap?.markDirty();
 
 };
@@ -1470,7 +1473,9 @@ getRenderingOptions(): Renderer.RenderingOptions {
         useShadingSlope:
             d.flagShadingSlope ?? cfg.mapShadingSlope,
         useShadingAspect:
-            d.flagShadingAspect ?? cfg.mapShadingAspect
+            d.flagShadingAspect ?? cfg.mapShadingAspect,
+        useVerticalExaggeration:
+            d.flagVerticalExaggeration ?? cfg.mapFlagVerticalExaggeration
     };
 };
 
@@ -1509,26 +1514,31 @@ getIlluminationAmbientCoef() {
  * retired `superelevation` vocabulary.
  */
 
+/** @deprecated Use `VerticalExaggeration.enabled()` instead. */
 get useSuperElevation(): boolean {
 
-    return this.map.verticalExaggeration.enabled;
+    return this.map.verticalExaggeration.enabled();
 }
 
+/** @deprecated Use `VerticalExaggeration.counter` instead. */
 get seCounter(): number {
 
     return this.map.verticalExaggeration.counter;
 }
 
+/** @deprecated Use `VerticalExaggeration.vaParams` instead. */
 getSuperElevation(position: MapPosition | number) {
 
     return this.map.verticalExaggeration.vaParams(position);
 }
 
+/** @deprecated Use `VerticalExaggeration.apply` instead. */
 getSuperElevatedHeight(height: number, position: MapPosition | number) {
 
     return this.map.verticalExaggeration.apply(height, position);
 }
 
+/** @deprecated Use `VerticalExaggeration.unapply` instead. */
 getUnsuperElevatedHeight(height: number, position: MapPosition | number) {
 
     return this.map.verticalExaggeration.unapply(height, position);
@@ -2321,6 +2331,7 @@ export type RenderingOptions = {
     useShadingLambertian?: boolean;
     useShadingSlope?:      boolean;
     useShadingAspect?:     boolean;
+    useVerticalExaggeration?: boolean;
 }
 
 /* Uniform buffer object binding points. */

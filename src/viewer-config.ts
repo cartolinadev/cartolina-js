@@ -827,6 +827,9 @@ const catalogue = {
 
     /** Label rendering; a style draw flag can override it. */
     mapFlagLabels: bool(true, 'runtime'),
+
+    /** Vertical exaggeration; a style draw flag can override it. */
+    mapFlagVerticalExaggeration: bool(true, 'runtime'),
 };
 
 

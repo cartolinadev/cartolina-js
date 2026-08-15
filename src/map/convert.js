@@ -249,7 +249,7 @@ MapConvert.prototype.getPositionPhysCoords = function(position, lod, includeSE) 
     // The view-extent progression part of the vertical exaggeration
     // scales with the camera's view extent, so the factor is taken from
     // the map's current position.
-    if (this.renderer.useSuperElevation && includeSE) {
+    if (includeSE) {
         coords[2] = this.renderer.getSuperElevatedHeight(
             coords[2], this.map.position);
     }
@@ -269,10 +269,8 @@ MapConvert.prototype.getPositionCameraSpaceCoords = function(position, lod) {
 
     // The progression factor scales with the camera's view extent, so it
     // is taken from the map's current position.
-    if (this.renderer.useSuperElevation) {
-        coords[2] = this.renderer.getSuperElevatedHeight(
-            coords[2], this.map.position);
-    }
+    coords[2] = this.renderer.getSuperElevatedHeight(
+        coords[2], this.map.position);
 
     var worldPos = this.convertCoords(coords, 'navigation', 'physical');
     var camPos = this.map.camera.position;
@@ -291,7 +289,7 @@ MapConvert.prototype.getPositionCanvasCoords = function(position, lod, physical,
         var camPos = this.map.camera.position;
         var coords = position.getCoords();
 
-        if (this.renderer.useSuperElevation && !containsSE) {
+        if (!containsSE) {
             coords = this.renderer.transformPointBySE(
                 coords, this.map.position);
         }
@@ -306,10 +304,6 @@ MapConvert.prototype.getPositionCanvasCoords = function(position, lod, physical,
 
 
 MapConvert.prototype.transformPhysCoordsBySE = function(coords) {
-    if (!this.renderer.useSuperElevation) {
-        return coords;
-    }
-
     return this.renderer.transformPointBySE(coords, this.map.position);
 };
 
@@ -317,7 +311,7 @@ MapConvert.prototype.transformPhysCoordsBySE = function(coords) {
 MapConvert.prototype.convertCoordsFromPhysToNav = function(coords, mode, lod, containsSE) {
     coords = this.convertCoords(coords, 'physical', 'navigation');
 
-    if (this.renderer.useSuperElevation && containsSE) {
+    if (containsSE) {
         coords[2] = this.renderer.getUnsuperElevatedHeight(
             coords[2], this.map.position);
     }
