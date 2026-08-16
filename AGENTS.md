@@ -308,11 +308,16 @@ correctness when the change touches documented behavior. Stale field
 names, removed APIs, or outdated descriptions must be corrected before
 the commit lands.
 
-For commits that represent a significant body of work or a non-trivial
-finding, update [docs/wiki/session-log.md](docs/wiki/session-log.md) so
-it reflects the current state of things. Do not add session-log entries
+For commits that change code and represent a significant body of work,
+update [docs/wiki/session-log.md](docs/wiki/session-log.md) so it
+reflects the current state of things. Do not add session-log entries
 for trivial changes merely because they are being committed at the
-user's request.
+user's request. Session-log entries are for code changes only — a
+docs-only commit (a backlog entry, a wiki edit) does not get one, no
+matter how significant the finding: the backlog entry (or the wiki
+page) is already that finding's durable record, and restating it in
+the session log too, on top of the commit message, is the same fact
+recited three times.
 
 **A session-log entry states the goal first, then the outcome** — what
 the change set out to do, and where the code ended up.

@@ -19,6 +19,31 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+## 53. BUG: `convertPositionViewMode` round trip drifts (obj/subj)
+
+**Opened:** 2026-08-17
+**Status:** open
+**Related:** `src/map/convert.js`, `src/map/measure.js`,
+`src/inspector/input.js` (Shift+Q toggle)
+
+### Symptom
+
+Toggling view mode (Shift+Q, `MapConvert.convertPositionViewMode()`)
+does not return to the original position after switching back. Each
+`obj -> subj -> obj` round trip leaves the camera at a different spot;
+repeated toggling walks the position away indefinitely.
+
+### Evidence
+
+Driven directly through `convertPositionViewMode()` on the
+`simple-terrain` test case (starting position `obj,
+-118.302348,36.560197,fix,3313.32,-133.38,-25.09,0.00,33347.92,
+45.00`), each full round trip shifts the position by about 0.6 degrees
+of longitude (roughly 53 km at that latitude), 100+ m of height, and
+0.18 degrees of yaw. The drift is the same order of magnitude as the
+position's own view distance (about 40 km here), not floating-point
+noise, and compounds with every additional round trip.
+
 ## 52. Stale vertical-exaggeration state in the legacy modules
 
 **Opened:** 2026-08-16
