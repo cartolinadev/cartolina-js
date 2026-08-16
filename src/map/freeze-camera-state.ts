@@ -68,17 +68,14 @@ type MutableRendererCamera = Renderer['camera'] & {
 type MutableMapCamera = MapCamera & {
     camera: MutableRendererCamera;
     distance: number;
-    distance2: number;
     distanceFactor: number;
     perceivedDistance: number;
     position: Vec3;
     vector: Vec3;
-    vector2: Vec4;
     center: Vec3;
     height: number;
     terrainHeight: number;
     lastTerrainHeight: number;
-    mapIsProjected?: boolean;
     geocentDistance?: number;
     geocentNormal?: Vec3;
 };
@@ -94,17 +91,14 @@ type FreezeMap = {
 type MapCameraState = {
     mapPosition: MapPosition;
     distance: number;
-    distance2: number;
     distanceFactor: number;
     perceivedDistance: number;
     position: Vec3;
     vector: Vec3;
-    vector2: Vec4;
     center: Vec3;
     height: number;
     terrainHeight: number;
     lastTerrainHeight: number;
-    mapIsProjected?: boolean;
     geocentDistance?: number;
     geocentNormal?: Vec3;
 };
@@ -250,17 +244,14 @@ class FreezeCameraState {
             map: {
                 mapPosition: this.map_.position.clone(),
                 distance: mapCamera.distance,
-                distance2: mapCamera.distance2,
                 distanceFactor: mapCamera.distanceFactor,
                 perceivedDistance: mapCamera.perceivedDistance,
                 position: this.vec3(mapCamera.position),
                 vector: this.vec3(mapCamera.vector),
-                vector2: this.vec4(mapCamera.vector2),
                 center: this.vec3(mapCamera.center),
                 height: mapCamera.height,
                 terrainHeight: mapCamera.terrainHeight,
                 lastTerrainHeight: mapCamera.lastTerrainHeight,
-                mapIsProjected: mapCamera.mapIsProjected,
                 geocentDistance: mapCamera.geocentDistance,
                 geocentNormal: mapCamera.geocentNormal
                     ? this.vec3(mapCamera.geocentNormal)
@@ -303,17 +294,14 @@ class FreezeCameraState {
 
         this.map_.position = mapState.mapPosition.clone();
         mapCamera.distance = mapState.distance;
-        mapCamera.distance2 = mapState.distance2;
         mapCamera.distanceFactor = mapState.distanceFactor;
         mapCamera.perceivedDistance = mapState.perceivedDistance;
         mapCamera.position = this.vec3(mapState.position);
         mapCamera.vector = this.vec3(mapState.vector);
-        mapCamera.vector2 = this.vec4(mapState.vector2);
         mapCamera.center = this.vec3(mapState.center);
         mapCamera.height = mapState.height;
         mapCamera.terrainHeight = mapState.terrainHeight;
         mapCamera.lastTerrainHeight = mapState.lastTerrainHeight;
-        mapCamera.mapIsProjected = mapState.mapIsProjected;
         mapCamera.geocentDistance = mapState.geocentDistance;
         mapCamera.geocentNormal = mapState.geocentNormal
             ? this.vec3(mapState.geocentNormal)

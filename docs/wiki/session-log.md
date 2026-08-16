@@ -3,6 +3,11 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-16 — `MapCamera` keeps only state something reads
+
+Members with no reader are gone, so freeze mode no longer preserves values
+that never reach the renderer or tile selection.
+
 ## 2026-08-16 — Vertical exaggeration has one effective-state predicate
 
 `VerticalExaggeration.enabled()` now derives whether height transforms can

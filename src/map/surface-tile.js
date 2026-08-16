@@ -545,35 +545,7 @@ MapSurfaceTile.prototype.getPixelSize = function(bbox, screenPixelSize, cameraPo
     return (factor * screenPixelSize);
 };
 
-
-MapSurfaceTile.prototype.getPixelSize3Old = function(node, screenPixelSize, factor) {
-    var camera = this.map.camera;
-    var d = (camera.geocentDistance*factor) - node.diskDistance;
-    if (d < 0) {
-        d = -d;
-        //return [Number.POSITIVE_INFINITY, 0.1];
-    } 
-
-    var a = vec3.dot(camera.geocentNormal, node.diskNormal);
-    
-    if (a < node.diskAngle2) {
-        var a2 = Math.acos(a); 
-        var a3 = Math.acos(node.diskAngle2);
-        a2 = a2 - a3; 
-
-        var l1 = Math.tan(a2) * node.diskDistance;
-        d = Math.sqrt(l1*l1 + d*d);
-    }
-
-    factor = camera.camera.scaleFactor2(d);
-    return [factor * screenPixelSize, d];
-};
-
-
 MapSurfaceTile.prototype.getPixelSize3 = function(node, screenPixelSize) {
-    //if (this.map.drawIndices) {
-      //  return this.getPixelSize3Old(node, screenPixelSize, factor);
-    //}
     var camera = this.map.camera;
     var cameraDistance = camera.geocentDistance;// * factor;
 

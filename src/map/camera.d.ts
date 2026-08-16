@@ -11,7 +11,6 @@
 import type Renderer from '../renderer/renderer';
 
 type Vec3 = [number, number, number];
-type Vec4 = [number, number, number, number];
 
 export default class MapCamera {
 
@@ -19,10 +18,8 @@ export default class MapCamera {
     camera: Renderer['camera'];
 
     distance: number;
-    distance2: number;
     position: Vec3;
     vector: Vec3;
-    vector2: Vec4;
     center: Vec3;
     height: number;
     terrainHeight: number;
@@ -38,7 +35,6 @@ export default class MapCamera {
     /** Effective perceived distance used for texel-size selection. */
     perceivedDistance: number;
 
-    mapIsProjected?: boolean;
     geocentDistance?: number;
     geocentNormal?: Vec3;
 

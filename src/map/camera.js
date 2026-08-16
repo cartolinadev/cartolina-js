@@ -10,10 +10,8 @@ var MapCamera = function(map) {
     this.map = map;
     this.camera = map.renderer.camera;
     this.distance = 10;
-    this.distance2 = 10;
     this.position = [0,0,0];
     this.vector = [0,0,1];
-    this.vector2 = [0,0,1,1];
     this.center = [0,0,0];
     this.height = 0;
     this.terrainHeight = 0;
@@ -48,24 +46,21 @@ MapCamera.prototype.update = function() {
 
     var camInfo = map.measure.getPositionCameraInfo(map.position, map.getNavigationSrs().isProjected());
 
-    this.camera.setPosition(camInfo.orbitCoords);
     this.camera.setRotationMatrix(camInfo.rotMatrix);
     this.vector = camInfo.vector;
-    this.vector2 = camInfo.vector2;
-    this.position = camInfo.orbitCoords;
     this.height = camInfo.orbitHeight + height;
     this.terrainHeight = this.height - surfaceHeight[0];
 
     //console.log(''+this.height + ' ' + this.terrainHeight + ' ' + surfaceHeight[0]);
 
     //get camera distance
-    this.distance2 = map.position.getViewDistance();
-    this.distance = Math.max(this.terrainHeight, this.distance2);
+    var viewDistance = map.position.getViewDistance();
+    this.distance = Math.max(this.terrainHeight, viewDistance);
     this.distance = math.clamp(this.distance, 0.1, this.camera.getFar());
 
     this.distanceFactor = Math.tan(math.radians(map.position.getFov()*0.5)); 
 
-    this.perceivedDistance = Math.max(this.terrainHeight, this.distance2 * this.distanceFactor);
+    this.perceivedDistance = Math.max(this.terrainHeight, viewDistance * this.distanceFactor);
     
     map.renderer.cameraDistance = this.distance;
     map.renderer.viewExtent = map.position.getViewExtent();
@@ -83,21 +78,15 @@ MapCamera.prototype.update = function() {
     this.camera.setPosition([0,0,0]); //always zeros
     this.position = worldPos;
 
-    this.vector2 = [-worldPos[0], -worldPos[1], -worldPos[2], 1];
-    vec3.normalize(this.vector2);
-
-    this.mapIsProjected = map.getNavigationSrs().isProjected();
-
-    if (!this.mapIsProjected) { //HACK!!!!!!!!
+    // sole consumer of geocentDistance and geocentNormal: getPixelSize3
+    if (!map.getNavigationSrs().isProjected()) { //HACK!!!!!!!!
         this.geocentDistance = vec3.length(this.position);
 
         var n = [0,0,0];
         vec3.normalize(this.position, n);
         this.geocentNormal = n;
-    } else {
-        this.vector2[3] = 0;
     }
-    
+
     //console.log("word-pos: " + JSON.stringify(worldPos));
 
     //set near and far of camera by distance of orbit
@@ -110,20 +99,8 @@ MapCamera.prototype.update = function() {
     //console.log("near: " + near + "  far: " + far);
 
     this.camera.setParams(map.position.getFov()*0.5, near, far * 2.0);
-    
-    return camInfo;
 };
 
-
-MapCamera.prototype.getCameraHeight = function() {
-    //TODO: get camera height
-    //var cameraPos = this.camera.position;
-    //return (this.camera.getPosition()[2] - this.planet.surfaceHeight([this.position[0] + cameraPos[0], this.position[1] + cameraPos[1]])[0]);
-
-    //hack - distance intead of height
-    //return this.cameraDistance;
-    return this.cameraHeight;
-};
 
 MapCamera.prototype.getCenter = function () {
 
@@ -133,31 +110,6 @@ MapCamera.prototype.getCenter = function () {
 
 MapCamera.prototype.getMvpMatrix = function() {
     return this.camera.getMvpMatrix();
-};
-
-
-MapCamera.prototype.getRotationMatrix = function() {
-    return this.camera.getRotationMatrix();
-};
-
-
-MapCamera.prototype.getRotationviewMatrix = function() {
-    return this.camera.getRotationviewMatrix();
-};
-
-
-MapCamera.prototype.getFar = function() {
-    return this.camera.getFar();
-};
-
-
-MapCamera.prototype.getFov = function() {
-    return this.camera.getFov();
-};
-
-
-MapCamera.prototype.getAspect = function() {
-    return this.camera.getAspect();
 };
 
 
