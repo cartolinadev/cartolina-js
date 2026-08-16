@@ -753,6 +753,11 @@ var copyLayer = function(layerId, layer, layerData, stylesheetLayersData) {
 };
 
 
+//messages already reported for the current stylesheet, keyed by the
+//message text
+var reportedErrors = {};
+
+
 var logError = function(errorType, layerId, key, value, index, subkey) {
     if (globals.disableLog) {
         return;
@@ -799,6 +804,13 @@ var logError = function(errorType, layerId, key, value, index, subkey) {
     }
     
     if (str && globals.log) {
+
+        //the same layer rules run for every tile, so a repeat says
+        //nothing new about the stylesheet or the data it describes
+        if (reportedErrors[str]) return;
+
+        reportedErrors[str] = true;
+
          // eslint-disable-next-line 
         console.log(str);
         //throw str;
@@ -1615,6 +1627,7 @@ var processLayer = function(layerId, layerData, stylesheetLayersData) {
 
 var processStylesheet = function(stylesheetLayersData) {
     var key;
+    reportedErrors = {};
     globals.stylesheetBitmaps = {};
     globals.stylesheetFonts = {};
     globals.stylesheetConstants = stylesheetLayersData['constants'] || {};

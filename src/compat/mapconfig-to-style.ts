@@ -279,19 +279,6 @@ async function defaultLoadJson(
  */
 const provenNoOpOptions = new Set(['mapGridTextureLayer']);
 
-/*
- * Catalogued keys that gate console diagnostics only and cannot
- * affect rendering. Dropping them preserves the rendered map
- * exactly; the note names the consumer. Verified against the source
- * when added here.
- */
-const diagnosticOnlyOptions: Record<string, string> = {
-
-    // gates stylesheet-processing console logging in the geodata
-    // worker (worker-style.js via processor.js)
-    mapLogGeodataStyles: 'geodata-worker stylesheet logging',
-};
-
 const publicOptionKeys: ReadonlySet<string> =
     new Set(viewerConfig.publicConstructionConfigKeys);
 
@@ -958,6 +945,9 @@ class ConversionContext {
      * Extracts the supported terrain-source metadata from a legacy
      * surface entry. Unsupported fields stay at the conversion
      * boundary and never enter the style runtime.
+     *
+     * @param definition the legacy surface entry
+     * @param path diagnostic path of the entry
      */
     private terrainDefinition(
         definition: Record<string, unknown>,
@@ -968,6 +958,13 @@ class ConversionContext {
             'lodRange', 'tileRange', 'metaUrl', 'navUrl',
             'meshUrl', 'textureUrl', 'normalsUrl',
         ]);
+
+        // Known surface fields that a 3D style has no place for: the
+        // id names the surface and becomes the style source id, and
+        // "2d" holds the delivery URLs of the legacy 2D client. A note
+        // about either says nothing about the document, so only a
+        // field outside this vocabulary earns one.
+        const known = new Set(['id', '2d']);
         const output: Record<string, unknown> = {};
 
         for (const [key, value] of Object.entries(definition)) {
@@ -977,6 +974,8 @@ class ConversionContext {
                 output[key] = structuredClone(value);
                 continue;
             }
+
+            if (known.has(key)) continue;
 
             this.notes.push({
                 code: 'ignored-field',
@@ -1003,6 +1002,12 @@ class ConversionContext {
             'url', 'lodRange', 'tileRange', 'credits',
             'metaUrl', 'maskUrl', 'isTransparent',
         ]);
+
+        // Known bound-layer fields with no style destination: the
+        // legacy numeric layer id, and the type, which reads
+        // "raster" on the definitions this converter accepts. Only a
+        // field outside this vocabulary earns a note.
+        const known = new Set(['id', 'type']);
         const output: Record<string, unknown> = {};
 
         for (const [key, value] of Object.entries(definition)) {
@@ -1012,6 +1017,8 @@ class ConversionContext {
                 output[key] = structuredClone(value);
                 continue;
             }
+
+            if (known.has(key)) continue;
 
             this.notes.push({
                 code: 'ignored-field',
@@ -1965,20 +1972,6 @@ class ConversionContext {
                     message: `Nothing in the current client reads `
                         + `"${canonical}"; dropped with behavior `
                         + `unchanged.`,
-                });
-
-                continue;
-            }
-
-            if (canonical in diagnosticOnlyOptions) {
-
-                this.notes.push({
-                    code: 'ignored-browser-option',
-                    path,
-                    message: `"${canonical}" gates console `
-                        + `diagnostics only `
-                        + `(${diagnosticOnlyOptions[canonical]}); `
-                        + `dropped with rendering unchanged.`,
                 });
 
                 continue;

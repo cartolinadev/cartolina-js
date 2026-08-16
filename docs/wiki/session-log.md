@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-17 — Conversion diagnostics stop reporting legitimate input
+
+Goal: suppress noise in legacy mapConfig conversion.
+
+A surface's `id` and `2d` and a bound layer's `id` and `type` are known
+vocabulary, so the converter no longer notes them.
+`mapLogGeodataStyles` moves to `runtime` visibility, which gives it a
+destination in the conversion. The geodata worker reports each
+stylesheet message once instead of once per tile.
+
+The runtime key pin in `test/types/viewer-api.ts` also gained
+`mapFlagVerticalExaggeration`, whose promotion had left the typecheck
+failing.
+
 ## 2026-08-16 — Current terrain metadata and traversal documentation
 
 Goal: make the terrain documentation match the supported metatile range and

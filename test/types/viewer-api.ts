@@ -19,13 +19,14 @@ declare const runtimeConfig: PublicMap.PublicRuntimeConfig;
 const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
-// The audited 61-key public runtime subset, pinned as a lasting
+// The audited 63-key public runtime subset, pinned as a lasting
 // compile-time contract (rfc01-config-store.md, step 8): an
 // incidental visibility edit in the catalogue fails here and
 // requires an explicit test update. RFC 11 promoted the corpus
 // browserOptions destinations: the label-density keys
-// mapFeaturesReduceMode / mapFeaturesReduceParams and the
-// switch-transition key mapSoftViewSwitch.
+// mapFeaturesReduceMode / mapFeaturesReduceParams, the
+// switch-transition key mapSoftViewSwitch, and the geodata
+// stylesheet logging switch mapLogGeodataStyles.
 type Expect<T extends true> = T;
 type Eq<A, B> =
     (<X>() => X extends A ? 1 : 2) extends
@@ -63,8 +64,10 @@ type _publicRuntimeSubsetPin = Expect<Eq<
     | 'mapShadingAspect' | 'mapFlagLighting' | 'mapFlagNormalMaps'
     | 'mapFlagDiffuseMaps' | 'mapFlagSpecularMaps'
     | 'mapFlagBumpMaps' | 'mapFlagAtmosphere' | 'mapFlagShadows'
-    | 'mapFlagLabels' | 'mapFeaturesReduceMode'
+    | 'mapFlagLabels' | 'mapFlagVerticalExaggeration'
+    | 'mapFeaturesReduceMode'
     | 'mapFeaturesReduceParams' | 'mapSoftViewSwitch'
+    | 'mapLogGeodataStyles'
 >>;
 
 const subsetPinHolds: _publicRuntimeSubsetPin = true;

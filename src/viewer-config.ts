@@ -767,8 +767,10 @@ const catalogue = {
      *  `-1`. */
     mapForceFrameTime: num(-1, MAX, 0, 'internal'),
 
-    /** Makes the geodata worker log stylesheet processing. */
-    mapLogGeodataStyles: bool(true, 'internal'),
+    /** Makes the geodata worker log stylesheet processing. The
+     *  worker reads it whenever a stylesheet is set, so a change
+     *  applies to the next stylesheet load. */
+    mapLogGeodataStyles: bool(true, 'runtime'),
 
     /** Relaxes the renderer's label overlap margins. */
     mapBenevolentMargins: bool(false, 'internal'),
