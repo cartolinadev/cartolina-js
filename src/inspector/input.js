@@ -300,9 +300,6 @@ export default class InspectorInput {
                     case 69: case 101:  // e
                         debug.debugTextSize = (debug.debugTextSize == 2.0) ? 3.0 : 2.0;
                         break;
-                    case 88: case 120:  // x
-                        map.config.mapPreciseBBoxTest = !map.config.mapPreciseBBoxTest;
-                        break;
                     case 75: case 107:  debug.drawGPixelSize = !debug.drawGPixelSize; break;  // k
                     default: bboxHit = false; break;
                     }

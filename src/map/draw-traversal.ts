@@ -74,8 +74,7 @@ export function drawTerrainTraversal(
 
         // Classified root: off-screen is culled out of the active set, a
         // visible one joins it.
-        if (!tile.bboxVisible(tile.id, tile.metanode.bbox, cameraPos,
-                tile.metanode)) {
+        if (!tile.bboxVisible(tile.id, cameraPos, tile.metanode)) {
             continue;
         }
 
@@ -375,8 +374,8 @@ function collectChildActive(
             continue;
         }
 
-        if (!childTile.bboxVisible(childTile.id, childTile.metanode.bbox,
-                cameraPos, childTile.metanode)) {
+        if (!childTile.bboxVisible(childTile.id, cameraPos,
+                childTile.metanode)) {
 
             sawCulledChild = true;
             continue;            // finer child loaded and off-screen (culled)
@@ -463,9 +462,7 @@ function renderTile(
 
 /**
  * Returns the child tile at `quadrant` if it is allocated and its
- * metanode for this position is ready; otherwise null. Also pulls the
- * height extents forward from the parent metanode when the child's
- * metatile pre-dates the v4 navtile-free encoding.
+ * metanode for this position is ready; otherwise null.
  */
 function getReadyChild(
     tree: MapSurfaceTree,
@@ -479,7 +476,6 @@ function getReadyChild(
     if (!child.isMetanodeReady(tree, child.id[0])) return null;
     if (!child.metanode) return null;
 
-    tree.updateNodeHeightExtents(child, child.metanode);
     return child;
 }
 

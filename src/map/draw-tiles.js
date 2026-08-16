@@ -368,38 +368,25 @@ MapDrawTiles.prototype.drawTileInfo = function(tile, node, cameraPos, mesh) {
     }
 
     //get screen pos of node
-    if (node.metatile.useVersion < 4) {
-        var min = node.bbox.min;
-        var max = node.bbox.max;
+    var dx = node.bbox2[3] - node.bbox2[0];
+    var dy = node.bbox2[4] - node.bbox2[1];
+    var dz = node.bbox2[5] - node.bbox2[2];
 
-        pos =  this.core.renderer.project2(
-            [(min[0] + (max[0] - min[0])*0.5) - cameraPos[0],
-                (min[1] + (max[1] - min[1])*0.5) - cameraPos[1],
-                (max[2]) - cameraPos[2]],
-             this.camera.getMvpMatrix());
+    var d = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-        pos[2] = pos[2] * 0.9992;
-    } else {
-        var dx = node.bbox2[3] - node.bbox2[0];
-        var dy = node.bbox2[4] - node.bbox2[1];
-        var dz = node.bbox2[5] - node.bbox2[2];
+    pos =  this.core.renderer.project2(
+        [(node.bbox2[12] + node.bbox2[15] + node.bbox2[18] + node.bbox2[21])*0.25 + node.diskNormal[0] * d*0.1 - cameraPos[0],
+            (node.bbox2[13] + node.bbox2[16] + node.bbox2[19] + node.bbox2[22])*0.25 + node.diskNormal[1] * d*0.1 - cameraPos[1],
+            (node.bbox2[14] + node.bbox2[17] + node.bbox2[20] + node.bbox2[23])*0.25 + node.diskNormal[2] * d*0.1 - cameraPos[2]],
+         this.camera.getMvpMatrix());
 
-        var d = Math.sqrt(dx*dx + dy*dy + dz*dz);
-
-        pos =  this.core.renderer.project2(
-            [(node.bbox2[12] + node.bbox2[15] + node.bbox2[18] + node.bbox2[21])*0.25 + node.diskNormal[0] * d*0.1 - cameraPos[0],
-                (node.bbox2[13] + node.bbox2[16] + node.bbox2[19] + node.bbox2[22])*0.25 + node.diskNormal[1] * d*0.1 - cameraPos[1],
-                (node.bbox2[14] + node.bbox2[17] + node.bbox2[20] + node.bbox2[23])*0.25 + node.diskNormal[2] * d*0.1 - cameraPos[2]],
-             this.camera.getMvpMatrix());
-
-        /*
-            var pos =  this.core.renderer.project2(
-                            [(node.diskPos[0] + node.diskNormal[0] * node.bboxHeight) - cameraPos[0],
-                             (node.diskPos[1] + node.diskNormal[1] * node.bboxHeight) - cameraPos[1],
-                             (node.diskPos[2] + node.diskNormal[2] * node.bboxHeight) - cameraPos[2]],
-                             this.camera.getMvpMatrix());
-        */
-    }
+    /*
+        var pos =  this.core.renderer.project2(
+                        [(node.diskPos[0] + node.diskNormal[0] * node.bboxHeight) - cameraPos[0],
+                         (node.diskPos[1] + node.diskNormal[1] * node.bboxHeight) - cameraPos[1],
+                         (node.diskPos[2] + node.diskNormal[2] * node.bboxHeight) - cameraPos[2]],
+                         this.camera.getMvpMatrix());
+    */
 
     var factor = debug.debugTextSize, text, i, li,c;
 

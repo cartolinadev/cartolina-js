@@ -82,14 +82,12 @@ export class MapSurfaceTile {
      * frustum, including the geocentric horizon test when enabled.
      *
      * @param id Tile address used for depth and culling thresholds.
-     * @param bbox Axis-aligned bbox used by pre-v4 metatile formats.
      * @param cameraPos Camera position in map coordinates.
      * @param node Metanode whose culling data is tested.
      * @returns True when the tile should remain in traversal.
      */
     bboxVisible(
         id: [number, number, number],
-        bbox: unknown,
         cameraPos: [number, number, number],
         node: MapMetanode,
     ): boolean;

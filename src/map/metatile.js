@@ -78,13 +78,9 @@ MapMetatile.prototype.clone = function(surface) {
     metatile.version = this.version;
     metatile.credits = this.credits;
 
-    if (this.version < 2) {
-        metatile.nodeSize = this.nodeSize;
-    } else {
-        metatile.flags = this.flags;
-        metatile.creditCount = this.creditCount;
-        metatile.flagPlanes = this.flagPlanes;
-    }
+    metatile.flags = this.flags;
+    metatile.creditCount = this.creditCount;
+    metatile.flagPlanes = this.flagPlanes;
 
     metatile.cacheItem= this.map.metatileCache.insert(metatile.kill.bind(metatile, true), metatile.size);
     return metatile;
@@ -245,9 +241,8 @@ MapMetatile.prototype.parseMetatatile = function(stream) {
         uint metatileIdx, metatileIdy;         // id of upper left tile corner (reflected in tile name)
         ushort offsetx, offsety;               // offset of valid data block
         ushort sizex, sizey;                   // dimensions of metanode grid
-        uchar nodeSize;                        // size of a metanode in bytes
+        uchar flags;                           // metatile flags, incl. which bitplanes follow
         uchar creditCount;                     // total number of credit blocks (= number of attributions used by nodes)
-        ushort creditSize;                     // size of credit block in bytes
     };
 */
 
@@ -263,7 +258,7 @@ MapMetatile.prototype.parseMetatatile = function(stream) {
 
     this.version = streamData.getUint16(stream.index, true); stream.index += 2;
 
-    if (this.version > 6) throw new Error(
+    if (this.version < 4 || this.version > 6) throw new Error(
         'Unsupported metatile version ' + this.version + '.'
     );
 
@@ -280,18 +275,12 @@ MapMetatile.prototype.parseMetatatile = function(stream) {
     
     this.flagPlanes = new Array(8);
 
-    if (this.version < 2) {
-        this.nodeSize = streamData.getUint8(stream.index, true); stream.index += 1;
-    } else {
-        this.flags = streamData.getUint8(stream.index, true); stream.index += 1;
-        this.creditCount = streamData.getUint8(stream.index, true); stream.index += 1;
-        this.parseFlagPlanes(stream);
-    }
+    this.flags = streamData.getUint8(stream.index, true); stream.index += 1;
+    this.creditCount = streamData.getUint8(stream.index, true); stream.index += 1;
+    this.parseFlagPlanes(stream);
 
     this.parseMetatatileCredits(stream);
     this.parseMetatatileNodes(stream);
-    
-    this.useVersion = (this.map.config.mapForceMetatileV3 && this.version < 5) ? 3 : this.version; 
 };
 
 
@@ -326,12 +315,7 @@ MapMetatile.prototype.parseMetatatileCredits = function(stream) {
 */
 
     var streamData = stream.data;
-    
-    if (this.version < 2) {
-        this.creditCount = streamData.getUint8(stream.index, true); stream.index += 1;
-        this.creditSize = streamData.getUint16(stream.index, true); stream.index += 2;
-    }
-    
+
     if (this.creditCount == 0) {
         this.credits = [];
         return;
@@ -466,19 +450,16 @@ MapMetatile.prototype.parseMetatatileNodes = function(stream) {
     if (this.version >= 5) {
         this.metanodeSize += (3 + 4) * 4;
     } else {
-        this.metanodeSize += Math.floor((6 * (this.id[0] + 2) + 7) / 8);
-
-        if (this.version == 4) {
-            this.metanodeSize += 3 * 4;
-        }
+        // v4 still carries the packed geomExtents bytes ahead of the
+        // three float32 SDS heights
+        this.metanodeSize += Math.floor((6 * (this.id[0] + 2) + 7) / 8)
+                             + 3 * 4;
     }
 
-    if (this.version >= 3) {
-        if (this.flags & (1<<7)) {
-            this.metanodeSize += 2;
-        } else if (this.flags & (1<<6)) {
-            this.metanodeSize += 1;
-        }
+    if (this.flags & (1<<7)) {
+        this.metanodeSize += 2;
+    } else if (this.flags & (1<<6)) {
+        this.metanodeSize += 1;
     }
 
     if (this.lod >= this.map.measure.minDivisionNodeDepth) {

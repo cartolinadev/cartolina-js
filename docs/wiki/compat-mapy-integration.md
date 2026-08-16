@@ -16,14 +16,12 @@ Metatile responses from the mapy.com production tileserver
 format, confirmed by inspecting live responses in 2026-05. Version 4
 stores `minZ`, `maxZ`, and `surrogatez` as explicit float32 values in
 the spatial division node coordinate system (SDS), independent of the
-int16 navSRS `minHeight`/`maxHeight` fields that older versions aliased
-to `minZ`/`maxZ`.
+int16 navSRS `minHeight`/`maxHeight` fields.
 
-Practical consequence: the v1–v3 bounding-box height-range propagation
-path in
-`MapSurfaceTree.prototype.updateNodeHeightExtents()` (guarded by
-`useVersion < 4`) is never reached against any live mapy.com data.
-See [nav-tiles.md](nav-tiles.md) for the full navtile analysis.
+Version 4 is the oldest format the client parses, so this deployment
+sits at the lower bound of client support. See
+[surface-metatile.md](surface-metatile.md) for the supported range and
+[nav-tiles.md](nav-tiles.md) for the full navtile analysis.
 
 Current cartolina-js applications do not access a `cartolina.core()`
 factory object. They call `cartolina.map(options)`, which is now the

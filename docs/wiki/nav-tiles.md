@@ -32,12 +32,9 @@ maxHeight   int16   — maximum elevation (navSRS, metres)
 
 These bound the elevation range of the tile's navtile texture.
 
-For metatile versions 1–3, `minZ` and `maxZ` (used for bounding-box
-construction) are aliased to `minHeight` and `maxHeight` at parse time
-because those older formats store only navSRS heights and have no
-separate SDS height fields. From version 4 onward, `minZ`/`maxZ` are
-explicit float32 values in the spatial division node's coordinate
-system (SDS) and are completely independent of `minHeight`/`maxHeight`.
+`minZ` and `maxZ` (used for bounding-box construction) are explicit
+float32 values in the spatial division node's coordinate system (SDS)
+and are completely independent of `minHeight`/`maxHeight`.
 
 See [surface-metatile.md](surface-metatile.md) for the full metanode
 binary layout.
@@ -55,9 +52,9 @@ machinery and stored as `tile.heightMap` on the `MapSurfaceTile`.
 
 ---
 
-## Active usages
+## Active usage
 
-### 1. Terrain height queries (navigation)
+### Terrain height queries (navigation)
 
 This is the primary and only fully-active use of navtile textures.
 
@@ -118,32 +115,6 @@ for all queries. The flag is exposed via `map.setParam()` and parsed
 at
 [src/map/legacy-map.js:1175](../../src/map/legacy-map.js).
 
-### 2. Height range propagation for bounding-box culling (v1–v3 only)
-
-`MapMetanode.prototype.parseMetanode()` sets
-`this.heightReady = this.hasNavtile()` immediately after parsing. When
-the flag is set the metanode's `minHeight`/`maxHeight` range is
-considered authoritative and does not need to be inherited from a
-parent.
-
-`MapSurfaceTree.prototype.updateNodeHeightExtents()` in
-[surface-tree.js:157](../../src/map/surface-tree.js) propagates
-the height range from the nearest ancestor whose `heightReady` is true
-down to a child that does not yet have its own range. The function is
-guarded by `node.metatile.useVersion < 4`: it fires only for metatile
-versions 1–3.
-
-This propagated range feeds into `generateCullingHelpers()`, which
-builds the tile's 3D bounding disc. The bounding disc is used for
-frustum culling and camera-distance computation. Both the legacy draw
-traversal and the new typed traversal
-([src/map/draw-traversal.ts:306](../../src/map/draw-traversal.ts))
-call `updateNodeHeightExtents()`.
-
-For metatile version 4 and above, `minZ`/`maxZ` are stored as float32
-and are immediately available at parse time. The propagation code never
-fires for those tiles.
-
 ---
 
 ## Legacy draw path — grid fallback
@@ -153,10 +124,9 @@ The config flag `mapHeightfiledWhenUnloaded` (default `true`) enables
 loading. The grid draws a flat quad over the tile's geographic cell.
 
 The grid's 3D position uses `mnode.minZ` (and neighbouring tiles'
-`minZ` values read from the tree) — **not the navtile texture**. For
-v1–v3 metatiles `minZ` is aliased to `minHeight`, so the navtile's
-elevation range contributes indirectly; for v4+ tiles the values are
-independent.
+`minZ` values read from the tree) — **not the navtile texture**. The
+two are independent: `minZ` is an SDS float32 field,
+`minHeight`/`maxHeight` are the navSRS int16 navtile range.
 
 The grid's visual texture is loaded from a configured bound layer
 (`mapGridTextureLayer`), not from the navtile URL.
@@ -208,13 +178,11 @@ backlog entry.
 
 ## Relationship to metatile versions
 
+The client reads versions 4 through 6; the parser rejects anything
+outside that range.
+
 | Version | navtile role |
 |---------|-------------|
-| 1–3 | `minZ`/`maxZ` are aliased from `minHeight`/`maxHeight` (navSRS int16) because no SDS float fields exist yet. `updateNodeHeightExtents` propagation active. |
-| 4 | Explicit float32 `minZ`/`maxZ`/`surrogatez` added; no longer aliased to navSRS values. `updateNodeHeightExtents` propagation never fires. Navtile texture still used for height queries. Quantized geomExtents still present in the stream and read by the client. |
+| 4 | Explicit float32 `minZ`/`maxZ`/`surrogatez` in SDS, independent of the navSRS `minHeight`/`maxHeight` range. Navtile texture used for height queries. Quantized geomExtents still present in the stream and read by the client. |
 | 5 | Quantized geomExtents removed from stream; SDS horizontal extents added. Same navtile behaviour as v4. |
-
-The mapy.com production deployment serves **version 4** metatiles,
-confirmed by inspecting live metatile responses in 2026-05 (see
-[compat-mapy-integration.md](compat-mapy-integration.md)). The v1–v3
-propagation code is therefore inactive against all known live data.
+| 6 | Adds the watertight bitplane. Same navtile behaviour as v4. |

@@ -1,11 +1,10 @@
 
-import {vec3 as vec3_, mat4 as mat4_} from '../utils/matrix';
+import {vec3 as vec3_} from '../utils/matrix';
 import * as utils from '../utils/utils';
-import * as math from '../utils/math';
 import BBox_ from '../renderer/bbox';
 
 //get rid of compiler mess
-var vec3 = vec3_, mat4 = mat4_;
+var vec3 = vec3_;
 var BBox = BBox_;
 
 
@@ -16,7 +15,6 @@ var MapMetanode = function(metatile, id, stream, divisionNode) {
     this.credits = [];
     this.watertight = false;
     this.ready = false;
-    this.heightReady = false;
     this.divisionNode = divisionNode;
 
     this.diskPos = new Array(3);
@@ -179,15 +177,13 @@ struct Metanode {
 
     //this.surrogatezHeight = 0;
 
-    if (version >= 4) {
-        this.minZ = streamData.getFloat32(stream.index, true); stream.index += 4;
-        this.maxZ = streamData.getFloat32(stream.index, true); stream.index += 4;
-        this.surrogatez = streamData.getFloat32(stream.index, true); stream.index += 4;
+    this.minZ = streamData.getFloat32(stream.index, true); stream.index += 4;
+    this.maxZ = streamData.getFloat32(stream.index, true); stream.index += 4;
+    this.surrogatez = streamData.getFloat32(stream.index, true); stream.index += 4;
 
-        //if (!(this.minZ > this.maxZ || this.surrogatez == Number.NEGATIVE_INFINITY)) {
-          //  this.surrogatezHeight = this.surrogatez; //have to converted to nav srs height
-        //}
-    }
+    //if (!(this.minZ > this.maxZ || this.surrogatez == Number.NEGATIVE_INFINITY)) {
+      //  this.surrogatezHeight = this.surrogatez; //have to converted to nav srs height
+    //}
 
     if (version >= 5) {
         // values are probably not needed for frontend
@@ -212,25 +208,14 @@ struct Metanode {
     this.minHeight = streamData.getInt16(stream.index, true); stream.index += 2;
     this.maxHeight = streamData.getInt16(stream.index, true); stream.index += 2;
 
-    if (version < 4) {
-        this.minZ = this.minHeight;
-        this.maxZ = this.maxHeight;
-        this.surrogatez =this.minHeight;
-    }
-
     this.minZ2 = this.minZ;
     this.maxZ2 = this.maxZ;
 
-    
-    if (this.metatile.version >= 3) {
-        if (this.metatile.flags & (1<<7)) {
-            this.sourceReference = streamData.getUint16(stream.index, true); stream.index += 2;
-        } else if (this.metatile.flags & (1<<6)) {
-            this.sourceReference = streamData.getUint8(stream.index, true); stream.index += 1;
-        }
+    if (this.metatile.flags & (1<<7)) {
+        this.sourceReference = streamData.getUint16(stream.index, true); stream.index += 2;
+    } else if (this.metatile.flags & (1<<6)) {
+        this.sourceReference = streamData.getUint8(stream.index, true); stream.index += 1;
     }
-
-    this.heightReady = this.hasNavtile();
 
     this.watertight = false;
 
@@ -261,7 +246,6 @@ MapMetanode.prototype.clone = function() {
     node.displaySize = this.displaySize;
     node.ready = this.ready;
     node.stream = this.stream;
-    node.heightReady = this.heightReady;
     node.watertight = this.watertight;
     
     //copy credits
@@ -303,376 +287,306 @@ MapMetanode.prototype.generateCullingHelpers = function(virtual) {
     var map = this.map;
     var draw = map.draw;
     var geocent = map.isGeocent;
-    var version = this.metatile.useVersion;
+    var version = this.metatile.version;
 
-    if (this.id[0] < map.measure.minDivisionNodeDepth || (!geocent && version < 4)) {
+    if (this.id[0] < map.measure.minDivisionNodeDepth) {
         return;
     }
 
     // version >= 4 no longer carries quantized physical extents, computed here
-    if (version >= 4 || map.config.mapPreciseCulling) { //use division node srs
+    //use division node srs
 
-        if (virtual) {
-            return; //result is same for each tile id
+    if (virtual) {
+        return; //result is same for each tile id
+    }
+
+    var divisionNode;
+    var llx, lly, urx, ury;
+    var pos = draw.tmpVec3;
+    
+    if (this.id[0] > map.measure.maxDivisionNodeDepth) {
+        var pos2 = draw.tmpVec5;
+        
+        divisionNode = map.measure.getSpatialDivisionNodeFromId(this.id);
+
+        if (!divisionNode) {
+            return;
         }
 
-        var divisionNode;
-        var llx, lly, urx, ury;
-        var pos = draw.tmpVec3;
-        
-        if (this.id[0] > map.measure.maxDivisionNodeDepth) {
-            var pos2 = draw.tmpVec5;
-            
-            divisionNode = map.measure.getSpatialDivisionNodeFromId(this.id);
+        map.measure.getSpatialDivisionNodeAndExtents2(this.id, pos2, divisionNode);
+        //var node = pos2[0]; 
+        llx = pos2[1];
+        lly = pos2[2];
+        urx = pos2[3];
+        ury = pos2[4];
 
-            if (!divisionNode) {
-                return;
-            }
+        this.divisionNode = divisionNode;
 
-            map.measure.getSpatialDivisionNodeAndExtents2(this.id, pos2, divisionNode);
-            //var node = pos2[0]; 
-            llx = pos2[1];
-            lly = pos2[2];
-            urx = pos2[3];
-            ury = pos2[4];
-
-            this.divisionNode = divisionNode;
-
-            /*if (this.id[0] == 2 && this.id[1] == 0 && this.id[2] == 2) {
-                var res = this.map.measure.getSpatialDivisionNodeAndExtents(this.id);
-                res = res;
-            }*/
-            
-        } else {
-            var res = map.measure.getSpatialDivisionNodeAndExtents(this.id);
-            divisionNode = res ? res[0] : null; 
-
-            if (!divisionNode) {
-                return;
-            }
-                        
-            llx = res[1][0][0];
-            lly = res[1][0][1];
-            urx = res[1][1][0];
-            ury = res[1][1][1];
-            this.divisionNode = divisionNode;
-        }
-
-        this.llx = llx;
-        this.lly = lly;
-        this.urx = urx;
-        this.ury = ury;
-        
-        var h = this.minZ;
-        //var middle = [(ur[0] + ll[0])* 0.5, (ur[1] + ll[1])* 0.5, h];
-        //var normal = [0,0,0];
-        
-        pos[0] = (urx + llx)* 0.5; 
-        pos[1] = (ury + lly)* 0.5; 
-        pos[2] = h; 
-        
-        divisionNode.getPhysicalCoordsFast(pos, true, this.diskPos, 0, 0);
-        
-        if (geocent) {
-            this.diskDistance = vec3.length(this.diskPos); 
-            vec3.normalize(this.diskPos, this.diskNormal);
-        } else {
-            this.diskNormal[0] = 0;
-            this.diskNormal[1] = 0;
-            this.diskNormal[2] = 1;
-        }
-        //this.diskNormal = normal;   
-        var normal = this.diskNormal;
-        
-        
-        //if (divisionNode.id[0] == 1 && divisionNode.id[1] ==  1 && divisionNode.id[2] == 0) {   //???? debug?????
-          //  var res = this.map.getSpatialDivisionNodeAndExtents(this.id);
-          //  node = node;
-        //}
-        
-        pos[0] = urx; 
-        pos[1] = ury; 
-        pos[2] = h; 
-
-        /*if (this.id[0] == 17 && this.id[1] == 53306 && this.id[2] == 30754) {
-            normal = normal;
+        /*if (this.id[0] == 2 && this.id[1] == 0 && this.id[2] == 2) {
+            var res = this.map.measure.getSpatialDivisionNodeAndExtents(this.id);
+            res = res;
         }*/
         
-        var bbox = this.bbox2;
+    } else {
+        var res = map.measure.getSpatialDivisionNodeAndExtents(this.id);
+        divisionNode = res ? res[0] : null; 
 
-        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 0);
+        if (!divisionNode) {
+            return;
+        }
+                    
+        llx = res[1][0][0];
+        lly = res[1][0][1];
+        urx = res[1][1][0];
+        ury = res[1][1][1];
+        this.divisionNode = divisionNode;
+    }
+
+    this.llx = llx;
+    this.lly = lly;
+    this.urx = urx;
+    this.ury = ury;
+    
+    var h = this.minZ;
+    //var middle = [(ur[0] + ll[0])* 0.5, (ur[1] + ll[1])* 0.5, h];
+    //var normal = [0,0,0];
+    
+    pos[0] = (urx + llx)* 0.5; 
+    pos[1] = (ury + lly)* 0.5; 
+    pos[2] = h; 
+    
+    divisionNode.getPhysicalCoordsFast(pos, true, this.diskPos, 0, 0);
+    
+    if (geocent) {
+        this.diskDistance = vec3.length(this.diskPos); 
+        vec3.normalize(this.diskPos, this.diskNormal);
+    } else {
+        this.diskNormal[0] = 0;
+        this.diskNormal[1] = 0;
+        this.diskNormal[2] = 1;
+    }
+    //this.diskNormal = normal;   
+    var normal = this.diskNormal;
+    
+    
+    //if (divisionNode.id[0] == 1 && divisionNode.id[1] ==  1 && divisionNode.id[2] == 0) {   //???? debug?????
+      //  var res = this.map.getSpatialDivisionNodeAndExtents(this.id);
+      //  node = node;
+    //}
+    
+    pos[0] = urx; 
+    pos[1] = ury; 
+    pos[2] = h; 
+
+    /*if (this.id[0] == 17 && this.id[1] == 53306 && this.id[2] == 30754) {
+        normal = normal;
+    }*/
+    
+    var bbox = this.bbox2;
+
+    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 0);
+
+    pos[1] = lly; 
+    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 3);
+    
+    pos[0] = llx; 
+    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 6);
+    
+    pos[1] = ury; 
+    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 9);
+
+    var height;
+
+    if (!geocent) {
+        height = this.maxZ - h;
+        
+        bbox[12] = bbox[0];
+        bbox[13] = bbox[1];
+        bbox[14] = bbox[2] + height;
+        
+        bbox[15] = bbox[3];
+        bbox[16] = bbox[4];
+        bbox[17] = bbox[5] + height;
+    
+        bbox[18] = bbox[6];
+        bbox[19] = bbox[7];
+        bbox[20] = bbox[8] + height;
+    
+        bbox[21] = bbox[9];
+        bbox[22] = bbox[10];
+        bbox[23] = bbox[11] + height;
+        return;        
+    }
+
+    var normalize;
+    var dot = vec3.dot;
+    var d1, d2, d3, d4, maxDelta;
+
+    height = this.maxZ - h;
+
+    if (this.id[0] <= 3) { //get aabbox for low lods
+        normalize = vec3.normalize2; 
+
+        normalize(bbox, 0, pos);
+        d1 = dot(normal, pos);
+        
+        normalize(bbox, 3, pos);
+        d2 = dot(normal, pos);
+
+        normalize(bbox, 6, pos);
+        d3 = dot(normal, pos);
+
+        normalize(bbox, 9, pos);
+        d4 = dot(normal, pos);
+
+        maxDelta = Math.min(d1, d2, d3, d4);
+
+        pos[0] = (urx + llx)* 0.5; 
+        pos[1] = ury; 
+        pos[2] = h; 
+        
+        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 12);
 
         pos[1] = lly; 
-        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 3);
-        
+        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 15);
+
+        pos[0] = urx; 
+        pos[1] = (ury + lly)* 0.5; 
+        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 18);
+
         pos[0] = llx; 
-        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 6);
-        
-        pos[1] = ury; 
-        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 9);
+        divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 21);
 
-        var height;
+        var mpos = this.diskPos;
+        var maxX = Math.max(bbox[0], bbox[3], bbox[6], bbox[9], bbox[12], bbox[15], bbox[18], bbox[21], mpos[0]);
+        var minX = Math.min(bbox[0], bbox[3], bbox[6], bbox[9], bbox[12], bbox[15], bbox[18], bbox[21], mpos[0]);
+        
+        var maxY = Math.max(bbox[1], bbox[4], bbox[7], bbox[10], bbox[13], bbox[16], bbox[19], bbox[22], mpos[1]);
+        var minY = Math.min(bbox[1], bbox[4], bbox[7], bbox[10], bbox[13], bbox[16], bbox[19], bbox[22], mpos[1]);
+        
+        var maxZ = Math.max(bbox[2], bbox[5], bbox[8], bbox[11], bbox[14], bbox[17], bbox[20], bbox[23], mpos[2]);
+        var minZ = Math.min(bbox[2], bbox[5], bbox[8], bbox[11], bbox[14], bbox[17], bbox[20], bbox[23], mpos[2]);
+        
+        if (this.id[0] <= 1) {
+            pos[0] = urx + (llx-urx )* 0.25; 
+            pos[1] = (ury + lly)* 0.5; 
+            
+            divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 12);
+    
+            pos[0] = urx + (llx-urx )* 0.75; 
+            divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 15);
+    
+            pos[0] = (urx + llx)* 0.5; 
+            pos[1] = ury + (lly-ury )* 0.25; 
+            divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 18);
+    
+            pos[1] = ury + (lly-ury )* 0.75; 
+            divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 21);
 
-        if (!geocent) {
-            height = this.maxZ - h;
+            maxX =  Math.max(maxX, bbox[12], bbox[15], bbox[18], bbox[21]);
+            minX =  Math.min(minX, bbox[12], bbox[15], bbox[18], bbox[21]);
             
-            bbox[12] = bbox[0];
-            bbox[13] = bbox[1];
-            bbox[14] = bbox[2] + height;
+            maxY =  Math.max(maxY, bbox[13], bbox[16], bbox[19], bbox[22]);
+            minY =  Math.min(minY, bbox[13], bbox[16], bbox[19], bbox[22]);
             
-            bbox[15] = bbox[3];
-            bbox[16] = bbox[4];
-            bbox[17] = bbox[5] + height;
-        
-            bbox[18] = bbox[6];
-            bbox[19] = bbox[7];
-            bbox[20] = bbox[8] + height;
-        
-            bbox[21] = bbox[9];
-            bbox[22] = bbox[10];
-            bbox[23] = bbox[11] + height;
-            return;        
+            maxZ =  Math.max(maxZ, bbox[14], bbox[17], bbox[20], bbox[23]);
+            minZ =  Math.min(minZ, bbox[14], bbox[17], bbox[20], bbox[23]);
+
+            maxDelta = -1;//full circle;
         }
 
-        var normalize;
-        var dot = vec3.dot;
-        var d1, d2, d3, d4, maxDelta;
+        bbox[0] = minX; bbox[1] = minY; bbox[2] = minZ;
+        bbox[3] = maxX; bbox[4] = minY; bbox[5] = minZ;
+        bbox[6] = maxX; bbox[7] = maxY; bbox[8] = minZ;
+        bbox[9] = minX; bbox[10] = maxY; bbox[11] = minZ;
 
-        if (map.config.mapPreciseBBoxTest || version >= 4) { 
-        //if (true) { 
-            height = this.maxZ - h;
+        bbox[12] = minX; bbox[13] = minY; bbox[14] = maxZ;
+        bbox[15] = maxX; bbox[16] = minY; bbox[17] = maxZ;
+        bbox[18] = maxX; bbox[19] = maxY; bbox[20] = maxZ;
+        bbox[21] = minX; bbox[22] = maxY; bbox[23] = maxZ;
+    } else {
 
-            if (this.id[0] <= 3) { //get aabbox for low lods
-                normalize = vec3.normalize2; 
+        normalize = vec3.normalize3; 
+        dot = vec3.dot2;
 
-                normalize(bbox, 0, pos);
-                d1 = dot(normal, pos);
-                
-                normalize(bbox, 3, pos);
-                d2 = dot(normal, pos);
+        normalize(bbox, 0, bbox, 12);
+        d1 = dot(normal, bbox, 12);
         
-                normalize(bbox, 6, pos);
-                d3 = dot(normal, pos);
-        
-                normalize(bbox, 9, pos);
-                d4 = dot(normal, pos);
+        normalize(bbox, 3, bbox, 15);
+        d2 = dot(normal, bbox, 15);
 
-                maxDelta = Math.min(d1, d2, d3, d4);
+        normalize(bbox, 6, bbox, 18);
+        d3 = dot(normal, bbox, 18);
 
-                pos[0] = (urx + llx)* 0.5; 
-                pos[1] = ury; 
-                pos[2] = h; 
-                
-                divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 12);
-
-                pos[1] = lly; 
-                divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 15);
-
-                pos[0] = urx; 
-                pos[1] = (ury + lly)* 0.5; 
-                divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 18);
-
-                pos[0] = llx; 
-                divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 21);
-
-                var mpos = this.diskPos;
-                var maxX = Math.max(bbox[0], bbox[3], bbox[6], bbox[9], bbox[12], bbox[15], bbox[18], bbox[21], mpos[0]);
-                var minX = Math.min(bbox[0], bbox[3], bbox[6], bbox[9], bbox[12], bbox[15], bbox[18], bbox[21], mpos[0]);
-                
-                var maxY = Math.max(bbox[1], bbox[4], bbox[7], bbox[10], bbox[13], bbox[16], bbox[19], bbox[22], mpos[1]);
-                var minY = Math.min(bbox[1], bbox[4], bbox[7], bbox[10], bbox[13], bbox[16], bbox[19], bbox[22], mpos[1]);
-                
-                var maxZ = Math.max(bbox[2], bbox[5], bbox[8], bbox[11], bbox[14], bbox[17], bbox[20], bbox[23], mpos[2]);
-                var minZ = Math.min(bbox[2], bbox[5], bbox[8], bbox[11], bbox[14], bbox[17], bbox[20], bbox[23], mpos[2]);
-                
-                if (this.id[0] <= 1) {
-                    pos[0] = urx + (llx-urx )* 0.25; 
-                    pos[1] = (ury + lly)* 0.5; 
-                    
-                    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 12);
+        normalize(bbox, 9, bbox, 21);
+        d4 = dot(normal, bbox, 21);
     
-                    pos[0] = urx + (llx-urx )* 0.75; 
-                    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 15);
-    
-                    pos[0] = (urx + llx)* 0.5; 
-                    pos[1] = ury + (lly-ury )* 0.25; 
-                    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 18);
-    
-                    pos[1] = ury + (lly-ury )* 0.75; 
-                    divisionNode.getPhysicalCoordsFast(pos, true, bbox, 0, 21);
+        maxDelta = Math.min(d1, d2, d3, d4);
 
-                    maxX =  Math.max(maxX, bbox[12], bbox[15], bbox[18], bbox[21]);
-                    minX =  Math.min(minX, bbox[12], bbox[15], bbox[18], bbox[21]);
-                    
-                    maxY =  Math.max(maxY, bbox[13], bbox[16], bbox[19], bbox[22]);
-                    minY =  Math.min(minY, bbox[13], bbox[16], bbox[19], bbox[22]);
-                    
-                    maxZ =  Math.max(maxZ, bbox[14], bbox[17], bbox[20], bbox[23]);
-                    minZ =  Math.min(minZ, bbox[14], bbox[17], bbox[20], bbox[23]);
+        if (this.id[0] <= 8) { //extend bbox because of lon curvature
+            pos = this.diskPos;
 
-                    maxDelta = -1;//full circle;
-                }
+            var expand = 0.12 / (9-4) * (5-(this.id[0]-4));
 
-                bbox[0] = minX; bbox[1] = minY; bbox[2] = minZ;
-                bbox[3] = maxX; bbox[4] = minY; bbox[5] = minZ;
-                bbox[6] = maxX; bbox[7] = maxY; bbox[8] = minZ;
-                bbox[9] = minX; bbox[10] = maxY; bbox[11] = minZ;
+            bbox[0] += (bbox[0] - pos[0]) * expand;
+            bbox[1] += (bbox[1] - pos[1]) * expand;
+            bbox[2] += (bbox[2] - pos[2]) * expand;
 
-                bbox[12] = minX; bbox[13] = minY; bbox[14] = maxZ;
-                bbox[15] = maxX; bbox[16] = minY; bbox[17] = maxZ;
-                bbox[18] = maxX; bbox[19] = maxY; bbox[20] = maxZ;
-                bbox[21] = minX; bbox[22] = maxY; bbox[23] = maxZ;
-            } else {
+            bbox[3] += (bbox[3] - pos[0]) * expand;
+            bbox[4] += (bbox[4] - pos[1]) * expand;
+            bbox[5] += (bbox[5] - pos[2]) * expand;
 
-                normalize = vec3.normalize3; 
-                dot = vec3.dot2;
+            bbox[6] += (bbox[6] - pos[0]) * expand;
+            bbox[7] += (bbox[7] - pos[1]) * expand;
+            bbox[8] += (bbox[8] - pos[2]) * expand;
 
-                normalize(bbox, 0, bbox, 12);
-                d1 = dot(normal, bbox, 12);
-                
-                normalize(bbox, 3, bbox, 15);
-                d2 = dot(normal, bbox, 15);
-        
-                normalize(bbox, 6, bbox, 18);
-                d3 = dot(normal, bbox, 18);
-        
-                normalize(bbox, 9, bbox, 21);
-                d4 = dot(normal, bbox, 21);
-    
-                maxDelta = Math.min(d1, d2, d3, d4);
-
-                if (this.id[0] <= 8) { //extend bbox because of lon curvature
-                    pos = this.diskPos;
-
-                    var expand = 0.12 / (9-4) * (5-(this.id[0]-4));
-
-                    bbox[0] += (bbox[0] - pos[0]) * expand;
-                    bbox[1] += (bbox[1] - pos[1]) * expand;
-                    bbox[2] += (bbox[2] - pos[2]) * expand;
-
-                    bbox[3] += (bbox[3] - pos[0]) * expand;
-                    bbox[4] += (bbox[4] - pos[1]) * expand;
-                    bbox[5] += (bbox[5] - pos[2]) * expand;
-
-                    bbox[6] += (bbox[6] - pos[0]) * expand;
-                    bbox[7] += (bbox[7] - pos[1]) * expand;
-                    bbox[8] += (bbox[8] - pos[2]) * expand;
-
-                    bbox[9] += (bbox[9] - pos[0]) * expand;
-                    bbox[10] += (bbox[10] - pos[1]) * expand;
-                    bbox[11] += (bbox[11] - pos[2]) * expand;
-                }
-
-                //extend bbox height by tile curvature 
-                height += draw.planetRadius - (draw.planetRadius * maxDelta);  
-                
-                bbox[12] = bbox[0] + bbox[12] * height;
-                bbox[13] = bbox[1] + bbox[13] * height;
-                bbox[14] = bbox[2] + bbox[14] * height;
-                
-                bbox[15] = bbox[3] + bbox[15] * height;
-                bbox[16] = bbox[4] + bbox[16] * height;
-                bbox[17] = bbox[5] + bbox[17] * height;
-            
-                bbox[18] = bbox[6] + bbox[18] * height;
-                bbox[19] = bbox[7] + bbox[19] * height;
-                bbox[20] = bbox[8] + bbox[20] * height;
-            
-                bbox[21] = bbox[9] + bbox[21] * height;
-                bbox[22] = bbox[10] + bbox[22] * height;
-                bbox[23] = bbox[11] + bbox[23] * height;
-            }
-        
-        } else {
-            normalize = vec3.normalize2; 
-
-            normalize(bbox, 0, pos);
-            d1 = dot(normal, pos);
-            
-            normalize(bbox, 3, pos);
-            d2 = dot(normal, pos);
-    
-            normalize(bbox, 6, pos);
-            d3 = dot(normal, pos);
-    
-            normalize(bbox, 9, pos);
-            d4 = dot(normal, pos);
-
-            maxDelta = Math.min(d1, d2, d3, d4);
+            bbox[9] += (bbox[9] - pos[0]) * expand;
+            bbox[10] += (bbox[10] - pos[1]) * expand;
+            bbox[11] += (bbox[11] - pos[2]) * expand;
         }
 
-        if (version >= 5 && this.usedDisplaySize()) {
-            this.bboxMaxSize = Math.max(
-                vec3.distance2(bbox, 0, bbox, 3),
-                vec3.distance2(bbox, 3, bbox, 6),
-                vec3.distance2(bbox, 0, bbox, 12)
-            );
-        }
+        //extend bbox height by tile curvature 
+        height += draw.planetRadius - (draw.planetRadius * maxDelta);  
+        
+        bbox[12] = bbox[0] + bbox[12] * height;
+        bbox[13] = bbox[1] + bbox[13] * height;
+        bbox[14] = bbox[2] + bbox[14] * height;
+        
+        bbox[15] = bbox[3] + bbox[15] * height;
+        bbox[16] = bbox[4] + bbox[16] * height;
+        bbox[17] = bbox[5] + bbox[17] * height;
+    
+        bbox[18] = bbox[6] + bbox[18] * height;
+        bbox[19] = bbox[7] + bbox[19] * height;
+        bbox[20] = bbox[8] + bbox[20] * height;
+    
+        bbox[21] = bbox[9] + bbox[21] * height;
+        bbox[22] = bbox[10] + bbox[22] * height;
+        bbox[23] = bbox[11] + bbox[23] * height;
+    }
 
-        //get cos angle based at 90deg
-        this.diskAngle = Math.cos(Math.max(0,(Math.PI * 0.5) - Math.acos(maxDelta)));
-        this.diskAngle2 = maxDelta;
-        this.diskAngle2A = Math.acos(maxDelta); //optimalization
+    if (version >= 5 && this.usedDisplaySize()) {
+        this.bboxMaxSize = Math.max(
+            vec3.distance2(bbox, 0, bbox, 3),
+            vec3.distance2(bbox, 3, bbox, 6),
+            vec3.distance2(bbox, 0, bbox, 12)
+        );
+    }
 
-        //shift center closer to earth
-        //var factor = this.bbox.maxSize * 0.2; 
-        //this.diskPos = [this.diskPos[0] - normal[0] * factor, this.diskPos[1]  - normal[1] * factor, this.diskPos[2] - normal[2] * factor];   
-    } 
+    //get cos angle based at 90deg
+    this.diskAngle = Math.cos(Math.max(0,(Math.PI * 0.5) - Math.acos(maxDelta)));
+    this.diskAngle2 = maxDelta;
+    this.diskAngle2A = Math.acos(maxDelta); //optimalization
+
+    //shift center closer to earth
+    //var factor = this.bbox.maxSize * 0.2; 
+    //this.diskPos = [this.diskPos[0] - normal[0] * factor, this.diskPos[1]  - normal[1] * factor, this.diskPos[2] - normal[2] * factor];   
 
     //console.log(this.bbox2);
 };
 
 
-MapMetanode.prototype.getWorldMatrix = function(geoPos, matrix) {
-    // Note: the current camera geographic position (geoPos) is not necessary
-    // here, in theory, but for numerical stability (OpenGL ES is float only)
-    // we get rid of the large UTM numbers in the following subtractions. The
-    // camera effectively stays in the position [0,0] and the tiles travel
-    // around it. (The Z coordinate is fine and is not handled in this way.)
-
-    var m = matrix;
-
-    if (m != null) {
-        m[0] = this.bbox.side(0); m[1] = 0; m[2] = 0; m[3] = 0;
-        m[4] = 0; m[5] = this.bbox.side(1); m[6] = 0; m[7] = 0;
-        m[8] = 0; m[9] = 0; m[10] = this.bbox.side(2); m[11] = 0;
-        m[12] = this.bbox.min[0] - geoPos[0]; m[13] = this.bbox.min[1] - geoPos[1]; m[14] = this.bbox.min[2] - geoPos[2]; m[15] = 1;
-    } else {
-        m = mat4.create();
-
-        mat4.multiply( math.translationMatrix(this.bbox.min[0] - geoPos[0], this.bbox.min[1] - geoPos[1], this.bbox.min[2] - geoPos[2]),
-                       math.scaleMatrix(this.bbox.side(0), this.bbox.side(1), this.bbox.side(2)), m);
-    }
-
-    return m;
-};
-
-
-MapMetanode.prototype.drawBBox = function(cameraPos) {
-    if (this.metatile.useVersion >= 4) {
-        return this.drawBBox2(cameraPos);
-    }
-
-    var renderer = this.map.renderer;
-
-    renderer.gpu.useProgram(renderer.progBBox, ['aPosition']);
-
-    var mvp = mat4.create();
-    var mv = mat4.create();
-
-    mat4.multiply(renderer.camera.getModelviewMatrix(), this.getWorldMatrix(cameraPos), mv);
-
-    var proj = renderer.camera.getProjectionMatrix();
-    mat4.multiply(proj, mv, mvp);
-
-    renderer.progBBox.setMat4('uMVP', mvp);
-
-    //draw bbox
-    renderer.bboxMesh.draw(renderer.progBBox, 'aPosition');
-};
-
-
-MapMetanode.prototype.drawBBox2 = function() {
+MapMetanode.prototype.drawBBox = function() {
     //var spoints = []; 
     //for (var i = 0, li = this.bbox2.length; i < li; i++) {
         //var pos = this.bbox2[i];

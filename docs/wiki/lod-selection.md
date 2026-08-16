@@ -249,18 +249,17 @@ estimate.
 After `screenPixelSize` is known, `updateTexelSize()` picks one of two
 distance functions.
 
-`getPixelSize()` is used for projected maps and for geocentric maps
-without precise distance. It classifies the camera into one of the
-regions around the tile bbox, chooses a representative point on the
-nearest bbox face, and calls `Camera.scaleFactor()` for that point.
+`getPixelSize()` is used for projected maps. It classifies the camera
+into one of the regions around the tile bbox, chooses a representative
+point on the nearest bbox face, and calls `Camera.scaleFactor()` for
+that point.
 
 If the camera is inside the bbox, the function returns infinite
 `texelSize`. The traversal then descends, because the current tile cannot
 represent nearby terrain at useful detail.
 
-`getPixelSize3()` is used for geocentric maps when
-`mapPreciseDistanceTest` is enabled or the metatile uses version 4 or
-newer. It uses the metanode disk:
+`getPixelSize3()` is used for geocentric maps. It uses the metanode
+disk:
 
 - `diskNormal` gives the tile center normal.
 - `diskAngle2` is the cosine of the tile angular radius.

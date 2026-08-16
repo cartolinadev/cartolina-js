@@ -493,10 +493,6 @@ const catalogue = {
      *  by the `mapNoTextures` coupling. */
     mapDisableCulling: bool(false, 'internal'),
 
-    /** Culls pre-v4 metatiles in the division-node SRS, the way
-     *  v4+ metatiles always are culled. */
-    mapPreciseCulling: bool(true, 'internal'),
-
     /** Blends measured terrain heights between LODs. */
     mapHeightLodBlend: bool(true, 'internal'),
 
@@ -506,17 +502,6 @@ const catalogue = {
     /** Its only reader is commented out (`surface-tree.js`);
      *  currently no effect. */
     mapBasicTileSequence: bool(false, 'internal'),
-
-    /** Uses the precise bounding-box visibility test for pre-v4
-     *  metatiles on geocentric frames. */
-    mapPreciseBBoxTest: bool(false, 'internal'),
-
-    /** Uses the precise tile distance computation for pre-v4
-     *  metatiles on geocentric frames. */
-    mapPreciseDistanceTest: bool(false, 'internal'),
-
-    /** Forces pre-v5 metatiles to parse as version 3. */
-    mapForceMetatileV3: bool(false, 'internal'),
 
     /** Its only reader is commented out (`metanode.js`); currently
      *  no effect. */

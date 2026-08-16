@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-16 — Metatile parsing starts at version 4
+
+Goal: retire the client's metatile v1–v3 support (backlog 29).
+
+The parser now rejects any version outside 4–6, so nothing downstream
+has to ask which format a metanode came from. That collapsed the
+version guards those branches lived under, taking the height-range
+propagation, the pre-v4 culling and texel-size arms, and the
+axis-aligned metanode bbox drawing with them, along with four config
+keys and the inspector toggle that drove one of them.
+
 ## 2026-08-16 — `MapCamera` keeps only state something reads
 
 Members with no reader are gone, so freeze mode no longer preserves values

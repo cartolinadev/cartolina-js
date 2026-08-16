@@ -386,7 +386,7 @@ MapSurfaceTile.prototype.checkMetanode = function(tree, priority) {
 };
 
 
-MapSurfaceTile.prototype.bboxVisible = function(id, bbox, cameraPos, node) {
+MapSurfaceTile.prototype.bboxVisible = function(id, cameraPos, node) {
     var map = this.map;
     var camera = map.camera;
     if (id[0] < map.measure.minDivisionNodeDepth) {
@@ -415,15 +415,7 @@ MapSurfaceTile.prototype.bboxVisible = function(id, bbox, cameraPos, node) {
         }
     }
 
-    if (node.metatile.useVersion >= 4) {
-        return camera.camera.pointsVisible(node.bbox2, cameraPos);
-    } else {
-        if (!(map.isGeocent && (map.config.mapPreciseBBoxTest)) || id[0] < 4) {
-            return camera.camera.bboxVisible(bbox, cameraPos);
-        } else {
-            return camera.camera.pointsVisible(node.bbox2, cameraPos);
-        }
-    }
+    return camera.camera.pointsVisible(node.bbox2, cameraPos);
 };
 
 MapSurfaceTile.prototype.getPixelSize = function(bbox, screenPixelSize, cameraPos, worldPos, returnDistance) {
@@ -595,7 +587,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
     var texelSizeFit = draw.texelSizeFit;
     var node = this.metanode;
     var cameraPos = map.camera.position;
-    var preciseDistance = (map.isGeocent && (map.config.mapPreciseDistanceTest || node.metatile.useVersion >= 4));  
+    var preciseDistance = map.isGeocent;
 
     if (node.hasGeometry()) {
         var screenPixelSize = Number.POSITIVE_INFINITY;

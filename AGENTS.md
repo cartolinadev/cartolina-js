@@ -314,20 +314,19 @@ it reflects the current state of things. Do not add session-log entries
 for trivial changes merely because they are being committed at the
 user's request.
 
-**Size the write-up to the change.** A four-line fix gets a few
-sentences, not a report. Do not narrate the investigation, restate the
-diff in prose, walk through the mechanism a reader can see in the code,
-or list routine verification that passed. State what was wrong and what
-the change does; stop there. This governs commit messages, session-log
-entries, and review notes alike. Prose that carries no information a
-reader lacks is noise, and its cost scales with how often it is read.
+**A session-log entry states the goal first, then the outcome** — what
+the change set out to do, and where the code ended up.
 
-Do not recite the code. A write-up that lists the removed members, the
-renamed fields, or the touched files duplicates what `git show` already
-shows, and it goes stale the moment the code moves on. Name the outcome
-instead: what the reader can now rely on, or what they must no longer
-assume. Most session-log entries fit in one or two sentences; a single
-line is a perfectly good entry.
+**Size the write-up to the change.** A four-line fix gets a few
+sentences, not a report: what was wrong, what the change does, stop.
+No investigation narrative, no diff in prose, no mechanism the code
+already shows, no verification that passed. This governs commit
+messages, session-log entries, and review notes alike.
+
+Do not recite the code — removed members, renamed fields, touched files
+are what `git show` is for, and such lists go stale. Name what a reader
+can now rely on or must no longer assume. One or two sentences is
+normal; one line is a fine entry.
 
 Commit only when the user asks, or automatically before starting a new
 unrelated body of work when uncommitted, unrelated changes already exist.

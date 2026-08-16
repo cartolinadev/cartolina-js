@@ -10,7 +10,6 @@ import type LegacyMap from './legacy-map';
 import type TerrainSource from './terrain-source';
 import type MapFreeLayer from './free-layer';
 import type MapSurfaceTile from './surface-tile';
-import type MapMetanode from './metanode';
 
 export default class MapSurfaceTree {
 
@@ -29,11 +28,6 @@ export default class MapSurfaceTree {
      * free layers.
      */
     freeLayerSurface: TerrainSource | MapFreeLayer | null;
-
-    updateNodeHeightExtents(
-        tile: MapSurfaceTile,
-        node: MapMetanode,
-    ): void;
 
     draw(stopOnFinish?: boolean): void;
 }

@@ -5,6 +5,84 @@ closed for another reason (superseded, promoted to an RFC, subsumed by another
 change). Entries keep the sequential number they were assigned in the active
 backlog, in order of when they were opened; numbers are not reused.
 
+## 29. REFACTOR: drop metatile format versions 1–3
+
+**Opened:** 2026-05-27
+**Status:** resolved 2026-08-16 — the parser now rejects anything outside
+versions 4–6
+
+### Goal
+
+Remove all client-side code paths that exist only to handle metatile
+format versions 1, 2, and 3.
+
+### Rationale
+
+The mapy.com production deployment serves version 4, confirmed by
+inspecting live responses (2026-05). No known live data source produces
+versions 1–3. The v1–v3 code paths carry meaningful complexity:
+
+- Quantized physical extent decoding in
+  `MapMetanode.prototype.parseMetanode()` —
+  [src/map/metanode.js](../../src/map/metanode.js)
+- Aliasing `minZ`/`maxZ` to the int16 navSRS `minHeight`/`maxHeight`
+  instead of reading explicit float32 SDS values
+- `MapSurfaceTree.prototype.updateNodeHeightExtents()` in
+  [src/map/surface-tree.js](../../src/map/surface-tree.js)
+  — propagates the height range from navtile-flagged ancestors to
+  children for culling box construction; guarded by
+  `node.metatile.useVersion < 4` and never fires against v4+ data
+- The `mapForceMetatileV3` config flag, which forces `useVersion = 3`
+  as an escape hatch for debugging the v4/v5 culling path; no longer
+  needed once v3 is gone
+- Credit-block parsing differences between v1 and v2+ (separate
+  `creditCount`/`creditSize` fields in v1)
+- `nodeSize` header field in v1 (used to skip unknown node formats)
+
+### What to delete
+
+- The `if (version < 4)` alias in `parseMetanode()` that sets
+  `this.minZ = this.minHeight` (v1–v3 had no explicit float32 SDS
+  heights, so `minZ`/`maxZ` were aliased from the navSRS int16 range;
+  v4+ stores them separately) —
+  [src/map/metanode.js:211](../../src/map/metanode.js)
+- `MapSurfaceTree.prototype.updateNodeHeightExtents()` and all its
+  call sites in the legacy and typed traversals — this propagation
+  exists only because the alias above produces unreliable height ranges
+  for pre-v4 tiles and children need to inherit from the nearest
+  navtile-flagged ancestor —
+  [src/map/surface-tree.js:157](../../src/map/surface-tree.js)
+- The `mapForceMetatileV3` config key, its setter/getter in `map.js`,
+  and the `useVersion` override logic in `MapMetatile`
+- The v1-specific credit-block parsing path (`creditCount`/`creditSize`
+  pre-header fields)
+- The v1 `nodeSize` header field handler
+
+**Do not delete** the `if (version < 5)` quantized-extents branch in
+`parseMetanode()`. Despite the name, that branch fires for v1 through
+v4: v4 tiles still carry the packed `geomExtents` bytes in the stream;
+v5 is the format version that removes them. The bbox decoded from those
+bytes is still used for culling on v4 tiles. Deleting that branch would
+misalign the stream reader and corrupt all subsequent field reads for
+v4 metatiles.
+
+### Precondition
+
+Verify that no style or mapConfig consumed in the test suite or by
+active deployments points at a tileserver that produces v1–v3 metatiles.
+The metatile version is readable from the first two bytes after the
+`MT` magic: `uint16 LE` at offset 2.
+
+**Resolution:** the parser now rejects any version outside 4–6. The
+pre-v4 branches took their surrounding version guards with them, which
+in turn collapsed the culling, texel-size, bbox-drawing, and
+height-range propagation paths those guards selected, plus the four
+config keys that only tuned pre-v4 behaviour. The precondition holds
+for the public test map configs: every surface and glue in
+[test/urls.json](../../test/urls.json) serves v6.
+
+---
+
 ## 35. PERF: discard-free tile color shader for watertight tiles
 
 **Opened:** 2026-06-06

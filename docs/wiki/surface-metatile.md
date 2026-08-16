@@ -10,7 +10,8 @@ their height range, which children exist, and how large the tile
 would appear on screen. All LOD selection, frustum culling, and
 resource-loading decisions are driven by metatile data.
 
-The client supports format versions **1–6**. cartolina-tileserver
+The client supports format versions **4–6**; the parser rejects
+anything outside that range. cartolina-tileserver
 (mapproxy) emits v6 with the watertight bitplane, generated fresh on
 each request. vts-vtsd serves stored tilesets byte-for-byte, so a
 stored v5 tileset stays v5 until it is re-encoded to v6; see
@@ -32,7 +33,7 @@ All multi-byte integers are little-endian.
 
 ```
 magic[2]       char     — always "MT"
-version        uint16   — format version (1–6)
+version        uint16   — format version (4–6)
 lod            uint8    — LOD of this metatile
 metatileIdx    uint32   — tile X of the upper-left corner
 metatileIdy    uint32   — tile Y of the upper-left corner
@@ -46,14 +47,10 @@ The metatile nominally covers a power-of-two square of tiles, but
 only the sub-grid `[offsetX, offsetY] + sizeX × sizeY` contains
 valid metanodes.
 
-After the fixed fields, one version-dependent byte follows:
+After the fixed fields come `flags uint8` and `creditCount uint8`,
+the two fields described below.
 
-- **v1:** `nodeSize uint8` — byte size of a single metanode (used
-  by v1 code to skip nodes it cannot parse).
-- **v2+:** `flags uint8`, `creditCount uint8` — the two fields
-  described below.
-
-### Header flags (v2+)
+### Header flags
 
 The `flags` byte in the header controls optional sections that
 follow:
@@ -68,7 +65,7 @@ Bits 6 and 7 are mutually exclusive. When both are 0 the
 `sourceReference` field is absent from metanodes (equivalent to
 `BackingType::none` in the C++ encoder).
 
-### Flag bitplanes (v2+)
+### Flag bitplanes
 
 When header flag bit `i` (0–5) is set, a bitplane for flag `i`
 follows in the stream. A bitplane is a byte array of size
@@ -89,7 +86,7 @@ coverage, not a closed three-dimensional manifold, and implies
 drawn successfully.
 
 The client writes the flag to `metanode.watertight` when parsing a v6
-metatile. For v1–v5 metatiles the client may infer the same property from a
+metatile. For v4–v5 metatiles the client may infer the same property from a
 loaded mesh footprint or, for a parent that declares geometry, from four
 existing watertight children. The latter assumes the ordinary coherence of
 the terrain LOD pyramid: four complete child cells safely establish that the
@@ -121,10 +118,7 @@ A set bit indicates the tile at that position carries this
 attribution. The client resolves `creditId` to a string key via
 the credits registry received in `mapConfig.json`.
 
-In v1, the credits section is preceded by `creditCount uint8`
-and `creditSize uint16` (the total size of all credit blocks in
-bytes). In v2+ those fields moved to the file header and credit
-blocks follow the flag bitplanes directly.
+Credit blocks follow the flag bitplanes directly.
 
 ### Metanode array
 
@@ -144,7 +138,7 @@ for a given tile.
 flags          uint8    — content and child flags (see below)
 ```
 
-**v1–v4 — quantized physical extents:**
+**v4 — quantized physical extents:**
 
 ```
 geomExtents    variable — packed bit array of 6 × (lod+2) bits:
@@ -157,12 +151,11 @@ geomExtents    variable — packed bit array of 6 × (lod+2) bits:
 All-zero extents signal an empty tile (no geometry). The client
 maps these to ±Infinity so they are culled immediately.
 
-v4 tiles carry these bytes at the same position as v1–v3. The client
-parser reads them for all `version < 5` and uses them for the
+The client parser reads them for `version < 5` and uses them for the
 horizontal bounding box. They are superseded in v5 by explicit SDS
 horizontal extents.
 
-**v4+ — explicit SDS height:**
+**Explicit SDS height:**
 
 ```
 minZ           float32  — min height in SDS (surface coordinate space)
@@ -198,7 +191,7 @@ bounds at partial-coverage tiles and avoid the division node
 computation for the horizontal component — a straightforward
 improvement that has not been implemented.
 
-**Common suffix (all versions):**
+**Common suffix:**
 
 ```
 internalTextureCount   uint8    — number of internal textures;
@@ -212,7 +205,7 @@ minHeight              int16    — navtile height range min (navSRS units)
 maxHeight              int16    — navtile height range max
 ```
 
-**v3+ optional source reference:**
+**Optional source reference:**
 
 ```
 sourceReference        uint8 or uint16
@@ -297,12 +290,11 @@ into projections, not about metanodes.
 
 ## Version history
 
+Versions 1–3 are not listed: the client no longer parses them.
+
 | Version | Changes |
 |---------|---------|
-| 1 | Initial format. `nodeSize` in header; quantized physical extents per metanode; credits preceded by `creditCount` and `creditSize` fields. |
-| 2 | `flags` and `creditCount` moved to header; `creditSize` dropped; flag bitplanes added; alien bitplane (plane 0) introduced. |
-| 3 | `sourceReference` field added to each metanode; header flag bits 6/7 control whether it is uint8 or uint16. |
-| 4 | `minZ`, `maxZ`, `surrogate` (float32 each) added after the existing quantized extents. Quantized extents remain in the stream and are still read by the client for the horizontal bbox. |
+| 4 | `minZ`, `maxZ`, `surrogate` (float32 each) added after the quantized extents inherited from v3. Quantized extents remain in the stream and are still read by the client for the horizontal bbox. |
 | 5 | Quantized physical extents removed; SDS horizontal extents (`llX`, `llY`, `urX`, `urY`) added in their place. cartolina-js skips the SDS horizontal extents and continues to use full-cell bounds derived from the division node, which is sufficient for frustum culling. |
 | 6 | Header bitplane 1 added for the watertight tile flag. The per-node byte layout is unchanged from v5. |
 
@@ -363,16 +355,11 @@ and traversal rules.
 ### Frustum culling and disk distance
 
 `MapMetanode.generateCullingHelpers()` in
-`src/map/metanode.js` computes the culling disc:
-
-- **v4+**: `minZ` and the division-node coordinate transform
-  give `diskPos` (3D physical center), `diskNormal` (surface
-  normal at center), and `diskAngle`/`diskAngle2` (cosines of
-  the half-angle of the tile as seen from the camera).
-- **v1–v3** (and the `mapForceMetatileV3` fallback): the
-  quantized extent bytes are decoded and the bbox is derived
-  from the reference frame's `spaceExtentSize` /
-  `spaceExtentOffset`.
+`src/map/metanode.js` computes the culling disc: `minZ` and the
+division-node coordinate transform give `diskPos` (3D physical
+center), `diskNormal` (surface normal at center), and
+`diskAngle`/`diskAngle2` (cosines of the half-angle of the tile as
+seen from the camera).
 
 `tile.isVisible()` uses `diskAngle2` and `diskAngle2A` against
 the camera direction; `tile.getDistance()` uses `diskDistance`
@@ -382,11 +369,6 @@ tile boundary.
 For geocentric projections at low LODs (≤ 3), the client expands
 the physical bbox to account for globe curvature before culling.
 
-The `mapForceMetatileV3` config flag forces `useVersion = 3` for
-any metatile with version < 5, keeping the older quantized-extent
-bbox path active. It exists as an escape hatch for debugging
-regressions in the v4/v5 culling path.
-
 ### Navtile height range
 
 `node.minHeight` and `node.maxHeight` (int16, in navSRS units)
@@ -395,9 +377,7 @@ bound the elevation range of the navtile. The draw system in
 `uHeights.x` and `uHeights.y`. They are also used when
 constructing navtile cache keys.
 
-For v1–v3, `minZ` and `maxZ` are aliased to `minHeight` /
-`maxHeight` (both are in navSRS coordinates). For v4+, `minZ`
-and `maxZ` are in SDS and may differ from the int16 navSRS
+`minZ` and `maxZ` are in SDS and may differ from the int16 navSRS
 values.
 
 ### Glue surface resolution
@@ -408,21 +388,11 @@ only one component surface. For surrounding tiles the glue has no
 geometry of its own; it records which component surface should be
 rendered there instead.
 
-In v3+, that record is `sourceReference`: a 0-based index into the
-glue's surface-ID array. `MapSurfaceTile.validate()` in
-`surface-tile.js:339` reads it and calls
-`surface.getSurface(metanode.sourceReference)` to set
-`tile.resourceSurface`. From that point on the tile loads its mesh,
-textures, and navtile from that component surface, not from the
-glue.
-
-Before v3, the same information was packed into `internalTextureCount`:
-a non-zero value in a no-geometry glue node was interpreted as a
-1-based surface index (`internalTextureCount - 1`). This repurposing
-of the field made it impossible to distinguish "no internal textures"
-from "redirect to surface 0", which is why the dedicated
-`sourceReference` field was added. The client handles both paths; see
-`surface-tile.js:540–584`.
+That record is `sourceReference`: a 0-based index into the glue's
+surface-ID array. `MapMetanode.parseMetanode()` stores it, but no
+client code reads it — the glue and alien handling that consumed it
+was removed with the multi-surface client code; see
+[glue-alien-flag.md](glue-alien-flag.md).
 
 ### Credits
 
