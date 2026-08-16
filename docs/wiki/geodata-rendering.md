@@ -165,9 +165,8 @@ If a fitted tile is not yet loaded, `drawSurfaceFit()` draws a loaded
 parent as a temporary stand-in. That parent disappears once its child
 is ready — it is a loading fallback, not a second steady-state LOD.
 
-The `mapGeodataLoadMode` config option selects between traversal modes,
-but fitted-frontier is the only mode that makes sense for lettering
-tiles. The option is a candidate for removal.
+Fitted-frontier is the only strategy geodata tiles use; there is no
+config option that selects a different one.
 
 ### From tile to GPU jobs
 

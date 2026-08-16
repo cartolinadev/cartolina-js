@@ -19,7 +19,7 @@ export default class MapMetanode {
      *  area; see pre-v6-watertight.ts. */
     preV6InvalidChildMask?: number;
 
-    /** Axis-aligned height bbox used by pre-v4 metatile formats. */
+    /** Quantized physical bbox carried by metatile version 4. */
     bbox: unknown;
 
     /** Culling point set used by v4+ metatiles and precise tests. */

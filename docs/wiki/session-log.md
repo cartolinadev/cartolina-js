@@ -3,6 +3,13 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-16 — Current terrain metadata and traversal documentation
+
+Goal: make the terrain documentation match the supported metatile range and
+current recursive traversal. The LOD page now describes one combined descent
+whose selection is independent of resource readiness, while the metatile and
+navtile pages distinguish current client behavior from removed VTS paths.
+
 ## 2026-08-16 — Metatile parsing starts at version 4
 
 Goal: retire the client's metatile v1–v3 support (backlog 29).

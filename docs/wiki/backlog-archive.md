@@ -18,9 +18,8 @@ format versions 1, 2, and 3.
 
 ### Rationale
 
-The mapy.com production deployment serves version 4, confirmed by
-inspecting live responses (2026-05). No known live data source produces
-versions 1–3. The v1–v3 code paths carry meaningful complexity:
+The public regression configurations use version 6. The v1–v3 code paths
+carry meaningful complexity:
 
 - Quantized physical extent decoding in
   `MapMetanode.prototype.parseMetanode()` —
@@ -68,10 +67,10 @@ v4 metatiles.
 
 ### Precondition
 
-Verify that no style or mapConfig consumed in the test suite or by
-active deployments points at a tileserver that produces v1–v3 metatiles.
-The metatile version is readable from the first two bytes after the
-`MT` magic: `uint16 LE` at offset 2.
+Verify that every style and mapConfig in the public regression suite points
+at a tileserver that produces a supported metatile version. The metatile
+version is readable from the first two bytes after the `MT` magic: `uint16
+LE` at offset 2.
 
 **Resolution:** the parser now rejects any version outside 4–6. The
 pre-v4 branches took their surrounding version guards with them, which

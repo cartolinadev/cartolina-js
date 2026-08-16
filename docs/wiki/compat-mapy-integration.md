@@ -9,17 +9,12 @@ Only calls on the three named objects below were recorded. Calls on
 mapy.com's own objects are excluded. Last verified: **2026-05-23**,
 integration version **2.81.7**.
 
-### Active metatile version
+### Oldest supported metatile version
 
-Metatile responses from the mapy.com production tileserver
-(`mapserver-3d.mapy.cz`) use **version 4** of the binary metatile
-format, confirmed by inspecting live responses in 2026-05. Version 4
-stores `minZ`, `maxZ`, and `surrogatez` as explicit float32 values in
-the spatial division node coordinate system (SDS), independent of the
-int16 navSRS `minHeight`/`maxHeight` fields.
-
-Version 4 is the oldest format the client parses, so this deployment
-sits at the lower bound of client support. See
+Version 4 is the oldest binary metatile format the client parses. It stores
+`minZ`, `maxZ`, and `surrogatez` as explicit float32 values in the spatial
+division node coordinate system (SDS), independent of the int16 navSRS
+`minHeight`/`maxHeight` fields. See
 [surface-metatile.md](surface-metatile.md) for the supported range and
 [nav-tiles.md](nav-tiles.md) for the full navtile analysis.
 

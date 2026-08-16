@@ -213,22 +213,11 @@ sourceReference        uint8 or uint16
 
 Present when header flag bit 6 (uint8) or bit 7 (uint16) is set.
 
-A glue is a pre-baked tileset that covers the seam between a set
-of overlapping surfaces. Its metatile is a fixed-size
-power-of-two grid, so it necessarily covers tile positions that
-fall outside the actual seam — positions where only one component
-surface is present. For those positions the glue does not carry
-stitched geometry (`!hasGeometry()`). The client still needs to
-render something there, so `sourceReference` names which
-component surface to fetch the mesh and textures from. It is a
-0-based index into the array of surface IDs that make up the
-glue. The tile is then rendered as if it belonged to that surface
-directly, with the glue metatile acting only as the scheduling
-record.
-
-For tiles at the actual seam the glue has its own stitched
-geometry (`hasGeometry() == true`) and `sourceReference` is
-ignored.
+A stored glue or virtual surface can use `sourceReference` to identify the
+component surface that owns a tile without stitched geometry. The value is a
+1-based slot in the aggregated surface table; zero means no reference.
+cartolina-js parses the field to keep the stream aligned but no longer reads
+it because terrain traversal ignores glues and virtual surfaces.
 
 See "Glue surface resolution" in the client usage section below.
 
@@ -339,10 +328,10 @@ computes `tile.texelSize` from the metanode:
 - If `applyTexelSize` is set, the texel size is read from
   `node.pixelSize`. This is the half-float physical length per
   nominal tile sample decoded at parse time.
-- If `applyDisplaySize` is set (v5+), `node.bboxMaxSize /
-  node.displaySize` is used instead, where `bboxMaxSize` is
-  computed in `generateCullingHelpers()` from the physical bbox
-  corner distances.
+- If `applyDisplaySize` is set, version 4 uses `node.bbox.maxSize /
+  node.displaySize`; versions 5 and 6 use `node.bboxMaxSize /
+  node.displaySize`, where `bboxMaxSize` is computed in
+  `generateCullingHelpers()` from the physical bbox corner distances.
 - `hasChildren()` (flag bits 4–7) controls whether the traversal
   descends further or renders the current tile.
 
@@ -388,9 +377,9 @@ only one component surface. For surrounding tiles the glue has no
 geometry of its own; it records which component surface should be
 rendered there instead.
 
-That record is `sourceReference`: a 0-based index into the glue's
-surface-ID array. `MapMetanode.parseMetanode()` stores it, but no
-client code reads it — the glue and alien handling that consumed it
+That record is `sourceReference`: a 1-based slot in the aggregated surface
+table, with zero meaning no reference. `MapMetanode.parseMetanode()` stores
+it, but no client code reads it. The glue and alien handling that consumed it
 was removed with the multi-surface client code; see
 [glue-alien-flag.md](glue-alien-flag.md).
 

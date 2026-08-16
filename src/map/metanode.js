@@ -293,8 +293,7 @@ MapMetanode.prototype.generateCullingHelpers = function(virtual) {
         return;
     }
 
-    // version >= 4 no longer carries quantized physical extents, computed here
-    //use division node srs
+    // Build the culling bounds from the division-node SRS.
 
     if (virtual) {
         return; //result is same for each tile id

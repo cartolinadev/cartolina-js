@@ -117,29 +117,6 @@ at
 
 ---
 
-## Legacy draw path — grid fallback
-
-The config flag `mapHeightfiledWhenUnloaded` (default `true`) enables
-`tile.drawGrid()` as a visual fallback while mesh tiles are still
-loading. The grid draws a flat quad over the tile's geographic cell.
-
-The grid's 3D position uses `mnode.minZ` (and neighbouring tiles'
-`minZ` values read from the tree) — **not the navtile texture**. The
-two are independent: `minZ` is an SDS float32 field,
-`minHeight`/`maxHeight` are the navSRS int16 navtile range.
-
-The grid's visual texture is loaded from a configured bound layer
-(`mapGridTextureLayer`), not from the navtile URL.
-
-The grid fallback path exists only in the **legacy draw traversal** in
-[src/map/surface-tree.js](../../src/map/surface-tree.js).
-The new traversal in
-[src/map/draw-traversal.ts](../../src/map/draw-traversal.ts)
-does not call `drawGrid()`. This path will disappear when the legacy
-traversal is retired.
-
----
-
 ## Dead code paths
 
 ### `{geonavtile}` geodata URL template
@@ -153,26 +130,14 @@ the `{geonavtile}` template variable in
 server to clip geodata by navtile coverage. The flag is disabled and
 the template variable is never populated.
 
-### Heightmap mesh and vertex shader
+### Unused heightmap texture
 
 `RendererInit.prototype.initHeightmap()` in
-[src/renderer/init.js:106](../../src/renderer/init.js)
-builds a 5×5 vertex-grid mesh via
-`RendererGeometry.buildHeightmap(5, true)` but immediately comments
-out the `new GpuMesh()` call. The mesh geometry is built and discarded.
-
-The `renderer.heightmapTexture` that `initHeightmap()` does create is
-a 64×64 procedural texture — dark grey interior with a white border.
-It produces the grid-line pattern in `tile.drawGrid()` when no bound
-layer texture is configured. It does not contain terrain height data.
-
-The `heightmapVertexShader` / `heightmapFragmentShader` pair that
-would have deformed a grid mesh using a navtile texture (storing
-`hmin`/`hmax` in a `vec3 uHeights` uniform) was deleted with the
-legacy mesh tile rendering pipeline in 2026-05-21. The deletion is
-recorded in the
-[REFACTOR: delete legacy mesh tile rendering pipeline](backlog.md)
-backlog entry.
+[src/renderer/init.js:100](../../src/renderer/init.js) creates a 64×64
+procedural texture with a dark grey interior and white border. No draw path
+reads `renderer.heightmapTexture`; it does not contain terrain height data.
+The grid mesh and shaders that once used it were removed with the legacy
+mesh tile rendering path.
 
 ---
 

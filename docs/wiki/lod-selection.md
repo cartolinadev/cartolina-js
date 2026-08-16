@@ -2,10 +2,12 @@
 
 See [index.md](index.md) for the wiki table of contents.
 
-This page documents the legacy terrain tile selection algorithm used by
-`MapSurfaceTree` and `MapSurfaceTile`. The algorithm is inherited from
-VTS. It is still the active code path for surface tiles, glue tiles, and
-free-layer surfaces.
+This page documents the tile selection quantity inherited from VTS: the
+screen-space error proxy that `MapSurfaceTile.updateTexelSize()`
+computes from a metanode. Both tile selection paths use it — the
+recursive terrain traversal in `draw-traversal.ts` and the legacy
+`MapSurfaceTree` tree that tiled-geodata free layers still descend.
+Glues and virtual surfaces are not traversed.
 
 The short version:
 
@@ -14,9 +16,9 @@ The short version:
    size.
 2. `updateTexelSize()` projects that length to viewport pixels for the
    current camera.
-3. The tree traversal descends while the tile would draw too coarsely.
-4. The traversal renders the coarsest ready tile that satisfies the
-   threshold, or falls back to a parent when children are not ready.
+3. The traversal descends while the tile would draw too coarsely.
+4. It renders the tiles that satisfy the threshold, and renders coarser
+   ancestors as fallback where finer tiles are not ready.
 
 
 ## Names
@@ -217,8 +219,8 @@ fallbackTexelSize = distanceFactor * ndcToScreenPixel
                   * (physicalCellSpan / 256)
 ```
 
-Versions 1-4 take `physicalCellSpan` from the stored quantized physical
-bbox. Versions 5-6 derive it from the physical bbox corners generated for
+Version 4 takes `physicalCellSpan` from the stored quantized physical bbox.
+Versions 5–6 derive it from the physical bbox corners generated for
 culling.
 
 `mapStructuralDescentBrake` controls when this estimate may stop descent.
@@ -324,46 +326,33 @@ pass the threshold sooner.
 
 ## Tree Traversal
 
-`MapSurfaceTree.draw()` chooses a traversal mode from `mapLoadMode`, or
-from `mapGeodataLoadMode` for geodata free layers. The modes share the
-same `updateTexelSize()` computation but differ in how aggressively they
-descend and how they handle missing children.
+Terrain selection is one recursive descent over the tile pyramid, shared
+by every surface in view (see
+[draw-traversal.ts](../../src/map/draw-traversal.ts)). A node is a tile
+position, not a tile: every surface with a visible metanode there is
+measured against the same threshold, and the position refines while any
+of them is too coarse. A watertight surface that already fits ends the
+descent, since it covers the cell alone. Nodes without geometry have no
+error to test and fall to the structural brake above.
 
-The draw-traversal RFC removes `mapGeodataLoadMode` from the target
-design. Geodata keeps only fitted-frontier traversal, so the config
-option has no long-term role.
+A position is decided only after every surface has been classified
+against it. A surface whose metadata has not arrived suspends the branch
+rather than dropping out of it, so the result does not depend on the
+order tiles arrive in.
 
-`topdown` is the plain breadth-first traversal:
+Selection ignores what is loaded. Where a selected tile has no geometry
+yet, its ancestors stand in beneath it, and coverage masks (see
+[draw-traversal-mask.ts](../../src/map/draw-traversal-mask.ts)) keep
+them off the finer tiles that are ready. Only every few levels may fetch
+geometry to serve as such a stand-in — `mapFallbackCadence` sets the
+interval — so fallback fetching does not crowd out the tiles actually
+selected. Requests go out coarse and near first.
 
-1. Resolve the root metanode.
-2. Cull the tile against the camera.
-3. Call `tile.updateTexelSize()`.
-4. Render the tile if `texelSize <= texelSizeFit`.
-5. Otherwise inspect children.
-6. Descend only if every existing child has a ready metanode and the
-   child's render resources are ready or can be prepared.
-7. If a child is missing or not ready, render the parent.
-
-Before child traversal, the children are sorted by `child.distance` so
-nearer children are processed first.
-
-`fitonly` descends while metanodes are ready and renders tiles that fit.
-It does not do the same render-resource lookahead as `fit`.
-
-`fit` is the default mode for geodata free layers. It descends quickly,
-uses `mapMaxHiresLodLevels` to limit extra descent, and can try finer
-children when the nominal tile is not render-ready. Terrain surfaces in
-this mode use `lodShift = 4` and `typeFactor = 2000`; free-layer
-surfaces use `lodShift = 0` and `typeFactor = 0.1`.
-
-Because loader priority is inverse, the smaller `typeFactor` for free
-layers schedules comparable free-layer resources sooner than comparable
-surface resources. This is why `surface-tree.js` warns that geodata can
-starve mesh surfaces when geodata uses the `fit` branch.
-
-`downtop` first finds tiles that fit, then walks upward to find loaded
-parents when needed. It is another fallback strategy for incomplete
-resource availability, not a different SSE calculation.
+Tiled-geodata free layers make selection and readiness one decision
+instead. Their frontier leaves the fitted level in whichever direction
+has data: finer when the fitted tile is not loaded, coarser when a
+fitting tile's children are not, bounded by `mapMaxHiresLodLevels`.
+Their requests also outrank comparable terrain ones.
 
 
 ## Validity Of The Approach
@@ -390,9 +379,10 @@ and stable; neither projects the actual tile footprint and measures the
 worst visible error.
 
 The third weakness is policy coupling. LOD choice, load scheduling,
-resource readiness, horizon degradation, grid fallback, and free-layer
-behavior are intertwined inside `surface-tree.js`. That makes the
-threshold harder to reason about than the underlying SSE formula.
+resource readiness, and horizon degradation span `surface-tile.js` and
+`draw-traversal.ts`; geodata free layers use a separate policy in
+`surface-tree.js`. That makes the threshold harder to reason about than the
+underlying SSE formula.
 
 
 ## Comparison With Other Renderers

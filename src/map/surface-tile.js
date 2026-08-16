@@ -654,7 +654,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
         // forces descent regardless of view scale. Compute a finite,
         // fit-comparable estimate instead: model the cell at a 256-sample
         // density and project one sample through the distance factor just
-        // computed. Versions 1-4 carry a quantized physical bbox. Versions
+        // computed. Version 4 carries a quantized physical bbox. Versions
         // 5-6 removed it, so derive the corresponding maximum cell span
         // from the physical bbox corners generated for culling.
         var fallbackMaxSize;

@@ -118,8 +118,8 @@ in [AGENTS.md](../../AGENTS.md).
 
 - [nav-tiles.md](nav-tiles.md) — what navtile textures are, how the
   client uses them for terrain height queries (camera, coordinate
-  conversion, geodata draping), the v1–v3 height-range propagation
-  path, the legacy grid-fallback relationship, and dead code
+  conversion, geodata draping), and the remaining unused heightmap
+  initialization
 - [virtual-surfaces.md](virtual-surfaces.md) — per-tile seam stitching
   and the legacy `virtualSurfaces` mapConfig concept (client
   implementation removed 2026-06-08; retained as a server-side concept)
