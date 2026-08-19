@@ -74,14 +74,14 @@ var MapSurfaceTile = function(map, parent, id) {
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
     this.mapdataCredits = {};
-    
+
     this.resources = this.map.resourcesTree.findNode(id, true);   // link to resource tree
     this.metaresources = this.map.resourcesTree.findAgregatedNode(id, 5, true); //link to meta resource tree
     this.children = [null, null, null, null];
 
     // temporary TileRenderRig (the new aproach to drawing mesh tiles) integration
-    this.tileRenderRig = [];
-    this.lastRenderRig = [];
+    this.tileRenderRig = null;
+    this.lastRenderRig = null;
 };
 
 
@@ -113,7 +113,7 @@ MapSurfaceTile.prototype.kill = function() {
     //this.renderReady = false;
     this.lastSurface = null;
     this.lastState = null;
-        
+
     this.heightMap = null;
     this.drawCommands = [[], [], []];
     this.imageryCredits = {};
@@ -122,11 +122,11 @@ MapSurfaceTile.prototype.kill = function() {
     this.verifyChildren = false;
     this.children = [null, null, null, null];
 
-    this.tileRenderRig.forEach((rig) => rig.dispose());
-    this.tileRenderRig = [];
+    this.tileRenderRig?.dispose();
+    this.tileRenderRig = null;
 
-    this.lastRenderRig.forEach((rig) => rig.dispose());
-    this.lastRenderRig = [];
+    this.lastRenderRig?.dispose();
+    this.lastRenderRig = null;
 
     var parent = this.parent;
     this.parent = null;
@@ -154,10 +154,10 @@ MapSurfaceTile.prototype.viewSwitched = function() {
         rasterTextures : this.rasterTextures,
         surfaceGeodata : this.surfaceGeodata,
         surfaceGeodataView : this.surfaceGeodataView,
-        resourceSurface : this.resourceSurface 
-    };    
+        resourceSurface : this.resourceSurface
+    };
 
-    //zero surface related data    
+    //zero surface related data
     this.verifyChildren = true;
     //this.renderReady = false;
     this.lastMetanode = this.metanode;
@@ -212,11 +212,11 @@ MapSurfaceTile.prototype.restoreLastState = function() {
         return;
     }
     this.surfaceMesh = this.lastState.surfaceMesh;
-    this.surfaceTextures = this.lastState.surfaceTextures; 
+    this.surfaceTextures = this.lastState.surfaceTextures;
     this.rasterTextures = this.lastState.rasterTextures;
     this.surfaceGeodata = this.lastState.surfaceGeodata;
     this.surfaceGeodataView = this.lastState.surfaceGeodataView;
-    this.resourceSurface = this.lastState.resourceSurface; 
+    this.resourceSurface = this.lastState.resourceSurface;
     this.lastSurface = null;
     this.lastState = null;
     this.lastResourceSurface = null;
@@ -227,7 +227,7 @@ MapSurfaceTile.prototype.addChild = function(index) {
     if (this.children[index]) {
         return;
     }
-    
+
     var id = this.id;
     var childId = [id[0] + 1, id[1] << 1, id[2] << 1];
 
@@ -246,7 +246,7 @@ MapSurfaceTile.prototype.removeChildByIndex = function(index) {
         this.children[index].kill();
         this.children[index] = null;
     }
-    
+
     //remove resrource node?
 };
 
@@ -267,9 +267,9 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
     if (this.map.viewCounter != this.viewCoutner) {
         this.viewSwitched();
         this.viewCoutner = this.map.viewCounter;
-        this.map.markDirty(); 
+        this.map.markDirty();
     }
-        
+
     if (!preventLoad) {
 
         //provide surface for tile - each tree renders one surface
@@ -340,7 +340,7 @@ MapSurfaceTile.prototype.isMetanodeReady = function(tree, priority, preventLoad)
             this.gridPoints = null;
             node.border = null;
             node.borderReady = false;
-     
+
             node.generateCullingHelpers();
         }
     }
@@ -392,7 +392,7 @@ MapSurfaceTile.prototype.bboxVisible = function(id, cameraPos, node) {
     if (id[0] < map.measure.minDivisionNodeDepth) {
         return true;
     }
-    
+
     var skipGeoTest = map.config.mapDisableCulling;
     if (!skipGeoTest && map.isGeocent) {
         if (node) {
@@ -402,13 +402,13 @@ MapSurfaceTile.prototype.bboxVisible = function(id, cameraPos, node) {
             var rayVec = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
             var distance = vec3.normalize4(rayVec) * camera.distanceFactor;
                 //vec3.normalize(camVec);
-                
+
             var a = vec3.dot(rayVec, node.diskNormal);
             //} else { //version without perspektive
             //    var a = vec3.dot(camera.vector, node.diskNormal);
             //}
             this.tiltAngle = a;
-            
+
             if (distance > 150000 && a > node.diskAngle) {
                 return false;
             }
@@ -431,7 +431,7 @@ MapSurfaceTile.prototype.getPixelSize = function(bbox, screenPixelSize, cameraPo
     var tilePos4y = max[1] - cameraPos[1];
     var h1 = min[2] - cameraPos[2];
     var h2 = max[2] - cameraPos[2];
-    
+
     //camera inside bbox
     if (cameraPos[0] > min[0] && cameraPos[0] < max[0] &&
         cameraPos[1] > min[1] && cameraPos[1] < max[1] &&
@@ -440,7 +440,7 @@ MapSurfaceTile.prototype.getPixelSize = function(bbox, screenPixelSize, cameraPo
         if (returnDistance) {
             return [Number.POSITIVE_INFINITY, 0.1];
         }
-    
+
         return Number.POSITIVE_INFINITY;
     }
 
@@ -545,11 +545,11 @@ MapSurfaceTile.prototype.getPixelSize3 = function(node, screenPixelSize) {
     var d = cameraDistance - (node.diskDistance + (node.maxZ - node.minZ)), d2; //vertical distance from top bbox level
 
     if (a < node.diskAngle2) { //is camera inside tile conus?
-        
+
         //get horizontal distance
-        var a2 = Math.acos(a); 
+        var a2 = Math.acos(a);
         var a3 = node.diskAngle2A;
-        a2 = a2 - a3; 
+        a2 = a2 - a3;
         var l1 = Math.tan(a2) * node.diskDistance;// * factor;
 
         if (d < 0) { //is camera is belown top bbox level?
@@ -572,7 +572,7 @@ MapSurfaceTile.prototype.getPixelSize3 = function(node, screenPixelSize) {
             } else { //is camera inside bbox
                 return [Number.POSITIVE_INFINITY, 0.1];
             }
-        } 
+        }
     }
 
     return [camera.camera.scaleFactor2(d) * screenPixelSize, d];
@@ -603,14 +603,14 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
             var height = camera.camera.getViewHeight();
             pixelSize = [(screenPixelSize*2.0) / height, height];
         } else {
-            
-            if (node.usedDisplaySize()) { 
-               
+
+            if (node.usedDisplaySize()) {
+
                 if (!preciseDistance) {
                     screenPixelSize = draw.ndcToScreenPixel * ((node.bbox ? node.bbox.maxSize : node.bboxMaxSize) / 256);
 
                     factor = (node.displaySize / 256) * camera.distance;
-                    
+
                     v = camera.vector; //move camera away hack
                     p = [cameraPos[0] - v[0] * factor, cameraPos[1] - v[1] * factor, cameraPos[2] - v[2] * factor];
 
@@ -625,14 +625,14 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
                     pixelSize = this.getPixelSize3(node, screenPixelSize);
                 }
             } else {
-                
+
                 if (!preciseDistance && texelSizeFit > 1.1) {
                     screenPixelSize = draw.ndcToScreenPixel * node.pixelSize * (texelSizeFit / 1.1);
                     factor = (texelSizeFit / 1.1) * camera.distance;
-                    
+
                     v = camera.vector; //move camera away hack
                     p = [cameraPos[0] - v[0] * factor, cameraPos[1] - v[1] * factor, cameraPos[2] - v[2] * factor];
-                    
+
                     pixelSize = this.getPixelSize(node.bbox, screenPixelSize, p, p, true);
                 } else {
                     if (preciseDistance) {
@@ -694,7 +694,7 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
     var degradeFadeEnd = degradeHorizon[2];
 
     //reduce degrade factor by tilt
-    var degradeFactor = draw.degradeHorizonFactor * draw.degradeHorizonTiltFactor; 
+    var degradeFactor = draw.degradeHorizonFactor * draw.degradeHorizonTiltFactor;
     var distance = this.distance * camera.distanceFactor;
 
     //apply degrade factor smoothly from specified tile distance

@@ -105,8 +105,8 @@ export class MapSurfaceTile {
      */
     updateTexelSize(): void;
 
-    tileRenderRig: TileRenderRig[];
-    lastRenderRig: TileRenderRig[];
+    tileRenderRig: TileRenderRig | null;
+    lastRenderRig: TileRenderRig | null;
 
     imageryCredits: { [key: string]: number };
 

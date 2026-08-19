@@ -201,6 +201,7 @@ class DrawTraversalMaskPool {
         if (!this.hasFootprint_[childDepth]) return;
 
         const gpu = this.renderer_.gpu;
+        const previousTarget = gpu.currentRenderTarget;
         const half = this.resolution >> 1;
         const x = (quadrant & 1) ? half : 0;
         const y = (quadrant & 2) ? half : 0;
@@ -209,7 +210,9 @@ class DrawTraversalMaskPool {
         gpu.setTextureSpaceRenderTarget(this.nodeMask(parentDepth), this.size_);
         gpu.setViewport(x, y, half, half);
         this.drawOrQuad(this.nodeMask(childDepth));
-        gpu.setViewport(0, 0, this.resolution, this.resolution);
+
+        // rebinding the target also restores its full viewport
+        gpu.setRenderTarget(previousTarget);
     }
 
     /**
@@ -222,6 +225,7 @@ class DrawTraversalMaskPool {
     addFootprint(rig: TileRenderRig, depth: number): void {
 
         const gpu = this.renderer_.gpu;
+        const previousTarget = gpu.currentRenderTarget;
 
         this.ensureFootprintTarget(depth);
 
@@ -236,6 +240,7 @@ class DrawTraversalMaskPool {
         gpu.setState(previousState, true);
 
         this.orTextureIntoNode(this.scratch_, depth);
+        gpu.setRenderTarget(previousTarget);
     }
 
     /**
@@ -253,6 +258,7 @@ class DrawTraversalMaskPool {
     materialize(depth: number, erosion: number): GpuTexture {
 
         const gpu = this.renderer_.gpu;
+        const previousTarget = gpu.currentRenderTarget;
 
         gpu.setTextureSpaceRenderTarget(this.consume_, this.size_);
         gpu.clearColor(MaskClearUncovered);
@@ -262,9 +268,16 @@ class DrawTraversalMaskPool {
 
         this.rasterizeRects(this.rects_[depth]);
 
-        if (erosion <= 0) return this.consume_;
+        // The caller samples the returned texture right away, so it must
+        // not be left bound as the render target.
+        if (erosion <= 0) {
+
+            gpu.setRenderTarget(previousTarget);
+            return this.consume_;
+        }
 
         this.erodeMaterializedMask();
+        gpu.setRenderTarget(previousTarget);
         return this.scratch_;
     }
 

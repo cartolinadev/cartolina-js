@@ -1387,6 +1387,7 @@ class Map {
 
             legacyMap.kill();
             this.loadingMap_ = null;
+            this.style = null;
             this.rasterSources_.clear();
             this.terrainSources_.clear();
             throw error;

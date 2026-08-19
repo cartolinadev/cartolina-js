@@ -15,6 +15,14 @@ within  the draw traversal module ('renderTile'), the path shared with
 legacy geodata free layer render is no longer active. No behavioral or 
 strcutural changes beyond this migration. 
 
+The code has been streamlined, the minor change is that upon failing
+to render the front surface for a node we continue rendering back
+surfaces with noRender flag (which was the original intention).
+
+Additionaly, tile render rig construction no longer requires the 
+UV flags from the mesh - so the rig may be constructed before the mesh
+is ready - the current code still does not do that. 
+
 ## 2026-08-17 — Conversion diagnostics stop reporting legitimate input
 
 Goal: suppress noise in legacy mapConfig conversion.

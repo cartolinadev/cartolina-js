@@ -1,29 +1,35 @@
 # Render Targets
 
 `GpuDevice.RenderTarget` separates the framebuffer binding and GL
-viewport from the canvas element. The renderer currently uses two kinds
-of targets:
+viewport from the canvas element. The renderer currently uses three
+kinds of targets:
 
 - the canvas target, which represents the onscreen map view
 - auxiliary framebuffer targets, which store data for that same view
+- texture-space targets, whose size and coordinate space are the pass's
+  own rather than the canvas view's
 
 ## Setting render targets
 
-Four methods on `GpuDevice` install or update render targets:
+Five methods on `GpuDevice` install or update render targets:
 
-**`setCanvasRenderTarget()`** — reads the canvas DOM element, computes
-all five size fields (viewport, apparent, CSS layout, CSS scale, DPR),
-resizes the canvas DOM element, installs the canvas target, and returns
-it. The caller must then call `Renderer.setProjection()`. This is the
-only method that performs DOM reads or changes the canvas backing-store
-size.
+**`updateCanvasRenderTarget()`** — reads the canvas DOM element,
+computes all five size fields (viewport, apparent, CSS layout, CSS
+scale, DPR), resizes the canvas DOM element, installs the canvas
+target, and returns it. The caller must then call
+`Renderer.setProjection()`. This is the only method that performs DOM
+reads or changes the canvas backing-store size.
 
-**`updateCanvasRenderTargetIfNeeded()`** — performs the same DOM size
-calculation, compares the result with the active target, and installs a
-new canvas target only when a canvas size field changed. Returns `null`
-when no size update was needed. `Renderer.updateSizeIfNeeded()` uses
-this method and updates projection only when the previous target was the
-canvas.
+**`canvasRenderTargetNeedsUpdate()`** — performs the same DOM size
+calculation and reports whether any size field differs from the active
+canvas target, changing no GL state.
+`Renderer.ensureCanvasRenderTarget()` pairs the two: it reinstalls the
+cached canvas target when nothing changed, and otherwise rebuilds the
+target and updates projection.
+
+**`setCanvasRenderTarget()`** — installs the cached canvas target
+without reading the DOM or resizing the canvas. This is how a pass
+returns to the screen.
 
 **`setAuxiliaryRenderTarget(texture, viewportSize)`** — installs a
 framebuffer target for a pass that shares the current screen view.
@@ -31,9 +37,22 @@ Updates only the viewport. All other size fields (apparentSize,
 cssLayoutSize, cssScale, dpr) are inherited from the current render
 target. Does not call `setProjection()`.
 
-**`setRenderTarget(target)`** — low-level primitive used by the two
-methods above. Binds the framebuffer and applies the GL viewport.
-Caller is responsible for all size and projection state.
+**`setTextureSpaceRenderTarget(texture, viewportSize)`** — installs a
+target whose apparent size is the texture storage size. Used by the
+terrain traversal coverage masks.
+
+**`setRenderTarget(target)`** — low-level primitive used by the methods
+above. Binds the framebuffer and applies the GL viewport. Caller is
+responsible for all size and projection state.
+
+## Restore policy
+
+Targets are not scoped: one stays bound until the next is installed,
+and nothing restores it. A pass installs the target it needs before it
+draws. The traversal mask pool is the exception — it restores the
+caller's target, because `materialize()` returns a texture the caller
+samples immediately, and sampling the current attachment is a feedback
+loop.
 
 ## Projection policy
 

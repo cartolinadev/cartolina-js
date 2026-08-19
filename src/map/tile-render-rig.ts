@@ -80,16 +80,16 @@ export class TileRenderRig {
     private rt : {
         illumination: boolean,
         normals: boolean,
-        externalUVs: boolean,
-        internalUVs: boolean,
+        //externalUVs: boolean,
+        //internalUVs: boolean,
         layerStack: Layer[],
         upVector: math.vec3
     } = {
 
         illumination: false,
         normals: false,
-        externalUVs: false,
-        internalUVs: false,
+        //externalUVs: false,
+        //internalUVs: false,
         layerStack: [],
         upVector: [0, 0, 1]
     }
@@ -98,17 +98,16 @@ export class TileRenderRig {
      * A new tile render rig.
      */
 
-    constructor(submeshIndex: number, style: StyleSchema.StyleSpecification,
-        tile: MapSurfaceTile, renderer: Renderer,
-        config: Readonly<viewerConfig.ViewerConfig>) {
+    constructor(tile: MapSurfaceTile, style: StyleSchema.StyleSpecification,
+        renderer: Renderer, config: Readonly<viewerConfig.ViewerConfig>) {
 
         this.tile = tile;
         this.renderer = renderer;
         this.config = config;
 
         this.mesh = tile.surfaceMesh;
-        this.submeshIndex = submeshIndex;
-        this.submesh = this.mesh.submeshes[submeshIndex];
+        this.submeshIndex = 0;
+        this.submesh = this.mesh.submeshes[this.submeshIndex];
 
         // examine surface
         const surface = tile.resourceSurface;
@@ -116,16 +115,14 @@ export class TileRenderRig {
         this.rt.illumination
             = !! surface.normalsUrl && this.renderer.getIlluminationState()
 
-        /** WARN: glues currently don't carry normalsUrls, so normal information
-           is lost even when the original surface carried it. */
         this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
 
         // these flags control shader attributes. They are based purely on
         // submesh content. Note that external UVs are needed for correctly
         // applying mask textures supplied to draw(), even if no layers are
         // provided that would need them.
-        this.rt.internalUVs = !! this.submesh.internalUVs;
-        this.rt.externalUVs = !! this.submesh.externalUVs;
+        //this.rt.internalUVs = !! this.submesh.internalUVs;
+        //this.rt.externalUVs = !! this.submesh.externalUVs;
 
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
@@ -317,8 +314,8 @@ export class TileRenderRig {
 
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
-        if (this.rt.internalUVs) attrNames.uvs = 'aTexCoords';
-        if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
+        if (this.submesh.internalUVs) attrNames.uvs = 'aTexCoords';
+        if (this.submesh.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
@@ -344,7 +341,7 @@ export class TileRenderRig {
 
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
-        if (this.rt.externalUVs) attrNames.uvs2 = 'aTexCoords2';
+        if (this.submesh.externalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
@@ -355,7 +352,7 @@ export class TileRenderRig {
      */
     footprint() {
 
-        if (!this.rt.externalUVs) {
+        if (!this.submesh.externalUVs) {
 
             __DEV__ && utils.warnOnce(
                 `${this.logSign()}: footprint() without external UVs.`);
@@ -852,7 +849,7 @@ export class TileRenderRig {
         });
 
         // if internal textures exist, overlay an internal texture
-        if (rt.internalUVs && tile.resourceSurface.textureUrl) {
+        if (tile.resourceSurface.textureUrl) {
 
             let path = tile.resourceSurface.getTextureUrl(
                 tile.id, this.submeshIndex);
