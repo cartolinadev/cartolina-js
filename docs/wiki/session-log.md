@@ -10,6 +10,10 @@ CPU-array residency. `MapMesh` now retains its UV capabilities after loading,
 and malformed submesh cardinality is treated as empty terrain so traversal
 can continue without drawing or claiming coverage.
 
+An iomportant bug was fixed regarding resource download scheduling:
+tile-render-rig resources are now truly scheduled in parallel (the previous
+implementation made them fully sequential - due to the ready &&= shortcut)
+
 ## 2026-08-19 - Style ownership moved fully onto Map
 
 `MapStyle` now lives on the typed `Map` (`map.style`) instead of

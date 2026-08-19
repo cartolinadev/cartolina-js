@@ -217,7 +217,9 @@ export class TileRenderRig {
 
             if (item.rt.optimizedOut) return;
 
-            ready_ &&= this.isLayerReady(item, readiness, priority, options)
+            // note the check is forced even when ready_ === false
+            ready_ = this.isLayerReady(item, readiness, priority, options)
+                && ready_;
         });
 
         /*if (ready_ && utils.compareTuples(this.tile.id, [15, 8772, 5758])) {
