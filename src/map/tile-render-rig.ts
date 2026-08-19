@@ -55,7 +55,6 @@ export class TileRenderRig {
     private readonly renderer!: Renderer;
 
     private mesh!: MapMesh;
-    private submesh!: MapSubmesh;
     private submeshIndex!: number;
 
     private normalMap?: MapTexture;
@@ -107,7 +106,6 @@ export class TileRenderRig {
 
         this.mesh = tile.surfaceMesh;
         this.submeshIndex = 0;
-        this.submesh = this.mesh.submeshes[this.submeshIndex];
 
         // examine surface
         const surface = tile.resourceSurface;
@@ -116,13 +114,6 @@ export class TileRenderRig {
             = !! surface.normalsUrl && this.renderer.getIlluminationState()
 
         this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
-
-        // these flags control shader attributes. They are based purely on
-        // submesh content. Note that external UVs are needed for correctly
-        // applying mask textures supplied to draw(), even if no layers are
-        // provided that would need them.
-        //this.rt.internalUVs = !! this.submesh.internalUVs;
-        //this.rt.externalUVs = !! this.submesh.externalUVs;
 
         // build the layer stack - this may change the flags due to optimization
         this.buildLayerStack(style);
@@ -252,6 +243,7 @@ export class TileRenderRig {
             {  ... TileRenderRig.DefaultPriority, essential: priority },
             options);
     }
+
 
     /**
      * Process layer stack into an actual draw call, using the tile shader
@@ -1470,6 +1462,7 @@ export class TileRenderRig {
         return true;
     }
 
+    private get submesh() { return this.mesh.submeshes[this.submeshIndex]; }
 
     /*
      * helper for diagnostics

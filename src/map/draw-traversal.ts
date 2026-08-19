@@ -440,36 +440,12 @@ function renderTile(
         tile.surfaceMesh = tile.resources.getMesh(path, tile);
     }
 
-    let surfaceMesh = tile.surfaceMesh;
-
-    // Trigger the mesh load (side effect of isReady) and capture
-    // whether the mesh is currently usable for drawing. The
-    // return value reflects GPU residence — an existing rig can
-    // still be drawn from gpuSubmeshes even after a CPU resource
-    // cache eviction, as long as the GPU copy survives.
-    let meshReady = surfaceMesh.isReady(preventLoad, priority, false);
-
-    // CPU residence is a stricter condition than meshReady.
-    // killSubmeshes nulls per-submesh CPU fields (vertices,
-    // internalUVs, externalUVs, indices) but leaves the
-    // submeshes array length intact so existing rigs can keep
-    // drawing from gpuSubmeshes. Rig construction needs the CPU
-    // fields, so we must check this explicitly before building
-    // a new rig — otherwise rt.internalUVs/externalUVs would
-    // latch to false and the rig would render only the constant
-    // background layer (drab-tile bug).
-    let cpuReady = meshReady && !surfaceMesh.submeshesKilled;
-
     // create a new rig when we are either drawing the tile for the first
     // time, or there has been a raster fallback, or layer visibility has
     // mutated (view switched under legacy terminology)
     if (!tile.tileRenderRig || tile.updateBounds || tile.resetDrawCommands) {
 
-        // wait for CPU data before constructing a new rig
-        if (!cpuReady) return 'loading';
-
         if (tile.lastRenderRig) tile.lastRenderRig.dispose();
-
         if (tile.tileRenderRig) tile.lastRenderRig = tile.tileRenderRig;
 
         // create new rig from submeshSurface layer sequence

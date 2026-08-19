@@ -19,9 +19,10 @@ The code has been streamlined, the minor change is that upon failing
 to render the front surface for a node we continue rendering back
 surfaces with noRender flag (which was the original intention).
 
-Additionaly, tile render rig construction no longer requires the 
-UV flags from the mesh - so the rig may be constructed before the mesh
-is ready - the current code still does not do that. 
+Tile render rig construction no longer requires the  UV flags from,
+the rig may be constructed before the mesh is ready and renderTile
+in draw-traversal no longer issues mesh readiness calls prior to
+rig construction. 
 
 ## 2026-08-17 — Conversion diagnostics stop reporting legitimate input
 
