@@ -20,12 +20,10 @@ export default class MapDraw {
     tileBuffer: unknown[];
     zbufferOffset: number | null;
 
-    /** phase-1 */
     drawCounter: number;
-    /** phase-1 */
     texelSizeFit: number;
-    /** phase-1 */
     drawTiles: MapDrawTiles;
+    maxGpuUsed: number;
 
     initFrame(): void;
     drawMonoliticGeodata(layer: unknown): void;

@@ -7,6 +7,7 @@ import type MapRefFrame from './refframe';
 import type MapSrs from './srs';
 import type MapStyle from './style';
 import type MapFreeLayer from './free-layer';
+import type MapSurfaceTile from './surface-tile';
 import type MapUrl from './url';
 import type MapDraw from './draw';
 import type Renderer from '../renderer/renderer';
@@ -92,9 +93,13 @@ export default class Map {
         frameTime: number;
         drawnGeodataTilesPerLayer: number;
         drawnGeodataTilesFactor: number;
+        gpuRenderUsed: number;
         renderBuild: number;
         begin(dirty: boolean): void;
         end(dirty: boolean): void;
+        renderedLods: Record<number, number>;
+        renderedSurfaces: Record<string, number>;
+        drawnTiles: number;
     } & Record<string, unknown>;
 
     position: MapPosition;
@@ -296,4 +301,6 @@ export default class Map {
         /** phase-1 */
         checkCost(): void;
     };
+
+    applyCredits(tile: MapSurfaceTile): void;
 }

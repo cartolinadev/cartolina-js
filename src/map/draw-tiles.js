@@ -118,9 +118,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 // topdown traversal, which descends the root only when every
                 // division-node sibling is ready — one empty sibling then
                 // blocks the whole surface. Remove with the legacy path.
-                if (!surfaceMesh.submeshes.length) {
-                    return surfaceMesh.loadState == 2;
-                }
+                //if (!surfaceMesh.submeshes.length) {
+                //    return surfaceMesh.loadState == 2;
+                //}
 
                 // CPU residence is a stricter condition than meshReady.
                 // killSubmeshes nulls per-submesh CPU fields (vertices,
@@ -149,7 +149,9 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                     // we are either drawing the tile for the first time, or
                     // there has been a raster fallback, or a view
                     // has been switched
-                    if (!tile.tileRenderRig[i] || tile.updateBounds) {
+                    if (!tile.tileRenderRig[i] || tile.updateBounds
+                        || tile.resetDrawCommands
+                    ) {
 
                         // wait for CPU data before constructing a new rig
                         if (!cpuReady) continue;
@@ -240,7 +242,8 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
                 } // end iterate through submeshes
 
                 // submesh rigs were rebuilt -> clear update flag
-                if (cpuReady) tile.updateBounds = false;
+                if (cpuReady)
+                    tile.updateBounds = tile.resetDrawCommands = false;
 
                 // draw the overlay once per tile, on the color pass, when the
                 // tile painted color content this frame

@@ -120,9 +120,9 @@ export class TileRenderRig {
            is lost even when the original surface carried it. */
         this.rt.normals = !! surface.normalsUrl && ! config.mapNoNormalMaps;
 
-        // these flags control shader attributes. They are based purely on 
-        // submesh content. Note that external UVs are needed for correctly 
-        // applying mask textures supplied to draw(), even if no layers are 
+        // these flags control shader attributes. They are based purely on
+        // submesh content. Note that external UVs are needed for correctly
+        // applying mask textures supplied to draw(), even if no layers are
         // provided that would need them.
         this.rt.internalUVs = !! this.submesh.internalUVs;
         this.rt.externalUVs = !! this.submesh.externalUVs;
@@ -1490,8 +1490,6 @@ export class TileRenderRig {
 
 type Necessity = 'essential' | 'optional';
 
-type AlphaMode = 'constant' | 'viewdep';
-
 type AlphaConstant = {
     mode: 'constant',
     value: number,
@@ -1716,6 +1714,14 @@ export namespace TileRenderRig {
         minimum: ReadinessLevel,
         desired: ReadinessLevel
     }
+
+    export const ReadinessFull: ReadinessLevels = {
+        minimum: 'fallback', desired: 'full'
+    };
+
+    export const ReadinessFallback: ReadinessLevels = {
+        minimum: 'fallback', desired: 'fallback'
+    };
 
     /**
      * basic resources are necessary to render tile, extras are embelishments.

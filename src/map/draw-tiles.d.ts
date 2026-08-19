@@ -8,6 +8,9 @@ import type MapSurfaceTile from './surface-tile';
 import type MapMetanode from './metanode';
 import type GpuTexture from '../renderer/gpu/texture';
 import type { vec3 } from '../utils/math';
+import type MapSurfaceTile from './surface-tile';
+import type MapPosition from './position';
+import type MapMesh from './mesh';
 
 export default class MapDrawTiles {
 
@@ -23,4 +26,12 @@ export default class MapDrawTiles {
         readiness?: TileRenderRig.ReadinessLevels,
         maskTexture?: GpuTexture,
     ): TileRenderRig | boolean | null;
+
+    drawTileInfo(
+        tile: MapSurfaceTile,
+        node: MapMetanode,
+        cameraPos: vec3,
+        surfaceMesh: MapMesh,
+        texelSize: number
+    ): void;
 }

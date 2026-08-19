@@ -3,6 +3,13 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-19 - Tile drawing moved away from legacy draw-tiles.js
+
+Terrain tile drawing and tile render rig interaction is now fully contained 
+within  the draw traversal module ('renderTile'), the path shared with 
+legacy geodata free layer render is no longer active. No behavioral or 
+strcutural changes beyond this migration. 
+
 ## 2026-08-17 — Conversion diagnostics stop reporting legitimate input
 
 Goal: suppress noise in legacy mapConfig conversion.

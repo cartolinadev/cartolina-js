@@ -7,6 +7,7 @@ import type RasterSource from './raster-source';
 import type Map from './legacy-map';
 import type MapSurfaceTree from './surface-tree';
 import type MapMetanode from './metanode';
+import type TileRenderRig from './tile-render-rig';
 
 /**
  * Surface-tree node carrying metanode, resource, and LOD state for one
@@ -61,6 +62,12 @@ export class MapSurfaceTile {
     /** Last draw traversal generation in which this tile rendered. */
     drawCounter: number;
 
+    /** the legacy tile-redraw flag, triggered by texture updates */
+    resetDrawCommands: boolean;
+
+    /** another legacy flag, triggered by view switches */
+    updateBounds: boolean;
+
     kill(): void;
 
     /**
@@ -97,6 +104,13 @@ export class MapSurfaceTile {
      * metanode state.
      */
     updateTexelSize(): void;
+
+    tileRenderRig: TileRenderRig[];
+    lastRenderRig: TileRenderRig[];
+
+    imageryCredits: { [key: string]: number };
+
+    addSubmeshCredits(id: number, credits: string[]): void;
 }
 
 export default MapSurfaceTile;

@@ -34,4 +34,14 @@ export default class MapMesh {
         priority?: number,
         doNotCheckGpu?: boolean,
     ): boolean;
+
+    killSubmeshes(killByCache?: boolean): void;
+
+    /**
+     * killSubmeshes nulls per-submesh CPU fields (vertices,
+     * internalUVs, externalUVs, indices) but leaves the
+     * submeshes array length intact - while mesh drawing needs only the
+     * GPU readiness, CPU fields are needed for tile-render-rig construction.
+     */
+    submeshesKilled: boolean;
 }

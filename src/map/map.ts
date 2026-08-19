@@ -1238,7 +1238,8 @@ class Map {
     /**
      * The WebGL2 renderer owned by this map.
      *
-     * @internal Reached as `core.renderer` by the legacy modules.
+     * @internal Not part of the public API. Used by other `map/`
+     *   internals (draw-traversal, style).
      */
     renderer!: Renderer;
 
@@ -1246,8 +1247,8 @@ class Map {
      * Vertical exaggeration of the terrain, applied to model heights
      * before anything is drawn.
      *
-     * @internal Reached as `core.verticalExaggeration` by `Renderer`,
-     * which forwards to it for the legacy JavaScript call sites.
+     * @internal Not part of the public API. Used by other `map/`
+     *   internals (style, atmosphere).
      */
     verticalExaggeration!: VerticalExaggeration;
 

@@ -6,9 +6,10 @@ import type Map from './map';
 import type MapSurfaceTree from './surface-tree';
 import type MapSurfaceTile from './surface-tile';
 import type DrawTraversalMaskPool from './draw-traversal-mask';
-import type { TileRenderRig } from './tile-render-rig';
+import { TileRenderRig } from './tile-render-rig';
 import type { GpuDevice } from '../renderer/gpu/device';
 import * as preV6Watertight from './pre-v6-watertight';
+import { map } from '../viewer';
 
 
 /**
@@ -164,6 +165,12 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
     // child and would benefit from finer detail forces descent. We
     // descend into quadrants whose child set is non-empty.
     let shouldDescend = false;
+
+    // is there a fitting surface with watertight coverage? This
+    // always stops descent, even if the surface is not front-most
+    // we trust the claims surfaces make about their level of detail and
+    // coverage, this also prevents force decent to surface that have geometry
+    // available only on finer LODs
     let hasWatertightFit = false;
 
     for (const entry of active) {
@@ -179,8 +186,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
 
     // Process children if applicable. We descend if an active surface can
     // benefit from finer LOD, but not if we already have a watertight fit
-    // from any active surface: this prevents forced descent to surfaces
-    // that have geometry available only on finer LODs.
+    // from any active surface
 
     // Each node starts from empty coverage. Reset is CPU-cheap (it clears
     // a rectangle list), so there is no lazy-init guard.
@@ -220,7 +226,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
                 depth: depth + 1,
             };
 
-            // recurse into the child quadrant 
+            // recurse into the child quadrant
             const childCoverage = traverseNode(childContext);
 
             // classify coverage
@@ -246,7 +252,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
             }
 
             // end quadrant processing
-        } 
+        }
     }
 
     for (const entry of active) {
@@ -411,6 +417,7 @@ function renderTile(
     const { depth, screenTarget, maskPool } = context;
     const legacyMap = tree.map;
     const node = tile.metanode;
+    const stats = legacyMap.stats;
 
     // should not happen, but just in case
     if (!node) return 'loading';
@@ -418,44 +425,205 @@ function renderTile(
     // structural node
     if (!node.hasGeometry()) return 'structural';
 
+    // sanity, probably needless
+    if (!tile.surface) return 'partial';
+
+    // the old vts priority formula
     const priority = tile.id[0] * tile.distance;
 
     // Sample prior coverage (finer descendants and higher-priority
     // surfaces drawn before this one) only when some exists; materialize
     // rasterizes the rectangle list and footprint texture on demand.
-    const erosion = legacyMap.config.mapTraversalMaskErosion;
+    const erosion = context.map.config.mapTraversalMaskErosion;
     const maskTexture = maskPool.hasCoverage(depth)
         ? maskPool.materialize(depth, erosion)
         : undefined;
 
-    legacyMap.renderer.gpu.setRenderTarget(screenTarget);
+    // escape hatch for no-load probing
+    if (preventLoad && !tile.surfaceMesh) return 'loading';
 
-    // SSE and culling ran under the selection camera; only the draw
-    // call needs the live camera position.
-    const rig = context.map.withNavigationCamera(() =>
-        legacyMap.draw.drawTiles.drawSurfaceTile(
-            tile,
-            node,
-            legacyMap.camera.position,
-            tile.texelSize,
-            priority,
-            noRender,
-            preventLoad,
-            false,
-            readiness,
-            maskTexture,
-        ));
+    // check gpu budget
+    if (stats.gpuRenderUsed >= legacyMap.draw.maxGpuUsed)
+        return 'loading';
 
-    if (!isRig(rig)) return 'loading';
+    // update tile counts in inspector
+    if (!noRender) {
 
+        stats.renderedLods[tile.id[0]]++;
+        stats.drawnTiles++;
+
+        // mirror the per-LOD tile count, keyed by surface id, so
+        // the inspector can break the same total down by surface
+        let surfaceId = tile.surface.id || '(no id)';
+
+        stats.renderedSurfaces[surfaceId] =
+            (stats.renderedSurfaces[surfaceId] || 0) + 1;
+    }
+
+    // set render target
+    context.map.renderer.gpu.setRenderTarget(screenTarget);
+
+    // diagnostic bbox draw gate - tests if the tile actually draws
+    let tileDidDraw = false;
+
+    // create mesh object if it does not exist yet
+    if (!tile.surfaceMesh) {
+        let path = tile.resourceSurface.getMeshUrl(tile.id);
+        tile.surfaceMesh = tile.resources.getMesh(path, tile);
+    }
+
+    let surfaceMesh = tile.surfaceMesh;
+
+    // Trigger the mesh load (side effect of isReady) and capture
+    // whether the mesh is currently usable for drawing. The
+    // return value reflects GPU residence — an existing rig can
+    // still be drawn from gpuSubmeshes even after a CPU resource
+    // cache eviction, as long as the GPU copy survives.
+    let meshReady = surfaceMesh.isReady(preventLoad, priority, false);
+
+    // CPU residence is a stricter condition than meshReady.
+    // killSubmeshes nulls per-submesh CPU fields (vertices,
+    // internalUVs, externalUVs, indices) but leaves the
+    // submeshes array length intact so existing rigs can keep
+    // drawing from gpuSubmeshes. Rig construction needs the CPU
+    // fields, so we must check this explicitly before building
+    // a new rig — otherwise rt.internalUVs/externalUVs would
+    // latch to false and the rig would render only the constant
+    // background layer (drab-tile bug).
+    let cpuReady = meshReady && !surfaceMesh.submeshesKilled;
+
+    let priority_: TileRenderRig.Priority = {
+        essential: priority,
+        optional: priority,
+    };
+
+    let readyOptions: TileRenderRig.IsReadyOptions = {
+        doNotLoad: preventLoad,
+        doNotCheckGpu: false,
+    };
+
+    let rigToDraw: TileRenderRig | null = null;
+
+    // iterate through submeshes
+    for (let i = 0; i < surfaceMesh.submeshes.length; i++) {
+
+        var submeshSurface = tile.resourceSurface;
+
+        // we are either drawing the tile for the first time, or
+        // there has been a raster fallback, or a view
+        // has been switched
+        if (!tile.tileRenderRig[i] || tile.updateBounds
+            || tile.resetDrawCommands) {
+
+            // wait for CPU data before constructing a new rig
+            if (!cpuReady) continue;
+
+            if (tile.lastRenderRig[i]) tile.lastRenderRig[i].dispose();
+
+            if (tile.tileRenderRig[i])
+                tile.lastRenderRig[i] = tile.tileRenderRig[i];
+
+            // create new rig from submeshSurface layer sequence
+            tile.tileRenderRig[i] = new TileRenderRig(
+                i, legacyMap.style!.style(), tile,
+                context.map.renderer, context.map.config);
+        }
+
+        let curRig = tile.tileRenderRig[i];
+        let lastRig = tile.lastRenderRig[i];
+        let curRigReady = false;
+
+        // is the tile rig ready? Draw it. If not, try the last rig
+        if (context.map.drawChannel === 'color')
+            curRigReady = curRig.isReady(readiness, priority_, readyOptions);
+
+        if (context.map.drawChannel === 'depth')
+            curRigReady = curRig.isDepthReady(
+                priority_.essential, readyOptions);
+
+        let lastRigReady = false;
+
+        if (!curRigReady) {
+
+            if (context.map.drawChannel === 'color')
+                lastRigReady = lastRig && lastRig.isReady(
+                    TileRenderRig.ReadinessFallback, priority_, readyOptions);
+
+            if (context.map.drawChannel === 'depth')
+                lastRigReady = lastRig && lastRig.isDepthReady(
+                    priority_.essential, readyOptions);
+        }
+
+        rigToDraw = curRigReady ? curRig
+            : lastRigReady ? lastRig : null;
+
+        // draw
+        if (rigToDraw && !noRender) {
+
+            if (context.map.drawChannel === 'color') {
+
+                // draw something
+                context.map.withNavigationCamera(() => {
+                    rigToDraw!.draw(legacyMap.camera.position, maskTexture);
+                });
+
+                tileDidDraw = true;
+
+                // process layer credits (only active layers)
+                let activeRasterSourceIds = rigToDraw.activeRasterSourceIds();
+
+                activeRasterSourceIds.forEach((id) => {
+
+                    let source = tile.rasterSources[id];
+                    if (!source) return;
+
+                    let credits = source.credits;
+                    for (let k = 0; k < credits.length; k++)
+                        tile.imageryCredits[credits[k]] = source.specificity;
+                });
+
+                tile.addSubmeshCredits(i, activeRasterSourceIds);
+
+                // extract and flush credits
+                legacyMap.applyCredits(tile);
+            }
+
+            if (context.map.drawChannel === 'depth')
+                context.map.withNavigationCamera(() =>
+                    rigToDraw!.drawDepth(legacyMap.camera.position,
+                        maskTexture));
+
+        } // if (rigToDraw && !noRender)
+
+    } // end iterate through submeshes
+
+    // submesh rigs were rebuilt -> clear update flag
+    if (cpuReady)
+        tile.updateBounds = tile.resetDrawCommands = false;
+
+    // on the color pass, draw the tile info once per tile when the
+    // tile painted color content this frame
+    if (context.map.drawChannel === 'color' && tileDidDraw
+        && context.map.overrides.drawBBoxes
+        && ! context.map.overrides.drawGeodataOnly)
+        context.map.withNavigationCamera(() =>
+            legacyMap.draw.drawTiles.drawTileInfo(
+                tile, node, legacyMap.camera.position, tile.surfaceMesh,
+                tile.texelSize));
+
+
+    // nothing to draw, yet
+    if (!rigToDraw) return 'loading';
+
+    // update draw generation counter, infer watertightness if applicable
     tile.drawCounter = legacyMap.draw.drawCounter;
     preV6Watertight.inferPreV6WatertightFromTile(tile);
 
+    // drawn and watertight
     if (node.watertight) return 'watertight';
 
-    // Non-watertight tile: its footprint joins this node's coverage so
-    // the next (back) surface and the parent see it.
-    maskPool.addFootprint(rig, depth);
+    // drawn and partial, add footprint for back surfaces and fallbacks
+    maskPool.addFootprint(rigToDraw!, depth);
     return 'partial';
 }
 
@@ -578,7 +746,7 @@ type TileRenderResult =
     | 'structural';     // early exit, no geometry here to render or fetch
 
 /** node coverage results - the state of coverage after processing
- *  the entire subtree. These effect optimization during backtracking 
+ *  the entire subtree. These effect optimization during backtracking
  */
 type NodeCoverageResult =
     | 'watertight'      // fully covered
