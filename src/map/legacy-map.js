@@ -85,8 +85,6 @@ var Map = function(core, path, config, bus) {
     this.processingTasks2 = [];
     this.geodataProcessors = [];
 
-    this.style = null;
-
     this.viewCounter = 0;
     this.srsReady = false;
 
@@ -476,7 +474,8 @@ Map.prototype.refreshGeodataStylesheets = function() {
 Map.prototype.refreshView = function() {
     this.viewCounter++;
 
-    if (this.style) this.style.refreshFreeLayerSequence();
+    if (this.outerMap.style)
+        this.outerMap.style.refreshFreeLayerSequence();
 
     this.markDirty();
 };

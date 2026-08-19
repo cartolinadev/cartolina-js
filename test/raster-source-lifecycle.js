@@ -96,7 +96,7 @@ async function main() {
             const primary = globalThis.v;
             const terrainSourceId = primary.getTerrainSources()[0];
             const terrainSpec =
-                primary.legacyMap.style.style().sources[terrainSourceId];
+                primary.map.style.style().sources[terrainSourceId];
             const terrainUrl =
                 new URL('mapConfig.json', terrainSpec.url).href;
             const terrainResponse = await fetch(terrainUrl);

@@ -525,7 +525,7 @@ function renderTile(
 
             // create new rig from submeshSurface layer sequence
             tile.tileRenderRig[i] = new TileRenderRig(
-                i, legacyMap.style!.style(), tile,
+                i, context.map.style!.style(), tile,
                 context.map.renderer, context.map.config);
         }
 

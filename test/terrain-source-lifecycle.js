@@ -68,7 +68,7 @@ async function main() {
 
         // --- registry population -------------------------------------
 
-        const styleSpec = legacy.style.style();
+        const styleSpec = map.style.style();
         const terrainIds = styleSpec.terrain.sources;
 
         check('style declares terrain sources', terrainIds.length > 0);

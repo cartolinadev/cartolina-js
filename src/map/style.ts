@@ -305,7 +305,7 @@ export class MapStyle {
         // Install the style and its free-layer sequence as one completed load.
         const style = new MapStyle(map, spec);
         map.assertRasterSourcesAvailable(style.style());
-        legacyMap.style = style;
+        map.style = style;
         style.refresh(false);
     }
 

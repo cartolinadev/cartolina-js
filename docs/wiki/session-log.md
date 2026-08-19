@@ -3,6 +3,11 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-19 - Style ownership moved fully onto Map
+
+`MapStyle` now lives on the typed `Map` (`map.style`) instead of
+`LegacyMap`, which no longer declares a `style` field at all.
+
 ## 2026-08-19 - Tile drawing moved away from legacy draw-tiles.js
 
 Terrain tile drawing and tile render rig interaction is now fully contained 

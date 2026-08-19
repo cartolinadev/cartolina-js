@@ -5,7 +5,6 @@ import type MapCamera from './camera';
 import type MapPosition from './position';
 import type MapRefFrame from './refframe';
 import type MapSrs from './srs';
-import type MapStyle from './style';
 import type MapFreeLayer from './free-layer';
 import type MapSurfaceTile from './surface-tile';
 import type MapUrl from './url';
@@ -150,8 +149,6 @@ export default class Map {
         imagery: Record<string, number>;
         mapdata: Record<string, number>;
     };
-
-    style: MapStyle | null;
 
     draw: MapDraw;
 

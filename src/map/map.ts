@@ -1191,11 +1191,10 @@ class Map {
      */
     surfaceList(): TerrainSource[] {
 
-        const legacyMap = this.map;
-        if (!legacyMap?.style) return [];
+        if (!this.style) return [];
 
         // terrain.sources order: back-to-front, front at last index
-        const sources = legacyMap.style.style().terrain?.sources ?? [];
+        const sources = this.style.style().terrain?.sources ?? [];
 
         return sources.map(
             sourceId => this.resolveTerrainSource(sourceId));
@@ -1331,6 +1330,15 @@ class Map {
     freeze: FreezeCameraState | null = null;
 
     /**
+     * The loaded map's current style, or `null` before a map has
+     * loaded and between loads. Installed by `MapStyle.loadStyle`.
+     *
+     * @internal Not part of the public API; read through
+     *   `requireReadyStyle` for validated access.
+     */
+    style: MapStyle | null = null;
+
+    /**
      * Active rendering channel for the current frame.
      *
      * - `'color'`: visual canvas pass.
@@ -1446,6 +1454,7 @@ class Map {
         this.map.kill();
         this.map = null;
         this.freeze = null;
+        this.style = null;
         this.bus_.emit('map-unloaded', {});
     }
 
@@ -1486,7 +1495,7 @@ class Map {
      */
     private requireReadyStyle(): MapStyle {
 
-        const style = this.readyResolved_ ? this.map?.style : null;
+        const style = this.readyResolved_ ? this.style : null;
 
         if (!style) {
             throw new Error('The style is not ready; await '

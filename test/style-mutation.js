@@ -189,7 +189,7 @@ async function main() {
     // without changing the style-level LegacyMap.url object. Use the
     // live constructors so this exercises the browser bundle rather
     // than a duplicate URL-resolution helper.
-    const surfaceSource = v.legacyMap.style.style().sources[TERRAIN];
+    const surfaceSource = v.map.style.style().sources[TERRAIN];
     const mapConfigUrl = new URL('mapConfig.json', surfaceSource.url);
     const response = await fetch(mapConfigUrl);
     const sourceDocument = await response.json();
@@ -248,7 +248,7 @@ async function main() {
     };
 
     const LegacyMap = v.legacyMap.constructor;
-    const MapStyle = v.legacyMap.style.constructor;
+    const MapStyle = v.map.style.constructor;
     const makeTestMap = () => {
       const map = new LegacyMap(
         v.legacyMap.core,
