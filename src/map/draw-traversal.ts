@@ -456,7 +456,7 @@ function renderTile(
         tile.updateBounds = tile.resetDrawCommands = false;
     }
 
-    // no render? bail out
+    // no render -> bail out
     if (noRender) return 'no-render';
 
     // do we have a rig ready to draw?
@@ -496,8 +496,11 @@ function renderTile(
     let rigToDraw : TileRenderRig | null = curRigReady ? curRig :
         lastRigReady ? lastRig : null;
 
-    // done, nothing to draw yet
+    // no rig, nothing to draw -> bail out
     if (!rigToDraw) return 'loading';
+
+    // malformed terrain data -> bail out
+    if (!rigToDraw.hasGeometry()) return 'no-render';
 
     // Sample prior coverage (finer descendants and higher-priority
     // surfaces drawn before this one) only when some exists; materialize
@@ -689,8 +692,8 @@ type TileRenderResult =
     | 'watertight'      // fully covered
     | 'partial'         // covered with an arbitrary shape, in a mask
     | 'loading'         // not rendered, waiting for data
-    | 'structural'     // early exit, no geometry here to render or fetch
-    | 'no-render'
+    | 'structural'      // early exit, no geometry here to render or fetch
+    | 'no-render'           // no-render or malformed data
 
 /** node coverage results - the state of coverage after processing
  *  the entire subtree. These effect optimization during backtracking

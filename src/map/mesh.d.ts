@@ -14,6 +14,12 @@ export default class MapMesh {
      */
     submeshes: MapSubmesh[];
 
+    /** Whether the loaded geometry has internal texture coordinates. */
+    hasInternalUVs: boolean;
+
+    /** Whether the loaded geometry has external texture coordinates. */
+    hasExternalUVs: boolean;
+
     /**
      * GPU buffers built from `submeshes`; indices match `submeshes`.
      */
@@ -35,13 +41,4 @@ export default class MapMesh {
         doNotCheckGpu?: boolean,
     ): boolean;
 
-    killSubmeshes(killByCache?: boolean): void;
-
-    /**
-     * killSubmeshes nulls per-submesh CPU fields (vertices,
-     * internalUVs, externalUVs, indices) but leaves the
-     * submeshes array length intact - while mesh drawing needs only the
-     * GPU readiness, CPU fields are needed for tile-render-rig construction.
-     */
-    submeshesKilled: boolean;
 }

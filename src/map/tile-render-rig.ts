@@ -3,7 +3,6 @@
  */
 
 import MapMesh from './mesh';
-import MapSubmesh from './submesh';
 import MapTexture from './texture';
 import MapSurfaceTile from './surface-tile'
 import MapBody from './body';
@@ -27,9 +26,9 @@ import * as utils from '../utils/utils';
 
 
  /**
-  * A tile render rig manages the render process for a specific tile (more
-  * accurately, for a tile submesh, but tiles with more than one submesh are
-  * an oddity).
+  * A tile render rig manages the render process for a specific terrain tile.
+  * Regular terrain meshes contain exactly one submesh; any other count is
+  * malformed input and produces no draw.
   *
   * It resolves and prepares the resources needed for rendering, checks their
   * readiness, and draws the tile with `MapMesh.draw2` after binding textures
@@ -210,6 +209,9 @@ export class TileRenderRig {
         ready_ &&= TileRenderRig.isResourceReady(this.mesh, 'essential',
             readiness, priority, options);
 
+        // escape hatch for malformed mesh geometry
+        if (ready_ && !this.hasGeometry()) return true;
+
         // process layerStack
         layerStack.forEach((item: Layer) => {
 
@@ -227,6 +229,12 @@ export class TileRenderRig {
 
         // done
         return ready_;
+    }
+
+    /** Whether the loaded mesh contains drawable terrain geometry. */
+    hasGeometry(): boolean {
+
+        return this.mesh.submeshes.length === 1;
     }
 
     /**
@@ -252,6 +260,8 @@ export class TileRenderRig {
      * @maskTexture optional UV-space coverage mask to discard fragments
      */
     draw(cameraPos: math.vec3, maskTexture?: GpuTexture) {
+
+        if (!this.hasGeometry()) return;
 
         if (!this.uboLayers) {
             console.warn(
@@ -306,8 +316,8 @@ export class TileRenderRig {
 
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
-        if (this.submesh.internalUVs) attrNames.uvs = 'aTexCoords';
-        if (this.submesh.externalUVs) attrNames.uvs2 = 'aTexCoords2';
+        if (this.mesh.hasInternalUVs) attrNames.uvs = 'aTexCoords';
+        if (this.mesh.hasExternalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
@@ -322,6 +332,8 @@ export class TileRenderRig {
      */
     drawDepth(cameraPos: math.vec3, maskTexture?: GpuTexture) {
 
+        if (!this.hasGeometry()) return;
+
         const program = this.renderer.programTileDepth();
         this.renderer.gpu.useProgram2(program);
 
@@ -333,7 +345,7 @@ export class TileRenderRig {
 
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
-        if (this.submesh.externalUVs) attrNames.uvs2 = 'aTexCoords2';
+        if (this.mesh.hasExternalUVs) attrNames.uvs2 = 'aTexCoords2';
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
@@ -344,7 +356,9 @@ export class TileRenderRig {
      */
     footprint() {
 
-        if (!this.submesh.externalUVs) {
+        if (!this.hasGeometry()) return;
+
+        if (!this.mesh.hasExternalUVs) {
 
             __DEV__ && utils.warnOnce(
                 `${this.logSign()}: footprint() without external UVs.`);

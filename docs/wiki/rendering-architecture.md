@@ -57,6 +57,8 @@ through draw traversal.
 One `TileRenderRig` resolves tile resources, tracks readiness, builds
 the style layer stack, collapses bump maps into the normal map when
 possible, and renders color and depth passes for one terrain tile.
+Regular terrain meshes contain exactly one submesh. A different count
+is malformed input and contributes no coverage to traversal.
 
 The default terrain draw path now enters
 `src/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.

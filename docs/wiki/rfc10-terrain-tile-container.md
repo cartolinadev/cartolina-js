@@ -120,16 +120,14 @@ meshes**: this tileserver has always written v2, and the known
 production deployment of the legacy stack plus the legacy vtsd test
 datasets serve only v2 and v3 (v3 from historically encoded stored
 tilesets, which remain in active use). The client therefore keeps
-v2–v3 support and drops v1 (survey details in the private scratchpad
-notes).
+v2–v3 support and drops v1.
 
-Submeshes exist to serve two legacy needs: glue meshes (multiple
-surface fragments in one tile) and multi-atlas internal-texture
-tilesets. The tileserver's own surfaces always emit exactly one
-submesh per tile (`generateMesh` builds `vts::Mesh mesh(false)` and
-adds the single `generateMeshImpl` result). Glues are dead: the
-recursive traversal (RFC 3) ignores them, and the client-side glue
-machinery was removed 2026-06-08.
+Submeshes served two legacy needs: glue meshes (multiple surface
+fragments in one tile) and multi-atlas internal-texture tilesets.
+Cartolina supports regular terrain surfaces, whose meshes contain
+exactly one submesh. Any other cardinality is malformed input. Glues
+are dead: the recursive traversal (RFC 3) ignores them, and the
+client-side glue machinery was removed 2026-06-08.
 
 ### 1.3 Client: serialized fetches, duplicated parsers, image pipeline
 
@@ -412,12 +410,10 @@ decoding) are dropped on the strength of the producer survey in §1.2.
 `tile.tileRenderRig[i]` / `lastRenderRig[i]` arrays collapse to single
 slots; `drawSurfaceTile`'s per-submesh loop disappears; the rig's
 `submeshIndex` and the `{sub}` argument of `getNormalsUrl` go. The
-legacy parser keeps reading v2–v3 files but adopts their **first**
-submesh only, gated by the audit in §8 (legacy vtsd tilesets must be
-confirmed single-submesh before this lands; if the audit finds
-multi-submesh tiles in supported datasets, the fallback is to keep a
-minimal multi-geometry list inside the parser result while the render
-path still goes single-rig — decided then, not designed now).
+legacy parser keeps reading v2–v3 files and requires exactly one
+submesh. A different count is treated as malformed and skipped
+without drawing or claiming traversal coverage; development builds
+also warn.
 
 **Normal map from the container.** When the tile's terrain payload
 carries a normal map, `TileRenderRig.buildLayerStack` uses it as the
@@ -508,14 +504,10 @@ Per the task brief, the design challenges its own inputs; results:
   that the bandwidth cost is material (§4.2) and therefore the format
   keeps a compact-encoding escape hatch rather than betting the
   interface on raw texels.
-- *"Submeshes may be completely retired."* Upheld for everything the
-  tileserver serves (verified single-submesh by construction in
-  `generateMesh`). For legacy vtsd datasets the claim is plausible —
-  glues are the submesh use case, and the client ignores them — but
-  photogrammetric tilesets with internal textures *can* in principle
-  carry several submeshes per tile. Retirement is therefore gated on
-  an empirical audit of the supported legacy test datasets (§8)
-  rather than asserted.
+- *"Submeshes may be completely retired."* Upheld. Cartolina supports
+  regular terrain surfaces, whose meshes contain exactly one submesh.
+  Other cardinalities are malformed input and do not require a
+  compatibility path.
 - *"A single optimized container is not strictly necessary if
   inelegant."* The dual interface survives scrutiny in inverted
   form: the two-file interface must stay anyway for old clients and
@@ -700,14 +692,6 @@ with the closing commit of each half.
 
 
 ## 8. Verification plan
-
-Prerequisite audit (gates the submesh retirement):
-
-- Instrument the legacy parser (or a one-off probe script) to log
-  `numSubmeshes > 1` and sweep the supported legacy test datasets —
-  the benatky vtsd tilesets and the pre-v6 integration surfaces from
-  `test/urls.json` reproduction entries. Expected: none. Any hit
-  triggers the fallback decision in §3.6.
 
 Server:
 

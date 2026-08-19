@@ -2,6 +2,7 @@
 import {mat4 as mat4_, vec3} from '../utils/matrix';
 import MapSubmesh_ from './submesh';
 import BBox_ from '../renderer/bbox';
+import * as utils from '../utils/utils';
 
 
 //get rid of compiler mess
@@ -38,6 +39,8 @@ var MapMesh = function(map, url, tile) {
     this.submeshes = [];
     this.gpuSubmeshes = [];
     this.submeshesKilled = false;
+    this.hasInternalUVs = false;
+    this.hasExternalUVs = false;
 };
 
 
@@ -221,6 +224,13 @@ MapMesh.prototype.onLoaded = function(data, task, direct) {
         var stream = {data: new DataView(data), buffer:data, index:0};
         this.parseMapMesh(stream);
     }
+
+    var submesh = this.submeshes[0];
+    this.hasInternalUVs = !!(submesh && submesh.internalUVs);
+    this.hasExternalUVs = !!(submesh && submesh.externalUVs);
+
+    __DEV__ && this.submeshes.length !== 1 && utils.warnOnce(
+        `Terrain mesh expected one geometry, got ${this.submeshes.length}.`);
 
     this.map.stats.renderBuild += performance.now() - t;
 

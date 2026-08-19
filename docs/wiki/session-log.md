@@ -3,6 +3,13 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-19 - Terrain mesh capabilities survive CPU eviction
+
+Goal: keep early tile-rig construction without tying draw attributes to
+CPU-array residency. `MapMesh` now retains its UV capabilities after loading,
+and malformed submesh cardinality is treated as empty terrain so traversal
+can continue without drawing or claiming coverage.
+
 ## 2026-08-19 - Style ownership moved fully onto Map
 
 `MapStyle` now lives on the typed `Map` (`map.style`) instead of
