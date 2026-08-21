@@ -43,6 +43,10 @@ then branch into more specific documents as needed.
 RFCs are numbered in a plain integer sequence; see the RFC protocol
 in [AGENTS.md](../../AGENTS.md).
 
+- RFC 13 [rfc13-elevation-store.md](rfc13-elevation-store.md) — build a
+  GPU-backed, render-fed elevation store for batched point sampling,
+  temporal refinement, and later node height ranges
+
 - RFC 10 [rfc10-terrain-tile-container.md](rfc10-terrain-tile-container.md) —
   serve mesh and KTX2 normal map as one terrain-tile container file
   (mesh format v4): one DEM warp and one fetch per shaded tile, direct
