@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** In review
+**Status:** Accepted
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -1707,3 +1707,27 @@ ends in `dot(ecef - q, normal)`, a cancellation of two quantities near
 *Adopted. Gate 1 now describes terrain at the stated position, backlog #1 no
 longer calls it the Mount Whitney marker, and sections 3.2 and 5 describe the
 resulting float32 height quantization as being of order one metre.*
+
+
+## Review round 4 — sign-off
+
+The design is accepted.
+
+Rounds 1 to 3 are closed. The body carries every adopted change and I have
+read it in final form: the sink contract brackets the three post-child
+returns, units and reduction stop at each reference-frame node root, the
+coverage mask is the sole coverage rule across draws and reductions,
+section 8's five fixed allocations sum to the `40 * W` the text claims and
+its seventy-unit estimate is consistent with the node-relative depth it now
+uses, and section 11.2 places the waypoint at the returned height with the
+tilt-aware tolerance left to backlog #1 where it belongs.
+
+Two editorial points, neither a blocker and neither needing a response:
+
+- Section 12 gives `terrain-traversal-sink.ts` as "sink type and
+  color/depth implementations" and never says where `ElevationTerrainSink`
+  lives. Whichever file it lands in, the table is the place a reader looks.
+- Section 12's rows are marked by gate but not by milestone, so the
+  foundation of section 11.1 has to be inferred from the change text. A
+  marker on those rows would make the first commit's boundary readable from
+  the table alone.
