@@ -63,7 +63,7 @@ var MapSurfaceTile = function(map, parent, id) {
     this.resourceSurface = null; //surface directing to resources
 
     this.resetDrawCommands = false;
-    this.drawCommands = [[], [], []];
+    this.drawCommands = [];
 
     this.bounds = {};
     this.rasterSources = {};
@@ -71,7 +71,7 @@ var MapSurfaceTile = function(map, parent, id) {
     this.updateBounds = true;
 
     this.heightMap = null;
-    this.drawCommands = [[], [], []];
+    this.drawCommands = [];
     this.imageryCredits = {};
     this.mapdataCredits = {};
 
@@ -115,7 +115,7 @@ MapSurfaceTile.prototype.kill = function() {
     this.lastState = null;
 
     this.heightMap = null;
-    this.drawCommands = [[], [], []];
+    this.drawCommands = [];
     this.imageryCredits = {};
     this.mapdataCredits = {};
 
@@ -201,7 +201,7 @@ MapSurfaceTile.prototype.viewSwitched = function() {
     this.surfaceGeodataView = null;
     this.resourceSurface = null;
 
-    this.drawCommands = [[], [], []];
+    this.drawCommands = [];
     this.imageryCredits = {};
     this.mapdataCredits = {};
 };

@@ -3,6 +3,35 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-23 - Terrain traversal takes an explicit sink
+
+Goal: land the RFC 13 foundation milestone — one terrain traversal with
+explicit per-pass sinks, and no mutable draw channel.
+
+`drawTerrainTraversal` now takes a `TerrainTraversalPass`: the sink that
+turns a selected tile into output, a pass-wide no-load flag, and the
+colour frame's accounting. `Map.draw()` is the colour frame and
+`Map.drawDepthHitmap()` the depth pass; neither reaches the other's
+setup, so the depth pass no longer runs the colour frame's atmosphere,
+geodata, and overlay gates or advances its draw generation, counters,
+and drawn-tile statistics. Rig readiness and the tile draw are the
+sink's; descent, source order, fallback, coverage, and watertightness
+stay in the traversal.
+
+`Map.drawChannel` is gone, and with it the channel reads in
+`surface-tree.js`, `draw-tiles.js`, `draw.js`, and `renderer.ts`. The
+per-channel `tile.drawCommands` array collapses to one list, since only
+the colour channel was ever populated. `MapDraw.tileBuffer` had no
+readers and is removed.
+
+RFC 13 §7.2 also asks for pass-owned GPU-build usage forwarded through
+rig readiness. Not adopted: nothing in the terrain path increments
+`MapStats.gpuRenderUsed`, geodata adds to it only after terrain draws,
+and `MapStats.begin()` zeroes it per frame, so the check is inert in the
+colour frame and merely stale in the depth pass. Threading an allowance
+through `mesh.js`, `texture.js`, `subtexture.js`, and `atmosphere.ts`
+buys a deferred GPU build in an auxiliary pass and nothing else.
+
 ## 2026-08-19 - Terrain mesh capabilities survive CPU eviction
 
 Goal: keep early tile-rig construction without tying draw attributes to

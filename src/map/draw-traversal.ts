@@ -7,8 +7,9 @@ import type MapSurfaceTree from './surface-tree';
 import type MapSurfaceTile from './surface-tile';
 import type DrawTraversalMaskPool from './draw-traversal-mask';
 import { TileRenderRig } from './tile-render-rig';
-import type { GpuDevice } from '../renderer/gpu/device';
+import type GpuTexture from '../renderer/gpu/texture';
 import * as preV6Watertight from './pre-v6-watertight';
+
 
 /**
  * Runs the multi-surface RFC draw-traversal for terrain.
@@ -35,21 +36,22 @@ import * as preV6Watertight from './pre-v6-watertight';
  * @param plainTrees Per-plain-surface helper trees, ordered
  *     back-to-front (front surface at the last index).
  * @param maskPool Mask pool owned by the typed `Map`.
+ * @param pass Sink and pass-owned state for this traversal.
  */
 
 export function drawTerrainTraversal(
     map: Map,
     plainTrees: MapSurfaceTree[],
     maskPool: DrawTraversalMaskPool,
+    pass: TerrainTraversalPass,
 ): void {
 
     if (plainTrees.length === 0) return;
 
     const legacyMap = plainTrees[0].map;
     const draw = legacyMap.draw;
-    const stats = legacyMap.stats;
     const renderer = legacyMap.renderer;
-    const screenTarget = renderer.gpu.currentRenderTarget;
+    const entryTarget = renderer.gpu.currentRenderTarget;
     const cameraPos = legacyMap.camera.position;
     const fallbackCadence = map.config.mapFallbackCadence;
 
@@ -83,36 +85,127 @@ export function drawTerrainTraversal(
 
     if (rootActive.length === 0) return;
 
-    draw.drawCounter++;
-
-    const counters: Counters = {
-        processedNodes: 0,
-        processedMetatiles: 0,
-        usedNodes: 0,
-    };
-
-    legacyMap.gpuCache.skipCostCheck = true;
+    // The draw generation belongs to the colour frame; auxiliary passes
+    // leave it and the tile stamps that follow it alone.
+    if (pass.accounting) pass.accounting.drawCounter = ++draw.drawCounter;
 
     traverseNode({
         map,
+        pass,
         active: rootActive,
         depth: 0,
-        screenTarget,
         maskPool,
-        counters,
         texelSizeFit: draw.texelSizeFit,
         cameraPos,
         fallbackCadence,
     });
 
-    renderer.gpu.setRenderTarget(screenTarget);
-    legacyMap.gpuCache.skipCostCheck = false;
-    legacyMap.gpuCache.checkCost();
-
-    stats.usedNodes = counters.usedNodes;
-    stats.processedNodes = counters.processedNodes;
-    stats.processedMetatiles = counters.processedMetatiles;
+    // Materializing a coverage mask leaves its own target bound.
+    renderer.gpu.setRenderTarget(entryTarget);
 }
+
+
+/** State one terrain traversal pass owns, in place of global draw state. */
+export type TerrainTraversalPass = {
+
+    /** Produces this pass's output from the selected tiles. */
+    sink: TerrainTraversalSink;
+
+    /** Suppresses every resource request for the whole pass. */
+    doNotLoad: boolean;
+
+    /** Present on the colour frame only. */
+    accounting?: TerrainTraversalAccounting;
+};
+
+
+/**
+ * Produces one kind of output from the tiles `drawTerrainTraversal`
+ * selects.
+ *
+ * A sink owns its render target and program, decides whether a rig is
+ * ready for the output it produces, draws the rig, and carries the
+ * effects specific to that output. It takes no part in terrain policy:
+ * descent, terrain-source order, fallback selection, coverage masks,
+ * and watertightness stay in the traversal.
+ */
+export type TerrainTraversalSink = {
+
+    /**
+     * Opens a node on backtrack, before any draw at that node and
+     * before every path that can leave it. All surfaces active at the
+     * node share `tileId`, and the node's children have already
+     * completed.
+     *
+     * @param tileId Tile address of the node being backtracked.
+     */
+    beginNode?(tileId: [number, number, number]): void;
+
+    /**
+     * Reports whether a rig can produce this sink's output, and makes
+     * its resources ready when the traversal permits loading. The
+     * traversal calls this for the current rig and, if that one is not
+     * ready, for the tile's last rig at fallback readiness.
+     *
+     * @param rig Rig the traversal selected at this node.
+     * @param readiness Readiness levels the traversal asks for.
+     * @param priority Loader priority for essential and optional
+     *     resources.
+     * @param options Load and GPU-check options set by the traversal.
+     * @returns True when the rig can be drawn.
+     */
+    isReady(
+        rig: TileRenderRig,
+        readiness: TileRenderRig.ReadinessLevels,
+        priority: TileRenderRig.Priority,
+        options: TileRenderRig.IsReadyOptions,
+    ): boolean;
+
+    /**
+     * Draws one ready rig. Materializing the mask may have changed the
+     * GPU target, so the sink binds its own target first.
+     *
+     * @param tile Tile the rig belongs to.
+     * @param rig Ready rig, selected by the traversal.
+     * @param maskTexture Coverage already established by finer
+     *     descendants and higher-priority surfaces, or undefined when
+     *     the node has none.
+     */
+    draw(
+        tile: MapSurfaceTile,
+        rig: TileRenderRig,
+        maskTexture?: GpuTexture,
+    ): void;
+
+    /**
+     * Closes a node opened by `beginNode`. Runs exactly once for each
+     * such node, on whichever path leaves it.
+     *
+     * @param tileId Tile address of the completed node.
+     * @param covered Whether the node ended up covered, by its own
+     *     draws or by its children.
+     */
+    endNode?(tileId: [number, number, number], covered: boolean): void;
+};
+
+
+/**
+ * Colour-frame accounting maintained by the traversal.
+ *
+ * The colour caller allocates it and reads the counters back into
+ * `MapStats` when the pass completes. Auxiliary passes leave it out, so
+ * they neither advance the draw generation nor overwrite the inspector's
+ * colour-frame counters.
+ */
+export type TerrainTraversalAccounting = {
+
+    /** Draw generation this pass stamps on the tiles it draws. */
+    drawCounter: number;
+
+    usedNodes: number;
+    processedNodes: number;
+    processedMetatiles: number;
+};
 
 
 /**
@@ -257,13 +350,28 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
             preV6Watertight.inferPreV6WatertightFromChildren(entry.tile);
     }
 
+    // Backtracking starts here. The sink sees the node before every path
+    // that can leave it, including the two returns below, and sees
+    // exactly one endNode on whichever path is taken.
+    const sink = context.pass.sink;
+    const tileId = active[0].tile.id;
+
+    sink.beginNode?.(tileId);
+
     // No on-screen area anywhere below: this node contributes nothing.
-    if (offScreenMask === AllQuadrantsMask) return 'off-screen';
+    if (offScreenMask === AllQuadrantsMask) {
+
+        sink.endNode?.(tileId, false);
+        return 'off-screen';
+    }
 
     // Every on-screen quadrant is watertight (the rest are off-screen):
     // covered, no draw or mask needed, early return
-    if ((watertightMask | offScreenMask) === AllQuadrantsMask)
+    if ((watertightMask | offScreenMask) === AllQuadrantsMask) {
+
+        sink.endNode?.(tileId, true);
         return 'watertight';
+    }
 
     // Record watertight children as exact quadrant rectangles.
     if (watertightMask !== 0) maskPool.addQuadrantRects(depth, watertightMask);
@@ -298,8 +406,10 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
 
         // Load only natural leaves, cadence fallbacks, and fallback draws
         // at a watertight-fit stop. Other off-cadence fallback draws only
-        // probe resources already resident while descent continues.
-        const preventLoad = !naturalLeaf && !fallbackLod && !hasWatertightFit;
+        // probe resources already resident while descent continues. A pass
+        // that loads nothing keeps every draw at the probing level.
+        const preventLoad = context.pass.doNotLoad
+            || (!naturalLeaf && !fallbackLod && !hasWatertightFit);
 
         const renderedCoverage =
             renderTile(
@@ -311,7 +421,11 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
             );
 
         // A surface drawing watertight fully covers the node.
-        if (renderedCoverage === 'watertight') return 'watertight';
+        if (renderedCoverage === 'watertight') {
+
+            sink.endNode?.(tileId, true);
+            return 'watertight';
+        }
 
         // front surface failed to render; skip rendering the rest
         if (renderedCoverage === 'loading') noRender = true;
@@ -323,7 +437,10 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
 
     // The node's coverage is whatever ended up in its mask: watertight
     // rectangles, blitted child masks, or rendered footprints.
-    return maskPool.hasCoverage(depth) ? 'partial' : 'empty';
+    const covered = maskPool.hasCoverage(depth);
+
+    sink.endNode?.(tileId, covered);
+    return covered ? 'partial' : 'empty';
 }
 
 
@@ -412,9 +529,8 @@ function renderTile(
 ): TileRenderResult {
 
     const { tree, tile } = entry;
-    const { depth, map, maskPool } = context;
+    const { depth, map, maskPool, pass } = context;
     const legacyMap = tree.map;
-    const stats = legacyMap.stats;
     const node = tile.metanode;
 
     // sanity
@@ -431,7 +547,7 @@ function renderTile(
     if (preventLoad && !tile.surfaceMesh) return 'loading';
 
     // check gpu budget
-    if (stats.gpuRenderUsed >= legacyMap.draw.maxGpuUsed)
+    if (legacyMap.stats.gpuRenderUsed >= legacyMap.draw.maxGpuUsed)
         return 'loading';
 
     // create mesh object if it does not exist yet
@@ -474,24 +590,15 @@ function renderTile(
         optional: priority,
     };
 
-    if (map.drawChannel === 'color')
-        curRigReady = curRig.isReady(readiness, priority_, readyOptions);
+    const sink = pass.sink;
 
-    if (map.drawChannel === 'depth')
-        curRigReady = curRig.isDepthReady(priority_.essential, readyOptions);
+    curRigReady = sink.isReady(curRig, readiness, priority_, readyOptions);
 
     let lastRigReady = false;
 
-    if (!curRigReady) {
-
-        if (map.drawChannel === 'color')
-            lastRigReady = lastRig && lastRig.isReady(
-                TileRenderRig.ReadinessFallback, priority_, readyOptions);
-
-        if (map.drawChannel === 'depth')
-            lastRigReady = lastRig && lastRig.isDepthReady(
-                priority_.essential, readyOptions);
-    }
+    if (!curRigReady && lastRig)
+        lastRigReady = sink.isReady(lastRig,
+            TileRenderRig.ReadinessFallback, priority_, readyOptions);
 
     let rigToDraw : TileRenderRig | null = curRigReady ? curRig :
         lastRigReady ? lastRig : null;
@@ -510,63 +617,13 @@ function renderTile(
         ? maskPool.materialize(depth, erosion)
         : undefined;
 
-    // set render target
-    map.renderer.gpu.setRenderTarget(context.screenTarget);
+    sink.draw(tile, rigToDraw, maskTexture);
 
-    // draw
-    if (map.drawChannel === 'color')
-        map.withNavigationCamera(() =>
-            rigToDraw!.draw(legacyMap.camera.position, maskTexture));
-
-    if (map.drawChannel === 'depth')
-        map.withNavigationCamera(() =>
-            rigToDraw!.drawDepth(legacyMap.camera.position, maskTexture));
-
-    // update layer credits on the color pass
-    if (map.drawChannel === 'color') {
-
-        // process layer credits (only active layers)
-        let activeRasterSourceIds = rigToDraw.activeRasterSourceIds();
-
-        activeRasterSourceIds.forEach((id) => {
-
-            let source = tile.rasterSources[id];
-            if (!source) return;
-
-            let credits = source.credits;
-            for (let k = 0; k < credits.length; k++)
-                tile.imageryCredits[credits[k]] = source.specificity;
-        });
-
-        tile.addSubmeshCredits(0, activeRasterSourceIds);
-
-        // extract and flush credits
-        legacyMap.applyCredits(tile);
-
-    }
-
-    // tile info - drawn on the color pass when the tile painted content
-    if (map.drawChannel === 'color'
-        && map.overrides.drawBBoxes && !map.overrides.drawGeodataOnly)
-        map.withNavigationCamera(() =>
-            legacyMap.draw.drawTiles.drawTileInfo(
-                tile, node, legacyMap.camera.position, tile.surfaceMesh,
-                tile.texelSize));
-
-    // update draw generation counter, infer watertightness if applicable
-    tile.drawCounter = legacyMap.draw.drawCounter;
+    // infer watertightness if applicable
     preV6Watertight.inferPreV6WatertightFromTile(tile);
 
-    // update tile counts in inspector
-    stats.renderedLods[tile.id[0]]++;
-    stats.drawnTiles++;
-
-    // mirror the per-LOD tile count, keyed by surface id, so
-    // the inspector can break the same total down by surface
-    let surfaceId = tile.surface.id || '(no id)';
-
-    stats.renderedSurfaces[surfaceId] =
-        (stats.renderedSurfaces[surfaceId] || 0) + 1;
+    // stamp the drawn tile with this pass's draw generation
+    if (pass.accounting) tile.drawCounter = pass.accounting.drawCounter;
 
     // done, drawn and watertight
     if (node.watertight) return 'watertight';
@@ -602,29 +659,28 @@ function getReadyChild(
  * metatile this frame. The first-appearance check is per-metatile, not
  * per-surface, because the same metatile binary backs all nodes in a
  * metatile-aligned block.
+ *
+ * Only the colour frame accounts for nodes and metatiles, so an
+ * auxiliary pass leaves the metatile generation stamps alone too.
  */
 function recordSurfaces(context: NodeContext): void {
 
-    const counters = context.counters;
-    const drawCounter = context.active[0].tree.map.draw.drawCounter;
+    const accounting = context.pass.accounting;
+    if (!accounting) return;
+
+    const drawCounter = accounting.drawCounter;
 
     for (const entry of context.active) {
 
-        counters.processedNodes++;
-        counters.usedNodes++;
+        accounting.processedNodes++;
+        accounting.usedNodes++;
 
         const metatile = entry.tile.metanode!.metatile;
         if (metatile.drawCounter === drawCounter) continue;
 
         metatile.drawCounter = drawCounter;
-        counters.processedMetatiles++;
+        accounting.processedMetatiles++;
     }
-}
-
-
-function isRig(value: TileRenderRig | boolean | null): value is TileRenderRig {
-
-    return typeof value === 'object' && value !== null;
 }
 
 
@@ -667,20 +723,12 @@ type ChildQuadrant = {
 };
 
 
-type Counters = {
-    processedNodes: number;
-    processedMetatiles: number;
-    usedNodes: number;
-};
-
-
 type NodeContext = {
     map: Map;
+    pass: TerrainTraversalPass;
     active: ActiveSurface[];
     depth: number;
-    screenTarget: GpuDevice.RenderTarget;
     maskPool: DrawTraversalMaskPool;
-    counters: Counters;
     texelSizeFit: number;
     cameraPos: [number, number, number];
     fallbackCadence: number;

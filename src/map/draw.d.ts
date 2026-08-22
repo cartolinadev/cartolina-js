@@ -17,7 +17,6 @@ export default class MapDraw {
     constructor(map: unknown);
 
     drawTileState: GpuDevice.State;
-    tileBuffer: unknown[];
     zbufferOffset: number | null;
 
     drawCounter: number;

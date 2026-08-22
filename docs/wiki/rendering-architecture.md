@@ -60,16 +60,45 @@ possible, and renders color and depth passes for one terrain tile.
 Regular terrain meshes contain exactly one submesh. A different count
 is malformed input and contributes no coverage to traversal.
 
-The default terrain draw path now enters
-`src/map/draw-traversal.ts` from `MapSurfaceTree.draw()`.
-It performs recursive backtracking over the legacy-selected terrain
-surface and uses UV-space R8 masks from
+Terrain draws through `drawTerrainTraversal` in
+`src/map/draw-traversal.ts`. It performs recursive backtracking over the
+configured terrain surfaces and uses UV-space R8 masks from
 `src/map/draw-traversal-mask.ts` to stop fallback tiles from
 overdrawing finer child coverage. The traversal uses v6
 `metanode.watertight` flags as a post-draw fast path: a drawn
 watertight tile skips footprint rasterization and returns analytic full
 coverage on backtrack. The check is repeated per node; a watertight
-ancestor does not deactivate descendants. There is no erosion yet.
+ancestor does not deactivate descendants.
+
+### Terrain passes and sinks
+
+Each caller of the traversal is a pass, and supplies a
+`TerrainTraversalSink` together with the state that pass owns. The
+traversal decides which tiles are drawn — node descent, terrain-source
+order, natural-leaf and fallback selection, coverage masks,
+watertightness — and the sink decides what the drawn tile produces: its
+render target and program, whether a rig is ready for that output, and
+any effects specific to it.
+
+Two passes exist. `Map.draw()` runs the colour frame with
+`ColorTerrainSink`, which draws through `TileRenderRig.draw()` and owns
+imagery and mesh credits, the per-LOD and per-surface draw statistics
+the inspector reads, and the terrain debug overlay.
+`Map.drawDepthHitmap()` runs the depth pass with `DepthTerrainSink`,
+which asks only for mesh readiness and draws through
+`TileRenderRig.drawDepth()`.
+
+Each pass initializes only what its own traversal needs. The colour
+frame is the only entry point that reaches the atmosphere, geodata,
+labels, credits, and overlays. Pass-owned state keeps the colour frame's
+accounting out of auxiliary passes: the draw generation and the
+`usedNodes` / `processedNodes` / `processedMetatiles` counters are
+supplied by the colour caller alone, and only that caller brackets the
+descent with the deferred GPU cache cost check.
+
+The sink contract is designed in
+[rfc13-elevation-store.md](rfc13-elevation-store.md) §7, which adds a
+third pass for the elevation store.
 
 This replaced the old terrain draw-command path that was split across:
 

@@ -69,7 +69,7 @@ export default class Map {
      * Back-pointer to the typed `Map` wrapper. Migration scaffolding so
      * the legacy auxiliary classes (`MapDraw`, `MapDrawTiles`,
      * `MapSurfaceTree`, `Renderer`, ...) can reach typed-`Map` state
-     * (`drawChannel`, overlays, per-frame entry points) while they still
+     * (overlays, per-pass entry points) while they still
      * hold a `this.map = LegacyMap` reference. Disappears when those
      * classes absorb into typed `Map`.
      *

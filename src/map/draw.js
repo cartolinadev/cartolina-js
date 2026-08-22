@@ -38,7 +38,6 @@ var MapDraw = function(map) {
     this.drawCounter = 0;
 
     this.planetRadius = this.isGeocent ? map.getNavigationSrs().getSrsInfo()['a'] : 100;
-    this.tileBuffer = new Array(500);
     this.processBuffer = new Array(60000);
     this.processBuffer2 = new Array(60000);
     this.drawBuffer = new Array(60000);
@@ -99,9 +98,8 @@ MapDraw.prototype.initFrame = function() {
 /**
  * Triggered by map.getScreenDepth and map.getHitcoords.
  *
- * Toggles `drawChannel` to `'depth'`, switches the framebuffer, calls
- * the typed `Map.draw` to issue the depth pass, restores the channel
- * and framebuffer.
+ * Switches the framebuffer, calls the typed `Map.drawDepthHitmap` to
+ * issue the depth pass, and restores the framebuffer.
  */
 MapDraw.prototype.drawHitmap = function() {
 
@@ -117,16 +115,14 @@ MapDraw.prototype.drawHitmap = function() {
         this.renderer.lastHitmapCopyTime = now;
     }
 
-    this.map.outerMap.drawChannel = 'depth';
     this.renderer.switchToFramebuffer('depth');
-    this.map.outerMap.draw();
+    this.map.outerMap.drawDepthHitmap();
     this.renderer.switchToFramebuffer('base');
 
     if (this.renderer.hitmapMode > 2) {
         this.renderer.copyHitmap();
     }
 
-    this.map.outerMap.drawChannel = 'color';
     this.map.hitMapDirty = false;
 };
 
@@ -194,7 +190,7 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 
 
 MapDraw.prototype.drawMonoliticGeodata = function(surface) {
-    if (!surface || this.map.outerMap.drawChannel !== 'color') {
+    if (!surface) {
         return;
     }
 

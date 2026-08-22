@@ -796,8 +796,13 @@ createBuffers() {
  * The legacy map draw code used to write these fields directly before
  * drawing. This method keeps the same data local to the renderer and updates
  * the frame UBO from the selection position used for terrain selection.
+ *
+ * @param underSelectionCamera Update the camera and frame buffers with
+ *     the selection camera installed. Auxiliary passes that follow
+ *     terrain selection pass true; the colour frame leaves the live
+ *     camera in place.
  */
-initFrame(): void {
+initFrame(underSelectionCamera = false): void {
 
     const map = this.map.legacyMap!;
     const config = map.config;
@@ -845,13 +850,13 @@ initFrame(): void {
         this.updateBuffers(map.outerMap.getSelectionPosition()!);
     };
 
-    if (map.outerMap.drawChannel === 'color') {
+    if (underSelectionCamera) {
 
-        updateFrameBuffers();
+        map.outerMap.withSelectionCamera(updateFrameBuffers);
 
     } else {
 
-        map.outerMap.withSelectionCamera(updateFrameBuffers);
+        updateFrameBuffers();
     }
 }
 

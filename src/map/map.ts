@@ -32,6 +32,12 @@ import MapMeasure from './measure';
 import MapSurfaceTree from './surface-tree';
 import DrawTraversalMaskPool from './draw-traversal-mask';
 import { drawTerrainTraversal } from './draw-traversal';
+import type {
+    TerrainTraversalAccounting,
+    TerrainTraversalPass,
+} from './draw-traversal';
+import ColorTerrainSink from './color-terrain-sink';
+import DepthTerrainSink from './depth-terrain-sink';
 import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
 
@@ -1029,11 +1035,13 @@ class Map {
     }
 
     /**
-     * Draws one frame against the current render target. Called from
-     * `Map.tick` for the canvas frame and from `MapDraw.drawHitmap`
-     * for the depth pass. The body relocates from the legacy
-     * `MapDraw.drawMap`; the per-channel decisions still flow through
-     * `this.drawChannel`.
+     * Draws the colour frame against the canvas render target. Called
+     * from `Map.tick`. The body relocates from the legacy
+     * `MapDraw.drawMap`.
+     *
+     * This is the only entry point that reaches the atmosphere,
+     * geodata, labels, credits, and overlays. Auxiliary terrain passes
+     * have their own entry points and initialize only what they need.
      */
     draw(): void {
 
@@ -1041,19 +1049,14 @@ class Map {
         const renderer = this.renderer;
         const mapDraw = legacyMap.draw;
         const gpu = renderer.gpu;
-        const channel = this.drawChannel;
 
         // Reset owner-specific frame state before issuing draw work.
+        legacyMap.visibleCredits = { imagery: {}, mapdata: {} };
         this.initFrame();
         renderer.initFrame();
         mapDraw.initFrame();
 
-        /* Depth-channel color was cleared in
-         * `switchToFramebuffer('depth')`; only depth is reset here. */
-        if (channel !== 'depth')
-            gpu.clearColorAndDepth();
-        else
-            gpu.clearDepth();
+        gpu.clearColorAndDepth();
 
         // runtime atmosphere override falls back to the map
         // configuration.
@@ -1069,7 +1072,7 @@ class Map {
             || grayPngDecodeAvailable();
 
         // draw background (skydome)
-        if (channel === 'color' && atmosphereEnabled && atmosphereSupported
+        if (atmosphereEnabled && atmosphereSupported
             && legacyMap.atmosphere)
             renderer.drawBackground();
 
@@ -1078,9 +1081,7 @@ class Map {
             ?? legacyMap.config.mapFlagLabels;
 
         // clear queued geodata jobs
-        if (labelsEnabled
-            && legacyMap.freeLayerSequence.length > 0
-            && channel === 'color') {
+        if (labelsEnabled && legacyMap.freeLayerSequence.length > 0) {
 
             renderer.draw.clearJobBuffer();
         }
@@ -1092,14 +1093,9 @@ class Map {
 
             this.withSelectionCamera(() => {
 
-                // todo: remove this
-                for (let i = 0; i < mapDraw.tileBuffer.length; i++) {
-                    mapDraw.tileBuffer[i] = null;
-                }
-
                 // draw mesh tiles
                 if (this.surfaceList().length > 0) {
-                    this.drawTerrainRecursive();
+                    this.drawColorTerrain();
                 }
 
                 // draw free layers
@@ -1112,8 +1108,7 @@ class Map {
 
                     if (layer.ready && layer.tree
                         && layer.stylesheet
-                        && layer.stylesheet.isReady()
-                        && channel === 'color') {
+                        && layer.stylesheet.isReady()) {
 
                         if (layer.type === 'geodata') {
                             // monolithic geodata job collection
@@ -1133,9 +1128,7 @@ class Map {
 
         // draw freeze frustum, if applicable
         const inspector = this.inspector;
-        if (channel === 'color'
-                && inspector
-                && inspector.hasFreezeFrustum()) {
+        if (inspector && inspector.hasFreezeFrustum()) {
 
             this.withNavigationCamera(() => {
                 inspector.drawFreezeFrustum();
@@ -1145,8 +1138,7 @@ class Map {
         // draw queued geodata labels and icons
         if (this.overrides.drawEarth
                 && labelsEnabled
-                && legacyMap.freeLayerSequence.length > 0
-                && channel === 'color') {
+                && legacyMap.freeLayerSequence.length > 0) {
 
             renderer.drawnGeodataTiles =
                 legacyMap.stats.drawnGeodataTilesPerLayer;
@@ -1159,6 +1151,39 @@ class Map {
         }
 
         // done
+    }
+
+    /**
+     * Draws terrain into the depth hitmap target. Called from
+     * `MapDraw.drawHitmap`, which binds that target first.
+     *
+     * The pass initializes the camera, renderer, and legacy draw state
+     * its own traversal needs and nothing else: colour was already
+     * cleared with the target, and geodata, atmosphere, labels,
+     * credits, and overlays belong to the colour frame alone.
+     */
+    drawDepthHitmap(): void {
+
+        const legacyMap = this.map!;
+        const renderer = this.renderer;
+
+        this.initFrame();
+        renderer.initFrame(true);
+        legacyMap.draw.initFrame();
+
+        renderer.gpu.clearDepth();
+        renderer.gpu.setState(legacyMap.draw.drawTileState);
+
+        if (!this.overrides.drawEarth) return;
+        if (this.surfaceList().length === 0) return;
+
+        this.withSelectionCamera(() => {
+
+            this.drawTerrain({
+                sink: new DepthTerrainSink(this),
+                doNotLoad: false,
+            });
+        });
     }
 
     // -----------------------------------------------------------------
@@ -1337,14 +1362,6 @@ class Map {
      *   `requireReadyStyle` for validated access.
      */
     style: MapStyle | null = null;
-
-    /**
-     * Active rendering channel for the current frame.
-     *
-     * - `'color'`: visual canvas pass.
-     * - `'depth'`: depth / hit pass that feeds the hitmap.
-     */
-    drawChannel: 'color' | 'depth' = 'color';
 
     // -----------------------------------------------------------------
     // LegacyMap factories
@@ -1555,17 +1572,10 @@ class Map {
         }
     }
 
-    /** Resets map-owned per-frame state. Called at the top of `draw`. */
+    /** Resets map-owned per-pass state. Called at the top of every pass. */
     private initFrame(): void {
 
         const legacyMap = this.map!;
-
-        if (this.drawChannel !== 'depth') {
-
-            legacyMap.visibleCredits = {
-                imagery: {}, mapdata: {},
-            };
-        }
 
         legacyMap.loader.setChannel(0); // 0 = hires channel
         legacyMap.stats.renderBuild = 0;
@@ -1643,13 +1653,48 @@ class Map {
     }
 
     /**
-     * Recursive terrain draw — the only surface traversal path. Feeds
-     * the combined-descent traversal in `draw-traversal.ts` with the
-     * current `surfaceList()` and the cached per-surface helper trees.
-     * Glues and virtual surfaces are excluded — see
-     * `rfc03-draw-traversal.md` §7.
+     * Runs the colour frame's terrain pass, with the accounting and the
+     * deferred GPU cache cost check that belong to the visible frame.
      */
-    private drawTerrainRecursive(): void {
+    private drawColorTerrain(): void {
+
+        const legacyMap = this.map!;
+
+        const accounting: TerrainTraversalAccounting = {
+            drawCounter: legacyMap.draw.drawCounter,
+            usedNodes: 0,
+            processedNodes: 0,
+            processedMetatiles: 0,
+        };
+
+        // Terrain resources enter the GPU cache throughout the descent;
+        // charging them once at the end keeps eviction from running
+        // against a half-built frame.
+        legacyMap.gpuCache.skipCostCheck = true;
+
+        this.drawTerrain({
+            sink: new ColorTerrainSink(this),
+            doNotLoad: false,
+            accounting,
+        });
+
+        legacyMap.gpuCache.skipCostCheck = false;
+        legacyMap.gpuCache.checkCost();
+
+        const stats = legacyMap.stats;
+        stats.usedNodes = accounting.usedNodes;
+        stats.processedNodes = accounting.processedNodes;
+        stats.processedMetatiles = accounting.processedMetatiles;
+    }
+
+    /**
+     * Recursive terrain traversal — the only surface traversal path.
+     * Feeds the combined-descent traversal in `draw-traversal.ts` with
+     * the current `surfaceList()`, the cached per-surface helper trees,
+     * and the calling pass's sink and state. Glues and virtual surfaces
+     * are excluded — see `rfc03-draw-traversal.md` §7.
+     */
+    private drawTerrain(pass: TerrainTraversalPass): void {
 
         const resolution = this.config.mapTraversalMaskResolution;
 
@@ -1669,7 +1714,7 @@ class Map {
         const trees = this.resolveSurfaceTrees();
         if (trees.length === 0) return;
 
-        drawTerrainTraversal(this, trees, this.terrainMaskPool_!);
+        drawTerrainTraversal(this, trees, this.terrainMaskPool_!, pass);
     }
 
     /**

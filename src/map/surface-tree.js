@@ -97,11 +97,6 @@ MapSurfaceTree.prototype.draw = function() {
         //this.surfaceTracer = this.surfaceTracerBasic;
     //}
     
-    if (this.freeLayerSurface && this.freeLayerSurface.geodata && map.outerMap.drawChannel !== 'color') {
-        return;
-    }
-
-
     // Terrain now draws through the recursive traversal on the typed
     // Map. This legacy tree is reached only by tiled-geodata free
     // layers, which use the fitted-frontier traversal to collect their
@@ -404,7 +399,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
 
 MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex, noGrid) {
 
-    var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2); // && this.freeLayerSurface.geodata && draw.drawChannel == 0);
+    var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2);
     var hmax = -999999, hmin = 999999;
     var renderer = map.renderer;
     var mvp = this.camera.getMvpMatrix(), p1, p2, camVec, length, tilt, factor, i, tile, node; 
@@ -481,17 +476,10 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         } // for (i = drawBufferIndex - 1; i >= 0; i--)
     };
 
-    if (map.outerMap.drawChannel === 'color') {
+    map.outerMap.withNavigationCamera(function() {
 
-        map.outerMap.withNavigationCamera(function() {
-
-            drawSelectedBuffer(map.camera.position);
-        });
-
-    } else {
-
-        drawSelectedBuffer(cameraPos);
-    }
+        drawSelectedBuffer(map.camera.position);
+    });
 
     if (scanExtents) {
         renderer.gridHmax = hmax;

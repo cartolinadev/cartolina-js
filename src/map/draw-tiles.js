@@ -74,7 +74,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
             }
 
             if (tile.resetDrawCommands) {
-                tile.drawCommands = [[], [], []];
+                tile.drawCommands = [];
                 tile.updateBounds = true;
                 tile.resetDrawCommands = false;
             }
@@ -88,9 +88,7 @@ MapDrawTiles.prototype.drawSurfaceTile = function(
             if (tile.surface.geodata) {
 
                 // debug bbox/label overlay for geodata-surface tiles, drawn
-                // on tile selection. This call has no drawChannel guard, so
-                // on the depth pass it writes overlay geometry into the
-                // depth/hitmap target and locally corrupts it.
+                // on tile selection.
                 if (this.map.outerMap.overrides.drawBBoxes && !preventRedener) {
                     this.drawTileInfo(
                         tile, node, cameraPos, tile.surfaceMesh, pixelSize);
@@ -119,12 +117,8 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
             path, {tile:tile, surface:tile.surface});
     }
 
-    // tile.drawCommands is a numeric-indexed array of per-channel
-    // command lists; convert the typed channel at this boundary.
-    var channel = this.map.outerMap.drawChannel === 'color' ? 0 : 1;
-
     if (tile.geodataCounter != tile.surface.geodataCounter) {
-        tile.drawCommands = [[],[],[]];
+        tile.drawCommands = [];
 
         if (tile.surfaceGeodataView != null) {
             tile.surfaceGeodataView.kill();
@@ -134,9 +128,9 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
         tile.geodataCounter = tile.surface.geodataCounter;
     }
 
-    if (tile.drawCommands[channel].length > 0 && this.draw.areDrawCommandsReady(tile.drawCommands[channel], priority, preventLoad, doNotCheckGpu)) {
+    if (tile.drawCommands.length > 0 && this.draw.areDrawCommandsReady(tile.drawCommands, priority, preventLoad, doNotCheckGpu)) {
         if (!preventRedener) {
-            this.draw.processDrawCommands(cameraPos, tile.drawCommands[channel], priority, null, tile);
+            this.draw.processDrawCommands(cameraPos, tile.drawCommands, priority, null, tile);
             this.map.applyCredits(tile);
         }
         return true;
@@ -158,7 +152,7 @@ MapDrawTiles.prototype.drawGeodataTile = function(tile, node, cameraPos, pixelSi
             tile.mapdataCredits[node.credits[k]] = specificity;
         }
 
-        tile.drawCommands[channel][0] = {
+        tile.drawCommands[0] = {
             type : vts.DRAWCOMMAND_GEODATA,
             geodataView : tile.surfaceGeodataView
         };

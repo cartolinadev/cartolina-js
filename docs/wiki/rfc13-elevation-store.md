@@ -1731,3 +1731,34 @@ Two editorial points, neither a blocker and neither needing a response:
   foundation of section 11.1 has to be inferred from the change text. A
   marker on those rows would make the first commit's boundary readable from
   the table alone.
+
+
+## Addendum — 2026-08-23 — foundation: explicit traversal sinks
+
+Section 11.1 is implemented. `drawTerrainTraversal()` takes a
+`TerrainTraversalPass` carrying the sink, the pass-wide `doNotLoad` flag,
+and the colour frame's accounting. `Map.draw()` and
+`Map.drawDepthHitmap()` are the two pass entry points, `Map.drawChannel`
+is removed, and the channel reads in `surface-tree.js`, `draw-tiles.js`,
+`draw.js`, and `renderer.ts` are gone with it.
+
+Two deviations from section 7.2.
+
+The sink type is exported by `draw-traversal.ts` rather than by a
+`terrain-traversal-sink.ts` module, and each sink has its own module
+(`color-terrain-sink.ts`, `depth-terrain-sink.ts`). A second module named
+after the traversal would read as a second traversal.
+
+Pass-owned GPU-build usage is not adopted. `MapStats.gpuRenderUsed` is
+incremented only by `MapGeodataView.draw()`, which runs after terrain in
+the colour frame, and `MapStats.begin()` zeroes it on every dirty frame,
+so the value terrain reads is always zero in the colour frame. It is
+non-zero only in the depth pass, which runs outside the dirty gate; the
+sole consequence is that an auxiliary pass may defer a GPU mesh build for
+one interval, which section 7.4 already permits. `renderTile()` and rig
+readiness therefore still read the frame counter, and no allowance is
+threaded through `mesh.js`, `texture.js`, `subtexture.js`, or
+`atmosphere.ts`. The rest of review note 11 is implemented: the draw
+generation and the node and metatile counters are pass-owned, and only
+the colour caller brackets the descent with `gpuCache.skipCostCheck` and
+`checkCost()`.
