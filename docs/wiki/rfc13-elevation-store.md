@@ -1531,3 +1531,112 @@ method's is the accurate one.
 polls fences outside the dirty gate; section 8 itemizes all five fixed
 allocations; sections 5, 7, and 8 state setting visibility and reference-frame
 lifetime; and section 12 removes the erroneous `legacy-map.d.ts` row.*
+
+
+## Review round 2
+
+Round 1 is closed. Every adopted change is in the body and each one does
+what its response says: `beginNode()` now precedes all three post-child
+exits, the depth attachment clears per rig with the traversal mask as the
+sole coverage rule, units and reduction stop at each reference-frame node
+root, the GSD divisor is 255 with `node.id[0]` as the LOD origin, the
+budget clamp is defined and its 1.5 MiB root reservation and 0.25 MiB
+replacement slot are arithmetically right, the on-demand pass in 7.4 is
+specified rather than gestured at, and section 11's foundation milestone
+separates the sink extraction from the store. `RF node` survives only
+inside round 1's quoted text, which is correct.
+
+Two notes.
+
+### 1. The rejection is right; the limitation still needs stating
+
+Agreed, and not re-raised. None of the four gates needs sub-metre height:
+the waypoint places a marker, the map position and pan following move a
+camera, and the path all three replace is wrong by 117 m at the case that
+motivated the RFC. Buying compensated position arithmetic against no
+requirement is the trade the project's own rules tell you not to make.
+
+What the rejection leaves behind is that the RFC states no accuracy at
+all. Section 3.2 still says the shader "computes the same ellipsoidal
+quantity as the library's CPU SRS conversion". With a float32
+reconstruction of an absolute Cartesian position it does not — it computes
+that quantity to about half a metre at Earth radius, and to a value that
+shifts as `physicalEyePos` moves. Section 5's new reliability paragraph
+describes reduced averages and renormalized edges but not this floor, so a
+reader has no way to tell what the store's numbers are worth.
+
+Suggest section 3.2 saying it outright: the reconstruction is float32, the
+resulting height carries roughly half a metre of camera-dependent
+quantization at Earth radius, and this is accepted because no consumer in
+this RFC works below metre scale. Section 5's reliability paragraph can
+then name it as one of the three contributions to vertical error, and gate
+2 reads its difference distribution against a known floor instead of
+discovering one in the standard deviation.
+
+Stating a limitation is cheaper than removing it and is the part that
+survives into the next design, where regional coverage and vector
+placement may well need better.
+
+### 2. Terrain-anchored placement has no depth tolerance, and gate 1 needs one
+
+This is unaddressed rather than wrong, and it is the one thing that can
+fail gate 1 while every mechanism in the RFC works as designed.
+
+Gate 1 passes the returned coordinate to `checkVisibility()` with mode
+`fix` and asks the reviewer to confirm the marker "remains visible". But a
+store sample is not the drawn mesh height, and the difference is
+one-sided in the direction that hides the marker:
+
+- the store is a regular 256-sample grid and the mesh is irregular, so a
+  bilinear read between grid samples reconstructs a bilinear patch. On a
+  ridge crest — which is where the Mount Whitney case sits — that patch
+  lies below the mesh;
+- section 5 already says a coarse unit holds reduced averages with
+  renormalized edges; and
+- the float32 floor from note 1 adds its share.
+
+The first term scales with `actualGsd`, and gate 1 requests GSD zero, so
+during load-in the finest resident unit is coarse — exactly the window the
+gate asks the reviewer to watch when it says the marker should "follow a
+better store sample when finer terrain becomes ready". A point at or just
+below the drawn surface reads as occluded.
+
+`checkVisibility()` has one tolerance, `const tolerance = 0.01` at
+[viewer.ts:735](../../src/viewer/viewer.ts#L735). It is 1% of the point's
+camera distance and its comment says what it was sized for: the 0.4%
+spread from sampling terrain depth somewhere inside a texel. It is not an
+anchor-height allowance, and being radial it does not widen as the view
+angle grazes — which is the case [backlog #1](backlog.md#backlog-1)
+recorded as ill-conditioned in the anchor height. The store takes that
+error from 117 m to metres. It does not change the conditioning.
+
+The library already solved this for the other terrain-anchored geometry it
+draws, which is the precedent worth pointing at rather than inventing a
+second mechanism. `zbuffer-offset` is a public style property
+([style-schema.ts:248](../../src/map/style-schema.ts#L248)), a
+three-component `[constant, distance, tilt]` bias turned into a
+projection-matrix depth offset by `Renderer.getZoffsetFactor()`
+([renderer.ts:1949](../../src/renderer/renderer.ts#L1949)) and applied at
+every geodata draw site in `src/renderer/draw.js`; `geodata-builder.js`
+defaults its own generated styles to `[-5, 0, 0]`. The tilt term exists
+for the grazing case specifically.
+
+RFC 13 does not have to solve this, but leaving gate 1 silently dependent
+on it is the risk. Cheapest first:
+
+1. Section 6 could say what a returned sample means for placement — that
+   it puts a point *on* the terrain, so a consumer drawing a marker there
+   lifts it — and section 11.2 could state the offset the waypoint demo
+   uses and where it comes from. A small multiple of `actualGsd` is the
+   natural unit, because that is what the dominant term scales with.
+2. If the offset belongs in the library rather than in a demo,
+   `checkVisibility()` taking the anchor's `actualGsd` into account
+   instead of a flat 1% is a `Viewer` change. That reads like a backlog
+   entry rather than RFC 13 work, but it should be opened by this RFC
+   rather than found during the gate.
+
+One reason to treat it as this RFC's business either way:
+[backlog #1](backlog.md#backlog-1)'s status line says the remaining work
+is tracked by RFC 13, and that remaining work is precisely a
+terrain-anchored point that survives `checkVisibility()`. Store accuracy
+is necessary for that and, on this evidence, not sufficient.
