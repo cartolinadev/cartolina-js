@@ -133,9 +133,15 @@ the store.
 
 For a geocentric frame, the elevation vertex shader reconstructs absolute
 physical coordinates by adding `uFrame.physicalEyePos.xyz` to the
-camera-relative position produced by `uModel`. It then converts the Cartesian
-position to geodetic height. The semi-minor axis `b` is derived from the
-semi-major axis and major-to-minor ratio in `uFrame.bodyParams`.
+camera-relative position produced by `uModel`. Both operands and the result are
+float32. At Earth radius the reconstructed Cartesian components have a 0.5 m
+unit in the last place, so their contribution to the resulting height is
+sub-metre and can change when `physicalEyePos` changes. This is accepted
+because no consumer in this RFC requires sub-metre height.
+
+The shader then converts the Cartesian position to geodetic height. The
+semi-minor axis `b` is derived from the semi-major axis and major-to-minor
+ratio in `uFrame.bodyParams`.
 
 The shader uses Bowring's formula. With semi-major axis `a`, semi-minor axis
 `b`, `p = length(xy)`, first eccentricity squared `e2`, and second
@@ -364,10 +370,12 @@ reference-frame node.
 
 `actualGsd` describes horizontal sample spacing, not vertical reliability.
 A coarse unit contains reduced averages, and invalid-neighbour
-renormalization adds its own filtering near coverage edges. This RFC does not
-report a vertical uncertainty or confidence value. Consumers retain and
-refresh the best available sample; a later regional-coverage design must also
-define the reliability required by vector placement.
+renormalization adds its own filtering near coverage edges. Geocentric height
+also contains the sub-metre, camera-dependent float32 quantization described
+in section 3.2. This RFC does not report a vertical uncertainty or confidence
+value. Consumers retain and refresh the best available sample; a later
+regional-coverage design must also define the reliability required by vector
+placement.
 
 
 ## 6. Lookup API
@@ -464,9 +472,9 @@ namespace Viewer {
 `Viewer.TerrainSample` contains `position` and `actualGsd` with the same
 meaning as above. It is a Viewer-owned public type, not an alias of an
 `ElevationStore` or `Map` type. The method exposes no store lifetime,
-texture, unit, revision, or update operation. It exists because terrain
-elevation is a map query needed by application code; the store remains an
-implementation detail.
+texture, unit, revision, update operation, or placement policy. It exists
+because terrain elevation is a map query needed by application code; the
+store remains an implementation detail.
 
 ### 6.3 Query execution
 
@@ -871,9 +879,13 @@ The first step implements only the store needed by the waypoint:
 5. Change the waypoint demo so every two-dimensional marker submits its
    existing geographic coordinates with GSD zero. It keeps one request in
    flight, retains its last resolved value, and moves the marker only when the
-   returned height or GSD changes. The returned fixed coordinate is passed to
+   returned height or GSD changes. The waypoint adds
+   `max(1 metre, actualGsd)` to the returned height as marker clearance. The
+   one-metre floor covers the float32 quantization described in section 3.2.
+   The lifted fixed coordinate is used for both placement and
    `checkVisibility()` with mode `fix`, restoring the terrain-occlusion check
-   which the navigation-tile error forced the demo to remove.
+   which the navigation-tile error forced the demo to remove. This is waypoint
+   placement policy; the store returns the unmodified terrain sample.
 
 Manual validation uses `a-3d-mountain-map` and the waypoint demo at the Mount
 Whitney position `[-118.302348, 36.560197]`. The reviewer verifies that the
@@ -1577,6 +1589,9 @@ Stating a limitation is cheaper than removing it and is the part that
 survives into the next design, where regional coverage and vector
 placement may well need better.
 
+*Adopted. Sections 3.2 and 5 state the sub-metre, camera-dependent float32
+quantization and the reason it is accepted.*
+
 ### 2. Terrain-anchored placement has no depth tolerance, and gate 1 needs one
 
 This is unaddressed rather than wrong, and it is the one thing that can
@@ -1640,3 +1655,9 @@ One reason to treat it as this RFC's business either way:
 is tracked by RFC 13, and that remaining work is precisely a
 terrain-anchored point that survives `checkVisibility()`. Store accuracy
 is necessary for that and, on this evidence, not sufficient.
+
+*Adopted. Section 11.2 makes the waypoint add `max(1 metre, actualGsd)` to the
+returned height for both marker placement and its `checkVisibility()`
+coordinate. The floor covers float32 quantization, and gate 1 validates the
+result. This policy belongs to the waypoint; the store returns the unmodified
+terrain sample.*
