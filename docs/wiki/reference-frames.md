@@ -146,9 +146,14 @@ navigation SRS Z axis (metres above the ellipsoid); the renderer uses it
 to set the near/far plane and the ocean floor plane.
 
 
-### Division nodes and polar caps
+### Reference-frame spatial division nodes and polar caps
 
-`melown2015` has four division nodes. A simpler geocentric frame with
+The full term is *reference frame spatial division node*. This page uses
+*reference-frame node* and *spatial division node* as short forms. A bare
+*division node* omits the reference-frame ownership and is not used in prose.
+The legacy `MapDivisionNode` identifier retains its existing name.
+
+`melown2015` has four spatial division nodes. A simpler geocentric frame with
 only one node would cover just ±85° latitude (the Web Mercator belt)
 and leave the polar caps undefined. The four-node design closes that
 gap.
@@ -186,7 +191,7 @@ subtree).
 
 #### How partitioning ranges act at run time
 
-The division nodes' physical extents overlap: each UPS cap node spans a
+The spatial division nodes' physical extents overlap: each UPS cap node spans a
 square that reaches well below 85° latitude, under the Web Mercator
 belt. Ownership is decided not by the node extents but by the root's
 partitioning ranges. When the reference frame is parsed, each subtree
@@ -329,7 +334,7 @@ different latitude bands, QSC maps the sphere onto the six faces of a
 cube, each face using a dedicated gnomonic-derived QSC projection. The
 cube unfolds into a 4×3 tile grid.
 
-The six cube faces (for `earth-qsc`) are expressed as division nodes
+The six cube faces (for `earth-qsc`) are expressed as spatial division nodes
 at LOD 2:
 
 ```
@@ -454,7 +459,7 @@ mapConfig.json
 ```
 
 The `srses` dictionary contains every SRS referenced by the RF model
-and division nodes. The client never looks up SRS definitions from a
+and reference-frame nodes. The client never looks up SRS definitions from a
 separate registry; everything arrives in a single JSON document.
 
 This is important for the style-based loading path: each surface source
@@ -545,7 +550,7 @@ Side effects on `map` at construction time:
 `this.hasPoles` is set to `true` when the node list has exactly four
 entries, which is the `melown2015`-specific test for polar-cap support.
 
-Each division node becomes a `MapDivisionNode` instance keyed by
+Each reference-frame node becomes a `MapDivisionNode` instance keyed by
 `"lod.x.y"` in `this.nodesMap` for O(1) lookup during tile traversal.
 
 

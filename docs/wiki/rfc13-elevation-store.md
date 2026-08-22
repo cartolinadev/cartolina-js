@@ -44,7 +44,10 @@ The intended vector source reads ordinary two-dimensional tiles, including
 OpenMapTiles data, and adds terrain height in the client. The elevation store
 does not implement that source. It supplies the elevation lookup required by
 that later work, which can then retire geodata metatiles and server-side
-heightcoding.
+heightcoding. A point lookup over the current-view cache is not sufficient for
+a vector tile whose coordinates extend outside the traversed view. The vector
+source design must add an explicit request to populate a geographic region
+before it adopts the store.
 
 Raster elevation sources provide another illustration of the boundary. A
 raster source already contains heights while `cartolina-surface` provides an
@@ -58,6 +61,13 @@ outside this RFC.
 `Map` will own an elevation store. It is a bounded, temporal, GPU-backed
 height field derived from terrain resources which are ready for normal
 rendering.
+
+Population follows the frustum-culled terrain traversal, so the store covers
+only tiles visited by current and recent elevation passes. A visited rig is
+rasterized over its complete tile UV extent without a viewport scissor. Its
+unit therefore extends beyond the visible part of the tile, and reduced
+ancestors cover progressively larger regions. A lookup can still miss. This
+RFC provides best-effort current-view lookup, not requested regional coverage.
 
 The store follows the same tile selection, source order, fallback, and partial
 coverage rules as terrain drawing. It never requests a metatile, mesh,
@@ -86,6 +96,10 @@ This RFC delivers:
 
 Each of the last four items is an implementation and manual validation gate.
 Work stops after each gate until its manual result has been accepted.
+
+The sink extraction and `drawChannel` removal land first as a separate,
+behaviour-preserving foundation milestone. They are validated independently
+before elevation-store implementation begins.
 
 This RFC does not add a two-dimensional vector source, remove geodata
 metatiles, remove server-side heightcoding, add raster terrain, or remove all
@@ -120,8 +134,8 @@ the store.
 For a geocentric frame, the elevation vertex shader reconstructs absolute
 physical coordinates by adding `uFrame.physicalEyePos.xyz` to the
 camera-relative position produced by `uModel`. It then converts the Cartesian
-position to geodetic height using the reference ellipsoid axes already stored
-in the frame uniform buffer.
+position to geodetic height. The semi-minor axis `b` is derived from the
+semi-major axis and major-to-minor ratio in `uFrame.bodyParams`.
 
 The shader uses Bowring's formula. With semi-major axis `a`, semi-minor axis
 `b`, `p = length(xy)`, first eccentricity squared `e2`, and second
@@ -158,11 +172,12 @@ The existing draw traversal owns composition. It selects terrain sources in
 style order, handles partial coverage, and decides when a finer child or a
 coarser fallback draws. The elevation store does not reproduce those rules.
 
-During one ready rig's draw, a transient depth attachment keeps the upper
-height where projected triangles overlap. This matters for mesh data with
-overhangs; DEM-derived meshes normally have one height at each XY. The depth
-test is a natural consequence of rasterizing a mesh and adds no separate
-terrain model.
+The shared transient depth attachment is cleared before each ready rig draws.
+Within that one draw it keeps the upper height where projected triangles
+overlap. This matters for mesh data with overhangs; DEM-derived meshes normally
+have one height at each XY. The depth test orders triangles from one rig only.
+Across child reduction, fallback rigs, and terrain sources, the traversal's
+coverage mask is the only coverage rule.
 
 The reference frame's declared height range supplies the depth ordering. For
 range `[minimum, maximum]`, the fragment shader writes:
@@ -184,9 +199,12 @@ does not replace established values.
 
 ### 4.1 Logical layout
 
-The store follows the reference frame's tile hierarchy. Each resident tile
-has one height-field unit. Tile IDs are unique within a reference frame, so a
-tile ID `[lod, x, y]` is the complete unit key.
+The store follows the reference frame's tile hierarchy at and below each
+reference-frame node root. It does not create units for global traversal tiles
+above those roots, because one such tile can span nodes with different
+projected SRSs. Each resident tile in that range has one height-field unit.
+Tile IDs are unique within a reference frame, so a tile ID `[lod, x, y]` is
+the complete unit key.
 
 A unit is a 256 by 256 grid. Its samples lie on the tile boundary:
 
@@ -204,6 +222,7 @@ the first and last texels so the stored grid includes both endpoints.
 Different LODs may cover different regions. Current and recent views retain
 fine units. Coarser units cover broader areas, and the root unit of every
 reference-frame node remains resident after it first obtains coverage.
+Reduction stops at that root.
 
 ### 4.2 Texture format
 
@@ -269,13 +288,9 @@ the 511 by 511 grid.
 
 Reduction continues through every ancestor up to the reference-frame node
 root. This supplies all coarser GSDs even when fallback cadence skipped direct
-rendering at an intermediate LOD.
-
-Each unit records the ready render rigs which contributed to it, in
-traversal order, and the revisions of child units used by reduction. If those
-inputs are unchanged at the next interval, the existing unit is retained and
-no raster draw is submitted. This is whole-unit rebuild state. It is not
-terrain-source information attached to individual samples.
+rendering at an intermediate LOD. Every visited unit is rebuilt; skipping an
+unchanged input set is deferred until a measurement justifies retaining and
+comparing contributor state.
 
 
 ## 5. GSD selection
@@ -296,17 +311,22 @@ The tile hierarchy is defined in the projected SRS of its reference-frame
 node. Its nominal sample spacing at LOD `lod` is:
 
 ```text
-rootSpacing = sqrt(rootWidth * rootHeight) / 256
-nominalSpacing(lod) = rootSpacing / 2^(lod - rootLod)
+rootSpacing = sqrt(rootWidth * rootHeight) / 255
+nominalSpacing(lod) = rootSpacing / 2^(lod - node.id[0])
 ```
 
-Projection scale varies across an RF node. Each RF node owns a small grid
-containing physical metres per projected SRS unit. The grid
-samples include the RF node boundary and are bilinearly interpolated at the
-lookup position. `mapElevationStoreGsdGridSize` controls both dimensions and
-accepts an integer of at least 2. It defaults to 5, giving a 5 by 5 grid and
-4 by 4 interpolation cells. Changing the setting requires a new map; there is
-no adaptive refinement.
+`rootWidth` and `rootHeight` are the reference-frame node's extents in its
+projected SRS. The LOD origin is the node's own tile ID, not
+`division.rootLod`.
+
+Projection scale varies across a reference-frame node. Each node owns a small
+grid containing physical metres per projected SRS unit. The grid samples
+include the node boundary and are bilinearly interpolated at the lookup
+position. `mapElevationStoreGsdGridSize` controls both dimensions and accepts
+an integer of at least 2. It defaults to 5, giving a 5 by 5 grid and 4 by 4
+interpolation cells. It is an `internal` setting read when the reference frame
+becomes ready. A later change requires a new map; there is no adaptive
+refinement.
 
 When PROJ projection factors are available, the value at a grid sample is:
 
@@ -317,16 +337,17 @@ metresPerUnit = srsUnitMetres / sqrt(arealScale)
 The browser's current `proj4` package does not expose projection factors, so
 the browser obtains the same areal scale from a numerical Jacobian. For each
 axis, the difference step represents one metre in that SRS's declared linear
-unit, limited to one quarter of the RF-node extent when the node is smaller.
+unit, limited to one quarter of the reference-frame node's extent when the
+node is smaller.
 Interior samples use centred differences; boundary samples use an inward
 one-sided difference. The points are transformed at height zero to Cartesian
 physical coordinates. The square root of the cross-product length of the two
 derivatives is physical metres per projected unit.
 
 If a boundary point is outside the projection domain, its grid value is
-copied from the closest finite grid sample. An RF node for which no grid
-sample can be evaluated cannot answer elevation queries. All of this work
-runs once while the RF node's grid is built.
+copied from the closest finite grid sample. A reference-frame node for which
+no grid sample can be evaluated cannot answer elevation queries. All of this
+work runs once while the node's grid is built.
 
 At lookup position `p`:
 
@@ -338,8 +359,15 @@ actualPhysical = selectedNominal * metresPerUnit(p)
 The CPU uses `requestedNominal` to choose a LOD. It reports
 `actualPhysical` with the result. This is the same nominal-GSD adjustment
 used by the [tileserver's spatial GSD pruning][mapproxy-gsd-grid], with a
-smaller configurable grid because projection scale varies smoothly within an
-RF node.
+smaller configurable grid because projection scale varies smoothly within a
+reference-frame node.
+
+`actualGsd` describes horizontal sample spacing, not vertical reliability.
+A coarse unit contains reduced averages, and invalid-neighbour
+renormalization adds its own filtering near coverage edges. This RFC does not
+report a vertical uncertainty or confidence value. Consumers retain and
+refresh the best available sample; a later regional-coverage design must also
+define the reliability required by vector placement.
 
 
 ## 6. Lookup API
@@ -351,12 +379,12 @@ accepts one position or an array of positions. Every position in an array has
 the same requested GSD.
 
 ```ts
-heightcode(
+queryTerrainElevation(
     position: ElevationStore.Position,
     desiredGsd?: number,
 ): Promise<ElevationStore.Sample | undefined>;
 
-heightcode(
+queryTerrainElevation(
     positions: readonly ElevationStore.Position[],
     desiredGsd?: number,
 ): Promise<readonly (ElevationStore.Sample | undefined)[]>;
@@ -381,19 +409,28 @@ the consumer keeps its previous sample when a later call returns `undefined`.
 It compares the returned height and GSD with its retained sample when it needs
 to know whether geometry must be rebuilt.
 
+This is the retained-sample protocol: keep the last successful value, keep at
+most one request in flight for a position set, compare both height and GSD,
+and refresh after the request and the next store pass settle. The protocol is
+caller-owned because map position, pan motion, and application geometry make
+different decisions when a value changes. It is the first step for
+best-effort point lookup. A vector source must first add region population so
+thousands of coordinates do not each drive this protocol independently.
+
 An omitted `desiredGsd` is zero. A supplied value must be finite and
 non-negative; otherwise the promise rejects with `RangeError`. An empty array
 resolves to an empty array. Every position must contain two finite numbers;
 an invalid member rejects the whole call with `TypeError`. A finite position
-outside every RF node resolves to `undefined`. Clearing or disposing the store
-resolves pending single-position calls to `undefined` and pending arrays to
-arrays of `undefined`, so no query promise is left unsettled.
+outside every reference-frame node resolves to `undefined`. Clearing or
+disposing the store resolves pending single-position calls to `undefined` and
+pending arrays to arrays of `undefined`, so no query promise is left
+unsettled.
 
-A refresh is another `heightcode()` call; it accepts neither a previous result
-nor a cancellation token. Each library caller keeps at most one request in
-flight for its position set and submits the next refresh after that promise
-settles. Overlapping calls are still valid: calls received before one
-animation tick are combined into one GPU submission, while their promises
+A refresh is another `queryTerrainElevation()` call; it accepts neither a
+previous result nor a cancellation token. Each library caller keeps at most
+one request in flight for its position set and submits the next refresh after
+that promise settles. Overlapping calls are still valid: calls received before
+one animation tick are combined into one GPU submission, while their promises
 remain separate. The store does not reject a caller for submitting a second
 request.
 
@@ -433,10 +470,16 @@ implementation detail.
 
 ### 6.3 Query execution
 
-The reference-frame object resolves each input position to its RF node, local
-projected coordinates, and tile path. This is a normal reference-frame
-operation and is implemented once on `MapRefFrame`; `ElevationStore` does not
-repeat manual-partition or RF-node selection.
+`MapRefFrame.resolveSpatialDivisionNodes()` resolves each input position to
+candidate reference-frame nodes, local projected coordinates, and tile paths.
+It moves the existing highest-LOD selection from
+`MapMeasure.getSpatialDivisionNode()` and replaces that method at its current
+callers. Candidates follow the same descending node-LOD order as the existing
+tiebreak. Because node extents overlap, elevation lookup tries the next
+candidate when the first has no covered unit. `ElevationStore` does not repeat
+manual-partition or reference-frame node selection.
+
+Existing callers which need one node take the first resolved candidate.
 
 For every input position, the CPU orders resident units on that tile path by
 the GSD rule in section 5. Position conversion and unit selection remain in
@@ -445,21 +488,22 @@ unit UV, where float precision is sufficient for a 256-sample grid.
 
 One lookup submission performs these operations:
 
-1. Clear two one-row `RGBA8UI` attachments and a depth attachment. The first
-   color attachment holds height bits. The second holds the preference index
-   of the unit which supplied them.
+1. Clear one two-row `RGBA8UI` attachment and a matching depth attachment. The
+   first row holds height bits and the second holds the preference index of
+   the unit which supplied them.
 2. Group position-unit pairs by unit, bind each unit texture once, and draw
-   one point per pair at that position's result pixel. The fragment shader
-   decodes and filters the four neighbouring samples. The unit answers only
-   when every sample with non-zero bilinear weight is valid; otherwise the
-   fragment is discarded and a later unit may answer.
+   the same point-input records once into each row. The fragment shader
+   decodes and filters the four neighbouring samples for the height row and
+   writes the preference index in the second row. The unit answers only when
+   every sample with non-zero bilinear weight is valid; otherwise both draws
+   discard and a later unit may answer.
 3. For zero-based preference index `i` and the submission's greatest index
    `m`, write depth `(i + 1) / (m + 2)`. With the attachment cleared to one,
    `LESS` keeps the valid unit nearest the start of the CPU ordering,
    independent of draw order.
-4. Read both color attachments into consecutive ranges of one pixel-pack
-   buffer and insert a WebGL fence. The CPU maps the returned preference index
-   to the corresponding `actualGsd` calculated in section 5.
+4. Read the two-row color attachment into one pixel-pack buffer with one
+   `readPixels()` call and insert a WebGL fence. The CPU maps the returned
+   preference index to the corresponding `actualGsd` calculated in section 5.
 
 The result target and pixel-pack buffer hold at most the device's maximum
 texture width. A larger batch is processed as consecutive chunks through the
@@ -467,6 +511,10 @@ same buffers. Each chunk gets one fence; animation ticks poll it with a zero
 timeout, copy its results after it signals, and then submit the next chunk. No
 animation tick waits for the GPU. A call's promise settles after all chunks
 which contain its positions have completed.
+
+Fence polling runs from the always-executed part of `Map.update()`, outside the
+dirty-frame draw gate. Lookup completion therefore does not depend on a color
+frame being rendered.
 
 Only one GPU lookup chunk is in flight. Calls which arrive meanwhile join the
 next batch. This bounds the result targets, pixel-pack buffer, and fences
@@ -506,10 +554,22 @@ form.
 
 ### 7.2 Sink contract
 
-`drawTerrainTraversal()` receives the sink and a pass-wide `doNotLoad` flag.
-The latter is combined with the traversal's existing off-cadence no-load rule.
-The sink contract is an internal structural type. It has two required
-operations and two optional node hooks:
+`drawTerrainTraversal()` receives the sink, a pass-wide `doNotLoad` flag, and
+pass-owned traversal state. Every pass owns the GPU-build usage checked by
+`renderTile()` and rig readiness. That tracker is forwarded through rig
+readiness options, so terrain resources no longer read the color frame's
+`MapStats.gpuRenderUsed` for this decision.
+
+Color traversal state also supplies its draw generation and node and metatile
+counters. The traversal updates legacy tile and metatile generation fields and
+publishes counters only when that color accounting is present. Depth and
+elevation omit it, so they cannot overwrite the inspector's color-frame state.
+
+Only the color caller brackets traversal with `gpuCache.skipCostCheck` and
+`checkCost()`. Auxiliary passes leave normal cache enforcement active. The
+pass-wide `doNotLoad` flag is combined with the traversal's existing
+off-cadence no-load rule. The sink contract is an internal structural type. It
+has two required operations and two optional node hooks:
 
 ```ts
 type TerrainTraversalSink = {
@@ -555,12 +615,15 @@ rig creation, current-versus-last selection, and the coverage code surrounding
 those gates stay in `renderTile()`. Code moves beyond that boundary only when
 required to remove `drawChannel`.
 
-`beginNode()` runs during backtracking, after the children have completed and
-before the current node's fallback surfaces are drawn. `endNode()` receives
-only whether the completed node has coverage. It does not expose
-watertightness or another traversal state to the sink. Every node for which
-`beginNode()` ran must reach `endNode()` exactly once, including a node whose
-children eliminate its fallback draw. Color and depth omit both hooks.
+`beginNode()` runs during backtracking after child recursion and before any
+post-child return or fallback draw. It therefore runs before the all-off-screen
+return, the children-covered return, and the watertight surface-loop return.
+`endNode()` receives only whether the completed node has coverage. It does not
+expose watertightness or another traversal state to the sink. Every node for
+which `beginNode()` ran reaches `endNode()` exactly once on each of those
+returns and on the final partial-or-empty path. A node with neither a draw nor
+a published child commits nothing; a node covered by published children can
+commit reduction without a fallback draw. Color and depth omit both hooks.
 
 The three sinks apply the contract as follows:
 
@@ -616,26 +679,45 @@ path: two dispatch mechanisms would allow readiness and side effects to drift.
 The store is always present after the reference frame is ready. There is no
 enable setting.
 
-`mapElevationStoreUpdateIntervalMs`, defaulting to 1000 ms, is the minimum
-time between elevation-pass starts. It accepts a non-negative value; zero
-makes every animation frame eligible. A runtime change applies to the next
-eligibility check. A due pass runs from the current camera state whether or
-not a color frame was drawn since the previous pass. It uses the traversal's
-existing no-load path for metanodes and
+`mapElevationStoreUpdateIntervalMs` is a `runtime` setting defaulting to
+1000 ms. It is the minimum time between elevation-pass starts and accepts a
+non-negative value; zero makes every animation frame eligible. A runtime
+change applies to the next eligibility check. A due pass runs from the current
+camera state whether or not a color frame was drawn since the previous pass.
+It uses the traversal's existing no-load path for metanodes and
 `TileRenderRig.isReady(..., { doNotLoad: true })` for render rigs. A resource
 which is not ready for normal rendering contributes nothing at that interval
 and is reconsidered later.
+
+A lookup which returns no unit, or which has to pass over its first requested
+LOD candidate for a coarser answer, marks an on-demand elevation pass. The
+first such mark since the previous on-demand pass makes the next animation
+tick eligible even when the periodic interval has not elapsed. Further
+on-demand passes are rate-limited by the same interval. The setting therefore
+controls periodic refresh and repeated miss pressure, not the first response
+to inadequate coverage.
+
+Gate 4 records the age and `actualGsd` of the retained sample used by the
+camera during continuous pan. The default interval is retained only if those
+measurements show that on-demand passes keep the camera on current covered
+terrain without excessive elevation-pass work.
 
 The elevation pass never marks a resource used in a way that changes loader
 priority, and never creates a terrain request. It may allocate store textures
 and submit raster or reduction draws.
 
+The no-load metanode check intentionally does not assign `tile.surface`.
+Elevation can therefore draw only a tile which the normal color traversal has
+already classified, although it need not wait for that traversal to draw the
+ready rig. This keeps the auxiliary pass from creating terrain ownership or
+demand as a side effect.
+
 ### 7.5 Lifetime
 
 `Map` constructs the store when its reference frame is ready and disposes it
-before the renderer. Map disposal, a terrain source-list change, and WebGL
-context loss clear every unit and pending readback. Context recovery starts
-with an empty store.
+before the renderer. Map disposal, replacement of the reference frame, a
+terrain source-list change, and WebGL context loss clear every unit and pending
+readback. Context recovery starts with an empty store.
 
 Vertical exaggeration, imagery, atmosphere, and lettering do not clear the
 store. Ready terrain resources are immutable; when a different ready rig or a
@@ -644,47 +726,65 @@ new child unit contributes, the next timed pass replaces the affected unit.
 
 ## 8. Memory and eviction
 
-`mapElevationStoreGPUCache` sets the maximum GPU memory owned by the store in
-MiB and defaults to 64. Replacement textures count against the limit while old
-units remain queryable. Fixed raster and lookup work buffers are reserved from
-the same limit before unit textures are admitted. A runtime decrease evicts
-unpinned units before the next elevation pass and is rejected if it is smaller
-than the fixed buffers plus the root reservation defined below.
+`mapElevationStoreGPUCache` is a `runtime` setting which sets the maximum GPU
+memory owned by the store in MiB and defaults to 64. Replacement textures
+count against the limit while old units remain queryable. Fixed raster and
+lookup work buffers are reserved from the same limit before unit textures are
+admitted. A runtime decrease evicts unpinned units before the next elevation
+pass.
 
 A 1920 by 1080 view contains about 8 by 5 finest visible units when one
 256-sample terrain tile covers about 256 screen pixels. That is 40 units. For
-an aligned rectangle at RF-node depth 16, its unique ancestors contain 12,
-4, and 1 units over the next three levels, followed by one unit at each of the
-remaining 13 levels. The representative total is therefore 70 units:
+an aligned rectangle at depth 16 within one reference-frame node, its unique
+ancestors contain 12, 4, and 1 units over the next three levels, followed by
+one unit at each of the remaining 13 levels. The representative total is
+therefore 70 units:
 
 ```text
 70 * 262144 bytes = 18350080 bytes = 17.5 MiB
 ```
 
-With maximum texture width `W`, the shared raster depth attachment and lookup
-color, depth, pixel-pack, and point buffers reserve at most approximately:
+With maximum texture width `W`, the five fixed allocations are:
+
+- one 256 by 256 raster depth attachment at four bytes per texel:
+  `262144` bytes;
+- one two-row `RGBA8UI` lookup result attachment at four bytes per texel:
+  `8 * W` bytes;
+- one matching two-row lookup depth attachment at four bytes per texel:
+  `8 * W` bytes;
+- one pixel-pack buffer for the two result rows: `8 * W` bytes; and
+- one reusable lookup point-input buffer with 16 bytes per record:
+  `16 * W` bytes.
+
+The total logical reservation is:
 
 ```text
 262144 + 40 * W bytes
 ```
 
 At a common `W = 16384`, that is 0.88 MiB and leaves room for 252 units in a
-64 MiB limit. Alignment, perspective, partial coverage, deeper RF nodes, and
-recently visited areas change the real count. The default therefore holds
-about 3.6 times the representative 1920 by 1080 set. Validation records the
-actual peak on `complex-terrain`; this calculation selects the default but is
-not an acceptance measurement.
+64 MiB limit. Alignment, perspective, partial coverage, deeper
+reference-frame nodes, and recently visited areas change the real count. The
+default therefore holds about 3.6 times the representative 1920 by 1080 set.
+Validation records the actual peak on `complex-terrain`; this calculation
+selects the default but is not an acceptance measurement.
 
 Unpinned units use least-recently-used eviction. Building a unit and returning
 a successful lookup both move it to the front of the LRU list. The least
-recently built or queried unit is removed first. RF-node root units are
-pinned after they obtain coverage, so every visited RF node retains its
+recently built or queried unit is removed first. Reference-frame node root
+units are pinned after they obtain coverage, so every visited node retains its
 coarsest available field.
 
-When the reference frame is parsed, `Map` verifies that the budget remaining
-after fixed buffers can hold one unit for every RF node. Those slots are
-reserved for roots. A smaller configured budget is invalid, because silently
-evicting roots would break the coarse-result guarantee.
+When the reference frame is parsed, `Map` calculates a minimum effective
+budget: the fixed allocation, one unit for every reference-frame node root,
+and one transient replacement unit. The reference frames documented in
+[reference-frames.md](reference-frames.md) have at most six nodes, so root
+textures reserve at most 1.5 MiB and the replacement slot adds 0.25 MiB. If
+the configured value is smaller, `Map` writes the minimum back to
+`ConfigStore`, warns once, and uses that value. The same clamp runs on a
+runtime decrease. This preserves the coarse-result guarantee without failing
+map creation or leaving the reported config different from the effective
+budget.
 
 Before allocating a replacement, the store evicts unpinned units until both
 the old published unit and its replacement fit. If the root reservation and
@@ -695,11 +795,11 @@ budget.
 Eviction releases only the GPU unit and its metadata. It does not change a
 sample already held by a consumer. The store owns no persistent CPU copy of
 the height fields. In addition to unit textures, the store owns one shared
-256 by 256 raster depth attachment, two one-row lookup color attachments, one
-one-row lookup depth attachment, and one lookup pixel-pack buffer. The lookup
-allocations are capped by the device's maximum texture width and reused
-between chunks. CPU memory consists of unit metadata, the small GSD grids,
-queued inputs, and completed values still held by callers.
+256 by 256 raster depth attachment, one two-row lookup color attachment, one
+two-row lookup depth attachment, one lookup pixel-pack buffer, and one point
+input buffer. The lookup allocations are capped by the device's maximum
+texture width and reused between chunks. CPU memory consists of unit metadata,
+the small GSD grids, queued inputs, and completed values still held by callers.
 
 
 ## 9. Future node height ranges
@@ -736,29 +836,39 @@ field.
 
 ## 11. Implementation and validation sequence
 
-Implementation proceeds through four application gates. Mechanism-level
-diagnostics may explain a failure, but they are not acceptance gates and do
-not replace the application run. After each gate, implementation stops for a
-manual application run. Work on the next gate begins only after the reviewer
-accepts that result.
+Implementation begins with one behaviour-preserving foundation milestone,
+then proceeds through four application gates. Mechanism-level diagnostics may
+explain a failure, but they are not acceptance gates and do not replace the
+application run. After each gate, implementation stops for a manual
+application run. Work on the next gate begins only after the reviewer accepts
+that result.
 
-### 11.1 Foundation and gate 1: waypoint
+### 11.1 Foundation: explicit traversal sinks
+
+Extract the existing color and depth gates from
+`drawTerrainTraversal()` into the two sinks defined in section 7. Remove
+`Map.drawChannel`, give color frames and depth updates explicit entry points,
+and move draw generation, counters, and GPU-build usage into pass-owned state.
+This milestone adds no elevation resource, shader, setting, or public API.
+
+Run the three canonical public screenshot cases sequentially, exercise depth
+hit testing, and run the matched `complex-terrain` performance capture. Land
+the foundation as its own commit before elevation-store implementation.
+
+### 11.2 Gate 1: waypoint
 
 The first step implements only the store needed by the waypoint:
 
 1. Add 256 by 256 packed unit textures, elevation rasterization, reduction,
    compact lookup, asynchronous readback, LRU eviction, and the three settings
    from sections 5, 7, and 8.
-2. Add RF-node and tile-path lookup to `MapRefFrame` and use it from the store.
-3. Extract the existing color and depth gates from `drawTerrainTraversal()`
-   into the two sinks defined in section 7. Remove `Map.drawChannel` and give
-   color frames and depth updates explicit entry points.
-4. Add `ElevationTerrainSink` and the unexaggerated height draw to
+2. Move spatial-division-node selection from `MapMeasure` to `MapRefFrame`,
+   add tile-path lookup there, and repoint every existing caller.
+3. Add `ElevationTerrainSink` and the unexaggerated height draw to
    `TileRenderRig`. Elevation traversal and rig checks always use
    `doNotLoad: true`.
-5. Add the internal `heightcode()` operation and the public
-   `queryTerrainElevation()` operation.
-6. Change the waypoint demo so every two-dimensional marker submits its
+4. Add the internal and public `queryTerrainElevation()` operation.
+5. Change the waypoint demo so every two-dimensional marker submits its
    existing geographic coordinates with GSD zero. It keeps one request in
    flight, retains its last resolved value, and moves the marker only when the
    returned height or GSD changes. The returned fixed coordinate is passed to
@@ -774,10 +884,11 @@ terrain request.
 
 Implementation stops for manual validation after this gate.
 
-### 11.2 Gate 2: client heightcoding analysis
+### 11.3 Gate 2: client heightcoding analysis
 
-Add `debugElevationStoreGeodataShadow`. On `complex-terrain`, the diagnostic
-processes every delivered three-dimensional geodata coordinate:
+Add the `debug` setting `debugElevationStoreGeodataShadow`. On
+`complex-terrain`, the diagnostic processes every delivered
+three-dimensional geodata coordinate:
 
 1. use the existing CPU SRS conversion to obtain lookup XY and the delivered
    geodetic height, then discard that height from the query input;
@@ -801,7 +912,7 @@ percent. This is the primary performance acceptance test for the store.
 Implementation stops for manual review of the map, report, and performance
 capture after this gate.
 
-### 11.3 Gate 3: floating map positions
+### 11.4 Gate 3: floating map positions
 
 Move the current map-position terrain sample from
 `MapMeasure.getSurfaceHeight()` to the elevation store. `Map` retains the last
@@ -828,7 +939,7 @@ operation.
 
 Implementation stops for manual validation after this gate.
 
-### 11.4 Gate 4: pan motion
+### 11.5 Gate 4: pan motion
 
 Move pan terrain following to the same retained current-position sample. Pan
 input updates the desired XY immediately and queues the latest position after
@@ -843,7 +954,8 @@ The manual run pans continuously over steep terrain in `complex-terrain` and
 `full-terrain`, including direction reversals while a lookup is in flight.
 The reviewer verifies that the camera neither enters the terrain nor jumps
 when a new sample arrives, and that pan motion causes no navigation-tile
-request. The matched `complex-terrain` FPS check from gate 2 is repeated with
+request. Record the age and `actualGsd` of every retained sample used by the
+camera. The matched `complex-terrain` FPS check from gate 2 is repeated with
 continuous pan input.
 
 Implementation stops for manual validation after this gate. RFC 13 is ready
@@ -859,15 +971,16 @@ The expected ownership is:
 |---|---|
 | `src/map/elevation-store.ts` | units, timed updates, lookup, readback state, and LRU |
 | `src/map/terrain-traversal-sink.ts` | sink type and color/depth implementations |
-| `src/map/refframe.ts` | migrate the current JS owner and add RF-node/tile-path lookup |
-| `src/map/map.ts` | store ownership, explicit pass entry points, and current-position sample |
+| `src/map/refframe.js`, `src/map/refframe.d.ts` | move node selection to the current owner and add tile-path lookup without migrating it |
+| `src/map/measure.js`, `src/map/geodata-builder.js` | use reference-frame-owned node selection |
+| `src/map/map.ts` | store ownership, channel removal, explicit pass entry points, fence polling, and current-position sample |
 | `src/map/draw.js` | invoke the depth entry point without the complete map draw |
-| `src/map/draw-traversal.ts` | retain traversal policy and dispatch selected rigs to a sink |
+| `src/map/draw-traversal.ts` | retain traversal policy, consume pass-owned state, and dispatch selected rigs to a sink |
 | `src/map/tile-render-rig.ts` | test normal readiness and draw unexaggerated height |
+| `src/map/mesh.js`, `src/map/texture.js`, `src/map/subtexture.js` | consume the pass-owned GPU-build tracker during terrain readiness |
 | `src/map/surface-tree.js`, `src/map/draw-tiles.js` | remove terrain-channel routing |
-| `src/map/legacy-map.d.ts` | remove the declaration of channel-owned map state |
 | `src/renderer/renderer.ts` | initialize each terrain pass without a global channel |
-| `src/renderer/gpu/device.ts` | compact result target, pixel-pack buffer, and fence operations |
+| `src/renderer/gpu/device.ts` | compact two-row result target, pixel-pack buffer, and fence operations |
 | `src/renderer/gpu/texture.ts` | packed unit texture and byte accounting |
 | `src/renderer/shaders/elevation-*.glsl` | rasterization, reduction, and lookup |
 | `src/viewer/viewer.ts` | public terrain query used by the waypoint demo |
@@ -1003,6 +1116,9 @@ the sink extraction and `drawChannel` removal are a behaviour-preserving
 change that the existing screenshot and performance runs already validate
 on their own, and landing that first leaves gate 1 as the store alone.
 
+*Adopted. Section 11 now lands the sink extraction and `drawChannel` removal
+as a separately validated foundation commit before gate 1 adds the store.*
+
 **The store is a cache of the current view, and consumers carry the
 consequence.** Because population rides the frustum-culled traversal, a
 query can always miss, so every consumer needs the same retain-last-value,
@@ -1012,6 +1128,12 @@ source will be the fourth, over thousands of coordinates. That protocol is
 now a load-bearing convention of the library with no single owner. Either
 name it and implement it once, or say plainly that it is a first step and
 that a store which can be asked to cover a region is the end state.
+
+*Partially adopted. Section 6.1 names the retained-sample protocol but leaves
+it caller-owned because the three current consumers react differently to a
+changed value. Sections 1, 2, 5, and 6 state that this is best-effort
+current-view lookup and that explicit regional population is a prerequisite
+for the vector source.*
 
 **The 1000 ms interval is the one number in the design with nothing behind
 it.** It does not set the latency of terrain following: a pan query
@@ -1041,11 +1163,18 @@ costs one flag. Then have gate 4 record the age and `actualGsd` of the
 sample the camera is actually using during continuous pan, so the default
 is chosen against a measurement rather than assumed.
 
+*Adopted. Section 7.4 adds a rate-limited on-demand pass for misses and
+coarser fallback answers, and gate 4 now records retained-sample age and GSD
+before the 1000 ms default is accepted.*
+
 One thing the design does not yet give consumers: `actualGsd` reports
 horizontal resolution, but nothing reports vertical reliability. A coarse
 unit's sample is a reduced average, and note 2 adds a floor of its own.
 The map position and the camera make decisions from that number without
 being able to see its uncertainty. Deferring that is reasonable; say so.
+
+*Adopted. Section 5 now separates horizontal GSD from vertical reliability
+and defers a reliability value to the regional-coverage design.*
 
 ### 1. Backtrack hooks land after three early returns
 
@@ -1077,6 +1206,9 @@ alone. Naming the three returns in 7.2 would also help, since the hooks
 read as belonging around the surface loop, which is exactly where they
 must not go.
 
+*Adopted. Section 7.2 places `beginNode()` before all three post-child exits
+and requires exactly one `endNode()` on every subsequent return path.*
+
 ### 2. Reconstructed absolute position costs about half a metre of height
 
 Section 3.2 rebuilds absolute physical coordinates as the camera-relative
@@ -1105,6 +1237,10 @@ radius there — and evaluate height as a second-order expansion about that
 origin. Whatever the mechanism, section 3.2 should state the achievable
 accuracy, because the store's whole claim is that it agrees with the mesh
 it rasterizes.
+
+*Rejected. None of the heightcoding scenarios in this RFC requires sub-metre
+precision. Compensated position arithmetic would add complexity without
+serving a requirement.*
 
 ### 3. Three names for this node, none of them declared canonical
 
@@ -1146,6 +1282,10 @@ vocabulary that actually reads as jargon.
 [reference-frames.md](reference-frames.md)'s own four uses is a wiki
 edit rather than something RFC 13 should carry.
 
+*Adopted. [reference-frames.md](reference-frames.md) now declares the full
+term and its two accepted short forms. The RFC body spells out every prose
+use; the legacy class name remains unchanged.*
+
 ### 4. The rebuild skip cannot be evaluated where section 4.3 puts it
 
 "Each unit records the ready render rigs which contributed to it... If
@@ -1162,6 +1302,9 @@ Either drop it — it is a speculative optimization over roughly seventy
 decision to `endNode()`, which can compare the accumulated rig set and
 child revisions against the published unit and keep the old texture.
 
+*Adopted. Section 4.3 drops the speculative skip. Every visited unit is
+rebuilt unless later measurement justifies contributor tracking.*
+
 ### 5. Section 5 divides by 256, section 4.2 says 255
 
 `rootSpacing = sqrt(rootWidth * rootHeight) / 256` contradicts "The store
@@ -1169,6 +1312,8 @@ computes GSD from the actual 255 intervals, so the slightly coarser
 spacing is explicit in lookup selection." The whole point of the 255-vs-257
 argument in 4.2 is that the interval count is explicit, which makes 255
 look like the intended divisor.
+
+*Adopted. Section 5 now divides by 255.*
 
 ### 6. The hierarchy above a division-node root is undefined
 
@@ -1189,6 +1334,9 @@ reference frame's tile hierarchy". The simplest resolution is for 4.1 to
 say that units exist only at and below a reference-frame node root, and
 that reduction stops there.
 
+*Adopted. Sections 4.1 and 5 bound units and reduction to each
+reference-frame node root and use `node.id[0]` as the LOD origin.*
+
 ### 7. Two coverage rules meet at the same texel
 
 Section 3.3 scopes the transient depth attachment to "one ready rig's
@@ -1205,6 +1353,9 @@ cleared — per rig draw, per node, or once per replacement — and letting
 the coverage mask be the only coverage rule, with the depth test ordering
 triangles inside a single draw and nothing more. Clearing per rig draw
 gives that reading directly.
+
+*Adopted. Section 3.3 clears depth per rig and makes the traversal mask the
+only coverage rule across draws and reductions.*
 
 ### 8. Say what bounds coverage, and say that it exceeds the viewport
 
@@ -1227,6 +1378,10 @@ reaches beyond the frustum. Section 1 could then say what that means for
 the intended vector source, whose coordinates can lie outside the view
 that loaded their tile.
 
+*Adopted. Section 2 now states both the frustum-visited bound and full-tile
+UV coverage. Section 1 makes regional population a prerequisite for the
+future vector source.*
+
 ### 9. Position-to-node resolution exists, and division nodes overlap
 
 Section 6.3 says the reference frame resolves a position to its node,
@@ -1247,6 +1402,10 @@ coverage while an overlapping node has some, and section 6.1 would return
 the next candidate in the existing highest-lod order costs little and
 turns a miss into a coarser answer.
 
+*Adopted. Section 6.3 moves selection to
+`MapRefFrame.resolveSpatialDivisionNodes()`, repoints the existing callers,
+and tries overlapping candidates in the established highest-LOD-first order.*
+
 ### 10. Sections 11 and 12 disagree about `refframe.js`
 
 Step 2 of 11.1 says "Add RF-node and tile-path lookup to `MapRefFrame`".
@@ -1261,6 +1420,9 @@ from `MapMeasure` (note 9) plus a tile-path walk, and both can land on
 the existing `MapRefFrame` with a sibling `.d.ts` under the migration
 rules. Section 12's row could say that, leaving `refframe.js` to be
 migrated by whatever feature next needs the whole module.
+
+*Adopted. Sections 11 and 12 keep `refframe.js`, add a sibling declaration,
+and limit the change to moving selection plus adding the tile-path walk.*
 
 ### 11. The elevation pass overwrites shared traversal state
 
@@ -1288,6 +1450,11 @@ entry point supplies the counter to advance and the object to accumulate
 into, and only the color entry point supplies the frame-wide ones — with
 the GPU cache check staying with the color frame.
 
+*Adopted. Section 7.2 makes GPU-build usage pass-owned and makes color draw
+generation and traversal counters optional pass state. Auxiliary passes omit
+the color accounting; only the color caller publishes it or brackets traversal
+with the deferred GPU cache cost check.*
+
 ### 12. The no-load metanode path skips a side effect the draw needs
 
 `isMetanodeReady(tree, priority, preventLoad)` assigns `tile.surface` only
@@ -1301,6 +1468,10 @@ That is probably the behaviour you want. If it is not, the assignment
 reads no resource and could move ahead of the `preventLoad` guard.
 Either way, section 7.4 stating the coupling would save discovering it
 during gate 1.
+
+*Adopted. Section 7.4 states that the coupling is intentional: elevation uses
+only tiles already classified by color traversal and does not move the
+surface assignment across the no-load guard.*
 
 ### 13. Section 8's rejected budget has no mechanism
 
@@ -1316,6 +1487,10 @@ reference-frame nodes (melown2015 four, earth-qsc six), so the reserved
 roots are under 2 MiB.
 As written a reader cannot tell whether the reservation is bounded at all.
 
+*Adopted. Section 8 defines a clamp written back to `ConfigStore` with one
+warning. It gives the root reservation as one 256 KiB unit per parsed node,
+records the current six-node maximum, and reserves one replacement slot.*
+
 ### 14. Two names for one operation
 
 `ElevationStore.heightcode()` and `Viewer.queryTerrainElevation()` have the
@@ -1323,6 +1498,9 @@ same signature and the same meaning. Heightcoding is the tileserver's name
 for adding height to delivered geodata, not for a point query — section 1
 uses it that way. One name for both would read better, and the public
 method's is the accurate one.
+
+*Adopted. The internal and public methods are both named
+`queryTerrainElevation()`.*
 
 ### 15. Smaller points
 
@@ -1348,3 +1526,8 @@ method's is the accurate one.
    channel-owned map state". `drawChannel` is declared on `Map`
    ([map.ts:1347](../../src/map/map.ts#L1347)); `legacy-map.d.ts` only
    mentions it in a comment.
+
+*Adopted. Section 3.2 derives `b`; section 6.3 uses one two-row attachment and
+polls fences outside the dirty gate; section 8 itemizes all five fixed
+allocations; sections 5, 7, and 8 state setting visibility and reference-frame
+lifetime; and section 12 removes the erroneous `legacy-map.d.ts` row.*
