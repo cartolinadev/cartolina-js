@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** Draft
+**Status:** In review
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -951,3 +951,400 @@ https://github.com/cartolinadev/vts-libs/blob/1285bd1c0196bd96735f63494cfcad9f3b
 https://github.com/cartolinadev/cartolina-tileserver/blob/d45071b3fcb35f30091a837510b6d356ac780656/mapproxy/src/tiling/unified.cpp#L409-L533
 [vts-navtile-encoding]:
 https://github.com/cartolinadev/vts-libs/blob/1285bd1c0196bd96735f63494cfcad9f3baab447/vts-libs/vts/opencv/navtile.cpp#L66-L117
+
+
+## Review round 1
+
+The design holds together: one traversal with explicit sinks, a UV-space
+composition that reuses the existing coverage masks, and a lookup that
+stays off the color render loop. The notes below are the places where the
+text does not yet survive contact with `draw-traversal.ts`, the frame
+uniform, or the existing reference-frame code.
+
+### Direction
+
+This is the right next change, and the right one now.
+
+It deletes a concept rather than modelling one better. A navigation tile
+is a second, separately produced representation of the same physical
+surface as the mesh, and two representations will disagree forever; no
+amount of ranking or lod-hinting in `MapMeasure.getSurfaceHeight()` closes
+the 117 m at Mount Whitney, because the field genuinely stops at lod 7
+there. Answering from the geometry the GPU actually rasterized removes the
+disagreement instead of tuning it.
+
+It is also on the critical path to the vector redesign, which is the
+larger prize. Server-side heightcoding is what forces the tileserver to
+decode every vector tile, sample a DEM, and emit a bespoke geodata format
+with its own metatiles. Client elevation is what makes ordinary
+two-dimensional vector tiles usable directly. That is the difference
+between a VTS client and a web map library, and nothing else on the
+backlog unlocks it.
+
+The mechanism follows from that: the GPU already owns the mesh, so
+rasterizing it into a regular field is the cheap operation and any CPU
+alternative rebuilds mesh residency and a spatial index to get less.
+Section 13 argues this honestly. Reusing the draw traversal rather than
+writing a second one is the same judgement applied one level up, and the
+sink extraction pays for itself independently: `drawChannel` is mutable
+pass state read from five legacy modules, and removing it is worth doing
+whether or not a store ever lands.
+
+Three reservations.
+
+**Gate 1 is not "the waypoint".** It is a new GPU resource class with its
+own LRU and budget; asynchronous readback machinery the codebase does not
+have in any form (no `fenceSync` and no `PIXEL_PACK_BUFFER` anywhere in
+`src/`); three new shaders; a traversal-wide refactor; possibly a
+`refframe.js` migration; and a new public API — validated by one marker
+landing on one summit. The gating discipline is right, but four fifths of
+the risk sits behind the weakest acceptance test. Consider splitting it:
+the sink extraction and `drawChannel` removal are a behaviour-preserving
+change that the existing screenshot and performance runs already validate
+on their own, and landing that first leaves gate 1 as the store alone.
+
+**The store is a cache of the current view, and consumers carry the
+consequence.** Because population rides the frustum-culled traversal, a
+query can always miss, so every consumer needs the same retain-last-value,
+compare-height-and-GSD, refresh-after-settle protocol. The RFC specifies
+it correctly three times — waypoint, map position, pan — and the vector
+source will be the fourth, over thousands of coordinates. That protocol is
+now a load-bearing convention of the library with no single owner. Either
+name it and implement it once, or say plainly that it is a first step and
+that a store which can be asked to cover a region is the end state.
+
+**The 1000 ms interval is the one number in the design with nothing behind
+it.** It does not set the latency of terrain following: a pan query
+resolves through the fence path in a few animation ticks, and the store
+only has to *cover* the position, not have been rebuilt recently. Coverage
+during pan is better than the interval suggests, because composition is in
+tile UV space with no scissor — a drawn rig writes its whole footprint
+into the unit, so every visited tile contributes coverage well past the
+viewport, and each coarser ancestor extends it further. Panning inside
+that buffer is answered from resident units, and answering from a coarser
+GSD is what `mapNavSamplesPerViewExtent` already does deliberately today.
+
+What the interval does set is how long a newly covered or newly refined
+region waits before it enters the store at all — fast motion into terrain
+no pass has visited, where the best resident answer is a distant ancestor.
+That is still better than the navtile path it replaces, which cannot
+answer until a tile has been fetched and parsed. So the interval is not a
+predicted failure; it is an untested policy sitting on the library's
+tightest loop.
+
+Two things would settle it. Give section 7.4 an on-demand trigger beside
+the timer: a lookup that finds no unit at all, or one many levels coarser
+than requested, schedules the next pass immediately rather than waiting
+out the interval, rate-limited by the same setting. That turns the
+interval into a refresh cadence instead of a correctness parameter, and
+costs one flag. Then have gate 4 record the age and `actualGsd` of the
+sample the camera is actually using during continuous pan, so the default
+is chosen against a measurement rather than assumed.
+
+One thing the design does not yet give consumers: `actualGsd` reports
+horizontal resolution, but nothing reports vertical reliability. A coarse
+unit's sample is a reduced average, and note 2 adds a floor of its own.
+The map position and the camera make decisions from that number without
+being able to see its uncertainty. Deferring that is reasonable; say so.
+
+### 1. Backtrack hooks land after three early returns
+
+Section 7.2 places `beginNode()` "after the children have completed and
+before the current node's fallback surfaces are drawn". Three returns in
+`traverseNode()` leave the function inside that window:
+
+- [draw-traversal.ts:261](../../src/map/draw-traversal.ts#L261) — every
+  quadrant off-screen;
+- [draw-traversal.ts:265-266](../../src/map/draw-traversal.ts#L265-L266) —
+  every on-screen quadrant watertight; and
+- [draw-traversal.ts:314](../../src/map/draw-traversal.ts#L314) — a surface
+  drew watertight, ending the surface loop.
+
+The second one is the common case at coarse LODs and, in any view whose
+on-screen quadrants are covered, at the top of the tree. A node that
+returns there draws nothing, so an implementation that places the hooks
+after the surface loop builds no unit for it. Section 4.3's "Reduction
+continues through every ancestor up to the reference-frame node root" and
+section 8's root pinning then never happen, and the coarse end of the GSD
+ladder in section 5 is empty.
+
+Section 7.2 already requires `endNode()` on every path that ran
+`beginNode()`. The other half would settle it: `beginNode()` running at
+every node that reached backtracking, whether or not a surface draws
+there. A node with no draw and no published children then commits
+nothing, and a node whose children covered it commits the reduction
+alone. Naming the three returns in 7.2 would also help, since the hooks
+read as belonging around the surface loop, which is exactly where they
+must not go.
+
+### 2. Reconstructed absolute position costs about half a metre of height
+
+Section 3.2 rebuilds absolute physical coordinates as the camera-relative
+position plus `uFrame.physicalEyePos.xyz`. Both are float32:
+[renderer.ts:1073](../../src/renderer/renderer.ts#L1073) writes the frame
+uniform through an `f32` view, and
+[frame.inc.glsl:131](../../src/renderer/shaders/includes/frame.inc.glsl#L131)
+does the same addition today for the exaggeration estimate. At an Earth
+radius the float32 ulp is 0.5 m, and section 3.2's height is a difference
+of two quantities of that magnitude (`dot(ecef - q, normal)`), so the
+stored value carries roughly half a metre of quantization noise.
+
+That noise is not static. `physicalEyePos` changes every frame, so the
+same terrain rasterized at two elevation intervals quantizes differently.
+Gate 4 asks the reviewer to confirm the camera does not jump when a new
+sample arrives, and gate 3 that it settles without discontinuity; a
+metre-scale step between passes is exactly what this produces.
+[Backlog #55](backlog.md#backlog-55), which this section cites, requires
+that the unified calculation "must still preserve the shader's
+camera-relative precision" — the formula as written discards it.
+
+The conversion should stay camera-relative. One way: supply per-draw
+reference quantities computed on the CPU in double precision — the
+submesh origin, its geodetic height, its zenith, and the prime-vertical
+radius there — and evaluate height as a second-order expansion about that
+origin. Whatever the mechanism, section 3.2 should state the achievable
+accuracy, because the store's whole claim is that it agrees with the mesh
+it rasterizes.
+
+### 3. Three names for this node, none of them declared canonical
+
+Withdrawing the first version of this note, which claimed RFC 13 coined
+"RF node". It did not. `RFNode` is the vts-libs type — `nodeinfo.hpp`,
+`RFNode::Id`, `rfNodeId()` in `tileop.hpp`, `sds2rfnode_` in
+`ntgenerator.hpp` — vts-tools comments say "RF node" outright, and the
+tileserver says "reference frame node" in `rf-mask/main.cpp` and
+"reference-frame node" in its `tile-index.md`. RFC 13's vocabulary
+matches upstream, and I had only searched this repository's wiki.
+
+The finding that survives is different and smaller. Three names are in
+live use and nothing states which one is authoritative. The tileserver
+carries all three inside its own source: "reference-frame division node"
+in `mapproxy/src/tiling/unified.hpp`, "Spatial division nodes" in
+`mapproxy/src/tiling/main.cpp`, and bare "division node" throughout
+`unified.cpp`. cartolina-js uses the third form only: `MapDivisionNode`,
+`MapRefFrame.getSpatialDivisionNodes()`, and four uses of "division
+nodes" in [reference-frames.md](reference-frames.md). A reader moving
+between the two repositories has to work out that these are one thing.
+
+Suggest settling it in [reference-frames.md](reference-frames.md), which
+is the page that owns the concept: "reference frame spatial division
+node" as the full term, with "reference-frame node" and "spatial
+division node" as accepted short forms and bare "division node" avoided
+because it drops the qualifier that makes it a reference-frame concept
+rather than a map one.
+
+The abbreviation is a separate matter, and there the original note was
+half right. `RFNode` earns its contraction as a C++ type name; "RF node"
+in prose is an initialism a reader has to expand, and a type name is not
+a prose name. RFC 13's body uses it sixteen times across sections 5, 6,
+8, 11, and 12 — "an RF node for which no grid sample can be evaluated",
+"RF-node depth 16", "RF-node root units are pinned". Spelling those out
+as "reference-frame node" costs nothing and removes the one part of the
+vocabulary that actually reads as jargon.
+
+`MapDivisionNode` is a legacy identifier and can stay as it is. Fixing
+[reference-frames.md](reference-frames.md)'s own four uses is a wiki
+edit rather than something RFC 13 should carry.
+
+### 4. The rebuild skip cannot be evaluated where section 4.3 puts it
+
+"Each unit records the ready render rigs which contributed to it... If
+those inputs are unchanged at the next interval, the existing unit is
+retained and no raster draw is submitted."
+
+The sink learns which rigs contribute only from the `draw()` calls, which
+arrive after `beginNode()` has cleared a replacement and reduced the
+children. There is no point at which it can compare the rig set before
+doing the work the comparison is meant to avoid.
+
+Either drop it — it is a speculative optimization over roughly seventy
+256 by 256 draws per second, with no measurement behind it — or move the
+decision to `endNode()`, which can compare the accumulated rig set and
+child revisions against the published unit and keep the old texture.
+
+### 5. Section 5 divides by 256, section 4.2 says 255
+
+`rootSpacing = sqrt(rootWidth * rootHeight) / 256` contradicts "The store
+computes GSD from the actual 255 intervals, so the slightly coarser
+spacing is explicit in lookup selection." The whole point of the 255-vs-257
+argument in 4.2 is that the interval count is explicit, which makes 255
+look like the intended divisor.
+
+### 6. The hierarchy above a division-node root is undefined
+
+Two problems share a root cause.
+
+`refframe.js` parses `division.rootLod`, so section 5's `rootLod` in
+`nominalSpacing(lod) = rootSpacing / 2^(lod - rootLod)` reads as that
+field. It has to be the reference-frame node's own id lod — melown2015's four
+nodes sit at LOD 1, earth-qsc's six at LOD 2 — and `rootWidth`/`rootHeight`
+are that node's extents in its own projected SRS. Naming the field
+explicitly would remove the ambiguity.
+
+Above that lod the traversal is still descending: it starts at the surface
+tree root, which is one global tile. A unit there would span several
+reference-frame nodes with different projected SRSs, and section 5 has no
+`rootWidth` to give it. Section 4.1 says only that "the store follows the
+reference frame's tile hierarchy". The simplest resolution is for 4.1 to
+say that units exist only at and below a reference-frame node root, and
+that reduction stops there.
+
+### 7. Two coverage rules meet at the same texel
+
+Section 3.3 scopes the transient depth attachment to "one ready rig's
+draw" and lets the greatest height win. Section 4.3 says a coarser or
+lower-priority rig "fills gaps and does not replace established values".
+Where reduced child coverage and a fallback draw overlap, those give
+different answers, and they will overlap: the traversal mask is eroded by
+`mapTraversalMaskErosion` (default 1) at the mask pool's resolution, while
+reduction renormalizes weights over invalid neighbours and so widens
+coverage by a sample at 256.
+
+Two things would resolve it: stating when the depth attachment is
+cleared — per rig draw, per node, or once per replacement — and letting
+the coverage mask be the only coverage rule, with the depth test ordering
+triangles inside a single draw and nothing more. Clearing per rig draw
+gives that reading directly.
+
+### 8. Say what bounds coverage, and say that it exceeds the viewport
+
+`traverseNode` culls with `bboxVisible` at the root and at every child
+quadrant, so the set of tiles that get units is bounded by what the
+current and recent traversals visited. Section 4.1's "Different LODs may
+cover different regions" is the closest the text comes, and section 2's
+scope list does not mention it at all.
+
+The property worth stating alongside it is the one that makes the bound
+tolerable, and the RFC never claims it: composition happens in tile UV
+space with no scissor, so a drawn rig writes its entire footprint into the
+unit, not the on-screen part. A visited tile therefore covers its whole
+extent, and each coarser ancestor covers more. Coverage reaches
+substantially past the viewport, and it is why a query outside the current
+view usually still answers.
+
+Both would sit well in section 2: what limits coverage, and how far it
+reaches beyond the frustum. Section 1 could then say what that means for
+the intended vector source, whose coordinates can lie outside the view
+that loaded their tile.
+
+### 9. Position-to-node resolution exists, and division nodes overlap
+
+Section 6.3 says the reference frame resolves a position to its node,
+local coordinates, and tile path, "implemented once on `MapRefFrame`".
+[measure.js:559](../../src/map/measure.js#L559) already implements the node
+half as `MapMeasure.getSpatialDivisionNode()`, called from four sites in
+`measure.js` and from
+[geodata-builder.js:1495](../../src/map/geodata-builder.js#L1495). Step 2
+of section 11.1 reads better as *move* it and repoint those callers — an
+adopting change removes what it obsoletes.
+
+That function also settles a case section 6 does not. Reference-frame
+node extents overlap ([reference-frames.md](reference-frames.md), "How
+partitioning ranges act at run time"), and the existing tiebreak takes the
+highest-lod node. A position can therefore resolve to a node with no store
+coverage while an overlapping node has some, and section 6.1 would return
+`undefined`. Section 6.3 could say which node answers; falling through to
+the next candidate in the existing highest-lod order costs little and
+turns a miss into a coarser answer.
+
+### 10. Sections 11 and 12 disagree about `refframe.js`
+
+Step 2 of 11.1 says "Add RF-node and tile-path lookup to `MapRefFrame`".
+Section 12 says `src/map/refframe.ts` — "migrate the current JS owner and
+add RF-node/tile-path lookup". Migrating the module to TypeScript is a
+separate body of work from adding a lookup to it, and gate 1 is already
+the largest of the four.
+
+Suggest keeping the migration out. The lookup this RFC needs is one
+function moved
+from `MapMeasure` (note 9) plus a tile-path walk, and both can land on
+the existing `MapRefFrame` with a sibling `.d.ts` under the migration
+rules. Section 12's row could say that, leaving `refframe.js` to be
+migrated by whatever feature next needs the whole module.
+
+### 11. The elevation pass overwrites shared traversal state
+
+Section 7.2 moves draw statistics into the color sink, but the state that
+matters here belongs to `drawTerrainTraversal()` and `renderTile()`, not
+to the gates being extracted:
+
+- `draw.drawCounter++` at
+  [draw-traversal.ts:86](../../src/map/draw-traversal.ts#L86) and
+  `tile.drawCounter` at
+  [draw-traversal.ts:557](../../src/map/draw-traversal.ts#L557) advance the
+  shared draw generation;
+- `stats.usedNodes`, `stats.processedNodes`, and
+  `stats.processedMetatiles` are written by the entry point itself at
+  [draw-traversal.ts:112-114](../../src/map/draw-traversal.ts#L112-L114);
+- `gpuCache.skipCostCheck` is toggled and `checkCost()` run around the
+  descent; and
+- `renderTile` gates on `stats.gpuRenderUsed >= draw.maxGpuUsed`.
+
+A pass every second clobbers the inspector's per-frame counters and runs a
+GPU cache cost check outside the color frame. The smallest change that
+would keep one traversal: make the draw generation and the counters a
+property of the pass rather than of `MapDraw` and `MapStats`, so the
+entry point supplies the counter to advance and the object to accumulate
+into, and only the color entry point supplies the frame-wide ones — with
+the GPU cache check staying with the color frame.
+
+### 12. The no-load metanode path skips a side effect the draw needs
+
+`isMetanodeReady(tree, priority, preventLoad)` assigns `tile.surface` only
+when `preventLoad` is false
+([surface-tile.js:273-278](../../src/map/surface-tile.js#L273-L278)), and
+`renderTile` bails at `if (!tile.surface) return 'partial'`. An elevation
+pass that always passes `doNotLoad` can therefore only draw tiles a color
+frame has already touched.
+
+That is probably the behaviour you want. If it is not, the assignment
+reads no resource and could move ahead of the `preventLoad` guard.
+Either way, section 7.4 stating the coupling would save discovering it
+during gate 1.
+
+### 13. Section 8's rejected budget has no mechanism
+
+"A runtime decrease... is rejected", "A smaller configured budget is
+invalid". The config store validates per-key ranges; this is a cross-key
+constraint against a parsed reference frame, which it cannot express.
+Section 8 could say what happens at runtime. Clamping up to the smallest
+viable budget and warning would keep a configuration value from failing a
+map outright, which seems the kinder of the options.
+
+While there, bound the reservation. Shipped frames have few
+reference-frame nodes (melown2015 four, earth-qsc six), so the reserved
+roots are under 2 MiB.
+As written a reader cannot tell whether the reservation is bounded at all.
+
+### 14. Two names for one operation
+
+`ElevationStore.heightcode()` and `Viewer.queryTerrainElevation()` have the
+same signature and the same meaning. Heightcoding is the tileserver's name
+for adding height to delivered geodata, not for a point query — section 1
+uses it that way. One name for both would read better, and the public
+method's is the accurate one.
+
+### 15. Smaller points
+
+1. Section 3.2: the semi-minor axis is not in the frame uniform.
+   `bodyParams` carries the major axis and the major-to-minor ratio (see
+   the `uboFrame` block in
+   [frame.inc.glsl](../../src/renderer/shaders/includes/frame.inc.glsl));
+   say `b` is derived from it.
+2. Section 6.3: the second color attachment can go. One `RGBA8UI` target
+   with two rows — height in the first, preference index in the second —
+   needs one attachment and one `readPixels`.
+3. Section 6.3: fence polling needs to sit outside the dirty gate at
+   [map.ts:981-997](../../src/map/map.ts#L981-L997) — the animation frame
+   always runs, the draw does not. Worth a sentence in 6.3.
+4. Section 8: `262144 + 40 * W` is unexplained. Naming the five buffers
+   and their per-texel bytes would make it checkable. The rest of the
+   section's arithmetic checks out.
+5. Section 7.5 clears the store on a terrain source-list change but says
+   nothing about a reference-frame change. Section 5 says
+   `mapElevationStoreGsdGridSize` "requires a new map" — the `internal`
+   scope tag carries that meaning; worth saying which tag it takes.
+6. Section 12 lists `legacy-map.d.ts` for "the declaration of
+   channel-owned map state". `drawChannel` is declared on `Map`
+   ([map.ts:1347](../../src/map/map.ts#L1347)); `legacy-map.d.ts` only
+   mentions it in a comment.
