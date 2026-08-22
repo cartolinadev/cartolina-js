@@ -268,6 +268,11 @@ where in the file it is inserted (entries stay newest-first by
 position, so number order and file order diverge over time — that is
 expected).
 
+Precede every backlog heading with the stable HTML anchor
+`<a id="backlog-N"></a>`, using the entry number for `N`. Link to an
+individual entry through that anchor. The anchor is part of the entry and
+moves unchanged to `backlog-archive.md` when the entry is closed.
+
 [docs/wiki/backlog-archive.md](docs/wiki/backlog-archive.md) holds
 entries that are resolved, implemented, or closed for another reason
 (superseded, subsumed by another change). When closing a backlog

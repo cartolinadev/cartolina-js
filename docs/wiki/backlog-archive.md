@@ -5,6 +5,7 @@ closed for another reason (superseded, promoted to an RFC, subsumed by another
 change). Entries keep the sequential number they were assigned in the active
 backlog, in order of when they were opened; numbers are not reused.
 
+<a id="backlog-29"></a>
 ## 29. REFACTOR: drop metatile format versions 1–3
 
 **Opened:** 2026-05-27
@@ -82,6 +83,7 @@ for the public test map configs: every surface and glue in
 
 ---
 
+<a id="backlog-35"></a>
 ## 35. PERF: discard-free tile color shader for watertight tiles
 
 **Opened:** 2026-06-06
@@ -178,6 +180,7 @@ quadrant clip, and `tile-clip.inc.glsl` are gone; `TileRenderRig.draw()`
 now selects on `!!maskTexture`, and the discarding program's only
 `discard` is the `uMaskEnabled` coverage test.
 
+<a id="backlog-34"></a>
 ## 34. PERF: draw-traversal — empty-quadrant fold
 
 **Opened:** 2026-06-04
@@ -341,6 +344,7 @@ The profiling harness and probes live under the gitignored `tmp/perf/`.
 
 ---
 
+<a id="backlog-33"></a>
 ## 33. BUG: superelevation — debug bbox heights baked at stale zoom
 
 **Opened:** 2026-05-31
@@ -430,15 +434,18 @@ deviation 0), and the boxes sit on the terrain.
 
 ---
 
+<a id="backlog-28"></a>
 ## 28. BUG: draw-traversal — mask fails for internal-texture surfaces
 
 **Opened:** 2026-05-27
 **Status:** resolved 2026-05-28 — `rt.externalUVs` and `rt.internalUVs`
 made data-based in `TileRenderRig`; benatky regression confirmed clean
 **Related:** [rfc03-draw-traversal.md](rfc03-draw-traversal.md);
-[27. BUG: draw-traversal — black flashes when zooming into city surface](#27-bug-draw-traversal--black-flashes-when-zooming-into-city-surface)
+[27. BUG: draw-traversal — black flashes when zooming into city
+surface](#backlog-27)
 and
-[26. BUG: draw-traversal — aborted descents at very high LODs](#26-bug-draw-traversal--aborted-descents-at-very-high-lods)
+[26. BUG: draw-traversal — aborted descents at very high
+LODs](#backlog-26)
 are confirmed manifestations of the same root cause
 
 ### User report (verbatim)
@@ -483,6 +490,7 @@ tile indices where coarser tiles seep into finer-LOD areas.
 
 ---
 
+<a id="backlog-27"></a>
 ## 27. BUG: draw-traversal — black flashes when zooming into city surface
 
 **Opened:** 2026-05-27
@@ -508,6 +516,7 @@ DEM (`topoearth-copernicus-dem-glo30` + `benatky-nad-jizerou2015`).
 
 ---
 
+<a id="backlog-26"></a>
 ## 26. BUG: draw-traversal — aborted descents at very high LODs
 
 **Opened:** 2026-05-27
@@ -534,6 +543,7 @@ inspect high-LOD tiles over the city.
 
 ---
 
+<a id="backlog-25"></a>
 ## 25. BUG: draw-traversal phase 2 — front surface overlaps back surface on +x/+y edges
 
 **Opened:** 2026-05-27
@@ -579,6 +589,7 @@ for the full explanation and the discard-threshold tuning knob.
 
 ---
 
+<a id="backlog-30"></a>
 ## 30. BUG: TileRenderRig — internal texture missing from layer stack
 
 **Opened:** 2026-05-28
@@ -662,6 +673,7 @@ rig is recreated.
 
 ---
 
+<a id="backlog-17"></a>
 ## 17. FEATURE: freeze mode for viewport diagnostics
 
 **Opened:** 2026-05-18
@@ -728,6 +740,7 @@ frustum capture. `Renderer` draws the frustum with the modern
 
 ---
 
+<a id="backlog-21"></a>
 ## 21. REFACTOR: remove OGC 3D Tiles streaming mechanism
 
 **Opened:** 2026-05-21
@@ -773,6 +786,7 @@ the public custom-mesh demos no longer keep `Renderer.drawMesh()` alive.
 
 ---
 
+<a id="backlog-20"></a>
 ## 20. REFACTOR: delete legacy tile shader family
 
 **Opened:** 2026-05-21
@@ -815,6 +829,7 @@ remaining terrain renderer must be `TileRenderRig`.
 
 ---
 
+<a id="backlog-18"></a>
 ## 18. REFACTOR: delete legacy mesh tile rendering pipeline
 
 **Opened:** 2026-05-20
@@ -881,13 +896,15 @@ Deleted:
 ### Why before the draw refactor
 
 The draw refactor (steps 2–4 of
-[15. REFACTOR: replace legacy map draw path with `TileRenderRig`](#15-refactor-replace-legacy-map-draw-path-with-tilerenderrig))
+[15. REFACTOR: replace legacy map draw path with
+`TileRenderRig`](#backlog-15))
 touches the same files and traversal logic. Removing dead code first
 keeps the diffs readable and avoids carrying old branches through a
 restructuring only to delete them on the other side.
 
 ---
 
+<a id="backlog-24"></a>
 ## 24. REFACTOR: delete `MapInterface`
 
 **Opened:** 2026-05-25
@@ -924,6 +941,7 @@ track avoided inflating the RFC's scope.
 
 ---
 
+<a id="backlog-9"></a>
 ## 9. REFACTOR: replace the event bus with a typed `EventBus` class
 
 **Opened:** 2026-05-13
@@ -943,6 +961,7 @@ class that keeps the `on()`/`once()` surface and fixes the known bugs.
 
 ---
 
+<a id="backlog-6"></a>
 ## 6. BUG: `setAtmosphere` silently no-ops on styles without an `atmosphere` section
 
 **Opened:** 2026-04-24
@@ -975,6 +994,7 @@ effect — there was no subsystem for the renderer to use.
 
 ---
 
+<a id="backlog-5"></a>
 ## 5. BUG: `mapFlagAtmosphere: false` does not suppress the background sky shader
 
 **Opened:** 2026-04-24
@@ -1020,6 +1040,7 @@ effect on the background.
 
 ---
 
+<a id="backlog-14"></a>
 ## 14. DONE: public `transformRequest` hook
 
 **Opened:** 2026-05-16
@@ -1038,6 +1059,7 @@ in application state and read them inside the request transform callback.
 
 ---
 
+<a id="backlog-3"></a>
 ## 3. DOCS: split wiki into a more hierarchical reference manual
 
 **Opened:** 2026-04-15
@@ -1073,6 +1095,7 @@ overview.
 
 ---
 
+<a id="backlog-10"></a>
 ## 10. REFACTOR: replace glues and virtual surfaces with client-side surface composition
 
 **Opened:** 2026-05-13
@@ -1107,6 +1130,7 @@ Background on the legacy stack:
 
 ---
 
+<a id="backlog-15"></a>
 ## 15. REFACTOR: replace legacy map draw path with `TileRenderRig`
 
 **Opened:** 2026-05-16
@@ -1150,7 +1174,7 @@ scheduled for deletion.
    additions on `LegacyMap` (`drawChannel`, overlay registry,
    `initFrame`, position accessors). `MapInterface` deletion completed
    as an independent track — see
-   [24. REFACTOR: delete `MapInterface`](#24-refactor-delete-mapinterface).
+   [24. REFACTOR: delete `MapInterface`](#backlog-24).
 
 3. ~~Implement the new unified traversal per
    [rfc03-draw-traversal.md](rfc03-draw-traversal.md).~~ **Done** —

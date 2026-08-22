@@ -9,6 +9,10 @@ renumbered. When closing an entry (resolved, implemented, or
 superseded by another change), move it to
 [backlog-archive.md](backlog-archive.md) — keep its number.
 
+Each heading is preceded by a stable `<a id="backlog-N"></a>` anchor.
+Use that anchor when linking to an individual entry, and move it with the
+entry when the entry is archived.
+
 Promotion to an RFC is not closure. An entry promoted, elevated, or
 subsumed into an RFC stays here, with its status noting the RFC,
 until that RFC reaches `Implemented` — only then does it move to the
@@ -19,6 +23,46 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-55"></a>
+## 55. Unify geodetic-height calculation
+
+**Opened:** 2026-08-22
+**Status:** open
+**Related:** `src/renderer/shaders/includes/frame.inc.glsl`,
+`src/map/vertical-exaggeration.ts`,
+[rfc13-elevation-store.md](rfc13-elevation-store.md)
+
+The frame shader and `VerticalExaggeration` calculate ellipsoidal height with
+the same scaled-sphere approximation. RFC 13 needs a more accurate Bowring
+calculation when terrain geometry is written to the elevation store. Keeping
+two calculations for the same physical quantity would make their results
+drift independently.
+
+Give the CPU and shader code one tested definition of Cartesian-to-geodetic
+height and use it for vertical exaggeration and elevation-store
+rasterization. The implementation must still preserve the shader's
+camera-relative precision.
+
+<a id="backlog-54"></a>
+## 54. Validate reference-frame SRS consistency when parsed
+
+**Opened:** 2026-08-22
+**Status:** open
+**Related:** `src/map/refframe.js`,
+[reference-frames.md](reference-frames.md)
+
+Reference-frame parsing accepts combinations of coordinate systems which the
+rest of the library cannot use coherently. A geocentric frame requires a
+geographic positioning system, projected spatial-division systems, a
+three-dimensional Cartesian physical system, and one reference ellipsoid
+shared by all of them. A projected frame requires its physical, positioning,
+and public systems to be the same.
+
+Validate these rules when the reference frame is parsed. They are properties
+of the reference frame, not checks to repeat in elevation lookup or other
+consumers.
+
+<a id="backlog-53"></a>
 ## 53. BUG: `convertPositionViewMode` round trip drifts (obj/subj)
 
 **Opened:** 2026-08-17
@@ -44,6 +88,7 @@ of longitude (roughly 53 km at that latitude), 100+ m of height, and
 position's own view distance (about 40 km here), not floating-point
 noise, and compounds with every additional round trip.
 
+<a id="backlog-52"></a>
 ## 52. Stale vertical-exaggeration state in the legacy modules
 
 **Opened:** 2026-08-16
@@ -67,6 +112,7 @@ comparing the baked factor alongside the counter. Not confirmed
 visually — labels have not been seen to drift, so establish whether the
 defect is real before fixing it.
 
+<a id="backlog-51"></a>
 ## 51. Credit ownership still sits on the legacy map
 
 `MapStyle` now holds the typed `Map` and reaches the legacy map through
@@ -80,6 +126,7 @@ touches `credit.ts`, the legacy credit table, and the credit-rendering
 call sites in the UI, which is why it is separate from the style-owner
 change rather than part of it.
 
+<a id="backlog-50"></a>
 ## 50. The VTS stylesheet linker's collision paths are unexercised
 
 **Opened:** 2026-08-07
@@ -100,6 +147,7 @@ the policy. Record it so that whoever next changes the linker knows the
 existing gates will not catch a regression there, and arranges evidence
 as part of that change.
 
+<a id="backlog-49"></a>
 ## 49. Converter source fetches are serial
 
 **Opened:** 2026-08-07
@@ -119,6 +167,7 @@ order load-bearing for shared metadata and credit precedence. So the
 fetches may overlap but the assignments into `this.sources` must stay
 in declaration order.
 
+<a id="backlog-48"></a>
 ## 48. TOOLING: withdraw the global/UMD library build
 
 **Opened:** 2026-08-06
@@ -143,6 +192,7 @@ global build as still published. The dev build then compiles the library
 ESM, two workers and the compatibility entry — four outputs, plus the
 dev-only sandbox.
 
+<a id="backlog-47"></a>
 ## 47. Switch class modules from default to named exports
 
 **Opened:** 2026-07-24
@@ -168,6 +218,7 @@ module's `export default Foo` becomes `export { Foo }`, each importer's
 its example change to match. Do it as one deliberate commit, not by
 making any single module a lone exception.
 
+<a id="backlog-46"></a>
 ## 46. BUG: altitude jitter while panning over high terrain (multi-surface)
 
 **Opened:** 2026-07-10
@@ -229,6 +280,7 @@ reproduce.
   dataset's coarse navtiles are biased against its own finer lods,
   the query returns that bias.
 
+<a id="backlog-45"></a>
 ## 45. FEATURE: make the atmosphere shell track vertical exaggeration
 
 **Opened:** 2026-07-07
@@ -276,6 +328,7 @@ routes if this is picked up:
 Until then the dead constructor inflation lines are removed and the
 atmosphere stays datum-anchored and static.
 
+<a id="backlog-44"></a>
 ## 44. FORMAT: design the v4 terrain-tile container
 
 **Opened:** 2026-06-29
@@ -316,6 +369,7 @@ Promote this entry to an RFC when v4 becomes scheduled. Until then v1-v3
 decoding retains all cell UVs and performs the required indexing in the
 client.
 
+<a id="backlog-43"></a>
 ## 43. REFACTOR: unify the duplicated mesh parser (main thread + worker)
 
 **Opened:** 2026-06-23
@@ -354,6 +408,7 @@ threading config explicitly and parsing into a plain struct the `MapSubmesh`
 then adopts. Sizable hot-path refactor — land a parser unit test first (it
 also catches worker/main drift), and verify with the screenshot tests.
 
+<a id="backlog-42"></a>
 ## 42. TOOLING: ship TypeScript types (.d.ts emit + type-only npm package)
 
 **Opened:** 2026-06-18
@@ -399,6 +454,7 @@ the URL-loaded-ESM model the project already uses.
 
 ---
 
+<a id="backlog-41"></a>
 ## 41. CLIENT/FOLLOW-UP: replace hardcoded metatile aggregation order
 
 **Opened:** 2026-06-12
@@ -425,6 +481,7 @@ values.
 
 ---
 
+<a id="backlog-40"></a>
 ## 40. CLIENT/REDESIGN: shallow-subtree metatile delivery (awaits RFC promotion)
 
 **Opened:** 2026-06-12
@@ -454,6 +511,7 @@ versus keeping the wire ellipsoidal at zero client cost.
 
 ---
 
+<a id="backlog-39"></a>
 ## 39. FEATURE: recover from WebGL context loss
 
 **Opened:** 2026-06-10
@@ -465,6 +523,7 @@ After a context loss the map stays blank permanently;
 `contextRestored()` only fires an event. Design and implementation
 plan live in the RFC.
 
+<a id="backlog-37"></a>
 ## 37. BUG/DESIGN: coverage-aware point terrain queries
 
 **Opened:** 2026-06-08
@@ -579,6 +638,7 @@ coverage.
 
 ---
 
+<a id="backlog-36"></a>
 ## 36. REFACTOR/PERF: split tile rendering execution out of `TileRenderRig`
 
 **Opened:** 2026-06-06
@@ -747,12 +807,14 @@ exactly the "specialized fast path for common simple stacks" this entry
 proposes: the executor split, done for a simple stack, produces it. The
 profiling doc also isolates a larger, separate win — removing the
 shader's `discard` (see
-[35. PERF: discard-free tile color shader for watertight tiles](backlog-archive.md#35-perf-discard-free-tile-color-shader-for-watertight-tiles)) — which the executor split
+[35. PERF: discard-free tile color shader for watertight
+tiles](backlog-archive.md#backlog-35)), which the executor split
 should preserve by keeping depth and footprint as specialized,
 discard-free passes.
 
 ---
 
+<a id="backlog-31"></a>
 ## 31. REFACTOR: audit draw-readiness policy flags after traversal rollout
 
 **Opened:** 2026-05-30
@@ -794,6 +856,7 @@ After the legacy traversal is removed:
 
 ---
 
+<a id="backlog-32"></a>
 ## 32. PERF/UX: screen-space terrain-error map
 
 **Opened:** 2026-05-31
@@ -833,6 +896,7 @@ screen-space estimate of visual inaccuracy and loading quality.
 
 ---
 
+<a id="backlog-38"></a>
 ## 38. BUG: TileRenderRig soft view switching has early-exit gaps
 
 **Opened:** 2026-06-10
@@ -875,10 +939,12 @@ whenever the tile position is still valid and the replacement rig cannot
 yet be constructed or made ready. Any fix must avoid constructing a new
 rig from killed CPU submesh fields; that guard prevents the drab-tile
 race documented in
-[30. BUG: TileRenderRig — internal texture missing from layer stack](backlog-archive.md#30-bug-tilerenderrig--internal-texture-missing-from-layer-stack).
+[30. BUG: TileRenderRig — internal texture missing from layer
+stack](backlog-archive.md#backlog-30).
 
 ---
 
+<a id="backlog-19"></a>
 ## 19. BUG: depth hitmap dead zone near geometric horizon
 
 **Opened:** 2026-05-20
@@ -896,6 +962,7 @@ RGBA8 carry-error path as the cause of the horizon dead strip.
 
 ---
 
+<a id="backlog-22"></a>
 ## 22. REFACTOR: pass explicit draw contexts
 
 **Opened:** 2026-05-24
@@ -932,6 +999,7 @@ semantics: draw from `view`, but derive vertical exaggeration from
 
 ---
 
+<a id="backlog-16"></a>
 ## 16. REFACTOR: replace `gpu.setState` with per-method GL state push/pop
 
 **Opened:** 2026-05-18
@@ -951,6 +1019,7 @@ method owns its state window.
 
 ---
 
+<a id="backlog-8"></a>
 ## 8. REFACTOR: continue absorbing legacy objects into `Map`
 
 **Opened:** 2026-05-04
@@ -984,6 +1053,7 @@ instead, allowing the `core` shim to be deleted.
 
 ---
 
+<a id="backlog-13"></a>
 ## 13. REFACTOR: remove legacy nullable construction paths
 
 **Opened:** 2026-05-14
@@ -1044,6 +1114,7 @@ has already been returned.
 
 ---
 
+<a id="backlog-12"></a>
 ## 12. REFACTOR: promote ui/autopilot/presenter to flat Viewer methods
 
 **Opened:** 2026-05-14
@@ -1070,6 +1141,7 @@ and `presenter` (no current typed call sites outside legacy demos).
 
 ---
 
+<a id="backlog-11"></a>
 ## 11. BUG: runtime free layers do not render on style-based maps
 
 **Opened:** 2026-05-14
@@ -1120,6 +1192,7 @@ side effect of `Viewer.addFreeLayer()`.
 
 ---
 
+<a id="backlog-4"></a>
 ## 4. BUG: control-mode listens for `mousewheel` instead of `wheel`
 
 **Opened:** 2026-04-19
@@ -1154,6 +1227,7 @@ Bugs and deferred work that are not yet scheduled.
 
 ---
 
+<a id="backlog-23"></a>
 ## 23. FEATURE: MapLibre-style `type: 'custom'` style layer
 
 **Opened:** 2026-05-25
@@ -1209,6 +1283,7 @@ of the map.
 
 ---
 
+<a id="backlog-7"></a>
 ## 7. FEATURE: explicit offscreen render-pass API
 
 **Opened:** 2026-05-03
@@ -1296,6 +1371,7 @@ used by render targets.
 
 ---
 
+<a id="backlog-2"></a>
 ## 2. FEATURE: pitch / horizon-based line dissipation
 
 **Opened:** 2026-04-15
@@ -1335,14 +1411,16 @@ There is already tilt-aware runtime behavior in geodata reduction, so
 the renderer does have camera-angle information available. The missing
 piece is a render-time color / opacity path for geodata lines.
 
+<a id="backlog-1"></a>
 ## 1. BUG: `checkVisibility()` misjudges terrain-anchored points near silhouettes
 
 **Opened:** 2026-04-14
 **Status:** partly fixed 2026-07-28. The depth comparison itself is
 fixed and measured. Terrain-anchored (`'float'`) points remain wrong, so
 no caller performs the check; `demos/waypoint/waypoint.js` deliberately
-does not.
-**Related:** the navtile ranking entries above, [nav-tiles.md](nav-tiles.md)
+does not. The remaining work is tracked by RFC 13.
+**Related:** the navtile ranking entries above, [nav-tiles.md](nav-tiles.md),
+[RFC 13](rfc13-elevation-store.md)
 
 ### What was wrong, and is now fixed
 
