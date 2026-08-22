@@ -135,9 +135,10 @@ For a geocentric frame, the elevation vertex shader reconstructs absolute
 physical coordinates by adding `uFrame.physicalEyePos.xyz` to the
 camera-relative position produced by `uModel`. Both operands and the result are
 float32. At Earth radius the reconstructed Cartesian components have a 0.5 m
-unit in the last place, so their contribution to the resulting height is
-sub-metre and can change when `physicalEyePos` changes. This is accepted
-because no consumer in this RFC requires sub-metre height.
+unit in the last place. The subsequent ellipsoid calculation subtracts
+quantities near Earth radius, so its camera-dependent height quantization is
+of order one metre. This is accepted because no consumer in this RFC requires
+better than metre-scale height.
 
 The shader then converts the Cartesian position to geodetic height. The
 semi-minor axis `b` is derived from the semi-major axis and major-to-minor
@@ -371,7 +372,7 @@ reference-frame node.
 `actualGsd` describes horizontal sample spacing, not vertical reliability.
 A coarse unit contains reduced averages, and invalid-neighbour
 renormalization adds its own filtering near coverage edges. Geocentric height
-also contains the sub-metre, camera-dependent float32 quantization described
+also contains the metre-scale, camera-dependent float32 quantization described
 in section 3.2. This RFC does not report a vertical uncertainty or confidence
 value. Consumers retain and refresh the best available sample; a later
 regional-coverage design must also define the reliability required by vector
@@ -879,20 +880,17 @@ The first step implements only the store needed by the waypoint:
 5. Change the waypoint demo so every two-dimensional marker submits its
    existing geographic coordinates with GSD zero. It keeps one request in
    flight, retains its last resolved value, and moves the marker only when the
-   returned height or GSD changes. The waypoint adds
-   `max(1 metre, actualGsd)` to the returned height as marker clearance. The
-   one-metre floor covers the float32 quantization described in section 3.2.
-   The lifted fixed coordinate is used for both placement and
-   `checkVisibility()` with mode `fix`, restoring the terrain-occlusion check
-   which the navigation-tile error forced the demo to remove. This is waypoint
-   placement policy; the store returns the unmodified terrain sample.
+   returned height or GSD changes. The returned fixed coordinate is used
+   unchanged for both placement and `checkVisibility()` with mode `fix`,
+   restoring the terrain-occlusion check which the navigation-tile error
+   forced the demo to remove.
 
 Manual validation uses `a-3d-mountain-map` and the waypoint demo at the Mount
 Whitney position `[-118.302348, 36.560197]`. The reviewer verifies that the
-marker appears on the rendered summit as terrain loads, remains visible under
-`checkVisibility()`, and follows a better store sample when finer terrain
-becomes ready. The run also confirms that enabling the waypoint adds no
-terrain request.
+marker appears on the rendered terrain at that position as terrain loads,
+remains visible under `checkVisibility()`, and follows a better store sample
+when finer terrain becomes ready. The run also confirms that enabling the
+waypoint adds no terrain request.
 
 Implementation stops for manual validation after this gate.
 
@@ -1691,6 +1689,10 @@ shape that fits, `c0 + c1 * distanceFactor + c2 * tiltFactor`. That is
 `Viewer` work under backlog #1; this RFC only needs to stop specifying a
 placement rule.
 
+*Adopted. Section 11.2 now places and checks the waypoint at the returned
+height unchanged. Any change to `checkVisibility()` remains Viewer work under
+backlog #1 rather than elevation-store placement policy.*
+
 ### 2. Editorial
 
 The gate 1 position `[-118.302348, 36.560197]` is 2.2 km south-southwest
@@ -1701,3 +1703,7 @@ same thing and can be corrected with it.
 Section 3.2's "sub-metre" bounds one operand, not the result: the chain
 ends in `dot(ecef - q, normal)`, a cancellation of two quantities near
 6.4e6. "Of order a metre" is true either way.
+
+*Adopted. Gate 1 now describes terrain at the stated position, backlog #1 no
+longer calls it the Mount Whitney marker, and sections 3.2 and 5 describe the
+resulting float32 height quantization as being of order one metre.*

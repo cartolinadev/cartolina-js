@@ -1418,7 +1418,8 @@ piece is a render-time color / opacity path for geodata lines.
 **Status:** partly fixed 2026-07-28. The depth comparison itself is
 fixed and measured. Terrain-anchored (`'float'`) points remain wrong, so
 no caller performs the check; `demos/waypoint/waypoint.js` deliberately
-does not. The remaining work is tracked by RFC 13.
+does not. RFC 13 replaces the navigation-tile anchor height. Any residual
+tilt-aware Viewer tolerance remains tracked here.
 **Related:** the navtile ranking entries above, [nav-tiles.md](nav-tiles.md),
 [RFC 13](rfc13-elevation-store.md)
 
@@ -1465,7 +1466,7 @@ quantisation.
 
 A `'float'` point's height comes from the navigation height field, which
 is a coarser sampling of the terrain than the mesh on screen. At the
-waypoint demo's Mount Whitney marker the field returns 3480 m where the
+waypoint demo marker near Mount Whitney the field returns 3480 m where the
 mesh draws 3597 m, and no lod hint closes the gap — `getSurfaceHeight`
 saturates from lod 7 upward, because that is the finest navtile there is.
 
