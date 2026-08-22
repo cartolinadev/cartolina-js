@@ -1661,3 +1661,43 @@ returned height for both marker placement and its `checkVisibility()`
 coordinate. The floor covers float32 quantization, and gate 1 validates the
 result. This policy belongs to the waypoint; the store returns the unmodified
 terrain sample.*
+
+
+## Review round 3
+
+Round 2 is adopted and verified in the body; section 8's five allocations
+sum to the `40 * W` it claims. Two notes, neither about the store itself.
+
+### 1. Drop the clearance from section 11.2
+
+Waypoint markers are DOM elements in an overlay div
+([waypoint.js](../../demos/waypoint/waypoint.js) builds them with
+`createElement('img')` and toggles `style.visibility`). Nothing depth-tests
+them. The only gate is the `checkVisibility()` boolean, so a tolerance
+there is the whole mechanism and `max(1 metre, actualGsd)` buys nothing.
+
+It also costs. Uncapped, a coarse answer lifts the marker out of the view:
+`melown2015`'s `pseudomerc` root spacing is about 126 km at that position
+and section 8 pins the root. Capped, the cap does nothing when the coarse
+value sits thousands of metres below the terrain.
+
+Suggest placing at the returned height unchanged. The residual question is
+the shape of `checkVisibility()`'s flat `const tolerance = 0.01`
+([viewer.ts:735](../../src/viewer/viewer.ts#L735)), which does not widen as
+the view grazes — the case [backlog #1](backlog.md#backlog-1) called
+ill-conditioned. `Renderer.getZoffsetFactor()`
+([renderer.ts:1949](../../src/renderer/renderer.ts#L1949)) already has the
+shape that fits, `c0 + c1 * distanceFactor + c2 * tiltFactor`. That is
+`Viewer` work under backlog #1; this RFC only needs to stop specifying a
+placement rule.
+
+### 2. Editorial
+
+The gate 1 position `[-118.302348, 36.560197]` is 2.2 km south-southwest
+of the Mount Whitney summit, so "appears on the rendered summit" should be
+"appears on the rendered terrain at that position". Backlog #1 recites the
+same thing and can be corrected with it.
+
+Section 3.2's "sub-metre" bounds one operand, not the result: the chain
+ends in `dot(ecef - q, normal)`, a cancellation of two quantities near
+6.4e6. "Of order a metre" is true either way.
