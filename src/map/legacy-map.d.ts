@@ -22,7 +22,6 @@ import type { vec3 } from '../utils/math';
 import type EventBus from './event-bus';
 
 type MapReferenceFrame = (MapRefFrame & {
-    id: string;
     body?: MapBody & {
         atmosphere?: Partial<Atmosphere.Specification>;
     };

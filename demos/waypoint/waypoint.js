@@ -66,21 +66,55 @@
  *   position entries. If neither list is set the marker is always shown
  *   (subject to the depth check below).
  *
+ *   An empty "show": [] is not the same as omitting "show": omitting it
+ *   means no restriction (always shown); an empty list restricts the
+ *   marker to zero waypoints, so it is never shown. Use this to keep a
+ *   marker defined for later use without displaying it yet.
+ *
  *   Using symbolic names keeps filters stable when positions are
  *   reordered or new entries are inserted.
  *
- * DEPTH / OCCLUSION LIMITATION
+ * TERRAIN PLACEMENT AND OCCLUSION
  *
  *   Markers are HTML elements overlaid on top of the WebGL canvas.
- *   The depth check (canvas[2] <= 1) only tests whether the geographic
- *   point is in front of the camera's near plane — it does NOT test
- *   occlusion by terrain geometry. A marker for a location on the far
- *   side of the globe can remain visible during cross-planetary
- *   navigation. Use show/hide filters to suppress markers that are not
- *   relevant to the current waypoint.
+ *
+ *   A two-element "coords" marker sits on the terrain. Its height comes
+ *   from queryTerrainElevation, which answers from the terrain the map
+ *   has drawn, so the marker and the terrain agree. The height arrives
+ *   asynchronously and improves as finer terrain loads; the marker is
+ *   hidden until the first answer and stays where it is until a better
+ *   one arrives. Those markers are also tested against the terrain with
+ *   checkVisibility, so one behind a ridge or on the far side of the
+ *   globe is hidden.
+ *
+ *   A three-element "coords" marker keeps its authored height and is
+ *   tested against the camera's near plane alone (canvas[2] <= 1). Use
+ *   show/hide filters to suppress those when they are not relevant to
+ *   the current waypoint.
  */
 
 const DEFAULT_MARKER_HEIGHT = 90;
+
+// The elevation store's own coverage does not change faster than its
+// population pass runs (about once a second by default), so refreshing
+// more often than that only adds GPU readback churn.
+const TERRAIN_REFRESH_INTERVAL_MS = 1000;
+
+// checkVisibility() answers from whatever depth hitmap currently
+// exists, which can be stale by up to the hitmap's own throttle
+// interval. A single stale reading holds for that whole interval, not
+// one tick, so filtering it needs a change to survive real elapsed
+// time spanning a hitmap refresh, not a handful of animation ticks
+// against the same stale texture. A visibility change must hold
+// continuously this long before a marker acts on it; the very first
+// reading for a marker is never subject to this and applies
+// immediately.
+//
+// This mirrors `mapDMapCopyIntervalMs`'s default (1500ms). That
+// setting is 'internal' visibility (see src/viewer-config.ts) and has
+// no public accessor, so it cannot be read at runtime; keep this
+// value equal to it by hand if that default ever changes.
+const VISIBILITY_CHANGE_HOLD_MS = 1500;
 
 /**
  * Fetch JSON from a URL string, or return an object passed directly.
@@ -133,6 +167,10 @@ export class WaypointMap {
         this._listeners = { 'slide-change': [], 'fly-start': [], 'fly-end': [] };
         this._markerOverlay = null;
         this._markerEls = [];
+        this._terrainMarkers = [];
+        this._terrainSamples = [];
+        this._terrainPending = false;
+        this._terrainLastRefresh = 0;
         this._tickUnsub = null;
         this._keyHandler = null;
         this._destroyed = false;
@@ -253,6 +291,7 @@ export class WaypointMap {
         this._buildMarkers(config.markers ?? []);
 
         this._tickUnsub = this._viewer.on('tick', () => {
+            this._refreshTerrainHeights();
             this._updateMarkers();
         });
 
@@ -319,6 +358,109 @@ export class WaypointMap {
             overlay.appendChild(el);
             this._markerEls.push(el);
         }
+
+        // Markers whose coords carry no height sit on the terrain, so
+        // they take one shared elevation query.
+        this._terrainMarkers = markers
+            .map((marker, index) => ({ marker, index }))
+            .filter(({ marker }) =>
+                marker.coords && marker.coords.length === 2);
+
+        this._terrainSamples = new Array(markers.length).fill(null);
+        this._terrainVisibleConfirmed = new Array(markers.length).fill(null);
+        this._terrainVisiblePending = new Array(markers.length).fill(null);
+    }
+
+    /**
+     * Debounces a raw checkVisibility() answer for one marker.
+     *
+     * The first reading for a marker (no confirmed state yet) applies
+     * immediately. After that, a change from the confirmed state must
+     * hold continuously for VISIBILITY_CHANGE_HOLD_MS before it is
+     * accepted, absorbing a single stale-hitmap reading during pan. A
+     * reading that reverts back to the confirmed state before the hold
+     * elapses cancels the pending change.
+     *
+     * @param {number} index
+     * @param {boolean|null} rawState
+     * @returns {boolean|null} the confirmed state to act on
+     */
+    _debouncedVisibility(index, rawState) {
+        if (rawState === null) return this._terrainVisibleConfirmed[index];
+
+        const confirmed = this._terrainVisibleConfirmed[index];
+
+        if (confirmed === null) {
+            this._terrainVisibleConfirmed[index] = rawState;
+            return rawState;
+        }
+
+        if (rawState === confirmed) {
+            this._terrainVisiblePending[index] = null;
+            return confirmed;
+        }
+
+        const now = performance.now();
+        const pending = this._terrainVisiblePending[index];
+
+        if (!pending || pending.value !== rawState) {
+            this._terrainVisiblePending[index] =
+                { value: rawState, since: now };
+            return confirmed;
+        }
+
+        if (now - pending.since < VISIBILITY_CHANGE_HOLD_MS) return confirmed;
+
+        this._terrainVisibleConfirmed[index] = rawState;
+        this._terrainVisiblePending[index] = null;
+        return rawState;
+    }
+
+    /**
+     * Keeps the terrain height of every two-dimensional marker current.
+     *
+     * One query covers every such marker and only one is in flight at a
+     * time, no more often than TERRAIN_REFRESH_INTERVAL_MS. A miss
+     * leaves the retained sample alone, so a marker never loses a
+     * height it already had; a new height or a new actualGsd is what
+     * moves it.
+     */
+    _refreshTerrainHeights() {
+        if (this._terrainPending) return;
+        if (this._terrainMarkers.length === 0) return;
+
+        const now = performance.now();
+        if (now - this._terrainLastRefresh < TERRAIN_REFRESH_INTERVAL_MS)
+            return;
+        this._terrainLastRefresh = now;
+
+        const positions = this._terrainMarkers.map(
+            ({ marker }) => [marker.coords[0], marker.coords[1]]);
+
+        this._terrainPending = true;
+
+        this._viewer.queryTerrainElevation(positions, 0).then((samples) => {
+            this._terrainPending = false;
+            if (this._destroyed) return;
+
+            for (let i = 0; i < this._terrainMarkers.length; i++) {
+                const sample = samples[i];
+                if (!sample) continue;
+
+                const index = this._terrainMarkers[i].index;
+                const retained = this._terrainSamples[index];
+
+                if (retained
+                    && retained.position[2] === sample.position[2]
+                    && retained.actualGsd === sample.actualGsd) {
+                    continue;
+                }
+
+                this._terrainSamples[index] = sample;
+            }
+        }, () => {
+            this._terrainPending = false;
+        });
     }
 
     _updateMarkers() {
@@ -351,13 +493,49 @@ export class WaypointMap {
                 continue;
             }
 
-            const heightMode = coords.length >= 3 ? 'fix' : 'float';
-            const pubCoords  = coords.length >= 3
-                ? [coords[0], coords[1], coords[2]]
-                : [coords[0], coords[1], 0];
+            let pubCoords;
+
+            // Whether the terrain occlusion test allows the marker to
+            // show. Stays true when no such test applies (authored
+            // three-element coords); a stale (null) answer must not
+            // stop the position below from tracking the camera.
+            let showState = true;
+
+            if (coords.length >= 3) {
+                pubCoords = [coords[0], coords[1], coords[2]];
+            } else {
+
+                // on the terrain: wait for the first elevation answer
+                const sample = this._terrainSamples[i];
+
+                if (!sample) {
+                    el.style.visibility = 'hidden';
+                    continue;
+                }
+
+                pubCoords = [
+                    sample.position[0], sample.position[1],
+                    sample.position[2]
+                ];
+
+                // checkVisibility() answers from whatever hitmap it has,
+                // which can be stale by up to its own throttle interval;
+                // debouncing absorbs a single wrong reading during pan.
+                // Position still tracks the camera every tick below,
+                // independent of this.
+                const rawVisible =
+                    this._viewer.checkVisibility(pubCoords, 'fix');
+                showState = this._debouncedVisibility(i, rawVisible);
+
+                // the terrain itself can hide the marker
+                if (showState === false) {
+                    el.style.visibility = 'hidden';
+                    continue;
+                }
+            }
 
             const navCoords = this._viewer.convertCoordsFromPublicToNav(
-                pubCoords, heightMode
+                pubCoords, 'fix'
             );
 
             if (!navCoords) {
@@ -365,9 +543,8 @@ export class WaypointMap {
                 continue;
             }
 
-            const navMode = (heightMode === 'float') ? 'fix' : heightMode;
             const canvas = this._viewer.convertCoordsFromNavToCanvas(
-                navCoords, navMode
+                navCoords, 'fix'
             );
 
             if (!canvas || canvas[2] > 1) {
@@ -395,9 +572,12 @@ export class WaypointMap {
             const ox  = (marker.offset ?? [0, 0])[0];
             const oy  = (marker.offset ?? [0, 0])[1];
 
-            el.style.left        = (canvas[0] - elW / 2 + ox) + 'px';
-            el.style.top         = (canvas[1] - elH      + oy) + 'px';
-            el.style.visibility  = 'visible';
+            el.style.left = (canvas[0] - elW / 2 + ox) + 'px';
+            el.style.top  = (canvas[1] - elH      + oy) + 'px';
+
+            // A stale occlusion answer (null) leaves visibility as it
+            // was; the position above still moved to the current spot.
+            if (showState !== null) el.style.visibility = 'visible';
         }
     }
 }

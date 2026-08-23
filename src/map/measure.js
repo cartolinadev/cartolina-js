@@ -111,9 +111,10 @@ MapMeasure.prototype.getSurfaceHeight = function(coords, lod, storeStats, node, 
     }
 
     if (!node) {
-        var result = this.getSpatialDivisionNode(coords);
-        node = result[0];
-        nodeCoords = result[1];
+        var candidates =
+            this.map.referenceFrame.resolveSpatialDivisionNodes(coords);
+        node = candidates.length ? candidates[0].node : null;
+        nodeCoords = candidates.length ? candidates[0].coords : [0, 0];
     }
 
     if (!this.config.mapHeightLodBlend) {
@@ -305,9 +306,10 @@ MapMeasure.prototype.getSurfaceHeightNodeOnly = function(coords, lod, storeStats
     
     if (!deltaSample) {
         if (!node) {
-            var result = this.getSpatialDivisionNode(coords);
-            node = result[0];
-            nodeCoords = result[1];
+            var candidates =
+                this.map.referenceFrame.resolveSpatialDivisionNodes(coords);
+            node = candidates.length ? candidates[0].node : null;
+            nodeCoords = candidates.length ? candidates[0].coords : [0, 0];
         }
         
         if (coordsArray) {
@@ -556,33 +558,6 @@ MapMeasure.prototype.getHeightmapValue = function(coords, node, params) {
 };
 
 
-MapMeasure.prototype.getSpatialDivisionNode = function(coords) {
-    var nodes = this.map.referenceFrame.getSpatialDivisionNodes();
-
-    var bestNode = null;
-    var bestLod = -1;
-    var bestCoords = [0,0];
-
-    for (var i = 0, li = nodes.length; i < li; i++) {
-        var node = nodes[i];
-        var nodeCoords = node.getInnerCoords(coords);
-        var extents = node.extents;
-
-        if (nodeCoords[0] >= extents.ll[0] && nodeCoords[0] <= extents.ur[0] &&
-            nodeCoords[1] >= extents.ll[1] && nodeCoords[1] <= extents.ur[1]) {
-
-            if (node.id[0] > bestLod) {
-                bestNode = node;
-                bestLod = node.id[0];
-                bestCoords = nodeCoords;
-            }
-        }
-    }
-
-    return [bestNode, bestCoords];
-};
-
-
 MapMeasure.prototype.getSpatialDivisionNodeAndExtents = function(id) {
     var nodes = this.map.referenceFrame.getSpatialDivisionNodes();
 
@@ -738,8 +713,9 @@ MapMeasure.prototype.getSpatialDivisionNodeDepths = function() {
 
 
 MapMeasure.prototype.getOptimalHeightLodBySampleSize = function(coords, desiredSamplesSize) {
-    var result = this.getSpatialDivisionNode(coords);
-    var node = result[0];
+    var candidates =
+        this.map.referenceFrame.resolveSpatialDivisionNodes(coords);
+    var node = candidates.length ? candidates[0].node : null;
 
     if (node != null) {
         var nodeLod = node.id[0];
@@ -757,8 +733,9 @@ MapMeasure.prototype.getOptimalHeightLodBySampleSize = function(coords, desiredS
 
 
 MapMeasure.prototype.getOptimalHeightLod = function(coords, viewExtent, desiredSamplesPerViewExtent) {
-    var result = this.getSpatialDivisionNode(coords);
-    var node = result[0];
+    var candidates =
+        this.map.referenceFrame.resolveSpatialDivisionNodes(coords);
+    var node = candidates.length ? candidates[0].node : null;
 
     if (node != null) {
         var nodeLod = node.id[0];

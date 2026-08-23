@@ -1492,10 +1492,11 @@ MapGeodataBuilder.prototype.processHeights = function(heightsSource, precision, 
                     p = coords;
                 }
 
-                res = this.map.measure.getSpatialDivisionNode(p);
+                res = this.map.referenceFrame
+                    .resolveSpatialDivisionNodes(p);
 
-                coords[4] = res[0];
-                coords[5] = res[1];
+                coords[4] = res.length ? res[0].node : null;
+                coords[5] = res.length ? res[0].coords : [0, 0];
 
                 //coords[4] = p;
             }

@@ -894,6 +894,64 @@ waypoint adds no terrain request.
 
 Implementation stops for manual validation after this gate.
 
+*Implemented.* The foundation milestone (11.1) landed as designed,
+except that pass-owned GPU-build usage was not adopted:
+`MapStats.gpuRenderUsed` is zeroed every dirty frame before terrain
+reads it, so the value would have been inert in the colour pass and
+merely stale in the depth pass; `renderTile()` and rig readiness keep
+reading the frame counter instead, and `mesh.js`/`texture.js`/
+`subtexture.js`/`atmosphere.ts` keep their existing signatures.
+
+Deviations from the gate 1 plan above:
+
+- The GL side — unit textures, rasterization, reduction, lookup, and
+  the async readback — lives in `src/renderer/elevation-units.ts`;
+  `ElevationStore` itself holds no GL object.
+- `mapElevationStoreGPUCache` defaults to 192 MiB, not 64: a view needs
+  a field for every drawn tile plus one above each, several times the
+  original estimate.
+- The height shader avoids `sin`/`cos` (GLSL ES precision is only about
+  1e-4, multiplied by Earth's radius); both auxiliary latitudes are
+  carried as normalized sine/cosine pairs instead.
+- A unit spans 255.5 texels, not 255 — samples 0 and 255 otherwise sit
+  on the drawn geometry's own edge, where the fill rule drops them.
+- A replacement unit publishes by copying into the live texture, not by
+  swapping textures.
+- `MapRefFrame.resolveSpatialDivisionNodes()` returns the one node that
+  owns a position, not a candidate list — node extents overlap but
+  ownership under manual partitioning does not.
+- Lookup order stops at the node root; a request coarser than the
+  root's own spacing is answered by the root.
+- A height outside the reference frame's declared range is dropped by
+  the fragment shader uncounted (WebGL2 has no atomic to count it with).
+- `Map.queryTerrainElevation()` returns public-space height and
+  converts across the vertical datum at that boundary; the store itself
+  works in navigation space.
+- Context loss does not clear the store (7.5): there is no recovery
+  path to clear into (see rfc08-context-loss-recovery.md).
+
+Two library bugs surfaced and were fixed during gate 1 validation.
+`Viewer.checkVisibility()` had grown a guard returning `null` whenever
+the depth hitmap was dirty and its throttle interval hadn't elapsed —
+added to chase a symptom, it stalled occlusion answers for several
+seconds during initial load, since loading keeps the hitmap dirty
+almost continuously. Reverted to answering from whatever hitmap
+exists, same as every other consumer (`rmap.js` label occlusion,
+hit-testing). And `ElevationUnits`' lookup readback reused one
+pixel-pack buffer per submission, which the driver flags as a
+performance warning at high submission rates; mitigated with two
+alternating buffers, reading back only the columns a batch submitted,
+and capping the waypoint demo's own refresh rate to 1 Hz, matching the
+store's population cadence.
+
+The waypoint demo needed matching consumer-side changes: it now
+decouples marker position from the occlusion check, debounces a
+visibility *change* against the staleness `checkVisibility()` accepts,
+and throttles its own refresh rate to match the store's cadence.
+
+Verified directly: enabling the waypoint issues no terrain request,
+and the memory budget was not exhausted at 1257×748 or 2560×1353.
+
 ### 11.3 Gate 2: client heightcoding analysis
 
 Add the `debug` setting `debugElevationStoreGeodataShadow`. On
@@ -903,7 +961,8 @@ three-dimensional geodata coordinate:
 1. use the existing CPU SRS conversion to obtain lookup XY and the delivered
    geodetic height, then discard that height from the query input;
 2. request store height at GSD `geodataTileWidth / pixelSize`;
-3. retain the last result and resubmit after each settled store interval; and
+3. retain the last result and re-heightcode each coordinate up to three
+   times per its label hysteresis cycle, one query in flight at a time; and
 4. compare the resulting client height with the delivered server height for
    the same coordinate.
 
@@ -1732,33 +1791,3 @@ Two editorial points, neither a blocker and neither needing a response:
   marker on those rows would make the first commit's boundary readable from
   the table alone.
 
-
-## Addendum — 2026-08-23 — foundation: explicit traversal sinks
-
-Section 11.1 is implemented. `drawTerrainTraversal()` takes a
-`TerrainTraversalPass` carrying the sink, the pass-wide `doNotLoad` flag,
-and the colour frame's accounting. `Map.draw()` and
-`Map.drawDepthHitmap()` are the two pass entry points, `Map.drawChannel`
-is removed, and the channel reads in `surface-tree.js`, `draw-tiles.js`,
-`draw.js`, and `renderer.ts` are gone with it.
-
-Two deviations from section 7.2.
-
-The sink type is exported by `draw-traversal.ts` rather than by a
-`terrain-traversal-sink.ts` module, and each sink has its own module
-(`color-terrain-sink.ts`, `depth-terrain-sink.ts`). A second module named
-after the traversal would read as a second traversal.
-
-Pass-owned GPU-build usage is not adopted. `MapStats.gpuRenderUsed` is
-incremented only by `MapGeodataView.draw()`, which runs after terrain in
-the colour frame, and `MapStats.begin()` zeroes it on every dirty frame,
-so the value terrain reads is always zero in the colour frame. It is
-non-zero only in the depth pass, which runs outside the dirty gate; the
-sole consequence is that an auxiliary pass may defer a GPU mesh build for
-one interval, which section 7.4 already permits. `renderTile()` and rig
-readiness therefore still read the frame counter, and no allowance is
-threaded through `mesh.js`, `texture.js`, `subtexture.js`, or
-`atmosphere.ts`. The rest of review note 11 is implemented: the draw
-generation and the node and metatile counters are pass-owned, and only
-the colour caller brackets the descent with `gpuCache.skipCostCheck` and
-`checkCost()`.

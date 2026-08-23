@@ -490,8 +490,8 @@ class Viewer {
     // -------------------------------------------------------------------------
 
     /**
-     * Converts public (lon/lat/height) coordinates to navigation
-     * (Cartesian) coordinates.
+     * Converts public (lon/lat/orthometric height) coordinates to navigation
+     * (lon/lat/geodetic height) coordinates.
      *
      * @param pos `[lon, lat, height]` in public space
      * @param mode height mode (`'fix'` or `'float'`)
@@ -634,6 +634,43 @@ class Viewer {
     }
 
     /**
+     * Returns the terrain height at a position, or at each of an array
+     * of positions. Resolves to `undefined` where the map holds no
+     * terrain.
+     *
+     * The height is read from the terrain the map has drawn, so it
+     * agrees with the screen and improves as finer terrain loads. Keep
+     * the last answer: a later call can miss where an earlier one
+     * succeeded.
+     *
+     * @param position `[x, y]` in public space, or an array of them
+     * @param desiredGsd wanted sample spacing in metres; zero, the
+     *     default, asks for the finest terrain available
+     * @returns the queried position with the height appended, or an
+     *     array of them in input order
+     */
+    queryTerrainElevation(
+        position: readonly [number, number],
+        desiredGsd?: number,
+    ): Promise<Viewer.TerrainSample | undefined>;
+
+    queryTerrainElevation(
+        positions: readonly (readonly [number, number])[],
+        desiredGsd?: number,
+    ): Promise<readonly (Viewer.TerrainSample | undefined)[]>;
+
+    queryTerrainElevation(
+        position: readonly [number, number]
+            | readonly (readonly [number, number])[],
+        desiredGsd = 0,
+    ): Promise<unknown> {
+
+        this.assertAlive();
+        return this.map_.queryTerrainElevation(
+            position as readonly [number, number], desiredGsd);
+    }
+
+    /**
      * Returns whether a public-space point is visible in the current
      * terrain view.
      *
@@ -647,14 +684,6 @@ class Viewer {
      * while the camera is moving because hitmap copies are throttled by
      * `mapDMapCopyIntervalMs`; a point can therefore be tested against
      * terrain depths up to that interval old.
-     *
-     * Terrain-anchored points are not reliable. A `'float'` height comes
-     * from the navigation height field, which sits some way off the mesh
-     * being drawn, and on steep ground that error moves the projection
-     * across a silhouette onto terrain much nearer, reporting occlusion
-     * that is not real. No application should depend on this method for
-     * such points; see the backlog entry "terrain-anchored points near
-     * silhouettes".
      *
      * @param pos `[lon, lat, height]` in public space
      * @param mode height mode (`'fix'` or `'float'`)
@@ -735,7 +764,8 @@ class Viewer {
         // two depths by up to 0.4% of the view distance.
         const tolerance = 0.01;
 
-        return (pointDepth - screenDepth[1]) <= (tolerance * pointDepth);
+        return (pointDepth - screenDepth[1])
+            <= (tolerance * pointDepth);
     }
 
     // -------------------------------------------------------------------------
@@ -1239,6 +1269,16 @@ namespace Viewer {
      * the authored style.
      */
     export type VisibilityProfile = Map.VisibilityProfile;
+
+    /** One answered `queryTerrainElevation` position. */
+    export type TerrainSample = {
+
+        /** The queried position with the terrain height appended. */
+        position: readonly [number, number, number];
+
+        /** Sample spacing of the terrain that answered, in metres. */
+        actualGsd: number;
+    };
 
     /**
      * The public runtime configuration map accepted and returned by

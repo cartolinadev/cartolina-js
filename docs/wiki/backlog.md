@@ -1415,11 +1415,8 @@ piece is a render-time color / opacity path for geodata lines.
 ## 1. BUG: `checkVisibility()` misjudges terrain-anchored points near silhouettes
 
 **Opened:** 2026-04-14
-**Status:** partly fixed 2026-07-28. The depth comparison itself is
-fixed and measured. Terrain-anchored (`'float'`) points remain wrong, so
-no caller performs the check; `demos/waypoint/waypoint.js` deliberately
-does not. RFC 13 replaces the navigation-tile anchor height. Any residual
-tilt-aware Viewer tolerance remains tracked here.
+**Status:** fixed 2026-08-24, by RFC 13 gate 1
+([rfc13-elevation-store.md](rfc13-elevation-store.md), section 11.2).
 **Related:** the navtile ranking entries above, [nav-tiles.md](nav-tiles.md),
 [RFC 13](rfc13-elevation-store.md)
 
@@ -1511,8 +1508,10 @@ as terrain streams in.
 The instrument this needs is an anchor height that agrees with the mesh
 being drawn. A per-lod height map generated from the terrain itself,
 rather than from stored navtiles, would give one; the check then reduces
-to the depth comparison that already works for explicit heights. Revisit
-when that exists.
+to the depth comparison that already works for explicit heights.
+
+That instrument now exists: RFC 13's elevation store answers from the
+terrain the map drew. See RFC 13 gate 1.
 
 ### Relevant files
 
@@ -1523,7 +1522,7 @@ when that exists.
 | `src/renderer/renderer.ts` | the two exaggeration height functions |
 | `src/map/measure.js` | `getSurfaceHeight`, the navtile field |
 | `src/map/legacy-map.js` | `getHitCoords`, `getScreenDepth` |
-| `demos/waypoint/waypoint.js` | marker loop; does not call the check |
+| `demos/waypoint/waypoint.js` | marker loop; calls the check |
 
 ### Latent, not reached by any caller — closed
 

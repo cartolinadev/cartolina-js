@@ -52,15 +52,17 @@ export class ColorTerrainSink {
         const map = this.map;
         const legacyMap = this.legacyMap;
 
-        // materializing a coverage mask leaves its own target bound
+        // set render target
         map.renderer.gpu.setRenderTarget(this.target);
 
+        // draw
         map.withNavigationCamera(() =>
             rig.draw(legacyMap.camera.position, maskTexture));
 
+        // update layer credits on the color pass
         this.applyCredits(tile, rig);
 
-        // terrain debug overlay, drawn where the tile painted content
+        // tile info - drawn on the color pass when the tile painted content
         if (map.overrides.drawBBoxes && !map.overrides.drawGeodataOnly)
             map.withNavigationCamera(() =>
                 legacyMap.draw.drawTiles.drawTileInfo(
@@ -73,6 +75,7 @@ export class ColorTerrainSink {
     /** Collects the credits of every raster source the rig drew. */
     private applyCredits(tile: MapSurfaceTile, rig: TileRenderRig): void {
 
+        // process layer credits (only active layers)
         const activeRasterSourceIds = rig.activeRasterSourceIds();
 
         activeRasterSourceIds.forEach((id) => {
@@ -96,6 +99,7 @@ export class ColorTerrainSink {
 
         const stats = this.legacyMap.stats;
 
+        // update tile counts in inspector
         stats.renderedLods[tile.id[0]]++;
         stats.drawnTiles++;
 

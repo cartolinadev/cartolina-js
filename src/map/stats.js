@@ -60,6 +60,8 @@ var MapStats = function(map) {
     this.gpuUsed = 0;
     this.resourcesUsed = 0;
     this.metaUsed = 0;
+    this.elevationUsed = 0;
+    this.elevationBudget = 0;
     this.gpuRenderUsed = 0;
     this.loadedCount = 0;
     this.loadErrorCount = 0;
@@ -198,6 +200,10 @@ MapStats.prototype.end = function(dirty) {
             this.gpuUsed = this.map.gpuCache.totalCost;
             this.resourcesUsed = this.map.resourcesCache.totalCost;
             this.metaUsed = this.map.metatileCache.totalCost;
+
+            var elevation = this.map.outerMap.elevationMemory();
+            this.elevationUsed = elevation.used;
+            this.elevationBudget = elevation.budget;
 
             this.inspector.stats.updateStatsPanel(this);
         }

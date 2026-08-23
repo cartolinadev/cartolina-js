@@ -79,6 +79,9 @@ const map = new WaypointMap('map', {
     keys:   true
 });
 
+// reachable from the console and from browser-driven checks
+window.waypointMap = map;
+
 map.on('slide-change', ({ index }) => {
     hud.textContent = `${index + 1} \u00a0/\u00a0 ${map.slideCount}`;
 });

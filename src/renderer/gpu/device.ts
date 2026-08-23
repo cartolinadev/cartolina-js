@@ -698,6 +698,110 @@ readFramebufferPixels(
     return byteData;
 }
 
+/**
+ * Copy the current render target into a texture of the same format.
+ * The destination must already have storage for the copied rectangle.
+ * The draw target is unchanged.
+ */
+copyRenderTargetToTexture(
+    destination: GpuTexture,
+    width: number,
+    height: number,
+): void {
+
+    const gl = this.gl;
+
+    this.bindReadFramebufferForRenderTarget(this.renderTarget_);
+    gl.bindTexture(gl.TEXTURE_2D, destination.texture);
+    gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+
+/**
+ * Start reading a framebuffer-backed texture into `packBuffer` without
+ * stalling. Poll the returned fence with `fenceSignalled()`, then take
+ * the bytes with `readPixelPackBuffer()`.
+ *
+ * @param packBuffer destination from `createPixelPackBuffer()`
+ * @returns a fence that signals once the read has completed
+ */
+readFramebufferPixelsAsync(
+    texture: GpuTexture,
+    width: number,
+    height: number,
+    packBuffer: WebGLBuffer,
+): WebGLSync | null {
+
+    const gl = this.gl;
+
+    this.bindFramebuffer(texture, gl.READ_FRAMEBUFFER);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, packBuffer);
+
+    try {
+
+        gl.readPixels(0, 0, width, height, texture.readPixelsFormat(),
+            gl.UNSIGNED_BYTE, 0);
+
+    } finally {
+
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+        this.bindReadFramebufferForRenderTarget(this.renderTarget_);
+    }
+
+    const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+    // A fence signals only after the commands before it have been
+    // flushed into the GL command stream.
+    gl.flush();
+
+    return fence;
+}
+
+
+/** Allocate a buffer for `readFramebufferPixelsAsync()`. */
+createPixelPackBuffer(bytes: number): WebGLBuffer {
+
+    const gl = this.gl;
+    const buffer = gl.createBuffer();
+
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, bytes, gl.STREAM_READ);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+
+    return buffer;
+}
+
+
+/**
+ * Whether a fence from `readFramebufferPixelsAsync()` has completed.
+ * Never waits.
+ */
+fenceSignalled(fence: WebGLSync): boolean {
+
+    const gl = this.gl;
+    const status = gl.clientWaitSync(fence, 0, 0);
+
+    return status === gl.ALREADY_SIGNALED
+        || status === gl.CONDITION_SATISFIED;
+}
+
+
+/**
+ * Copy a completed read out of its pixel-pack buffer.
+ *
+ * @param data destination, sized for the read rectangle
+ */
+readPixelPackBuffer(packBuffer: WebGLBuffer, data: Uint8Array): void {
+
+    const gl = this.gl;
+
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, packBuffer);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+}
+
+
 private bindRenderTargetFramebuffer(target: GpuDevice.RenderTarget) {
 
     this.bindFramebuffer(

@@ -85,16 +85,14 @@ Two passes exist. `Map.draw()` runs the colour frame with
 imagery and mesh credits, the per-LOD and per-surface draw statistics
 the inspector reads, and the terrain debug overlay.
 `Map.drawDepthHitmap()` runs the depth pass with `DepthTerrainSink`,
-which asks only for mesh readiness and draws through
+which rests readiness on the mesh alone and draws through
 `TileRenderRig.drawDepth()`.
 
-Each pass initializes only what its own traversal needs. The colour
-frame is the only entry point that reaches the atmosphere, geodata,
-labels, credits, and overlays. Pass-owned state keeps the colour frame's
-accounting out of auxiliary passes: the draw generation and the
-`usedNodes` / `processedNodes` / `processedMetatiles` counters are
-supplied by the colour caller alone, and only that caller brackets the
-descent with the deferred GPU cache cost check.
+Each pass initializes only what its own traversal reads, and the colour
+frame is the entry point that reaches the atmosphere, geodata, labels,
+credits, and overlays. The colour caller supplies the draw generation
+and the `usedNodes` / `processedNodes` / `processedMetatiles` counters,
+and brackets the descent with the deferred GPU cache cost check.
 
 The sink contract is designed in
 [rfc13-elevation-store.md](rfc13-elevation-store.md) §7, which adds a

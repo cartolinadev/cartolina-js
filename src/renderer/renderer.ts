@@ -38,6 +38,17 @@ import shaderTileMaskBlitVert from './shaders/tile-mask-blit.vert.glsl';
 import shaderTileMaskBlitFrag from './shaders/tile-mask-blit.frag.glsl';
 import shaderTileMaskErodeFrag from './shaders/tile-mask-erode.frag.glsl';
 
+import shaderElevationRasterVert from
+    './shaders/elevation-raster.vert.glsl';
+import shaderElevationRasterFrag from
+    './shaders/elevation-raster.frag.glsl';
+import shaderElevationReduceFrag from
+    './shaders/elevation-reduce.frag.glsl';
+import shaderElevationLookupVert from
+    './shaders/elevation-lookup.vert.glsl';
+import shaderElevationLookupFrag from
+    './shaders/elevation-lookup.frag.glsl';
+
 import shaderFrustumVert from './shaders/frustum.vert.glsl';
 import shaderFrustumFrag from './shaders/frustum.frag.glsl';
 
@@ -198,6 +209,9 @@ export class Renderer {
         tileMaskErode?: GpuProgram
         tileMaskRect?: GpuProgram
         frustum?: GpuProgram
+        elevationRaster?: GpuProgram
+        elevationReduce?: GpuProgram
+        elevationLookup?: GpuProgram
     }
 
     private frustumVao_: Optional<WebGLVertexArrayObject> = null;
@@ -208,6 +222,9 @@ export class Renderer {
         atmosphere: GLenum
         tileMask: GLenum
         maskBlit: GLenum
+
+        /** First of four consecutive units used by elevation reduction. */
+        elevation: GLenum
     }
 
     // legacy programs
@@ -568,6 +585,59 @@ programTileDepth() : GpuProgram {
 
 
 /**
+ * Elevation-store rasterization program, lazy initialization.
+ */
+programElevationRaster(): GpuProgram {
+
+    if (this.programs.elevationRaster) return this.programs.elevationRaster;
+
+    __DEV__ && console.log('Initializing programs.elevationRaster');
+
+    this.programs.elevationRaster = new GpuProgram(
+        this.gpu, shaderElevationRasterVert, shaderElevationRasterFrag,
+        'shader-elevation-raster', {
+            uboFrame: Renderer.UniformBlockName.Frame
+        }, {});
+
+    return this.programs.elevationRaster;
+}
+
+
+/**
+ * Elevation-store reduction program, lazy initialization.
+ */
+programElevationReduce(): GpuProgram {
+
+    if (this.programs.elevationReduce) return this.programs.elevationReduce;
+
+    __DEV__ && console.log('Initializing programs.elevationReduce');
+
+    this.programs.elevationReduce = new GpuProgram(
+        this.gpu, shaderTileMaskBlitVert, shaderElevationReduceFrag,
+        'shader-elevation-reduce', {}, {});
+
+    return this.programs.elevationReduce;
+}
+
+
+/**
+ * Elevation-store lookup program, lazy initialization.
+ */
+programElevationLookup(): GpuProgram {
+
+    if (this.programs.elevationLookup) return this.programs.elevationLookup;
+
+    __DEV__ && console.log('Initializing programs.elevationLookup');
+
+    this.programs.elevationLookup = new GpuProgram(
+        this.gpu, shaderElevationLookupVert, shaderElevationLookupFrag,
+        'shader-elevation-lookup', {}, {});
+
+    return this.programs.elevationLookup;
+}
+
+
+/**
  * Tile UV-footprint mask program, lazy initialization.
  */
 programTileMaskFootprint(): GpuProgram {
@@ -748,6 +818,10 @@ initTextureIdxs() {
         atmosphere: maxFragTextures - TextureIdxOffsets.Atmosphere,
         tileMask: maxFragTextures - TextureIdxOffsets.TileMask,
         maskBlit: maxFragTextures - TextureIdxOffsets.MaskBlit,
+
+        // four consecutive units, so elevation reduction can bind all
+        // four child units of one parent at once
+        elevation: maxFragTextures - TextureIdxOffsets.Elevation,
     };
 
     // diagnostics
@@ -2249,6 +2323,9 @@ enum TextureIdxOffsets {
     Atmosphere = -1,
     TileMask = 2,
     MaskBlit = 3,
+
+    // elevation claims this offset and the three below it
+    Elevation = 7,
 }
 
 const UboFrameSize = 320;

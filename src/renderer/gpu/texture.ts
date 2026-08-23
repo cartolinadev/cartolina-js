@@ -121,7 +121,8 @@ getSize() {
 
 usesIntegerColorAttachment(): boolean {
 
-    return this.type_ === GpuTexture.Type.DepthUint;
+    return this.type_ === GpuTexture.Type.DepthUint
+        || this.type_ === GpuTexture.Type.Elevation;
 }
 
 
@@ -188,6 +189,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
             break;
 
         case GpuTexture.Type.DepthUint:
+        case GpuTexture.Type.Elevation:
 
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI, lx, ly, 0,
                           gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, data);
@@ -491,6 +493,13 @@ export namespace GpuTexture {
          * little-endian bytes in an RGBA8UI framebuffer attachment.
          */
         DepthUint = 6,
+
+        /**
+         * Elevation-store height field. Stores raw float32 height bit
+         * patterns as four little-endian bytes in an RGBA8UI framebuffer
+         * attachment, with one NaN pattern standing for no coverage.
+         */
+        Elevation = 7,
     }
 }
 

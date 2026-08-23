@@ -150,7 +150,7 @@ MapMesh.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
                 //add to loading queue or top position in queue
                 this.scheduleLoad(priority);
             }
-        } else if (this.loadState == 3) { //loadError
+        } else if (this.loadState == 3 && !doNotLoad) { //loadError
             if (this.loadErrorCounter <= this.map.config.mapLoadErrorMaxRetryCount &&
                 performance.now() > this.loadErrorTime + this.map.config.mapLoadErrorRetryTime) {
 

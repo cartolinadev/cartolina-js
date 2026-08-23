@@ -38,6 +38,7 @@ import type {
 } from './draw-traversal';
 import ColorTerrainSink from './color-terrain-sink';
 import DepthTerrainSink from './depth-terrain-sink';
+import ElevationStore from './elevation-store';
 import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
 
@@ -124,6 +125,7 @@ class Map {
 
         if (this.disposed_) return;
         this.disposeOverlays();
+        this.disposeElevationStore();
         this.disposeTerrainMaskPool();
         this.destroyLoadedMap();
         this.rasterSources_.clear();
@@ -940,6 +942,11 @@ class Map {
 
             legacyMap.srsReady = true;
             this.mapLoadedFired_ = true;
+
+            // the store reads the parsed reference frame when it is
+            // constructed, so it waits for this point
+            this.elevationStore_ = new ElevationStore(this);
+
             this.bus_.emit('map-loaded',
                 { browserOptions: {} });
             this.markReady_();
@@ -981,7 +988,7 @@ class Map {
 
         // Canvas size change forces a redraw.
         if (this.renderer.ensureCanvasRenderTarget()) {
-            legacyMap.dirty = true;
+            legacyMap.markDirty();
         }
 
         const dirty = legacyMap.dirty || legacyMap.dirtyCountdown > 0;
@@ -989,6 +996,8 @@ class Map {
         // fps clock starts
         legacyMap.stats.begin(dirty);
         legacyMap.tickBefore();
+
+        this.updateElevation();
 
         // prepare and/or draw if dirty
         if (dirty) {
@@ -1039,9 +1048,8 @@ class Map {
      * from `Map.tick`. The body relocates from the legacy
      * `MapDraw.drawMap`.
      *
-     * This is the only entry point that reaches the atmosphere,
-     * geodata, labels, credits, and overlays. Auxiliary terrain passes
-     * have their own entry points and initialize only what they need.
+     * This is the entry point that reaches the atmosphere, geodata,
+     * labels, credits, and overlays.
      */
     draw(): void {
 
@@ -1158,9 +1166,8 @@ class Map {
      * `MapDraw.drawHitmap`, which binds that target first.
      *
      * The pass initializes the camera, renderer, and legacy draw state
-     * its own traversal needs and nothing else: colour was already
-     * cleared with the target, and geodata, atmosphere, labels,
-     * credits, and overlays belong to the colour frame alone.
+     * its own traversal needs. Colour is cleared with the target by
+     * `Renderer.switchToFramebuffer`.
      */
     drawDepthHitmap(): void {
 
@@ -1183,6 +1190,126 @@ class Map {
                 sink: new DepthTerrainSink(this),
                 doNotLoad: false,
             });
+        });
+    }
+
+    // -----------------------------------------------------------------
+    // Terrain elevation
+    // -----------------------------------------------------------------
+
+    /**
+     * Returns the terrain height at one position, or at each of an
+     * array of positions, from the elevation store. The store works in
+     * navigation space, so heights cross the vertical datum here.
+     *
+     * @param position public-space XY, or an array of them
+     * @param desiredGsd wanted sample spacing in metres
+     */
+    queryTerrainElevation(
+        position: ElevationStore.Position,
+        desiredGsd?: number,
+    ): Promise<ElevationStore.Sample | undefined>;
+
+    queryTerrainElevation(
+        positions: readonly ElevationStore.Position[],
+        desiredGsd?: number,
+    ): Promise<readonly (ElevationStore.Sample | undefined)[]>;
+
+    queryTerrainElevation(
+        position: ElevationStore.Position
+            | readonly ElevationStore.Position[],
+        desiredGsd = 0,
+    ): Promise<unknown> {
+
+        this.assertAlive();
+
+        const store = this.elevationStore_;
+        const refFrame = this.map?.referenceFrame;
+        const single = !Array.isArray(position[0]);
+
+        // Before the reference frame is ready there is no store and so
+        // no coverage, which is the same answer a miss gives.
+        if (!store || !refFrame) {
+
+            return Promise.resolve(single
+                ? undefined
+                : new Array(position.length).fill(undefined));
+        }
+
+        const input = single
+            ? [position as ElevationStore.Position]
+            : (position as readonly ElevationStore.Position[]);
+
+        const navigation = input.map((pos) => {
+
+            const converted = refFrame.convertCoords(
+                [pos[0], pos[1], 0], 'public', 'navigation');
+
+            return [converted[0], converted[1]] as ElevationStore.Position;
+        });
+
+        const settle = store.queryTerrainElevation(navigation, desiredGsd)
+            .then((samples) => samples.map((sample, index) => {
+
+                if (!sample) return undefined;
+
+                const converted = refFrame.convertCoords(
+                    [sample.position[0], sample.position[1],
+                        sample.position[2]],
+                    'navigation', 'public');
+
+                // the caller's own horizontal position, so a round trip
+                // through the SRS cannot drift it
+                return {
+                    position: [input[index][0], input[index][1],
+                        converted[2]] as [number, number, number],
+                    actualGsd: sample.actualGsd,
+                };
+            }));
+
+        return single ? settle.then((samples) => samples[0]) : settle;
+    }
+
+    /**
+     * GPU bytes the elevation store holds and may hold, zero before the
+     * reference frame is ready.
+     *
+     * @internal Read by `MapStats` for the inspector panel.
+     */
+    elevationMemory(): { used: number; budget: number } {
+
+        const store = this.elevationStore_;
+
+        return {
+            used: store ? store.usedBytes : 0,
+            budget: store ? store.budgetBytes : 0,
+        };
+    }
+
+    /**
+     * Settles elevation lookups and runs the population pass when it is
+     * due. Runs outside the dirty gate, so neither waits for a colour
+     * frame.
+     */
+    private updateElevation(): void {
+
+        const store = this.elevationStore_;
+        if (!store) return;
+
+        store.update();
+
+        if (!store.populationDue()) return;
+        if (this.surfaceList().length === 0) return;
+
+        const legacyMap = this.map!;
+
+        this.initFrame();
+        this.renderer.initFrame(true);
+        legacyMap.draw.initFrame();
+
+        this.withSelectionCamera(() => {
+
+            this.drawTerrain({ sink: store.sink, doNotLoad: true });
         });
     }
 
@@ -1469,6 +1596,9 @@ class Map {
 
         if (!this.map) return;
 
+        // the store's units belong to this map's reference frame
+        this.disposeElevationStore();
+
         this.map.kill();
         this.map = null;
         this.freeze = null;
@@ -1639,6 +1769,18 @@ class Map {
     }
 
     /**
+     * Releases the elevation store and settles every lookup it holds.
+     * Safe to call when no store exists.
+     */
+    private disposeElevationStore(): void {
+
+        if (!this.elevationStore_) return;
+
+        this.elevationStore_[Symbol.dispose]();
+        this.elevationStore_ = null;
+    }
+
+    /**
      * Releases the recursive terrain traversal mask pool. Safe to call
      * when no pool has been allocated. Invoked on map unload and from
      * `[Symbol.dispose]()`; the renderer's GL context stays alive
@@ -1769,6 +1911,12 @@ class Map {
     // -----------------------------------------------------------------
 
     private disposed_ = false;
+
+    /**
+     * The elevation store, or null before the reference frame is ready
+     * and between map loads.
+     */
+    private elevationStore_: ElevationStore | null = null;
 
     /**
      * Legacy map currently being populated by the style loader.

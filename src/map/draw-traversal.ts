@@ -71,7 +71,8 @@ export function drawTerrainTraversal(
 
         // A pending root leaves the frame undecided rather than letting the
         // traversal run on a partial root set.
-        if (!tile.isMetanodeReady(tree, 0) || !tile.metanode) return;
+        if (!tile.isMetanodeReady(tree, 0, pass.doNotLoad) || !tile.metanode)
+            return;
 
         // Classified root: off-screen is culled out of the active set, a
         // visible one joins it.
@@ -121,38 +122,23 @@ export type TerrainTraversalPass = {
 
 /**
  * Produces one kind of output from the tiles `drawTerrainTraversal`
- * selects.
- *
- * A sink owns its render target and program, decides whether a rig is
- * ready for the output it produces, draws the rig, and carries the
- * effects specific to that output. It takes no part in terrain policy:
- * descent, terrain-source order, fallback selection, coverage masks,
- * and watertightness stay in the traversal.
+ * selects. It owns its render target, its program, and any effects of
+ * its own; descent, terrain-source order, fallback selection, coverage
+ * masks, and watertightness stay in the traversal.
  */
 export type TerrainTraversalSink = {
 
     /**
-     * Opens a node on backtrack, before any draw at that node and
-     * before every path that can leave it. All surfaces active at the
-     * node share `tileId`, and the node's children have already
-     * completed.
-     *
-     * @param tileId Tile address of the node being backtracked.
+     * Opens a node on backtrack: its children have completed, nothing
+     * has been drawn at it yet, and every active surface shares
+     * `tileId`.
      */
     beginNode?(tileId: [number, number, number]): void;
 
     /**
-     * Reports whether a rig can produce this sink's output, and makes
-     * its resources ready when the traversal permits loading. The
-     * traversal calls this for the current rig and, if that one is not
-     * ready, for the tile's last rig at fallback readiness.
-     *
-     * @param rig Rig the traversal selected at this node.
-     * @param readiness Readiness levels the traversal asks for.
-     * @param priority Loader priority for essential and optional
-     *     resources.
-     * @param options Load and GPU-check options set by the traversal.
-     * @returns True when the rig can be drawn.
+     * Whether a rig can produce this sink's output, making its
+     * resources ready when `options` permits loading. Called for the
+     * current rig, then for the tile's last rig at fallback readiness.
      */
     isReady(
         rig: TileRenderRig,
@@ -162,14 +148,11 @@ export type TerrainTraversalSink = {
     ): boolean;
 
     /**
-     * Draws one ready rig. Materializing the mask may have changed the
-     * GPU target, so the sink binds its own target first.
+     * Draws one ready rig. The bound GPU target is not the sink's, so
+     * it binds its own.
      *
-     * @param tile Tile the rig belongs to.
-     * @param rig Ready rig, selected by the traversal.
-     * @param maskTexture Coverage already established by finer
-     *     descendants and higher-priority surfaces, or undefined when
-     *     the node has none.
+     * @param maskTexture coverage from finer descendants and
+     *     higher-priority surfaces, absent when the node has none
      */
     draw(
         tile: MapSurfaceTile,
@@ -178,24 +161,20 @@ export type TerrainTraversalSink = {
     ): void;
 
     /**
-     * Closes a node opened by `beginNode`. Runs exactly once for each
-     * such node, on whichever path leaves it.
+     * Closes a node opened by `beginNode`, exactly once, on whichever
+     * path leaves it.
      *
-     * @param tileId Tile address of the completed node.
-     * @param covered Whether the node ended up covered, by its own
-     *     draws or by its children.
+     * @param covered whether the node ended up covered, by its own
+     *     draws or by its children
      */
     endNode?(tileId: [number, number, number], covered: boolean): void;
 };
 
 
 /**
- * Colour-frame accounting maintained by the traversal.
- *
- * The colour caller allocates it and reads the counters back into
- * `MapStats` when the pass completes. Auxiliary passes leave it out, so
- * they neither advance the draw generation nor overwrite the inspector's
- * colour-frame counters.
+ * Colour-frame accounting the traversal fills in. The colour caller
+ * allocates it and reads the counters into `MapStats` afterwards;
+ * auxiliary passes leave it out and touch none of it.
  */
 export type TerrainTraversalAccounting = {
 
@@ -487,7 +466,8 @@ function collectChildActive(
             continue;            // absent: surface has no child here
         }
 
-        const childTile = getReadyChild(entry.tree, entry.tile, quadrant);
+        const childTile = getReadyChild(
+            entry.tree, entry.tile, quadrant, context.pass.doNotLoad);
 
         if (!childTile || !childTile.metanode) {
 
@@ -619,11 +599,9 @@ function renderTile(
 
     sink.draw(tile, rigToDraw, maskTexture);
 
-    // infer watertightness if applicable
-    preV6Watertight.inferPreV6WatertightFromTile(tile);
-
-    // stamp the drawn tile with this pass's draw generation
+    // update draw generation counter, infer watertightness if applicable
     if (pass.accounting) tile.drawCounter = pass.accounting.drawCounter;
+    preV6Watertight.inferPreV6WatertightFromTile(tile);
 
     // done, drawn and watertight
     if (node.watertight) return 'watertight';
@@ -637,17 +615,21 @@ function renderTile(
 /**
  * Returns the child tile at `quadrant` if it is allocated and its
  * metanode for this position is ready; otherwise null.
+ *
+ * A pass that loads nothing sees only metanodes another pass already
+ * brought in, and leaves the tile's surface classification alone.
  */
 function getReadyChild(
     tree: MapSurfaceTree,
     tile: MapSurfaceTile,
     quadrant: number,
+    doNotLoad: boolean,
 ): MapSurfaceTile | null {
 
     const child = tile.children[quadrant];
     if (!child) return null;
 
-    if (!child.isMetanodeReady(tree, child.id[0])) return null;
+    if (!child.isMetanodeReady(tree, child.id[0], doNotLoad)) return null;
     if (!child.metanode) return null;
 
     return child;

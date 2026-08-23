@@ -153,7 +153,10 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
             ' - meshes: ' + Math.round(stats.gpuMeshes/(1024*1024)) + 'MB<br/>' +
             ' - geodata: ' + Math.round(stats.gpuGeodata/(1024*1024)) + 'MB<br/>' +
             'CPU Cache: ' + Math.round(stats.resourcesUsed/(1024*1024)) + 'MB<br/>' +
-            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/><br/>' +
+            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/>' +
+            'Elevation Store: ' + Math.round(stats.elevationUsed/(1024*1024))
+                + ' / ' + Math.round(stats.elevationBudget/(1024*1024))
+                + 'MB<br/><br/>' +
 
             // Group 3 - this frame's render footprint.
             'Render resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +

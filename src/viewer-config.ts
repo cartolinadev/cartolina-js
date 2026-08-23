@@ -548,6 +548,23 @@ const catalogue = {
      *  in the draw traversal. */
     mapFallbackCadence: num(1, MAX, 3, 'internal'),
 
+    /** Minimum time between elevation-store population passes, in
+     *  milliseconds. Zero makes every animation frame eligible. */
+    mapElevationStoreUpdateIntervalMs: num(0, MAX, 1000, 'runtime'),
+
+    /** Maximum GPU memory the elevation store may own, in MiB. One
+     *  height field costs 256 KiB, and a view needs one per drawn tile
+     *  plus one per node above them, so 192 MiB holds about two and a
+     *  half views of a 1920 by 1080 window. Clamped up when a reference
+     *  frame needs more to keep one pinned field per spatial division
+     *  node. */
+    mapElevationStoreGPUCache: num(0, MAX, 192, 'runtime'),
+
+    /** Linear size of the grid used to interpolate projection factors
+     *  within a reference-frame node. Read when the reference frame
+     *  is parsed. */
+    mapElevationStoreGsdGridSize: num(2, MAX, 5, 'internal'),
+
     /** Brake on descending through geometry-less metanode chains:
      *  the allowed cell-span growth per structural step (see
      *  `rfc09-metadata-first-traversal.md`). */

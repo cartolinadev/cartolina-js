@@ -354,6 +354,53 @@ export class TileRenderRig {
     }
 
     /**
+     * Draw the tile's terrain height into an elevation-store unit, in
+     * tile UV space, so the draw covers the whole tile. The height
+     * carries no vertical exaggeration.
+     *
+     * @param cameraPos camera position in world coordinates
+     * @param heightRange the reference frame's declared height range,
+     *     which orders overlapping triangles of this draw
+     * @param geocentric geodetic height above the ellipsoid when true,
+     *     physical Z when false
+     * @param maskTexture optional UV-space coverage mask to discard
+     *     fragments already covered
+     */
+    drawElevation(
+        cameraPos: math.vec3,
+        heightRange: [number, number],
+        geocentric: boolean,
+        maskTexture?: GpuTexture,
+    ) {
+
+        if (!this.hasGeometry()) return;
+
+        if (!this.mesh.hasExternalUVs) {
+
+            __DEV__ && utils.warnOnce(
+                `${this.logSign()}: drawElevation() without external UVs.`);
+            return;
+        }
+
+        const program = this.renderer.programElevationRaster();
+        this.renderer.gpu.useProgram2(program);
+
+        program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
+        program.setBool('uGeocentric', geocentric);
+        program.setVec2('uHeightRange', heightRange);
+
+        this.bindMask(program, maskTexture);
+
+        const attrNames: GpuMesh.AttrNames = {
+            position: 'aPosition',
+            uvs2: 'aTexCoords2',
+        };
+
+        const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
+        gpuSubmesh.draw2(program, attrNames);
+    }
+
+    /**
      * Render this tile's geographic footprint into the active mask target.
      */
     footprint() {

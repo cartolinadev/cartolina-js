@@ -139,6 +139,136 @@ MapRefFrame.prototype.getSpatialDivisionNodes = function() {
 };
 
 
+/**
+ * Resolves a navigation-SRS position to the spatial division nodes that
+ * own it, with its coordinates in each node's own SRS.
+ *
+ * Node extents overlap; the partitioning range a node inherits from a
+ * manually partitioning parent bounds what it actually serves, and a
+ * node bounded that way is returned only when its range contains the
+ * position.
+ *
+ * @param coords navigation-SRS coordinates
+ * @returns array of { node, coords } by descending node LOD; empty
+ *     outside every node
+ */
+MapRefFrame.prototype.resolveSpatialDivisionNodes = function(coords) {
+    var nodes = this.division.nodes;
+    var owners = [];
+
+    for (var i = 0, li = nodes.length; i < li; i++) {
+        var node = nodes[i];
+        var nodeCoords = node.getInnerCoords(coords);
+        var extents = node.extents;
+
+        if (nodeCoords[0] < extents.ll[0] || nodeCoords[0] > extents.ur[0] ||
+            nodeCoords[1] < extents.ll[1] || nodeCoords[1] > extents.ur[1]) {
+
+            continue;
+        }
+
+        if (!this.withinPartitioningRange(node, coords)) {
+            continue;
+        }
+
+        owners.push({ node: node, coords: nodeCoords });
+    }
+
+    owners.sort(function(a, b) { return b.node.id[0] - a.node.id[0]; });
+
+    return owners;
+};
+
+
+/**
+ * Whether a position lies inside the partitioning range a node inherits
+ * from its parent. True when there is no such range, in which case the
+ * node's extents already bound it.
+ *
+ * @param coords navigation-SRS coordinates
+ */
+MapRefFrame.prototype.withinPartitioningRange = function(node, coords) {
+    if (node.partitioningRange === undefined) {
+        node.partitioningRange = this.resolvePartitioningRange(node);
+    }
+
+    var range = node.partitioningRange;
+    if (!range) {
+        return true;
+    }
+
+    var parentCoords = range.node.getInnerCoords(coords);
+
+    return parentCoords[0] >= range.ll[0] && parentCoords[0] <= range.ur[0]
+        && parentCoords[1] >= range.ll[1] && parentCoords[1] <= range.ur[1];
+};
+
+
+/**
+ * The range a manually partitioning parent assigns to one of its
+ * children, in that parent's SRS. Null when the node has no such
+ * parent.
+ */
+MapRefFrame.prototype.resolvePartitioningRange = function(node) {
+    var id = node.id;
+    if (id[0] === 0) {
+        return null;
+    }
+
+    var parent = this.nodesMap['' + (id[0] - 1) + '.' + (id[1] >> 1)
+        + '.' + (id[2] >> 1)];
+
+    if (!parent || typeof parent.partitioning !== 'object') {
+        return null;
+    }
+
+    // ranges are keyed by the child's position under the parent, with
+    // each coordinate 0 or 1
+    var range = parent.partitioning['' + (id[1] & 1) + (id[2] & 1)];
+
+    if (!range || !range.ll || !range.ur) {
+        return null;
+    }
+
+    return { node: parent, ll: range.ll, ur: range.ur };
+};
+
+
+/**
+ * Locates a position inside the tile grid of one spatial division node.
+ *
+ * `uv` comes back with u growing east and v south, the orientation of a
+ * tile's external texture coordinates.
+ *
+ * @param coords position in that node's own SRS
+ * @param lod tile LOD, at or below the node's own LOD
+ * @param uv two-element array receiving the position within the tile
+ * @returns the tile id [lod, x, y] containing the position
+ */
+MapRefFrame.prototype.getNodeTileAt = function(node, coords, lod, uv) {
+    var shift = lod - node.id[0];
+    var tiles = Math.pow(2, shift);
+
+    var ll = node.extents.ll;
+    var ur = node.extents.ur;
+
+    var cellWidth = (ur[0] - ll[0]) / tiles;
+    var cellHeight = (ur[1] - ll[1]) / tiles;
+
+    var fx = (coords[0] - ll[0]) / cellWidth;
+    var fy = (ur[1] - coords[1]) / cellHeight;
+
+    // a position exactly on the node's far edge belongs to the last tile
+    var ix = Math.min(Math.floor(fx), tiles - 1);
+    var iy = Math.min(Math.floor(fy), tiles - 1);
+
+    uv[0] = fx - ix;
+    uv[1] = fy - iy;
+
+    return [lod, (node.id[1] * tiles) + ix, (node.id[2] * tiles) + iy];
+};
+
+
 MapRefFrame.prototype.convertCoords = function(coords, source, destination) {
     var sourceSrs, destinationSrs;
 

@@ -13,10 +13,8 @@ import { TileRenderRig } from './tile-render-rig';
 /**
  * The terrain output of the depth pass that feeds the hitmap.
  *
- * Only the mesh matters here, so readiness ignores the requested level
- * and asks for mesh readiness alone. The pass carries none of the
- * colour-frame effects: no credits, no draw statistics, no debug
- * overlay.
+ * The pass writes distance to the surface, so readiness rests on the
+ * mesh alone.
  *
  * The render target is captured when the sink is constructed, so the
  * caller binds its target before starting the pass.
@@ -51,9 +49,10 @@ export class DepthTerrainSink {
 
         const legacyMap = this.legacyMap;
 
-        // materializing a coverage mask leaves its own target bound
+        // set render target
         this.map.renderer.gpu.setRenderTarget(this.target);
 
+        // draw
         this.map.withNavigationCamera(() =>
             rig.drawDepth(legacyMap.camera.position, maskTexture));
     }

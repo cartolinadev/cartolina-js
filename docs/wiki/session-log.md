@@ -3,6 +3,136 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-24 - RFC 13 gate 1: the stall was a same-branch regression
+
+Goal: find why the waypoint marker took several seconds to appear
+after its height was already known, traced live rather than reasoned
+about from the code.
+
+`Viewer.checkVisibility()` returned `null` whenever the depth hitmap
+was dirty and its throttle interval hadn't elapsed, refusing to answer
+from a hitmap that was, for a static camera, still usable. Traced with
+instrumented logging (call-site arguments, not stack traces, since the
+bundle is minified) to `rmap.js`'s per-frame label-occlusion calls
+competing for the same globally-throttled redraw: a redraw clears the
+dirty flag for about a millisecond before the next loading resource
+re-dirties it, and only `checkVisibility()` — uniquely among every
+hitmap consumer — refused to use the map in that dirtied state rather
+than accept the staleness every other caller already accepts. `git log
+-S` on the guard's exact condition found it was added the day before,
+in the second failed session's own commit, replacing a comment that
+had explicitly documented and accepted that same staleness. Reverted
+to that prior form.
+
+Removing the guard reintroduced the demo-level "flickers when stale"
+symptom the guard was chasing in the first place, since occlusion can
+now transiently disagree with reality for up to one throttle interval.
+Fixed at the consumer, per RFC 13 §6.1's retained-sample protocol: a
+visibility *change* (not a marker's first reading) must hold
+continuously for one hitmap throttle interval before the demo acts on
+it, since a stale reading persists for a whole interval, not one tick,
+so a tick-count debounce cannot filter it.
+
+Also fixed: `ElevationUnits`' lookup readback reused one persistent
+pixel-pack buffer, which a Chrome/ANGLE driver flags as a performance
+warning under frequent reuse. Alternating two buffers and reading back
+only the columns a batch submitted did not remove it; capping the
+waypoint demo's own refresh rate to 1Hz (matching the store's
+population cadence, since refreshing faster cannot see new coverage)
+cut it by over 95%.
+
+RFC 13's four "Addendum" sections from the two failed sessions are
+gone, compressed into one implementation-notes entry at the end of
+section 11.2 — one read instead of four, and no quoted reviewer
+feedback the notes didn't need.
+
+## 2026-08-23 - RFC 13 gate 1: pan-tracking bug fixed, rest was not bugs
+
+Goal: pick up RFC 13 gate 1 after two failed attempts and establish,
+by tracing the running demo rather than reasoning from the code, what
+of the reported waypoint-marker misbehaviour was real.
+
+`demos/waypoint/waypoint.js`'s `_updateMarkers()` skipped the canvas
+position update along with the visibility decision whenever
+`checkVisibility()` returned a stale answer — which is often, since
+that call is gated by the depth hitmap's 1.5s redraw throttle and
+continuous panning keeps the hitmap "dirty" for the whole window.
+Fixed: position now tracks every tick; only shown/hidden still holds
+the last answer while stale.
+
+Everything else reported as a defect in the two prior sessions turned
+out, once traced concretely, not to be one: the marker disappearing at
+wide viewports is real self-occlusion by a ridge that the old,
+inaccurate navtile height happened to avoid; the store does not lag
+the drawn LOD (confirmed with Shift+B against the actual reviewer
+scenario); the inspector's `lod: <store> (drawn <colour pass>)` line
+compared two unrelated global maxima and was removed as misleading
+rather than fixed. Details and the trace are in RFC 13 section 11.2.
+
+Also found and documented (not changed): `marker.show: []` hides a
+marker at every waypoint, while omitting `show` shows it everywhere —
+opposite of how the two read.
+
+## 2026-08-23 - Incomplete RFC 13 Gate 1 follow-up
+
+Goal: carry the elevation-store implementation through Gate 1. The work
+corrected identified store and hitmap defects, but did not resolve the
+steady-state waypoint-marker disappearance; Gate 1 remains open.
+
+## 2026-08-23 - The elevation store answers from drawn terrain
+
+Goal: RFC 13 gate 1 — a GPU height field built from the terrain the map
+has selected, and a public query over it.
+
+`ElevationStore` holds one 256 by 256 packed-float unit per resident
+tile, populated by a third traversal sink that loads nothing, reduced
+into coarser units on backtrack, and evicted least-recently-used with
+each reference-frame node's root unit pinned. The GL side of it —
+textures, the raster, reduction, and lookup draws, and the asynchronous
+read — is `ElevationUnits` under `src/renderer/`, so the store itself
+holds no GL object and issues no draw. `queryTerrainElevation`
+orders the units covering a position by ground sample distance, resolves
+the batch in one GPU pass, and reads it back through a fence, so no
+query blocks a frame. The waypoint demo now places its two-dimensional
+markers on that height and tests them with `checkVisibility`.
+
+Three findings worth keeping.
+
+GLSL ES guarantees `sin` and `cos` only to about 1e-4 absolute, and
+Bowring's formula multiplies them by a body radius. Measured against the
+drawn mesh, the first geodetic-height shader read 205 m low. Both
+auxiliary latitudes are now normalized sine/cosine pairs, which needs no
+trigonometric call and lands within a metre.
+
+A `fenceSync` signals only after a `flush`, so every lookup after the
+first waited on a fence that never came.
+
+A unit whose first and last samples sit on the tile boundary puts them
+on the drawn geometry's own edge, where the fill rule drops the right
+and bottom ones: reading a unit back showed an empty last row and a last
+column holding 33 samples of 256, at every LOD together. A tile now
+spans 255.5 texels and the lookup inverts that span.
+
+Spatial division node extents overlap but their coverage does not, and
+neither the store nor `MapRefFrame` was using the partitioning ranges
+that decide ownership. `resolveSpatialDivisionNodes` now applies them,
+which leaves one node owning a position; the store takes it and walks
+its tile path, with no list of nodes to fall through. It also skips
+routing nodes, whose children start new subtrees and whose own cells
+span several projected SRSs — on melown2015 the store had been building
+a unit for the global `0/0/0` cell, reporting tile `1/0/0` under two
+GSDs, and pinning the routing node's root in place of the three subtree
+roots.
+
+The unit order stops at the node root. Reduction renormalizes over valid
+child samples, so a covered sample is covered in every ancestor, and a
+unit finer than the request can only answer where a coarser one already
+did.
+
+The store works in navigation space and `Viewer` in public space, so
+`Map.queryTerrainElevation` crosses the vertical datum at that
+boundary.
+
 ## 2026-08-23 - Terrain traversal takes an explicit sink
 
 Goal: land the RFC 13 foundation milestone — one terrain traversal with
@@ -11,18 +141,16 @@ explicit per-pass sinks, and no mutable draw channel.
 `drawTerrainTraversal` now takes a `TerrainTraversalPass`: the sink that
 turns a selected tile into output, a pass-wide no-load flag, and the
 colour frame's accounting. `Map.draw()` is the colour frame and
-`Map.drawDepthHitmap()` the depth pass; neither reaches the other's
-setup, so the depth pass no longer runs the colour frame's atmosphere,
-geodata, and overlay gates or advances its draw generation, counters,
-and drawn-tile statistics. Rig readiness and the tile draw are the
-sink's; descent, source order, fallback, coverage, and watertightness
-stay in the traversal.
+`Map.drawDepthHitmap()` the depth pass; each initializes only what its
+own traversal reads, and the colour frame alone owns the draw
+generation, the traversal counters, and the drawn-tile statistics. Rig
+readiness and the tile draw are the sink's; descent, source order,
+fallback, coverage, and watertightness stay in the traversal.
 
 `Map.drawChannel` is gone, and with it the channel reads in
-`surface-tree.js`, `draw-tiles.js`, `draw.js`, and `renderer.ts`. The
-per-channel `tile.drawCommands` array collapses to one list, since only
-the colour channel was ever populated. `MapDraw.tileBuffer` had no
-readers and is removed.
+`surface-tree.js`, `draw-tiles.js`, `draw.js`, and `renderer.ts`. Only
+the colour channel ever populated `tile.drawCommands`, so it collapses
+to one list. `MapDraw.tileBuffer` had no readers and is removed.
 
 RFC 13 §7.2 also asks for pass-owned GPU-build usage forwarded through
 rig readiness. Not adopted: nothing in the terrain path increments

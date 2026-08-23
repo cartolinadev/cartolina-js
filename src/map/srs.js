@@ -41,7 +41,13 @@ var MapSrs = function(map, id, json, baseUrl) {
           "a": _proj.oProj.a,
           "b": _proj.oProj.b,
           "majorToMinor": _proj.oProj.a / _proj.oProj.b,
-          "proj-name": _proj.oProj.projName
+          "proj-name": _proj.oProj.projName,
+
+          // metres in one horizontal unit of this srs; a geographic
+          // srs measures in degrees of a great circle on the major axis
+          "unitMetres": (this.type == 'geographic')
+              ? (Math.PI / 180) * _proj.oProj.a
+              : (_proj.oProj.to_meter || 1)
     };
 
     if (json['geoidGrid']) {
