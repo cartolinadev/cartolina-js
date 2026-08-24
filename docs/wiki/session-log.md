@@ -3,6 +3,24 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-24 - The two-buffer pack-buffer fix never worked
+
+Checking the waypoint demo's console at the warning level, not just for
+errors, found the driver's "buffer written again before being read
+back" performance warning firing on almost every elevation query.
+Reproduced on the pre-audit commit (`2a9fa4e2`) too, confirming it
+predates this session and was never actually fixed by the two
+alternating pixel-pack buffers gate 1 shipped with. Traced live: instrumenting the
+actual GPU calls showed every buffer drained correctly before reuse, so
+the warning is not a race. A buffer that is ever written more than
+once in its lifetime gets flagged on every write after the first,
+regardless of how long the previous read has had to drain; alternating
+between a fixed pool, of two buffers or any other number, cannot avoid
+it. `ElevationUnits.endLookup()` now allocates a fresh single-use
+buffer per batch and discards it once drained. Confirmed clean at the
+console-warning level over a sustained run, not just the error level;
+type check and the terrain screenshot suite pass.
+
 ## 2026-08-24 - RFC 13 gate 1 audit: fixes and a wrongly-closed bug
 
 An in-session audit of the gate-1 elevation store found the store itself

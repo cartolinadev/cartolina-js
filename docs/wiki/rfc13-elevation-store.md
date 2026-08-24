@@ -943,9 +943,13 @@ with the drawn mesh. It answers from whatever depth hitmap currently
 exists, the staleness every consumer accepts (`rmap.js` label
 occlusion, hit-testing).
 
-`ElevationUnits`' lookup readback uses two alternating pixel-pack
-buffers and reads back only the columns a batch submitted, so the
-driver does not flag a buffer written again before its read drains.
+`ElevationUnits`' lookup readback allocates a fresh pixel-pack buffer
+for each batch and reads back only the columns it submitted; the
+buffer is discarded once its data is taken. A driver flags a pixel-pack
+buffer written more than once in its lifetime as a repeat write with
+nothing read in between, on every later write regardless of how long
+the earlier one has had to drain, so a pooled or alternated buffer
+cannot avoid it.
 
 The waypoint demo decouples marker position from the occlusion check,
 debounces a visibility *change* against the staleness

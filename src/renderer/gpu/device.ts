@@ -759,14 +759,23 @@ readFramebufferPixelsAsync(
 }
 
 
-/** Allocate a buffer for `readFramebufferPixelsAsync()`. */
+/**
+ * Allocate a buffer for `readFramebufferPixelsAsync()`. Sized with
+ * actual (zeroed) data, not the size-only overload: a driver flags a
+ * size-only-allocated buffer's first `readPixels` write as a repeat
+ * write with nothing read between them, on every use regardless of how
+ * long the previous read has drained, unless the buffer is used for
+ * exactly one write in its whole lifetime. Callers that read back more
+ * than once must therefore allocate, use, and discard a fresh buffer
+ * per read rather than reuse one; see `ElevationUnits.endLookup()`.
+ */
 createPixelPackBuffer(bytes: number): WebGLBuffer {
 
     const gl = this.gl;
     const buffer = gl.createBuffer();
 
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
-    gl.bufferData(gl.PIXEL_PACK_BUFFER, bytes, gl.STREAM_READ);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, new Uint8Array(bytes), gl.STREAM_READ);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
     return buffer;

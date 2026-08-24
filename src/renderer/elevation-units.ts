@@ -40,11 +40,6 @@ export class ElevationUnits {
             GpuTexture.Type.Elevation);
         this.result_.createFramebuffer(this.maxBatch, ResultRows);
 
-        this.packBuffers_ = [
-            gpu.createPixelPackBuffer(this.maxBatch * ResultRows * 4),
-            gpu.createPixelPackBuffer(this.maxBatch * ResultRows * 4),
-        ];
-
         this.readbackBytes_ = new Uint8Array(this.maxBatch * ResultRows * 4);
         this.readbackView_ = new DataView(this.readbackBytes_.buffer);
         this.pointRecords_ = new Float32Array(this.maxBatch * 4);
@@ -68,7 +63,6 @@ export class ElevationUnits {
 
         const gl = this.renderer_.gpu.gl;
 
-        for (const buffer of this.packBuffers_) gl.deleteBuffer(buffer);
         gl.deleteBuffer(this.pointBuffer_);
         gl.deleteVertexArray(this.pointVao_);
         gl.deleteBuffer(this.quadBuffer_);
@@ -85,8 +79,9 @@ export class ElevationUnits {
     get fixedBytes(): number {
 
         // the replacement unit and its depth attachment, the two result
-        // rows and their depth, both pixel-pack buffers, and the points
-        return 2 * this.unitBytes + 48 * this.maxBatch;
+        // rows and their depth, one transient pixel-pack buffer (never
+        // pooled -- see endLookup), and the points
+        return 2 * this.unitBytes + 40 * this.maxBatch;
     }
 
     /** A new unit, with no coverage. */
@@ -269,13 +264,12 @@ export class ElevationUnits {
 
         gpu.gl.bindVertexArray(null);
 
-        // Alternate pack buffers so a submission never writes into the
-        // buffer the previous one's read is still draining; a single
-        // reused buffer triggers the driver's "written again before
-        // being read back" performance warning at this cadence.
-        const buffer = this.packBuffers_[this.nextPackBuffer_];
-        this.nextPackBuffer_ = (this.nextPackBuffer_ + 1)
-            % this.packBuffers_.length;
+        // A fresh, single-use buffer, never pooled: a buffer written
+        // more than once in its lifetime triggers the driver's "written
+        // again before being read back" performance warning on every
+        // later write, however long the earlier one has had to drain.
+        // dropReadback() deletes it once this batch's data is taken.
+        const buffer = gpu.createPixelPackBuffer(count * ResultRows * 4);
 
         const fence = gpu.readFramebufferPixelsAsync(
             this.result_, count, ResultRows, buffer);
@@ -315,7 +309,10 @@ export class ElevationUnits {
     /** Abandons a batch whose result is no longer wanted. */
     dropReadback(readback: ElevationUnits.Readback): void {
 
-        this.renderer_.gpu.gl.deleteSync(readback.fence);
+        const gl = this.renderer_.gpu.gl;
+
+        gl.deleteSync(readback.fence);
+        gl.deleteBuffer(readback.buffer);
     }
 
     // -----------------------------------------------------------------
@@ -412,11 +409,6 @@ export class ElevationUnits {
     private readonly replacement_: GpuTexture;
 
     private readonly result_: GpuTexture;
-
-    /** Alternated so a submission never writes the buffer the previous
-     *  one's read is still draining. */
-    private readonly packBuffers_: WebGLBuffer[];
-    private nextPackBuffer_ = 0;
 
     private readonly readbackBytes_: Uint8Array;
     private readonly readbackView_: DataView;
