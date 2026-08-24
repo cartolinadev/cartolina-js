@@ -15,25 +15,20 @@ import ElevationTerrainSink from './elevation-terrain-sink';
  * A height field over the terrain the map has drawn, answering
  * `Map.queryTerrainElevation`.
  *
- * One unit per resident tile, built by the terrain traversal with an
- * elevation sink and reduced into its ancestors on backtrack. Units
- * stop at the root of each spatial division node that carries tiles: a
- * cell above one of those roots spans nodes in different projected
- * SRSs. A node's root unit is pinned once it has coverage; the rest are
- * evicted least-recently-used against `mapElevationStoreGPUCache`.
+ * One unit per resident tile. Units stop at the root of each spatial
+ * division node that carries tiles: a cell above one of those roots
+ * spans nodes in different projected SRSs. A node's root unit is pinned
+ * once it has coverage; the rest are evicted least-recently-used
+ * against `mapElevationStoreGPUCache`.
  *
  * Coverage is whatever recent passes visited, so a lookup can miss.
  * The store requests no resource of its own, and records one value per
  * sample without which terrain source supplied it.
- *
- * `ElevationUnits` holds the textures and does the drawing; `Map`
- * constructs the store when the reference frame is ready and drives it
- * from the tick.
  */
 class ElevationStore {
 
     /**
-     * @param map Typed map owning the store.
+     * @param map the owning map
      */
     constructor(map: Map) {
 
@@ -41,9 +36,6 @@ class ElevationStore {
         this.units_ = new ElevationUnits(map.renderer);
         this.sink = new ElevationTerrainSink(this);
         this.budgetBytes_ = this.resolveBudget();
-
-        this.unwatchBudget_ = map.configStore.watch(
-            ['mapElevationStoreGPUCache'], () => this.applyBudget());
     }
 
     /**
@@ -144,8 +136,12 @@ class ElevationStore {
         return this.budgetBytes_ + this.units_.fixedBytes;
     }
 
-    /** Whether a population pass should run on this tick. */
-    populationDue(): boolean {
+    /**
+     * Claims this tick's elevation pass if one is due, returning whether
+     * it was claimed. Mutates the cadence timers, so it must be called
+     * once per tick and its result acted on.
+     */
+    takeElevationPassSlot(): boolean {
 
         const interval = this.map_.config.mapElevationStoreUpdateIntervalMs;
         const now = performance.now();
@@ -183,7 +179,6 @@ class ElevationStore {
     /** Releases every store-owned GPU resource. */
     [Symbol.dispose](): void {
 
-        this.unwatchBudget_();
         this.clear();
         this.units_[Symbol.dispose]();
     }
@@ -196,7 +191,7 @@ class ElevationStore {
      * Starts the unit for one node, seeded from its published child
      * units.
      *
-     * @param tileId tile address of the node being backtracked
+     * @param tileId the node's tile id
      */
     beginUnit(tileId: [number, number, number]): void {
 
@@ -267,7 +262,7 @@ class ElevationStore {
         this.units_.publishReplacement(unit.handle);
     }
 
-    /** The sink the map's elevation pass hands to the traversal. */
+    /** The elevation sink that builds units during a pass. */
     readonly sink: ElevationTerrainSink;
 
     // -----------------------------------------------------------------
@@ -315,20 +310,6 @@ class ElevationStore {
     }
 
     /**
-     * Takes the budget from the setting again and releases whatever no
-     * longer fits. Called when `mapElevationStoreGPUCache` changes.
-     */
-    private applyBudget(): void {
-
-        this.budgetBytes_ = this.resolveBudget();
-
-        while (this.usedBytes_ > this.budgetBytes_) {
-
-            if (!this.evictOne()) return;
-        }
-    }
-
-    /**
      * Removes one field to make room.
      *
      * A field remains while any resident child reduces into it.
@@ -353,10 +334,27 @@ class ElevationStore {
             this.units_.releaseUnit(unit.handle);
             this.resident_.delete(unit.key);
             this.usedBytes_ -= this.units_.unitBytes;
+
+            // Keep the lookup's LOD-walk terminus tight: when the
+            // deepest unit leaves, drop to the deepest one remaining.
+            if (unit.tileId[0] === this.deepestLod_)
+                this.recomputeDeepestLod();
+
             return true;
         }
 
         return false;
+    }
+
+    /** Recomputes the deepest resident LOD from what remains. */
+    private recomputeDeepestLod(): void {
+
+        let deepest = -1;
+
+        for (const unit of this.resident_.values())
+            deepest = Math.max(deepest, unit.tileId[0]);
+
+        this.deepestLod_ = deepest;
     }
 
     /** Moves a unit to the recent end of the eviction order. */
@@ -830,10 +828,11 @@ class ElevationStore {
     }
 
     /**
-     * The GPU budget in bytes, clamped up to what the parsed reference
-     * frame needs: the fixed work buffers plus one pinned unit for every
-     * spatial division node root. A configured value below that is
-     * written back so the reported setting matches the effective one.
+     * The GPU budget in bytes, taken once at construction. Clamped up to
+     * what the parsed reference frame needs: the fixed work buffers plus
+     * one pinned root unit per productive spatial division node, the set
+     * the store must keep resident at once. A configured value below that
+     * is raised, with a warning; the setting itself is left untouched.
      */
     private resolveBudget(): number {
 
@@ -851,10 +850,6 @@ class ElevationStore {
         console.warn('mapElevationStoreGPUCache raised to '
             + `${Math.ceil(minimum / (1024 * 1024))} MiB, the least this `
             + 'reference frame can work with.');
-
-        this.map_.configStore.set({
-            mapElevationStoreGPUCache: Math.ceil(minimum / (1024 * 1024)),
-        });
 
         return minimum - fixed;
     }
@@ -890,9 +885,6 @@ class ElevationStore {
     private lastPassTime_ = -Infinity;
     private lastOnDemandTime_ = -Infinity;
     private onDemandPending_ = false;
-
-    /** Ends the subscription that keeps the budget current. */
-    private readonly unwatchBudget_: () => void;
 
     /** Terrain source ids the resident units were built from. */
     private sourceSignature_: string | null = null;
@@ -1074,11 +1066,15 @@ function arealScale(
 /** Replaces every non-finite grid value with the closest finite one. */
 function fillFromNearest(values: Float64Array, size: number): void {
 
+    // Read candidates from a snapshot so a hole filled earlier in the
+    // walk never seeds a later one; only original samples are sources.
+    const source = values.slice();
+
     for (let j = 0; j < size; j++) {
 
         for (let i = 0; i < size; i++) {
 
-            const value = values[j * size + i];
+            const value = source[j * size + i];
             if (Number.isFinite(value) && value > 0) continue;
 
             let best = NaN;
@@ -1088,7 +1084,7 @@ function fillFromNearest(values: Float64Array, size: number): void {
 
                 for (let si = 0; si < size; si++) {
 
-                    const other = values[sj * size + si];
+                    const other = source[sj * size + si];
                     if (!Number.isFinite(other) || other <= 0) continue;
 
                     const distance =

@@ -96,7 +96,7 @@
 const DEFAULT_MARKER_HEIGHT = 90;
 
 // The elevation store's own coverage does not change faster than its
-// population pass runs (about once a second by default), so refreshing
+// elevation pass runs (about once a second by default), so refreshing
 // more often than that only adds GPU readback churn.
 const TERRAIN_REFRESH_INTERVAL_MS = 1000;
 
@@ -524,7 +524,7 @@ export class WaypointMap {
                 // Position still tracks the camera every tick below,
                 // independent of this.
                 const rawVisible =
-                    this._viewer.checkVisibility(pubCoords, 'fix');
+                    this._viewer.checkVisibility(pubCoords);
                 showState = this._debouncedVisibility(i, rawVisible);
 
                 // the terrain itself can hide the marker

@@ -548,8 +548,8 @@ const catalogue = {
      *  in the draw traversal. */
     mapFallbackCadence: num(1, MAX, 3, 'internal'),
 
-    /** Minimum time between elevation-store population passes, in
-     *  milliseconds. Zero makes every animation frame eligible. */
+    /** Minimum time between elevation passes, in milliseconds. Zero
+     *  makes every animation frame eligible. */
     mapElevationStoreUpdateIntervalMs: num(0, MAX, 1000, 'runtime'),
 
     /** Maximum GPU memory the elevation store may own, in MiB. One
@@ -557,8 +557,8 @@ const catalogue = {
      *  plus one per node above them, so 192 MiB holds about two and a
      *  half views of a 1920 by 1080 window. Clamped up when a reference
      *  frame needs more to keep one pinned field per spatial division
-     *  node. */
-    mapElevationStoreGPUCache: num(0, MAX, 192, 'runtime'),
+     *  node. Read once at construction. */
+    mapElevationStoreGPUCache: num(0, MAX, 192, 'construction'),
 
     /** Linear size of the grid used to interpolate projection factors
      *  within a reference-frame node. Read when the reference frame

@@ -1225,7 +1225,15 @@ class Map {
 
         const store = this.elevationStore_;
         const refFrame = this.map?.referenceFrame;
-        const single = !Array.isArray(position[0]);
+
+        // A single position is a two-number array; a batch is an array
+        // of those. An empty array is a batch of none, not a single
+        // position with a missing first coordinate.
+        const single = position.length > 0 && !Array.isArray(position[0]);
+
+        if (!single && position.length === 0) {
+            return Promise.resolve([]);
+        }
 
         // Before the reference frame is ready there is no store and so
         // no coverage, which is the same answer a miss gives.
@@ -1287,7 +1295,7 @@ class Map {
     }
 
     /**
-     * Settles elevation lookups and runs the population pass when it is
+     * Settles elevation lookups and runs an elevation pass when one is
      * due. Runs outside the dirty gate, so neither waits for a colour
      * frame.
      */
@@ -1298,8 +1306,10 @@ class Map {
 
         store.update();
 
-        if (!store.populationDue()) return;
+        // Check for surfaces before claiming the pass slot, so a due
+        // pass is not consumed and lost when there is nothing to draw.
         if (this.surfaceList().length === 0) return;
+        if (!store.takeElevationPassSlot()) return;
 
         const legacyMap = this.map!;
 

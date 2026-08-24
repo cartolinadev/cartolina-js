@@ -680,17 +680,19 @@ class Viewer {
      * exaggeration is applied to the point before its distance is
      * measured, matching the exaggerated surface the depth pass drew.
      *
+     * The point carries its own terrain height in `pos[2]`; resolve it
+     * with `queryTerrainElevation` first. This method does not derive a
+     * height and never consults navigation tiles.
+     *
      * This uses the cached hitmap/depth-map path. Occlusion can lag
      * while the camera is moving because hitmap copies are throttled by
      * `mapDMapCopyIntervalMs`; a point can therefore be tested against
      * terrain depths up to that interval old.
      *
-     * @param pos `[lon, lat, height]` in public space
-     * @param mode height mode (`'fix'` or `'float'`)
+     * @param pos `[lon, lat, height]` in public space, height resolved
      */
     checkVisibility(
         pos: vec3,
-        mode: Map.HeightMode,
     ): boolean | null {
 
         this.assertAlive();
@@ -702,14 +704,13 @@ class Viewer {
             return null;
         }
 
-        const navCoords = this.convertCoordsFromPublicToNav(pos, mode);
+        const navCoords = this.convertCoordsFromPublicToNav(pos, 'fix');
         if (!navCoords) {
             return false;
         }
 
-        const navMode = (mode === 'float') ? 'fix' : mode;
         const canvasCoords = this.convertCoordsFromNavToCanvas(
-            navCoords, navMode
+            navCoords, 'fix'
         );
 
         if (!canvasCoords || canvasCoords[2] > 1) {
@@ -731,7 +732,7 @@ class Viewer {
         // which carries vertical exaggeration, so the point is
         // exaggerated the same way before its distance is measured.
         const physCoords = this.convertCoordsFromNavToPhys(
-            navCoords, navMode, undefined, true
+            navCoords, 'fix', undefined, true
         );
         if (!physCoords) {
             return false;

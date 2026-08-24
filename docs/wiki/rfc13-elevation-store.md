@@ -910,6 +910,11 @@ Deviations from the gate 1 plan above:
 - `mapElevationStoreGPUCache` defaults to 192 MiB, not 64: a view needs
   a field for every drawn tile plus one above each, several times the
   original estimate.
+- `mapElevationStoreGPUCache` is a `construction` setting, read once
+  when the store is built, not a `runtime` one (7.5, 8): the store does
+  not watch it or evict on a runtime decrease. A value below the
+  pinned-root floor is raised with a warning, leaving the setting
+  unchanged.
 - The height shader avoids `sin`/`cos` (GLSL ES precision is only about
   1e-4, multiplied by Earth's radius); both auxiliary latitudes are
   carried as normalized sine/cosine pairs instead.
@@ -930,24 +935,22 @@ Deviations from the gate 1 plan above:
 - Context loss does not clear the store (7.5): there is no recovery
   path to clear into (see rfc08-context-loss-recovery.md).
 
-Two library bugs surfaced and were fixed during gate 1 validation.
-`Viewer.checkVisibility()` had grown a guard returning `null` whenever
-the depth hitmap was dirty and its throttle interval hadn't elapsed —
-added to chase a symptom, it stalled occlusion answers for several
-seconds during initial load, since loading keeps the hitmap dirty
-almost continuously. Reverted to answering from whatever hitmap
-exists, same as every other consumer (`rmap.js` label occlusion,
-hit-testing). And `ElevationUnits`' lookup readback reused one
-pixel-pack buffer per submission, which the driver flags as a
-performance warning at high submission rates; mitigated with two
-alternating buffers, reading back only the columns a batch submitted,
-and capping the waypoint demo's own refresh rate to 1 Hz, matching the
-store's population cadence.
+`Viewer.checkVisibility()` answers occlusion for terrain-anchored
+points (backlog #1). It takes a point whose height the caller resolved
+through `queryTerrainElevation` and tests occlusion only: it derives no
+height and does not consult navigation tiles, whose heights disagree
+with the drawn mesh. It answers from whatever depth hitmap currently
+exists, the staleness every consumer accepts (`rmap.js` label
+occlusion, hit-testing).
 
-The waypoint demo needed matching consumer-side changes: it now
-decouples marker position from the occlusion check, debounces a
-visibility *change* against the staleness `checkVisibility()` accepts,
-and throttles its own refresh rate to match the store's cadence.
+`ElevationUnits`' lookup readback uses two alternating pixel-pack
+buffers and reads back only the columns a batch submitted, so the
+driver does not flag a buffer written again before its read drains.
+
+The waypoint demo decouples marker position from the occlusion check,
+debounces a visibility *change* against the staleness
+`checkVisibility()` accepts, and refreshes at 1 Hz to match the store's
+elevation-pass cadence.
 
 Verified directly: enabling the waypoint issues no terrain request,
 and the memory budget was not exhausted at 1257×748 or 2560×1353.

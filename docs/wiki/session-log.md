@@ -3,6 +3,52 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-24 - RFC 13 gate 1 audit: fixes and a wrongly-closed bug
+
+An in-session audit of the gate-1 elevation store found the store itself
+sound but surfaced one reopened bug and a set of cleanups.
+
+`checkVisibility` was the blocker. Backlog #1 — it misjudges
+terrain-anchored (`'float'`) points — had been closed, but only the
+waypoint demo changed: `checkVisibility` still resolved height through
+the navigation-tile path, the exact defect, for any caller passing
+`'float'`. Removed the mode: `checkVisibility(pos)` now takes a point
+whose height the caller has already resolved through
+`queryTerrainElevation`, and never consults navtiles. The demo's one
+call dropped its `'fix'` argument. Backlog #1 closes on the removed
+mode, not on the store.
+
+Removed the store's runtime GPU-budget adaptation. The cache setting had
+a config watch that re-resolved the budget and evicted on change, but
+nothing ever changes it at runtime, and the only writer was the budget
+clamp's own write-back — the watch reacted to itself. The budget is now
+read once at construction; the setting moved to the `construction`
+profile. A value below the reference frame's pinned-root floor is raised
+with a warning, without writing the setting back.
+
+`queryTerrainElevation([])` rejected with a `TypeError` because the
+single-vs-batch test read `position[0]` of an empty array; it now
+resolves to `[]`. The elevation pass claimed its cadence slot before the
+surface guard, so a due pass with no surfaces was consumed and lost;
+the guard now runs first, and the predicate is `takeElevationPassSlot`,
+naming its mutation. `fillFromNearest` read and wrote one array, so a
+filled hole could seed a later one; it reads from a snapshot.
+`deepestLod_` is lowered on eviction so the lookup's LOD walk does not
+probe emptied levels. Dropped a redundant `doNotLoad` re-assert in the
+elevation sink, swept the coined "population pass" to "elevation pass"
+in code, and trimmed the store's class doc and a few `@param`s to the
+caller's contract.
+
+Backlog #1 moved to the archive, and RFC 13's §11.2 implementation
+notes were brought current with these deviations — the construction-time
+budget and the removed `'float'` mode — describing the state, not the
+change.
+
+Verified: type check clean, the three terrain screenshot pairs render
+without regression, and in the running waypoint demo the empty-array,
+single, and batch queries and the one-argument `checkVisibility` all
+behave.
+
 ## 2026-08-24 - Commit messages must not recite the diff
 
 AGENTS.md's "Commits" section was tightened: write-ups are for the

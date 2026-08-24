@@ -9,12 +9,11 @@ import { TileRenderRig } from './tile-render-rig';
 
 
 /**
- * The terrain output of the elevation-store population pass: one unit
- * per node, built between `beginNode` and `endNode`.
+ * Builds one elevation-store unit per node, between `beginNode` and
+ * `endNode`, from the terrain drawn in an elevation pass.
  *
- * The readiness check never loads, so the pass sees only terrain the
- * colour traversal already classified and drew. A rig that is not ready
- * contributes nothing at this interval.
+ * Its readiness check never loads, so it draws only rigs already ready
+ * for the colour frame; an unready rig contributes nothing.
  */
 export class ElevationTerrainSink {
 
@@ -35,10 +34,7 @@ export class ElevationTerrainSink {
         options: TileRenderRig.IsReadyOptions,
     ): boolean {
 
-        // the stored field is the terrain as rendered, at whatever the
-        // colour frame has already brought in
-        return rig.isReady(readiness, priority,
-            { ...options, doNotLoad: true });
+        return rig.isReady(readiness, priority, options);
     }
 
     draw(
