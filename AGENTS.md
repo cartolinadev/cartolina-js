@@ -329,16 +329,13 @@ docs-only commit, pass `SKIP_SESSION_LOG=1` to get past it.
 **A session-log entry states the goal first, then the outcome** — what
 the change set out to do, and where the code ended up.
 
-**Size the write-up to the change.** A four-line fix gets a few
-sentences, not a report: what was wrong, what the change does, stop.
-No investigation narrative, no diff in prose, no mechanism the code
-already shows, no verification that passed. This governs commit
-messages, session-log entries, and review notes alike.
-
-Do not recite the code — removed members, renamed fields, touched files
-are what `git show` is for, and such lists go stale. Name what a reader
-can now rely on or must no longer assume. One or two sentences is
-normal; one line is a fine entry.
+**Size the write-up to the change.** State what was wrong and what the
+change does, then stop — no investigation narrative, no diff in prose,
+no recited members/fields/files (`git show` has those), no verification
+that passed. One line is a fine entry; more than one paragraph is rare,
+earned by reasoning genuinely hard to recover from the code. This
+governs commit messages, session-log entries, and RFC author
+responses alike.
 
 Commit only when the user asks, or automatically before starting a new
 unrelated body of work when uncommitted, unrelated changes already exist.
@@ -649,9 +646,9 @@ unverified, or state what was observed and that the reason was not
 established. "The reason was not pinned down" is acceptable; a confident
 fabricated mechanism is not.
 
-This applies to commit messages and review notes as well. When you
-discover that a previously written explanation was wrong, correct it at
-the source rather than layering a new guess on top.
+This applies to commit messages and RFC author responses as well. When
+you discover that a previously written explanation was wrong, correct
+it at the source rather than layering a new guess on top.
 
 ### Regression bug diagnostics and fixing
 

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+MSG_FILE="$1"
+LENGTH=$(wc -c < "$MSG_FILE")
+
+if [ "$LENGTH" -gt 300 ]; then
+  echo "commit-msg: message is $LENGTH characters -- over the 300 limit."
+  echo "See AGENTS.md, section \"Commits\", for what belongs in one."
+fi

@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-24 - Commit messages must not recite the diff
+
+AGENTS.md's "Commits" section was tightened: write-ups are for the
+human reviewer, not a record, so a message longer than its diff should
+be rare and multi-paragraph rarer still. Added a `commit-msg` hook that
+warns (does not block) past 300 characters, pointing to AGENTS.md.
+
+`pre-commit`'s nothing-staged guard also exited 1 instead of skipping,
+which blocked a message-only `--amend`. Fixed to exit 0.
+
 ## 2026-08-24 - RFC 13 gate 1: the stall was a same-branch regression
 
 Goal: find why the waypoint marker took several seconds to appear
