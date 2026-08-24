@@ -934,6 +934,35 @@ Deviations from the gate 1 plan above:
   works in navigation space.
 - Context loss does not clear the store (7.5): there is no recovery
   path to clear into (see rfc08-context-loss-recovery.md).
+- Section 6.3's "chunk" (one GPU submission, bounded by the device's
+  max texture width) is implemented as "batch" throughout, matching
+  `ElevationUnits.maxBatch`, which already named it that before this
+  gate: many positions grouped into one round-trip is what "batch"
+  ordinarily means. Section 6.3's other sense of "batch" — the queued
+  backlog a caller's call joins, which can span several callers and
+  several submissions — has no dedicated name in code; the request
+  queue itself serves that role.
+- Section 5's formula names, `metresPerUnit` and `arealScale`, are
+  `ElevationStore.linearScaleFactor()` and the free function
+  `linearScaleSample()`. Both return a linear quantity — physical
+  metres per one unit of the node's own local coordinate system — not
+  an areal one; "areal" named an intermediate step of the computation,
+  not what the function returns. "Unit" in the design's name collided
+  with this file's own `Unit`/`ResidentUnit` types, unrelated to a unit
+  of length.
+- The on-demand miss-triggered acceleration in 7.4 was removed. A live
+  instrumented check of the store never observed it fire, and its
+  actual effect —
+  a pass already runs every interval regardless of hits or misses, and
+  both paths shared one timer, so once a position settled the two
+  converged and the acceleration stopped firing — was a one-time,
+  sub-interval latency shave on the first pass after a newly-encountered
+  miss, and nothing for a miss with nothing left to load. Complexity
+  disproportionate to the problem it solves.
+  `ElevationStore.admitElevationPass()` now runs a pass whenever the
+  interval has elapsed, nothing else. Gate 4's plan to measure whether
+  on-demand passes keep the camera on covered terrain no longer
+  applies; there is only the periodic cadence to measure.
 
 `Viewer.checkVisibility()` answers occlusion for terrain-anchored
 points (backlog #1). It takes a point whose height the caller resolved

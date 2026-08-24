@@ -1306,10 +1306,10 @@ class Map {
 
         store.update();
 
-        // Check for surfaces before claiming the pass slot, so a due
-        // pass is not consumed and lost when there is nothing to draw.
+        // Check for surfaces before admitting the pass, so a due pass
+        // is not consumed and lost when there is nothing to draw.
         if (this.surfaceList().length === 0) return;
-        if (!store.takeElevationPassSlot()) return;
+        if (!store.admitElevationPass()) return;
 
         const legacyMap = this.map!;
 

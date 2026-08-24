@@ -3,6 +3,79 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Checked gate 1's RFC notes against the current code
+
+Rechecked RFC 13 §11.2 against the codebase after this session's
+renames, since several deviation notes reference identifiers that had
+since changed. Two gaps found and fixed.
+
+First, `submitChunk`/`drawChunk` had been renamed to `submitBatch`/
+`drawBatch` earlier this session on the theory that "chunk" duplicated
+"batch." Rereading §6.3: the design uses them as two deliberately
+different things — "batch" for a caller's queued backlog (which can
+span multiple callers and multiple GPU submissions), "chunk" for one
+bounded GPU submission. The rename had inverted that, calling the
+chunk-level thing "batch." But `ElevationUnits.maxBatch`, pre-existing
+since gate 1 and untouched this session, already named the same
+one-submission concept "batch" — and "batch" (many things grouped into
+one round-trip) fits that concept more idiomatically than "chunk"
+(one thing split into pieces) does anyway. Kept the code as renamed;
+recorded the terminology choice as a §11.2 deviation instead of
+reverting it.
+
+Second, the `metresPerUnit`/`arealScale` rename (this session,
+`linearScaleFactor`/`linearScaleSample`) had no §11.2 note at all —
+added one.
+
+## 2026-08-25 - metresPerUnit/arealScale named neither correctly
+
+`arealScale()` computed a numerical Jacobian's cross-product magnitude
+(a genuine areal quantity, physical m² per unit²) and then took its
+square root before returning — so its actual return value is linear
+(m/unit), not areal. Its caller, `metresPerUnit`, used "unit" in a
+sense unrelated to the file's own `Unit`/`ResidentUnit` types (a unit
+of the node's local coordinate system, not a resident tile). Checked
+against `proj_factors()`'s own struct fields (`meridional_scale`,
+`parallel_scale`, `areal_scale`) and the tileserver's own use of them
+(`mapproxy/calipers.cpp`) to confirm the direction: this store's
+quantity is the reciprocal of PROJ's own scale convention, so it
+can't just borrow PROJ's field name outright. Renamed both to state
+what they return: `linearScaleFactor` (interpolated, per-query) and
+`linearScaleSample` (one raw numerical-Jacobian evaluation). No
+arithmetic changed — verified via identical `actualGsd` output before
+and after.
+
+## 2026-08-24 - LookupColumn named its output format, not its purpose
+
+`LookupColumn` held no coordinate data at all — just `request`, `index`,
+and `units`. The actual "column" concept (a numeric x-position in the
+lookup result texture) already lives on `ElevationUnits.LookupPoint`, a
+different type in a different file. Renamed to `Lookup`: one pending
+position's lookup, carried through a batch until its answer is
+decoded from the GPU readback and written into `request.results`.
+`collectColumns`/`completeColumns`/`settleColumn` renamed to match.
+
+## 2026-08-24 - Dropped the on-demand elevation pass
+
+`ElevationStore` ran an accelerated elevation pass when a lookup missed
+or answered from a coarser unit than the theoretical best, on top of
+the periodic one, gated by a second, independent timer. Tracing it: the
+periodic pass already runs every interval regardless of hits or misses,
+and both paths shared the same `lastPassTime_`, so once a position
+settled the two timers converged and the acceleration stopped firing on
+its own. Its only real effect was to run the first pass after a
+newly-encountered miss up to one interval sooner, once. For a miss with
+nothing left to load — a genuine gap in an already-resident, already-
+fully-loaded unit — no later pass changes the answer, since the same
+terrain rasterizes into the same unit the same way every time. A live
+instrumented check of the running store never observed it fire.
+
+Dropped `onDemandPending_` and `lastOnDemandTime_`; `takeElevationPassSlot`
+collapses to the periodic check alone and is renamed
+`admitElevationPass`, matching this file's own `admitUnit` vocabulary
+instead of the unexplained "slot" it replaced. Recorded as a deviation
+in RFC 13 §11.2, since §7.4 describes the removed mechanism as design.
+
 ## 2026-08-24 - The two-buffer pack-buffer fix never worked
 
 Checking the waypoint demo's console at the warning level, not just for

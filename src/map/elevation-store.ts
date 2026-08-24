@@ -121,7 +121,7 @@ class ElevationStore {
         }
 
         this.collectReadback();
-        this.submitChunk();
+        this.submitBatch();
     }
 
     /** GPU bytes the store holds, units and fixed buffers together. */
@@ -137,26 +137,17 @@ class ElevationStore {
     }
 
     /**
-     * Claims this tick's elevation pass if one is due, returning whether
-     * it was claimed. Mutates the cadence timers, so it must be called
+     * Admits this tick's elevation pass if one is due, returning whether
+     * it was admitted. Mutates the cadence timer, so it must be called
      * once per tick and its result acted on.
      */
-    takeElevationPassSlot(): boolean {
+    admitElevationPass(): boolean {
 
         const interval = this.map_.config.mapElevationStoreUpdateIntervalMs;
         const now = performance.now();
 
-        if (now - this.lastPassTime_ < interval) {
+        if (now - this.lastPassTime_ < interval) return false;
 
-            // A miss brings the next pass forward, but no more than one
-            // such pass per interval.
-            if (!this.onDemandPending_) return false;
-            if (now - this.lastOnDemandTime_ < interval) return false;
-
-            this.lastOnDemandTime_ = now;
-        }
-
-        this.onDemandPending_ = false;
         this.lastPassTime_ = now;
         return true;
     }
@@ -372,33 +363,33 @@ class ElevationStore {
     // -----------------------------------------------------------------
 
     /**
-     * Submits the next batch of queued positions. Only one chunk is in
-     * flight, so calls that arrive meanwhile join the next batch.
+     * Submits the next batch of queued positions. Only one batch is in
+     * flight; calls that arrive meanwhile join the next one.
      */
-    private submitChunk(): void {
+    private submitBatch(): void {
 
         if (this.inFlight_) return;
         if (this.requests_.length === 0) return;
 
-        const columns = this.collectColumns();
-        if (columns.length === 0) return;
+        const batch = this.resolveBatch();
+        if (batch.length === 0) return;
 
         let readback: ElevationUnits.Readback | null = null;
 
         try {
 
-            readback = this.drawChunk(columns);
+            readback = this.drawBatch(batch);
 
         } catch (error) {
 
             console.error('elevation lookup failed', error);
         }
 
-        this.inFlight_ = readback ? { readback, columns } : null;
+        this.inFlight_ = readback ? { readback, batch } : null;
 
         // A batch whose read cannot be observed is reported as uncovered
         // rather than left unsettled.
-        if (!readback) this.completeColumns(columns, null);
+        if (!readback) this.completeBatch(batch, null);
     }
 
     /**
@@ -407,27 +398,28 @@ class ElevationStore {
      * @returns the handle its result arrives on, or null when the read
      *     could not be observed
      */
-    private drawChunk(
-        columns: readonly LookupColumn[],
+    private drawBatch(
+        batch: readonly Lookup[],
     ): ElevationUnits.Readback | null {
 
         let maxPreference = 0;
 
-        for (const column of columns)
+        for (const entry of batch)
             maxPreference =
-                Math.max(maxPreference, column.units.length - 1);
+                Math.max(maxPreference, entry.units.length - 1);
 
         // one draw per unit, so every position asking it is answered
         // while it is bound
         const groups = new globalThis.Map<Unit, ElevationUnits.LookupPoint[]>();
 
-        for (let index = 0; index < columns.length; index++) {
+        for (let index = 0; index < batch.length; index++) {
 
-            const column = columns[index];
+            const entry = batch[index];
 
-            for (let rank = 0; rank < column.units.length; rank++) {
+            for (let preference = 0; preference < entry.units.length;
+                    preference++) {
 
-                const resident = column.units[rank];
+                const resident = entry.units[preference];
                 let group = groups.get(resident.unit);
 
                 if (!group) {
@@ -440,7 +432,7 @@ class ElevationStore {
                     column: index,
                     u: resident.u,
                     v: resident.v,
-                    preference: rank,
+                    preference,
                 });
             }
         }
@@ -450,28 +442,28 @@ class ElevationStore {
         for (const [unit, points] of groups)
             this.units_.drawLookupGroup(unit.handle, points);
 
-        return this.units_.endLookup(columns.length);
+        return this.units_.endLookup(batch.length);
     }
 
     /**
-     * Takes as many queued positions as one result target holds and
-     * resolves each to its ordered list of resident units.
+     * Pulls as many queued positions as one result target holds off
+     * the request queue and resolves each into its candidate units.
      */
-    private collectColumns(): LookupColumn[] {
+    private resolveBatch(): Lookup[] {
 
-        const columns: LookupColumn[] = [];
+        const batch: Lookup[] = [];
 
         while (this.requests_.length > 0
-                && columns.length < this.units_.maxBatch) {
+                && batch.length < this.units_.maxBatch) {
 
             const request = this.requests_[0];
 
             while (request.next < request.positions.length
-                    && columns.length < this.units_.maxBatch) {
+                    && batch.length < this.units_.maxBatch) {
 
                 const index = request.next++;
 
-                columns.push({
+                batch.push({
                     request,
                     index,
                     units: this.resolveUnits(
@@ -483,7 +475,7 @@ class ElevationStore {
             this.requests_.shift();
         }
 
-        return columns;
+        return batch;
     }
 
     /**
@@ -520,8 +512,8 @@ class ElevationStore {
         const node = owners[0].node;
         const coords = owners[0].coords;
 
-        const metresPerUnit = this.metresPerUnit(node, coords);
-        if (!(metresPerUnit > 0)) return [];
+        const linearScaleFactor = this.linearScaleFactor(node, coords);
+        if (!(linearScaleFactor > 0)) return [];
 
         const rootSpacing = nodeRootSpacing(node);
         const resident: ResidentUnit[] = [];
@@ -540,7 +532,7 @@ class ElevationStore {
                 unit,
                 u: uv[0],
                 v: uv[1],
-                actualGsd: nominal * metresPerUnit,
+                actualGsd: nominal * linearScaleFactor,
             });
         }
 
@@ -567,50 +559,50 @@ class ElevationStore {
         if (!results) return;
 
         this.inFlight_ = null;
-        this.completeColumns(inFlight.columns, results);
+        this.completeBatch(inFlight.batch, results);
     }
 
     /**
      * Turns one batch's result rows into samples and settles every
      * request whose positions are all accounted for.
      *
-     * @param columns the batch's columns, in result-target order
+     * @param batch the batch, in result-target order
      * @param results the two result rows, or null when the read could
      *     not be observed
      */
-    private completeColumns(
-        columns: readonly LookupColumn[],
+    private completeBatch(
+        batch: readonly Lookup[],
         results: DataView | null,
     ): void {
 
         const heightRow = 0;
 
-        // A row is columns.length pixels wide: exactly what this
-        // batch's submission read back, not the target's full width.
-        const preferenceRow = columns.length * 4;
+        // A row is batch.length pixels wide: exactly what this batch's
+        // submission read back, not the target's full width.
+        const preferenceRow = batch.length * 4;
 
-        for (let index = 0; index < columns.length; index++) {
+        for (let index = 0; index < batch.length; index++) {
 
-            const column = columns[index];
+            const entry = batch[index];
             let sample: ElevationStore.Sample | undefined;
-            let rank = -1;
+            let preference = -1;
 
             if (results) {
 
                 const height =
                     results.getFloat32(heightRow + index * 4, true);
-                const preference =
+                const preferenceValue =
                     results.getFloat32(preferenceRow + index * 4, true);
 
-                if (!Number.isNaN(height) && !Number.isNaN(preference)) {
+                if (!Number.isNaN(height) && !Number.isNaN(preferenceValue)) {
 
-                    rank = Math.round(preference);
-                    const resident = column.units[rank];
+                    preference = Math.round(preferenceValue);
+                    const resident = entry.units[preference];
 
                     if (resident) {
 
-                        const position = column.request.positions[
-                            column.index];
+                        const position = entry.request.positions[
+                            entry.index];
 
                         sample = {
                             position: [position[0], position[1], height],
@@ -620,33 +612,28 @@ class ElevationStore {
                 }
             }
 
-            // A miss, or an answer taken from a coarser unit than the
-            // request, means the covered field has fallen behind the
-            // camera and a pass is due sooner than the interval.
-            if (rank !== 0) this.onDemandPending_ = true;
-
             // a successful lookup keeps its unit at the recent end of
             // the eviction order
-            if (sample && rank >= 0) {
+            if (sample && preference >= 0) {
 
-                const unit = column.units[rank].unit;
+                const unit = entry.units[preference].unit;
                 if (this.resident_.get(unit.key) === unit)
                     this.touch(unit.key, unit);
             }
 
-            this.settleColumn(column, sample);
+            this.settlePosition(entry, sample);
         }
     }
 
-    /** Records one column's result and settles its request when full. */
-    private settleColumn(
-        column: LookupColumn,
+    /** Records one position's result and settles its request when full. */
+    private settlePosition(
+        entry: Lookup,
         sample: ElevationStore.Sample | undefined,
     ): void {
 
-        const request = column.request;
+        const request = entry.request;
 
-        request.results[column.index] = sample;
+        request.results[entry.index] = sample;
         request.pending--;
 
         if (request.pending > 0) return;
@@ -668,7 +655,7 @@ class ElevationStore {
 
             this.units_.dropReadback(inFlight.readback);
             this.inFlight_ = null;
-            this.completeColumns(inFlight.columns, null);
+            this.completeBatch(inFlight.batch, null);
         }
 
         for (const request of this.requests_.splice(0)) {
@@ -683,8 +670,17 @@ class ElevationStore {
     // Reference-frame geometry
     // -----------------------------------------------------------------
 
-    /** Projection factor at a position, interpolated on the node's grid. */
-    private metresPerUnit(
+    /**
+     * The linear scale factor at a position, interpolated on the node's
+     * grid: ground metres per one unit of the node's own local
+     * coordinate system. The geometric mean of the meridional and
+     * parallel scale factors `proj_factors()` would give directly, so
+     * a single direction-agnostic number; the reciprocal of PROJ's own
+     * scale convention (map distance over ground distance), since this
+     * store needs the opposite direction: ground distance from a map
+     * spacing.
+     */
+    private linearScaleFactor(
         node: MapDivisionNode,
         coords: readonly number[],
     ): number {
@@ -724,10 +720,10 @@ class ElevationStore {
     }
 
     /**
-     * Builds a node's grid of projection factors.
+     * Builds a node's grid of linear scale factors.
      *
-     * `proj4` does not expose projection factors in the browser, so the
-     * areal scale comes from a numerical Jacobian of the transform into
+     * `proj4` does not expose projection factors in the browser, so each
+     * sample comes from a numerical Jacobian of the transform into
      * physical coordinates. A grid sample outside the projection domain
      * takes the value of the closest sample that could be evaluated;
      * a node where none can is left without a grid and answers no query.
@@ -759,7 +755,7 @@ class ElevationStore {
 
                 const x = ll[0] + width * (i / (size - 1));
 
-                const value = arealScale(
+                const value = linearScaleSample(
                     node, x, y,
                     i === 0 ? stepX : (i === size - 1 ? -stepX : stepX),
                     j === 0 ? stepY : (j === size - 1 ? -stepY : stepY),
@@ -883,8 +879,6 @@ class ElevationStore {
     private replacementDirty_ = false;
 
     private lastPassTime_ = -Infinity;
-    private lastOnDemandTime_ = -Infinity;
-    private onDemandPending_ = false;
 
     /** Terrain source ids the resident units were built from. */
     private sourceSignature_: string | null = null;
@@ -912,8 +906,14 @@ type ResidentUnit = {
 };
 
 
-/** One queried position and the units that may answer it. */
-type LookupColumn = {
+/**
+ * One position broken out of a request: where its answer belongs
+ * (`request` and `index`, into `request.results`) and the units that
+ * may answer it, ordered best first. Not itself an answer -- the GPU
+ * still has to choose among `units` and report back which one and at
+ * what height, arriving as a separate result row.
+ */
+type Lookup = {
     request: Request;
     index: number;
     units: ResidentUnit[];
@@ -935,7 +935,7 @@ type Request = {
 /** A submitted batch waiting on its read. */
 type InFlight = {
     readback: ElevationUnits.Readback;
-    columns: LookupColumn[];
+    batch: Lookup[];
 };
 
 
@@ -1000,13 +1000,15 @@ function nodeRootSpacing(node: MapDivisionNode): number {
 
 
 /**
- * The projection factor at one point: metres per SRS unit, from the
- * cross product of the two partial derivatives of the transform into
- * physical coordinates. Interior samples use centred differences; a
- * boundary sample uses an inward one-sided difference, so no evaluation
- * leaves the node.
+ * The linear scale factor at one point: ground metres per one unit of
+ * the node's own local coordinate system. The magnitude of the cross
+ * product of the two partial derivatives of the transform into physical
+ * coordinates gives the areal scale (ground square metres per square
+ * unit); its square root is the direction-agnostic linear factor this
+ * returns. Interior samples use centred differences; a boundary sample
+ * uses an inward one-sided difference, so no evaluation leaves the node.
  */
-function arealScale(
+function linearScaleSample(
     node: MapDivisionNode,
     x: number,
     y: number,
