@@ -789,6 +789,10 @@ class Viewer {
     /**
      * Adds a free layer (vector overlay) to the map under the given id.
      *
+     * BUG: the layer never renders. The draw loop iterates
+     * `freeLayerSequence`, which only the style compiler populates, and
+     * this path attaches no stylesheet. See backlog item 11.
+     *
      * @param id layer identifier; used to remove the layer later
      * @param layer result of `geodataBuilder.makeFreeLayer(style)`
      */

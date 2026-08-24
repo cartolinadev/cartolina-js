@@ -318,11 +318,13 @@ update [docs/wiki/session-log.md](docs/wiki/session-log.md) so it
 reflects the current state of things. Do not add session-log entries
 for trivial changes merely because they are being committed at the
 user's request. Session-log entries are for code changes only — a
-docs-only commit (a backlog entry, a wiki edit) does not get one, no
-matter how significant the finding: the backlog entry (or the wiki
-page) is already that finding's durable record, and restating it in
-the session log too, on top of the commit message, is the same fact
-recited three times.
+docs-only commit (a backlog entry, a wiki edit, a comment or JSDoc
+change with no behavior change) does not get one, no matter how
+significant the finding: the backlog entry (or the wiki page) is
+already that finding's durable record, and restating it in the session
+log too, on top of the commit message, is the same fact recited three
+times. The pre-commit hook demands a staged session log; for a
+docs-only commit, pass `SKIP_SESSION_LOG=1` to get past it.
 
 **A session-log entry states the goal first, then the outcome** — what
 the change set out to do, and where the code ended up.

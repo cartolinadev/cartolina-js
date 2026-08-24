@@ -1142,7 +1142,7 @@ and `presenter` (no current typed call sites outside legacy demos).
 ---
 
 <a id="backlog-11"></a>
-## 11. BUG: runtime free layers do not render on style-based maps
+## 11. BUG: runtime free layers do not render
 
 **Opened:** 2026-05-14
 **Status:** deferred
@@ -1156,30 +1156,19 @@ created, but the route is not visible.
 
 ### Root Cause
 
-Style-based maps do not use the legacy `view.freeLayers` activation path.
-`MapStyle.refreshSequences()` builds `map.freeLayerSequence` from
-`style.layers`. A runtime call to `LegacyMap.addFreeLayer()` only adds
-the free layer object to `map.freeLayers`; it does not add a style layer
-entry, so the renderer never sees it in `map.freeLayerSequence`.
-
-Legacy demos add a free layer in two steps:
-
-```js
-map.addFreeLayer('geodatatest', freeLayer);
-const view = map.getView();
-view.freeLayers.geodatatest = {};
-map.setView(view);
-```
-
-That is not the right model for style-based maps, where the style is the
-composition contract.
+The style is the only composition contract.
+`MapStyle.refreshFreeLayerSequence()` builds `map.freeLayerSequence`
+from `style.layers`, and the draw loop iterates that sequence. A runtime
+call to `LegacyMap.addFreeLayer()` only adds the free layer object to
+`map.freeLayers`; it does not add a style layer entry, so the renderer
+never sees it in `map.freeLayerSequence`. The path also attaches no
+stylesheet, which the draw guard requires.
 
 ### Suggested Fix
 
-Design a style-era runtime overlay API. It should register the geodata source
-and the style layer or stylesheet needed to render it, then refresh the
-style-driven sequences. Do not revive legacy `view.freeLayers` as a hidden
-side effect of `Viewer.addFreeLayer()`.
+Design a runtime overlay API. It should register the geodata source and
+the style layer or stylesheet needed to render it, then refresh
+`freeLayerSequence`.
 
 ### Relevant Files
 

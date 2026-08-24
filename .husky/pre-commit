@@ -9,8 +9,23 @@ fi
 
 STAGED_FILES=$(git diff --cached --name-only)
 
-# Require session log to be staged (set SKIP_SESSION_LOG=1 to bypass)
-if [ -z "$SKIP_SESSION_LOG" ]; then
+# A docs-only commit touches nothing but docs and markdown.
+DOCS_ONLY=1
+for path in $STAGED_FILES; do
+  case "$path" in
+    docs/*|*.md|AGENTS.md)
+      ;;
+    *)
+      DOCS_ONLY=0
+      break
+      ;;
+  esac
+done
+
+# Require a session log for code commits (set SKIP_SESSION_LOG=1 to
+# bypass). Docs-only commits do not get a session log by definition, so
+# the requirement is skipped for them.
+if [ -z "$SKIP_SESSION_LOG" ] && [ "$DOCS_ONLY" -eq 0 ]; then
   if ! echo "$STAGED_FILES" | grep -q '^docs/wiki/session-log\.md$'; then
     echo "pre-commit: docs/wiki/session-log.md is not staged."
     echo "Update the session log before committing, or set SKIP_SESSION_LOG=1."
