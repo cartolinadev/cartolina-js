@@ -26,7 +26,6 @@ export default class MapDraw {
 
     initFrame(): void;
     drawMonoliticGeodata(layer: unknown): void;
-    drawHitmap(): void;
     drawGeodataHitmap(): void;
     setupDetailDegradation(degradeMore?: number): void;
 }

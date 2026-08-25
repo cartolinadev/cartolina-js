@@ -1754,7 +1754,14 @@ hitTestGeoLayers(
 };
 
 
-switchToFramebuffer(
+/**
+ * Enters one of the fixed auxiliary passes used by picking (`depth`,
+ * `geo`, `geo2`), or returns to the canvas target (`base`). Beyond
+ * installing the render target, each case also clears, sets the
+ * `DEPTH_TEST` and `onlyDepth`/`onlyHitLayers` state the rest of the
+ * draw pipeline reads, and updates the camera.
+ */
+beginPass(
     type: 'base' | 'depth' | 'geo' | 'geo2',
 ) {
     var gl = this.gpu.gl, size;

@@ -938,7 +938,7 @@ Map.prototype.getScreenDepth = function(
     } else {
 
         if (this.hitMapDirty) {
-            this.draw.drawHitmap();
+            this.outerMap.updateDepthHitmap();
             this.renderer.camera.update();
         }
 
@@ -952,7 +952,7 @@ Map.prototype.getScreenDepth = function(
 
 Map.prototype.getHitCoords = function(screenX, screenY, mode, lod) {
     if (this.hitMapDirty) {
-        this.draw.drawHitmap();
+        this.outerMap.updateDepthHitmap();
     }
 
     var cameraSpaceCoords = this.renderer.hitTest(screenX, screenY);

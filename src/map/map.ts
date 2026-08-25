@@ -1162,14 +1162,47 @@ class Map {
     }
 
     /**
+     * Redraws the depth hitmap and copies it to CPU, for
+     * `getScreenDepth`/`getHitCoords` pixel reads. Throttled to one
+     * redraw per `renderer.hitmapCopyIntervalMs`; while throttled, the
+     * caller keeps reading the previous CPU copy and `hitMapDirty`
+     * stays set so the redraw is retried next call.
+     */
+    updateDepthHitmap(): void {
+
+        const legacyMap = this.map!;
+        const renderer = this.renderer;
+
+        const interval = renderer.hitmapCopyIntervalMs;
+        if (interval > 0) {
+            const now = Date.now();
+            if ((renderer.lastHitmapCopyTime | 0) !== 0
+                && (now - renderer.lastHitmapCopyTime) < interval) {
+                return; // reuse previous CPU buffer this frame
+            }
+            renderer.lastHitmapCopyTime = now;
+        }
+
+        renderer.beginPass('depth');
+        this.drawDepthHitmap();
+        renderer.beginPass('base');
+
+        if (renderer.hitmapMode > 2) {
+            renderer.copyHitmap();
+        }
+
+        legacyMap.hitMapDirty = false;
+    }
+
+    /**
      * Draws terrain into the depth hitmap target. Called from
-     * `MapDraw.drawHitmap`, which binds that target first.
+     * `updateDepthHitmap`, which binds that target first.
      *
      * The pass initializes the camera, renderer, and legacy draw state
      * its own traversal needs. Colour is cleared with the target by
-     * `Renderer.switchToFramebuffer`.
+     * `Renderer.beginPass`.
      */
-    drawDepthHitmap(): void {
+    private drawDepthHitmap(): void {
 
         const legacyMap = this.map!;
         const renderer = this.renderer;

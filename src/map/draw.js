@@ -95,53 +95,21 @@ MapDraw.prototype.initFrame = function() {
 };
 
 
-/**
- * Triggered by map.getScreenDepth and map.getHitcoords.
- *
- * Switches the framebuffer, calls the typed `Map.drawDepthHitmap` to
- * issue the depth pass, and restores the framebuffer.
- */
-MapDraw.prototype.drawHitmap = function() {
-
-    // throttle hitmap drawing (and copying) to 1 / hitmapCopyIntervalMs
-    // per frame
-    var interval = this.renderer.hitmapCopyIntervalMs;
-    if (interval > 0) {
-        var now = Date.now();
-        if (((this.renderer.lastHitmapCopyTime|0) !== 0)
-            && ((now - this.renderer.lastHitmapCopyTime) < interval)) {
-            return; // reuse previous CPU buffer this frame
-        }
-        this.renderer.lastHitmapCopyTime = now;
-    }
-
-    this.renderer.switchToFramebuffer('depth');
-    this.map.outerMap.drawDepthHitmap();
-    this.renderer.switchToFramebuffer('base');
-
-    if (this.renderer.hitmapMode > 2) {
-        this.renderer.copyHitmap();
-    }
-
-    this.map.hitMapDirty = false;
-};
-
-
 MapDraw.prototype.drawGeodataHitmap = function() {
     this.map.outerMap.withSelectionCamera(function() {
 
         this.renderer.gpu.setState(this.drawTileState);
-        this.renderer.switchToFramebuffer('geo');
+        this.renderer.beginPass('geo');
         this.renderer.draw.drawGpuJobs(
             this.map.outerMap.getSelectionPosition());
 
         if (this.renderer.advancedPassNeeded) {
-            this.renderer.switchToFramebuffer('geo2');
+            this.renderer.beginPass('geo2');
             this.renderer.draw.drawGpuJobs(
                 this.map.outerMap.getSelectionPosition());
         }
 
-        this.renderer.switchToFramebuffer('base');
+        this.renderer.beginPass('base');
         this.map.geoHitMapDirty = false;
     }.bind(this));
 };

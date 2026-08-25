@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - beginPass rename, drawHitmap moved into Map
+
+`switchToFramebuffer` bundled a render-target swap with pass-specific
+GL state (clear, `DEPTH_TEST`, camera update, hit-layer flags) under a
+name that read as a peer of the render-target primitives it's built
+on. Renamed to `beginPass`. `MapDraw.drawHitmap` duplicated
+`Map.drawDepthHitmap`'s job at a different layer, a leftover from
+before the sink-based legacy/typed migration; folded into
+`Map.updateDepthHitmap`, now called directly from `legacy-map.js`.
+
 ## 2026-08-25 - Checked gate 1's RFC notes against the current code
 
 Rechecked RFC 13 §11.2 against the codebase after this session's
