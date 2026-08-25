@@ -414,6 +414,29 @@ class Map {
     }
 
     /**
+     * Registers one terrain source added at runtime.
+     *
+     * @param id source identifier
+     * @param source the resolved terrain source
+     * @internal Called by `MapStyle.addSource`.
+     */
+    addTerrainSourceEntry(id: string, source: TerrainSource): void {
+
+        this.terrainSources_.set(id, source);
+    }
+
+    /**
+     * Drops one terrain source registered at runtime.
+     *
+     * @param id source identifier
+     * @internal Called by `MapStyle.removeSource`.
+     */
+    removeTerrainSourceEntry(id: string): void {
+
+        this.terrainSources_.delete(id);
+    }
+
+    /**
      * Returns the terrain source a style source id resolves to.
      *
      * @internal Style loading registers every terrain source before the
@@ -442,6 +465,29 @@ class Map {
     ): void {
 
         this.rasterSources_ = entries;
+    }
+
+    /**
+     * Registers one raster source added at runtime.
+     *
+     * @param id source identifier
+     * @param entry the resolved-source entry
+     * @internal Called by `MapStyle.addSource`.
+     */
+    addRasterSourceEntry(id: string, entry: Map.RasterSourceEntry): void {
+
+        this.rasterSources_.set(id, entry);
+    }
+
+    /**
+     * Drops one raster source registered at runtime.
+     *
+     * @param id source identifier
+     * @internal Called by `MapStyle.removeSource`.
+     */
+    removeRasterSourceEntry(id: string): void {
+
+        this.rasterSources_.delete(id);
     }
 
     /**
@@ -813,7 +859,7 @@ class Map {
     }
 
     // -----------------------------------------------------------------
-    // Geodata free layers
+    // Runtime sources and layers
     // -----------------------------------------------------------------
 
     /**
@@ -829,29 +875,54 @@ class Map {
     }
 
     /**
-     * Adds a free layer to the map under the given id. `layer` must
-     * be a "geodata" or "geodata-tiles" specification (or an existing
-     * surface of that kind, or its fetch URL); any other free-layer
-     * kind is rejected with a console warning and not registered.
+     * Registers a data source of any type at runtime. Resolves once the
+     * source is loaded and part of the usable map state; rejects if it
+     * fails to load. Renders nothing on its own; a later `addLayer`
+     * referencing it draws it.
      *
-     * @param id layer identifier
-     * @param layer free-layer specification or existing legacy surface
+     * @param id source identifier
+     * @param sourceSpec any cartolina source (surface, tms, or freelayer)
      */
-    addFreeLayer(id: string, layer: unknown): void {
+    addSource(
+        id: string,
+        sourceSpec: StyleSchema.SourceSpecification,
+    ): Promise<void> {
 
         this.assertAlive();
-        this.map?.addFreeLayer(id, layer);
+        return this.requireReadyStyle().addSource(id, sourceSpec);
     }
 
     /**
-     * Removes the free layer registered under the given id.
+     * Removes a source registered through `addSource`.
+     *
+     * @param id source identifier
+     */
+    removeSource(id: string): void {
+
+        this.assertAlive();
+        this.requireReadyStyle().removeSource(id);
+    }
+
+    /**
+     * Adds a style layer at runtime and re-commits the style.
+     *
+     * @param layerSpec a complete style layer carrying an explicit id
+     */
+    addLayer(layerSpec: StyleSchema.LayerSpecification): void {
+
+        this.assertAlive();
+        this.requireReadyStyle().addLayer(layerSpec);
+    }
+
+    /**
+     * Removes a style layer added through `addLayer`.
      *
      * @param id layer identifier
      */
-    removeFreeLayer(id: string): void {
+    removeLayer(id: string): void {
 
         this.assertAlive();
-        this.map?.removeFreeLayer(id);
+        this.requireReadyStyle().removeLayer(id);
     }
 
     // -----------------------------------------------------------------

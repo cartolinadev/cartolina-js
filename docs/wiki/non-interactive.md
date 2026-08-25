@@ -138,46 +138,61 @@ viewer.convertCoordsFromNavToCanvas(navPos, 'fix');
 ```
 
 
-## Vector overlays (geodata free layers)
+## Vector overlays
 
-This does not currently render on a style-based map; see the note
-below the example.
+A vector overlay is a source (the data) plus a layer (the styling):
+`addSource` registers the geodata, `addLayer` draws it. A `'float'`
+line is heightcoded against the terrain before the source is built.
 
 ```js
-viewer.on('map-loaded', () => {
+viewer.ready.then(() => {
     const geo = viewer.createGeodata();
 
     // Closed triangle over central Europe (lon, lat, height)
-    const coords = [
+    const route = [
         [14.4, 50.1, 0], [16.6, 48.2, 0], [18.9, 49.7, 0],
         [14.4, 50.1, 0],
     ];
-    geo.addLineString(coords, 'float', null, 'line');
+    geo.addLineString(route, 'float', null, 'line');
 
-    const style = {
-        layers: { lines: { 'line-color': [255, 80, 0], 'line-width': 4 } }
-    };
-    viewer.addFreeLayer('route', geo.makeFreeLayer(style));
+    // Resolve the float heights against the terrain, then build the
+    // source from the heightcoded geodata.
+    geo.processHeights('heightmap-by-lod', 4, async () => {
+
+        // addSource resolves once the source is part of the map state;
+        // await it before the layer that references it.
+        await viewer.addSource('route', {
+            type: 'cartolina-freelayer',
+            definition: geo.makeFreeLayer(),
+        });
+
+        viewer.addLayer({
+            id: 'route-line', type: 'lines', source: 'route',
+            line: true, 'line-color': [255, 80, 0, 255],
+            'line-width': 4, 'zbuffer-offset': [-5, 0, 0],
+        });
+    });
 });
 
-// Remove later
-viewer.removeFreeLayer('route');
+// Remove later (layers before their source)
+viewer.removeLayer('route-line');
+viewer.removeSource('route');
 ```
 
-`createGeodata`, `addFreeLayer`, and `removeFreeLayer` are on `Viewer`.
-The geodata builder type is `unknown` pending a full TypeScript
-declaration for the geodata API.
+`createGeodata`, `addSource`, `addLayer`, `removeSource`, and
+`removeLayer` are on `Viewer`. The geodata builder type is `unknown`
+pending a full TypeScript declaration for the geodata API.
 
-A runtime `addFreeLayer()` call does not render on a style-based map:
-`MapStyle.refreshSequences()` derives the rendered free-layer sequence
-from `style.layers`, and `addFreeLayer()` only adds the object to the
-legacy free-layer registry. See the "runtime free layers do not render
-on style-based maps" backlog entry.
+`addLayer` accepts any layer type; a layer with a `source` references a
+source registered through `addSource`. `addSource` is asynchronous: it
+resolves once the source has loaded and is part of the usable map
+state, and rejects if it fails to load — a terrain source, for example,
+must first reconcile its reference frame. Await it before adding a
+layer that references the source.
 
 
 ## Demo
 
 A reference implementation is at `demos/core/index.html`. It
-demonstrates non-interactive init, pan/orbit/zoom navigation, and
-click-to-coordinates. Its geodata free layer polyline is reference
-code only; it does not currently render, for the reason above.
+demonstrates non-interactive init, pan/orbit/zoom navigation,
+click-to-coordinates, and the heightcoded route overlay above.

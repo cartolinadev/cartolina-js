@@ -23,6 +23,32 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-56"></a>
+## 56. Migrate geodata heightcoding to the elevation store
+
+**Opened:** 2026-08-25
+**Status:** open — awaits RFC 13
+**Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
+`src/map/geodata-builder.js`, `src/map/measure.js`
+
+`MapGeodataBuilder.processHeights` resolves a `'float'` geodata
+coordinate's height by sampling navigation tiles through
+`MapMeasure.getSurfaceHeight` (`heightmap-by-*` / `node-by-*` modes). The
+`demos/core` route and any client-built geodata ride this path. Navtiles
+are a second representation of the terrain that disagrees with the drawn
+mesh and stops at a coarser LOD — the disagreement RFC 13 removes for
+point queries.
+
+Migrate `processHeights` to the elevation store's array
+`queryTerrainElevation` plus the retained-sample refine protocol: it is
+the array-consumer twin of RFC 13 gates 3/4 (which move the single
+current-position sample off `getSurfaceHeight`). It needs no regional
+coverage — the store answers coarsely from a pinned reference-frame-node
+root once any part of the node has been seen, and refines as the route
+comes into view. Do this once RFC 13 is implemented, or as a later gate
+of it. The 2D vector-source redesign is a separate, larger effort and is
+not a precondition.
+
 <a id="backlog-55"></a>
 ## 55. Unify geodetic-height calculation
 
@@ -1141,46 +1167,6 @@ and `presenter` (no current typed call sites outside legacy demos).
 
 ---
 
-<a id="backlog-11"></a>
-## 11. BUG: runtime free layers do not render
-
-**Opened:** 2026-05-14
-**Status:** deferred
-
-### Symptom
-
-`demos/core/index.html` calls `viewer.createGeodata()` and
-`viewer.addFreeLayer('route', geo.makeFreeLayer(style))` from its
-`map-loaded` listener. The function fires and the geodata builder is
-created, but the route is not visible.
-
-### Root Cause
-
-The style is the only composition contract.
-`MapStyle.refreshFreeLayerSequence()` builds `map.freeLayerSequence`
-from `style.layers`, and the draw loop iterates that sequence. A runtime
-call to `LegacyMap.addFreeLayer()` only adds the free layer object to
-`map.freeLayers`; it does not add a style layer entry, so the renderer
-never sees it in `map.freeLayerSequence`. The path also attaches no
-stylesheet, which the draw guard requires.
-
-### Suggested Fix
-
-Design a runtime overlay API. It should register the geodata source and
-the style layer or stylesheet needed to render it, then refresh
-`freeLayerSequence`.
-
-### Relevant Files
-
-| File | Note |
-|---|---|
-| `demos/core/index.html` | Demonstrates the missing runtime overlay path |
-| `src/viewer/viewer.ts` | `createGeodata` / `addFreeLayer` public methods |
-| `src/map/style.ts` | Builds `freeLayerSequence` from `style.layers` |
-| `src/map/legacy-map.js` | Legacy `addFreeLayer` registers only the object |
-
----
-
 <a id="backlog-4"></a>
 ## 4. BUG: control-mode listens for `mousewheel` instead of `wheel`
 
@@ -1244,11 +1230,9 @@ same vocabulary already used for declarative layers.
   placement honest. Currently terrain, label, and geodata-job
   phases are still being moved around (see the draw refactor and
   the geodata RFC).
-- The style-era runtime overlay API question is resolved (see
-  "BUG: runtime free layers do not render on style-based maps" in
-  this file). That entry tracks the closely related question of
-  how style layers are added at runtime; a custom-layer mechanism
-  should land alongside it, not separately.
+- The runtime overlay API now exists (`addSource` / `addLayer`, item
+  11, resolved). A `type: 'custom'` layer extends that same `addLayer`
+  entry point with a render callback rather than a declarative body.
 
 ### Sketch
 

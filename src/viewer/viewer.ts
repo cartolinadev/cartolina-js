@@ -124,6 +124,16 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
+    // Metadata
+    // -------------------------------------------------------------------------
+
+    /** The cartolina-js library version string. */
+    version(): string {
+
+        return getVersion();
+    }
+
+    // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
 
@@ -158,65 +168,85 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Events
+    // Runtime sources and layers
     // -------------------------------------------------------------------------
 
     /**
-     * Subscribes to a named map event.
-     * See `Map.ViewerEventMap` for available event names.
+     * Registers a data source of any type under the given id. The source
+     * carries the data; an `addLayer` referencing it by `source` carries
+     * the styling and draws it.
      *
-     * @param eventName the event to subscribe to
-     * @param callback invoked each time the event fires
-     * @returns an unsubscribe function
+     * The returned promise resolves once the source has loaded and is
+     * part of the usable map state, and rejects if it fails to load.
+     * Await it before adding a layer that references the source.
+     *
+     * @param id source identifier; used by a layer's `source` and to
+     *   remove the source later
+     * @param sourceSpec any cartolina source. A free-layer `definition`
+     *   may be the result of `geodataBuilder.makeFreeLayer()`.
      */
-    on<K extends keyof Map.ViewerEventMap & string>(
-        eventName: K,
-        callback: (event: Map.ViewerEventMap[K]) => void,
-    ): (() => void) {
+    addSource(
+        id: string,
+        sourceSpec: StyleSchema.SourceSpecification,
+    ): Promise<void> {
 
         this.assertAlive();
-        return this.map_.on(eventName, callback);
+        return this.map_.addSource(id, sourceSpec);
     }
 
     /**
-     * Subscribes to a named map event for a single invocation.
-     * See `Map.ViewerEventMap` for available event names.
+     * Removes the source registered under the given id.
      *
-     * @param eventName the event to subscribe to
-     * @param callback invoked once when the event fires
-     * @returns an unsubscribe function
+     * @param id source identifier passed to `addSource`
      */
-    once<K extends keyof Map.ViewerEventMap & string>(
-        eventName: K,
-        callback: (event: Map.ViewerEventMap[K]) => void,
-    ): (() => void) {
+    removeSource(id: string): this {
 
         this.assertAlive();
-        return this.map_.once(eventName, callback);
-    }
-
-    // -------------------------------------------------------------------------
-    // Camera
-    // -------------------------------------------------------------------------
-
-    /**
-     * Sets the camera position.
-     *
-     * @param position a 10-component vts-geospatial position array or
-     *   `MapPosition` instance
-     */
-    setPosition(position: Map.PositionInput): this {
-
-        this.assertAlive();
-        this.legacyMap?.setPosition(position);
+        this.map_.removeSource(id);
         return this;
     }
 
-    /** Returns the current camera position as a `MapPosition` instance. */
-    getPosition(): MapPosition | null {
+    /**
+     * Adds a style layer under its own id. Any layer type is accepted:
+     * a terrain-texture layer (`diffuse-map`, `bump-map`, `specular-map`,
+     * `diffuse-constant`) or a lettering layer (`labels`, `lines`). A
+     * layer with a `source` references a source registered through
+     * `addSource`.
+     *
+     * @param layerSpec a complete style layer carrying an explicit id
+     */
+    addLayer(layerSpec: StyleSchema.LayerSpecification): this {
 
         this.assertAlive();
-        return this.legacyMap?.getPosition() ?? null;
+        this.map_.addLayer(layerSpec);
+        return this;
+    }
+
+    /**
+     * Removes the layer registered under the given id.
+     *
+     * @param id layer id passed to `addLayer`
+     */
+    removeLayer(id: string): this {
+
+        this.assertAlive();
+        this.map_.removeLayer(id);
+        return this;
+    }
+
+    /**
+     * Creates a geodata builder for constructing vector overlays
+     * (lines, polygons, points).
+     *
+     * Return type is `unknown` pending promotion of the full geodata
+     * type surface. Use the returned builder's `addLineString`,
+     * `importGeoJson`, and `makeFreeLayer` methods directly, then pass
+     * the result as a source `definition` to `addSource`.
+     */
+    createGeodata(): unknown {
+
+        this.assertAlive();
+        return this.map_.createGeodata();
     }
 
     // -------------------------------------------------------------------------
@@ -318,16 +348,125 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Rendering
+    // Custom overlays
     // -------------------------------------------------------------------------
 
-    /** Marks the scene dirty, triggering a re-render on the next frame. */
-    redraw(): this {
+    /**
+     * Registers a custom overlay that runs as the explicit last step
+     * of every canvas-target frame, after terrain, free layers, and
+     * label/icon jobs have been drawn.
+     *
+     * Overlays do not run during the depth/hit pass or any auxiliary
+     * render target. Inside `render(ctx)` the host may issue WebGL
+     * draws through `ctx.renderer` (`drawImage`, `drawLineString`,
+     * `createTexture`, `getCanvasSize`).
+     *
+     * `onAdd` fires on the first frame after registration (deferred
+     * until the map is loaded). `onRemove` fires when the overlay
+     * is removed or the viewer is disposed.
+     *
+     * @param name unique overlay id
+     * @param spec lifecycle callbacks; only `render` is required
+     */
+    addOverlay(name: string, spec: Map.OverlaySpec): this {
 
         this.assertAlive();
-        this.legacyMap?.markDirty();
+        this.map_.addOverlay(name, spec);
         return this;
     }
+
+    /**
+     * Removes the overlay registered under the given id and fires
+     * its `onRemove` callback if `onAdd` had run.
+     *
+     * @param name overlay id passed to `addOverlay`
+     */
+    removeOverlay(name: string): this {
+
+        this.assertAlive();
+        this.map_.removeOverlay(name);
+        return this;
+    }
+
+    /**
+     * Toggles whether the overlay's `render` callback runs each frame.
+     * Does not fire `onAdd` or `onRemove`.
+     *
+     * @param name overlay id passed to `addOverlay`
+     * @param enabled `true` to render, `false` to skip
+     */
+    setOverlayEnabled(name: string, enabled: boolean): this {
+
+        this.assertAlive();
+        this.map_.setOverlayEnabled(name, enabled);
+        return this;
+    }
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    /**
+     * Subscribes to a named map event.
+     * See `Map.ViewerEventMap` for available event names.
+     *
+     * @param eventName the event to subscribe to
+     * @param callback invoked each time the event fires
+     * @returns an unsubscribe function
+     */
+    on<K extends keyof Map.ViewerEventMap & string>(
+        eventName: K,
+        callback: (event: Map.ViewerEventMap[K]) => void,
+    ): (() => void) {
+
+        this.assertAlive();
+        return this.map_.on(eventName, callback);
+    }
+
+    /**
+     * Subscribes to a named map event for a single invocation.
+     * See `Map.ViewerEventMap` for available event names.
+     *
+     * @param eventName the event to subscribe to
+     * @param callback invoked once when the event fires
+     * @returns an unsubscribe function
+     */
+    once<K extends keyof Map.ViewerEventMap & string>(
+        eventName: K,
+        callback: (event: Map.ViewerEventMap[K]) => void,
+    ): (() => void) {
+
+        this.assertAlive();
+        return this.map_.once(eventName, callback);
+    }
+
+    // -------------------------------------------------------------------------
+    // Camera
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sets the camera position.
+     *
+     * @param position a 10-component vts-geospatial position array or
+     *   `MapPosition` instance
+     */
+    setPosition(position: Map.PositionInput): this {
+
+        this.assertAlive();
+        this.legacyMap?.setPosition(position);
+        return this;
+    }
+
+    /** Returns the current camera position as a `MapPosition` instance. */
+    getPosition(): MapPosition | null {
+
+        this.assertAlive();
+        return this.legacyMap?.getPosition() ?? null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------------------
 
     /**
      * Sets the illumination definition (light direction, shading weights, etc.)
@@ -426,153 +565,12 @@ class Viewer {
         return this.renderer.getRenderingOptions();
     }
 
-    // -------------------------------------------------------------------------
-    // Config params
-    // -------------------------------------------------------------------------
-
-    /**
-     * Sets a single runtime configuration parameter.
-     *
-     * Valid keys and their value types are defined by
-     * `Viewer.PublicRuntimeConfig`. The value is normalized
-     * (coerced, clamped) before it is stored; the change takes
-     * effect at the next frame boundary.
-     *
-     * @param key parameter key
-     * @param value parameter value
-     * @throws when `key` is not a public runtime parameter
-     */
-    setParam<K extends keyof Viewer.PublicRuntimeConfig>(
-        key: K,
-        value: Viewer.PublicRuntimeConfig[K],
-    ): this {
+    /** Marks the scene dirty, triggering a re-render on the next frame. */
+    redraw(): this {
 
         this.assertAlive();
-
-        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
-
-            throw new Error(
-                `'${String(key)}' is not a public runtime parameter.`);
-        }
-
-        const patch = viewerConfig.normalizeConfigPatch(key, value);
-        if (patch) this.configStore.set(patch);
+        this.legacyMap?.markDirty();
         return this;
-    }
-
-    /**
-     * Returns the current value of a runtime configuration parameter.
-     *
-     * Valid keys and the key-specific return types are defined by
-     * `Viewer.PublicRuntimeConfig`.
-     *
-     * @param key parameter key
-     * @throws when `key` is not a public runtime parameter
-     */
-    getParam<K extends keyof Viewer.PublicRuntimeConfig>(
-        key: K,
-    ): Viewer.PublicRuntimeConfig[K] {
-
-        this.assertAlive();
-
-        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
-
-            throw new Error(
-                `'${String(key)}' is not a public runtime parameter.`);
-        }
-
-        return this.configStore.get(key) as
-            Viewer.PublicRuntimeConfig[K];
-    }
-
-    // -------------------------------------------------------------------------
-    // Coordinate conversion
-    // -------------------------------------------------------------------------
-
-    /**
-     * Converts public (lon/lat/orthometric height) coordinates to navigation
-     * (lon/lat/geodetic height) coordinates.
-     *
-     * @param pos `[lon, lat, height]` in public space
-     * @param mode height mode (`'fix'` or `'float'`)
-     * @param lod optional level-of-detail hint
-     */
-    convertCoordsFromPublicToNav(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromPublicToNav(pos, mode, lod);
-    }
-
-    /**
-     * Projects navigation (Cartesian) coordinates onto the canvas.
-     *
-     * Returns `[x, y, depth]` in apparent pixels. A point is visible when
-     * `depth <= 1` (in front of the camera).
-     *
-     * @param pos `[x, y, z]` in navigation space
-     * @param mode height mode (`'fix'` or `'float'`)
-     * @param lod optional level-of-detail hint
-     */
-    convertCoordsFromNavToCanvas(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromNavToCanvas(pos, mode, lod);
-    }
-
-    /**
-     * Converts navigation coordinates to public (lon/lat/height) coordinates.
-     *
-     * @param pos `[x, y, z]` in navigation space
-     * @param mode height mode
-     * @param lod optional level-of-detail hint
-     */
-    convertCoordsFromNavToPublic(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
-    }
-
-    /**
-     * Converts navigation coordinates to physical (ECEF) coordinates.
-     *
-     * @param pos `[x, y, z]` in navigation space
-     * @param mode height mode
-     * @param lod optional level-of-detail hint
-     * @param applyVerticalExaggeration whether to apply vertical exaggeration
-     */
-    convertCoordsFromNavToPhys(
-        pos: vec3,
-        mode: Map.HeightMode,
-        lod?: Map.Lod,
-        applyVerticalExaggeration?: boolean,
-    ): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromNavToPhys(
-            pos, mode, lod, applyVerticalExaggeration);
-    }
-
-    /**
-     * Converts physical (ECEF) coordinates to camera space.
-     *
-     * @param pos `[x, y, z]` in physical space
-     */
-    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
-
-        this.assertAlive();
-        return this.map_.convertCoordsFromPhysToCameraSpace(pos);
     }
 
     // -------------------------------------------------------------------------
@@ -770,105 +768,152 @@ class Viewer {
     }
 
     // -------------------------------------------------------------------------
-    // Geodata overlays
+    // Config params
     // -------------------------------------------------------------------------
 
     /**
-     * Creates a geodata builder for constructing vector overlays
-     * (lines, polygons, points) to be added to the map as free layers.
+     * Sets a single runtime configuration parameter.
      *
-     * Return type is `unknown` pending promotion of the full geodata
-     * type surface. Use the returned builder's `addLineString`,
-     * `importGeoJson`, and `makeFreeLayer` methods directly.
+     * Valid keys and their value types are defined by
+     * `Viewer.PublicRuntimeConfig`. The value is normalized
+     * (coerced, clamped) before it is stored; the change takes
+     * effect at the next frame boundary.
+     *
+     * @param key parameter key
+     * @param value parameter value
+     * @throws when `key` is not a public runtime parameter
      */
-    createGeodata(): unknown {
+    setParam<K extends keyof Viewer.PublicRuntimeConfig>(
+        key: K,
+        value: Viewer.PublicRuntimeConfig[K],
+    ): this {
 
         this.assertAlive();
-        return this.map_.createGeodata();
-    }
 
-    /**
-     * Adds a free layer (vector overlay) to the map under the given id.
-     *
-     * BUG: the layer never renders. The draw loop iterates
-     * `freeLayerSequence`, which only the style compiler populates, and
-     * this path attaches no stylesheet. See backlog item 11.
-     *
-     * @param id layer identifier; used to remove the layer later
-     * @param layer result of `geodataBuilder.makeFreeLayer(style)`
-     */
-    addFreeLayer(id: string, layer: unknown): this {
+        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
 
-        this.assertAlive();
-        this.map_.addFreeLayer(id, layer);
+            throw new Error(
+                `'${String(key)}' is not a public runtime parameter.`);
+        }
+
+        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        if (patch) this.configStore.set(patch);
         return this;
     }
 
     /**
-     * Removes the free layer registered under the given id.
+     * Returns the current value of a runtime configuration parameter.
      *
-     * @param id layer identifier passed to `addFreeLayer`
+     * Valid keys and the key-specific return types are defined by
+     * `Viewer.PublicRuntimeConfig`.
+     *
+     * @param key parameter key
+     * @throws when `key` is not a public runtime parameter
      */
-    removeFreeLayer(id: string): this {
+    getParam<K extends keyof Viewer.PublicRuntimeConfig>(
+        key: K,
+    ): Viewer.PublicRuntimeConfig[K] {
 
         this.assertAlive();
-        this.map_.removeFreeLayer(id);
-        return this;
+
+        if (!viewerConfig.isPublicRuntimeConfigKey(key)) {
+
+            throw new Error(
+                `'${String(key)}' is not a public runtime parameter.`);
+        }
+
+        return this.configStore.get(key) as
+            Viewer.PublicRuntimeConfig[K];
     }
 
     // -------------------------------------------------------------------------
-    // Custom overlays
+    // Coordinate conversion
     // -------------------------------------------------------------------------
 
     /**
-     * Registers a custom overlay that runs as the explicit last step
-     * of every canvas-target frame, after terrain, free layers, and
-     * label/icon jobs have been drawn.
+     * Converts public (lon/lat/orthometric height) coordinates to navigation
+     * (lon/lat/geodetic height) coordinates.
      *
-     * Overlays do not run during the depth/hit pass or any auxiliary
-     * render target. Inside `render(ctx)` the host may issue WebGL
-     * draws through `ctx.renderer` (`drawImage`, `drawLineString`,
-     * `createTexture`, `getCanvasSize`).
-     *
-     * `onAdd` fires on the first frame after registration (deferred
-     * until the map is loaded). `onRemove` fires when the overlay
-     * is removed or the viewer is disposed.
-     *
-     * @param name unique overlay id
-     * @param spec lifecycle callbacks; only `render` is required
+     * @param pos `[lon, lat, height]` in public space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
      */
-    addOverlay(name: string, spec: Map.OverlaySpec): this {
+    convertCoordsFromPublicToNav(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+    ): vec3 | null {
 
         this.assertAlive();
-        this.map_.addOverlay(name, spec);
-        return this;
+        return this.map_.convertCoordsFromPublicToNav(pos, mode, lod);
     }
 
     /**
-     * Removes the overlay registered under the given id and fires
-     * its `onRemove` callback if `onAdd` had run.
+     * Projects navigation (Cartesian) coordinates onto the canvas.
      *
-     * @param name overlay id passed to `addOverlay`
+     * Returns `[x, y, depth]` in apparent pixels. A point is visible when
+     * `depth <= 1` (in front of the camera).
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode (`'fix'` or `'float'`)
+     * @param lod optional level-of-detail hint
      */
-    removeOverlay(name: string): this {
+    convertCoordsFromNavToCanvas(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+    ): vec3 | null {
 
         this.assertAlive();
-        this.map_.removeOverlay(name);
-        return this;
+        return this.map_.convertCoordsFromNavToCanvas(pos, mode, lod);
     }
 
     /**
-     * Toggles whether the overlay's `render` callback runs each frame.
-     * Does not fire `onAdd` or `onRemove`.
+     * Converts navigation coordinates to public (lon/lat/height) coordinates.
      *
-     * @param name overlay id passed to `addOverlay`
-     * @param enabled `true` to render, `false` to skip
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
      */
-    setOverlayEnabled(name: string, enabled: boolean): this {
+    convertCoordsFromNavToPublic(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+    ): vec3 | null {
 
         this.assertAlive();
-        this.map_.setOverlayEnabled(name, enabled);
-        return this;
+        return this.map_.convertCoordsFromNavToPublic(pos, mode, lod);
+    }
+
+    /**
+     * Converts navigation coordinates to physical (ECEF) coordinates.
+     *
+     * @param pos `[x, y, z]` in navigation space
+     * @param mode height mode
+     * @param lod optional level-of-detail hint
+     * @param applyVerticalExaggeration whether to apply vertical exaggeration
+     */
+    convertCoordsFromNavToPhys(
+        pos: vec3,
+        mode: Map.HeightMode,
+        lod?: Map.Lod,
+        applyVerticalExaggeration?: boolean,
+    ): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.convertCoordsFromNavToPhys(
+            pos, mode, lod, applyVerticalExaggeration);
+    }
+
+    /**
+     * Converts physical (ECEF) coordinates to camera space.
+     *
+     * @param pos `[x, y, z]` in physical space
+     */
+    convertCoordsFromPhysToCameraSpace(pos: vec3): vec3 | null {
+
+        this.assertAlive();
+        return this.map_.convertCoordsFromPhysToCameraSpace(pos);
     }
 
     // -------------------------------------------------------------------------
@@ -973,16 +1018,6 @@ class Viewer {
 
         this.assertAlive();
         return this.controlMode;
-    }
-
-    // -------------------------------------------------------------------------
-    // Metadata
-    // -------------------------------------------------------------------------
-
-    /** The cartolina-js library version string. */
-    version(): string {
-
-        return getVersion();
     }
 
     // -------------------------------------------------------------------------

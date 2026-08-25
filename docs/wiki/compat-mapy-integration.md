@@ -94,8 +94,8 @@ Methods that currently exist on the legacy map object only:
 | `.getCurrentCredits()` | Data attribution |
 | `.renderToImage()` | Screenshot / pixel export |
 | `.createGeodata()` | Returns a geodata builder |
-| `.addFreeLayer(name, freeLayer)` | Add a vector overlay |
-| `.removeFreeLayer(name)` | |
+| `.addSource(id, spec)` / `.addLayer(spec)` | Add a vector overlay |
+| `.removeLayer(id)` / `.removeSource(id)` | Remove a vector overlay |
 | `.generateTrajectory(from, to, opts)` | Fly-to animation |
 `getCurrentGeometry` was specifically checked: it is **not** called
 by the mapy.com integration.

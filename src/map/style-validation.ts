@@ -87,16 +87,30 @@ export function validateSpecification(
         }
 
         const type = layer.type ?? 'diffuse-map';
-        if (!['diffuse-map', 'bump-map', 'specular-map'].includes(type))
-            continue;
 
-        const sourceId = layer.source as string;
-        const source = styleSpec.sources[sourceId];
+        // A raster texture layer must name a cartolina-tms source.
+        if (['diffuse-map', 'bump-map', 'specular-map'].includes(type)) {
 
-        if (!source || source.type !== 'cartolina-tms') {
-            throw new Error(`Raster style layer `
-                + `"${layer.id ?? '<anonymous>'}" references `
-                + `"${sourceId}", which is not a cartolina-tms source.`);
+            const sourceId = layer.source as string;
+            const source = styleSpec.sources[sourceId];
+
+            if (!source || source.type !== 'cartolina-tms')
+                throw new Error(`Raster style layer `
+                    + `"${layer.id ?? '<anonymous>'}" references `
+                    + `"${sourceId}", which is not a cartolina-tms source.`);
+        }
+
+        // A lettering layer must name a cartolina-freelayer source.
+        if (['labels', 'lines'].includes(type)) {
+
+            const sourceId = layer.source as string;
+            const source = styleSpec.sources[sourceId];
+
+            if (!source || source.type !== 'cartolina-freelayer')
+                throw new Error(`Lettering style layer `
+                    + `"${layer.id ?? '<anonymous>'}" references `
+                    + `"${sourceId}", which is not a cartolina-freelayer `
+                    + `source.`);
         }
     }
 }

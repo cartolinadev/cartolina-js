@@ -3,6 +3,44 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Runtime addSource / addLayer (fix backlog 11)
+
+Runtime sources and layers now render. `Viewer`/`Map` expose
+MapLibre-parity `addSource` / `addLayer` (plus `removeSource` /
+`removeLayer`), replacing `addFreeLayer` / `removeFreeLayer`, which
+registered a free layer but never drew it — nothing added a
+`style.layers` entry, so the compiler never put it in
+`freeLayerSequence` or attached a stylesheet.
+
+`addSource` takes any source type and `addLayer` any layer type.
+`MapStyle.addLayer` inserts the layer and re-commits through
+`commitCandidate`, so it flows through the same compile the loaded style
+uses; it requires an explicit layer id. The per-source construction is
+factored into `buildTerrainSource_` / `buildRasterSource_`, shared by
+`addSource` and `loadStyle` rather than duplicated.
+
+`addSource` is asynchronous and transactional — `await
+viewer.addSource(...)` then `viewer.addLayer(...)`. It loads and
+validates the source privately, then registers it atomically on
+success; a load failure rejects the promise. Until registration the
+source does not exist, so `addLayer`, `removeSource`, and a second
+`addSource` for the same id all reject. Loading is never modelled in map
+state, source lookup, terrain selection, or rendering — a private
+pending-id set only rejects a concurrent duplicate add. This follows
+`loadStyle`, which already loads sources asynchronously and admits only
+resolved ones. `removeSource` rejects an unknown id or a source with
+dependent layers, and clears a registered source from every registry.
+
+The `demos/core` triangle route is enabled as the validation: it
+heightcodes the `'float'` line with `processHeights`, awaits
+`addSource`, then adds the layer, and renders draped over central
+Europe.
+
+Callers now rely on `addSource`/`addLayer` for runtime sources and
+layers; `addFreeLayer`/`removeFreeLayer` are gone from the public surface
+(the internal `LegacyMap.addFreeLayer` stays, used by the style loader
+and `addSource`).
+
 ## 2026-08-25 - Removed dead MapDraw fields, finished the grid teardown
 
 A dozen `MapDraw` constructor fields were write-only, with no reader

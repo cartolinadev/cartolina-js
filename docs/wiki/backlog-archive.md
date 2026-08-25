@@ -1324,3 +1324,27 @@ already worked. The caller resolves the anchor height through
 passes an explicit point; the ill-conditioned `'float'` path is gone,
 not mitigated. The earlier close under RFC 13 gate 1 had changed only
 the waypoint demo, leaving the navtile path in `checkVisibility` itself.
+
+<a id="backlog-11"></a>
+## 11. BUG: runtime free layers do not render
+
+**Opened:** 2026-05-14
+**Status:** resolved 2026-08-25
+
+### Symptom
+
+`viewer.addFreeLayer(id, geo.makeFreeLayer(style))` created the geodata
+builder but never drew anything: the draw loop iterates
+`map.freeLayerSequence`, which only the style compiler populated from
+`style.layers`, and `addFreeLayer` wrote only `map.freeLayers[id]` with
+no stylesheet.
+
+### Resolution
+
+`addFreeLayer`/`removeFreeLayer` are replaced by MapLibre-parity
+`addSource` / `addLayer` (+ `removeSource` / `removeLayer`) on `Viewer`
+and `Map`. `addSource` registers a `cartolina-freelayer` data source;
+`addLayer` inserts a style layer of any type and re-commits through
+`MapStyle.commitCandidate`, so the layer flows through the same compile
+that fills `freeLayerSequence` and attaches the stylesheet. Validated by
+`demos/core`, whose heightcoded triangle route now renders.

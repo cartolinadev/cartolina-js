@@ -75,6 +75,10 @@ export type TmsSourceDefinition =
  * (`type: 'geodata'`) or tiled (`type: 'geodata-tiles'`) geodata
  * definition, the same shapes a `cartolina-freelayer` URL resolves
  * to.
+ *
+ * The payload is `Record<string, unknown>`: the geodata itself is
+ * untyped here, a gap against the strict typing the styling layers
+ * carry. It should get a real geodata schema.
  */
 export type FreeLayerSourceDefinition =
     | ({ type: 'geodata' } & Record<string, unknown>)

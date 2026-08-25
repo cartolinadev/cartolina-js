@@ -134,55 +134,18 @@ export class MapStyle {
                 if (result.status === 'rejected')
                     throw result.reason;
 
-                // process the definition
+                // process the definition. The first terrain source
+                // initializes the reference frame, SRSes, and bodies.
                 if (result.status === 'fulfilled') {
 
                     const [definitionValue, path] = result.value;
 
-                    const definition =
-                        StyleValidation.validateSurfaceDefinition(
-                            id, definitionValue);
+                    const source = MapStyle.buildTerrainSource_(
+                        map, id, spec, definitionValue, path,
+                        !mapMetadataInitialized);
 
-                    if (!mapMetadataInitialized) {
-
-                        // the first terain source initializes the map's 
-                        // reference frame, SRSes, bodies, and credits.
-                        MapStyle.initializeMapMetadata(
-                            map, spec, definition, path);
-                        mapMetadataInitialized = true;
-
-                    } else {
-
-                        // verify that later terrain uses the same reference 
-                        // frame as the first
-                        const frameId = definition.referenceFrame.id;
-
-                        if (frameId !== legacyMap.referenceFrame!.id)
-                            utils.warnOnce(`Terrain source "${id}" declares `
-                                + `reference frame "${frameId}"; the map uses `
-                                + `"${legacyMap.referenceFrame!.id}" from the `
-                                + `first terrain source.`);
-                    }
-
-                    // a terrain source must define exactly one surface.
-                    if (definition.surfaces.length != 1)
-                        throw Error(`The url for source ${id} does not define `
-                            + `exactly one surface, bailing out.`);
-
-                    // initialize and register the terrain source.
-                    // note that terrain source constructor currently does 
-                    // not work with per-surface credits - credits are based
-                    // on metanode content. This is the legacy VTS data model
-                    // to be replaced with per-surface credit definition.
-                    const surfaceDefinition = definition.surfaces[0];
-                    const source = TerrainSource.fromMetadata(
-                        map, id, surfaceDefinition, path);
-
+                    mapMetadataInitialized = true;
                     terrainSources.set(id, source);
-
-                    // update the global credit lookup table
-                    MapStyle.registerCreditDefinitions(
-                        legacyMap, definition.credits);
 
                 } // result.status === 'fulfilled'
 
@@ -208,18 +171,10 @@ export class MapStyle {
 
                     try {
 
-                        // initialize and register the raster source
-                        const source = RasterSource.fromMetadata(
+                        // publish the entry after every step that can fail
+                        const source = MapStyle.buildRasterSource_(
                             map, id, definition, path);
 
-                        // update the global credit lookup table
-                        MapStyle.registerCreditDefinitions(
-                            legacyMap,
-                            (definition as StyleSchema.TmsSourceDefinition)
-                                .credits,
-                        );
-
-                        // publish the entry after every step that can fail
                         rasterEntries.set(
                             id, { status: 'ready', source });
 
@@ -444,6 +399,145 @@ export class MapStyle {
     }
 
     /**
+     * Registers a data source of any type at runtime. Resolves once the
+     * source has loaded and is part of the usable map state — only then
+     * may a layer reference it or `setTerrainSources` select it — and
+     * rejects if it fails to load. A source draws nothing on its own; a
+     * subsequent `addLayer` referencing it by id is what draws it.
+     *
+     * A URL source (any type) fetches its definition first; an inline
+     * (`definition`) source resolves without a fetch. Await the returned
+     * promise before adding a layer that references the source.
+     *
+     * @param id source identifier a layer references by `source`
+     * @param sourceSpec any cartolina source (surface, tms, or freelayer)
+     * @throws on a duplicate id, an unknown source type, or a load failure
+     */
+    async addSource(
+        id: string,
+        sourceSpec: StyleSchema.SourceSpecification,
+    ): Promise<void> {
+
+        if (id in this.spec_.sources
+                || this.map_.legacyMap!.getFreeLayer(id)
+                || this.pendingSources_.has(id))
+            throw new Error(`Source id "${id}" already exists.`);
+
+        // Load and validate off to the side; the helpers register only on
+        // success. Until then the source does not exist — this pending id
+        // just rejects a concurrent second add of the same id.
+        this.pendingSources_.add(id);
+
+        try {
+
+            switch (sourceSpec.type) {
+
+                case 'cartolina-freelayer':
+                    await this.addFreeLayerSource_(id, sourceSpec);
+                    return;
+
+                case 'cartolina-surface':
+                    await this.addTerrainSource_(id, sourceSpec);
+                    return;
+
+                case 'cartolina-tms':
+                    await this.addRasterSource_(id, sourceSpec);
+                    return;
+
+                default:
+                    throw new Error(`Source "${id}" has an unknown type.`);
+            }
+
+        } finally {
+
+            this.pendingSources_.delete(id);
+        }
+    }
+
+    /**
+     * Removes a source registered through `addSource` from every
+     * registry it reached, and cancels any in-flight load so it cannot
+     * install after removal.
+     *
+     * @param id source identifier passed to `addSource`
+     * @throws on an unknown id, or when a style layer still references
+     *   the source (remove the dependent layers first)
+     */
+    removeSource(id: string): void {
+
+        if (!(id in this.spec_.sources))
+            throw new Error(`Unknown source id "${id}".`);
+
+        const dependent = (this.spec_.layers ?? [])
+            .find((layer) => layer.source === id);
+
+        if (dependent)
+            throw new Error(`Cannot remove source "${id}": layer `
+                + `"${dependent.id}" still references it.`);
+
+        this.map_.legacyMap!.removeFreeLayer(id);
+        this.map_.removeTerrainSourceEntry(id);
+        this.map_.removeRasterSourceEntry(id);
+        this.surfaceSourceIds_ =
+            this.surfaceSourceIds_.filter((source) => source !== id);
+
+        const nextSpec = structuredClone(this.spec_);
+        delete nextSpec.sources[id];
+        this.spec_ = nextSpec;
+
+        this.refreshFreeLayerSequence();
+    }
+
+    /**
+     * Adds a style layer at runtime and re-commits the style.
+     *
+     * Accepts any layer type. A lettering layer renders once its
+     * `source` names a registered free-layer source (see `addSource`).
+     *
+     * @param layerSpec a complete style layer carrying an explicit id
+     * @throws on a missing id or a spec the validator rejects
+     */
+    addLayer(layerSpec: StyleSchema.LayerSpecification): void {
+
+        if (layerSpec.id === undefined)
+            throw new Error('addLayer requires an explicit layer id.');
+
+        const nextSpec = structuredClone(this.spec_);
+        (nextSpec.layers ??= []).push(structuredClone(layerSpec));
+
+        StyleValidation.validateSpecification(nextSpec);
+
+        const nextLayersById = MapStyle.indexLayers(nextSpec);
+        const lettering = ['labels', 'lines'].includes(layerSpec.type ?? '');
+
+        this.commitCandidate(nextSpec, nextLayersById, lettering);
+    }
+
+    /**
+     * Removes a style layer added through `addLayer` and re-commits.
+     *
+     * @param id layer identifier passed to `addLayer`
+     * @throws on an unknown layer id
+     */
+    removeLayer(id: string): void {
+
+        const layers = this.spec_.layers ?? [];
+        const removed = layers.find((layer) => layer.id === id);
+
+        if (!removed)
+            throw new Error(`Unknown style layer id "${id}".`);
+
+        const nextSpec = structuredClone(this.spec_);
+        nextSpec.layers = (nextSpec.layers ?? [])
+            .filter((layer) => layer.id !== id);
+
+        const nextLayersById = MapStyle.indexLayers(nextSpec);
+        const lettering = ['labels', 'lines'].includes(removed.type ?? '');
+
+        this.commitCandidate(nextSpec, nextLayersById, lettering);
+    }
+
+    /**
      * Rebuilds the legacy map free-layer sequence and its lettering styles.
      *
      * @internal Called after style changes and by legacy free-layer callbacks.
@@ -622,6 +716,148 @@ export class MapStyle {
             legacyMap);
     }
 
+    /**
+     * Validates and constructs one terrain source from a resolved
+     * definition. Shared by `loadStyle` and runtime `addSource`.
+     *
+     * @param initializeMetadata true for the first terrain source, which
+     *   establishes the reference frame; later sources must share it.
+     */
+    private static buildTerrainSource_(
+        map: Map,
+        id: string,
+        spec: StyleSchema.StyleSpecification,
+        definitionValue: unknown,
+        path: string,
+        initializeMetadata: boolean,
+    ): TerrainSource {
+
+        const legacyMap = map.legacyMap!;
+
+        const definition = StyleValidation.validateSurfaceDefinition(
+            id, definitionValue);
+
+        if (initializeMetadata) {
+
+            MapStyle.initializeMapMetadata(map, spec, definition, path);
+
+        } else {
+
+            const frameId = definition.referenceFrame.id;
+
+            if (frameId !== legacyMap.referenceFrame!.id)
+                utils.warnOnce(`Terrain source "${id}" declares reference `
+                    + `frame "${frameId}"; the map uses `
+                    + `"${legacyMap.referenceFrame!.id}".`);
+        }
+
+        if (definition.surfaces.length !== 1)
+            throw Error(`The url for source ${id} does not define exactly `
+                + `one surface, bailing out.`);
+
+        const source = TerrainSource.fromMetadata(
+            map, id, definition.surfaces[0], path);
+
+        // Credits are per-metanode in the legacy VTS model, not
+        // per-surface; this registers the global credit definitions.
+        MapStyle.registerCreditDefinitions(legacyMap, definition.credits);
+
+        return source;
+    }
+
+    /**
+     * Constructs one raster source from a resolved definition and
+     * registers its credits. Shared by `loadStyle` and `addSource`.
+     */
+    private static buildRasterSource_(
+        map: Map,
+        id: string,
+        definition: unknown,
+        path: string,
+    ): RasterSource {
+
+        const source = RasterSource.fromMetadata(map, id, definition, path);
+
+        MapStyle.registerCreditDefinitions(
+            map.legacyMap!,
+            (definition as StyleSchema.TmsSourceDefinition).credits);
+
+        return source;
+    }
+
+    /**
+     * Loads one free-layer source and registers it; rejects on a fetch
+     * or validation failure. An inline definition registers without a
+     * fetch. The caller (`addSource`) holds the pending-id slot.
+     */
+    private async addFreeLayerSource_(
+        id: string,
+        sourceSpec: StyleSchema.CartolinaFreeLayerSource,
+    ): Promise<void> {
+
+        const legacyMap = this.map_.legacyMap!;
+
+        // Fetch the definition for a URL source; inline resolves now.
+        const [definition, baseUrl] = await MapStyle.resolveSourceDefinition(
+            this.map_, sourceSpec, 'freelayer.json', 'Source');
+
+        const freeLayer = new MapFreeLayer(legacyMap, definition, baseUrl);
+
+        if (!freeLayer.geodata)
+            throw new Error(`Free-layer source "${id}" resolved to `
+                + `unsupported type "${freeLayer.type}".`);
+
+        legacyMap.addFreeLayer(id, freeLayer);
+        this.installSource_(id, sourceSpec);
+    }
+
+    /** Loads one terrain source and registers it; rejects on failure. */
+    private async addTerrainSource_(
+        id: string,
+        sourceSpec: StyleSchema.CartolinaSurfaceSource,
+    ): Promise<void> {
+
+        const [definitionValue, path] =
+            await MapStyle.resolveSourceDefinition(
+                this.map_, sourceSpec, 'mapConfig.json', 'MapConfig');
+
+        const source = MapStyle.buildTerrainSource_(
+            this.map_, id, this.spec_, definitionValue, path, false);
+
+        this.map_.addTerrainSourceEntry(id, source);
+        this.surfaceSourceIds_.push(id);
+        this.installSource_(id, sourceSpec);
+    }
+
+    /** Loads one raster source and registers it; rejects on failure. */
+    private async addRasterSource_(
+        id: string,
+        sourceSpec: StyleSchema.CartolinaTmsSource,
+    ): Promise<void> {
+
+        const [definition, path] = await MapStyle.resolveSourceDefinition(
+            this.map_, sourceSpec, 'boundlayer.json', 'Source');
+
+        const source = MapStyle.buildRasterSource_(
+            this.map_, id, definition, path);
+
+        this.map_.addRasterSourceEntry(id, { status: 'ready', source });
+        this.installSource_(id, sourceSpec);
+    }
+
+    /** Registers a resolved source in the style, atomically. */
+    private installSource_(
+        id: string,
+        sourceSpec: StyleSchema.SourceSpecification,
+    ): void {
+
+        const nextSpec = structuredClone(this.spec_);
+        nextSpec.sources[id] = sourceSpec;
+        this.spec_ = nextSpec;
+
+        this.map_.legacyMap!.dirty = true;
+    }
+
     /** Resolves an omitted list to every declared terrain source. */
     private terrainSourcesForLayer(
         layer: StyleSchema.LayerSpecification,
@@ -759,6 +995,13 @@ export class MapStyle {
 
     /** Declared `cartolina-surface` ids in source order. */
     private surfaceSourceIds_: string[] = [];
+
+    /**
+     * Ids whose `addSource` load is in flight. Rejects a concurrent
+     * second add of the same id; private to `addSource`, never observed
+     * by lookup, terrain selection, or the render path.
+     */
+    private pendingSources_ = new Set<string>();
 }
 
 
