@@ -23,6 +23,21 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-57"></a>
+## 57. GAP: a map cannot be initialized without a terrain source
+
+**Opened:** 2026-08-25
+**Related:** `src/map/style.ts`
+
+The reference frame — and the SRS, body, and service tables — is built
+only from the first terrain source's `mapConfig` (RFC 11: global tables
+from the first surface document). A style with no terrain source loads
+without error but leaves `referenceFrame` null, so the map is
+non-functional. `addSource` can extend a map that already has a frame
+but cannot supply the first one: the frame-bearing terrain source must
+be present in the initial style. An empty map cannot be built up
+incrementally.
+
 <a id="backlog-56"></a>
 ## 56. Migrate geodata heightcoding to the elevation store
 
