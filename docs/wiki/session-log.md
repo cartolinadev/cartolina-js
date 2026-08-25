@@ -3,6 +3,10 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Keep the splash screen through style construction
+
+Fixed the splash screen hiding before a map style loads.
+
 ## 2026-08-25 - Default illumination for styles that ask without a light
 
 Illumination now gets a default.

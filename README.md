@@ -84,9 +84,9 @@ application; it will be withdrawn once those have migrated.
 
 ### Minimal map style
 
-At a bare minimum, your `style.json` should include a terrain source and a terrain
-definition referring to that source. Illumination definition is optional, but you 
-probably want to use it in this context.
+At a bare minimum, your `style.json` should include a terrain source and a
+terrain definition referring to that source.  Activating illumination is
+optional, but you will want to use it for the bare terrain to visualize.
 
 ```json
 {
@@ -100,18 +100,9 @@ probably want to use it in this context.
     "terrain": {
         "sources": ["topoearth-copernicus-dem-glo30"]
     },
-    "illumination": {
-        "light": {
-            "type": "tracking",
-            "azimuth": 315,
-            "elevation": 45
-        }
-    }
+    "illumination": {}
 }
 ```
-
-Use `"tracking"` for observer-relative lighting, or `"geographic"` for
-lighting defined in the local north-east-down frame at the scene center.
 
 <!-- ### NPM -->
 <!-- add the npm section once it is tested to work -->

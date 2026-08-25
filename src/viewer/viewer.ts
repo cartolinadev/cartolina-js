@@ -1170,7 +1170,7 @@ class Viewer {
      */
     private getMap(): LegacyMap | null {
 
-        return this.legacyMap;
+        return this.map_.getMap();
     }
 
     /**
