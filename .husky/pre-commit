@@ -10,6 +10,10 @@ fi
 
 STAGED_FILES=$(git diff --cached --name-only)
 
+# Advisory only: prints changed-hunk convention violations without blocking
+# the commit. The rules that need judgment remain part of code review.
+git diff --cached --unified=3 | node scripts/warn-style-pre-commit.js
+
 # A docs-only commit touches nothing but docs and markdown.
 DOCS_ONLY=1
 for path in $STAGED_FILES; do
