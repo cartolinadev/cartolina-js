@@ -2408,6 +2408,15 @@ export type IlluminationDef = {
     shadingAspectWeight?: number;
 }
 
+/**
+ * Illumination a style gets when it asks for illumination without
+ * naming its own light. Global rather than a `MapBody` property, since
+ * a sun position isn't something a celestial body carries.
+ */
+export const DefaultIllumination: IlluminationDef = {
+    light: ['tracking', 315, 45],
+};
+
 export type RenderingOptions = {
     useLighting?:          boolean;
     useNormalMaps?:        boolean;

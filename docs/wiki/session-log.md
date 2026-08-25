@@ -3,6 +3,10 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Default illumination for styles that ask without a light
+
+Illumination now gets a default.
+
 ## 2026-08-25 - Remove complex-terrain demo, rename core to non-interactive
 
 Removed `demos/complex-terrain/` and its listing in `demos/index.html`.

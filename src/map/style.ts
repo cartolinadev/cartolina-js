@@ -9,6 +9,7 @@ import MapRefFrame from './refframe';
 import MapSrs from './srs';
 import MapBody from './body';
 import Atmosphere from './atmosphere';
+import Renderer from '../renderer/renderer';
 import MapFreeLayer from './free-layer';
 import MapCredit from './credit';
 import RasterSource from './raster-source';
@@ -210,9 +211,16 @@ export class MapStyle {
                     'freelayer.json')));
         }
 
-        // illumination
-        if (spec.illumination)
-            legacyMap.renderer.setIllumination(spec.illumination);
+        // illumination: a style that asks for it without naming its own
+        // light gets the renderer's default (global, not a body
+        // property)
+        if (spec.illumination) {
+
+            legacyMap.renderer.setIllumination({
+                ...Renderer.DefaultIllumination,
+                ...spec.illumination,
+            });
+        }
 
         // vertical exaggeration
         const veSpec = spec['vertical-exaggeration'];

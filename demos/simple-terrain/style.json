@@ -10,9 +10,7 @@
     "terrain": {
         "sources": ["topoearth-copernicus-dem-glo30"]
     },
-    "illumination": {
-        "light": ["tracking", 315, 45]
-    },
+    "illumination": {},
     "vertical-exaggeration" : {},
     "atmosphere": {
         "visibilityToEyeDistance": 3.0,
