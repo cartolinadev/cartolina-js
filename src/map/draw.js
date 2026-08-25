@@ -9,31 +9,12 @@ import * as vts from '../constants';
 var MapDraw = function(map) {
     this.map = map;
     this.config = map.config;
-    this.isProjected = map.getNavigationSrs().isProjected();
     this.isGeocent = map.isGeocent;
 
     this.renderer = map.renderer;
-    this.stats = map.stats;
     this.camera = map.camera;
 
     this.ndcToScreenPixel = 1.0;
-
-
-    this.gridFlat = false;
-    this.gridGlues = false;
-    this.gridSkipped = false;
-
-    this.zFactor = 0;
-    this.zFactor2 = 0.003;
-    this.zbufferOffset = null;    
-    this.zShift = 0;
-    this.zLastShift = 0;
-    this.bestMeshTexelSize = 1;
-    this.bestGeodataTexelSize = 1;
-    this.log8 = Math.log(8);
-    this.log2 = Math.log(2);
-
-    this.geodataTilesPerLayer = 0;
 
     this.drawCounter = 0;
 
@@ -41,14 +22,12 @@ var MapDraw = function(map) {
     this.processBuffer = new Array(60000);
     this.processBuffer2 = new Array(60000);
     this.drawBuffer = new Array(60000);
-    this.drawBuffer2 = new Array(60000);
     this.tmpVec3 = new Array(3);
     this.tmpVec5 = new Array(5);
     this.bboxBuffer = new Float32Array(8*3);
 
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
-    this.drawBlendedTileState = gpu.createState({zequal:true, blend:true});
 
     this.degradeHorizonFactor = 0;
     this.degradeHorizonTiltFactor = 0;
@@ -63,11 +42,6 @@ var MapDraw = function(map) {
  */
 MapDraw.prototype.initFrame = function() {
 
-    var gridMode = this.config.mapGridMode;
-    this.gridSkipped = gridMode == 'none';
-    this.gridFlat = gridMode == 'flat';
-    this.gridGlues = gridMode == 'linear';
-
     this.degradeHorizonFactor =
         200.0 * this.config.mapDegradeHorizonParams[0];
     this.degradeHorizonTiltFactor = 0.5 * (
@@ -78,15 +52,12 @@ MapDraw.prototype.initFrame = function() {
     );
     this.setupDetailDegradation();
 
-    this.zFactor = 0;
-
     // Tile resolution is driven by the apparent (CSS) size of the map.
     // Using apparent size also keeps the color pass and the auxiliary
     // depth pass consistent, since the auxiliary target inherits the
     // canvas apparent size while keeping its own storage resolution.
     this.ndcToScreenPixel =
         this.renderer.gpu.currentRenderTarget.apparentSize[0] * 0.5;
-    this.updateGridFactors();
     this.maxGpuUsed = Math.max(
         32 * 102 * 1204,
         this.map.gpuCache.getMaxCost() - 32 * 102 * 1204
@@ -208,30 +179,6 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
                 surface.monoGeodataView.draw(this.camera.position);
             }.bind(this));
         }
-    }
-};
-
-
-MapDraw.prototype.updateGridFactors = function() {
-    var nodes = this.map.referenceFrame.getSpatialDivisionNodes();
-
-    for (var i = 0, li = nodes.length; i < li; i++) {
-        var node = nodes[i]; 
-        var embed = 8;
-
-        var altitude = Math.max(10, this.camera.distance + 20);
-        //var altitude = Math.max(1.1, this.cameraDistance);
-        var maxDistance = (node.extents.ur[0] - node.extents.ll[0])*2;
-        var gridSelect = Math.log(Math.min(maxDistance,altitude)) / this.log8;
-        var gridMax = Math.log(maxDistance) / this.log8;
-    
-        gridSelect = gridMax - gridSelect;
-    
-        node.gridBlend = (gridSelect - Math.floor(gridSelect));
-        
-        gridSelect = Math.floor(Math.floor(gridSelect))+1;
-        node.gridStep1 = Math.pow(embed, gridSelect);
-        node.gridStep2 = node.gridStep1 * 8; 
     }
 };
 

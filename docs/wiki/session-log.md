@@ -3,6 +3,28 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Removed dead MapDraw fields, finished the grid teardown
+
+A dozen `MapDraw` constructor fields were write-only, with no reader
+anywhere in the codebase — removed, along with the matching write-only
+reset in `Map` and the stale `draw.d.ts` declaration.
+`bestMeshTexelSize`/`bestGeodataTexelSize` turned out to be shadowed
+duplicates of same-named, actually-used fields already on the legacy
+`Map` itself.
+
+That pass turned up `MapDraw.updateGridFactors`, computing
+`gridBlend`/`gridStep1`/`gridStep2` on reference-frame nodes for
+`drawGrid`'s LOD-blended placeholder texture — the last piece of the
+fallback-grid subsystem commit `2393cc43` removed, missed because it
+lived one file over from everything else that commit deleted. Removed
+`updateGridFactors`, its `log8` field (no other reader), and the
+`noGrid` parameter and matching dead branch in
+`MapSurfaceTree.processDrawBuffer` (always false, single caller, never
+passed). `mapGridMode` is now annotated dead in `viewer-config.ts`,
+matching its `mapGridSurrogatez`/`mapGridTextureLevel`/
+`mapGridTextureLayer` siblings from the same removal, rather than
+deleted outright — kept as an accepted no-op runtime option like those.
+
 ## 2026-08-25 - beginPass rename, drawHitmap moved into Map
 
 `switchToFramebuffer` bundled a render-target swap with pass-specific

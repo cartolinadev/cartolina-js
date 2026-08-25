@@ -397,7 +397,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
 };
 
 
-MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex, noGrid) {
+MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex) {
 
     var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2);
     var hmax = -999999, hmin = 999999;
@@ -411,7 +411,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
         //draw surface
         for (i = drawBufferIndex - 1; i >= 0; i--) {
             var item = drawBuffer[i];
-            tile = (noGrid) ? item : item[0];
+            tile = item[0];
             node = tile.metanode;
 
             if (scanExtents && node) {
@@ -444,34 +444,19 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
             }
 
 
-            if (noGrid)  {
+            if (stats.gpuRenderUsed >= draw.maxGpuUsed) {
 
-                if (stats.gpuRenderUsed >= draw.maxGpuUsed)  {
-                    break;
+                // out of GPU budget this frame; show bbox info if
+                // requested and skip the tile
+                if (drawTiles.map.outerMap.overrides.drawBBoxes) {
+                    drawTiles.drawTileInfo(
+                        tile, tile.metanode, drawCameraPos);
                 }
 
-                //draw tile,  preventRender=false, preventLoad=false
+            } else {
                 drawTiles.drawSurfaceTile(
                     tile, tile.metanode, drawCameraPos,
                     tile.texelSize, 0, false, false);
-
-            } else { // if !noGrid
-
-                if (stats.gpuRenderUsed >= draw.maxGpuUsed) {
-
-                    // out of GPU budget this frame; show bbox info if
-                    // requested and skip the tile (no grid fallback)
-                    if (drawTiles.map.outerMap.overrides.drawBBoxes) {
-                        drawTiles.drawTileInfo(
-                            tile, tile.metanode, drawCameraPos);
-                    }
-
-                } else {
-                    drawTiles.drawSurfaceTile(
-                        tile, tile.metanode, drawCameraPos,
-                        tile.texelSize, 0, false, false);
-                }
-
             }
         } // for (i = drawBufferIndex - 1; i >= 0; i--)
     };

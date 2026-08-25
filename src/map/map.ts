@@ -1126,8 +1126,6 @@ class Map {
                             // icons are drawn after terrain.
                             layer.tree.draw();
                         }
-
-                        mapDraw.zbufferOffset = null;
                     }
                 }
             });

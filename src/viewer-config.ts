@@ -578,8 +578,7 @@ const catalogue = {
         visibility: 'internal',
     }),
 
-    /** Fallback-grid rendering mode: `linear` (grid with glue
-     *  stitching), `flat`, or `none`. */
+    /** Nothing reads it in the current tree. */
     mapGridMode: str('linear', 'internal'),
 
     /** Nothing reads it in the current tree. */
