@@ -49,7 +49,8 @@ incrementally.
 `MapGeodataBuilder.processHeights` resolves a `'float'` geodata
 coordinate's height by sampling navigation tiles through
 `MapMeasure.getSurfaceHeight` (`heightmap-by-*` / `node-by-*` modes). The
-`demos/core` route and any client-built geodata ride this path. Navtiles
+`demos/non-interactive` route and any client-built geodata ride this
+path. Navtiles
 are a second representation of the terrain that disagrees with the drawn
 mesh and stops at a coarser LOD — the disagreement RFC 13 removes for
 point queries.

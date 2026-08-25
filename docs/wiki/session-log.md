@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - Remove complex-terrain demo, rename core to non-interactive
+
+Removed `demos/complex-terrain/` and its listing in `demos/index.html`.
+The `complex-terrain` regression-test entry in `test/urls.json` (a
+remote style, loaded through `demos/map/`) is unrelated and untouched.
+
+Renamed `demos/core/` to `demos/non-interactive/`, matching the name
+`demos/index.html` and `docs/wiki/non-interactive.md` already used for
+it.
+
 ## 2026-08-25 - Runtime addSource / addLayer (fix backlog 11)
 
 Runtime sources and layers now render. `Viewer`/`Map` expose

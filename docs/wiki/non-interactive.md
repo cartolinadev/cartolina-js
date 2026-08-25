@@ -119,7 +119,8 @@ el.addEventListener('wheel', e => {
 }, { passive: false });
 ```
 
-See `demos/core/index.html` for a complete pan/orbit/zoom implementation.
+See `demos/non-interactive/index.html` for a complete pan/orbit/zoom
+implementation.
 
 
 ## Coordinate conversion and hit-testing
@@ -193,6 +194,6 @@ layer that references the source.
 
 ## Demo
 
-A reference implementation is at `demos/core/index.html`. It
+A reference implementation is at `demos/non-interactive/index.html`. It
 demonstrates non-interactive init, pan/orbit/zoom navigation,
 click-to-coordinates, and the heightcoded route overlay above.
