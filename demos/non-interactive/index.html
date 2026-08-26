@@ -50,7 +50,7 @@ const viewer = createMap({
 // style is ready. The geodata builder type is unknown pending full type
 // promotion.
 
-function addRouteLayer() {
+async function addRouteLayer() {
     const geo = viewer.createGeodata();
 
     // Closed triangle: Prague → Vienna → Bratislava → Prague
@@ -62,32 +62,30 @@ function addRouteLayer() {
     ];
 
     // 'float' vertices carry a height above the terrain surface (0 =
-    // on it). processHeights resolves those against the terrain and
-    // rewrites each z; it retries every frame until the terrain the
-    // route crosses has loaded, then fires the callback.
+    // on it). Declaring them 'float' is all that is needed: the library
+    // heightcodes them against the terrain and keeps refining the line
+    // onto it as terrain loads. The application adds the layer and
+    // forgets it.
     geo.addLineString(route, 'float', null, 'line');
 
-    geo.processHeights('heightmap-by-lod', 4, async () => {
+    // The source carries the inline geodata; await it so the source is
+    // present before the layer references it.
+    await viewer.addSource('route', {
+        type: 'cartolina-freelayer',
+        definition: geo.makeFreeLayer(),
+    });
 
-        // The source carries the now-heightcoded inline geodata; await
-        // it so the source is present before the layer references it.
-        await viewer.addSource('route', {
-            type: 'cartolina-freelayer',
-            definition: geo.makeFreeLayer(),
-        });
-
-        // The layer carries the styling and references the source by id.
-        // zbuffer-offset lifts the draped line clear of the terrain it
-        // sits on, so it is not lost to z-fighting.
-        viewer.addLayer({
-            id: 'route-line',
-            type: 'lines',
-            source: 'route',
-            line: true,
-            'line-color':     [255, 100, 20, 255],
-            'line-width':     4,
-            'zbuffer-offset': [-5, 0, 0],
-        });
+    // The layer carries the styling and references the source by id.
+    // zbuffer-offset lifts the draped line clear of the terrain it
+    // sits on, so it is not lost to z-fighting.
+    viewer.addLayer({
+        id: 'route-line',
+        type: 'lines',
+        source: 'route',
+        line: true,
+        'line-color':     [255, 100, 20, 255],
+        'line-width':     4,
+        'zbuffer-offset': [-5, 0, 0],
     });
 }
 

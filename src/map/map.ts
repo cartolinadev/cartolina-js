@@ -39,6 +39,10 @@ import type {
 import ColorTerrainSink from './color-terrain-sink';
 import DepthTerrainSink from './depth-terrain-sink';
 import ElevationStore from './elevation-store';
+import MapGeodataHeightcoder from './geodata-heightcoder';
+import type MapGeodataBuilder from './geodata-builder';
+import ElevationStoreGeodataAnalysis
+    from './elevation-store-geodata-analysis';
 import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
 
@@ -863,12 +867,10 @@ class Map {
     // -----------------------------------------------------------------
 
     /**
-     * Creates a legacy geodata builder for constructing vector free layers.
-     *
-     * Return type is `unknown` pending promotion of the full geodata
-     * builder type surface.
+     * Creates a geodata builder for constructing vector free layers. Null
+     * before a map is loaded. See `geodata-builder.d.ts` for its surface.
      */
-    createGeodata(): unknown {
+    createGeodata(): MapGeodataBuilder | null {
 
         this.assertAlive();
         return this.map?.createGeodata() ?? null;
@@ -1069,6 +1071,7 @@ class Map {
         legacyMap.tickBefore();
 
         this.updateElevation();
+        this.updateGeodataHeightcoders();
 
         // prepare and/or draw if dirty
         if (dirty) {
@@ -1378,6 +1381,84 @@ class Map {
             }));
 
         return single ? settle.then((samples) => samples[0]) : settle;
+    }
+
+    /**
+     * Navigation-space batch elevation query used by geodata
+     * heightcoding. Input and output stay in the navigation SRS, so the
+     * geodata pipeline needs no vertical-datum round trip. A missing
+     * store or an uncovered position resolves to `undefined` at that
+     * index.
+     *
+     * @internal Used by `MapGeodataHeightcoder`.
+     */
+    queryTerrainElevationNav(
+        positions: readonly (readonly [number, number])[],
+        desiredGsd: number,
+    ): Promise<readonly (MapGeodataHeightcoder.Sample | undefined)[]> {
+
+        const store = this.elevationStore_;
+
+        if (!store)
+            return Promise.resolve(positions.map(() => undefined));
+
+        return store.queryTerrainElevation(
+            positions as readonly ElevationStore.Position[], desiredGsd)
+            .then((samples) => samples.map((sample) => sample
+                ? { height: sample.position[2], actualGsd: sample.actualGsd }
+                : undefined));
+    }
+
+    /**
+     * Registers a client-heightcoding engine, ticked each frame until
+     * disposed through `disposeGeodataHeightcoder`.
+     *
+     * @internal Used by geodata free layers and the gate-2 diagnostic.
+     */
+    createGeodataHeightcoder(
+        positions: readonly (readonly [number, number])[],
+        desiredGsd: number,
+        onUpdate: (changed: readonly number[]) => void,
+    ): MapGeodataHeightcoder {
+
+        const coder = new MapGeodataHeightcoder(
+            this, positions, desiredGsd, onUpdate);
+
+        this.geodataHeightcoders_.add(coder);
+        return coder;
+    }
+
+    /** Disposes and unregisters a heightcoding engine. */
+    disposeGeodataHeightcoder(coder: MapGeodataHeightcoder): void {
+
+        this.geodataHeightcoders_.delete(coder);
+        coder.dispose();
+    }
+
+    /** Ticks every registered heightcoder. Runs outside the dirty gate. */
+    private updateGeodataHeightcoders(): void {
+
+        if (this.geodataHeightcoders_.size === 0) return;
+
+        for (const coder of this.geodataHeightcoders_)
+            coder.tick();
+    }
+
+    /**
+     * Runs the gate-2 shadow diagnostic on one delivered tiled-geodata
+     * payload when `debugElevationStoreGeodataShadow` is set. A no-op
+     * otherwise, so the render path is untouched.
+     *
+     * @internal Called by `MapGeodataView` before worker processing.
+     */
+    analyzeGeodataShadow(geodata: unknown): void {
+
+        if (!this.config.debugElevationStoreGeodataShadow) return;
+
+        if (!this.geodataShadow_)
+            this.geodataShadow_ = new ElevationStoreGeodataAnalysis(this);
+
+        this.geodataShadow_.collect(geodata);
     }
 
     /**
@@ -1886,6 +1967,12 @@ class Map {
      */
     private disposeElevationStore(): void {
 
+        if (this.geodataShadow_) {
+
+            this.geodataShadow_.dispose();
+            this.geodataShadow_ = null;
+        }
+
         if (!this.elevationStore_) return;
 
         this.elevationStore_[Symbol.dispose]();
@@ -2029,6 +2116,12 @@ class Map {
      * and between map loads.
      */
     private elevationStore_: ElevationStore | null = null;
+
+    /** Active client-heightcoding engines, ticked each frame. */
+    private readonly geodataHeightcoders_ = new Set<MapGeodataHeightcoder>();
+
+    /** The gate-2 shadow diagnostic, created on first use when enabled. */
+    private geodataShadow_: ElevationStoreGeodataAnalysis | null = null;
 
     /**
      * Legacy map currently being populated by the style loader.

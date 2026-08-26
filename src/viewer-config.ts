@@ -425,6 +425,11 @@ const catalogue = {
     /** Enables the radar diagnostic overlay. */
     debugRadar: debug(),
 
+    /** Re-heightcodes every delivered geodata coordinate through the
+     *  elevation store and reports the client-minus-server height
+     *  distribution, without changing what is drawn (RFC 13 gate 2). */
+    debugElevationStoreGeodataShadow: debug(),
+
     // --- Map (map* keys) ---
 
     /** In-memory resource cache budget in megabytes. */
@@ -564,6 +569,12 @@ const catalogue = {
      *  within a reference-frame node. Read when the reference frame
      *  is parsed. */
     mapElevationStoreGsdGridSize: num(2, MAX, 5, 'internal'),
+
+    /** Minimum time between client-heightcoding refreshes of a geodata
+     *  layer, in milliseconds. The elevation store improves at its own
+     *  pass cadence, so a faster refresh only churns the readback and
+     *  the geometry rebuild; the default matches that cadence. */
+    mapGeodataHeightcodeIntervalMs: num(0, MAX, 1000, 'internal'),
 
     /** Brake on descending through geometry-less metanode chains:
      *  the allowed cell-span growth per structural step (see

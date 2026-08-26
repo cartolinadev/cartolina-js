@@ -404,54 +404,71 @@ UIControlMeasure.prototype.onCompute = function(button) {
         }
 
         if (this.tool == 3) {
-            console.log(JSON.stringify(this.navCoords));
-
             var geodata = map.createGeodata();
             geodata.addPolygon3(this.navCoords, [], null, 'fix', {}, 'tmp-polygon');
-            geodata.processHeights('node-by-lod', 62, (function(){
 
-                space = '  ';
+            var self = this;
+            var printed = false;
 
-                for (i = 0, li = ('' + this.counter).length; i < li; i++) {
-                    space += ' ';
+            // Heightcoding through the elevation store is transient. Take
+            // the first covered result, print the area once, and stop the
+            // heightcoder so it does not keep refreshing this one-shot
+            // measurement.
+            geodata.processHeights(function(gd) {
+                if (printed) return;
+                printed = true;
+                gd.stopHeightcoding();
+
+                var s = '  ';
+
+                for (var k = 0, lk = ('' + self.counter).length; k < lk; k++) {
+                    s += ' ';
                 }
 
-                str = space + '------------------------';
+                s += '------------------------';
 
-                var poly = geodata.extractGeometry('tmp-polygon');
+                var poly = gd.extractGeometry('tmp-polygon');
+                var area = poly.getSurfaceArea();
 
-                var area = poly.getSurfaceArea()
-
-                if (this.metric) {
-                    str += '\n' +  space + 'area: ' + area.toFixed(2) + ' m\u00B2';
+                if (self.metric) {
+                    s += '\n  area: ' + area.toFixed(2) + ' m\u00B2';
 
                     if (area > 100) {
-                        str += '\n' +  space + '      ' + (area/100).toFixed(2) + ' ares';
+                        s += '\n        ' + (area / 100).toFixed(2) + ' ares';
                     }
 
                     if (area > 10000) {
-                        str += '\n' +  space + '      ' + (area/10000).toFixed(2) + ' hectares';
+                        s += '\n        ' + (area / 10000).toFixed(2)
+                            + ' hectares';
                     }
 
                     if (area > 1000000) {
-                        str += '\n' +  space + '      ' + (area/1000000).toFixed(2) + ' km\u00B2';
+                        s += '\n        ' + (area / 1000000).toFixed(2)
+                            + ' km\u00B2';
                     }
                 } else {
-                    //str += '\n' +  space + 'area: ' + (area / 0.09290304).toFixed(2) + ' ft²';
-                    str += '\n' +  space + 'area: ' + (area / 0.83612736).toFixed(2) + ' yd\u00B2';
+                    s += '\n  area: ' + (area / 0.83612736).toFixed(2)
+                        + ' yd\u00B2';
 
                     if ((area / 4046.8564224) >= 1) {
-                        str += '\n' +  space + '      ' + (area / 4046.8564224).toFixed(2) + ' acres';
+                        s += '\n        ' + (area / 4046.8564224).toFixed(2)
+                            + ' acres';
                     }
-                    
+
                     if ((area / 2589988.110346) >= 1) {
-                        str += '\n' +  space + '      ' + (area / 2589988.110346).toFixed(2) + ' mi\u00B2';
+                        s += '\n        ' + (area / 2589988.110346).toFixed(2)
+                            + ' mi\u00B2';
                     }
                 }
 
-                this.counter++;
+                self.counter++;
 
-            }).bind(this));
+                var el = self.list.getElement();
+                el.value += s + '\n';
+                el.scrollTop = el.scrollHeight;
+
+                map.redraw();
+            });
         }
     }
 

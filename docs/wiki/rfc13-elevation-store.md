@@ -1,6 +1,8 @@
 # RFC 13: the elevation store
 
-**Status:** Accepted
+**Status:** Failed — gate 2 performance acceptance not met; the
+point-lookup store does not serve bulk vector heightcoding, the RFC's
+motivating goal (see the gate-2 notes under section 11.3).
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -1016,6 +1018,103 @@ percent. This is the primary performance acceptance test for the store.
 
 Implementation stops for manual review of the map, report, and performance
 capture after this gate.
+
+*Implemented; performance acceptance not met.* Gate 2 is called the
+store's primary performance test, because the RFC's motivation is
+client-side heightcoding of ordinary two-dimensional vector tiles to
+retire server-side heightcoding — the larger prize of the round-1
+Direction — not the waypoint, which is a point consumer. Against that
+goal the store as built does not pass. Matched `complex-terrain` at
+1920 by 1080 with only the shadow toggled: achieved frame rate fell from
+about 60 to about 39 fps, near 35 percent, against the ten-percent
+limit. The cost is the CPU-side lookup, measured with a probe on
+`ElevationStore`: `resolveBatch` spends about 3.86 ms per frame,
+sustained — roughly a quarter of a 60 fps budget — resolving about
+50000 coordinates per second. It runs continuously because GSD 0 never
+lets a coordinate resolve, so the engines re-query their whole sets each
+second. Per coordinate, `resolveUnits` resolves a division node,
+interpolates a projection grid, and walks the LOD path building a
+`${lod}/${x}/${y}` string key and hitting a `Map` on every level: a path
+sized for a few waypoint markers, run against tens of thousands of
+coordinates every frame. The store carries the point consumers
+(waypoint, floating position, pan); it does not carry bulk vector
+heightcoding. The first performance capture was run only after the
+reviewer asked for it; it should have gated the report.
+
+Mechanism. One client-heightcoding engine
+(`src/map/geodata-heightcoder.ts`) drives both the shadow diagnostic and
+the `processHeights` migration (backlog #56): it holds a coordinate set,
+keeps one `queryTerrainElevation` in flight, retains the best sample per
+coordinate, and reports the coordinates whose height or `actualGsd`
+changed. `Map` owns the running engines and ticks them from the
+always-run part of `Map.update`, outside the dirty gate. The store never
+withdraws a value: a miss or a coarser answer leaves the retained sample
+in place, and only a finer answer (or a changed height at equal GSD)
+replaces it.
+
+Deviations and decisions:
+
+- Coverage is camera-driven and there is no regional population, in this
+  RFC or later. The store answers where the traversal has drawn; a
+  coordinate outside the view is simply not answered yet. Populating
+  terrain the camera does not show would heightcode geometry nothing
+  draws. This supersedes the section 1 remark that a future vector
+  source would add explicit regional population.
+- The transient cycle is internal. An application adds a geodata layer
+  and forgets it; the library heightcodes it and rebuilds its geometry
+  as the store improves, for the life of the layer. Declaring a
+  coordinate `'float'` is the whole request: `makeFreeLayer` starts the
+  heightcoding on its own, so `demos/non-interactive` no longer calls
+  `processHeights` at all. `processHeights` survives only for a geometry
+  consumer that reads coordinates without rendering a free layer (the
+  measure tool, which reads its one-shot area from the first covered
+  result); its old completion callback is gone.
+- `MapGeodataBuilder`, the public builder returned by `createGeodata`,
+  gained a `geodata-builder.d.ts` sidecar declaring its surface, and
+  `createGeodata` is typed to it instead of `unknown`.
+- Every consumer queries at GSD 0 and so never resolves; the store's
+  `actualGsd` is still recorded. Requesting each consumer's natural
+  resolution instead — a tile's `diskDiameter / displaySize`, or for a
+  monolithic layer the current view's highest terrain LOD — is the
+  deferred optimization that caps refreshes on settled coordinates,
+  tracked as [backlog #58](backlog.md#backlog-58).
+- A geodata rebuild is double-buffered in `MapDraw.drawMonoliticGeodata`:
+  the replacement view is built alongside the live one and swapped in
+  only when ready, so a refinement never blinks the layer. This covers
+  the only geometry gate 2 rebuilds; a style change, which also bumps
+  the revision, gets the same swap as a side benefit. Tiled geodata
+  (`type: 'geodata-tiles'`) is not rebuilt here — the shadow only
+  measures it — so it needs no swap yet. When tiled geodata adopts
+  client heightcoding (server heightcoding removed, 2D tile coordinates
+  heightcoded on the client), each tile's geodata view will be rebuilt
+  on refinement and will need the same atomic swap in the tiled render
+  path.
+- The shadow (`src/map/elevation-store-geodata-analysis.ts`,
+  `debugElevationStoreGeodataShadow`) parses the delivered JSON geodata;
+  a binary payload is skipped with one warning, so a shadow run sets
+  `mapGeodataBinaryLoad` false. On public `complex-terrain` the
+  client-minus-server height median was near one metre, with a heavier
+  tail where composed client terrain and the server DEM genuinely differ
+  — the distribution the gate asks the reviewer to read. The report's
+  coordinate count and its `covered` fraction are unreliable and were
+  over-cited earlier: the diagnostic accumulates one entry per collected
+  tile-view and never drops them, and it samples mid-flight, so the
+  count moved between samples (40644 to 52367) and the fraction is not a
+  clean measure of how much visible geometry can be heightcoded.
+- The height math matches the retired navtile path: the store's terrain
+  height is added to the coordinate's original float offset and the
+  result is converted to physical space. The store height carries no
+  vertical exaggeration (section 3.1); geodata is drawn in that same
+  unexaggerated space.
+- Performance detail behind the verdict above (`test/perf/run-one.js`,
+  matched `complex-terrain` at 1920 by 1080, JSON geodata both runs):
+  achieved frame rate about 60 with the shadow off and about 39 with it
+  on. The engine profiler's frame-time number moved only 45.7 to 43.7
+  fps, but that is draw time, not frames rendered, and reporting it as
+  the FPS was the papering-over. Request counts were identical (1116):
+  no added terrain request. The cost mechanism — `resolveBatch` at about
+  3.86 ms per frame — is in the verdict paragraph above, measured with a
+  temporary probe.
 
 ### 11.4 Gate 3: floating map positions
 

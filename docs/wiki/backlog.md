@@ -23,6 +23,41 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-58"></a>
+## 58. Request geodata heightcoding at tile/view resolution, not GSD 0
+
+**Opened:** 2026-08-26
+**Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
+`src/map/geodata-heightcoder.ts`,
+`src/map/elevation-store-geodata-analysis.ts`, `src/map/geodata-builder.js`
+
+Gate-2 client heightcoding queries the elevation store at
+`desiredGsd = 0` for every consumer (monolithic geodata, the shadow
+diagnostic, the future tiled path). Zero asks for the finest resident
+unit and never resolves, so every coordinate is refreshed for the life
+of the layer even once the store is as fine as the geometry can use. A
+positive requested GSD lets a coordinate resolve (stop refreshing) once
+the store reaches that resolution — a pure optimization, correctness is
+unchanged.
+
+The natural request differs by consumer:
+
+- **Tiled geodata:** the tile's own resolution,
+  `diskDiameter / displaySize`, where the disk diameter is
+  `node.diskAngle2A * planetRadius * sqrt(2)` (the measure
+  `surface-tile.js` uses for screen pixel size). One value per tile.
+- **Monolithic geodata:** no tile carries a resolution, so use the
+  highest terrain LOD in the current view — `1/256` of that tile's
+  physical extent, read from `MapStats` or the surface trees. Physical
+  extents differ between tiles at coarse LODs, so a rule of thumb (a
+  representative or worst-case extent) is needed rather than an exact
+  per-coordinate value; the goal is only to cap needless refreshes, and
+  a re-query at the new value as the view LOD deepens is acceptable.
+
+Neither is implemented; both query at 0. Add the per-consumer GSD so
+settled coordinates stop refreshing. Measure the refresh-count and FPS
+change before and after to confirm it earns its complexity.
+
 <a id="backlog-57"></a>
 ## 57. GAP: a map cannot be initialized without a terrain source
 

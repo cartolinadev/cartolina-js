@@ -128,6 +128,15 @@ MapDraw.prototype.processDrawCommands = function(cameraPos, commands, priority, 
 };
 
 
+MapDraw.prototype.getMonoGeodataPath = function(surface) {
+    if (typeof surface.geodataUrl === 'object') {
+        return surface.geodataUrl;
+    }
+
+    return surface.getMonoGeodataUrl(surface.id);
+};
+
+
 MapDraw.prototype.drawMonoliticGeodata = function(surface) {
     if (!surface) {
         return;
@@ -137,21 +146,58 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
         return;
     }
 
-    var path;
-
+    // First load: build the live view directly and sync the counter.
+    // There is no live geometry to protect, so no double buffer is
+    // needed.
     if (surface.monoGeodata == null) {
-        if (typeof surface.geodataUrl === 'object') {
-            path = surface.geodataUrl;
-        } else {
-            path = surface.getMonoGeodataUrl(surface.id);
-        }
-
-        surface.monoGeodata = new MapGeodata(this.map, path, {tile:null, surface:surface});
+        surface.monoGeodata = new MapGeodata(
+            this.map, this.getMonoGeodataPath(surface),
+            {tile:null, surface:surface});
+        surface.monoGeodataCounter = surface.geodataCounter;
     }
 
-    if (surface.monoGeodataCounter != surface.geodataCounter) {
-        surface.monoGeodataView = null;
+    // A later geodata change (a client-heightcoding refinement, a style
+    // change) builds a replacement alongside the live view and swaps it
+    // in only once it is ready, so the layer never blinks. Restart the
+    // replacement whenever the counter advances again mid-build so it
+    // always reflects the latest geometry.
+    if (surface.monoGeodataView
+        && surface.monoGeodataCounter != surface.geodataCounter) {
+
         surface.monoGeodataCounter = surface.geodataCounter;
+
+        if (surface.monoGeodataPendingView) {
+            surface.monoGeodataPendingView.kill();
+        }
+
+        if (surface.monoGeodataPending) {
+            surface.monoGeodataPending.kill();
+        }
+
+        surface.monoGeodataPending = new MapGeodata(
+            this.map, this.getMonoGeodataPath(surface),
+            {tile:null, surface:surface});
+        surface.monoGeodataPendingView = null;
+    }
+
+    if (surface.monoGeodataPending
+        && surface.monoGeodataPending.isReady(null, null, null)) {
+
+        if (!surface.monoGeodataPendingView) {
+            surface.monoGeodataPendingView = new MapGeodataView(
+                this.map, surface.monoGeodataPending,
+                {tile:null, surface:surface});
+        }
+
+        if (surface.monoGeodataPendingView.isReady()) {
+            surface.monoGeodataView.kill();
+            surface.monoGeodata.kill();
+
+            surface.monoGeodata = surface.monoGeodataPending;
+            surface.monoGeodataView = surface.monoGeodataPendingView;
+            surface.monoGeodataPending = null;
+            surface.monoGeodataPendingView = null;
+        }
     }
 
     if (surface.monoGeodata.isReady(null, null, null)) {
@@ -159,7 +205,7 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
         if (!surface.monoGeodataView) {
             surface.monoGeodataView = new MapGeodataView(this.map, surface.monoGeodata, {tile:null, surface:surface});
         }
-        
+
         if (surface.monoGeodataView.isReady()) {
             var mapdataCredits = this.map.visibleCredits.mapdata
 

@@ -213,6 +213,16 @@ MapGeodataView.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) 
 
             var geodata = this.geodata.geodata;
 
+            // Gate-2 shadow: re-heightcode the delivered coordinates of a
+            // server-heightcoded tile through the elevation store and
+            // compare, once, before the worker consumes them. Tiled
+            // geodata only (a free/monolithic view has no tile); a no-op
+            // unless the diagnostic is enabled.
+            if (this.tile && !this.shadowCollected) {
+                this.shadowCollected = true;
+                this.map.outerMap.analyzeGeodataShadow(geodata);
+            }
+
             this.processing = true;
             this.killedByCache = false;
             this.geodataProcessor.setListener(this.onGeodataProcessorMessage.bind(this));

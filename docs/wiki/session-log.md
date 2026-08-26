@@ -3,6 +3,25 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-25 - RFC 13 gate 2: client-side geodata heightcoding
+
+Built RFC 13 gate 2: one transient client-heightcoding engine
+(`src/map/geodata-heightcoder.ts`) wired to the shadow diagnostic
+(`elevation-store-geodata-analysis.ts`) and the `processHeights`
+migration off navigation tiles (backlog #56), plus a
+`geodata-builder.d.ts` sidecar so `createGeodata` is typed. New backlog
+#58 tracks requesting heightcoding at tile/view resolution rather than
+GSD 0.
+
+Verdict: gate 2's primary performance acceptance is not met. Matched
+`complex-terrain` at 1920×1080, the shadow drops achieved frame rate
+~60 → ~39 fps (~35 %, gate is under 10 %) at ~0.93 coverage — the RFC
+§1/§6.1 warning that best-effort point lookup does not carry bulk vector
+heightcoding, realized in measurement. The store serves the point
+consumers; the vector prize needs the deferred regional-coverage store.
+Design, deviations, and numbers in the gate-2 notes under RFC 13
+section 11.3.
+
 ## 2026-08-25 - Keep the splash screen through style construction
 
 Fixed the splash screen hiding before a map style loads.

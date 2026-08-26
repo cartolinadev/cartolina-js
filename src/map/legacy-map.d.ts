@@ -6,6 +6,7 @@ import type MapPosition from './position';
 import type MapRefFrame from './refframe';
 import type MapSrs from './srs';
 import type MapFreeLayer from './free-layer';
+import type MapGeodataBuilder from './geodata-builder';
 import type MapSurfaceTile from './surface-tile';
 import type MapUrl from './url';
 import type MapDraw from './draw';
@@ -209,12 +210,8 @@ export default class Map {
     addFreeLayer(id: string, layer: unknown): void;
     removeFreeLayer(id: string): void;
 
-    /**
-     * Creates a geodata builder for constructing vector overlays.
-     * The return type is `unknown` pending a TypeScript declaration for
-     * the geodata builder surface.
-     */
-    createGeodata(): unknown;
+    /** Creates a geodata builder for constructing vector overlays. */
+    createGeodata(): MapGeodataBuilder;
 
     convertPositionHeightMode(
         position: PositionInput,

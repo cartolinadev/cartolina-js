@@ -3,6 +3,7 @@
  */
 
 import Map from '../map/map';
+import type MapGeodataBuilder from '../map/geodata-builder';
 import Atmosphere from '../map/atmosphere';
 import Renderer from '../renderer/renderer';
 import ConfigStore from '../config-store';
@@ -239,11 +240,11 @@ class Viewer {
      * (lines, polygons, points).
      *
      * Return type is `unknown` pending promotion of the full geodata
-     * type surface. Use the returned builder's `addLineString`,
-     * `importGeoJson`, and `makeFreeLayer` methods directly, then pass
-     * the result as a source `definition` to `addSource`.
+     * Use the returned builder's `addLineString`, `importGeoJson`, and
+     * `makeFreeLayer` methods directly, then pass the result as a source
+     * `definition` to `addSource`.
      */
-    createGeodata(): unknown {
+    createGeodata(): MapGeodataBuilder | null {
 
         this.assertAlive();
         return this.map_.createGeodata();
