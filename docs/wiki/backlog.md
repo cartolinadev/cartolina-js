@@ -24,39 +24,29 @@ next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
 <a id="backlog-58"></a>
-## 58. Request geodata heightcoding at tile/view resolution, not GSD 0
+## 58. Request geodata heightcoding at tile/view gsd
 
 **Opened:** 2026-08-26
+**Status:** open — part of reopened RFC 13 gate 2
 **Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
 `src/map/geodata-heightcoder.ts`,
 `src/map/elevation-store-geodata-analysis.ts`, `src/map/geodata-builder.js`
 
-Gate-2 client heightcoding queries the elevation store at
-`desiredGsd = 0` for every consumer (monolithic geodata, the shadow
-diagnostic, the future tiled path). Zero asks for the finest resident
-unit and never resolves, so every coordinate is refreshed for the life
-of the layer even once the store is as fine as the geometry can use. A
-positive requested GSD lets a coordinate resolve (stop refreshing) once
-the store reaches that resolution — a pure optimization, correctness is
-unchanged.
+The failed gate-2 implementation uses `desiredGsd = 0` for its monolithic
+heightcoding and tiled shadow paths. Every coordinate is therefore refreshed
+for the life of the layer even after the store is as fine as the geometry can
+use. Reopened gate 2 needs requested nominal gsds so visible vector geometry
+settles at the resolution the current view can use.
 
 The natural request differs by consumer:
 
-- **Tiled geodata:** the tile's own resolution,
-  `diskDiameter / displaySize`, where the disk diameter is
-  `node.diskAngle2A * planetRadius * sqrt(2)` (the measure
-  `surface-tile.js` uses for screen pixel size). One value per tile.
-- **Monolithic geodata:** no tile carries a resolution, so use the
-  highest terrain LOD in the current view — `1/256` of that tile's
-  physical extent, read from `MapStats` or the surface trees. Physical
-  extents differ between tiles at coarse LODs, so a rule of thumb (a
-  representative or worst-case extent) is needed rather than an exact
-  per-coordinate value; the goal is only to cap needless refreshes, and
-  a re-query at the new value as the view LOD deepens is acceptable.
+- **Tiled geodata:** the rendered geodata tile's nominal side in its
+  reference-frame node, divided by `displaySize`.
+- **Monolithic geodata:** the nominal tile side at the highest terrain LOD
+  rendered in the current view, divided by 256.
 
-Neither is implemented; both query at 0. Add the per-consumer GSD so
-settled coordinates stop refreshing. Measure the refresh-count and FPS
-change before and after to confirm it earns its complexity.
+Neither is implemented. RFC 13 gate 2 adds both and keeps this entry open until
+the RFC is implemented.
 
 <a id="backlog-57"></a>
 ## 57. GAP: a map cannot be initialized without a terrain source
@@ -77,28 +67,21 @@ incrementally.
 ## 56. Migrate geodata heightcoding to the elevation store
 
 **Opened:** 2026-08-25
-**Status:** open — awaits RFC 13
+**Status:** open — part of reopened RFC 13 gate 2
 **Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
-`src/map/geodata-builder.js`, `src/map/measure.js`
+`src/map/geodata-builder.js`, `src/map/geodata-heightcoder.ts`,
+`src/map/geodata-view.js`, `src/viewer/ui/control/measure.js`
 
-`MapGeodataBuilder.processHeights` resolves a `'float'` geodata
-coordinate's height by sampling navigation tiles through
-`MapMeasure.getSurfaceHeight` (`heightmap-by-*` / `node-by-*` modes). The
-`demos/non-interactive` route and any client-built geodata ride this
-path. Navtiles
-are a second representation of the terrain that disagrees with the drawn
-mesh and stops at a coarser LOD — the disagreement RFC 13 removes for
-point queries.
+The failed gate-2 implementation moved `MapGeodataBuilder.processHeights()`
+from navigation tiles to a globally ticked `MapGeodataHeightcoder`. Only
+builder-created monolithic free layers draw store-heightcoded geometry. Tiled
+geodata is comparison-only, and other monolithic layers do not use that path.
 
-Migrate `processHeights` to the elevation store's array
-`queryTerrainElevation` plus the retained-sample refine protocol: it is
-the array-consumer twin of RFC 13 gates 3/4 (which move the single
-current-position sample off `getSurfaceHeight`). It needs no regional
-coverage — the store answers coarsely from a pinned reference-frame-node
-root once any part of the node has been seen, and refines as the route
-comes into view. Do this once RFC 13 is implemented, or as a later gate
-of it. The 2D vector-source redesign is a separate, larger effort and is
-not a precondition.
+Reopened gate 2 gives tiled and monolithic rendered data the same
+`MapGeodataView`-owned sample-set path, regardless of payload origin. Migrate
+the measure tool, the sole direct `processHeights()` caller, to its own retained
+sample set. Then remove `processHeights()`, `stopHeightcoding()`, the global
+heightcoder registration, and builder-owned free-layer rebuilds.
 
 <a id="backlog-55"></a>
 ## 55. Unify geodetic-height calculation
