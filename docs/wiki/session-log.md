@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-27 - pre-commit: advise against a session log on docs-only commits
+
+Added an advisory to `.husky/pre-commit`: a docs-only commit that also
+stages `docs/wiki/session-log.md` now prints a note that the entry is
+usually redundant, since a doc change is self-documenting in the doc
+itself. Non-blocking, and it leaves unchanged the existing rule that a
+code commit must stage a session log.
+
 ## 2026-08-25 - RFC 13 gate 2: client-side geodata heightcoding
 
 Built RFC 13 gate 2: one transient client-heightcoding engine

@@ -38,6 +38,16 @@ if [ -z "$SKIP_SESSION_LOG" ] && [ "$DOCS_ONLY" -eq 0 ]; then
   fi
 fi
 
+# Advisory: a docs-only commit that also stages a session-log entry. A
+# doc change is self-documenting in the doc itself, so a session-log
+# entry usually duplicates that record. Warn without blocking.
+if [ "$DOCS_ONLY" -eq 1 ] \
+    && echo "$STAGED_FILES" | grep -q '^docs/wiki/session-log\.md$'; then
+  echo "pre-commit: docs-only commit stages a session-log entry."
+  echo "A doc change is self-documenting; a session-log entry is usually"
+  echo "redundant here. Proceeding (advisory)."
+fi
+
 # Scan staged diff for PII and secrets
 STAGED_DIFF=$(git diff --cached)
 
