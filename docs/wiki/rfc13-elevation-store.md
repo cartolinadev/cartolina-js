@@ -282,9 +282,10 @@ completed. A query therefore sees either the old complete unit or the new
 complete unit, never an intermediate source.
 
 Commit copies the replacement into the resident unit after all replacement
-commands have been queued. WebGL command order makes earlier lookups observe
-the previous contents and later lookups observe the completed replacement.
-The shared replacement counts as a fixed store allocation.
+commands have been queued, and stamps that unit with the next build generation.
+WebGL command order makes earlier lookups observe the previous contents and
+later lookups observe the completed replacement. The shared replacement counts
+as a fixed store allocation.
 
 Four child grids form one 511 by 511 grid after their duplicated shared edges
 are counted once. Parent reduction maps parent sample `[i, j]` to child-grid
@@ -347,9 +348,13 @@ spatial division system: consumers choose `desiredGsd` in their own gates,
 
 `samples` is optional on the first call; the store creates it and then updates
 it in place. A missing or `undefined` sample means no retained covered value
-for that position. `UnitRef` records the node, tile path, local coordinate, and
-answering tile ID. It is opaque to the consumer and does not retain or pin a
-resident store unit.
+for that position. `UnitRef` records the resolved node and its local
+coordinate, plus the answering tile ID and that unit's build generation as the
+walk's stop bound. The tile at any LOD is derived arithmetically from the local
+coordinate, so no tile path is stored. The resolved node and local coordinate
+may be retained before any pass covers the position, so a sample never repeats
+spatial-division-node resolution. `UnitRef` is opaque to the consumer and does
+not retain or pin a resident store unit.
 
 A sample set represents one stable positions array. If those positions change,
 the consumer creates a new sample set or clears `samples`. While an update is
@@ -358,7 +363,10 @@ calls for the same sample set share the same promise. That record is discarded
 when the update settles or the store is disposed.
 
 Clearing or disposing the store resolves pending updates with `false`, so no
-update promise is left unsettled.
+update promise is left unsettled. A consumer that discards its sample set before
+an in-flight update settles — a `MapGeodataView` killed by the cache, for
+instance — marks the set disposed, and the store drops that update's writeback
+rather than writing into freed geometry.
 
 Implementation note: The current store-level `queryTerrainElevation()` becomes
 `updateTerrainSamples()`. A caller that needs one result creates a one-position
@@ -425,7 +433,9 @@ For retained sample-set consumers, the requested gsd is:
   divided by `displaySize`;
 - waypoints: zero;
 - monolithic geodata: highest current rendered terrain LOD's (from stats)
-  nominal tile side divided by 256; and
+  nominal tile side divided by 256, reprocessing the whole set on a change.
+  Monolithic layers carry few coordinates by design, so this stays cheap and is
+  not the vector workload gate 2 stresses; and
 - current map position and pan following: the existing float/fix conversion
   rule. `MapMeasure.getOptimalHeightLod()` computes the target LOD:
 
@@ -450,8 +460,14 @@ does not reach the update call.
 `updateTerrainSamples()` scans the sample set and builds a temporary batch of
 samples that can change. A retained sample's `UnitRef` describes its previous
 answer, not the request, so it remains valid when `desiredGsd` changes. For a
-sample without a `UnitRef`, the store first resolves its reference-frame node,
-tile path, and local coordinate.
+sample whose position is not yet resolved, the store first resolves its
+reference-frame node and local coordinate.
+
+A consumer may call every frame, but need not. A set whose samples are all
+settled at the current request and build generation produces an empty batch.
+A settled outcome changes only when a later pass commits a unit, so the store
+tracks the last committed generation and short-circuits a settled set without
+rescanning until then.
 
 For each sample, the store calculates its ideal LOD from the gsd formula in
 section 5.2:
@@ -474,11 +490,20 @@ startLod = min(idealLod, deepestLod)
 `startLod` only bounds the walk and does not change `idealLod`.
 
 The store walks from `startLod` towards the node root in fine-to-coarse order.
-If the retained answering tile occurs on that walk, the store stops before
-checking it. If it is the start tile, the walk is empty and the retained sample
-is accepted without GPU work. If the retained tile is not encountered, the
-walk includes the node root. The store records each resident unit encountered
-in fine-to-coarse order. If none is resident, the sample is unchanged.
+Each resident unit carries a build generation stamped at commit (section 4.3),
+and `UnitRef` records the answering unit's generation. When the walk reaches the
+retained answering tile it stops there, but re-reads that tile when a resident
+unit's generation differs from the retained one, because section 6.5 rebuilds
+the same tile ID as finer rigs contribute. An unchanged generation — the empty
+walk when the retained tile is also the start tile — accepts the retained sample
+without GPU work. If the retained tile is not encountered, the walk includes the
+node root. The store records each resident unit encountered in fine-to-coarse
+order. If none is resident, the sample is unchanged.
+
+When `desiredGsd` grows — a consumer zooming out — `startLod` can fall below the
+retained tile, so the walk does not encounter it and re-answers from a coarser
+resident unit. A retained sample therefore re-targets to the requested
+resolution; the store matches the request, it does not only refine.
 
 The GPU lookup batch contains one pair for each submitted sample and resident
 unit. Pairs are grouped by unit so each unit texture is bound once. The shader
@@ -495,9 +520,10 @@ update for a sample set already queued or running returns the same promise.
 
 Implementation note: Replace the current one-shot query queue with transient
 in-flight records keyed by sample set. Add a concrete `UnitRef` that retains
-the resolved node, tile path, local coordinate, and answering tile ID. Keep the
-existing deepest-resident-LOD tracker. Only samples without a `UnitRef` resolve
-their position; the rest use their retained path and the bounded walk above.
+the resolved node, local coordinate, answering tile ID, and answering unit
+generation. Keep the existing deepest-resident-LOD tracker. Only samples without
+a resolved position run spatial-division-node resolution; the rest reuse it and
+the bounded walk above.
 Remove physical-gsd conversion from query execution. Adapt batch assembly and
 readback to update `SampleSet.samples` in place, including the new `UnitRef`,
 and resolve the shared promise from those changes. The GPU lookup and readback
@@ -910,8 +936,16 @@ tracks the same live views. Store heightcoding adds no terrain request and
 never updates a view outside the current frame.
 
 At 1920 by 1080, store heightcoding must not reduce matched measured FPS by
-more than ten percent. A failure blocks the gate and requires optimization or
-reconsideration of the approach.
+more than ten percent. The bound is measured separately on both paths, because
+their cost differs: a tiled layer settles per rendered tile view, while a
+monolithic layer requests one gsd for its whole set and reprocesses every
+coordinate atomically each time the highest rendered terrain LOD changes. The
+gate uses the `a-3d-mountain-map` mapConfig that carries both a `geodata-tiles`
+and a `geodata` free layer, loaded through the compatibility library, so one
+case exercises both paths; a config variant lacking the monolithic `geodata`
+layer does not qualify. Each capture includes a zoom that raises the highest
+rendered terrain LOD. A failure on either blocks the gate and requires
+optimization or reconsideration of the approach.
 
 #### Existing work
 
@@ -1810,3 +1844,88 @@ tiled geodata one view-owned heightcoding path; replaces the public query; and
 rewrites gates 1 and 2 around that contract. Please review the whole revised
 design, especially the lookup algorithm, ownership boundaries, and whether the
 gates now test the store's intended vector workload.
+
+
+## Review round 5 — findings and sign-off
+
+The revised design is accepted. The lookup, the ownership split, and gate 2 all
+hold. This RFC is on a fast track: by explicit approval of the project leader,
+the notes below were applied to the body in this pass rather than returned for
+the author to adopt in a later round. They are recorded here for the trail.
+
+The redesign is aimed at the measured failure. The 35 percent drop was CPU-side
+per-coordinate work: at `desiredGsd` zero nothing settled, so every covered
+coordinate repeated node resolution, projection-scale conversion, tile walking,
+and residency lookup each pass across every active view. The retained `UnitRef`
+caches that resolution, nominal gsd removes the conversion, and settling stops
+the re-query. For the covered, settled population — which sticky node roots and
+bottom-up reduction make the norm almost at once — the measured cost is gone.
+
+### 1. `UnitRef` over-describes what it retains
+
+Section 5.1 listed a "tile path" among the retained fields. The tile at any LOD
+is derived arithmetically from the local coordinate, so there is no path to
+store. The one request-independent expensive step is the geographic-to-projected
+resolution; the rest of the walk is arithmetic.
+
+*Applied. Sections 5.1 and 5.4 record the resolved node and local coordinate,
+plus the answering tile ID and unit generation as the walk's stop bound, and
+allow the position to be retained before any pass covers it. No cost bound
+against uncovered lookups was added: sticky node roots make a standing uncovered
+tail a corner case, not the workload.*
+
+### 2. The start-tile skip freezes a sample against same-LOD rebuilds
+
+Section 5.4 accepts a retained sample without GPU work when its answering tile
+is the walk's start tile. Section 6.5 rebuilds a unit at the same tile ID as finer
+rigs contribute, so a sample pinned at its ideal LOD — the steady state for
+tiled geodata — would never see that refinement and could stay attached to a
+coarse load-in fallback.
+
+*Applied. Each unit carries a build generation stamped at commit (section 4.3);
+`UnitRef` records the answering unit's generation, and the walk re-reads the
+start tile when the resident unit's generation has moved. About six lines of
+implementation.*
+
+### 3. Gate 2 measured only one of the two paths it introduces
+
+The failed capture was the tiled path, and gate 2 retests it. The monolithic
+path is new: a monolithic layer requests one gsd for its whole set and
+reprocesses every coordinate when the highest rendered terrain LOD changes. No
+capture exercised it.
+
+*Applied. Gate 2 measures the ten-percent bound on both paths, naming
+`a-3d-mountain-map`, which carries a `geodata-tiles` and a `geodata` free layer,
+each capture including a zoom that raises the highest rendered terrain LOD.
+Bounding the monolithic reprocess to changed-LOD coordinates was considered and
+declined: monolithic layers carry few coordinates by design, now recorded in
+section 5.3 as a decision rather than left implicit.*
+
+### 4. A settled set should not rescan every frame
+
+Consumers may call `updateTerrainSamples()` every frame. A fully settled set
+still scanned its whole coordinate list to find nothing to do.
+
+*Applied. Section 5.4 short-circuits a settled set against the last committed
+build generation, so it rescans only after a pass commits a unit.*
+
+### 5. A view disposed mid-readback
+
+Section 5.1 resolved pending updates only on store clear or disposal. A
+`MapGeodataView` killed by the cache while its update is in flight would write
+into freed geometry.
+
+*Applied. Section 5.1 drops the writeback of an update whose sample set was
+disposed before it settled.*
+
+### 6. A coarsening request re-answers coarser
+
+When `desiredGsd` grows, the walk re-targets a retained sample to a coarser unit
+and overwrites it. That is a departure from "the store only improves" and was
+unstated.
+
+*Applied. Section 5.4 states that the store matches the request rather than only
+refining.*
+
+The design is accepted. The one change with behavioural weight is the build
+generation in note 2; the rest tighten wording, gate coverage, and lifecycle.
