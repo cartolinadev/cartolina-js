@@ -79,7 +79,7 @@
  *   Markers are HTML elements overlaid on top of the WebGL canvas.
  *
  *   A two-element "coords" marker sits on the terrain. Its height comes
- *   from queryTerrainElevation, which answers from the terrain the map
+ *   from updateTerrainSamples, which answers from the terrain the map
  *   has drawn, so the marker and the terrain agree. The height arrives
  *   asynchronously and improves as finer terrain loads; the marker is
  *   hidden until the first answer and stays where it is until a better
@@ -94,11 +94,6 @@
  */
 
 const DEFAULT_MARKER_HEIGHT = 90;
-
-// The elevation store's own coverage does not change faster than its
-// elevation pass runs (about once a second by default), so refreshing
-// more often than that only adds GPU readback churn.
-const TERRAIN_REFRESH_INTERVAL_MS = 1000;
 
 // checkVisibility() answers from whatever depth hitmap currently
 // exists, which can be stale by up to the hitmap's own throttle
@@ -168,9 +163,8 @@ export class WaypointMap {
         this._markerOverlay = null;
         this._markerEls = [];
         this._terrainMarkers = [];
-        this._terrainSamples = [];
-        this._terrainPending = false;
-        this._terrainLastRefresh = 0;
+        this._terrainSampleSet = null;
+        this._terrainSampleSlots = null;
         this._tickUnsub = null;
         this._keyHandler = null;
         this._destroyed = false;
@@ -366,7 +360,16 @@ export class WaypointMap {
             .filter(({ marker }) =>
                 marker.coords && marker.coords.length === 2);
 
-        this._terrainSamples = new Array(markers.length).fill(null);
+        this._terrainSampleSet = {
+            positions: this._terrainMarkers.map(
+                ({ marker }) => [marker.coords[0], marker.coords[1]]),
+            desiredGsd: 0
+        };
+        this._terrainSampleSlots = new Array(markers.length).fill(-1);
+
+        this._terrainMarkers.forEach(({ index }, slot) => {
+            this._terrainSampleSlots[index] = slot;
+        });
         this._terrainVisibleConfirmed = new Array(markers.length).fill(null);
         this._terrainVisiblePending = new Array(markers.length).fill(null);
     }
@@ -419,48 +422,15 @@ export class WaypointMap {
     /**
      * Keeps the terrain height of every two-dimensional marker current.
      *
-     * One query covers every such marker and only one is in flight at a
-     * time, no more often than TERRAIN_REFRESH_INTERVAL_MS. A miss
-     * leaves the retained sample alone, so a marker never loses a
-     * height it already had; a new height or a new actualGsd is what
-     * moves it.
+     * One retained sample set covers every such marker. The store shares
+     * repeated calls while an update is in flight and skips a settled set
+     * until terrain units change.
      */
     _refreshTerrainHeights() {
-        if (this._terrainPending) return;
-        if (this._terrainMarkers.length === 0) return;
+        if (!this._terrainSampleSet) return;
+        if (this._terrainSampleSet.positions.length === 0) return;
 
-        const now = performance.now();
-        if (now - this._terrainLastRefresh < TERRAIN_REFRESH_INTERVAL_MS)
-            return;
-        this._terrainLastRefresh = now;
-
-        const positions = this._terrainMarkers.map(
-            ({ marker }) => [marker.coords[0], marker.coords[1]]);
-
-        this._terrainPending = true;
-
-        this._viewer.queryTerrainElevation(positions, 0).then((samples) => {
-            this._terrainPending = false;
-            if (this._destroyed) return;
-
-            for (let i = 0; i < this._terrainMarkers.length; i++) {
-                const sample = samples[i];
-                if (!sample) continue;
-
-                const index = this._terrainMarkers[i].index;
-                const retained = this._terrainSamples[index];
-
-                if (retained
-                    && retained.position[2] === sample.position[2]
-                    && retained.actualGsd === sample.actualGsd) {
-                    continue;
-                }
-
-                this._terrainSamples[index] = sample;
-            }
-        }, () => {
-            this._terrainPending = false;
-        });
+        this._viewer.updateTerrainSamples(this._terrainSampleSet);
     }
 
     _updateMarkers() {
@@ -506,7 +476,8 @@ export class WaypointMap {
             } else {
 
                 // on the terrain: wait for the first elevation answer
-                const sample = this._terrainSamples[i];
+                const slot = this._terrainSampleSlots[i];
+                const sample = this._terrainSampleSet?.samples?.[slot];
 
                 if (!sample) {
                     el.style.visibility = 'hidden';
@@ -514,8 +485,7 @@ export class WaypointMap {
                 }
 
                 pubCoords = [
-                    sample.position[0], sample.position[1],
-                    sample.position[2]
+                    coords[0], coords[1], sample.height
                 ];
 
                 // checkVisibility() answers from whatever hitmap it has,

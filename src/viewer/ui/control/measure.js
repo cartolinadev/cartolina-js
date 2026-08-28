@@ -103,6 +103,8 @@ var UIControlMeasure = function(ui, visible, visibleLock) {
     this.tool = 0;
     this.metric = true;
     this.mapUpdateDestructor = null;
+    this.areaSampleSet = null;
+    this.areaUpdateDestructor = null;
 
     this.listPanel = this.control.getElement('vts-measure-text-holder');
     this.list = this.control.getElement('vts-measure-text-input');
@@ -303,6 +305,9 @@ UIControlMeasure.prototype.onSwitch = function() {
         if (this.mapUpdateDestructor) {
             this.mapUpdateDestructor();
         }
+
+        var map = this.browser.getMap();
+        if (map) this.stopAreaSampling(map);
     }
 
     this.onTool(this.tool);
@@ -404,71 +409,106 @@ UIControlMeasure.prototype.onCompute = function(button) {
         }
 
         if (this.tool == 3) {
-            var geodata = map.createGeodata();
-            geodata.addPolygon3(this.navCoords, [], null, 'fix', {}, 'tmp-polygon');
-
             var self = this;
-            var printed = false;
+            this.stopAreaSampling(map);
 
-            // Heightcoding through the elevation store is transient. Take
-            // the first covered result, print the area once, and stop the
-            // heightcoder so it does not keep refreshing this one-shot
-            // measurement.
-            geodata.processHeights(function(gd) {
-                if (printed) return;
-                printed = true;
-                gd.stopHeightcoding();
+            var sampleSet = {
+                positions: this.navCoords.map(function(coords) {
+                    return [coords[0], coords[1]];
+                }),
+                desiredGsd: 0
+            };
+            this.areaSampleSet = sampleSet;
+            var pending = false;
 
-                var s = '  ';
+            var updateArea = function() {
+                if (pending || self.areaSampleSet !== sampleSet) return;
+                pending = true;
 
-                for (var k = 0, lk = ('' + self.counter).length; k < lk; k++) {
-                    s += ' ';
-                }
+                self.browser.updateTerrainSamples(sampleSet).then(function() {
+                    pending = false;
+                    if (self.areaSampleSet !== sampleSet) return;
 
-                s += '------------------------';
+                    var samples = sampleSet.samples || [];
+                    if (samples.length !== sampleSet.positions.length
+                        || samples.some(function(sample) { return !sample; })) {
 
-                var poly = gd.extractGeometry('tmp-polygon');
-                var area = poly.getSurfaceArea();
+                        if (!self.areaUpdateDestructor) {
+                            self.areaUpdateDestructor = self.browser.on(
+                                'map-update', updateArea);
+                        }
 
-                if (self.metric) {
-                    s += '\n  area: ' + area.toFixed(2) + ' m\u00B2';
-
-                    if (area > 100) {
-                        s += '\n        ' + (area / 100).toFixed(2) + ' ares';
+                        return;
                     }
 
-                    if (area > 10000) {
-                        s += '\n        ' + (area / 10000).toFixed(2)
-                            + ' hectares';
+                    var fixedCoords = self.navCoords.map(
+                        function(coords, index) {
+                            return [coords[0], coords[1],
+                                samples[index].height];
+                        });
+                    var geodata = map.createGeodata();
+                    geodata.addPolygon3(
+                        fixedCoords, [], null, 'fix', {}, 'tmp-polygon');
+
+                    self.stopAreaSampling(map);
+
+                    var s = '  ';
+
+                    for (var k = 0, lk = ('' + self.counter).length;
+                            k < lk; k++) {
+                        s += ' ';
                     }
 
-                    if (area > 1000000) {
-                        s += '\n        ' + (area / 1000000).toFixed(2)
-                            + ' km\u00B2';
+                    s += '------------------------';
+
+                    var poly = geodata.extractGeometry('tmp-polygon');
+                    var area = poly.getSurfaceArea();
+
+                    if (self.metric) {
+                        s += '\n  area: ' + area.toFixed(2) + ' m\u00B2';
+
+                        if (area > 100) {
+                            s += '\n        ' + (area / 100).toFixed(2)
+                                + ' ares';
+                        }
+
+                        if (area > 10000) {
+                            s += '\n        ' + (area / 10000).toFixed(2)
+                                + ' hectares';
+                        }
+
+                        if (area > 1000000) {
+                            s += '\n        ' + (area / 1000000).toFixed(2)
+                                + ' km\u00B2';
+                        }
+                    } else {
+                        s += '\n  area: ' + (area / 0.83612736).toFixed(2)
+                            + ' yd\u00B2';
+
+                        if ((area / 4046.8564224) >= 1) {
+                            s += '\n        '
+                                + (area / 4046.8564224).toFixed(2)
+                                + ' acres';
+                        }
+
+                        if ((area / 2589988.110346) >= 1) {
+                            s += '\n        '
+                                + (area / 2589988.110346).toFixed(2)
+                                + ' mi\u00B2';
+                        }
                     }
-                } else {
-                    s += '\n  area: ' + (area / 0.83612736).toFixed(2)
-                        + ' yd\u00B2';
 
-                    if ((area / 4046.8564224) >= 1) {
-                        s += '\n        ' + (area / 4046.8564224).toFixed(2)
-                            + ' acres';
-                    }
+                    self.counter++;
 
-                    if ((area / 2589988.110346) >= 1) {
-                        s += '\n        ' + (area / 2589988.110346).toFixed(2)
-                            + ' mi\u00B2';
-                    }
-                }
+                    var el = self.list.getElement();
+                    el.value += s + '\n';
+                    el.scrollTop = el.scrollHeight;
 
-                self.counter++;
+                    map.redraw();
+                });
+            };
 
-                var el = self.list.getElement();
-                el.value += s + '\n';
-                el.scrollTop = el.scrollHeight;
-
-                map.redraw();
-            });
+            updateArea();
         }
     }
 
@@ -493,7 +533,21 @@ UIControlMeasure.prototype.onClear = function() {
 
     var map = this.browser.getMap();
     if (map) {
+        this.stopAreaSampling(map);
         map.redraw();
+    }
+};
+
+
+UIControlMeasure.prototype.stopAreaSampling = function(map) {
+    if (this.areaUpdateDestructor) {
+        this.areaUpdateDestructor();
+        this.areaUpdateDestructor = null;
+    }
+
+    if (this.areaSampleSet) {
+        map.outerMap.disposeTerrainSamples(this.areaSampleSet);
+        this.areaSampleSet = null;
     }
 };
 

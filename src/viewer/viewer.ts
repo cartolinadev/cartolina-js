@@ -633,40 +633,21 @@ class Viewer {
     }
 
     /**
-     * Returns the terrain height at a position, or at each of an array
-     * of positions. Resolves to `undefined` where the map holds no
-     * terrain.
+     * Updates terrain heights for a retained set of geographic positions.
      *
-     * The height is read from the terrain the map has drawn, so it
-     * agrees with the screen and improves as finer terrain loads. Keep
-     * the last answer: a later call can miss where an earlier one
-     * succeeded.
+     * `samples` is created on the first call and updated in place. Keep
+     * the same sample set while its positions remain unchanged; a missing
+     * sample retains no covered terrain value.
      *
-     * @param position `[x, y]` in public space, or an array of them
-     * @param desiredGsd wanted sample spacing in metres; zero, the
-     *     default, asks for the finest terrain available
-     * @returns the queried position with the height appended, or an
-     *     array of them in input order
+     * @param sampleSet caller-owned positions, requested gsd, and samples
+     * @returns whether at least one height or actual gsd changed
      */
-    queryTerrainElevation(
-        position: readonly [number, number],
-        desiredGsd?: number,
-    ): Promise<Viewer.TerrainSample | undefined>;
-
-    queryTerrainElevation(
-        positions: readonly (readonly [number, number])[],
-        desiredGsd?: number,
-    ): Promise<readonly (Viewer.TerrainSample | undefined)[]>;
-
-    queryTerrainElevation(
-        position: readonly [number, number]
-            | readonly (readonly [number, number])[],
-        desiredGsd = 0,
-    ): Promise<unknown> {
+    updateTerrainSamples(
+        sampleSet: Viewer.TerrainSampleSet,
+    ): Promise<boolean> {
 
         this.assertAlive();
-        return this.map_.queryTerrainElevation(
-            position as readonly [number, number], desiredGsd);
+        return this.map_.updateTerrainSamples(sampleSet);
     }
 
     /**
@@ -680,7 +661,7 @@ class Viewer {
      * measured, matching the exaggerated surface the depth pass drew.
      *
      * The point carries its own terrain height in `pos[2]`; resolve it
-     * with `queryTerrainElevation` first. This method does not derive a
+     * with `updateTerrainSamples` first. This method does not derive a
      * height and never consults navigation tiles.
      *
      * This uses the cached hitmap/depth-map path. Occlusion can lag
@@ -1311,14 +1292,18 @@ namespace Viewer {
      */
     export type VisibilityProfile = Map.VisibilityProfile;
 
-    /** One answered `queryTerrainElevation` position. */
+    /** Caller-owned retained terrain samples for stable positions. */
+    export type TerrainSampleSet = {
+        positions: readonly (readonly [number, number])[];
+        desiredGsd: number;
+        samples?: (TerrainSample | undefined)[];
+    };
+
+    /** One covered terrain sample. */
     export type TerrainSample = {
-
-        /** The queried position with the terrain height appended. */
-        position: readonly [number, number, number];
-
-        /** Sample spacing of the terrain that answered, in metres. */
+        height: number;
         actualGsd: number;
+        unit: unknown;
     };
 
     /**

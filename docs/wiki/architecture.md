@@ -232,9 +232,9 @@ deleted; remaining draw modules still serve geodata paths. See
 
 `Map` owns an `ElevationStore` (`src/map/elevation-store.ts`) once the
 reference frame is ready. It is a bounded GPU height field built from the
-terrain that is ready for normal rendering, and it answers
-`Viewer.queryTerrainElevation` — the terrain height at a position, or at
-a batch of positions.
+terrain that is ready for normal rendering. Consumers retain a position
+list and call `Viewer.updateTerrainSamples`; covered samples are updated
+in place and misses retain their last answer.
 
 Population rides the terrain traversal with a third sink, so the store
 follows the same tile selection, source order, fallback, and coverage
@@ -246,11 +246,15 @@ reference-frame node keeps a pinned root unit; the rest are evicted
 least-recently-used against `mapElevationStoreGPUCache`.
 
 A lookup is a GPU pass of its own: the resident units covering a
-position are ordered by ground sample distance, drawn as points into a
-two-row result target, and read back asynchronously through a fence, so
-no query blocks a frame. Coverage is best-effort: a position no resident
-unit covers answers `undefined`, and a caller keeps its last successful
-sample.
+position are ordered by nominal ground sample distance, drawn as points
+into a two-row result target, and read back asynchronously through a
+fence, so no update blocks a frame.
+
+With `mapHeightcoding: 'store'`, each rendered geodata view owns one
+retained sample set and atomically rebuilds its geometry from store
+heights. `mapHeightcodingShadow` reports differences from delivered
+legacy heights using those same live samples; it does not create another
+heightcoding path.
 
 The design and its remaining steps are in
 [rfc13-elevation-store.md](rfc13-elevation-store.md).

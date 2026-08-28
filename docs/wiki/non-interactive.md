@@ -143,10 +143,11 @@ viewer.convertCoordsFromNavToCanvas(navPos, 'fix');
 
 A vector overlay is a source (the data) plus a layer (the styling):
 `addSource` registers the geodata, `addLayer` draws it. A `'float'`
-line is heightcoded against the terrain before the source is built.
+line is heightcoded from the rendered terrain when
+`mapHeightcoding: 'store'` is set on the viewer.
 
 ```js
-viewer.ready.then(() => {
+viewer.ready.then(async () => {
     const geo = viewer.createGeodata();
 
     // Closed triangle over central Europe (lon, lat, height)
@@ -156,22 +157,17 @@ viewer.ready.then(() => {
     ];
     geo.addLineString(route, 'float', null, 'line');
 
-    // Resolve the float heights against the terrain, then build the
-    // source from the heightcoded geodata.
-    geo.processHeights('heightmap-by-lod', 4, async () => {
+    // addSource resolves once the source is part of the map state;
+    // await it before the layer that references it.
+    await viewer.addSource('route', {
+        type: 'cartolina-freelayer',
+        definition: geo.makeFreeLayer(),
+    });
 
-        // addSource resolves once the source is part of the map state;
-        // await it before the layer that references it.
-        await viewer.addSource('route', {
-            type: 'cartolina-freelayer',
-            definition: geo.makeFreeLayer(),
-        });
-
-        viewer.addLayer({
-            id: 'route-line', type: 'lines', source: 'route',
-            line: true, 'line-color': [255, 80, 0, 255],
-            'line-width': 4, 'zbuffer-offset': [-5, 0, 0],
-        });
+    viewer.addLayer({
+        id: 'route-line', type: 'lines', source: 'route',
+        line: true, 'line-color': [255, 80, 0, 255],
+        'line-width': 4, 'zbuffer-offset': [-5, 0, 0],
     });
 });
 

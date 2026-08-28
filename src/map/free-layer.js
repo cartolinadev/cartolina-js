@@ -34,11 +34,6 @@ var MapFreeLayer = function(map, json, baseUrl) {
     this.monoGeodataView = null;
     this.monoGeodataCounter = -1;
 
-    // Replacement built alongside the live view on a geodata change, so
-    // a rebuild swaps in atomically instead of blinking.
-    this.monoGeodataPending = null;
-    this.monoGeodataPendingView = null;
-
     this.style = null;
     this.stylesheet = null;
     this.originalStyle = null;
@@ -148,30 +143,10 @@ MapFreeLayer.prototype.parseJson = function(json) {
         }
     }
 
-    // A layer built from a client-heightcoding geodata builder binds
-    // back to it, so store improvements rebuild this layer's geometry
-    // (RFC 13). The token is a plain string; the builder itself lives
-    // in a map-scoped registry.
-    var token = json['geodataHeightcodeToken'];
-
-    if (token) {
-        var registry = this.map.geodataBuilderBindings;
-        var builder = registry ? registry[token] : null;
-
-        if (builder) {
-            builder.bindFreeLayer(this);
-        }
-    }
-
 };
 
 
 MapFreeLayer.prototype.kill = function() {
-    if (this.heightcodeBuilder) {
-        this.heightcodeBuilder.stopHeightcoding();
-        this.heightcodeBuilder = null;
-    }
-
     if (this.geodataProcessor) {
         this.geodataProcessor.kill();
         this.geodataProcessor = null;

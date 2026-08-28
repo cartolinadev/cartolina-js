@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-28 - RFC 13 gate 2: view-owned vector heightcoding
+
+Salvaged RFC 13 gate 2 so store mode heightcodes both tiled and monolithic
+geodata through one retained sample set owned by each rendered view. Shadow
+reporting now observes that live result, while the failed global heightcoder,
+analysis collector, builder rebuild path, and one-shot terrain queries are
+removed; waypoint and measure consumers use retained sample sets.
+
 ## 2026-08-27 - pre-commit: advise against a session log on docs-only commits
 
 Added an advisory to `.husky/pre-commit`: a docs-only commit that also

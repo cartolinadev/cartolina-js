@@ -22,6 +22,18 @@ export class MapRefFrame {
     /** Every spatial division node, in the order the style declares them. */
     getSpatialDivisionNodes(): MapDivisionNode[];
 
+    /** Deepest spatial division node containing a tile id. */
+    getSpatialDivisionNodeForTile(
+        tileId: readonly number[],
+    ): MapDivisionNode | null;
+
+    /** Nominal side of one sample at a node tile LOD. */
+    getNodeGsd(
+        node: MapDivisionNode,
+        lod: number,
+        sampleCount: number,
+    ): number;
+
     /**
      * Resolves a navigation-SRS position to the spatial division nodes
      * that own it, finest first. Node extents overlap; the partitioning

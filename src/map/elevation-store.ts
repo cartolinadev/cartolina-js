@@ -12,18 +12,16 @@ import ElevationTerrainSink from './elevation-terrain-sink';
 
 
 /**
- * A height field over the terrain the map has drawn, answering
- * `Map.queryTerrainElevation`.
+ * A height field over the terrain ready for normal rendering.
  *
- * One unit per resident tile. Units stop at the root of each spatial
- * division node that carries tiles: a cell above one of those roots
- * spans nodes in different projected SRSs. A node's root unit is pinned
- * once it has coverage; the rest are evicted least-recently-used
- * against `mapElevationStoreGPUCache`.
+ * One unit belongs to each resident tile at or below a spatial division
+ * node root. Node-root units stay resident after obtaining coverage; the
+ * rest are evicted least-recently-used against
+ * `mapElevationStoreGPUCache`.
  *
- * Coverage is whatever recent passes visited, so a lookup can miss.
- * The store requests no resource of its own, and records one value per
- * sample without which terrain source supplied it.
+ * Consumers retain sample sets. A sample retains the resolved spatial
+ * division node and the unit that answered, so an unchanged set avoids
+ * repeating coordinate conversion and tile-path work.
  */
 class ElevationStore {
 
@@ -39,78 +37,119 @@ class ElevationStore {
     }
 
     /**
-     * Returns the terrain height at one position, or at each of an
-     * array of positions. A later call can miss where an earlier one
-     * succeeded, so callers keep the last answer.
+     * Updates covered samples in place.
      *
-     * @param position navigation-SRS XY, or an array of them
-     * @param desiredGsd wanted sample spacing in metres; zero, the
-     *     default, asks for the finest unit resident
-     * @returns the position with the height appended, or an array of
-     *     them in input order
+     * Repeated calls for one sample set share an in-flight update. A miss
+     * leaves an earlier answer unchanged.
+     *
+     * @param sampleSet caller-owned positions, requested gsd, and samples
+     * @returns whether at least one height or actual gsd changed
      */
-    queryTerrainElevation(
-        position: ElevationStore.Position,
-        desiredGsd?: number,
-    ): Promise<ElevationStore.Sample | undefined>;
+    updateTerrainSamples(
+        sampleSet: ElevationStore.SampleSet,
+    ): Promise<boolean> {
 
-    queryTerrainElevation(
-        positions: readonly ElevationStore.Position[],
-        desiredGsd?: number,
-    ): Promise<readonly (ElevationStore.Sample | undefined)[]>;
-
-    queryTerrainElevation(
-        input: ElevationStore.Position
-            | readonly ElevationStore.Position[],
-        desiredGsd = 0,
-    ): Promise<unknown> {
-
-        if (!Number.isFinite(desiredGsd) || desiredGsd < 0) {
+        if (!Number.isFinite(sampleSet.desiredGsd)
+                || sampleSet.desiredGsd < 0) {
 
             return Promise.reject(new RangeError(
-                'queryTerrainElevation: desiredGsd must be finite and '
+                'updateTerrainSamples: desiredGsd must be finite and '
                 + 'non-negative.'));
         }
 
-        const single = isPosition(input);
-        const positions = single
-            ? [input as ElevationStore.Position]
-            : (input as readonly ElevationStore.Position[]);
-
-        for (const position of positions) {
+        for (const position of sampleSet.positions) {
 
             if (!isPosition(position)) {
 
                 return Promise.reject(new TypeError(
-                    'queryTerrainElevation: every position must contain '
+                    'updateTerrainSamples: every position must contain '
                     + 'two finite numbers.'));
             }
         }
 
-        if (!single && positions.length === 0)
-            return Promise.resolve([]);
+        if (this.disposedSampleSets_.has(sampleSet))
+            return Promise.resolve(false);
 
-        return new Promise((resolve) => {
+        const existing = this.updates_.get(sampleSet);
+        if (existing) return existing.promise;
 
-            const request: Request = {
-                positions,
-                desiredGsd,
-                single,
-                results: new Array(positions.length).fill(undefined),
-                pending: positions.length,
-                next: 0,
-                resolve,
-            };
+        const state = this.sampleSetState(sampleSet);
 
-            this.requests_.push(request);
+        if (state.checkedGeneration === this.committedGeneration_
+                && state.desiredGsd === sampleSet.desiredGsd) {
+
+            return Promise.resolve(false);
+        }
+
+        const lookups: Lookup[] = [];
+
+        for (let index = 0; index < sampleSet.positions.length; index++) {
+
+            let ref = state.refs[index];
+
+            if (!ref) {
+
+                ref = this.resolvePosition(sampleSet.positions[index]);
+                state.refs[index] = ref;
+            }
+
+            if (!ref) continue;
+
+            const candidates = this.resolveUnits(
+                ref, sampleSet.desiredGsd);
+
+            if (candidates && candidates.length > 0)
+                lookups.push({ update: null!, index, candidates });
+        }
+
+        const scannedGeneration = this.committedGeneration_;
+
+        if (lookups.length === 0) {
+
+            state.checkedGeneration = scannedGeneration;
+            state.desiredGsd = sampleSet.desiredGsd;
+            return Promise.resolve(false);
+        }
+
+        let resolve!: (changed: boolean) => void;
+        const promise = new Promise<boolean>((settle) => {
+            resolve = settle;
         });
+
+        const update: SampleUpdate = {
+            sampleSet,
+            state,
+            lookups,
+            next: 0,
+            pending: lookups.length,
+            changed: false,
+            scannedGeneration,
+            desiredGsd: sampleSet.desiredGsd,
+            promise,
+            resolve,
+            settled: false,
+        };
+
+        for (const lookup of lookups) lookup.update = update;
+
+        this.updates_.set(sampleSet, update);
+        this.queue_.push(update);
+        return promise;
     }
 
-    /** Settles completed lookups and submits the next batch. */
+    /** Stops an update and prevents a later readback from writing to it. */
+    disposeTerrainSamples(sampleSet: ElevationStore.SampleSet): void {
+
+        this.disposedSampleSets_.add(sampleSet);
+        this.sampleSetStates_.delete(sampleSet);
+
+        const update = this.updates_.get(sampleSet);
+        if (update) this.cancelUpdate(update);
+    }
+
+    /** Settles completed lookups and submits the next result chunk. */
     update(): void {
 
-        // A different terrain source list is a different terrain, and the
-        // store keeps no record of which source supplied a value.
         const signature = this.map_.surfaceList()
             .map((source) => source.id).join(' ');
 
@@ -130,16 +169,16 @@ class ElevationStore {
         return this.usedBytes_ + this.units_.fixedBytes;
     }
 
-    /** GPU bytes the store may hold, after the clamp on the setting. */
+    /** GPU bytes the store may hold, after the budget clamp. */
     get budgetBytes(): number {
 
         return this.budgetBytes_ + this.units_.fixedBytes;
     }
 
     /**
-     * Admits this tick's elevation pass if one is due, returning whether
-     * it was admitted. Mutates the cadence timer, so it must be called
-     * once per tick and its result acted on.
+     * Admits this tick's elevation pass when its interval has elapsed.
+     *
+     * @returns whether the caller should run the pass
      */
     admitElevationPass(): boolean {
 
@@ -152,7 +191,7 @@ class ElevationStore {
         return true;
     }
 
-    /** Releases every unit and settles every pending lookup. */
+    /** Releases every unit and settles every pending update. */
     clear(): void {
 
         for (const unit of this.resident_.values())
@@ -162,7 +201,8 @@ class ElevationStore {
         this.pinned_.clear();
         this.usedBytes_ = 0;
         this.deepestLod_ = -1;
-        this.gsdGrids_.clear();
+        this.committedGeneration_++;
+        this.sampleSetStates_ = new WeakMap();
 
         this.settlePending();
     }
@@ -174,41 +214,37 @@ class ElevationStore {
         this.units_[Symbol.dispose]();
     }
 
-    // -----------------------------------------------------------------
-    // Population, driven by the elevation sink
-    // -----------------------------------------------------------------
-
-    /**
-     * Starts the unit for one node, seeded from its published child
-     * units.
-     *
-     * @param tileId the node's tile id
-     */
+    /** Starts one replacement unit from its published children. */
     beginUnit(tileId: [number, number, number]): void {
 
         this.replacementTile_ = tileId;
         this.replacementDirty_ = false;
+        this.replacementContent_ = null;
 
         if (!this.withinNodeRoot(tileId)) return;
 
         this.units_.beginReplacement();
 
-        const children = [0, 1, 2, 3].map((quadrant) =>
+        const childUnits = [0, 1, 2, 3].map((quadrant) =>
             this.resident_.get(unitKey([
                 tileId[0] + 1,
                 tileId[1] * 2 + (quadrant & 1),
                 tileId[2] * 2 + (quadrant >> 1),
-            ]))?.handle ?? null);
+            ])) ?? null);
+
+        this.replacementContent_ = {
+            childGenerations: childUnits.map(
+                (child) => child?.generation ?? -1),
+            rigs: [],
+        };
+
+        const children = childUnits.map((child) => child?.handle ?? null);
 
         if (this.units_.reduceChildren(children))
             this.replacementDirty_ = true;
     }
 
-    /**
-     * Adds one ready rig's height to the unit under construction.
-     *
-     * @param maskTexture coverage already established at this node
-     */
+    /** Adds one selected ready rig to the replacement unit. */
     drawUnit(
         tile: MapSurfaceTile,
         rig: TileRenderRig,
@@ -217,6 +253,8 @@ class ElevationStore {
 
         if (!this.replacementTile_) return;
         if (!this.withinNodeRoot(tile.id)) return;
+
+        this.replacementContent_!.rigs.push(rig);
 
         const legacyMap = this.map_.map!;
 
@@ -230,41 +268,371 @@ class ElevationStore {
         this.replacementDirty_ = true;
     }
 
-    /**
-     * Publishes the unit under construction, or drops it when the node
-     * ended up with nothing in it.
-     *
-     * @param tileId tile address of the completed node
-     * @param covered whether the node ended up covered
-     */
+    /** Publishes a complete replacement when the node has coverage. */
     endUnit(tileId: [number, number, number], covered: boolean): void {
 
         const dirty = this.replacementDirty_;
+        const content = this.replacementContent_;
 
         this.replacementTile_ = null;
         this.replacementDirty_ = false;
+        this.replacementContent_ = null;
 
-        if (!covered || !dirty) return;
+        if (!covered || !dirty || !content) return;
         if (!this.withinNodeRoot(tileId)) return;
+
+        const resident = this.resident_.get(unitKey(tileId));
+
+        if (resident && sameContent(resident.content, content)) {
+
+            this.touch(resident.key, resident);
+            return;
+        }
 
         const unit = this.admitUnit(tileId);
         if (!unit) return;
 
         this.units_.publishReplacement(unit.handle);
+        unit.content = content;
+        unit.generation = ++this.committedGeneration_;
     }
 
     /** The elevation sink that builds units during a pass. */
     readonly sink: ElevationTerrainSink;
 
-    // -----------------------------------------------------------------
-    // Unit residency
-    // -----------------------------------------------------------------
+    private sampleSetState(
+        sampleSet: ElevationStore.SampleSet,
+    ): SampleSetState {
+
+        let state = this.sampleSetStates_.get(sampleSet);
+
+        if (state && state.positions === sampleSet.positions
+                && state.refs.length === sampleSet.positions.length) {
+
+            if (!sampleSet.samples)
+                sampleSet.samples = new Array(sampleSet.positions.length);
+
+            return state;
+        }
+
+        if (!sampleSet.samples
+                || sampleSet.samples.length !== sampleSet.positions.length) {
+
+            sampleSet.samples = new Array(sampleSet.positions.length);
+        }
+
+        const refs = sampleSet.samples.map((sample) => {
+
+            const unit = sample?.unit as UnitRef | undefined;
+            return unit?.store === this ? unit : undefined;
+        });
+
+        state = {
+            positions: sampleSet.positions,
+            refs,
+            checkedGeneration: -1,
+            desiredGsd: NaN,
+        };
+
+        this.sampleSetStates_.set(sampleSet, state);
+        return state;
+    }
+
+    private resolvePosition(
+        position: ElevationStore.Position,
+    ): UnitRef | undefined {
+
+        const refFrame = this.map_.map?.referenceFrame;
+        if (!refFrame) return undefined;
+
+        const owner = refFrame.resolveSpatialDivisionNodes(
+            [position[0], position[1], 0]).find(
+            (entry) => productiveNode(entry.node));
+
+        if (!owner) return undefined;
+
+        return {
+            store: this,
+            node: owner.node,
+            coords: [owner.coords[0], owner.coords[1]],
+        };
+    }
 
     /**
-     * Returns the unit for a tile, allocating and admitting it against
-     * the memory budget when it is not resident. Null when the budget
-     * cannot hold it, which skips the tile until a later pass.
+     * Returns candidate units in fine-to-coarse order. `null` means the
+     * retained answer is current and no GPU lookup is needed.
      */
+    private resolveUnits(
+        ref: UnitRef,
+        desiredGsd: number,
+    ): ResidentUnit[] | null {
+
+        const refFrame = this.map_.map?.referenceFrame;
+        if (!refFrame) return [];
+
+        const node = ref.node;
+        const rootLod = node.id[0];
+        const rootGsd = refFrame.getNodeGsd(node, rootLod, 256);
+
+        const idealLod = desiredGsd === 0
+            ? Infinity
+            : Math.max(rootLod, rootLod
+                + Math.floor(Math.log2(rootGsd / desiredGsd)));
+
+        const startLod = Math.min(idealLod, this.deepestLod_);
+        if (startLod < rootLod) return [];
+
+        const candidates: ResidentUnit[] = [];
+        const uv = [0, 0];
+
+        for (let lod = startLod; lod >= rootLod; lod--) {
+
+            const tileId = refFrame.getNodeTileAt(
+                node, ref.coords, lod, uv);
+            const unit = this.resident_.get(unitKey(tileId));
+
+            if (unit) {
+
+                candidates.push({
+                    unit,
+                    u: uv[0],
+                    v: uv[1],
+                    actualGsd: refFrame.getNodeGsd(node, lod, 256),
+                });
+            }
+
+            if (!sameTile(tileId, ref.tileId) || !unit) continue;
+
+            if (candidates.length === 1
+                    && unit.generation === ref.generation) {
+
+                return null;
+            }
+
+            break;
+        }
+
+        return candidates;
+    }
+
+    private submitBatch(): void {
+
+        if (this.inFlight_) return;
+
+        const batch: Lookup[] = [];
+
+        while (this.queue_.length > 0
+                && batch.length < this.units_.maxBatch) {
+
+            const update = this.queue_[0];
+
+            if (update.settled) {
+
+                this.queue_.shift();
+                continue;
+            }
+
+            while (update.next < update.lookups.length
+                    && batch.length < this.units_.maxBatch) {
+
+                batch.push(update.lookups[update.next++]);
+            }
+
+            if (update.next < update.lookups.length) break;
+            this.queue_.shift();
+        }
+
+        if (batch.length === 0) return;
+
+        let readback: ElevationUnits.Readback | null = null;
+
+        try {
+
+            readback = this.drawBatch(batch);
+
+        } catch (error) {
+
+            console.error('elevation lookup failed', error);
+        }
+
+        this.inFlight_ = readback ? { readback, batch } : null;
+
+        if (!readback) this.completeBatch(batch, null);
+    }
+
+    private drawBatch(
+        batch: readonly Lookup[],
+    ): ElevationUnits.Readback | null {
+
+        let maxPreference = 0;
+
+        for (const entry of batch)
+            maxPreference = Math.max(
+                maxPreference, entry.candidates.length - 1);
+
+        const groups = new globalThis.Map<
+            Unit, ElevationUnits.LookupPoint[]>();
+
+        for (let index = 0; index < batch.length; index++) {
+
+            const entry = batch[index];
+
+            for (let preference = 0;
+                    preference < entry.candidates.length;
+                    preference++) {
+
+                const candidate = entry.candidates[preference];
+                let group = groups.get(candidate.unit);
+
+                if (!group) {
+
+                    group = [];
+                    groups.set(candidate.unit, group);
+                }
+
+                group.push({
+                    column: index,
+                    u: candidate.u,
+                    v: candidate.v,
+                    preference,
+                });
+            }
+        }
+
+        this.units_.beginLookup(maxPreference);
+
+        for (const [unit, points] of groups) {
+
+            if (this.resident_.get(unit.key) === unit)
+                this.touch(unit.key, unit);
+
+            this.units_.drawLookupGroup(unit.handle, points);
+        }
+
+        return this.units_.endLookup(batch.length);
+    }
+
+    private collectReadback(): void {
+
+        const inFlight = this.inFlight_;
+        if (!inFlight) return;
+
+        const results = this.units_.pollReadback(inFlight.readback);
+        if (!results) return;
+
+        this.inFlight_ = null;
+        this.completeBatch(inFlight.batch, results);
+    }
+
+    private completeBatch(
+        batch: readonly Lookup[],
+        results: DataView | null,
+    ): void {
+
+        const preferenceRow = batch.length * 4;
+
+        for (let index = 0; index < batch.length; index++) {
+
+            const lookup = batch[index];
+            const update = lookup.update;
+
+            if (update.settled
+                    || this.disposedSampleSets_.has(update.sampleSet)) {
+
+                continue;
+            }
+
+            if (results) {
+
+                const height = results.getFloat32(index * 4, true);
+                const preferenceValue = results.getFloat32(
+                    preferenceRow + index * 4, true);
+
+                if (!Number.isNaN(height)
+                        && !Number.isNaN(preferenceValue)) {
+
+                    const preference = Math.round(preferenceValue);
+                    const candidate = lookup.candidates[preference];
+
+                    if (candidate) {
+                        this.writeSample(lookup, candidate, height);
+                    }
+                }
+            }
+
+            update.pending--;
+            if (update.pending === 0) this.finishUpdate(update);
+        }
+
+        this.submitBatch();
+    }
+
+    private writeSample(
+        lookup: Lookup,
+        candidate: ResidentUnit,
+        height: number,
+    ): void {
+
+        const update = lookup.update;
+        const ref = update.state.refs[lookup.index]!;
+        const previous = update.sampleSet.samples![lookup.index];
+
+        ref.tileId = candidate.unit.tileId;
+        ref.generation = candidate.unit.generation;
+
+        if (!previous || previous.height !== height
+                || previous.actualGsd !== candidate.actualGsd) {
+
+            update.sampleSet.samples![lookup.index] = {
+                height,
+                actualGsd: candidate.actualGsd,
+                unit: ref,
+            };
+
+            update.changed = true;
+
+        } else {
+
+            previous.unit = ref;
+        }
+
+    }
+
+    private finishUpdate(update: SampleUpdate): void {
+
+        if (update.settled) return;
+
+        update.state.checkedGeneration = update.scannedGeneration;
+        update.state.desiredGsd = update.desiredGsd;
+        update.settled = true;
+        this.updates_.delete(update.sampleSet);
+        update.resolve(update.changed);
+    }
+
+    private cancelUpdate(update: SampleUpdate): void {
+
+        if (update.settled) return;
+
+        update.settled = true;
+        this.updates_.delete(update.sampleSet);
+        update.resolve(false);
+    }
+
+    private settlePending(): void {
+
+        if (this.inFlight_) {
+
+            this.units_.dropReadback(this.inFlight_.readback);
+            this.inFlight_ = null;
+        }
+
+        for (const update of this.updates_.values())
+            this.cancelUpdate(update);
+
+        this.queue_ = [];
+        this.updates_.clear();
+    }
+
     private admitUnit(tileId: [number, number, number]): Unit | null {
 
         const key = unitKey(tileId);
@@ -287,31 +655,21 @@ class ElevationStore {
             handle: this.units_.createUnit(),
             key,
             tileId,
+            generation: 0,
+            content: null,
         };
 
         this.resident_.set(key, unit);
         this.usedBytes_ += unitBytes;
         this.deepestLod_ = Math.max(this.deepestLod_, tileId[0]);
 
-        // A node's own root unit is the coarsest field that node will
-        // ever hold, so it stays resident once it has coverage.
         if (this.isNodeRoot(tileId)) this.pinned_.add(key);
 
         return unit;
     }
 
-    /**
-     * Removes one field to make room.
-     *
-     * A field remains while any resident child reduces into it.
-     *
-     * @returns false when every resident field is pinned
-     */
     private evictOne(): boolean {
 
-        // resident_ iterates least recently touched first. A parent stays
-        // until its resident children are gone, preserving the reduced
-        // hierarchy while detail is discarded.
         for (const unit of this.resident_.values()) {
 
             if (this.pinned_.has(unit.key)) continue;
@@ -326,8 +684,6 @@ class ElevationStore {
             this.resident_.delete(unit.key);
             this.usedBytes_ -= this.units_.unitBytes;
 
-            // Keep the lookup's LOD-walk terminus tight: when the
-            // deepest unit leaves, drop to the deepest one remaining.
             if (unit.tileId[0] === this.deepestLod_)
                 this.recomputeDeepestLod();
 
@@ -337,7 +693,6 @@ class ElevationStore {
         return false;
     }
 
-    /** Recomputes the deepest resident LOD from what remains. */
     private recomputeDeepestLod(): void {
 
         let deepest = -1;
@@ -348,459 +703,32 @@ class ElevationStore {
         this.deepestLod_ = deepest;
     }
 
-    /** Moves a unit to the recent end of the eviction order. */
     private touch(key: string, unit: Unit): void {
 
         this.resident_.delete(key);
         this.resident_.set(key, unit);
     }
 
-
-
-
-    // -----------------------------------------------------------------
-    // Lookup
-    // -----------------------------------------------------------------
-
-    /**
-     * Submits the next batch of queued positions. Only one batch is in
-     * flight; calls that arrive meanwhile join the next one.
-     */
-    private submitBatch(): void {
-
-        if (this.inFlight_) return;
-        if (this.requests_.length === 0) return;
-
-        const batch = this.resolveBatch();
-        if (batch.length === 0) return;
-
-        let readback: ElevationUnits.Readback | null = null;
-
-        try {
-
-            readback = this.drawBatch(batch);
-
-        } catch (error) {
-
-            console.error('elevation lookup failed', error);
-        }
-
-        this.inFlight_ = readback ? { readback, batch } : null;
-
-        // A batch whose read cannot be observed is reported as uncovered
-        // rather than left unsettled.
-        if (!readback) this.completeBatch(batch, null);
-    }
-
-    /**
-     * Draws one batch into the result target and starts its read.
-     *
-     * @returns the handle its result arrives on, or null when the read
-     *     could not be observed
-     */
-    private drawBatch(
-        batch: readonly Lookup[],
-    ): ElevationUnits.Readback | null {
-
-        let maxPreference = 0;
-
-        for (const entry of batch)
-            maxPreference =
-                Math.max(maxPreference, entry.units.length - 1);
-
-        // one draw per unit, so every position asking it is answered
-        // while it is bound
-        const groups = new globalThis.Map<Unit, ElevationUnits.LookupPoint[]>();
-
-        for (let index = 0; index < batch.length; index++) {
-
-            const entry = batch[index];
-
-            for (let preference = 0; preference < entry.units.length;
-                    preference++) {
-
-                const resident = entry.units[preference];
-                let group = groups.get(resident.unit);
-
-                if (!group) {
-
-                    group = [];
-                    groups.set(resident.unit, group);
-                }
-
-                group.push({
-                    column: index,
-                    u: resident.u,
-                    v: resident.v,
-                    preference,
-                });
-            }
-        }
-
-        this.units_.beginLookup(maxPreference);
-
-        for (const [unit, points] of groups)
-            this.units_.drawLookupGroup(unit.handle, points);
-
-        return this.units_.endLookup(batch.length);
-    }
-
-    /**
-     * Pulls as many queued positions as one result target holds off
-     * the request queue and resolves each into its candidate units.
-     */
-    private resolveBatch(): Lookup[] {
-
-        const batch: Lookup[] = [];
-
-        while (this.requests_.length > 0
-                && batch.length < this.units_.maxBatch) {
-
-            const request = this.requests_[0];
-
-            while (request.next < request.positions.length
-                    && batch.length < this.units_.maxBatch) {
-
-                const index = request.next++;
-
-                batch.push({
-                    request,
-                    index,
-                    units: this.resolveUnits(
-                        request.positions[index], request.desiredGsd),
-                });
-            }
-
-            if (request.next < request.positions.length) break;
-            this.requests_.shift();
-        }
-
-        return batch;
-    }
-
-    /**
-     * Orders the resident units on one position's tile path, best answer
-     * first.
-     *
-     * The position belongs to one spatial division node, which fixes the
-     * tile it falls in at every LOD; the units resident on that path are
-     * what can answer, and the GPU takes the first of them that covers
-     * the position. A request of zero runs finest to coarsest. A
-     * positive request starts at the closest spacing at or above it and
-     * grows coarser, down to the node root.
-     *
-     * Reduction renormalizes over the valid child samples, so a covered
-     * sample is covered in every ancestor. A unit finer than the request
-     * can therefore only answer where the coarser ones already did, and
-     * the one case the request cannot meet — a request coarser than the
-     * root's own spacing — is answered by the root.
-     */
-    private resolveUnits(
-        position: ElevationStore.Position,
-        desiredGsd: number,
-    ): ResidentUnit[] {
-
-        const refFrame = this.map_.map?.referenceFrame;
-        if (!refFrame) return [];
-
-        const owners = refFrame.resolveSpatialDivisionNodes(
-            [position[0], position[1], 0]).filter(
-            (entry) => productiveNode(entry.node));
-
-        if (owners.length === 0) return [];
-
-        const node = owners[0].node;
-        const coords = owners[0].coords;
-
-        const linearScaleFactor = this.linearScaleFactor(node, coords);
-        if (!(linearScaleFactor > 0)) return [];
-
-        const rootSpacing = nodeRootSpacing(node);
-        const resident: ResidentUnit[] = [];
-        const uv: number[] = [0, 0];
-
-        for (let lod = node.id[0]; lod <= this.deepestLod_; lod++) {
-
-            const tileId = refFrame.getNodeTileAt(node, coords, lod, uv);
-
-            const unit = this.resident_.get(unitKey(tileId));
-            if (!unit) continue;
-
-            const nominal = rootSpacing / Math.pow(2, lod - node.id[0]);
-
-            resident.push({
-                unit,
-                u: uv[0],
-                v: uv[1],
-                actualGsd: nominal * linearScaleFactor,
-            });
-        }
-
-        // the walk produced coarsest first; a request of zero wants the
-        // finest covered unit
-        resident.reverse();
-
-        if (desiredGsd === 0) return resident;
-
-        const meets = resident.filter((r) => r.actualGsd >= desiredGsd);
-
-        // every resident unit is finer than the request, so the coarsest
-        // is as close as the store comes to it
-        return meets.length > 0 ? meets : resident.slice(-1);
-    }
-
-    /** Copies a completed batch out of its pixel-pack buffer. */
-    private collectReadback(): void {
-
-        const inFlight = this.inFlight_;
-        if (!inFlight) return;
-
-        const results = this.units_.pollReadback(inFlight.readback);
-        if (!results) return;
-
-        this.inFlight_ = null;
-        this.completeBatch(inFlight.batch, results);
-    }
-
-    /**
-     * Turns one batch's result rows into samples and settles every
-     * request whose positions are all accounted for.
-     *
-     * @param batch the batch, in result-target order
-     * @param results the two result rows, or null when the read could
-     *     not be observed
-     */
-    private completeBatch(
-        batch: readonly Lookup[],
-        results: DataView | null,
-    ): void {
-
-        const heightRow = 0;
-
-        // A row is batch.length pixels wide: exactly what this batch's
-        // submission read back, not the target's full width.
-        const preferenceRow = batch.length * 4;
-
-        for (let index = 0; index < batch.length; index++) {
-
-            const entry = batch[index];
-            let sample: ElevationStore.Sample | undefined;
-            let preference = -1;
-
-            if (results) {
-
-                const height =
-                    results.getFloat32(heightRow + index * 4, true);
-                const preferenceValue =
-                    results.getFloat32(preferenceRow + index * 4, true);
-
-                if (!Number.isNaN(height) && !Number.isNaN(preferenceValue)) {
-
-                    preference = Math.round(preferenceValue);
-                    const resident = entry.units[preference];
-
-                    if (resident) {
-
-                        const position = entry.request.positions[
-                            entry.index];
-
-                        sample = {
-                            position: [position[0], position[1], height],
-                            actualGsd: resident.actualGsd,
-                        };
-                    }
-                }
-            }
-
-            // a successful lookup keeps its unit at the recent end of
-            // the eviction order
-            if (sample && preference >= 0) {
-
-                const unit = entry.units[preference].unit;
-                if (this.resident_.get(unit.key) === unit)
-                    this.touch(unit.key, unit);
-            }
-
-            this.settlePosition(entry, sample);
-        }
-    }
-
-    /** Records one position's result and settles its request when full. */
-    private settlePosition(
-        entry: Lookup,
-        sample: ElevationStore.Sample | undefined,
-    ): void {
-
-        const request = entry.request;
-
-        request.results[entry.index] = sample;
-        request.pending--;
-
-        if (request.pending > 0) return;
-
-        request.resolve(request.single
-            ? request.results[0]
-            : request.results);
-    }
-
-    /**
-     * Settles every queued and in-flight lookup as uncovered. Clearing
-     * or disposing the store must leave no query promise unsettled.
-     */
-    private settlePending(): void {
-
-        const inFlight = this.inFlight_;
-
-        if (inFlight) {
-
-            this.units_.dropReadback(inFlight.readback);
-            this.inFlight_ = null;
-            this.completeBatch(inFlight.batch, null);
-        }
-
-        for (const request of this.requests_.splice(0)) {
-
-            request.resolve(request.single
-                ? undefined
-                : new Array(request.positions.length).fill(undefined));
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Reference-frame geometry
-    // -----------------------------------------------------------------
-
-    /**
-     * The linear scale factor at a position, interpolated on the node's
-     * grid: ground metres per one unit of the node's own local
-     * coordinate system. The geometric mean of the meridional and
-     * parallel scale factors `proj_factors()` would give directly, so
-     * a single direction-agnostic number; the reciprocal of PROJ's own
-     * scale convention (map distance over ground distance), since this
-     * store needs the opposite direction: ground distance from a map
-     * spacing.
-     */
-    private linearScaleFactor(
-        node: MapDivisionNode,
-        coords: readonly number[],
-    ): number {
-
-        const key = nodeKey(node);
-        let grid = this.gsdGrids_.get(key);
-
-        if (!grid) {
-
-            grid = this.buildGsdGrid(node);
-            this.gsdGrids_.set(key, grid);
-        }
-
-        if (!grid) return 0;
-
-        const size = grid.size;
-        const ll = node.extents.ll;
-        const ur = node.extents.ur;
-
-        const fx = (coords[0] - ll[0]) / (ur[0] - ll[0]) * (size - 1);
-        const fy = (coords[1] - ll[1]) / (ur[1] - ll[1]) * (size - 1);
-
-        const ix = Math.min(Math.max(Math.floor(fx), 0), size - 2);
-        const iy = Math.min(Math.max(Math.floor(fy), 0), size - 2);
-
-        const tx = Math.min(Math.max(fx - ix, 0), 1);
-        const ty = Math.min(Math.max(fy - iy, 0), 1);
-
-        const values = grid.values;
-        const v00 = values[iy * size + ix];
-        const v10 = values[iy * size + ix + 1];
-        const v01 = values[(iy + 1) * size + ix];
-        const v11 = values[(iy + 1) * size + ix + 1];
-
-        return (v00 * (1 - tx) + v10 * tx) * (1 - ty)
-            + (v01 * (1 - tx) + v11 * tx) * ty;
-    }
-
-    /**
-     * Builds a node's grid of linear scale factors.
-     *
-     * `proj4` does not expose projection factors in the browser, so each
-     * sample comes from a numerical Jacobian of the transform into
-     * physical coordinates. A grid sample outside the projection domain
-     * takes the value of the closest sample that could be evaluated;
-     * a node where none can is left without a grid and answers no query.
-     */
-    private buildGsdGrid(node: MapDivisionNode): GsdGrid | null {
-
-        const size = Math.max(
-            2, Math.round(this.map_.config.mapElevationStoreGsdGridSize));
-
-        const ll = node.extents.ll;
-        const ur = node.extents.ur;
-
-        const width = ur[0] - ll[0];
-        const height = ur[1] - ll[1];
-
-        // one metre in this SRS's own units, kept well inside the node
-        const unitMetres = node.srs.getSrsInfo()['unitMetres'] || 1;
-        const stepX = Math.min(1 / unitMetres, width / 4);
-        const stepY = Math.min(1 / unitMetres, height / 4);
-
-        const values = new Float64Array(size * size);
-        let anyFinite = false;
-
-        for (let j = 0; j < size; j++) {
-
-            const y = ll[1] + height * (j / (size - 1));
-
-            for (let i = 0; i < size; i++) {
-
-                const x = ll[0] + width * (i / (size - 1));
-
-                const value = linearScaleSample(
-                    node, x, y,
-                    i === 0 ? stepX : (i === size - 1 ? -stepX : stepX),
-                    j === 0 ? stepY : (j === size - 1 ? -stepY : stepY),
-                    i > 0 && i < size - 1, j > 0 && j < size - 1);
-
-                values[j * size + i] = value;
-                if (Number.isFinite(value) && value > 0) anyFinite = true;
-            }
-        }
-
-        if (!anyFinite) return null;
-
-        fillFromNearest(values, size);
-        return { size, values };
-    }
-
-    /** The reference frame's declared height range. */
     private heightRange(): [number, number] {
 
         const range = this.map_.map!.referenceFrame!.getGlobalHeightRange();
         return [range[0], range[1]];
     }
 
-    /** Whether a tile lies at or below some spatial division node root. */
     private withinNodeRoot(tileId: readonly number[]): boolean {
 
         return this.nodeRootOf(tileId) !== null;
     }
 
-    /** Whether a tile is itself a spatial division node root. */
     private isNodeRoot(tileId: readonly number[]): boolean {
 
         const node = this.nodeRootOf(tileId);
         return node !== null && node.id[0] === tileId[0];
     }
 
-    /**
-     * The productive spatial division node whose subtree contains a
-     * tile, or null for a tile above every such node.
-     *
-     * Subtrees nest, so the deepest match is the owner: a manual node's
-     * children are themselves subtree roots, and a tile below one of
-     * them belongs to that child.
-     */
-    private nodeRootOf(tileId: readonly number[]): MapDivisionNode | null {
+    private nodeRootOf(
+        tileId: readonly number[],
+    ): MapDivisionNode | null {
 
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return null;
@@ -813,7 +741,6 @@ class ElevationStore {
 
             const shift = tileId[0] - node.id[0];
             if (shift < 0) continue;
-
             if ((tileId[1] >> shift) !== node.id[1]) continue;
             if ((tileId[2] >> shift) !== node.id[2]) continue;
 
@@ -823,13 +750,6 @@ class ElevationStore {
         return owner;
     }
 
-    /**
-     * The GPU budget in bytes, taken once at construction. Clamped up to
-     * what the parsed reference frame needs: the fixed work buffers plus
-     * one pinned root unit per productive spatial division node, the set
-     * the store must keep resident at once. A configured value below that
-     * is raised, with a warning; the setting itself is left untouched.
-     */
     private resolveBudget(): number {
 
         const configured =
@@ -850,54 +770,56 @@ class ElevationStore {
         return minimum - fixed;
     }
 
-    // -----------------------------------------------------------------
-    // Private fields
-    // -----------------------------------------------------------------
-
     private readonly map_: Map;
-
-    /** The unit textures and the draws that fill and read them. */
     private readonly units_: ElevationUnits;
-
-    /** Published units, keyed by tile id, in eviction order. */
     private readonly resident_ = new globalThis.Map<string, Unit>();
-
-    /** Keys of node-root units, which eviction never takes. */
     private readonly pinned_ = new Set<string>();
+    private readonly disposedSampleSets_ =
+        new WeakSet<ElevationStore.SampleSet>();
+    private readonly updates_ =
+        new globalThis.Map<ElevationStore.SampleSet, SampleUpdate>();
+
+    private sampleSetStates_ =
+        new WeakMap<ElevationStore.SampleSet, SampleSetState>();
+    private queue_: SampleUpdate[] = [];
+    private inFlight_: InFlight | null = null;
 
     private usedBytes_ = 0;
     private budgetBytes_: number;
-
-    /** Deepest LOD any resident unit holds; bounds the tile-path walk. */
     private deepestLod_ = -1;
-
-    /** Projection-factor grids, one per node. */
-    private readonly gsdGrids_ =
-        new globalThis.Map<string, GsdGrid | null>();
-
+    private committedGeneration_ = 0;
     private replacementTile_: [number, number, number] | null = null;
     private replacementDirty_ = false;
-
+    private replacementContent_: UnitContent | null = null;
     private lastPassTime_ = -Infinity;
-
-    /** Terrain source ids the resident units were built from. */
     private sourceSignature_: string | null = null;
-
-    private readonly requests_: Request[] = [];
-    private inFlight_: InFlight | null = null;
-
 }
 
 
-/** One resident tile's height field. */
 type Unit = {
     handle: ElevationUnits.Unit;
     key: string;
     tileId: [number, number, number];
+    generation: number;
+    content: UnitContent | null;
 };
 
 
-/** One resident unit on a queried position's tile path. */
+type UnitContent = {
+    childGenerations: number[];
+    rigs: TileRenderRig[];
+};
+
+
+type UnitRef = {
+    store: ElevationStore;
+    node: MapDivisionNode;
+    coords: [number, number];
+    tileId?: [number, number, number];
+    generation?: number;
+};
+
+
 type ResidentUnit = {
     unit: Unit;
     u: number;
@@ -906,48 +828,40 @@ type ResidentUnit = {
 };
 
 
-/**
- * One position broken out of a request: where its answer belongs
- * (`request` and `index`, into `request.results`) and the units that
- * may answer it, ordered best first. Not itself an answer -- the GPU
- * still has to choose among `units` and report back which one and at
- * what height, arriving as a separate result row.
- */
-type Lookup = {
-    request: Request;
-    index: number;
-    units: ResidentUnit[];
-};
-
-
-/** One caller's outstanding query. */
-type Request = {
+type SampleSetState = {
     positions: readonly ElevationStore.Position[];
+    refs: (UnitRef | undefined)[];
+    checkedGeneration: number;
     desiredGsd: number;
-    single: boolean;
-    results: (ElevationStore.Sample | undefined)[];
-    pending: number;
-    next: number;
-    resolve: (value: unknown) => void;
 };
 
 
-/** A submitted batch waiting on its read. */
+type Lookup = {
+    update: SampleUpdate;
+    index: number;
+    candidates: ResidentUnit[];
+};
+
+
+type SampleUpdate = {
+    sampleSet: ElevationStore.SampleSet;
+    state: SampleSetState;
+    lookups: Lookup[];
+    next: number;
+    pending: number;
+    changed: boolean;
+    scannedGeneration: number;
+    desiredGsd: number;
+    promise: Promise<boolean>;
+    resolve: (changed: boolean) => void;
+    settled: boolean;
+};
+
+
 type InFlight = {
     readback: ElevationUnits.Readback;
     batch: Lookup[];
 };
-
-
-/** One node's grid of projection factors. */
-type GsdGrid = {
-    size: number;
-    values: Float64Array;
-};
-
-
-/** Intervals between the two edges of a tile. */
-const SampleSpan = 255;
 
 
 function unitKey(tileId: readonly number[]): string {
@@ -956,13 +870,37 @@ function unitKey(tileId: readonly number[]): string {
 }
 
 
-function nodeKey(node: MapDivisionNode): string {
+function sameTile(
+    first: readonly number[],
+    second?: readonly number[],
+): boolean {
 
-    return unitKey(node.id);
+    return !!second
+        && first[0] === second[0]
+        && first[1] === second[1]
+        && first[2] === second[2];
 }
 
 
-function isPosition(value: unknown): boolean {
+function sameContent(
+    first: UnitContent | null,
+    second: UnitContent,
+): boolean {
+
+    if (!first || first.rigs.length !== second.rigs.length) return false;
+
+    for (let index = 0; index < first.childGenerations.length; index++)
+        if (first.childGenerations[index]
+                !== second.childGenerations[index]) return false;
+
+    for (let index = 0; index < first.rigs.length; index++)
+        if (first.rigs[index] !== second.rigs[index]) return false;
+
+    return true;
+}
+
+
+function isPosition(value: unknown): value is ElevationStore.Position {
 
     return Array.isArray(value)
         && value.length >= 2
@@ -971,14 +909,6 @@ function isPosition(value: unknown): boolean {
 }
 
 
-/**
- * Whether a spatial division node carries tiles of its own.
- *
- * A manual node routes its children into new subtrees that each own a
- * projected SRS, so its own cells span several of them; `none` and
- * `barren` nodes carry no data either. The store follows the tile
- * hierarchy only where one projected SRS holds for the whole cell.
- */
 function productiveNode(node: MapDivisionNode): boolean {
 
     const partitioning = node.partitioning;
@@ -989,138 +919,23 @@ function productiveNode(node: MapDivisionNode): boolean {
 }
 
 
-/** Nominal sample spacing of a node's root unit, in node SRS units. */
-function nodeRootSpacing(node: MapDivisionNode): number {
-
-    const ll = node.extents.ll;
-    const ur = node.extents.ur;
-
-    return Math.sqrt((ur[0] - ll[0]) * (ur[1] - ll[1])) / SampleSpan;
-}
-
-
-/**
- * The linear scale factor at one point: ground metres per one unit of
- * the node's own local coordinate system. The magnitude of the cross
- * product of the two partial derivatives of the transform into physical
- * coordinates gives the areal scale (ground square metres per square
- * unit); its square root is the direction-agnostic linear factor this
- * returns. Interior samples use centred differences; a boundary sample
- * uses an inward one-sided difference, so no evaluation leaves the node.
- */
-function linearScaleSample(
-    node: MapDivisionNode,
-    x: number,
-    y: number,
-    stepX: number,
-    stepY: number,
-    centredX: boolean,
-    centredY: boolean,
-): number {
-
-    const at = (px: number, py: number): number[] | null => {
-
-        try {
-
-            const point = node.getPhysicalCoords([px, py, 0], true);
-            if (!point || !Number.isFinite(point[0])) return null;
-            return point;
-
-        } catch (error) {
-
-            return null;
-        }
-    };
-
-    const derivative = (
-        dx: number, dy: number, step: number, centred: boolean,
-    ): number[] | null => {
-
-        const forward = at(x + dx, y + dy);
-        const back = centred ? at(x - dx, y - dy) : at(x, y);
-
-        if (!forward || !back) return null;
-
-        const span = centred ? 2 * step : step;
-
-        return [
-            (forward[0] - back[0]) / span,
-            (forward[1] - back[1]) / span,
-            (forward[2] - back[2]) / span,
-        ];
-    };
-
-    const du = derivative(stepX, 0, stepX, centredX);
-    const dv = derivative(0, stepY, stepY, centredY);
-
-    if (!du || !dv) return NaN;
-
-    const cross = [
-        du[1] * dv[2] - du[2] * dv[1],
-        du[2] * dv[0] - du[0] * dv[2],
-        du[0] * dv[1] - du[1] * dv[0],
-    ];
-
-    return Math.sqrt(Math.hypot(cross[0], cross[1], cross[2]));
-}
-
-
-/** Replaces every non-finite grid value with the closest finite one. */
-function fillFromNearest(values: Float64Array, size: number): void {
-
-    // Read candidates from a snapshot so a hole filled earlier in the
-    // walk never seeds a later one; only original samples are sources.
-    const source = values.slice();
-
-    for (let j = 0; j < size; j++) {
-
-        for (let i = 0; i < size; i++) {
-
-            const value = source[j * size + i];
-            if (Number.isFinite(value) && value > 0) continue;
-
-            let best = NaN;
-            let bestDistance = Infinity;
-
-            for (let sj = 0; sj < size; sj++) {
-
-                for (let si = 0; si < size; si++) {
-
-                    const other = source[sj * size + si];
-                    if (!Number.isFinite(other) || other <= 0) continue;
-
-                    const distance =
-                        (si - i) * (si - i) + (sj - j) * (sj - j);
-
-                    if (distance >= bestDistance) continue;
-
-                    best = other;
-                    bestDistance = distance;
-                }
-            }
-
-            values[j * size + i] = best;
-        }
-    }
-}
-
-
 namespace ElevationStore {
 
-    /** A position to look up, in the meaning of section 3.1 of RFC 13. */
+    /** A geographic position in the meaning of RFC 13 section 3.1. */
     export type Position = readonly [number, number];
 
-    /** One answered lookup. */
+    /** Caller-owned retained storage for one stable position list. */
+    export type SampleSet = {
+        positions: readonly Position[];
+        desiredGsd: number;
+        samples?: (Sample | undefined)[];
+    };
+
+    /** One covered terrain sample. */
     export type Sample = {
-
-        /** The queried position with the stored height appended. */
-        position: readonly [number, number, number];
-
-        /**
-         * Horizontal spacing, in physical metres, of the samples that
-         * answered. It says nothing about vertical reliability.
-         */
+        height: number;
         actualGsd: number;
+        unit: unknown;
     };
 }
 

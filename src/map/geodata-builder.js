@@ -18,10 +18,6 @@ var MapGeodataImportVTSGeodata = MapGeodataImportVTSGeodata_;
 var vec3 = vec3_;
 var mat4 = mat4_;
 
-// Unique tokens binding a heightcoding builder to the free layer it
-// produced, across the style spec's structuredClone.
-var geodataBindingCounter = 0;
-
 
 var MapGeodataBuilder = function(map) {
     this.map = map;
@@ -34,70 +30,6 @@ var MapGeodataBuilder = function(map) {
     //this.navSrs = this.map.getPublicSrs();
     this.physSrs = this.map.getPhysicalSrs();
 
-    this.heightsToProcess = 0;
-    this.heightsProcessBuffer = null;
-    this.heightsProcessBufferFirst = null;
-    this.heightsProcessBufferLast = null;
-
-    // Client-side heightcoding through the elevation store (RFC 13).
-    this.heightcoder = null;
-    this.heightcodeItems = null;
-    this.boundFreeLayer = null;
-    this.onRefine = null;
-};
-
-
-MapGeodataBuilder.prototype.addToHeightsBuffer = function(coords) {
-
-    var item = { coords: coords, prev: null, next: this.heightsProcessBufferFirst };
-
-    if (this.heightsProcessBufferFirst != null) {
-        this.heightsProcessBufferFirst.prev = item;
-    }
-
-    //add item as first in list
-    this.heightsProcessBufferFirst = item;
-
-    if (this.heightsProcessBufferLast == null) {
-        this.heightsProcessBufferLast = item;
-    }
-};
-
-
-MapGeodataBuilder.prototype.removeFromHeightsBuffer = function(item) {
-    var hit = false;
-
-    if (item == this.heightsProcessBufferFirst) {
-        this.heightsProcessBufferFirst = item.next;
-        hit = true;
-
-        if (this.heightsProcessBufferFirst != null) {
-            this.heightsProcessBufferFirst.prev = null;
-        }
-    }
-
-    if (item == this.heightsProcessBufferLast) {
-        this.heightsProcessBufferLast = item.prev;
-        hit = true;
-
-        if (this.heightsProcessBufferLast != null) {
-            this.heightsProcessBufferLast.next = null;
-        }
-    }
-
-    if (!hit) {
-        if (!item.prev) {
-            //debugger;
-        } else {
-            item.prev.next = item.next;
-        }
-        
-        if (!item.next) {
-            //debugger;
-        } else {
-            item.next.prev = item.prev;
-        }
-    }
 };
 
 
@@ -128,14 +60,11 @@ MapGeodataBuilder.prototype.addPoint = function(point, heightMode, properties, i
     };
 
     if (floatHeight) {
-        coords = [point[0], point[1], point[2] || 0, feature, null, null ];
-        this.addToHeightsBuffer(coords);
+        coords = [point[0], point[1], point[2] || 0, feature];
 
         feature.points = [ coords ];
         feature.floatHeights = true;
         feature.srs = srs ? srs : this.navSrs;
-        feature.heightsToProcess = 1;
-        this.heightsToProcess++;
     } else {
         if (directCopy) {
             feature.points = [ [point[0], point[1], point[2]] ];
@@ -169,16 +98,13 @@ MapGeodataBuilder.prototype.addPointArray = function(points, heightMode, propert
         
         for (i = 0, li = points.length; i < li; i++) {
             point = points[i];
-            coords = [point[0], point[1], point[2] || 0, feature, null, null ];
-            this.addToHeightsBuffer(coords);
+            coords = [point[0], point[1], point[2] || 0, feature];
 
             featurePoints[i] = coords;
         }
 
         feature.floatHeights = true;
         feature.srs = srs;
-        feature.heightsToProcess = li;
-        this.heightsToProcess++;
     } else {
         if (directCopy) {
             for (i = 0, li = points.length; i < li; i++) {
@@ -218,16 +144,13 @@ MapGeodataBuilder.prototype.addLineString = function(linePoints, heightMode, pro
         
         for (i = 0, li = linePoints.length; i < li; i++) {
             point = linePoints[i];
-            coords = [point[0], point[1], point[2] || 0, feature, null, null ];
-            this.addToHeightsBuffer(coords);
+            coords = [point[0], point[1], point[2] || 0, feature];
 
             featurePoints[i] = coords;
         }
 
         feature.floatHeights = true;
         feature.srs = srs;
-        feature.heightsToProcess = li;
-        this.heightsToProcess += li;
     } else {
         if (directCopy) {
             for (i = 0, li = linePoints.length; i < li; i++) {
@@ -265,27 +188,21 @@ MapGeodataBuilder.prototype.addLineStringArray = function(lines, heightMode, pro
     var featureLines = new Array(lines.length);
 
     if (floatHeight) {
-        var totalHeights = 0;
-        
         for (i = 0, li = lines.length; i < li; i++) {
             subline = lines[i];
             points = new Array(subline.length);
 
             for (j = 0, lj = subline.length; j < lj; j++) {
                 point = subline[j];
-                coords = [point[0], point[1], point[2] || 0, feature, null, null];
-                this.addToHeightsBuffer(coords);
+                coords = [point[0], point[1], point[2] || 0, feature];
                 points[j] = coords;
             }
 
-            totalHeights += lj;
             featureLines[i] = points;
         }
 
         feature.floatHeights = true;
         feature.srs = srs;
-        feature.heightsToProcess = totalHeights;
-        this.heightsToProcess += totalHeights;
     } else {
 
         for (i = 0, li = lines.length; i < li; i++) {
@@ -1383,15 +1300,12 @@ MapGeodataBuilder.prototype.addPolygonRAW = function(vertices, surface, borders,
 
     if (floatHeight) {
         for (i = 0, li = vertices.length; i < li; i+=3) {
-            coords = [vertices[i], vertices[i+1], vertices[i+2], feature, null, null];
-            this.addToHeightsBuffer(coords);
+            coords = [vertices[i], vertices[i+1], vertices[i+2], feature];
             featureVertices[j++] = coords;
         }
 
         feature.floatHeights = true;
         feature.srs = srs;
-        feature.heightsToProcess = featureVertices.length;
-        this.heightsToProcess += featureVertices.length;
     } else {
 
         for (i = 0, li = vertices.length; i < li; i+=3) {
@@ -1435,163 +1349,6 @@ MapGeodataBuilder.prototype.importGeoJson = function(json, heightMode, srs, opti
     return importer.processJSON(json);
 };
 
-
-/**
- * Public entry for a geometry consumer that reads coordinates directly
- * rather than rendering a free layer (the measure tool). The caller
- * contract is in `geodata-builder.d.ts`; `makeFreeLayer` heightcodes on
- * its own, so a rendered layer never calls this.
- */
-MapGeodataBuilder.prototype.processHeights = function(onRefine) {
-
-    this.onRefine = onRefine || null;
-    this.ensureHeightcoding();
-};
-
-
-/**
- * Heightcodes every `'float'` coordinate against the elevation store and
- * keeps adapting as the store improves (RFC 13, backlog #56), replacing
- * the navigation-tile path. Converts every coordinate once at terrain
- * height zero so the geometry is valid immediately, then hands the
- * coordinates to a heightcoder the map ticks; each improvement rewrites
- * the affected coordinates and rebuilds the bound free layer. A second
- * call is a no-op.
- */
-MapGeodataBuilder.prototype.ensureHeightcoding = function() {
-
-    if (this.heightcoder) return;
-
-    var positions = [];
-    var items = [];
-
-    for (var item = this.heightsProcessBufferFirst; item;
-            item = item.next) {
-
-        var coords = item.coords;
-        var srs = coords[3].srs || this.navSrs;
-
-        // The original geographic coordinate, kept so every refresh
-        // recomputes the physical coordinate from scratch.
-        item.orig = [coords[0], coords[1], coords[2]];
-        item.srs = srs;
-
-        var nav = this.navSrs.convertCoordsFrom(item.orig, srs);
-
-        positions.push([nav[0], nav[1]]);
-        items.push(item);
-    }
-
-    if (positions.length === 0) return;
-
-    this.heightcodeItems = items;
-
-    // Place every coordinate at terrain height zero so the first
-    // makeFreeLayer() serializes valid physical geometry.
-    for (var i = 0; i < items.length; i++) {
-        this.applyHeightcodeHeight(i, 0);
-    }
-
-    this.heightcoder = this.map.outerMap.createGeodataHeightcoder(
-        positions, 0, this.onHeightcodeUpdate.bind(this));
-};
-
-
-/**
- * Rewrites one collected coordinate to the physical position at a given
- * terrain height. The height is added to the original float offset, then
- * the whole coordinate is converted to physical space.
- *
- * @param {number} index into the collected item list
- * @param {number} terrainHeight navigation-space terrain height
- */
-MapGeodataBuilder.prototype.applyHeightcodeHeight = function(
-        index, terrainHeight) {
-
-    var item = this.heightcodeItems[index];
-    var coords = item.coords;
-
-    var fixed = [item.orig[0], item.orig[1], item.orig[2] + terrainHeight];
-    var phys = this.physSrs.convertCoordsFrom(fixed, item.srs);
-
-    coords[0] = phys[0];
-    coords[1] = phys[1];
-    coords[2] = phys[2];
-};
-
-
-/**
- * Takes one heightcoder pass. Rewrites the coordinates that improved,
- * rebuilds the bound free layer, and notifies a geometry consumer.
- *
- * @param {ReadonlyArray<number>} changed indices that took a new height
- */
-MapGeodataBuilder.prototype.onHeightcodeUpdate = function(changed) {
-
-    var samples = this.heightcoder.samples;
-
-    for (var i = 0; i < changed.length; i++) {
-        var index = changed[i];
-        var sample = samples[index];
-
-        if (sample) {
-            this.applyHeightcodeHeight(index, sample.height);
-        }
-    }
-
-    this.rebuildBoundFreeLayer();
-
-    if (this.onRefine) {
-        this.onRefine(this);
-    }
-};
-
-
-/**
- * Binds a free layer built from this builder so later heightcoding
- * refreshes reach it. Rebuilds once with whatever heights are already in
- * hand, in case improvements arrived before the layer was created.
- *
- * @param {object} freeLayer the MapFreeLayer to rebuild on refinement
- */
-MapGeodataBuilder.prototype.bindFreeLayer = function(freeLayer) {
-
-    this.boundFreeLayer = freeLayer;
-    freeLayer.heightcodeBuilder = this;
-    this.rebuildBoundFreeLayer();
-};
-
-
-/** Stops and unregisters the heightcoder, if one is running. */
-MapGeodataBuilder.prototype.stopHeightcoding = function() {
-
-    if (this.heightcoder) {
-        this.map.outerMap.disposeGeodataHeightcoder(this.heightcoder);
-        this.heightcoder = null;
-    }
-
-    this.onRefine = null;
-};
-
-
-/** Re-serializes refined geometry into the bound free layer, if any. */
-MapGeodataBuilder.prototype.rebuildBoundFreeLayer = function() {
-
-    var freeLayer = this.boundFreeLayer;
-    if (!freeLayer) return;
-
-    // Publish the refined geometry and bump the revision. The draw loop
-    // builds a replacement view alongside the live one and swaps it in
-    // when ready, so this never blinks the layer. Do not touch
-    // monoGeodata here; nulling it would bypass that double buffer.
-    freeLayer.geodataUrl = this.makeGeodata();
-    freeLayer.geodataCounter++;
-
-    freeLayer.extents.min = this.bboxMin.slice();
-    freeLayer.extents.max = this.bboxMax.slice();
-
-    this.map.markDirty();
-};
 
 MapGeodataBuilder.prototype.extractGeometry = function(id) {
     var feature, i, li, j, lj, points, lines,
@@ -1697,6 +1454,38 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
     var groupPoints = group.points, points, p, feature, finalFeature;
     var groupLines = group.lines, lines, line, i, li, j, lj, k, lk;
     var groupPolygons = group.polygons, borders;
+    var compiledCoords = new WeakMap();
+    var heightcoding = [];
+    var hasFloatingCoords = false;
+
+    var compileCoord = (function(p) {
+        var compiled = compiledCoords.get(p);
+        if (compiled) return compiled;
+
+        var feature = p[3];
+        var source = null;
+        var physical = p;
+
+        if (feature && feature.floatHeights) {
+            var srs = feature.srs || this.navSrs;
+            var nav = this.navSrs.convertCoordsFrom(
+                [p[0], p[1], p[2]], srs);
+
+            source = [nav[0], nav[1], nav[2]];
+            physical = this.physSrs.convertCoordsFrom(nav, this.navSrs);
+            hasFloatingCoords = true;
+        }
+
+        compiled = { physical: physical, source: source };
+        compiledCoords.set(p, compiled);
+        return compiled;
+    }).bind(this);
+
+    var serializeCoord = function(p) {
+        var compiled = compileCoord(p);
+        heightcoding.push(compiled.source);
+        return compiled.physical;
+    };
 
     geodataGroup.id = group.id;
 
@@ -1705,7 +1494,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
         points = groupPoints[i].points;
 
         for (j = 0, lj = points.length; j < lj; j++) {
-            p = points[j];
+            p = compileCoord(points[j]).physical;
 
             if (p[0] > bboxMax[0]) { bboxMax[0] = p[0]; }
             if (p[1] > bboxMax[1]) { bboxMax[1] = p[1]; }
@@ -1724,7 +1513,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
             line = lines[j];
 
             for (k = 0, lk = line.length; k < lk; k++) {
-                p = line[k];
+                p = compileCoord(line[k]).physical;
 
                 if (p[0] > bboxMax[0]) { bboxMax[0] = p[0]; }
                 if (p[1] > bboxMax[1]) { bboxMax[1] = p[1]; }
@@ -1741,7 +1530,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
         points = groupPolygons[i].vertices;
 
         for (j = 0, lj = points.length; j < lj; j++) {
-            p = points[j];
+            p = compileCoord(points[j]).physical;
 
             if (p[0] > bboxMax[0]) { bboxMax[0] = p[0]; }
             if (p[1] > bboxMax[1]) { bboxMax[1] = p[1]; }
@@ -1778,7 +1567,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
         var finalPoints = new Array(points.length);
 
         for (j = 0, lj = points.length; j < lj; j++) {
-            p = points[j];
+            p = serializeCoord(points[j]);
 
             finalPoints[j] = [ Math.round((p[0] - bboxMin[0]) * bboxScaleFactor[0]),
                                Math.round((p[1] - bboxMin[1]) * bboxScaleFactor[1]),
@@ -1814,7 +1603,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
             finalPoints = new Array(line.length);
 
             for (k = 0, lk = line.length; k < lk; k++) {
-                p = line[k];
+                p = serializeCoord(line[k]);
 
                 finalPoints[k] = [ Math.round((p[0] - bboxMin[0]) * bboxScaleFactor[0]),
                                    Math.round((p[1] - bboxMin[1]) * bboxScaleFactor[1]),
@@ -1850,7 +1639,7 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
         k = 0;
 
         for (j = 0, lj = points.length; j < lj; j++) {
-            p = points[j];
+            p = serializeCoord(points[j]);
             finalVertices[k++] = Math.round((p[0] - bboxMin[0]) * bboxScaleFactor[0]);
             finalVertices[k++] = Math.round((p[1] - bboxMin[1]) * bboxScaleFactor[1]);
             finalVertices[k++] = Math.round((p[2] - bboxMin[2]) * bboxScaleFactor[2]);
@@ -1883,6 +1672,10 @@ MapGeodataBuilder.prototype.compileGroup = function(group, resolution) {
 
     geodataGroup.bbox = [ bboxMin, bboxMax ];
 
+    if (hasFloatingCoords) {
+        geodataGroup.heightcoding = heightcoding;
+    }
+
     if (bboxMax[0] > this.bboxMax[0]) { this.bboxMax[0] = bboxMax[0]; }
     if (bboxMax[1] > this.bboxMax[1]) { this.bboxMax[1] = bboxMax[1]; }
     if (bboxMax[2] > this.bboxMax[2]) { this.bboxMax[2] = bboxMax[2]; }
@@ -1913,12 +1706,6 @@ MapGeodataBuilder.prototype.makeGeodata = function(resolution) {
 
 
 MapGeodataBuilder.prototype.makeFreeLayer = function(style, resolution, geodata) {
-    // 'float' coordinates already declare that terrain height is wanted,
-    // so a free layer heightcodes them on its own. This converts them to
-    // valid physical coordinates before serializing and binds the layer
-    // to this builder for the refinement rebuilds.
-    this.ensureHeightcoding();
-
     if (!geodata) {
         geodata = this.makeGeodata(resolution);
     }
@@ -1955,22 +1742,6 @@ MapGeodataBuilder.prototype.makeFreeLayer = function(style, resolution, geodata)
             'style' : style,
             'type' : 'geodata'
         };
-
-    // While heightcoding is active, tag the definition so the free layer
-    // it becomes binds back here and receives refinement rebuilds. The
-    // tag is a plain string, so it survives the style spec's
-    // structuredClone; the builder reference stays in a map-scoped
-    // registry, out of the serialized definition.
-    if (this.heightcoder) {
-
-        var registry = this.map.geodataBuilderBindings
-            || (this.map.geodataBuilderBindings = {});
-
-        var token = 'ghc-' + (++geodataBindingCounter);
-
-        registry[token] = this;
-        freeLayer['geodataHeightcodeToken'] = token;
-    }
 
     return freeLayer;
 };

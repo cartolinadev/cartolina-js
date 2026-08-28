@@ -535,7 +535,10 @@ self.onmessage = function (e) {
         if (geodata2) {
             processGeodata2(dataView, globals.tileLod);
         } else {
-            data = JSON.parse(data);            
+            if (typeof data === 'string') {
+                data = JSON.parse(data);
+            }
+
             processGeodata(data, globals.tileLod);
         }
 

@@ -139,6 +139,39 @@ MapRefFrame.prototype.getSpatialDivisionNodes = function() {
 };
 
 
+/** Returns the deepest spatial division node containing a tile id. */
+MapRefFrame.prototype.getSpatialDivisionNodeForTile = function(tileId) {
+    var owner = null;
+    var nodes = this.division.nodes;
+
+    for (var i = 0, li = nodes.length; i < li; i++) {
+        var node = nodes[i];
+        var shift = tileId[0] - node.id[0];
+
+        if (shift < 0 || (tileId[1] >> shift) !== node.id[1]
+            || (tileId[2] >> shift) !== node.id[2]) {
+
+            continue;
+        }
+
+        if (!owner || node.id[0] > owner.id[0]) owner = node;
+    }
+
+    return owner;
+};
+
+
+/** Returns one nominal sample's side at a node tile LOD. */
+MapRefFrame.prototype.getNodeGsd = function(node, lod, sampleCount) {
+    var ll = node.extents.ll;
+    var ur = node.extents.ur;
+    var rootSide = Math.sqrt((ur[0] - ll[0]) * (ur[1] - ll[1]));
+
+    return rootSide
+        / (sampleCount * Math.pow(2, lod - node.id[0]));
+};
+
+
 /**
  * Resolves a navigation-SRS position to the spatial division nodes that
  * own it, with its coordinates in each node's own SRS.
@@ -289,5 +322,4 @@ MapRefFrame.prototype.convertCoords = function(coords, source, destination) {
 
 
 export default MapRefFrame;
-
 

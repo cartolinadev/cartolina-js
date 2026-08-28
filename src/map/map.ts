@@ -39,10 +39,8 @@ import type {
 import ColorTerrainSink from './color-terrain-sink';
 import DepthTerrainSink from './depth-terrain-sink';
 import ElevationStore from './elevation-store';
-import MapGeodataHeightcoder from './geodata-heightcoder';
+import type MapGeodataHeightcoder from './geodata-heightcoder';
 import type MapGeodataBuilder from './geodata-builder';
-import ElevationStoreGeodataAnalysis
-    from './elevation-store-geodata-analysis';
 import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
 
@@ -1071,7 +1069,6 @@ class Map {
         legacyMap.tickBefore();
 
         this.updateElevation();
-        this.updateGeodataHeightcoders();
 
         // prepare and/or draw if dirty
         if (dirty) {
@@ -1170,6 +1167,7 @@ class Map {
 
         // draw surfaces and free layers
         gpu.setState(mapDraw.drawTileState);
+        this.activeGeodataHeightcoders_ = new Set();
 
         if (this.overrides.drawEarth) {
 
@@ -1205,6 +1203,8 @@ class Map {
             });
 
         } // if (this.overrides.drawEarth)
+
+        this.publishGeodataHeightcodingReport();
 
         // draw freeze frustum, if applicable
         const inspector = this.inspector;
@@ -1302,163 +1302,116 @@ class Map {
     // Terrain elevation
     // -----------------------------------------------------------------
 
-    /**
-     * Returns the terrain height at one position, or at each of an
-     * array of positions, from the elevation store. The store works in
-     * navigation space, so heights cross the vertical datum here.
-     *
-     * @param position public-space XY, or an array of them
-     * @param desiredGsd wanted sample spacing in metres
-     */
-    queryTerrainElevation(
-        position: ElevationStore.Position,
-        desiredGsd?: number,
-    ): Promise<ElevationStore.Sample | undefined>;
-
-    queryTerrainElevation(
-        positions: readonly ElevationStore.Position[],
-        desiredGsd?: number,
-    ): Promise<readonly (ElevationStore.Sample | undefined)[]>;
-
-    queryTerrainElevation(
-        position: ElevationStore.Position
-            | readonly ElevationStore.Position[],
-        desiredGsd = 0,
-    ): Promise<unknown> {
+    /** Updates a retained terrain sample set in place. */
+    updateTerrainSamples(
+        sampleSet: ElevationStore.SampleSet,
+    ): Promise<boolean> {
 
         this.assertAlive();
 
-        const store = this.elevationStore_;
-        const refFrame = this.map?.referenceFrame;
+        return this.elevationStore_
+            ? this.elevationStore_.updateTerrainSamples(sampleSet)
+            : Promise.resolve(false);
+    }
 
-        // A single position is a two-number array; a batch is an array
-        // of those. An empty array is a batch of none, not a single
-        // position with a missing first coordinate.
-        const single = position.length > 0 && !Array.isArray(position[0]);
+    /** Prevents a pending terrain-sample readback from writing to a set. */
+    disposeTerrainSamples(sampleSet: ElevationStore.SampleSet): void {
 
-        if (!single && position.length === 0) {
-            return Promise.resolve([]);
+        this.elevationStore_?.disposeTerrainSamples(sampleSet);
+    }
+
+    /** Nominal requested gsd for one prepared geodata view. */
+    geodataHeightcodingGsd(
+        tileId: readonly number[] | null,
+        displaySize: number,
+    ): number | null {
+
+        const legacyMap = this.map;
+        const refFrame = legacyMap?.referenceFrame;
+        if (!legacyMap || !refFrame) return null;
+
+        if (tileId) {
+
+            const node = refFrame.getSpatialDivisionNodeForTile(tileId);
+            return node
+                ? refFrame.getNodeGsd(node, tileId[0], displaySize)
+                : null;
         }
 
-        // Before the reference frame is ready there is no store and so
-        // no coverage, which is the same answer a miss gives.
-        if (!store || !refFrame) {
+        let lod = -1;
 
-            return Promise.resolve(single
-                ? undefined
-                : new Array(position.length).fill(undefined));
+        for (const key of Object.keys(legacyMap.stats.renderedLods))
+            if (legacyMap.stats.renderedLods[Number(key)] > 0)
+                lod = Math.max(lod, Number(key));
+
+        if (lod < 0) return null;
+
+        const owner = refFrame.resolveSpatialDivisionNodes(
+            this.getSelectionPosition()!.getCoords()).find((entry) => {
+
+                const partitioning = entry.node.partitioning;
+                return !(partitioning && typeof partitioning === 'object')
+                    && partitioning !== 'none'
+                    && partitioning !== 'barren';
+            });
+
+        return owner ? refFrame.getNodeGsd(owner.node, lod, 256) : null;
+    }
+
+    /** Includes one prepared live view in the optional shadow report. */
+    noteGeodataHeightcoder(heightcoder: MapGeodataHeightcoder): void {
+
+        if (this.config.mapHeightcoding === 'store'
+                && this.config.mapHeightcodingShadow)
+            this.activeGeodataHeightcoders_.add(heightcoder);
+    }
+
+    private publishGeodataHeightcodingReport(): void {
+
+        if (this.config.mapHeightcoding !== 'store'
+                || !this.config.mapHeightcodingShadow) return;
+
+        const now = performance.now();
+        if (now - this.lastHeightcodingReport_ < 1000) return;
+
+        const gsds: number[] = [];
+        const differences: number[] = [];
+        let coordinates = 0;
+        let covered = 0;
+        let refreshes = 0;
+
+        for (const heightcoder of this.activeGeodataHeightcoders_) {
+
+            const view = heightcoder.report();
+
+            coordinates += view.coordinates;
+            covered += view.covered;
+            refreshes += view.refreshes;
+            gsds.push(...view.gsds);
+            differences.push(...view.differences);
         }
 
-        const input = single
-            ? [position as ElevationStore.Position]
-            : (position as readonly ElevationStore.Position[]);
+        const report: HeightcodingReport = {
+            coordinates,
+            covered,
+            coverage: coordinates > 0 ? covered / coordinates : 0,
+            refreshes,
+            actualGsd: summarize(gsds),
+            storeMinusLegacy: summarize(differences),
+        };
 
-        const navigation = input.map((pos) => {
+        const target = globalThis as typeof globalThis & {
+            __elevationStoreGeodataShadow?: HeightcodingReport;
+        };
 
-            const converted = refFrame.convertCoords(
-                [pos[0], pos[1], 0], 'public', 'navigation');
+        target.__elevationStoreGeodataShadow = report;
+        this.lastHeightcodingReport_ = now;
 
-            return [converted[0], converted[1]] as ElevationStore.Position;
-        });
-
-        const settle = store.queryTerrainElevation(navigation, desiredGsd)
-            .then((samples) => samples.map((sample, index) => {
-
-                if (!sample) return undefined;
-
-                const converted = refFrame.convertCoords(
-                    [sample.position[0], sample.position[1],
-                        sample.position[2]],
-                    'navigation', 'public');
-
-                // the caller's own horizontal position, so a round trip
-                // through the SRS cannot drift it
-                return {
-                    position: [input[index][0], input[index][1],
-                        converted[2]] as [number, number, number],
-                    actualGsd: sample.actualGsd,
-                };
-            }));
-
-        return single ? settle.then((samples) => samples[0]) : settle;
-    }
-
-    /**
-     * Navigation-space batch elevation query used by geodata
-     * heightcoding. Input and output stay in the navigation SRS, so the
-     * geodata pipeline needs no vertical-datum round trip. A missing
-     * store or an uncovered position resolves to `undefined` at that
-     * index.
-     *
-     * @internal Used by `MapGeodataHeightcoder`.
-     */
-    queryTerrainElevationNav(
-        positions: readonly (readonly [number, number])[],
-        desiredGsd: number,
-    ): Promise<readonly (MapGeodataHeightcoder.Sample | undefined)[]> {
-
-        const store = this.elevationStore_;
-
-        if (!store)
-            return Promise.resolve(positions.map(() => undefined));
-
-        return store.queryTerrainElevation(
-            positions as readonly ElevationStore.Position[], desiredGsd)
-            .then((samples) => samples.map((sample) => sample
-                ? { height: sample.position[2], actualGsd: sample.actualGsd }
-                : undefined));
-    }
-
-    /**
-     * Registers a client-heightcoding engine, ticked each frame until
-     * disposed through `disposeGeodataHeightcoder`.
-     *
-     * @internal Used by geodata free layers and the gate-2 diagnostic.
-     */
-    createGeodataHeightcoder(
-        positions: readonly (readonly [number, number])[],
-        desiredGsd: number,
-        onUpdate: (changed: readonly number[]) => void,
-    ): MapGeodataHeightcoder {
-
-        const coder = new MapGeodataHeightcoder(
-            this, positions, desiredGsd, onUpdate);
-
-        this.geodataHeightcoders_.add(coder);
-        return coder;
-    }
-
-    /** Disposes and unregisters a heightcoding engine. */
-    disposeGeodataHeightcoder(coder: MapGeodataHeightcoder): void {
-
-        this.geodataHeightcoders_.delete(coder);
-        coder.dispose();
-    }
-
-    /** Ticks every registered heightcoder. Runs outside the dirty gate. */
-    private updateGeodataHeightcoders(): void {
-
-        if (this.geodataHeightcoders_.size === 0) return;
-
-        for (const coder of this.geodataHeightcoders_)
-            coder.tick();
-    }
-
-    /**
-     * Runs the gate-2 shadow diagnostic on one delivered tiled-geodata
-     * payload when `debugElevationStoreGeodataShadow` is set. A no-op
-     * otherwise, so the render path is untouched.
-     *
-     * @internal Called by `MapGeodataView` before worker processing.
-     */
-    analyzeGeodataShadow(geodata: unknown): void {
-
-        if (!this.config.debugElevationStoreGeodataShadow) return;
-
-        if (!this.geodataShadow_)
-            this.geodataShadow_ = new ElevationStoreGeodataAnalysis(this);
-
-        this.geodataShadow_.collect(geodata);
+        console.log('[heightcoding shadow] store - legacy height:',
+            report.storeMinusLegacy,
+            `coverage ${(report.coverage * 100).toFixed(1)}%`,
+            `(${covered}/${coordinates})`,
+            'GSD:', report.actualGsd);
     }
 
     /**
@@ -1967,12 +1920,6 @@ class Map {
      */
     private disposeElevationStore(): void {
 
-        if (this.geodataShadow_) {
-
-            this.geodataShadow_.dispose();
-            this.geodataShadow_ = null;
-        }
-
         if (!this.elevationStore_) return;
 
         this.elevationStore_[Symbol.dispose]();
@@ -2117,11 +2064,9 @@ class Map {
      */
     private elevationStore_: ElevationStore | null = null;
 
-    /** Active client-heightcoding engines, ticked each frame. */
-    private readonly geodataHeightcoders_ = new Set<MapGeodataHeightcoder>();
+    private activeGeodataHeightcoders_ = new Set<MapGeodataHeightcoder>();
 
-    /** The gate-2 shadow diagnostic, created on first use when enabled. */
-    private geodataShadow_: ElevationStoreGeodataAnalysis | null = null;
+    private lastHeightcodingReport_ = -Infinity;
 
     /**
      * Legacy map currently being populated by the style loader.
@@ -2221,6 +2166,56 @@ type OverlayEntry = {
     enabled: boolean;
     added: boolean;
 };
+
+
+type Distribution = {
+    count: number;
+    mean: number;
+    std: number;
+    p50: number;
+    p90: number;
+    p99: number;
+    min: number;
+    max: number;
+};
+
+
+type HeightcodingReport = {
+    coordinates: number;
+    covered: number;
+    coverage: number;
+    refreshes: number;
+    actualGsd: Distribution;
+    storeMinusLegacy: Distribution;
+};
+
+
+function summarize(values: readonly number[]): Distribution {
+
+    const count = values.length;
+
+    if (count === 0)
+        return { count: 0, mean: 0, std: 0, p50: 0, p90: 0, p99: 0,
+            min: 0, max: 0 };
+
+    const sorted = values.slice().sort((a, b) => a - b);
+    const mean = sorted.reduce((sum, value) => sum + value, 0) / count;
+    const variance = sorted.reduce(
+        (sum, value) => sum + ((value - mean) ** 2), 0) / count;
+    const percentile = (fraction: number): number =>
+        sorted[Math.min(count - 1, Math.floor(fraction * count))];
+
+    return {
+        count,
+        mean,
+        std: Math.sqrt(variance),
+        p50: percentile(0.50),
+        p90: percentile(0.90),
+        p99: percentile(0.99),
+        min: sorted[0],
+        max: sorted[count - 1],
+    };
+}
 
 
 /* Public types exposed under `Map.*`. Consumers (`Viewer`, demos,
