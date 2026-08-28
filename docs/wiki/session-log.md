@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-28 - Throttle repeat scans of a terrain sample set
+
+Profiling a still store-mode view showed `resolveUnits` /
+`updateTerrainSamples` taking about a quarter of frame time with nothing
+to settle: a fully resolved sample set was rescanned on every call.
+`updateTerrainSamples()` now resolves `false` without scanning when
+called again before `mapElevationStoreSampleIntervalMs` (new key,
+default 1000, matching the build-pass cadence) has elapsed since that
+set's last scan. RFC 13's gate-2 addendum records the finding, the fix,
+and the still-unimplemented per-position cache that would cut the cost of
+a scan that does run.
+
 ## 2026-08-28 - RFC 13 gate 2: view-owned vector heightcoding
 
 Salvaged RFC 13 gate 2 so store mode heightcodes both tiled and monolithic

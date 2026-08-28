@@ -552,6 +552,13 @@ const catalogue = {
      *  makes every animation frame eligible. */
     mapElevationStoreUpdateIntervalMs: num(0, MAX, 1000, 'runtime'),
 
+    /** Minimum time between scans of one retained terrain sample set,
+     *  in milliseconds. The store cannot commit new content faster
+     *  than `mapElevationStoreUpdateIntervalMs`, so scanning more
+     *  often than that finds nothing new. Zero makes every animation
+     *  frame eligible. */
+    mapElevationStoreSampleIntervalMs: num(0, MAX, 1000, 'runtime'),
+
     /** Maximum GPU memory the elevation store may own, in MiB. One
      *  height field costs 256 KiB, and a view needs one per drawn tile
      *  plus one per node above them, so 192 MiB holds about two and a

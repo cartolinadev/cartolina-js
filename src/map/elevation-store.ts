@@ -40,7 +40,10 @@ class ElevationStore {
      * Updates covered samples in place.
      *
      * Repeated calls for one sample set share an in-flight update. A miss
-     * leaves an earlier answer unchanged.
+     * leaves an earlier answer unchanged. A sample set checked more
+     * often than `mapElevationStoreSampleIntervalMs` resolves `false`
+     * without scanning, since the store cannot have committed anything
+     * new in between.
      *
      * @param sampleSet caller-owned positions, requested gsd, and samples
      * @returns whether at least one height or actual gsd changed
@@ -83,6 +86,13 @@ class ElevationStore {
         }
 
         const state = this.sampleSetState(sampleSet);
+
+        const interval = this.map_.config.mapElevationStoreSampleIntervalMs;
+        const now = performance.now();
+
+        if (now - state.lastChecked < interval) return Promise.resolve(false);
+        state.lastChecked = now;
+
         const lookups: Lookup[] = [];
 
         for (let index = 0; index < sampleSet.positions.length; index++) {
@@ -334,6 +344,7 @@ class ElevationStore {
             positions: sampleSet.positions,
             samples: sampleSet.samples,
             refs,
+            lastChecked: -Infinity,
         };
 
         this.sampleSetStates_.set(sampleSet, state);
@@ -852,6 +863,7 @@ type SampleSetState = {
     positions: readonly ElevationStore.Position[];
     samples: (ElevationStore.Sample | undefined)[];
     refs: (UnitRef | undefined)[];
+    lastChecked: number;
 };
 
 

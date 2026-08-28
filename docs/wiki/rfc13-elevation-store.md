@@ -1948,4 +1948,31 @@ section 5.4. Each update resolves its target tile. Retained tile identity and
 the answering unit's generation bound the walk without invalidating unrelated
 samples after another unit commits.
 
-Manual movement, visual comparison, and performance acceptance remain pending.
+Manual movement, visual comparison, and performance acceptance remain
+pending, though performance testing already found a defect: a captured
+still view was not the zero-cost settled state it should have been.
+Nothing bounded how often a fully resolved sample set is rescanned, so
+`updateTerrainSamples()` walked every position on every call regardless
+of whether the store could have committed anything new since the last
+scan. Captured profiles attributed up to roughly a quarter of frame time
+to `resolveUnits()`/`updateTerrainSamples()` even at rest, with no camera
+motion and nothing left to settle.
+
+Fixed by throttling per sample set: `updateTerrainSamples()` now resolves
+`false` without scanning when called again before
+`mapElevationStoreSampleIntervalMs` has elapsed since that set's last
+scan. The interval defaults to the same value as
+`mapElevationStoreUpdateIntervalMs`, since the store cannot commit new
+content faster than its own build-pass cadence, so scanning more often
+than that cannot find anything new.
+
+A cheaper per-position path remains possible and is not yet implemented.
+`UnitRef` retains only `tileId` and `generation`, so a scan that does run
+still recomputes the candidate tile (`getNodeGsd`, `log2`,
+`getNodeTileAt`) and re-looks it up in `resident_` by a freshly allocated
+string key, even for a position nothing changed. Retaining a direct
+reference to the answering `Unit`, plus the `desiredGsd` and `deepestLod`
+last checked against, would let an unchanged position skip that work
+entirely instead of just skipping it less often. Left for a later pass;
+the throttle was the lower-risk fix for the measured cost, and performance
+acceptance still needs a retest against it.
