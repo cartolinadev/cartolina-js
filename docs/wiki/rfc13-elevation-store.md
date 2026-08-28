@@ -1,7 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** In review — lookup and consumer design reopened after gate 2
-failed its performance gate.
+**Status:** Accepted
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -1929,3 +1928,24 @@ refining.*
 
 The design is accepted. The one change with behavioural weight is the build
 generation in note 2; the rest tighten wording, gate coverage, and lifecycle.
+
+
+## Addendum — 2026-08-28 — Gate 2 implementation review
+
+Gate 2 now gives each tiled or monolithic geodata view one retained sample set
+which supplies its rendered store-heightcoded geometry. The legacy mode keeps
+the delivered geometry, and optional shadow reporting reads the live store-mode
+views instead of owning a second heightcoding path.
+
+`endNode()` now supplies watertightness to the elevation sink. A unit records
+it only when its complete replacement is watertight; traversal coverage which
+includes off-screen quadrants is not enough. Such a unit ends the
+fine-to-coarse fallback walk. Ancestors are derived by shifting the finest
+tile index instead of resolving the coordinate at every LOD.
+
+Lookup does not use the store-wide settled-generation shortcut described in
+section 5.4. Each update resolves its target tile. Retained tile identity and
+the answering unit's generation bound the walk without invalidating unrelated
+samples after another unit commits.
+
+Manual movement, visual comparison, and performance acceptance remain pending.

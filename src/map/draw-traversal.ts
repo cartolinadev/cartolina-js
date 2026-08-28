@@ -167,7 +167,11 @@ export type TerrainTraversalSink = {
      * @param covered whether the node ended up covered, by its own
      *     draws or by its children
      */
-    endNode?(tileId: [number, number, number], covered: boolean): void;
+    endNode?(
+        tileId: [number, number, number],
+        covered: boolean,
+        watertight: boolean,
+    ): void;
 };
 
 
@@ -340,7 +344,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
     // No on-screen area anywhere below: this node contributes nothing.
     if (offScreenMask === AllQuadrantsMask) {
 
-        sink.endNode?.(tileId, false);
+        sink.endNode?.(tileId, false, false);
         return 'off-screen';
     }
 
@@ -348,7 +352,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
     // covered, no draw or mask needed, early return
     if ((watertightMask | offScreenMask) === AllQuadrantsMask) {
 
-        sink.endNode?.(tileId, true);
+        sink.endNode?.(tileId, true, true);
         return 'watertight';
     }
 
@@ -402,7 +406,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
         // A surface drawing watertight fully covers the node.
         if (renderedCoverage === 'watertight') {
 
-            sink.endNode?.(tileId, true);
+            sink.endNode?.(tileId, true, true);
             return 'watertight';
         }
 
@@ -418,7 +422,7 @@ function traverseNode(context: NodeContext): NodeCoverageResult {
     // rectangles, blitted child masks, or rendered footprints.
     const covered = maskPool.hasCoverage(depth);
 
-    sink.endNode?.(tileId, covered);
+    sink.endNode?.(tileId, covered, false);
     return covered ? 'partial' : 'empty';
 }
 

@@ -9,7 +9,9 @@ Salvaged RFC 13 gate 2 so store mode heightcodes both tiled and monolithic
 geodata through one retained sample set owned by each rendered view. Shadow
 reporting now observes that live result, while the failed global heightcoder,
 analysis collector, builder rebuild path, and one-shot terrain queries are
-removed; waypoint and measure consumers use retained sample sets.
+removed; waypoint and measure consumers use retained sample sets. Lookup walks
+stop at watertight units, and repeated calls do not revalidate stable position
+arrays or copy sample arrays.
 
 ## 2026-08-27 - pre-commit: advise against a session log on docs-only commits
 

@@ -3,6 +3,7 @@
  */
 
 import type Map from './map';
+import type ElevationStore from './elevation-store';
 
 
 /** Heightcodes one geodata view from one retained terrain sample set. */
@@ -11,19 +12,20 @@ class MapGeodataHeightcoder {
     constructor(map: Map, source: unknown) {
 
         this.map_ = map;
-        this.source_ = parseGeodata(source);
+        const geodata = parseGeodata(source);
 
         const legacyMap = map.map;
-        if (!this.source_ || !legacyMap) return;
+        if (!geodata || !legacyMap) return;
 
         const navSrs = legacyMap.getNavigationSrs();
         const physSrs = legacyMap.getPhysicalSrs();
 
-        for (const group of this.source_.groups) {
+        for (const group of geodata.groups) {
 
             const physicalCoords = readPhysicalCoords(group);
             const metadata = group.heightcoding;
             const records: CoordinateRecord[] = [];
+            delete group.heightcoding;
 
             for (let index = 0; index < physicalCoords.length; index++) {
 
@@ -61,7 +63,7 @@ class MapGeodataHeightcoder {
             desiredGsd: 0,
         };
 
-        this.renderData_ = cloneGeodata(this.source_);
+        this.renderData_ = geodata;
     }
 
     /** Geometry containing the latest store heights. */
@@ -79,8 +81,6 @@ class MapGeodataHeightcoder {
         sampleSet.desiredGsd = desiredGsd;
         if (this.update_) return this.update_;
 
-        const previous = sampleSet.samples?.slice() ?? [];
-
         this.update_ = this.map_.updateTerrainSamples(sampleSet)
             .then((changed) => {
 
@@ -89,8 +89,11 @@ class MapGeodataHeightcoder {
                 const samples = sampleSet.samples ?? [];
 
                 for (let index = 0; index < samples.length; index++)
-                    if (samples[index] !== previous[index])
+                    if (samples[index] !== this.countedSamples_[index]) {
+
                         this.refreshCounts_[index]++;
+                        this.countedSamples_[index] = samples[index];
+                    }
 
                 this.rebuild();
                 return true;
@@ -145,13 +148,12 @@ class MapGeodataHeightcoder {
 
     private rebuild(): void {
 
-        const source = this.source_;
         const sampleSet = this.sampleSet_;
         const legacyMap = this.map_.map;
+        const result = this.renderData_;
 
-        if (!source || !sampleSet || !legacyMap) return;
+        if (!sampleSet || !legacyMap || !result) return;
 
-        const result = this.renderData_ ?? cloneGeodata(source);
         const navSrs = legacyMap.getNavigationSrs();
         const physSrs = legacyMap.getPhysicalSrs();
         const samples = sampleSet.samples ?? [];
@@ -187,31 +189,18 @@ class MapGeodataHeightcoder {
     }
 
     private readonly map_: Map;
-    private readonly source_: Geodata | null;
     private readonly positions_: [number, number][] = [];
     private readonly legacyHeights_: (number | undefined)[] = [];
     private readonly refreshCounts_: number[] = [];
+    private readonly countedSamples_: (
+        ElevationStore.Sample | undefined)[] = [];
     private readonly groups_: CoordinateRecord[][] = [];
 
-    private sampleSet_: SampleSet | null = null;
+    private sampleSet_: ElevationStore.SampleSet | null = null;
     private renderData_: Geodata | null = null;
     private update_: Promise<boolean> | null = null;
     private disposed_ = false;
 }
-
-
-type SampleSet = {
-    positions: readonly [number, number][];
-    desiredGsd: number;
-    samples?: (Sample | undefined)[];
-};
-
-
-type Sample = {
-    height: number;
-    actualGsd: number;
-    unit: unknown;
-};
 
 
 type CoordinateRecord = {
@@ -250,13 +239,15 @@ function parseGeodata(source: unknown): Geodata | null {
 
     let value = source;
 
-    if (source instanceof ArrayBuffer) {
+    if (source instanceof ArrayBuffer || ArrayBuffer.isView(source)) {
 
         value = new TextDecoder().decode(source);
 
-    } else if (ArrayBuffer.isView(source)) {
+    } else {
 
-        value = new TextDecoder().decode(source);
+        if (source && typeof source === 'object')
+            value = structuredClone(source);
+
     }
 
     if (typeof value === 'string') {
@@ -265,7 +256,7 @@ function parseGeodata(source: unknown): Geodata | null {
 
             value = JSON.parse(value) as JsonValue;
 
-        } catch (error) {
+        } catch {
 
             return null;
         }
@@ -275,12 +266,6 @@ function parseGeodata(source: unknown): Geodata | null {
 
     const geodata = value as Partial<Geodata>;
     return Array.isArray(geodata.groups) ? geodata as Geodata : null;
-}
-
-
-function cloneGeodata(geodata: Geodata): Geodata {
-
-    return structuredClone(geodata);
 }
 
 

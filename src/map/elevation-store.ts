@@ -57,30 +57,32 @@ class ElevationStore {
                 + 'non-negative.'));
         }
 
-        for (const position of sampleSet.positions) {
-
-            if (!isPosition(position)) {
-
-                return Promise.reject(new TypeError(
-                    'updateTerrainSamples: every position must contain '
-                    + 'two finite numbers.'));
-            }
-        }
-
         if (this.disposedSampleSets_.has(sampleSet))
             return Promise.resolve(false);
 
         const existing = this.updates_.get(sampleSet);
         if (existing) return existing.promise;
 
-        const state = this.sampleSetState(sampleSet);
+        const retainedState = this.sampleSetStates_.get(sampleSet);
 
-        if (state.checkedGeneration === this.committedGeneration_
-                && state.desiredGsd === sampleSet.desiredGsd) {
+        if (!retainedState
+                || retainedState.positions !== sampleSet.positions
+                || retainedState.samples !== sampleSet.samples
+                || retainedState.samples.length
+                    !== sampleSet.positions.length) {
 
-            return Promise.resolve(false);
+            for (const position of sampleSet.positions) {
+
+                if (!isPosition(position)) {
+
+                    return Promise.reject(new TypeError(
+                        'updateTerrainSamples: every position must contain '
+                        + 'two finite numbers.'));
+                }
+            }
         }
 
+        const state = this.sampleSetState(sampleSet);
         const lookups: Lookup[] = [];
 
         for (let index = 0; index < sampleSet.positions.length; index++) {
@@ -102,14 +104,7 @@ class ElevationStore {
                 lookups.push({ update: null!, index, candidates });
         }
 
-        const scannedGeneration = this.committedGeneration_;
-
-        if (lookups.length === 0) {
-
-            state.checkedGeneration = scannedGeneration;
-            state.desiredGsd = sampleSet.desiredGsd;
-            return Promise.resolve(false);
-        }
+        if (lookups.length === 0) return Promise.resolve(false);
 
         let resolve!: (changed: boolean) => void;
         const promise = new Promise<boolean>((settle) => {
@@ -123,8 +118,6 @@ class ElevationStore {
             next: 0,
             pending: lookups.length,
             changed: false,
-            scannedGeneration,
-            desiredGsd: sampleSet.desiredGsd,
             promise,
             resolve,
             settled: false,
@@ -201,7 +194,6 @@ class ElevationStore {
         this.pinned_.clear();
         this.usedBytes_ = 0;
         this.deepestLod_ = -1;
-        this.committedGeneration_++;
         this.sampleSetStates_ = new WeakMap();
 
         this.settlePending();
@@ -219,6 +211,7 @@ class ElevationStore {
 
         this.replacementTile_ = tileId;
         this.replacementDirty_ = false;
+        this.replacementWatertight_ = false;
         this.replacementContent_ = null;
 
         if (!this.withinNodeRoot(tileId)) return;
@@ -239,6 +232,8 @@ class ElevationStore {
         };
 
         const children = childUnits.map((child) => child?.handle ?? null);
+        this.replacementWatertight_ = childUnits.every(
+            (child) => child?.watertight === true);
 
         if (this.units_.reduceChildren(children))
             this.replacementDirty_ = true;
@@ -266,16 +261,23 @@ class ElevationStore {
             maskTexture));
 
         this.replacementDirty_ = true;
+        this.replacementWatertight_ = true;
     }
 
     /** Publishes a complete replacement when the node has coverage. */
-    endUnit(tileId: [number, number, number], covered: boolean): void {
+    endUnit(
+        tileId: [number, number, number],
+        covered: boolean,
+        watertight: boolean,
+    ): void {
 
         const dirty = this.replacementDirty_;
+        const unitWatertight = watertight && this.replacementWatertight_;
         const content = this.replacementContent_;
 
         this.replacementTile_ = null;
         this.replacementDirty_ = false;
+        this.replacementWatertight_ = false;
         this.replacementContent_ = null;
 
         if (!covered || !dirty || !content) return;
@@ -283,7 +285,8 @@ class ElevationStore {
 
         const resident = this.resident_.get(unitKey(tileId));
 
-        if (resident && sameContent(resident.content, content)) {
+        if (resident && resident.watertight === unitWatertight
+                && sameContent(resident.content, content)) {
 
             this.touch(resident.key, resident);
             return;
@@ -294,7 +297,8 @@ class ElevationStore {
 
         this.units_.publishReplacement(unit.handle);
         unit.content = content;
-        unit.generation = ++this.committedGeneration_;
+        unit.generation = ++this.nextGeneration_;
+        unit.watertight = unitWatertight;
     }
 
     /** The elevation sink that builds units during a pass. */
@@ -307,10 +311,9 @@ class ElevationStore {
         let state = this.sampleSetStates_.get(sampleSet);
 
         if (state && state.positions === sampleSet.positions
+                && state.samples === sampleSet.samples
+                && state.samples.length === sampleSet.positions.length
                 && state.refs.length === sampleSet.positions.length) {
-
-            if (!sampleSet.samples)
-                sampleSet.samples = new Array(sampleSet.positions.length);
 
             return state;
         }
@@ -329,9 +332,8 @@ class ElevationStore {
 
         state = {
             positions: sampleSet.positions,
+            samples: sampleSet.samples,
             refs,
-            checkedGeneration: -1,
-            desiredGsd: NaN,
         };
 
         this.sampleSetStates_.set(sampleSet, state);
@@ -384,32 +386,49 @@ class ElevationStore {
 
         const candidates: ResidentUnit[] = [];
         const uv = [0, 0];
+        const startTile = refFrame.getNodeTileAt(
+            node, ref.coords, startLod, uv);
+        let x = startTile[1];
+        let y = startTile[2];
+        let u = uv[0];
+        let v = uv[1];
+        let actualGsd = rootGsd / Math.pow(2, startLod - rootLod);
 
         for (let lod = startLod; lod >= rootLod; lod--) {
 
-            const tileId = refFrame.getNodeTileAt(
-                node, ref.coords, lod, uv);
+            const tileId: [number, number, number] = [lod, x, y];
             const unit = this.resident_.get(unitKey(tileId));
 
             if (unit) {
 
                 candidates.push({
                     unit,
-                    u: uv[0],
-                    v: uv[1],
-                    actualGsd: refFrame.getNodeGsd(node, lod, 256),
+                    u,
+                    v,
+                    actualGsd,
                 });
             }
 
-            if (!sameTile(tileId, ref.tileId) || !unit) continue;
+            if (sameTile(tileId, ref.tileId) && unit) {
 
-            if (candidates.length === 1
-                    && unit.generation === ref.generation) {
+                if (candidates.length === 1
+                        && unit.generation === ref.generation) {
 
-                return null;
+                    return null;
+                }
+
+                if (unit.watertight) return candidates;
+
+                break;
             }
 
-            break;
+            if (unit?.watertight) return candidates;
+
+            u = ((x & 1) + u) * 0.5;
+            v = ((y & 1) + v) * 0.5;
+            x >>= 1;
+            y >>= 1;
+            actualGsd *= 2;
         }
 
         return candidates;
@@ -503,9 +522,9 @@ class ElevationStore {
 
         for (const [unit, points] of groups) {
 
-            if (this.resident_.get(unit.key) === unit)
-                this.touch(unit.key, unit);
+            if (this.resident_.get(unit.key) !== unit) continue;
 
+            this.touch(unit.key, unit);
             this.units_.drawLookupGroup(unit.handle, points);
         }
 
@@ -602,8 +621,6 @@ class ElevationStore {
 
         if (update.settled) return;
 
-        update.state.checkedGeneration = update.scannedGeneration;
-        update.state.desiredGsd = update.desiredGsd;
         update.settled = true;
         this.updates_.delete(update.sampleSet);
         update.resolve(update.changed);
@@ -656,6 +673,7 @@ class ElevationStore {
             key,
             tileId,
             generation: 0,
+            watertight: false,
             content: null,
         };
 
@@ -787,9 +805,10 @@ class ElevationStore {
     private usedBytes_ = 0;
     private budgetBytes_: number;
     private deepestLod_ = -1;
-    private committedGeneration_ = 0;
+    private nextGeneration_ = 0;
     private replacementTile_: [number, number, number] | null = null;
     private replacementDirty_ = false;
+    private replacementWatertight_ = false;
     private replacementContent_: UnitContent | null = null;
     private lastPassTime_ = -Infinity;
     private sourceSignature_: string | null = null;
@@ -801,6 +820,7 @@ type Unit = {
     key: string;
     tileId: [number, number, number];
     generation: number;
+    watertight: boolean;
     content: UnitContent | null;
 };
 
@@ -830,9 +850,8 @@ type ResidentUnit = {
 
 type SampleSetState = {
     positions: readonly ElevationStore.Position[];
+    samples: (ElevationStore.Sample | undefined)[];
     refs: (UnitRef | undefined)[];
-    checkedGeneration: number;
-    desiredGsd: number;
 };
 
 
@@ -850,8 +869,6 @@ type SampleUpdate = {
     next: number;
     pending: number;
     changed: boolean;
-    scannedGeneration: number;
-    desiredGsd: number;
     promise: Promise<boolean>;
     resolve: (changed: boolean) => void;
     settled: boolean;

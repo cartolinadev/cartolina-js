@@ -46,9 +46,13 @@ export class ElevationTerrainSink {
         this.store.drawUnit(tile, rig, maskTexture);
     }
 
-    endNode(tileId: [number, number, number], covered: boolean): void {
+    endNode(
+        tileId: [number, number, number],
+        covered: boolean,
+        watertight: boolean,
+    ): void {
 
-        this.store.endUnit(tileId, covered);
+        this.store.endUnit(tileId, covered, watertight);
     }
 
     private readonly store: ElevationStore;
