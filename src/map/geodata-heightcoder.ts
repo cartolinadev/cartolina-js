@@ -4,12 +4,24 @@
 
 import type Map from './map';
 import type ElevationStore from './elevation-store';
+import type MapDivisionNode from './division-node';
+
+
+// __EHC_INSTRUMENT__ temporary profiling counters, strip before merge
+const ehcGlobal = globalThis as unknown as
+    { __ehc?: Record<string, number> };
+
+function ehcBump(key: string, amount = 1): void {
+
+    const counters = (ehcGlobal.__ehc ??= {});
+    counters[key] = (counters[key] ?? 0) + amount;
+}
 
 
 /** Heightcodes one geodata view from one retained terrain sample set. */
 class MapGeodataHeightcoder {
 
-    constructor(map: Map, source: unknown) {
+    constructor(map: Map, source: unknown, nodeHint?: MapDivisionNode) {
 
         this.map_ = map;
         const geodata = parseGeodata(source);
@@ -38,6 +50,8 @@ class MapGeodataHeightcoder {
                     continue;
                 }
 
+                if (!supplied) ehcBump('ctorTransforms');
+
                 const nav = supplied
                     ? [supplied[0], supplied[1], supplied[2]]
                     : navSrs.convertCoordsFrom(physical, physSrs);
@@ -61,6 +75,7 @@ class MapGeodataHeightcoder {
         this.sampleSet_ = {
             positions: this.positions_,
             desiredGsd: 0,
+            nodeHint,
         };
 
         this.renderData_ = geodata;
@@ -88,12 +103,19 @@ class MapGeodataHeightcoder {
 
                 const samples = sampleSet.samples ?? [];
 
+                let changedCount = 0;
+
                 for (let index = 0; index < samples.length; index++)
                     if (samples[index] !== this.countedSamples_[index]) {
 
                         this.refreshCounts_[index]++;
                         this.countedSamples_[index] = samples[index];
+                        changedCount++;
                     }
+
+                ehcBump('updates');
+                ehcBump('updChanged', changedCount);
+                ehcBump('updTotal', samples.length);
 
                 this.rebuild();
                 return true;
@@ -158,11 +180,15 @@ class MapGeodataHeightcoder {
         const physSrs = legacyMap.getPhysicalSrs();
         const samples = sampleSet.samples ?? [];
 
+        ehcBump('rebuilds');
+
         for (let groupIndex = 0;
                 groupIndex < this.groups_.length;
                 groupIndex++) {
 
             const physicalCoords: number[][] = [];
+
+            ehcBump('rebuildGroups');
 
             for (const record of this.groups_[groupIndex]) {
 
@@ -174,6 +200,8 @@ class MapGeodataHeightcoder {
                     physicalCoords.push(record.physical);
                     continue;
                 }
+
+                ehcBump('rebuildTransforms');
 
                 physicalCoords.push(physSrs.convertCoordsFrom([
                     record.source[0],

@@ -3,6 +3,32 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-29 - Gate 2: onboarding on the tile, tiled node hint
+
+Two performance changes toward the gate-2 acceptance, both measured, the
+acceptance still failing.
+
+The `MapGeodataHeightcoder` (parsed geometry, navigation coordinates, and
+the retained sample set) moved from the transient `MapGeodataView` to
+`MapGeodata`, so a view rebuilt during camera motion reuses it instead of
+re-onboarding every coordinate.
+
+A tiled geodata's coordinates all resolve to the tile's reference-frame
+node, so `MapGeodata` passes that node as a hint on the sample set and
+`resolvePosition` confirms extents and partitioning range instead of
+searching every node. The node search fell from 895,052 calls to 760 over
+one zoom-out.
+
+Neither change solved the addressed problem. The rapid `store`-mode
+zoom-out freeze is unchanged and as bad as at the start; gate 2 fails.
+The bottom-up profile spreads self time across proj4, `resolveUnits`
+(unexplained by its own negligible children), `parseGeodata`, and shared
+terrain culling, with no store-specific cause isolated — the profiler
+table is in RFC 13's 2026-08-29 gate-2 addendum. The per-point and
+per-sample transform-and-lookup line of attack is exhausted without
+moving the freeze; a different diagnosis is needed. The `__ehc` harness
+stays in the tree, to be stripped before merge.
+
 ## 2026-08-28 - Throttle repeat scans of a terrain sample set
 
 Profiling a still store-mode view showed `resolveUnits` /

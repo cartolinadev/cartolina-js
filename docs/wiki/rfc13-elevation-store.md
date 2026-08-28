@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** Accepted
+**Status:** Failed
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -905,6 +905,11 @@ bound. Remove physical-gsd selection, its per-node interpolation grids, and
 Replace the waypoint's position array, pending flag, and separate result array
 with one retained Viewer sample set.
 
+#### Known regression
+
+The non-interactive demo (`demos/non-interactive/`) is now broken, for a
+reason not yet diagnosed.
+
 ### 10.3 Gate 2: client geodata heightcoding
 
 #### Goals
@@ -997,6 +1002,116 @@ coordinate count, covered count, actual gsd, refresh count, and
 store-minus-legacy height difference as mean, standard deviation, p50, p90,
 p99, minimum, and maximum. Equality is not required because delivered heights
 and composed terrain can differ.
+
+### Gate 2 implementation notes — 2026-08-28
+
+Gate 2 now gives each tiled or monolithic geodata view one retained sample set
+which supplies its rendered store-heightcoded geometry. The legacy mode keeps
+the delivered geometry, and optional shadow reporting reads the live store-mode
+views instead of owning a second heightcoding path.
+
+`endNode()` now supplies watertightness to the elevation sink. A unit records
+it only when its complete replacement is watertight; traversal coverage which
+includes off-screen quadrants is not enough. Such a unit ends the
+fine-to-coarse fallback walk. Ancestors are derived by shifting the finest
+tile index instead of resolving the coordinate at every LOD.
+
+Lookup does not use the store-wide settled-generation shortcut described in
+section 5.4. Each update resolves its target tile. Retained tile identity and
+the answering unit's generation bound the walk without invalidating unrelated
+samples after another unit commits.
+
+Manual movement, visual comparison, and performance acceptance remain
+pending, though performance testing already found a defect: a captured
+still view was not the zero-cost settled state it should have been.
+Nothing bounded how often a fully resolved sample set is rescanned, so
+`updateTerrainSamples()` walked every position on every call regardless
+of whether the store could have committed anything new since the last
+scan. Captured profiles attributed up to roughly a quarter of frame time
+to `resolveUnits()`/`updateTerrainSamples()` even at rest, with no camera
+motion and nothing left to settle.
+
+Fixed by throttling per sample set: `updateTerrainSamples()` now resolves
+`false` without scanning when called again before
+`mapElevationStoreSampleIntervalMs` has elapsed since that set's last
+scan. The interval defaults to the same value as
+`mapElevationStoreUpdateIntervalMs`, since the store cannot commit new
+content faster than its own build-pass cadence, so scanning more often
+than that cannot find anything new.
+
+A cheaper per-position path remains possible and is not yet implemented.
+`UnitRef` retains only `tileId` and `generation`, so a scan that does run
+still recomputes the candidate tile (`getNodeGsd`, `log2`,
+`getNodeTileAt`) and re-looks it up in `resident_` by a freshly allocated
+string key, even for a position nothing changed. Retaining a direct
+reference to the answering `Unit`, plus the `desiredGsd` and `deepestLod`
+last checked against, would let an unchanged position skip that work
+entirely instead of just skipping it less often. Left for a later pass;
+the throttle was the lower-risk fix for the measured cost, and performance
+acceptance still needs a retest against it.
+
+
+### Gate 2 implementation notes — 2026-08-29 — still failing
+
+Two further optimizations were applied and measured; the performance
+acceptance still fails. A rapid zoom-out freezes in `store` mode and stays
+smooth in `legacy`, so the cost is entirely the work `store` adds.
+
+Applied:
+
+- **Onboarding moved onto the geodata tile.** The `MapGeodataHeightcoder`
+  — parsed geometry, navigation-space coordinates, and the retained
+  sample set — now lives on `MapGeodata`, not on the transient
+  `MapGeodataView`. A view rebuilt during motion reuses it instead of
+  re-parsing and re-resolving every coordinate. Revisited ground improves;
+  it cannot help first visits.
+- **Tiled node hint.** A tiled geodata's coordinates all resolve to the
+  tile's own reference-frame node. `MapGeodata` passes that node
+  (`getSpatialDivisionNodeForTile`) as a hint on the sample set;
+  `resolvePosition` confirms the point against the node's extents and
+  partitioning range instead of searching every node. Measured over one
+  zoom-out: the node search dropped from 895,052 calls to 760 (the rest
+  answered by the hint), and its transforms from about 3.58 million to
+  3,040.
+
+Both changes work as intended and **neither solved the addressed
+problem.** The rapid `store`-mode zoom-out freeze is unchanged from before
+this commit — as bad as at the start of the effort. Gate 2 fails.
+
+A bottom-up profile of the zoom-out freeze, self time (this is the record
+of what was actually measured, not an interpretation of it):
+
+| entry | self | total |
+| --- | --- | --- |
+| profiling overhead | 18.6% | 18.6% |
+| `transformer` (proj4, mostly `inverse`) | 10.9% | 29.4% |
+| `resolveUnits` | 10.6% | 13.5% |
+| `parseGeodata` | 5.4% | 6.0% |
+| `transform` (`transform.js`, terrain culling) | 5.3% | 17.4% |
+| minor GC | 4.7% | — |
+| `geocentricToGeodetic` (proj4 datum) | 4.0% | 4.3% |
+| `updateTerrainSamples` | 3.9% | 39.4% |
+| `MapSrs.convertCoordsFrom` | 3.5% | 33.5% |
+| `getImageData` | 2.6% | — |
+
+`unitKey` (4.9ms) and `getNodeTileAt` (0.7ms) are negligible, so
+`resolveUnits`'s self cost is in its own body, unexplained by this
+capture. The proj4 time is reached from geodata construction and `rebuild`
+**and** from terrain culling (`generateCullingHelpers`), which `legacy`
+also runs, so the store-specific share of it is not separable from this
+profile. The only hard fact is that the freeze is `store`-only: `legacy`
+zoom-out over the same ground is smooth.
+
+The node search removed by the hint (895,052 calls to 760) and the revisit
+re-onboarding removed by the tile cache were real costs that were not the
+freeze. What the freeze is has not been located: the profile shows self
+time spread across proj4, `resolveUnits`, `parseGeodata`, and shared
+rendering, with no single store-specific cause isolated and one of the top
+entries (`resolveUnits`) unexplained by its own children. This line of
+attack — reducing per-point and per-sample transform and lookup cost — is
+exhausted without having moved the freeze. A different diagnosis is needed
+before more code is written.
+
 
 ### 10.4 Gate 3: floating map positions
 
@@ -1928,51 +2043,3 @@ refining.*
 
 The design is accepted. The one change with behavioural weight is the build
 generation in note 2; the rest tighten wording, gate coverage, and lifecycle.
-
-
-## Addendum — 2026-08-28 — Gate 2 implementation review
-
-Gate 2 now gives each tiled or monolithic geodata view one retained sample set
-which supplies its rendered store-heightcoded geometry. The legacy mode keeps
-the delivered geometry, and optional shadow reporting reads the live store-mode
-views instead of owning a second heightcoding path.
-
-`endNode()` now supplies watertightness to the elevation sink. A unit records
-it only when its complete replacement is watertight; traversal coverage which
-includes off-screen quadrants is not enough. Such a unit ends the
-fine-to-coarse fallback walk. Ancestors are derived by shifting the finest
-tile index instead of resolving the coordinate at every LOD.
-
-Lookup does not use the store-wide settled-generation shortcut described in
-section 5.4. Each update resolves its target tile. Retained tile identity and
-the answering unit's generation bound the walk without invalidating unrelated
-samples after another unit commits.
-
-Manual movement, visual comparison, and performance acceptance remain
-pending, though performance testing already found a defect: a captured
-still view was not the zero-cost settled state it should have been.
-Nothing bounded how often a fully resolved sample set is rescanned, so
-`updateTerrainSamples()` walked every position on every call regardless
-of whether the store could have committed anything new since the last
-scan. Captured profiles attributed up to roughly a quarter of frame time
-to `resolveUnits()`/`updateTerrainSamples()` even at rest, with no camera
-motion and nothing left to settle.
-
-Fixed by throttling per sample set: `updateTerrainSamples()` now resolves
-`false` without scanning when called again before
-`mapElevationStoreSampleIntervalMs` has elapsed since that set's last
-scan. The interval defaults to the same value as
-`mapElevationStoreUpdateIntervalMs`, since the store cannot commit new
-content faster than its own build-pass cadence, so scanning more often
-than that cannot find anything new.
-
-A cheaper per-position path remains possible and is not yet implemented.
-`UnitRef` retains only `tileId` and `generation`, so a scan that does run
-still recomputes the candidate tile (`getNodeGsd`, `log2`,
-`getNodeTileAt`) and re-looks it up in `resident_` by a freshly allocated
-string key, even for a position nothing changed. Retaining a direct
-reference to the answering `Unit`, plus the `desiredGsd` and `deepestLod`
-last checked against, would let an unchanged position skip that work
-entirely instead of just skipping it less often. Left for a later pass;
-the throttle was the lower-risk fix for the measured cost, and performance
-acceptance still needs a retest against it.

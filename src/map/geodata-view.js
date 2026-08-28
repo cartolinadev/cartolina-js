@@ -3,7 +3,6 @@ import * as math from '../utils/math';
 import * as utils from '../utils/utils';
 import GpuGroup_ from '../renderer/gpu/group';
 import MapGeodataProcessor_ from './geodata-processor/processor';
-import MapGeodataHeightcoder from './geodata-heightcoder';
 
 import * as vts from '../constants';
 
@@ -54,11 +53,7 @@ var MapGeodataView = function(map, geodata, extraInfo) {
 MapGeodataView.prototype.kill = function() {
     this.killed = true;
     this.geodata = null;
-
-    if (this.heightcoder) {
-        this.heightcoder.dispose();
-        this.heightcoder = null;
-    }
+    this.heightcoder = null;
 
     if (this.gpuCacheItem) {
         this.map.gpuCache.remove(this.gpuCacheItem);
@@ -272,10 +267,7 @@ MapGeodataView.prototype.isReady = function(
         var raw = payload instanceof ArrayBuffer;
 
         if (mode === 'store') {
-            if (!this.heightcoder) {
-                this.heightcoder = new MapGeodataHeightcoder(
-                    this.map.outerMap, this.legacyGeodata);
-            }
+            this.heightcoder = this.geodata.getHeightcoder();
 
             var tileId = this.tile ? this.tile.id : null;
             var desiredGsd = this.map.outerMap.geodataHeightcodingGsd(

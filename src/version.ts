@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.83-feature_elevation_store.980a657c';
+    return '2.50.84-feature_elevation_store.58ac9d25';
 }

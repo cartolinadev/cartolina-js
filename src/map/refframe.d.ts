@@ -46,6 +46,18 @@ export class MapRefFrame {
     ): MapRefFrame.NodeOwner[];
 
     /**
+     * Whether a position lies inside the partitioning range a node
+     * inherits from a manually partitioning parent. True when the node
+     * has no such range.
+     *
+     * @param coords navigation-SRS coordinates
+     */
+    withinPartitioningRange(
+        node: MapDivisionNode,
+        coords: readonly number[],
+    ): boolean;
+
+    /**
      * Locates a position inside the tile grid of one node.
      *
      * @param coords position in that node's own SRS

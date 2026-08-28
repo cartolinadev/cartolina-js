@@ -9,6 +9,7 @@ import type { TileRenderRig } from './tile-render-rig';
 import type GpuTexture from '../renderer/gpu/texture';
 import ElevationUnits from '../renderer/elevation-units';
 import ElevationTerrainSink from './elevation-terrain-sink';
+import * as utils from '../utils/utils';
 
 
 /**
@@ -101,7 +102,8 @@ class ElevationStore {
 
             if (!ref) {
 
-                ref = this.resolvePosition(sampleSet.positions[index]);
+                ref = this.resolvePosition(
+                    sampleSet.positions[index], sampleSet.nodeHint);
                 state.refs[index] = ref;
             }
 
@@ -353,16 +355,50 @@ class ElevationStore {
 
     private resolvePosition(
         position: ElevationStore.Position,
+        hint?: MapDivisionNode,
     ): UnitRef | undefined {
+
+        // __EHC_INSTRUMENT__ temporary profiling counters, strip before merge
+        const ehc = ((globalThis as unknown as
+            { __ehc?: Record<string, number> }).__ehc ??= {});
+        ehc.resolvePosition = (ehc.resolvePosition ?? 0) + 1;
 
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return undefined;
+
+        // Every point of one tiled-geodata set resolves to the tile's own
+        // reference-frame node, supplied as a hint. Confirming the point
+        // lands in that node — its extents, and the partitioning range for
+        // a manually partitioned node — replaces the search over all
+        // nodes; a point outside it (a node boundary) falls back.
+        if (hint && productiveNode(hint)) {
+
+            const navCoords = [position[0], position[1], 0];
+            const inner = hint.getInnerCoords(navCoords);
+            const extents = hint.extents;
+
+            if (inner[0] >= extents.ll[0] && inner[0] <= extents.ur[0]
+                    && inner[1] >= extents.ll[1] && inner[1] <= extents.ur[1]
+                    && refFrame.withinPartitioningRange(hint, navCoords))
+                return {
+                    store: this,
+                    node: hint,
+                    coords: [inner[0], inner[1]],
+                };
+
+            __DEV__ && utils.warnOnce(
+                'elevation store: geodata sample outside its tile node');
+        }
 
         const owner = refFrame.resolveSpatialDivisionNodes(
             [position[0], position[1], 0]).find(
             (entry) => productiveNode(entry.node));
 
-        if (!owner) return undefined;
+        if (!owner) {
+
+            ehc.resolveMiss = (ehc.resolveMiss ?? 0) + 1;
+            return undefined;
+        }
 
         return {
             store: this,
@@ -958,6 +994,11 @@ namespace ElevationStore {
         positions: readonly Position[];
         desiredGsd: number;
         samples?: (Sample | undefined)[];
+
+        /** Reference-frame node every position is expected to resolve
+         *  to, when the whole set shares one (tiled geodata). Skips the
+         *  search over all nodes. */
+        nodeHint?: MapDivisionNode;
     };
 
     /** One covered terrain sample. */
