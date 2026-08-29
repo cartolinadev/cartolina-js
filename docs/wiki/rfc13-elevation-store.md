@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** In review
+**Status:** Accepted
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -142,9 +142,11 @@ is physical Z.
 A spatial-division sample set names one reference-frame node and supplies all
 positions in that node's spatial division SRS. Every position in the set must
 belong to that node. The store validates the set against the node and derives
-node-local and tile coordinates directly. It performs no SRS conversion or
-reference-frame-node search for that set. Returned height has the same meaning
-as for a geographic set.
+node-local and tile coordinates directly. A position outside the node is a
+caller error; the store leaves that sample undefined and does not search
+another node for it. It performs no SRS conversion or reference-frame-node
+search for that set. Returned height has the same meaning as for a geographic
+set.
 
 The stored value never includes vertical exaggeration. Exaggeration is a
 rendering transform. A height function already applied to mesh geometry is
@@ -508,6 +510,13 @@ For retained sample-set consumers, the requested gsd is:
 
   The store request uses that LOD's nominal gsd.
 
+Monolithic geodata stays on the geographic variant, so the store resolves each
+of its positions to a reference-frame node and SRS-converts it on the main
+thread once, caching the result in `UnitRef`. This is bounded because a
+monolithic layer carries few coordinates by design. A layer large enough for
+that one-time resolution to stall a frame must move to the spatial-division
+partition, which is out of scope here.
+
 *Implementation notes*:
 
 The current gate-2 implementation puts parsed geometry, geographic positions,
@@ -563,8 +572,9 @@ The store walks from `startLod` towards the node root in fine-to-coarse order.
 Each resident unit carries a build generation stamped at commit (section 4.3),
 and `UnitRef` records the answering unit's generation. When the walk reaches the
 retained answering tile it stops there, but re-reads that tile when a resident
-unit's generation differs from the retained one, because section 6.5 rebuilds
-the same tile ID as finer rigs contribute. An unchanged generation — the empty
+unit's generation differs from the retained one, because a later timed pass
+rebuilds the same tile ID and stamps a new generation (sections 4.3 and 6.5)
+as finer rigs contribute. An unchanged generation — the empty
 walk when the retained tile is also the start tile — accepts the retained sample
 without GPU work. If the retained tile is not encountered, the walk includes the
 node root. The store records each resident unit encountered in fine-to-coarse
@@ -1102,6 +1112,13 @@ capture includes a zoom which raises the highest rendered terrain LOD. The gate
 fails if either path exceeds the bound or if smooth rendering is obtained by
 leaving height updates or worker rebuilds unsettled.
 
+A path is settled when, for every active heightcoding job, the worker has
+applied the latest revision the main thread sent and its rebuild queue is
+drained. The matched FPS capture is taken only in the settled state, and each
+path records the time to settle after motion stops. This keeps worker lag from
+passing the FPS bound while the same cost sits unprocessed behind the render
+loop.
+
 Diagnostics verify that each heightcoded payload sends one coordinate
 registration, tiled requests use spatial-division coordinates, monolithic
 requests use geographic coordinates, later messages contain only changed
@@ -1110,7 +1127,10 @@ which does not request heightcoding retains neither state. Large coordinate
 sets should use the spatial-division variant when one node applies.
 Spatial-division coordinate sets and height payloads use transferred buffers.
 The main-thread profile must contain no geodata parser, geodata-specific
-coordinate conversion, or geodata geometry rebuild.
+coordinate conversion, or geodata geometry rebuild. Diagnostics expose the
+per-job applied revision and worker rebuild-queue depth, so the settled state
+is observed rather than judged visually, and record the `geodata` layer's
+coordinate count so the monolithic acceptance does not rest on a small fixture.
 
 Gate 2 is accepted only after its temporary heightcoding diagnostics are
 removed. The shipped code contains no `__EHC_INSTRUMENT__` blocks,
@@ -2182,3 +2202,71 @@ Please review the worker/main ownership boundary, the two sample-set coordinate
 spaces, the tiled and monolithic worker paths, the worker message lifetime, and
 whether the revised gate requires both completed height updates and the
 ten-percent FPS bound without allowing worker lag to hide cost.
+
+
+## Review round 6 — findings and sign-off
+
+The worker/main ownership redesign is accepted. The boundary is clean: the
+worker owns the geodata data model — parse, coordinate conversion, rebuild —
+and the main thread owns the GPU store and the retained sample set. This
+removes from the render thread the parse, conversion, and per-coordinate node
+and projection resolution that the gate-2 failure profile attributed to the
+main thread, and the tiled spatial-division path skips both node search and
+SRS conversion. The referenced surfaces exist as described:
+`resolveSpatialDivisionNodes`, `MapDivisionNode`, `killGeodata`,
+`mapHeightcoding`, and the three store settings.
+
+This RFC is on the fast track: by explicit approval of the project leader, the
+notes below were applied to the body in this pass rather than returned for a
+later adoption round. None changes the architecture; each remedy is a localized
+text addition, which is what the fast track is for. They are recorded here for
+the trail.
+
+The one finding with weight is the settle criterion. The redesign relocates the
+zoom-out burst onto a single worker thread. Without a measured settle state the
+render loop can hold full FPS while the worker runs behind — the same cost
+relocated, not removed, and passing the FPS bound while doing so. This is the
+one way the redesign could pass gate 2 while reproducing the gate-2 failure in
+a form the gate no longer detects.
+
+### 1. Gate 2 had no objective settle criterion; worker lag could hide cost
+
+The gate stated it fails if smooth rendering is obtained by leaving updates or
+rebuilds unsettled, but the only observable for *settled* was visual.
+
+*Applied. Gate 2 defines settled as every active job having applied the latest
+sent revision with its rebuild queue drained, takes the matched FPS capture only
+when settled, records time-to-settle after motion stops, and exposes per-job
+applied revision and queue depth as diagnostics.*
+
+### 2. Monolithic geographic onboarding keeps per-position resolution on main
+
+The geographic variant resolves each position's reference-frame node and runs
+SRS conversion in the store, on the main thread. `UnitRef` caches this after
+first resolution, but the initial O(N) burst when a monolithic layer first
+appears is on the render thread. The design leaned on "few coordinates by
+design" — a decision the round-5 sign-off recorded in 5.3 but the round-6
+overhaul dropped — and stated no bound.
+
+*Applied. Section 5.3 restores the decision and states the regime: the one-time
+resolution is bounded because a monolithic layer carries few coordinates, and a
+layer large enough to stall a frame must move to the out-of-scope
+spatial-division partition. Gate 2 records the `geodata` layer's coordinate
+count so acceptance does not rest on a small fixture.*
+
+### 3. Spatial-division validation-failure behavior was unspecified
+
+Section 3.1 required every position to belong to the named node but did not say
+what a failing position does.
+
+*Applied. Section 3.1 states that a position outside the node is a caller error
+that leaves the sample undefined without searching another node.*
+
+### 4. Editorial — cross-reference in section 5.4
+
+The re-read explanation cited section 6.5 alone for a generation bump defined in
+4.3.
+
+*Applied. Section 5.4 now cites sections 4.3 and 6.5 together.*
+
+The design is accepted. The status line moves to `Accepted`.

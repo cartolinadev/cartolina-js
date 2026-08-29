@@ -194,6 +194,30 @@ accepted, with any remaining editorial notes that are not blockers.
 The reviewer then changes the status line to `Accepted`. The author
 does not respond to a sign-off section; it closes the review.
 
+**Fast track:**
+
+A review round may compress the review, adoption, and sign-off into a
+single step. This is allowed only when every finding is non-substantive
+or trivial and easily adoptable — a finding that changes the design
+architecture disqualifies the round and returns it to the normal
+back-and-forth.
+
+On the fast track the reviewer:
+
+1. Presents the findings and proposed remedies to the project leader in
+   session before touching the body.
+2. Obtains the leader's explicit approval to adopt them in one pass.
+3. Applies the remedies to the body, then writes one combined
+   `## Review round N — findings and sign-off` section carrying each
+   finding, its `*Applied.*` response, and the sign-off.
+4. Names the project leader's approval and the fast track explicitly in
+   that section, so the trail records that adoption and sign-off happened
+   together by leave rather than through separate rounds.
+
+The leader's approval covers the specific findings presented. A finding
+found substantive during the pass leaves the fast track and reopens a
+normal round.
+
 **Post-acceptance addenda:**
 
 The signed-off design body and review rounds are immutable. Implementation

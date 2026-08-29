@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-30 - RFC 13 review round 6, accepted on fast track
+
+Reviewed the post-overhaul worker/main ownership split. Accepted the
+redesign: heavy geodata work (parse, coordinate conversion, rebuild) moves
+to the worker, tiled data enters the store in its node's spatial division
+SRS, and the main thread keeps only the GPU store and the retained sample
+set. Four findings, all gate-tightening or spec clarification, none
+architectural, applied to the body in one pass by fast-track approval of the
+project leader. The load-bearing one: gate 2 now defines a settled state
+(every active job has applied the latest sent revision with its rebuild
+queue drained), takes the FPS capture only when settled, and records
+time-to-settle — otherwise worker lag can pass the FPS bound while the same
+zoom-out cost sits unprocessed behind a smooth render loop. Also restored the
+monolithic few-coordinates decision the overhaul dropped from 5.3, specified
+spatial-division validation failure, and fixed a cross-reference. Fast-track
+rules added to the RFC protocol in AGENTS.md.
+
 ## 2026-08-29 - Fix mapHeightcoding to construction, rename binary-load flag
 
 `mapHeightcoding` moved from `runtime` to `construction` visibility;
