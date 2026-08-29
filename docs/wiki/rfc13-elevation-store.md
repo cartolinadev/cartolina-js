@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** Failed
+**Status:** In review
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -16,7 +16,7 @@ position on the three-dimensional map. Current examples are:
 - a floating map position;
 - terrain following while the user pans;
 - a waypoint whose input contains longitude and latitude only; and
-- every geographic coordinate in tiled geodata.
+- every terrain-following coordinate in tiled or monolithic geodata.
 
 The client currently obtains the first three values from navigation tiles.
 A navigation tile is a separately produced and delivered elevation raster.
@@ -93,8 +93,8 @@ The design delivers:
 - the store representation, population pass, lookup, and memory policy;
 - one retained sample-set update operation for one or many positions;
 - waypoint placement through the store;
-- switchable client-side heightcoding for monolithic and tiled geodata,
-  plus comparison against existing server-side heights;
+- switchable client-side heightcoding for tiled and monolithic geodata, plus
+  comparison against existing server-side heights;
 - store-based resolution of floating map positions; and
 - store-based terrain following during pan motion.
 
@@ -107,22 +107,44 @@ before elevation-store implementation begins.
 
 Out of scope: a two-dimensional vector source format, removal of geodata
 metatiles from delivered tiled geodata, removal of server-side heightcoding as
-a delivery option, raster terrain, full navigation-tile removal, node height
-ranges, and VHR morphological opening. Sections 8 and 9 state the
-representation constraints needed by those later changes.
+a delivery option, spatial-division onboarding for monolithic geodata, raster
+terrain, full navigation-tile removal, node height ranges, and VHR
+morphological opening. Sections 8 and 9 state the representation constraints
+needed by those later changes.
+
+Geodata parsing, coordinate conversion, and geometry rebuilding belong to the
+geodata worker. Main-thread geodata code does none of them. When a payload and
+its configuration require client heightcoding, the worker converts tiled
+coordinates into the spatial division SRS of the tile's reference-frame node
+and monolithic coordinates into the geographic SRS accepted by the store. It
+then registers the coordinate set with the main thread. The main thread retains
+the set, updates its heights from the elevation store while the corresponding
+geodata is reached by draw traversal, and returns changed heights. The worker
+applies the heights and rebuilds the render data.
+
+This ownership leaves terrain-dependent work on the thread which owns the
+terrain traversal and GPU store, and geodata-dependent work on the thread
+which already parses geodata and builds render jobs. Neither side reconstructs
+the other's data model.
 
 
 ## 3. Height and composition
 
 ### 3.1 Coordinate meaning
 
-On a geocentric reference frame, lookup input is longitude and latitude in
-the geographic SRS of the reference ellipsoid. The returned third coordinate
-is geodetic height above that ellipsoid.
+The store accepts geographic and spatial-division sample sets. Geographic is
+the default. On a geocentric reference frame, a geographic position is
+longitude and latitude in the geographic SRS of the reference ellipsoid, and
+the returned value is geodetic height above that ellipsoid. On a projected
+reference frame, a geographic position is physical XY and the returned value
+is physical Z.
 
-On a projected reference frame, lookup input is physical XY and the returned
-height is physical Z. The storage and lookup algorithms are otherwise the
-same.
+A spatial-division sample set names one reference-frame node and supplies all
+positions in that node's spatial division SRS. Every position in the set must
+belong to that node. The store validates the set against the node and derives
+node-local and tile coordinates directly. It performs no SRS conversion or
+reference-frame-node search for that set. Returned height has the same meaning
+as for a geographic set.
 
 The stored value never includes vertical exaggeration. Exaggeration is a
 rendering transform. A height function already applied to mesh geometry is
@@ -318,17 +340,50 @@ updateTerrainSamples(
 
 The promise resolves to `true` when at least one sample changed.
 
-The associated internal types occupy the class's same-name namespace:
+The common sample-set fields live on one base class. The internal sample-set
+type is the discriminated union of its two variants:
 
 ```ts
 namespace ElevationStore {
     export type Position = readonly [number, number];
 
-    export type SampleSet = {
-        positions: readonly Position[];
-        desiredGsd: number;
+    export abstract class SampleSetBase<Positions> {
         samples?: (Sample | undefined)[];
-    };
+
+        protected constructor(
+            readonly positions: Positions,
+            public desiredGsd: number,
+        ) {}
+    }
+
+    export class GeographicSampleSet extends
+            SampleSetBase<readonly Position[]> {
+        readonly coordinateSpace?: 'geographic';
+
+        constructor(
+            positions: readonly Position[],
+            desiredGsd: number,
+        ) {
+            super(positions, desiredGsd);
+        }
+    }
+
+    export class SpatialDivisionSampleSet extends
+            SampleSetBase<Float64Array> {
+        readonly coordinateSpace = 'spatial-division';
+
+        constructor(
+            positions: Float64Array,
+            desiredGsd: number,
+            readonly node: MapDivisionNode,
+        ) {
+            super(positions, desiredGsd);
+        }
+    }
+
+    export type SampleSet =
+        | GeographicSampleSet
+        | SpatialDivisionSampleSet;
 
     export type Sample = {
         height: number;
@@ -340,20 +395,29 @@ namespace ElevationStore {
 }
 ```
 
-`positions` are geographic positions being resolved to geodetic heights.
-`desiredGsd` and `actualGsd` are nominal spacings in the reference-frame node
-spatial division system: consumers choose `desiredGsd` in their own gates,
-`actualGsd` is the nominal gsd of the store unit that supplied the height.
+An absent `coordinateSpace` means geographic. Internal consumers choose the
+spatial-division variant only when one node applies to the complete stable
+position list. This is the preferred variant for large sets because it avoids
+per-position SRS conversion and reference-frame-node search. Tiled vector data
+always uses it. Gate 2 keeps monolithic geodata on the geographic variant;
+partitioning one monolithic set by reference-frame node and submitting its
+parts in spatial division coordinates is a later optimization. `desiredGsd`
+and `actualGsd` are nominal spacings in the answering node's spatial division
+SRS: consumers choose `desiredGsd` in their own gates, and `actualGsd` is the
+nominal gsd of the unit that supplied the height. Geographic positions keep the
+existing tuple representation. Spatial-division positions are interleaved XY
+values in a `Float64Array`, so the worker can transfer one packed buffer without
+cloning coordinate objects.
 
 `samples` is optional on the first call; the store creates it and then updates
 it in place. A missing or `undefined` sample means no retained covered value
-for that position. `UnitRef` records the resolved node and its local
-coordinate, plus the answering tile ID and that unit's build generation as the
-walk's stop bound. The tile at any LOD is derived arithmetically from the local
-coordinate, so no tile path is stored. The resolved node and local coordinate
-may be retained before any pass covers the position, so a sample never repeats
-spatial-division-node resolution. `UnitRef` is opaque to the consumer and does
-not retain or pin a resident store unit.
+for that position. `UnitRef` records the node-local coordinate, answering tile
+ID, and that unit's build generation as the walk's stop bound. A geographic
+set also records its resolved node. A spatial-division set already supplies
+the node and coordinate, so it creates the same reference without conversion
+or node search. The tile at any LOD is derived arithmetically from the local
+coordinate, so no tile path is stored. `UnitRef` is opaque to the consumer and
+does not retain or pin a resident store unit.
 
 A sample set represents one stable positions array. If those positions change,
 the consumer creates a new sample set or clears `samples`. While an update is
@@ -361,16 +425,26 @@ queued or running, the store may keep a transient request record so repeated
 calls for the same sample set share the same promise. That record is discarded
 when the update settles or the store is disposed.
 
+For a packed spatial-division set, sample `i` reads XY from positions `2 * i`
+and `2 * i + 1`; its sample count is half the typed-array length.
+
 Clearing or disposing the store resolves pending updates with `false`, so no
 update promise is left unsettled. A consumer that discards its sample set before
-an in-flight update settles — a `MapGeodataView` killed by the cache, for
-instance — marks the set disposed, and the store drops that update's writeback
-rather than writing into freed geometry.
+an in-flight update settles marks the set disposed, and the store drops that
+update's writeback rather than writing into a released worker job.
 
-Implementation note: The current store-level `queryTerrainElevation()` becomes
-`updateTerrainSamples()`. A caller that needs one result creates a one-position
-sample set. Existing internal callers retain their sets instead of issuing
-one-shot array queries.
+*Implementation notes*:
+
+The current implementation already has retained sample sets and
+`updateTerrainSamples()`. Rework it around the two variants. Preserve the
+geographic path for waypoints, monolithic geodata, and later navigation-tile
+replacement. Add the spatial-division path by constructing `UnitRef` directly
+from the supplied node and positions. Remove `nodeHint`; a hint which still
+enters geographic resolution is not the spatial-division contract. This
+intentionally supersedes the hint path added by commit
+`f416d4a10197e0d6618bf2797bce74940697de96`; preserve the tile-to-node
+association, but enter lookup directly with that node and the supplied SDS
+coordinates. Remove the commit's temporary profiling counters.
 
 
 ### 5.2 gsd selection
@@ -386,41 +460,34 @@ rootGsd = sqrt(extentWidth * extentHeight) / 256
 gsd(lod) = rootGsd / 2^(lod - rootLod)
 ```
 
-Implementation note: The current implementation converts gsd to physical metres
-during lookup. Gate 1 removes that conversion from store selection and result
-reporting. Selection and reporting stay in the reference-frame node's local
-projected coordinates, removing per-lookup projection-scale conversion from the
-store path.
+*Implementation notes*:
 
-Keep conversion functions for diagnostics or application APIs that need a
-physical-metre estimate for a gsd, but do not retain per-node conversion grids.
-That conversion is reference-frame support, not store selection policy. The
-existing numerical-Jacobian helper may remain in `ElevationStore` or move to
-`Map` while `MapRefFrame` is still a legacy JavaScript module; the later
-reference-frame refactor moves it to the reference-frame owner.
+The current implementation already selects and reports nominal gsd in the
+reference-frame node's spatial division SRS. Preserve that path. Physical-metre
+conversion is reference-frame support for diagnostics or application APIs,
+not store selection policy.
 
 ### 5.3 Sample protocol
 
-A sample set is caller-owned retained storage for one stable list of
-geographic positions. The caller submits the same sample set while that list
-and its requested gsd remain valid. The store updates `samples` in place and
-keeps no settled request state of its own.
+A sample set is caller-owned retained storage for one stable position list.
+The caller submits the same sample set while that list, coordinate space, node,
+and requested gsd remain valid. The store updates `samples` in place and keeps
+no settled request state of its own.
 
 Consumers request updates only when they need the samples:
 
-- tiled geodata updates from `MapGeodataView.isReady()` while preparing a
-  rendered tile view for the current frame;
-- monolithic geodata updates from its layer `MapGeodataView` while the layer is
-  active in the current frame;
+- tiled geodata updates while its view is prepared for the current frame;
+- monolithic geodata updates while its view is reached by the current frame;
 - current map position and pan following update from `Map` for the current
   requested XY; and
 - waypoints update when their owner asks for a fresh terrain height.
 
 Sample-set ownership follows the same boundary:
 
-- tiled geodata owns one sample set per rendered tile `MapGeodataView`;
-- monolithic geodata owns one sample set on the layer `MapGeodataView`,
-  whether the payload came from a URL, inline data, or `MapGeodataBuilder`;
+- a tiled `MapGeodata` owns the main-thread registration for the worker's
+  spatial-division sample set; its `MapGeodataView` decides when it is active;
+- a monolithic `MapGeodata` owns the main-thread registration for the worker's
+  geographic sample set; its `MapGeodataView` decides when it is active;
 - current map position and pan following use one-position sample sets owned by
   `Map`; changing the requested XY replaces the sample set, while the last
   accepted terrain height is retained separately until the new set answers; and
@@ -428,13 +495,10 @@ Sample-set ownership follows the same boundary:
 
 For retained sample-set consumers, the requested gsd is:
 
-- tiled geodata: rendered geodata tile nominal side (from reference frame)
-  divided by `displaySize`;
+- tiled geodata: rendered geodata tile nominal side divided by `displaySize`;
+- monolithic geodata: the nominal gsd of the highest terrain LOD rendered in
+  the current frame;
 - waypoints: zero;
-- monolithic geodata: highest current rendered terrain LOD's (from stats)
-  nominal tile side divided by 256, reprocessing the whole set on a change.
-  Monolithic layers carry few coordinates by design, so this stays cheap and is
-  not the vector workload gate 2 stresses; and
 - current map position and pan following: the existing float/fix conversion
   rule. `MapMeasure.getOptimalHeightLod()` computes the target LOD:
 
@@ -444,14 +508,20 @@ For retained sample-set consumers, the requested gsd is:
 
   The store request uses that LOD's nominal gsd.
 
-Implementation note: The current gate-2 implementation uses
-`MapGeodataHeightcoder` and `Map.queryTerrainElevationNav()` to rebuild query
-arrays from unresolved indices and tick them from map-level state. Remove that
-global lifetime. Rewrite `MapGeodataHeightcoder` as a TypeScript component
-owned by each `MapGeodataView`; the view supplies the same retained sample-set
-lifecycle for tiled and monolithic payloads. Tile-tree traversal decides which
-tiled views ask for updates. A tiled view not prepared for the current frame
-does not reach the update call.
+*Implementation notes*:
+
+The current gate-2 implementation puts parsed geometry, geographic positions,
+and rebuilding in main-thread `MapGeodataHeightcoder`. Remove that class. For a
+payload which requests heightcoding, `MapGeodata` retains only the worker job
+identity and its store sample set. Tile-tree traversal decides which tiled views
+ask for updates; the monolithic draw path does the same for its one view. A view
+not reached by the current frame does not request an update.
+
+Preserve the `MapGeodata`-owned lifetime introduced by commit
+`f416d4a10197e0d6618bf2797bce74940697de96`: rebuilding a
+`MapGeodataView` must reuse the same parsed worker job and sample set, and
+evicting `MapGeodata` must dispose both. Moving parsed state to the worker
+changes its location, not its lifetime.
 
 
 ### 5.4 Query execution
@@ -459,14 +529,15 @@ does not reach the update call.
 `updateTerrainSamples()` scans the sample set and builds a temporary batch of
 samples that can change. A retained sample's `UnitRef` describes its previous
 answer, not the request, so it remains valid when `desiredGsd` changes. For a
-sample whose position is not yet resolved, the store first resolves its
-reference-frame node and local coordinate.
+geographic sample whose position is not yet resolved, the store first resolves
+its reference-frame node and local coordinate. For a spatial-division sample,
+the store derives the local coordinate directly from the set's node and packed
+XY value.
 
-A consumer may call every frame, but need not. A set whose samples are all
-settled at the current request and build generation produces an empty batch.
-A settled outcome changes only when a later pass commits a unit, so the store
-tracks the last committed generation and short-circuits a settled set without
-rescanning until then.
+A consumer may call every frame, but need not. The store skips a set checked
+more recently than `mapElevationStoreSampleIntervalMs`, whose default matches
+the elevation-pass interval. A scan then uses each retained answer and unit
+generation to build only the GPU work which can change that sample.
 
 For each sample, the store calculates its ideal LOD from the gsd formula in
 section 5.2:
@@ -517,16 +588,19 @@ on rendering a color frame. When a chunk completes, answered samples are
 updated in place with `height`, `actualGsd`, and the new `UnitRef`. Repeating an
 update for a sample set already queued or running returns the same promise.
 
-Implementation note: Replace the current one-shot query queue with transient
-in-flight records keyed by sample set. Add a concrete `UnitRef` that retains
-the resolved node, local coordinate, answering tile ID, and answering unit
-generation. Keep the existing deepest-resident-LOD tracker. Only samples without
-a resolved position run spatial-division-node resolution; the rest reuse it and
-the bounded walk above.
-Remove physical-gsd conversion from query execution. Adapt batch assembly and
-readback to update `SampleSet.samples` in place, including the new `UnitRef`,
-and resolve the shared promise from those changes. The GPU lookup and readback
-resources remain the same; they receive only the pairs selected by the walk.
+*Implementation notes*:
+
+The current implementation already has the retained update queue, unit walk,
+GPU lookup, and asynchronous readback. Keep them. Split only position
+onboarding: geographic sets use the current resolution path, while
+spatial-division sets validate one node and construct their references without
+`MapSrs` conversion or node search. Remove the tiled `nodeHint` branch. The
+result assembly and readback resources do not change.
+
+Preserve the per-sample-set throttle from commit
+`58ac9d2528ee83f4c06f4aed66dc57614d8c78ee`, including
+`mapElevationStoreSampleIntervalMs` and retained `lastChecked` state. The new
+coordinate-space branch changes position onboarding, not scan scheduling.
 
 ### 5.5 Public sample sets
 
@@ -559,12 +633,84 @@ so the next call returns it to the store. The Viewer sample-set types are public
 types, not aliases of `ElevationStore` or `Map` types. The operation exposes no
 store placement policy or resource lifetime.
 
-Implementation note: Remove `Viewer.queryTerrainElevation()` and its
-`Map.queryTerrainElevation()` bridge. `Viewer.updateTerrainSamples()` forwards
-the retained set to the store-facing path and preserves the opaque unit handle.
-The waypoint demo owns one Viewer sample set for all two-dimensional markers,
-submits it when marker heights are needed, and reads the updated samples in
-their existing order.
+*Implementation notes*:
+
+The current implementation already exposes this operation and uses one Viewer
+sample set for the waypoint demo. The public API remains geographic and
+structural. Its missing discriminator selects the internal geographic variant;
+the internal spatial-division variant is not exposed through `Viewer`.
+
+
+### 5.6 Geodata worker protocol
+
+The geodata worker owns geodata parsing, source coordinates, authored height
+offsets, delivered legacy heights, coordinate conversion, and render-job
+rebuilding. When a payload requests client heightcoding, it retains the parsed
+state needed for later rebuilds. The main thread owns only the corresponding
+worker job identity, one internal sample set, and its latest store answers.
+
+After parsing a tiled or monolithic payload, the worker decides whether its
+payload and configuration require client heightcoding. If they do, it sends one
+`heightcoding-request` containing the geodata job ID and one coordinate-set
+variant:
+
+- tiled: the reference-frame node ID and interleaved spatial-division XY
+  coordinates in a transferred `Float64Array`; or
+- monolithic: geographic positions for a `GeographicSampleSet`.
+
+Only a payload which sends this request becomes a retained worker job. A
+payload which does not require client heightcoding follows the existing
+command-scoped worker path and retains no parsed job or main-thread sample set.
+
+*Implementation notes*:
+
+The current worker processes one geodata command without creating a retained,
+addressable job. Persistent worker jobs are new. Retaining parsed data for
+heightcoded geodata is not: the current main-thread `MapGeodataHeightcoder`
+retains it for the same `MapGeodata` lifetime. This change moves that state into
+a worker registry keyed by geodata job ID; it neither extends that lifetime nor
+adds retained state for other geodata.
+
+For tiled data, the main thread supplies the tile's reference-frame node ID,
+extents, and SRS definition with the existing process command. The worker uses
+them to produce spatial-division positions. For monolithic data, the worker
+converts source positions to geographic positions and the elevation store uses
+its existing geographic onboarding. Main-thread geodata code performs no
+coordinate conversion.
+
+For a retained job, the worker keeps the parsed geometry and its
+coordinate-to-vertex mapping. A tiled transferred array is a packed copy for
+store lookup, not the worker's only coordinate storage. The main thread creates
+the sample-set variant named by the request and retains it until the geodata job
+is released. The delivered geometry remains the last complete result until the
+first store answer or a later update has been rebuilt and published.
+
+When draw traversal reaches a tiled view, the main thread updates its set at
+the tile-side-over-`displaySize` gsd. When the monolithic view is reached, it
+updates its whole geographic set at the current highest rendered terrain LOD.
+On either path, when answers change, the main thread sends one
+`heightcoding-update` with the job ID, a monotonically increasing revision, and
+transferred typed arrays containing changed coordinate indices and heights. The
+first update may contain the complete answer. The worker retains the latest
+heights, ignores an older revision, and performs the incremental or complete
+rebuild required by its existing render-job construction. A monolithic rebuild
+replaces the complete view atomically.
+
+`MapGeodata.killGeodata()` sends the release command when its resource-cache
+entry is evicted or the `MapGeodata` is explicitly destroyed. Release deletes
+the worker registry entry, including its parsed geometry, coordinate mapping,
+height values, and rebuild state, and disposes the main-thread sample set. A
+transient `MapGeodataView` destruction does neither: a replacement view reuses
+the job. Worker termination releases any entries which remain during map or
+surface teardown. An in-flight store readback or worker rebuild checks the job
+ID and revision before publishing its result.
+
+The release command is lifecycle cleanup, not a third heightcoding data path.
+
+There is no main-thread geodata parser, geodata coordinate converter, or
+geometry rebuilder. There is no `SharedArrayBuffer`: the protocol transfers
+one coordinate buffer and later update buffers. Shared memory is considered
+only if measurement shows transfer or duplicate storage to be material.
 
 
 ## 6. Population and lifecycle
@@ -572,9 +718,13 @@ their existing order.
 ### 6.1 One traversal, three sinks
 
 Elevation population invokes the existing terrain traversal with an elevation
-sink. The same traversal also receives explicit color and depth sinks. The
-current mutable `Map.drawChannel` is removed; adding a third value to it would
-retain rendering decisions throughout map and traversal code.
+sink. The same traversal also receives explicit color and depth sinks.
+
+*Implementation notes*:
+
+The current implementation has removed mutable `Map.drawChannel`. Do not add a
+third channel value; that would retain rendering decisions throughout map and
+traversal code.
 
 The traversal remains responsible for terrain policy:
 
@@ -653,6 +803,8 @@ The current-then-last sequence affects fallback and coverage, so it is shared
 traversal policy. The sink supplies only the output-specific readiness test
 used by that sequence.
 
+*Implementation notes*:
+
 The extraction from the current `renderTile()` is mechanical. Each
 color/depth gate around rig readiness, the rig draw, credits, and terrain
 debug drawing becomes the corresponding sink method. Resource acquisition,
@@ -715,6 +867,8 @@ the color-frame entry point. This replaces the channel checks which currently
 protect those operations during the depth pass; those outer operations do not
 become terrain-sink responsibilities.
 
+*Implementation notes*:
+
 Color and depth move to sinks in the same change which introduces the sink
 contract. The implementation must not retain a channel path beside the sink
 path: two dispatch mechanisms would allow readiness and side effects to drift.
@@ -737,6 +891,8 @@ and is reconsidered later.
 Lookups do not start or accelerate elevation passes. Consumers request sample
 updates opportunistically while they need them. A later elevation pass admitted
 by `mapElevationStoreUpdateIntervalMs` may make a better answer available.
+Tiled geodata requests an update only when its normal draw traversal reaches
+the corresponding view. Registration alone does not make a sample set active.
 
 The elevation pass never marks a resource used in a way that changes loader
 priority, and never creates a terrain request. It may allocate store textures
@@ -757,6 +913,12 @@ terrain source-list change clear every unit and pending readback.
 Vertical exaggeration, imagery, atmosphere, and lettering do not clear the
 store. Ready terrain resources are immutable; when a different ready rig or a
 new child unit contributes, the next timed pass replaces the affected unit.
+
+A geodata job which requests heightcoding owns its internal sample set from the
+worker's registration until normal geodata eviction or destruction. Tiled jobs
+use the spatial-division variant; monolithic jobs use the geographic variant.
+Disposal removes the main-thread registration and releases the worker's
+retained parsed job. Other geodata has neither retained object.
 
 
 ## 7. Memory and eviction
@@ -855,162 +1017,141 @@ here.
 
 ## 10. Implementation and validation sequence
 
-Implementation begins with one behaviour-preserving foundation milestone,
-then proceeds through four application gates. Mechanism-level diagnostics may
-explain a failure, but they are not acceptance gates and do not replace the
-application run. After each gate, implementation stops for a manual
-application run. Work on the next gate begins only after the reviewer accepts
-that result.
+The foundation and gate 1 already exist. Gate 2 is reworked in place. Work
+continues through the same application gates, stopping after each one until its
+manual result is accepted. Diagnostics may explain a failure but do not replace
+the application run.
 
 ### 10.1 Foundation: explicit traversal sinks
 
-Extract the existing color and depth gates from
-`drawTerrainTraversal()` into the two sinks defined in section 6. Remove
-`Map.drawChannel`, give color frames and depth updates explicit entry points,
-and move draw generation and counters into pass-owned state. This milestone
-adds no elevation resource, shader, setting, or public API.
+#### Objectives
+
+Use the explicit color, depth, and elevation sinks in section 6. Keep terrain
+selection in one traversal and keep auxiliary passes out of the complete color
+frame.
+
+#### Validation criteria
 
 Run the three canonical public screenshot cases sequentially, exercise depth
-hit testing, and run the matched `complex-terrain` performance capture. Land
-the foundation as its own commit before elevation-store implementation.
+hit testing, and run the matched `complex-terrain` performance capture.
+
+#### Existing work and reworking
+
+The sink extraction, `drawChannel` removal, and explicit pass entry points are
+implemented. The ownership change in gate 2 does not alter them. Retest rather
+than rewrite them unless gate-2 work changes their code.
 
 ### 10.2 Gate 1: waypoint
 
-#### Goals
+#### Objectives
 
 Deliver the elevation-store sample protocol and its public Viewer counterpart
-for one retained waypoint sample set. The gate does not heightcode geodata.
+for one retained waypoint sample set, and restore the waypoint demo to working
+order. The gate does not heightcode geodata.
+
+#### Validation criteria
 
 The waypoint demo at the Mount Whitney position `[-118.302348, 36.560197]`
 must appear on rendered terrain, retain its last height while an update is
-pending, and follow later store updates. It adds no terrain request.
+pending, and follow later store updates without errors. It adds no terrain
+request.
 
-#### Existing work
+#### Existing work and reworking
 
-The elevation population, resident-unit cache, GPU lookup, asynchronous
-readback, LRU budget, and deepest-resident-LOD tracker already exist. Lookup
-still uses a one-shot `Request` queue, physical-gsd selection, and public
-`queryTerrainElevation()` bridges. The waypoint rebuilds a positions array,
-keeps a separate result array, and drives the one-shot query periodically.
-
-#### Changes needed
-
-Replace the queue and its result arrays with the sample-set protocol in sections
-5.1 through 5.5. Batch selection scans a `SampleSet`, resolves a position only
-when it has no `UnitRef`, follows the nominal unit walk, and writes the answer
-back to the same set. The deepest-resident-LOD tracker remains only the lookup
-bound. Remove physical-gsd selection, its per-node interpolation grids, and
-`mapElevationStoreGsdGridSize`. Remove `queryTerrainElevation()` from
-`ElevationStore`, `Map`, and `Viewer`; add the Viewer sample-set operation.
-Replace the waypoint's position array, pending flag, and separate result array
-with one retained Viewer sample set.
-
-#### Known regression
-
-The non-interactive demo (`demos/non-interactive/`) is now broken, for a
-reason not yet diagnosed.
+Elevation population, resident units, nominal-gsd lookup, asynchronous
+readback, LRU eviction, the public retained operation, and waypoint adoption
+are implemented, but the waypoint demo is currently broken and this gate no
+longer passes. Restore and revalidate it as part of the RFC implementation.
+Treat the public set's missing discriminator as geographic; do not expose the
+spatial-division variant publicly.
 
 ### 10.3 Gate 2: client geodata heightcoding
 
-#### Goals
+#### Objectives
 
-Deliver the purpose of the store: switchable client-side heightcoding of both
-monolithic and tiled geodata. It has two settings:
+Deliver switchable client-side heightcoding of tiled and monolithic geodata
+through the worker protocol in section 5.6. `mapHeightcoding` remains a
+construction setting with `legacy` and `store` values and defaults to `legacy`.
 
-```text
-mapHeightcoding = legacy | store
-mapHeightcodingShadow = false | true
-```
+`legacy` draws delivered server-heightcoded geometry. `store` draws geometry
+rebuilt by the worker from elevation-store answers. Tiled geodata uses the
+spatial-division sample-set variant. Monolithic geodata uses the geographic
+variant for this gate; converting it to spatial-division sets is a separate
+optimization, not a prerequisite for client heightcoding.
 
-`mapHeightcoding` defaults to `legacy`; `mapHeightcodingShadow` defaults to
-`false`.
+Main-thread geodata code performs no parsing, SRS conversion, or geometry
+rebuild. The worker performs those operations and requests heightcoding once
+for each tiled or monolithic payload which requires it. Store updates remain
+driven by normal draw traversal and add no terrain request.
 
-`legacy` draws the delivered server-heightcoded geometry. `store` draws the
-same geodata heightcoded from the elevation store. `mapHeightcodingShadow` is
-available only with `store`: it retains the delivered legacy heights as the
-comparison reference and publishes store-minus-legacy statistics, but the
-store-heightcoded geometry remains the geometry shown on the map. There is no
-third comparison render mode.
+#### Validation criteria
 
-Visual inspection is the primary acceptance test. On both monolithic and tiled
-layers, compare `legacy` and `store` through movement, zoom, and terrain LOD
-changes; store geometry must remain attached to the rendered terrain. With
-shadow enabled, the visible result remains the store geometry and the report
-tracks the same live views. Store heightcoding adds no terrain request and
-never updates a view outside the current frame.
+Visual inspection compares `legacy` and `store` separately on tiled and
+monolithic layers through movement, rapid zoom-out, zoom-in, and terrain LOD
+changes. Store geometry must remain attached to rendered terrain, settle after
+movement stops, and retain the previous complete worker result while a
+replacement is pending. A view outside the current draw traversal must not
+request a sample update.
 
-At 1920 by 1080, store heightcoding must not reduce matched measured FPS by
-more than ten percent. The bound is measured separately on both paths, because
-their cost differs: a tiled layer settles per rendered tile view, while a
-monolithic layer requests one gsd for its whole set and reprocesses every
-coordinate atomically each time the highest rendered terrain LOD changes. The
-gate uses the `a-3d-mountain-map` mapConfig that carries both a `geodata-tiles`
-and a `geodata` free layer, loaded through the compatibility library, so one
-case exercises both paths; a config variant lacking the monolithic `geodata`
-layer does not qualify. Each capture includes a zoom that raises the highest
-rendered terrain LOD. A failure on either blocks the gate and requires
-optimization or reconsideration of the approach.
+At 1920 by 1080, `store` must not reduce matched measured FPS by more than ten
+percent against `legacy` on either the tiled or monolithic path. The gate uses
+the `a-3d-mountain-map` mapConfig with its `geodata-tiles` and `geodata` free
+layers, loaded through the compatibility library. The tiled capture includes
+the rapid zoom-out which failed the prior implementation. The monolithic
+capture includes a zoom which raises the highest rendered terrain LOD. The gate
+fails if either path exceeds the bound or if smooth rendering is obtained by
+leaving height updates or worker rebuilds unsettled.
 
-#### Existing work
+Diagnostics verify that each heightcoded payload sends one coordinate
+registration, tiled requests use spatial-division coordinates, monolithic
+requests use geographic coordinates, later messages contain only changed
+heights, and eviction releases both worker and main-thread state. A payload
+which does not request heightcoding retains neither state. Large coordinate
+sets should use the spatial-division variant when one node applies.
+Spatial-division coordinate sets and height payloads use transferred buffers.
+The main-thread profile must contain no geodata parser, geodata-specific
+coordinate conversion, or geodata geometry rebuild.
 
-`MapGeodataView.isReady()` starts a tiled-only shadow collection before worker
-processing. `MapGeodataHeightcoder` owns sample arrays and is ticked globally
-by `Map`; `Map.queryTerrainElevationNav()` feeds it one-shot batches. The
-global `ElevationStoreGeodataAnalysis` retains every collected tiled payload.
-`MapGeodataBuilder` separately heightcodes and rebuilds only builder-created
-monolithic free layers. The debug-only shadow switch never changes what is
-drawn, so delivered server-heightcoded geometry remains visible.
+Gate 2 is accepted only after its temporary heightcoding diagnostics are
+removed. The shipped code contains no `__EHC_INSTRUMENT__` blocks,
+`globalThis.__ehc` counters, heightcoding-shadow reports, or heightcoding log
+messages. The final matched capture runs after this removal.
 
-The previous gate allowed at most a ten-percent FPS reduction. Its matched
-`complex-terrain` capture used JSON geodata at 1920 by 1080. Enabling the
-shadow reduced achieved FPS from about 60 to about 39, near 35 percent, while
-terrain-request counts remained identical at 1116. The engine profiler moved
-only from 45.7 to 43.7 fps because it measured draw time, not frames rendered.
-A direct probe measured `ElevationStore.resolveBatch()` at about 3.86 ms per
-frame while it resolved about 50000 coordinates per second. `desiredGsd` was
-zero, so the global engines queried their whole sets continuously, and each
-query repeated division-node resolution, projection-scale interpolation,
-tile-path walking, key construction, and resident-unit lookup for every
-coordinate.
+#### Existing work and reworking
 
-#### Changes needed
+Keep the elevation traversal, complete unit replacement, unit cache, nominal
+gsd, retained sample updates, GPU lookup, asynchronous readback, sample
+throttle, and watertight unit stop. These parts implement terrain storage and
+sampling rather than geodata ownership.
 
-Every `MapGeodataView` must retain geographic source coordinates, authored
-float offsets, delivered legacy heights, and one sample set. Existing payloads
-obtain the source data by converting delivered physical coordinates once; a
-later two-dimensional payload supplies it directly. In store mode, add each
-sampled geodetic terrain height to its float offset and process the resulting
-geometry for rendering. Legacy mode uses the delivered height.
+The failed implementation parses delivered geodata and converts and rewrites
+every heightcoded coordinate in main-thread `MapGeodataHeightcoder`, then sends
+the rewritten payload to the existing worker for another parse and render-job
+build. Delete that class and its reporting and registration state. Remove the
+main-thread monolithic rebuilding branch and `mapHeightcodingShadow`; gate
+comparison uses separate `legacy` and `store` runs. Preserve monolithic client
+heightcoding by moving its parsing, source conversion, and rebuilding into the
+worker.
 
-Tiled data owns one set per rendered tile view. Its draw preparation requests
-updates using the tile-side/display-size gsd. Monolithic data owns one set on
-its layer view, whether from a URL, inline data, or `MapGeodataBuilder`; its
-active view requests updates from the highest rendered terrain LOD as specified
-in section 5.3. A changed set reprocesses the whole view and atomically replaces
-its geometry. A tiled view that is not prepared for the current frame does not
-request samples.
+The current EHC counters, shadow statistics, and log messages may be used while
+reworking and validating the gate. Remove them after they have served that
+purpose. Deleting `MapGeodataHeightcoder` removes its counters and `report()`;
+also remove the remaining `__EHC_INSTRUMENT__` blocks, the global `__ehc`
+object, `noteGeodataHeightcoder()`, and the heightcoding-shadow logger.
 
-Rewrite `MapGeodataHeightcoder` around one view-owned sample set. Remove
-`Map.queryTerrainElevationNav()`, the heightcoder's global registration and
-tick, and `ElevationStoreGeodataAnalysis`. Remove `MapGeodataBuilder`'s
-heightcoder lifetime and bound-free-layer rebuild. Migrate the measure tool
-from `processHeights()` to its own retained sample set, then remove
-`processHeights()` and `stopHeightcoding()`. Replace the debug shadow switch
-with `mapHeightcoding` and `mapHeightcodingShadow`. Shadow statistics read the
-same live view sample sets which supply the visible store geometry; they record
-coordinate count, covered count, actual gsd, refresh count, and
-store-minus-legacy height difference as mean, standard deviation, p50, p90,
-p99, minimum, and maximum. Equality is not required because delivered heights
-and composed terrain can differ.
+Extend the existing geodata worker instead. When a tiled payload requires
+heightcoding, it retains that parsed job and emits the packed spatial-division
+coordinate set. When a monolithic payload requires heightcoding, it retains the
+job and emits its geographic coordinate set. Both accept height updates and
+re-enter the current render-job construction; otherwise the worker retains
+nothing. `MapGeodata` retains the job ID and internal sample set;
+`MapGeodataView` only activates updates and publishes completed GPU groups.
+Existing packed render commands and main-thread `mapMaxGeodataProcessingTime`
+budgeting remain unchanged.
 
-### Gate 2 implementation notes — 2026-08-28
+The existing gate-2 work also added two store changes which remain.
 
-Gate 2 now gives each tiled or monolithic geodata view one retained sample set
-which supplies its rendered store-heightcoded geometry. The legacy mode keeps
-the delivered geometry, and optional shadow reporting reads the live store-mode
-views instead of owning a second heightcoding path.
-
-`endNode()` now supplies watertightness to the elevation sink. A unit records
+`endNode()` supplies watertightness to the elevation sink. A unit records
 it only when its complete replacement is watertight; traversal coverage which
 includes off-screen quadrants is not enough. Such a unit ends the
 fine-to-coarse fallback walk. Ancestors are derived by shifting the finest
@@ -1021,17 +1162,7 @@ section 5.4. Each update resolves its target tile. Retained tile identity and
 the answering unit's generation bound the walk without invalidating unrelated
 samples after another unit commits.
 
-Manual movement, visual comparison, and performance acceptance remain
-pending, though performance testing already found a defect: a captured
-still view was not the zero-cost settled state it should have been.
-Nothing bounded how often a fully resolved sample set is rescanned, so
-`updateTerrainSamples()` walked every position on every call regardless
-of whether the store could have committed anything new since the last
-scan. Captured profiles attributed up to roughly a quarter of frame time
-to `resolveUnits()`/`updateTerrainSamples()` even at rest, with no camera
-motion and nothing left to settle.
-
-Fixed by throttling per sample set: `updateTerrainSamples()` now resolves
+`updateTerrainSamples()` now resolves
 `false` without scanning when called again before
 `mapElevationStoreSampleIntervalMs` has elapsed since that set's last
 scan. The interval defaults to the same value as
@@ -1039,90 +1170,22 @@ scan. The interval defaults to the same value as
 content faster than its own build-pass cadence, so scanning more often
 than that cannot find anything new.
 
-A cheaper per-position path remains possible and is not yet implemented.
-`UnitRef` retains only `tileId` and `generation`, so a scan that does run
-still recomputes the candidate tile (`getNodeGsd`, `log2`,
-`getNodeTileAt`) and re-looks it up in `resident_` by a freshly allocated
-string key, even for a position nothing changed. Retaining a direct
-reference to the answering `Unit`, plus the `desiredGsd` and `deepestLod`
-last checked against, would let an unchanged position skip that work
-entirely instead of just skipping it less often. Left for a later pass;
-the throttle was the lower-risk fix for the measured cost, and performance
-acceptance still needs a retest against it.
 
+The later gate-2 work moved the main-thread heightcoder onto `MapGeodata` and
+added a tiled node hint. The hint reduced node searches from 895052 to 760 and
+the associated transforms from about 3.58 million to 3040 during one zoom-out.
+The rapid `store` zoom-out still froze while `legacy` remained smooth, so the
+gate failed.
 
-### Gate 2 implementation notes — 2026-08-29 — still failing
-
-Two further optimizations were applied and measured; the performance
-acceptance still fails. A rapid zoom-out freezes in `store` mode and stays
-smooth in `legacy`, so the cost is entirely the work `store` adds.
-
-Applied:
-
-- **Onboarding moved onto the geodata tile.** The `MapGeodataHeightcoder`
-  — parsed geometry, navigation-space coordinates, and the retained
-  sample set — now lives on `MapGeodata`, not on the transient
-  `MapGeodataView`. A view rebuilt during motion reuses it instead of
-  re-parsing and re-resolving every coordinate. Revisited ground improves;
-  it cannot help first visits.
-- **Tiled node hint.** A tiled geodata's coordinates all resolve to the
-  tile's own reference-frame node. `MapGeodata` passes that node
-  (`getSpatialDivisionNodeForTile`) as a hint on the sample set;
-  `resolvePosition` confirms the point against the node's extents and
-  partitioning range instead of searching every node. Measured over one
-  zoom-out: the node search dropped from 895,052 calls to 760 (the rest
-  answered by the hint), and its transforms from about 3.58 million to
-  3,040.
-
-Both changes work as intended and **neither solved the addressed
-problem.** The rapid `store`-mode zoom-out freeze is unchanged from before
-this commit — as bad as at the start of the effort. Gate 2 fails.
-
-A bottom-up profile of the zoom-out freeze, self time (this is the record
-of what was actually measured, not an interpretation of it):
-
-| entry | self | total |
-| --- | --- | --- |
-| profiling overhead | 18.6% | 18.6% |
-| `transformer` (proj4, mostly `inverse`) | 10.9% | 29.4% |
-| `resolveUnits` | 10.6% | 13.5% |
-| `parseGeodata` | 5.4% | 6.0% |
-| `transform` (`transform.js`, terrain culling) | 5.3% | 17.4% |
-| minor GC | 4.7% | — |
-| `geocentricToGeodetic` (proj4 datum) | 4.0% | 4.3% |
-| `updateTerrainSamples` | 3.9% | 39.4% |
-| `MapSrs.convertCoordsFrom` | 3.5% | 33.5% |
-| `getImageData` | 2.6% | — |
-
-`unitKey` (4.9ms) and `getNodeTileAt` (0.7ms) are negligible, so
-`resolveUnits`'s self cost is in its own body, unexplained by this
-capture. The proj4 time is reached from geodata construction and `rebuild`
-**and** from terrain culling (`generateCullingHelpers`), which `legacy`
-also runs, so the store-specific share of it is not separable from this
-profile. The only hard fact is that the freeze is `store`-only: `legacy`
-zoom-out over the same ground is smooth.
-
-The node search removed by the hint (895,052 calls to 760) and the revisit
-re-onboarding removed by the tile cache were real costs that were not the
-freeze. What the freeze is has not been located: the profile shows self
-time spread across proj4, `resolveUnits`, `parseGeodata`, and shared
-rendering, with no single store-specific cause isolated and one of the top
-entries (`resolveUnits`) unexplained by its own children. This line of
-attack — reducing per-point and per-sample transform and lookup cost — is
-exhausted without having moved the freeze. A different diagnosis is needed
-before more code is written.
-
-### Cleanup — 2026-08-29 — mapHeightcoding fixed at construction
-
-`mapHeightcoding` moved from `runtime` to `construction` visibility;
-nothing exercises live legacy/store switching, and the RFC's own
-acceptance test does not require it. `MapGeodataView` no longer tracks
-a mode change against `rebuildPending` — its `heightcodingMode` is now
-read once, at construction. `mapGeodataBinaryLoad` was renamed to
-`mapGeodataFetchInWorker`, matching `mapParseMeshInWorker`'s naming: the
-option selects which thread does the fetch, not a wire format.
+The profile distributed time across `proj4`, main-thread geodata parsing and
+rebuilding, sample lookup, readback, and garbage collection. It did not isolate
+one smaller store defect. The new design removes the main-thread geodata work
+and the geographic onboarding path instead of retaining that ownership and
+adding another lookup optimization.
 
 ### 10.4 Gate 3: floating map positions
+
+#### Objectives
 
 Move the current map-position terrain sample from
 `MapMeasure.getSurfaceHeight()` to the elevation store. `Map` owns a
@@ -1136,6 +1199,8 @@ repeated calls for that set share its promise. A completion is applied only if
 its set is still current. A changed sample marks the map dirty. This preserves
 a continuous render loop without synchronous GPU reads.
 
+#### Validation criteria
+
 The manual run uses `simple-terrain`, `complex-terrain`, and `full-terrain`.
 The reviewer changes fixed and floating height modes, changes view extent, and
 moves between areas with different terrain LOD. The displayed position must
@@ -1143,9 +1208,14 @@ keep the authored above-terrain offset, settle to finer terrain without a
 camera discontinuity, and issue no navigation-tile request for the migrated
 operation.
 
-Implementation stops for manual validation after this gate.
+#### Existing work and reworking
+
+The store and geographic sample-set path exist. Current-position migration has
+not started. Implement it after gate 2 is accepted.
 
 ### 10.5 Gate 4: pan motion
+
+#### Objectives
 
 Move pan terrain following to the same retained current-position mechanism.
 `Map` keeps one submitted one-position sample set and the latest unsubmitted
@@ -1156,6 +1226,8 @@ submits a new set for the latest XY. This bounds queued work without issuing an
 update for every input event. Each accepted height preserves the user's
 above-terrain offset.
 
+#### Validation criteria
+
 The manual run pans continuously over steep terrain in `complex-terrain` and
 `full-terrain`, including direction reversals while a lookup is in flight.
 The reviewer verifies that the camera neither enters the terrain nor jumps
@@ -1164,8 +1236,10 @@ request. Record the age and `actualGsd` of every retained sample used by the
 camera. The matched `complex-terrain` FPS check from gate 2 is repeated with
 continuous pan input.
 
-Implementation stops for manual validation after this gate. Mark the design
-implemented only after all four application gates have been accepted.
+#### Existing work and reworking
+
+The pan migration has not started. Implement it after gate 3 is accepted. Mark
+the RFC implemented only after all four application gates have been accepted.
 
 
 ## 11. Source changes
@@ -1174,11 +1248,11 @@ The expected ownership is:
 
 | File | Change |
 |---|---|
-| `src/map/elevation-store.ts` | units, retained sample updates, lookup, readback state, and LRU |
+| `src/map/elevation-store.ts` | units, geographic and spatial-division sample sets, lookup, readback, and LRU |
 | `src/map/terrain-traversal-sink.ts` | sink type and color/depth implementations |
-| `src/map/refframe.js`, `src/map/refframe.d.ts` | move node selection to the current owner and add tile-path and nominal-gsd helpers without migrating it |
+| `src/map/refframe.js`, `src/map/refframe.d.ts` | resolve worker node IDs and retain nominal-gsd helpers |
 | `src/map/measure.js`, `src/map/geodata-builder.js` | use reference-frame-owned node selection |
-| `src/map/map.ts` | store ownership, channel removal, explicit pass entry points, fence polling, and current-position sample |
+| `src/map/map.ts` | store ownership, worker sample registrations, explicit passes, fence polling, and current-position sample |
 | `src/map/draw.js` | invoke the depth entry point without the complete map draw |
 | `src/map/draw-traversal.ts` | retain traversal policy, consume pass-owned state, and dispatch selected rigs to a sink |
 | `src/map/tile-render-rig.ts` | test normal readiness and draw unexaggerated height |
@@ -1188,12 +1262,15 @@ The expected ownership is:
 | `src/renderer/gpu/texture.ts` | packed unit texture and byte accounting |
 | `src/renderer/shaders/elevation-*.glsl` | rasterization, reduction, and lookup |
 | `src/viewer/viewer.ts` | public retained terrain sample sets used by the waypoint demo |
-| `src/viewer-config.ts` | store settings, `mapHeightcoding`, and `mapHeightcodingShadow` |
+| `src/viewer-config.ts` | store settings and `mapHeightcoding`; remove `mapHeightcodingShadow` |
 | `demos/waypoint/waypoint.js` | gate-1 consumer |
-| `src/map/geodata-heightcoder.ts` | retained sample-set heightcoding owned by one geodata view |
-| `src/map/elevation-store-geodata-analysis.ts` | remove the global comparison path |
-| `src/map/geodata-view.js` | own and drive heightcoding for tiled and monolithic geodata |
-| `src/map/geodata-builder.js` | remove heightcoding state, `processHeights()`, `stopHeightcoding()`, and free-layer rebuilds |
+| `src/map/geodata-heightcoder.ts` | delete the main-thread parser, converter, and rebuilder |
+| `src/map/geodata-processor/worker-heightcoding.ts` | retain and release heightcoded jobs, prepare SDS or geographic coordinates, apply heights, and rebuild |
+| `src/map/geodata-processor/worker-main.js` | call the typed heightcoding operations from existing worker commands |
+| `src/map/geodata-processor/processor.js` | route job messages and transfer packed buffers |
+| `src/map/geodata.js` | own the worker job ID and internal sample set; release both from `killGeodata()` |
+| `src/map/geodata-view.js` | activate tiled and monolithic sample updates and publish completed worker output |
+| `src/map/geodata-builder.js` | preserve monolithic source-coordinate metadata for worker heightcoding |
 | `src/viewer/ui/control/measure.js` | own the retained sample set for area measurement |
 | `src/map/camera.js`, `src/map/convert.js` | gate-3 current-position migration |
 | `src/viewer/control-mode/map-observer.js` | gate-4 pan migration |
@@ -1227,6 +1304,28 @@ for filtered lookup.
 
 Rejected. Converting irregular meshes to a regular field is rasterization.
 The GPU already owns the mesh and performs that operation directly.
+
+### Keep geodata heightcoding on the main thread
+
+Rejected. The geodata worker already parses the payload and builds render
+jobs. Parsing it again on the main thread, converting its coordinates there,
+rewriting it, and sending it back to the worker duplicates ownership and
+blocks color-frame progress during the bulk workload.
+
+### Submit tiled coordinates as geographic positions
+
+Rejected. A tiled payload belongs to one reference-frame node and the worker
+already has to interpret its coordinates. Supplying that node's spatial
+division coordinates lets the store enter its tile walk directly; geographic
+submission would add an SRS conversion and node search which provide no new
+information.
+
+### Share coordinate and height memory between threads
+
+Rejected until measurement requires it. Transferred `ArrayBuffer` payloads
+give each message one owner without copying on delivery. `SharedArrayBuffer`
+would add cross-origin-isolation and synchronization requirements to data which
+does not need concurrent mutation.
 
 ### Add a separate elevation traversal
 
@@ -2052,3 +2151,34 @@ refining.*
 
 The design is accepted. The one change with behavioural weight is the build
 generation in note 2; the rest tighten wording, gate coverage, and lifecycle.
+
+
+## Review round 6 — requested
+
+Gate 2 failed its performance acceptance after the round-5 redesign. Moving
+the main-thread heightcoder onto `MapGeodata` and avoiding almost every node
+search did not improve the rapid zoom-out freeze. The accepted ownership still
+made the main thread parse geodata, convert coordinates, rewrite geometry, and
+then return that geometry to the worker which normally parses it and builds its
+render jobs.
+
+The design body now gives parsed geodata and all geodata-specific coordinate
+conversion and rebuilding to the worker. A tiled worker job registers one
+transferred coordinate set in its reference-frame node's spatial division SRS.
+A monolithic worker job registers a geographic set through the store's existing
+path. The main thread retains only the corresponding store sample set, updates
+it when normal draw traversal reaches the view, and transfers changed heights
+back to the worker. The spatial-division variant skips SRS conversion and node
+search for tiled data; applying it to monolithic data is a later optimization.
+
+Gate 2 continues to cover both tiled and monolithic client heightcoding. The
+shadow-reporting setting is removed; matched `legacy` and `store` runs perform
+the comparison separately on both paths. Existing elevation traversal, unit
+population, lookup, readback, and cache work remains. The main-thread geodata
+heightcoder and its reporting branch are removed; monolithic parsing,
+conversion, and rebuilding move to the worker rather than being dropped.
+
+Please review the worker/main ownership boundary, the two sample-set coordinate
+spaces, the tiled and monolithic worker paths, the worker message lifetime, and
+whether the revised gate requires both completed height updates and the
+ten-percent FPS bound without allowing worker lag to hide cost.
