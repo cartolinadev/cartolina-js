@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-29 - Remove dead geodata2 binary-format scaffolding
+
+Deleted `worker-parser.js` and the `geodata2` branch in `worker-main.js`'s
+`processGeodataRaw` handler. `worker-parser.js` had a hard syntax error
+(confirmed with `node --check`) and was never imported by `worker-main.js`,
+so it was never in the webpack build graph for
+`geodata-processor-worker.js`; the `processGeodata2` call was a reference
+to a symbol out of scope, which would have thrown had the branch ever run.
+No server anywhere in the stack (tileserver, vtsd, vts-tools,
+vts-registry) emits the `"GE"` binary format it was meant to parse.
+Traced to one commit pair from 2020-04-20, unfinished and unreferenced
+since. `processGeodataRaw` now falls through to the same JSON path as
+`processGeodata`.
+
 ## 2026-08-29 - Gate 2: onboarding on the tile, tiled node hint
 
 Two performance changes toward the gate-2 acceptance, both measured, the

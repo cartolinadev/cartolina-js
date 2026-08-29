@@ -468,7 +468,6 @@ self.onmessage = function (e) {
     var command = message['command'];
     var data = message['data'];
     var dataRaw = null;
-    var geodata2 = false;
 
     //console.log("workeronmessage: " + command);
 
@@ -504,20 +503,6 @@ self.onmessage = function (e) {
 
     case 'processGeodataRaw':
         dataRaw = data;
-
-        //test geodata2
-        if (data.length > 2) {
-            var dataView = new DataView(data);
-
-            var magic = '';
-            magic += String.fromCharCode(dataView.getUint8(0, true));
-            magic += String.fromCharCode(dataView.getUint8(1, true));
-
-            if (magic != 'GE') {
-                geodata2 = true;
-            }
-        }
-
         data = Utf8ArrayToStr(data);
 
     case 'processGeodata':
@@ -532,15 +517,11 @@ self.onmessage = function (e) {
         globals.invPixelsPerMM = 1.0 / globals.pixelsPerMM;
         exportedGeometries = [];
 
-        if (geodata2) {
-            processGeodata2(dataView, globals.tileLod);
-        } else {
-            if (typeof data === 'string') {
-                data = JSON.parse(data);
-            }
-
-            processGeodata(data, globals.tileLod);
+        if (typeof data === 'string') {
+            data = JSON.parse(data);
         }
+
+        processGeodata(data, globals.tileLod);
 
         postGroupMessageLite(vts.WORKERCOMMAND_ALL_PROCESSED, 0);
             
