@@ -44,7 +44,7 @@ var MapGeodataView = function(map, geodata, extraInfo) {
     this.legacyGeodata = null;
     this.heightcoder = null;
     this.heightcodingUpdate = null;
-    this.heightcodingMode = null;
+    this.heightcodingMode = this.map.config.mapHeightcoding;
     this.rebuildPending = false;
     this.isReady();
 };
@@ -257,11 +257,7 @@ MapGeodataView.prototype.isReady = function(
         var geodata = this.geodata.geodata;
         this.captureLegacyGeodata(geodata);
 
-        var mode = this.map.config.mapHeightcoding;
-        if (mode !== this.heightcodingMode) {
-            this.heightcodingMode = mode;
-            this.rebuildPending = true;
-        }
+        var mode = this.heightcodingMode;
 
         var payload = this.legacyGeodata;
         var raw = payload instanceof ArrayBuffer;

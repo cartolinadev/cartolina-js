@@ -142,7 +142,7 @@ MapGeodata.prototype.onLoad = function(url, onLoaded, onError) {
 
     this.loadState = 1;
     
-    if (this.map.config.mapGeodataBinaryLoad) {
+    if (this.map.config.mapGeodataFetchInWorker) {
         this.map.loader.processLoadBinary(url, this.onLoaded.bind(this), this.onLoadError.bind(this), null, 'geodata');
     } else {
         utils.loadJSON(

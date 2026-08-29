@@ -567,13 +567,14 @@ const catalogue = {
      *  node. Read once at construction. */
     mapElevationStoreGPUCache: num(0, MAX, 192, 'construction'),
 
-    /** Selects delivered legacy or elevation-store geodata heights. */
+    /** Selects delivered legacy or elevation-store geodata heights.
+     *  Read once at construction. */
     mapHeightcoding: spec({
         produce: (): 'legacy' | 'store' => 'legacy',
         normalize: (value): 'legacy' | 'store' =>
             value === 'store' ? 'store' : 'legacy',
         urlKind: 'string',
-        visibility: 'runtime',
+        visibility: 'construction',
     }),
 
     /** Reports store-minus-legacy heights from visible store-mode views. */
@@ -630,8 +631,9 @@ const catalogue = {
     /** Runs the resource loader in a dedicated worker. */
     mapSeparateLoader: bool(true, 'internal'),
 
-    /** Fetches geodata as binary instead of text. */
-    mapGeodataBinaryLoad: bool(true, 'internal'),
+    /** Fetches geodata in the loader worker instead of the main
+     *  thread. */
+    mapGeodataFetchInWorker: bool(true, 'internal'),
 
     /** Batches loader worker messages into packed events. */
     mapPackLoaderEvents: bool(true, 'internal'),

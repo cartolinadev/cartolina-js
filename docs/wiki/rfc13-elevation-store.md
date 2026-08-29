@@ -1112,6 +1112,15 @@ attack — reducing per-point and per-sample transform and lookup cost — is
 exhausted without having moved the freeze. A different diagnosis is needed
 before more code is written.
 
+### Cleanup — 2026-08-29 — mapHeightcoding fixed at construction
+
+`mapHeightcoding` moved from `runtime` to `construction` visibility;
+nothing exercises live legacy/store switching, and the RFC's own
+acceptance test does not require it. `MapGeodataView` no longer tracks
+a mode change against `rebuildPending` — its `heightcodingMode` is now
+read once, at construction. `mapGeodataBinaryLoad` was renamed to
+`mapGeodataFetchInWorker`, matching `mapParseMeshInWorker`'s naming: the
+option selects which thread does the fetch, not a wire format.
 
 ### 10.4 Gate 3: floating map positions
 

@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-29 - Fix mapHeightcoding to construction, rename binary-load flag
+
+`mapHeightcoding` moved from `runtime` to `construction` visibility;
+nothing exercises live legacy/store switching, so `MapGeodataView` no
+longer tracks a mode change against `rebuildPending` — its
+`heightcodingMode` is read once, at construction. `mapGeodataBinaryLoad`
+renamed to `mapGeodataFetchInWorker`, matching `mapParseMeshInWorker`'s
+naming: the option selects which thread does the fetch, not a wire
+format. Noted in RFC 13's gate-2 section.
+
 ## 2026-08-29 - Remove dead geodata2 binary-format scaffolding
 
 Deleted `worker-parser.js` and the `geodata2` branch in `worker-main.js`'s
