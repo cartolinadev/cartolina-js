@@ -68,7 +68,7 @@ type _publicRuntimeSubsetPin = Expect<Eq<
     | 'mapFeaturesReduceMode'
     | 'mapFeaturesReduceParams' | 'mapSoftViewSwitch'
     | 'mapLogGeodataStyles' | 'mapElevationStoreUpdateIntervalMs'
-    | 'mapHeightcoding' | 'mapHeightcodingShadow'
+    | 'mapElevationStoreSampleIntervalMs'
 >>;
 
 const subsetPinHolds: _publicRuntimeSubsetPin = true;
@@ -80,8 +80,6 @@ const chained: PublicMap = viewer
     .setParam('rendererCssDpi', 192)
     .setParam('sensitivity', [1, 0.06, 0.05])
     .setParam('navigationMode', 'free')
-    .setParam('mapHeightcoding', 'store')
-    .setParam('mapHeightcodingShadow', true)
     .setParam('autoPan', [10, 90]);
 void chained;
 

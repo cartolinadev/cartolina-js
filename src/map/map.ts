@@ -39,7 +39,6 @@ import type {
 import ColorTerrainSink from './color-terrain-sink';
 import DepthTerrainSink from './depth-terrain-sink';
 import ElevationStore from './elevation-store';
-import type MapGeodataHeightcoder from './geodata-heightcoder';
 import type MapGeodataBuilder from './geodata-builder';
 import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
@@ -1167,8 +1166,6 @@ class Map {
 
         // draw surfaces and free layers
         gpu.setState(mapDraw.drawTileState);
-        this.activeGeodataHeightcoders_ = new Set();
-
         if (this.overrides.drawEarth) {
 
             this.withSelectionCamera(() => {
@@ -1203,8 +1200,6 @@ class Map {
             });
 
         } // if (this.overrides.drawEarth)
-
-        this.publishGeodataHeightcodingReport();
 
         // draw freeze frustum, if applicable
         const inspector = this.inspector;
@@ -1356,62 +1351,6 @@ class Map {
             });
 
         return owner ? refFrame.getNodeGsd(owner.node, lod, 256) : null;
-    }
-
-    /** Includes one prepared live view in the optional shadow report. */
-    noteGeodataHeightcoder(heightcoder: MapGeodataHeightcoder): void {
-
-        if (this.config.mapHeightcoding === 'store'
-                && this.config.mapHeightcodingShadow)
-            this.activeGeodataHeightcoders_.add(heightcoder);
-    }
-
-    private publishGeodataHeightcodingReport(): void {
-
-        if (this.config.mapHeightcoding !== 'store'
-                || !this.config.mapHeightcodingShadow) return;
-
-        const now = performance.now();
-        if (now - this.lastHeightcodingReport_ < 1000) return;
-
-        const gsds: number[] = [];
-        const differences: number[] = [];
-        let coordinates = 0;
-        let covered = 0;
-        let refreshes = 0;
-
-        for (const heightcoder of this.activeGeodataHeightcoders_) {
-
-            const view = heightcoder.report();
-
-            coordinates += view.coordinates;
-            covered += view.covered;
-            refreshes += view.refreshes;
-            gsds.push(...view.gsds);
-            differences.push(...view.differences);
-        }
-
-        const report: HeightcodingReport = {
-            coordinates,
-            covered,
-            coverage: coordinates > 0 ? covered / coordinates : 0,
-            refreshes,
-            actualGsd: summarize(gsds),
-            storeMinusLegacy: summarize(differences),
-        };
-
-        const target = globalThis as typeof globalThis & {
-            __elevationStoreGeodataShadow?: HeightcodingReport;
-        };
-
-        target.__elevationStoreGeodataShadow = report;
-        this.lastHeightcodingReport_ = now;
-
-        console.log('[heightcoding shadow] store - legacy height:',
-            report.storeMinusLegacy,
-            `coverage ${(report.coverage * 100).toFixed(1)}%`,
-            `(${covered}/${coordinates})`,
-            'GSD:', report.actualGsd);
     }
 
     /**
@@ -2064,10 +2003,6 @@ class Map {
      */
     private elevationStore_: ElevationStore | null = null;
 
-    private activeGeodataHeightcoders_ = new Set<MapGeodataHeightcoder>();
-
-    private lastHeightcodingReport_ = -Infinity;
-
     /**
      * Legacy map currently being populated by the style loader.
      *
@@ -2166,56 +2101,6 @@ type OverlayEntry = {
     enabled: boolean;
     added: boolean;
 };
-
-
-type Distribution = {
-    count: number;
-    mean: number;
-    std: number;
-    p50: number;
-    p90: number;
-    p99: number;
-    min: number;
-    max: number;
-};
-
-
-type HeightcodingReport = {
-    coordinates: number;
-    covered: number;
-    coverage: number;
-    refreshes: number;
-    actualGsd: Distribution;
-    storeMinusLegacy: Distribution;
-};
-
-
-function summarize(values: readonly number[]): Distribution {
-
-    const count = values.length;
-
-    if (count === 0)
-        return { count: 0, mean: 0, std: 0, p50: 0, p90: 0, p99: 0,
-            min: 0, max: 0 };
-
-    const sorted = values.slice().sort((a, b) => a - b);
-    const mean = sorted.reduce((sum, value) => sum + value, 0) / count;
-    const variance = sorted.reduce(
-        (sum, value) => sum + ((value - mean) ** 2), 0) / count;
-    const percentile = (fraction: number): number =>
-        sorted[Math.min(count - 1, Math.floor(fraction * count))];
-
-    return {
-        count,
-        mean,
-        std: Math.sqrt(variance),
-        p50: percentile(0.50),
-        p90: percentile(0.90),
-        p99: percentile(0.99),
-        min: sorted[0],
-        max: sorted[count - 1],
-    };
-}
 
 
 /* Public types exposed under `Map.*`. Consumers (`Viewer`, demos,

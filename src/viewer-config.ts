@@ -577,9 +577,6 @@ const catalogue = {
         visibility: 'construction',
     }),
 
-    /** Reports store-minus-legacy heights from visible store-mode views. */
-    mapHeightcodingShadow: bool(false, 'runtime'),
-
     /** Brake on descending through geometry-less metanode chains:
      *  the allowed cell-span growth per structural step (see
      *  `rfc09-metadata-first-traversal.md`). */

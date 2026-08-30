@@ -10,6 +10,7 @@ import {processPolygonPass as processPolygonPass_} from './worker-polygon.js';
 import {postGroupMessageFast as postGroupMessageFast_,
         postGroupMessageLite as postGroupMessageLite_, optimizeGroupMessages as optimizeGroupMessages_,
         postPackedMessage as postPackedMessage_, postPackedMessages as postPackedMessages_} from './worker-message.js';
+import WorkerHeightcodingJobs from './worker-heightcoding';
 
 import * as vts from '../../constants';
 
@@ -33,6 +34,7 @@ var getLayerPropertyValueInner = getLayerPropertyValueInner_;
 
 var exportedGeometries = [];
 var featureCache = new Array(1024), featureCacheIndex = 0, finalFeatureCache = new Array(1024), finalFeatureCacheIndex = 0, finalFeatureCacheIndex2 = 0;
+var heightcodingJobs = new WorkerHeightcodingJobs();
 
 function processLayerFeaturePass(type, feature, lod, layer, featureIndex, zIndex, eventInfo) {
 
@@ -463,11 +465,57 @@ function processGeodata(data, lod) {
     //console.log("processGeodata-ready");
 }
 
+
+function getRenderState(message) {
+    return {
+        lod: message['lod'] || 0,
+        ix: message['ix'] || 0,
+        iy: message['iy'] || 0,
+        tileSize: message['tileSize'] || 1,
+        pixelSize: message['pixelSize'] || 1,
+        dpr: message['dpr'] || 1
+    };
+}
+
+
+function setRenderState(state) {
+    globals.tileLod = state.lod;
+    globals.tileIX = state.ix;
+    globals.tileIY = state.iy;
+    globals.tileSize = state.tileSize;
+    globals.pixelSize = state.pixelSize;
+    globals.pixelFactor = state.dpr;
+    globals.invPixelFactor = 1.0 / globals.pixelFactor;
+    globals.pixelsPerMM = (globals.pixelFactor / 96) / 2.54;
+    globals.invPixelsPerMM = 1.0 / globals.pixelsPerMM;
+    exportedGeometries = [];
+}
+
+
+function publishGeodata(data) {
+    processGeodata(data, globals.tileLod);
+
+    postGroupMessageLite(vts.WORKERCOMMAND_ALL_PROCESSED, 0);
+
+    if (globals.groupOptimize) {  //we need send all processed message
+        optimizeGroupMessages();
+    }
+
+    //postMessage({'command' : 'allProcessed'});
+
+    postPackedMessage({'command' : 'ready'});
+
+    if (globals.config.mapPackLoaderEvents) {
+        postPackedMessages();
+    }
+
+    globals.geodataJobId = null;
+}
+
 self.onmessage = function (e) {
     var message = e.data;
     var command = message['command'];
     var data = message['data'];
-    var dataRaw = null;
 
     //console.log("workeronmessage: " + command);
 
@@ -502,45 +550,67 @@ self.onmessage = function (e) {
         break;
 
     case 'processGeodataRaw':
-        dataRaw = data;
         data = Utf8ArrayToStr(data);
 
     case 'processGeodata':
-        globals.tileLod = message['lod'] || 0;
-        globals.tileIX = message['ix'] || 0;
-        globals.tileIY = message['iy'] || 0;
-        globals.tileSize = message['tileSize'] || 1;
-        globals.pixelSize = message['pixelSize'] || 1;
-        globals.pixelFactor = message['dpr'] || 1;
-        globals.invPixelFactor = 1.0 / globals.pixelFactor;
-        globals.pixelsPerMM = (globals.pixelFactor / 96) / 2.54;
-        globals.invPixelsPerMM = 1.0 / globals.pixelsPerMM;
-        exportedGeometries = [];
+        var renderState = getRenderState(message);
+        setRenderState(renderState);
 
         if (typeof data === 'string') {
             data = JSON.parse(data);
         }
 
-        processGeodata(data, globals.tileLod);
+        var request = message['heightcoding'];
 
-        postGroupMessageLite(vts.WORKERCOMMAND_ALL_PROCESSED, 0);
-            
-        if (globals.groupOptimize) {  //we need send all processed message
-            optimizeGroupMessages();
+        if (request) {
+            var registration = heightcodingJobs.register(
+                request, data, renderState);
+
+            if (registration) {
+                globals.geodataJobId = registration.jobId;
+                postMessage({
+                    'command': 'heightcoding-request',
+                    'jobId': registration.jobId,
+                    'coordinateSpace': registration.coordinateSpace,
+                    'positions': registration.positions
+                }, [registration.positions.buffer]);
+            } else {
+                postMessage({
+                    'command': 'heightcoding-unused',
+                    'jobId': request.jobId
+                });
+            }
         }
-            
-        //postMessage({'command' : 'allProcessed'});
 
-        if (dataRaw) {
-            postPackedMessage({'command' : 'ready', 'geodata': dataRaw}, [dataRaw]);
-        } else {
-            postPackedMessage({'command' : 'ready'});
+        publishGeodata(data);
+
+        break;
+
+    case 'heightcoding-update':
+        var updatedJob = heightcodingJobs.apply(data);
+
+        if (updatedJob) {
+            globals.geodataJobId = data.jobId;
+            setRenderState(updatedJob.renderState);
+            publishGeodata(updatedJob.geodata);
         }
 
-        if (globals.config.mapPackLoaderEvents) {
-            postPackedMessages();
+        break;
+
+    case 'heightcoding-rebuild':
+        var retainedJob = heightcodingJobs.get(data.jobId);
+
+        if (retainedJob) {
+            globals.geodataJobId = data.jobId;
+            setRenderState(retainedJob.renderState);
+            publishGeodata(retainedJob.geodata);
         }
 
+        break;
+
+    case 'heightcoding-release':
+        heightcodingJobs.release(data.jobId);
+        postMessage({'command' : 'ready'});
         break;
 
     //case 'tick':

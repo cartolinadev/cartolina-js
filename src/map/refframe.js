@@ -189,11 +189,6 @@ MapRefFrame.prototype.resolveSpatialDivisionNodes = function(coords) {
     var nodes = this.division.nodes;
     var owners = [];
 
-    // __EHC_INSTRUMENT__ temporary profiling counters, strip before merge
-    var ehc = (globalThis.__ehc = globalThis.__ehc || {});
-    ehc.nodeResolveCalls = (ehc.nodeResolveCalls || 0) + 1;
-    ehc.nodeTransforms = (ehc.nodeTransforms || 0) + nodes.length;
-
     for (var i = 0, li = nodes.length; i < li; i++) {
         var node = nodes[i];
         var nodeCoords = node.getInnerCoords(coords);
@@ -327,4 +322,3 @@ MapRefFrame.prototype.convertCoords = function(coords, source, destination) {
 
 
 export default MapRefFrame;
-

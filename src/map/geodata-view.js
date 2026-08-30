@@ -1,14 +1,10 @@
 import {mat4} from '../utils/matrix';
 import * as math from '../utils/math';
 import * as utils from '../utils/utils';
-import GpuGroup_ from '../renderer/gpu/group';
-import MapGeodataProcessor_ from './geodata-processor/processor';
+import GpuGroup from '../renderer/gpu/group';
+import MapGeodataProcessor from './geodata-processor/processor';
 
 import * as vts from '../constants';
-
-//get rid of compiler mess
-var GpuGroup = GpuGroup_;
-var MapGeodataProcessor = MapGeodataProcessor_;
 
 
 var MapGeodataView = function(map, geodata, extraInfo) {
@@ -41,11 +37,10 @@ var MapGeodataView = function(map, geodata, extraInfo) {
     this.buildingSize = 0;
     this.killed = false;
     this.ready = false;
-    this.legacyGeodata = null;
-    this.heightcoder = null;
+    this.processorListener = this.onGeodataProcessorMessage.bind(this);
+    this.heightcoding = null;
     this.heightcodingUpdate = null;
     this.heightcodingMode = this.map.config.mapHeightcoding;
-    this.rebuildPending = false;
     this.isReady();
 };
 
@@ -53,7 +48,11 @@ var MapGeodataView = function(map, geodata, extraInfo) {
 MapGeodataView.prototype.kill = function() {
     this.killed = true;
     this.geodata = null;
-    this.heightcoder = null;
+
+    if (this.heightcoding) {
+        this.heightcoding.detach(this.processorListener);
+        this.heightcoding = null;
+    }
 
     if (this.gpuCacheItem) {
         this.map.gpuCache.remove(this.gpuCacheItem);
@@ -165,6 +164,10 @@ MapGeodataView.prototype.commitGpuGroups = function() {
     this.gpuCacheItem = this.map.gpuCache.insert(
         this.killGpuGroups.bind(this, groups, size), size);
 
+    // A committed group set releases the job's next height update.
+    if (this.heightcoding)
+        this.heightcoding.notePublished(this.processorListener);
+
     this.map.markDirty();
 };
 
@@ -211,34 +214,44 @@ MapGeodataView.prototype.onGeodataProcessorMessage = function(
 };
 
 
-MapGeodataView.prototype.captureLegacyGeodata = function(geodata) {
-    if (this.legacyGeodata !== null) return;
-
-    this.legacyGeodata = geodata instanceof ArrayBuffer
-        ? geodata.slice(0) : geodata;
-};
-
-
-MapGeodataView.prototype.startProcessing = function(payload, raw) {
+MapGeodataView.prototype.startProcessing = function(
+        payload, heightcoding) {
     this.processing = true;
-    this.rebuildPending = false;
     this.buildingGpuGroups = [];
     this.buildingSize = 0;
     this.currentGpuGroup = null;
-    this.geodataProcessor.setListener(
-        this.onGeodataProcessorMessage.bind(this));
+    this.geodataProcessor.setListener(this.processorListener);
+
+    var heightcodingRequest = heightcoding
+        ? heightcoding.beginInitial() : null;
+    var raw = payload instanceof ArrayBuffer;
+
+    if (raw) payload = payload.slice(0);
 
     if (raw) {
         this.geodataProcessor.sendCommand(
             'processGeodataRaw', payload, this.tile,
-            (window.devicePixelRatio || 1), [payload]);
+            (window.devicePixelRatio || 1), [payload],
+            heightcodingRequest
+                ? { heightcoding: heightcodingRequest } : null);
     } else {
         this.geodataProcessor.sendCommand(
             'processGeodata', payload, this.tile,
-            (window.devicePixelRatio || 1));
+            (window.devicePixelRatio || 1), null,
+            heightcodingRequest
+                ? { heightcoding: heightcodingRequest } : null);
     }
 
     this.geodataProcessor.busy = true;
+};
+
+
+MapGeodataView.prototype.startHeightcodingRebuild = function() {
+    this.processing = true;
+    this.buildingGpuGroups = [];
+    this.buildingSize = 0;
+    this.currentGpuGroup = null;
+    return this.heightcoding.rebuild();
 };
 
 
@@ -255,42 +268,39 @@ MapGeodataView.prototype.isReady = function(
             doNotLoad, priority, doNotCheckGpu, false)) {
 
         var geodata = this.geodata.geodata;
-        this.captureLegacyGeodata(geodata);
-
         var mode = this.heightcodingMode;
-
-        var payload = this.legacyGeodata;
-        var raw = payload instanceof ArrayBuffer;
+        var payload = geodata;
 
         if (mode === 'store') {
-            this.heightcoder = this.geodata.getHeightcoder();
+            this.heightcoding = this.geodata.getHeightcoding(
+                this.geodataProcessor);
+
+            if (this.heightcoding)
+                this.heightcoding.attach(this.processorListener);
 
             var tileId = this.tile ? this.tile.id : null;
             var desiredGsd = this.map.outerMap.geodataHeightcodingGsd(
                 tileId, this.surface.displaySize);
 
-            if (desiredGsd !== null && !this.heightcodingUpdate) {
-                this.heightcodingUpdate = this.heightcoder.update(desiredGsd)
-                    .then((function(changed) {
-                        if (!changed || this.killed) return;
-                        this.rebuildPending = true;
-                        this.map.markDirty();
-                    }).bind(this))
-                    .finally((function() {
+            if (this.heightcoding && desiredGsd !== null
+                    && !this.heightcodingUpdate) {
+                var update = this.heightcoding.update(desiredGsd);
+
+                if (update)
+                    this.heightcodingUpdate = update.finally((function() {
                         this.heightcodingUpdate = null;
                     }).bind(this));
             }
-
-            this.map.outerMap.noteGeodataHeightcoder(this.heightcoder);
-            payload = this.heightcoder.geodata;
-            raw = false;
-        } else if (raw) {
-            payload = payload.slice(0);
         }
 
-        if ((!this.ready || this.rebuildPending) && !this.processing
+        if (!this.ready && !this.processing
             && this.geodataProcessor.isReady() && payload) {
-            this.startProcessing(payload, raw);
+            if (this.heightcoding && this.heightcoding.retained) {
+                if (!this.startHeightcodingRebuild())
+                    this.processing = false;
+            } else if (!this.heightcoding || !this.heightcoding.started) {
+                this.startProcessing(payload, this.heightcoding);
+            }
         }
     }
 

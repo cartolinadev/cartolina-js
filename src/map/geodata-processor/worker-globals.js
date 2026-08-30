@@ -43,7 +43,8 @@ var globals = {
     reduceParams : null,
     processLineLabel : false,
     useLineLabel2 : true,
-    lineLabelPass : 0
+    lineLabelPass : 0,
+    geodataJobId : null
 };
 
 

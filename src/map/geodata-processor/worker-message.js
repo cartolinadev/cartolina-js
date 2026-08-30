@@ -13,6 +13,10 @@ var packedTransferables = [];
 
 function postPackedMessage(message, transferables) {
 
+    if (globals.geodataJobId != null) {
+        message['jobId'] = globals.geodataJobId;
+    }
+
     if (globals.config.mapPackLoaderEvents) {
 
         packedEvents.push(message);
@@ -312,4 +316,3 @@ function postPackedMessages() {
 
 
 export {optimizeGroupMessages, postGroupMessageFast, postGroupMessageLite, postPackedMessage, postPackedMessages};
-

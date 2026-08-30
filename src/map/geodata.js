@@ -1,13 +1,8 @@
 
-import BBox_ from '../renderer/bbox';
+import BBox from '../renderer/bbox';
 import * as utils from '../utils/utils';
-import MapGeodataBuilder_ from './geodata-builder';
-import MapGeodataHeightcoder_ from './geodata-heightcoder';
-
-//get rid of compiler mess
-var BBox = BBox_;
-var MapGeodataBuilder = MapGeodataBuilder_;
-var MapGeodataHeightcoder = MapGeodataHeightcoder_;
+import MapGeodataBuilder from './geodata-builder';
+import GeodataHeightcodingJob from './geodata-heightcoding-job';
 
 
 var MapGeodata = function(map, url, extraInfo) {
@@ -20,7 +15,8 @@ var MapGeodata = function(map, url, extraInfo) {
     this.size = 0;
     this.fileSize = 0;
     this.geodata = null;
-    this.heightcoder = null;
+    this.heightcoding = null;
+    this.heightcodingUnavailable = false;
     this.type = 'geodata';
 
     this.cacheItem = null;
@@ -44,10 +40,12 @@ MapGeodata.prototype.killGeodata = function(killedByCache) {
         this.geodata = null;
     }
 
-    if (this.heightcoder) {
-        this.heightcoder.dispose();
-        this.heightcoder = null;
+    if (this.heightcoding) {
+        this.heightcoding.dispose();
+        this.heightcoding = null;
     }
+
+    this.heightcodingUnavailable = false;
 
     if (killedByCache !== true && this.cacheItem != null) {
         this.map.resourcesCache.remove(this.cacheItem);
@@ -63,25 +61,23 @@ MapGeodata.prototype.killGeodata = function(killedByCache) {
 };
 
 
-// The heightcoder holds this tile's parsed geometry, navigation-space
-// coordinates, and retained elevation sample set. It lives here, not on
-// the transient view, so a view rebuilt during camera motion reuses it
-// instead of re-onboarding every coordinate.
-MapGeodata.prototype.getHeightcoder = function() {
-    if (!this.heightcoder && this.geodata != null) {
-        // A tiled geodata shares the reference-frame node hierarchy, so
-        // every one of its coordinates resolves to the tile's node. Pass
-        // that node as a hint; monolithic geodata has no tile and none.
-        var tile = this.extraInfo ? this.extraInfo.tile : null;
-        var refFrame = this.map.referenceFrame;
-        var nodeHint = (tile && refFrame)
-            ? refFrame.getSpatialDivisionNodeForTile(tile.id) : null;
+MapGeodata.prototype.getHeightcoding = function(processor) {
+    if (this.heightcodingUnavailable) return null;
 
-        this.heightcoder = new MapGeodataHeightcoder(
-            this.map.outerMap, this.geodata, nodeHint);
+    if (!this.heightcoding && this.geodata != null) {
+        var tile = this.extraInfo ? this.extraInfo.tile : null;
+
+        this.heightcoding = new GeodataHeightcodingJob(
+            this.map.outerMap,
+            processor,
+            tile ? tile.id : null,
+            (function() {
+                this.heightcoding = null;
+                this.heightcodingUnavailable = true;
+            }).bind(this));
     }
 
-    return this.heightcoder;
+    return this.heightcoding;
 };
 
 

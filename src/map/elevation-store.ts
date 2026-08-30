@@ -68,16 +68,16 @@ class ElevationStore {
         if (existing) return existing.promise;
 
         const retainedState = this.sampleSetStates_.get(sampleSet);
+        const count = sampleCount(sampleSet);
 
         if (!retainedState
                 || retainedState.positions !== sampleSet.positions
                 || retainedState.samples !== sampleSet.samples
-                || retainedState.samples.length
-                    !== sampleSet.positions.length) {
+                || retainedState.samples.length !== count) {
 
-            for (const position of sampleSet.positions) {
+            for (let index = 0; index < count; index++) {
 
-                if (!isPosition(position)) {
+                if (!validPosition(sampleSet, index)) {
 
                     return Promise.reject(new TypeError(
                         'updateTerrainSamples: every position must contain '
@@ -96,14 +96,16 @@ class ElevationStore {
 
         const lookups: Lookup[] = [];
 
-        for (let index = 0; index < sampleSet.positions.length; index++) {
+        for (let index = 0; index < count; index++) {
 
             let ref = state.refs[index];
 
             if (!ref) {
 
-                ref = this.resolvePosition(
-                    sampleSet.positions[index], sampleSet.nodeHint);
+                ref = sampleSet.coordinateSpace === 'spatial-division'
+                    ? this.resolveSpatialDivisionPosition(sampleSet, index)
+                    : this.resolveGeographicPosition(
+                        sampleSet.positions[index]);
                 state.refs[index] = ref;
             }
 
@@ -322,18 +324,20 @@ class ElevationStore {
 
         let state = this.sampleSetStates_.get(sampleSet);
 
+        const count = sampleCount(sampleSet);
+
         if (state && state.positions === sampleSet.positions
                 && state.samples === sampleSet.samples
-                && state.samples.length === sampleSet.positions.length
-                && state.refs.length === sampleSet.positions.length) {
+                && state.samples.length === count
+                && state.refs.length === count) {
 
             return state;
         }
 
         if (!sampleSet.samples
-                || sampleSet.samples.length !== sampleSet.positions.length) {
+                || sampleSet.samples.length !== count) {
 
-            sampleSet.samples = new Array(sampleSet.positions.length);
+            sampleSet.samples = new Array(count);
         }
 
         const refs = sampleSet.samples.map((sample) => {
@@ -353,58 +357,50 @@ class ElevationStore {
         return state;
     }
 
-    private resolvePosition(
+    private resolveGeographicPosition(
         position: ElevationStore.Position,
-        hint?: MapDivisionNode,
     ): UnitRef | undefined {
-
-        // __EHC_INSTRUMENT__ temporary profiling counters, strip before merge
-        const ehc = ((globalThis as unknown as
-            { __ehc?: Record<string, number> }).__ehc ??= {});
-        ehc.resolvePosition = (ehc.resolvePosition ?? 0) + 1;
 
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return undefined;
-
-        // Every point of one tiled-geodata set resolves to the tile's own
-        // reference-frame node, supplied as a hint. Confirming the point
-        // lands in that node — its extents, and the partitioning range for
-        // a manually partitioned node — replaces the search over all
-        // nodes; a point outside it (a node boundary) falls back.
-        if (hint && productiveNode(hint)) {
-
-            const navCoords = [position[0], position[1], 0];
-            const inner = hint.getInnerCoords(navCoords);
-            const extents = hint.extents;
-
-            if (inner[0] >= extents.ll[0] && inner[0] <= extents.ur[0]
-                    && inner[1] >= extents.ll[1] && inner[1] <= extents.ur[1]
-                    && refFrame.withinPartitioningRange(hint, navCoords))
-                return {
-                    store: this,
-                    node: hint,
-                    coords: [inner[0], inner[1]],
-                };
-
-            __DEV__ && utils.warnOnce(
-                'elevation store: geodata sample outside its tile node');
-        }
 
         const owner = refFrame.resolveSpatialDivisionNodes(
             [position[0], position[1], 0]).find(
             (entry) => productiveNode(entry.node));
 
-        if (!owner) {
-
-            ehc.resolveMiss = (ehc.resolveMiss ?? 0) + 1;
-            return undefined;
-        }
+        if (!owner) return undefined;
 
         return {
             store: this,
             node: owner.node,
             coords: [owner.coords[0], owner.coords[1]],
         };
+    }
+
+    private resolveSpatialDivisionPosition(
+        sampleSet: ElevationStore.SpatialDivisionSampleSet,
+        index: number,
+    ): UnitRef | undefined {
+
+        const node = sampleSet.node;
+        const coords: [number, number] = [
+            sampleSet.positions[index * 2],
+            sampleSet.positions[index * 2 + 1],
+        ];
+        const extents = node.extents;
+
+        if (!productiveNode(node)
+                || coords[0] < extents.ll[0]
+                || coords[0] > extents.ur[0]
+                || coords[1] < extents.ll[1]
+                || coords[1] > extents.ur[1]) {
+
+            __DEV__ && utils.warnOnce(
+                'elevation store: sample outside its spatial division node');
+            return undefined;
+        }
+
+        return { store: this, node, coords };
     }
 
     /**
@@ -896,7 +892,7 @@ type ResidentUnit = {
 
 
 type SampleSetState = {
-    positions: readonly ElevationStore.Position[];
+    positions: readonly ElevationStore.Position[] | Float64Array;
     samples: (ElevationStore.Sample | undefined)[];
     refs: (UnitRef | undefined)[];
     lastChecked: number;
@@ -965,7 +961,25 @@ function sameContent(
 }
 
 
-function isPosition(value: unknown): value is ElevationStore.Position {
+function sampleCount(sampleSet: ElevationStore.SampleSet): number {
+
+    return sampleSet.coordinateSpace === 'spatial-division'
+        ? sampleSet.positions.length / 2
+        : sampleSet.positions.length;
+}
+
+
+function validPosition(
+    sampleSet: ElevationStore.SampleSet,
+    index: number,
+): boolean {
+
+    if (sampleSet.coordinateSpace === 'spatial-division')
+        return sampleSet.positions.length % 2 === 0
+            && Number.isFinite(sampleSet.positions[index * 2])
+            && Number.isFinite(sampleSet.positions[index * 2 + 1]);
+
+    const value = sampleSet.positions[index];
 
     return Array.isArray(value)
         && value.length >= 2
@@ -989,17 +1003,47 @@ namespace ElevationStore {
     /** A geographic position in the meaning of RFC 13 section 3.1. */
     export type Position = readonly [number, number];
 
-    /** Caller-owned retained storage for one stable position list. */
-    export type SampleSet = {
-        positions: readonly Position[];
-        desiredGsd: number;
+    /** Common retained storage for one stable position list. */
+    export abstract class SampleSetBase<Positions> {
+
         samples?: (Sample | undefined)[];
 
-        /** Reference-frame node every position is expected to resolve
-         *  to, when the whole set shares one (tiled geodata). Skips the
-         *  search over all nodes. */
-        nodeHint?: MapDivisionNode;
-    };
+        protected constructor(
+            readonly positions: Positions,
+            public desiredGsd: number,
+        ) {}
+    }
+
+    /** Geographic positions resolved by the store. */
+    export class GeographicSampleSet extends
+            SampleSetBase<readonly Position[]> {
+
+        readonly coordinateSpace?: 'geographic';
+
+        constructor(positions: readonly Position[], desiredGsd: number) {
+
+            super(positions, desiredGsd);
+        }
+    }
+
+    /** Packed positions in one spatial division node's SRS. */
+    export class SpatialDivisionSampleSet extends
+            SampleSetBase<Float64Array> {
+
+        readonly coordinateSpace = 'spatial-division';
+
+        constructor(
+            positions: Float64Array,
+            desiredGsd: number,
+            readonly node: MapDivisionNode,
+        ) {
+
+            super(positions, desiredGsd);
+        }
+    }
+
+    /** Either coordinate-space variant accepted by the store. */
+    export type SampleSet = GeographicSampleSet | SpatialDivisionSampleSet;
 
     /** One covered terrain sample. */
     export type Sample = {

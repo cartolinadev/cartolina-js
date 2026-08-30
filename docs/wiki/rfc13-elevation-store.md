@@ -1203,6 +1203,20 @@ one smaller store defect. The new design removes the main-thread geodata work
 and the geographic onboarding path instead of retaining that ownership and
 adding another lookup optimization.
 
+#### Third implementation attempt (2026-08-30)
+
+Landed the round-6 worker/main split: `GeodataHeightcodingJob`,
+`WorkerHeightcodingJobs`, and the `heightcoding-request` /
+`heightcoding-update` / `heightcoding-rebuild` / `heightcoding-release`
+protocol, replacing `MapGeodataHeightcoder`. The worker owns parsing,
+coordinate conversion, and rebuilding; `MapGeodata` retains only the
+job and its sample set. The geographic branch heightcodes from a
+group's own geometry when no builder metadata entry supplies a source
+position, so delivered monolithic geodata is heightcoded the same as
+tiled geodata. The height-update publish barrier is the view's
+`commitGpuGroups()`, so a rebuild cannot start before the previous
+one's render commands are committed.
+
 ### 10.4 Gate 3: floating map positions
 
 #### Objectives

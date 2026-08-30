@@ -41,6 +41,8 @@ var MapGeodataProcessor = function(surface, listener) {
     this.stylesheet = null;
     this.fonts = {};
     this.processCounter = 0;
+    this.heightcodingJobs = new Map();
+    this.nextHeightcodingJobId = 1;
 
     this.workerPromise = createProcessWorker().then((worker) => {
 
@@ -114,19 +116,21 @@ MapGeodataProcessor.prototype.onMessage = function(message, direct) {
         }
     }
 
-    if (this.listener != null) {
-        if (command == 'packed-events') {
-            var messages = message['messages'];
+    if (command == 'packed-events') {
+        var messages = message['messages'];
 
-            for (var i = 0, li = messages.length; i < li; i++) {
-                this.onMessage(messages[i], true);
-            }
-
-            return;
-        } else {
-            this.listener(command, message);
+        for (var i = 0, li = messages.length; i < li; i++) {
+            this.onMessage(messages[i], true);
         }
+
+        return;
     }
+
+    var jobId = message['jobId'];
+    var listener = jobId == null
+        ? this.listener : this.heightcodingJobs.get(jobId);
+
+    if (listener != null) listener(command, message);
 };
 
 
@@ -135,7 +139,8 @@ MapGeodataProcessor.prototype.setListener = function(listener) {
 };
 
 
-MapGeodataProcessor.prototype.sendCommand = function(command, data, tile, dpr) {
+MapGeodataProcessor.prototype.sendCommand = function(
+        command, data, tile, dpr, transferables, extra) {
     if (this.killed) {
         return;
     }
@@ -143,6 +148,8 @@ MapGeodataProcessor.prototype.sendCommand = function(command, data, tile, dpr) {
     this.ready = false;
     
     var message = {'command': command, 'data':data};
+
+    if (extra) Object.assign(message, extra);
 
     //console.log('sendCommand ' + command);
     
@@ -161,7 +168,27 @@ MapGeodataProcessor.prototype.sendCommand = function(command, data, tile, dpr) {
         message['dpr'] = dpr;
     }
 
-    this.workerPromise.then(() => { this.processWorker.postMessage(message) });
+    this.workerPromise.then(() => {
+        this.processWorker.postMessage(message, transferables || []);
+    });
+};
+
+
+MapGeodataProcessor.prototype.registerHeightcodingJob = function(listener) {
+    var id = this.nextHeightcodingJobId++;
+    this.heightcodingJobs.set(id, listener);
+    return id;
+};
+
+
+MapGeodataProcessor.prototype.forgetHeightcodingJob = function(id) {
+    this.heightcodingJobs.delete(id);
+};
+
+
+MapGeodataProcessor.prototype.releaseHeightcodingJob = function(id) {
+    if (!this.heightcodingJobs.delete(id)) return;
+    this.sendCommand('heightcoding-release', { jobId: id });
 };
 
 MapGeodataProcessor.prototype.setStylesheet = function(stylesheet, fontsOnly) {

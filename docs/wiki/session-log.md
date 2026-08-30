@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-30 - RFC 13 gate 2: worker/main ownership split, third attempt
+
+Implemented the round-6 redesign: `GeodataHeightcodingJob` and
+`WorkerHeightcodingJobs` replace `MapGeodataHeightcoder`, moving geodata
+parsing, coordinate conversion, and render-job rebuilding onto the
+worker; `MapGeodata` retains only the job and its terrain sample set.
+Details in RFC 13 §10.3.
+
 ## 2026-08-30 - RFC 13 review round 6, accepted on fast track
 
 Reviewed the post-overhaul worker/main ownership split. Accepted the
