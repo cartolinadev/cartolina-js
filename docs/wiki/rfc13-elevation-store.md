@@ -1217,6 +1217,12 @@ tiled geodata. The height-update publish barrier is the view's
 `commitGpuGroups()`, so a rebuild cannot start before the previous
 one's render commands are committed.
 
+Samples in a set share one node and one requested gsd, so a scan derives
+the per-node figures once and walks each distinct tile path once rather
+than per sample. Unit keys pack a tile ID into one double, bounding the store to
+LOD 24. Backlog 59 holds a further step, retaining the walks on the
+sample set.
+
 ### 10.4 Gate 3: floating map positions
 
 #### Objectives

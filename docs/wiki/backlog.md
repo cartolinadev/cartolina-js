@@ -23,6 +23,30 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-59"></a>
+## 59. Retain elevation-store tile walks across sample updates
+
+**Opened:** 2026-08-30
+**Status:** open — deferred, the path it targets is no longer hot
+
+A scan shares its tile-path walks across samples but then discards them,
+so every sample still resolves its start tile on every update. Retaining
+the walks on the sample set, each sample referring to its own, would let
+an update revalidate the few walks, answer `false` when none changed,
+and let the rest take the new unit without resolving anything. Walks
+drop when the requested gsd changes.
+
+Revalidation cannot look only for newly resident units: a unit is also
+evicted, and a republish bumps the generation on the same unit, which
+changes heights without changing residency. It must compare identity and
+generation per level, and extend a walk whose terminating watertight
+unit was evicted, not only truncate it.
+
+Deferred: per-scan node and tile-path sharing removed the cost this
+entry targets. Revisit if a profile of real interaction shows it heavy
+again.
+
+
 <a id="backlog-58"></a>
 ## 58. Request geodata heightcoding at tile/view gsd
 

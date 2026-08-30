@@ -3,6 +3,11 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-30 - Cut the elevation-store sampling cost on zoom-out
+
+Shared the per-node figures and tile-path walks across the samples of a
+scan, and packed the unit keys. RFC 13 section 10.3 records it.
+
 ## 2026-08-30 - RFC 13 gate 2: worker/main ownership split, third attempt
 
 Implemented the round-6 redesign: `GeodataHeightcodingJob` and

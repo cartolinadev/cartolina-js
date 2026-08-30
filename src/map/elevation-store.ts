@@ -96,6 +96,10 @@ class ElevationStore {
 
         const lookups: Lookup[] = [];
 
+        // Residency cannot move while this scan runs, so the per-node
+        // figures and tile paths it derives hold for every sample here.
+        const nodeScans = new globalThis.Map<MapDivisionNode, NodeScan>();
+
         for (let index = 0; index < count; index++) {
 
             let ref = state.refs[index];
@@ -112,7 +116,7 @@ class ElevationStore {
             if (!ref) continue;
 
             const candidates = this.resolveUnits(
-                ref, sampleSet.desiredGsd);
+                ref, sampleSet.desiredGsd, nodeScans);
 
             if (candidates && candidates.length > 0)
                 lookups.push({ update: null!, index, candidates });
@@ -410,37 +414,57 @@ class ElevationStore {
     private resolveUnits(
         ref: UnitRef,
         desiredGsd: number,
+        nodeScans: globalThis.Map<MapDivisionNode, NodeScan>,
     ): ResidentUnit[] | null {
 
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return [];
 
         const node = ref.node;
-        const rootLod = node.id[0];
-        const rootGsd = refFrame.getNodeGsd(node, rootLod, 256);
+        let scan = nodeScans.get(node);
 
-        const idealLod = desiredGsd === 0
-            ? Infinity
-            : Math.max(rootLod, rootLod
-                + Math.floor(Math.log2(rootGsd / desiredGsd)));
+        // One node and one requested gsd give one start LOD, so every
+        // sample against this node shares the figures below.
+        if (!scan) {
 
-        const startLod = Math.min(idealLod, this.deepestLod_);
+            const rootLod = node.id[0];
+            const rootGsd = refFrame.getNodeGsd(node, rootLod, 256);
+
+            const idealLod = desiredGsd === 0
+                ? Infinity
+                : Math.max(rootLod, rootLod
+                    + Math.floor(Math.log2(rootGsd / desiredGsd)));
+
+            scan = {
+                rootLod,
+                rootGsd,
+                startLod: Math.min(idealLod, this.deepestLod_),
+                ladders: new globalThis.Map(),
+            };
+
+            nodeScans.set(node, scan);
+        }
+
+        const rootLod = scan.rootLod;
+        const startLod = scan.startLod;
         if (startLod < rootLod) return [];
 
         const candidates: ResidentUnit[] = [];
         const uv = [0, 0];
         const startTile = refFrame.getNodeTileAt(
             node, ref.coords, startLod, uv);
+
+        const ladder = this.tileLadder(scan, startTile);
+
         let x = startTile[1];
         let y = startTile[2];
         let u = uv[0];
         let v = uv[1];
-        let actualGsd = rootGsd / Math.pow(2, startLod - rootLod);
+        let actualGsd = scan.rootGsd / Math.pow(2, startLod - rootLod);
 
-        for (let lod = startLod; lod >= rootLod; lod--) {
+        for (let step = 0; step < ladder.length; step++) {
 
-            const tileId: [number, number, number] = [lod, x, y];
-            const unit = this.resident_.get(unitKey(tileId));
+            const unit = ladder[step];
 
             if (unit) {
 
@@ -452,7 +476,7 @@ class ElevationStore {
                 });
             }
 
-            if (sameTile(tileId, ref.tileId) && unit) {
+            if (unit && sameTile(ref.tileId, startLod - step, x, y)) {
 
                 if (candidates.length === 1
                         && unit.generation === ref.generation) {
@@ -475,6 +499,42 @@ class ElevationStore {
         }
 
         return candidates;
+    }
+
+    /**
+     * Units on the tile path from a start tile down to its node root,
+     * ending at the first watertight unit that answers there.
+     *
+     * The path depends only on the start tile, so samples sharing one
+     * tile share the walk; a sample's own position enters through the
+     * texture coordinates its caller carries down the path.
+     */
+    private tileLadder(
+        scan: NodeScan,
+        startTile: readonly number[],
+    ): (Unit | null)[] {
+
+        const key = unitKey(startTile);
+        const retained = scan.ladders.get(key);
+        if (retained) return retained;
+
+        const ladder: (Unit | null)[] = [];
+        let x = startTile[1];
+        let y = startTile[2];
+
+        for (let lod = startTile[0]; lod >= scan.rootLod; lod--) {
+
+            const unit = this.resident_.get(unitKey([lod, x, y])) ?? null;
+            ladder.push(unit);
+
+            if (unit?.watertight) break;
+
+            x >>= 1;
+            y >>= 1;
+        }
+
+        scan.ladders.set(key, ladder);
+        return ladder;
     }
 
     private submitBatch(): void {
@@ -764,7 +824,7 @@ class ElevationStore {
         this.deepestLod_ = deepest;
     }
 
-    private touch(key: string, unit: Unit): void {
+    private touch(key: number, unit: Unit): void {
 
         this.resident_.delete(key);
         this.resident_.set(key, unit);
@@ -833,8 +893,8 @@ class ElevationStore {
 
     private readonly map_: Map;
     private readonly units_: ElevationUnits;
-    private readonly resident_ = new globalThis.Map<string, Unit>();
-    private readonly pinned_ = new Set<string>();
+    private readonly resident_ = new globalThis.Map<number, Unit>();
+    private readonly pinned_ = new Set<number>();
     private readonly disposedSampleSets_ =
         new WeakSet<ElevationStore.SampleSet>();
     private readonly updates_ =
@@ -860,7 +920,7 @@ class ElevationStore {
 
 type Unit = {
     handle: ElevationUnits.Unit;
-    key: string;
+    key: number;
     tileId: [number, number, number];
     generation: number;
     watertight: boolean;
@@ -880,6 +940,14 @@ type UnitRef = {
     coords: [number, number];
     tileId?: [number, number, number];
     generation?: number;
+};
+
+
+type NodeScan = {
+    rootLod: number;
+    rootGsd: number;
+    startLod: number;
+    ladders: globalThis.Map<number, (Unit | null)[]>;
 };
 
 
@@ -925,21 +993,31 @@ type InFlight = {
 };
 
 
-function unitKey(tileId: readonly number[]): string {
+function unitKey(tileId: readonly number[]): number {
 
-    return `${tileId[0]}/${tileId[1]}/${tileId[2]}`;
+    // Packs the tile id into one exact double, so the ladder walk in
+    // `resolveUnits` looks units up without building a key string.
+    __DEV__ && tileId[0] > 24 && utils.warnOnce(
+        'elevation store: tile LOD above 24 has no distinct unit key');
+
+    return tileId[0] * 0x1000000000000
+        + tileId[2] * 0x1000000
+        + tileId[1];
 }
 
 
+/** Whether a retained tile id names the tile reached at this step. */
 function sameTile(
-    first: readonly number[],
-    second?: readonly number[],
+    tileId: readonly number[] | undefined,
+    lod: number,
+    x: number,
+    y: number,
 ): boolean {
 
-    return !!second
-        && first[0] === second[0]
-        && first[1] === second[1]
-        && first[2] === second[2];
+    return !!tileId
+        && tileId[0] === lod
+        && tileId[1] === x
+        && tileId[2] === y;
 }
 
 
