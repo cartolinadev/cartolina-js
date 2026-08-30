@@ -230,6 +230,7 @@ class ElevationStore {
         this.replacementTile_ = tileId;
         this.replacementDirty_ = false;
         this.replacementWatertight_ = false;
+        this.replacementFailed_ = false;
         this.replacementContent_ = null;
 
         if (!this.withinNodeRoot(tileId)) return;
@@ -267,16 +268,27 @@ class ElevationStore {
         if (!this.replacementTile_) return;
         if (!this.withinNodeRoot(tile.id)) return;
 
-        this.replacementContent_!.rigs.push(rig);
-
         const legacyMap = this.map_.map!;
 
-        this.map_.withNavigationCamera(() => this.units_.rasterizeRig(
-            rig,
-            legacyMap.camera.position,
-            this.heightRange(),
-            legacyMap.isGeocent,
-            maskTexture));
+        const drawn = this.map_.withNavigationCamera(
+            () => this.units_.rasterizeRig(
+                rig,
+                legacyMap.camera.position,
+                this.heightRange(),
+                legacyMap.isGeocent,
+                maskTexture));
+
+        // A rig that cannot draw — the GPU cache took its mesh since the
+        // traversal found it ready — leaves a hole no sample can detect,
+        // so the whole replacement is abandoned and the resident unit
+        // stays until a later pass builds a complete one.
+        if (!drawn) {
+
+            this.replacementFailed_ = true;
+            return;
+        }
+
+        this.replacementContent_!.rigs.push(rig);
 
         this.replacementDirty_ = true;
         this.replacementWatertight_ = true;
@@ -292,12 +304,15 @@ class ElevationStore {
         const dirty = this.replacementDirty_;
         const unitWatertight = watertight && this.replacementWatertight_;
         const content = this.replacementContent_;
+        const failed = this.replacementFailed_;
 
         this.replacementTile_ = null;
         this.replacementDirty_ = false;
         this.replacementWatertight_ = false;
+        this.replacementFailed_ = false;
         this.replacementContent_ = null;
 
+        if (failed) return;
         if (!covered || !dirty || !content) return;
         if (!this.withinNodeRoot(tileId)) return;
 
@@ -466,23 +481,14 @@ class ElevationStore {
 
             const unit = ladder[step];
 
-            if (unit) {
-
-                candidates.push({
-                    unit,
-                    u,
-                    v,
-                    actualGsd,
-                });
-            }
+            if (unit)
+                candidates.push({ unit, u, v, actualGsd });
 
             if (unit && sameTile(ref.tileId, startLod - step, x, y)) {
 
                 if (candidates.length === 1
-                        && unit.generation === ref.generation) {
-
+                        && unit.generation === ref.generation)
                     return null;
-                }
 
                 if (unit.watertight) return candidates;
 
@@ -912,6 +918,7 @@ class ElevationStore {
     private replacementTile_: [number, number, number] | null = null;
     private replacementDirty_ = false;
     private replacementWatertight_ = false;
+    private replacementFailed_ = false;
     private replacementContent_: UnitContent | null = null;
     private lastPassTime_ = -Infinity;
     private sourceSignature_: string | null = null;

@@ -163,6 +163,7 @@ export class ElevationUnits {
      * @param geocentric geodetic height above the ellipsoid when true,
      *     physical Z when false
      * @param maskTexture coverage already established at this node
+     * @return whether the rig drew
      */
     rasterizeRig(
         rig: TileRenderRig,
@@ -170,7 +171,7 @@ export class ElevationUnits {
         heightRange: [number, number],
         geocentric: boolean,
         maskTexture?: GpuTexture,
-    ): void {
+    ): boolean {
 
         const gpu = this.renderer_.gpu;
 
@@ -182,7 +183,8 @@ export class ElevationUnits {
         // the traversal's mask.
         gpu.clearDepth();
 
-        rig.drawElevation(cameraPos, heightRange, geocentric, maskTexture);
+        return rig.drawElevation(
+            cameraPos, heightRange, geocentric, maskTexture);
     }
 
     /** Publishes the unit started by `beginReplacement`. */

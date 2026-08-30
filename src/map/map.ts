@@ -1880,8 +1880,8 @@ class Map {
     }
 
     /**
-     * Runs the colour frame's terrain pass, with the accounting and the
-     * deferred GPU cache cost check that belong to the visible frame.
+     * Runs the colour frame's terrain pass, with the accounting that
+     * belongs to the visible frame.
      */
     private drawColorTerrain(): void {
 
@@ -1894,19 +1894,11 @@ class Map {
             processedMetatiles: 0,
         };
 
-        // Terrain resources enter the GPU cache throughout the descent;
-        // charging them once at the end keeps eviction from running
-        // against a half-built frame.
-        legacyMap.gpuCache.skipCostCheck = true;
-
         this.drawTerrain({
             sink: new ColorTerrainSink(this),
             doNotLoad: false,
             accounting,
         });
-
-        legacyMap.gpuCache.skipCostCheck = false;
-        legacyMap.gpuCache.checkCost();
 
         const stats = legacyMap.stats;
         stats.usedNodes = accounting.usedNodes;
@@ -1941,7 +1933,22 @@ class Map {
         const trees = this.resolveSurfaceTrees();
         if (trees.length === 0) return;
 
-        drawTerrainTraversal(this, trees, this.terrainMaskPool_!, pass);
+        // Terrain resources enter the GPU cache all through the pass.
+        // A tile draws right after the traversal finds it ready, so an
+        // eviction while the pass runs can take the mesh of a tile the
+        // traversal is about to draw. The cache evicts nothing until the
+        // cost check below, which keeps eviction out of that window.
+        const gpuCache = this.map!.gpuCache;
+
+        gpuCache.skipCostCheck = true;
+
+        try {
+            drawTerrainTraversal(this, trees, this.terrainMaskPool_!, pass);
+        } finally {
+
+            gpuCache.skipCostCheck = false;
+            gpuCache.checkCost();
+        }
     }
 
     /**

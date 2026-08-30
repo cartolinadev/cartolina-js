@@ -365,21 +365,23 @@ export class TileRenderRig {
      *     physical Z when false
      * @param maskTexture optional UV-space coverage mask to discard
      *     fragments already covered
+     * @return whether the tile drew; a caller that builds coverage from
+     *     several tiles must treat false as an incomplete result
      */
     drawElevation(
         cameraPos: math.vec3,
         heightRange: [number, number],
         geocentric: boolean,
         maskTexture?: GpuTexture,
-    ) {
+    ): boolean {
 
-        if (!this.hasGeometry()) return;
+        if (!this.hasGeometry()) return false;
 
         if (!this.mesh.hasExternalUVs) {
 
             __DEV__ && utils.warnOnce(
                 `${this.logSign()}: drawElevation() without external UVs.`);
-            return;
+            return false;
         }
 
         const program = this.renderer.programElevationRaster();
@@ -398,6 +400,7 @@ export class TileRenderRig {
 
         const gpuSubmesh = this.mesh.gpuSubmeshes[this.submeshIndex];
         gpuSubmesh.draw2(program, attrNames);
+        return true;
     }
 
     /**

@@ -100,15 +100,21 @@ function checkSingleStatementIfs(changedPath, lines) {
         if (openingIndex === null) continue;
 
         const closingIndex = closingBrace(lines, openingIndex);
-        if (closingIndex === null
-            || closingIndex !== openingIndex + 2) continue;
+        if (closingIndex === null) continue;
+
+        const bodyLines = lines.slice(openingIndex + 1, closingIndex)
+            .filter((line) => line.text.trim() !== '');
+        if (bodyLines.length === 0) continue;
+
+        if (!isSingleStatement(bodyLines.map((line) => line.text)))
+            continue;
 
         const affected = lines.slice(index, closingIndex + 1).some(
             (line) => line.added);
         if (!affected) continue;
 
-        const body = lines[openingIndex + 1].text.trim();
-        if (!/^(?:return|throw\b|[\w.]+\(.*\);)/.test(body)) continue;
+        const body = bodyLines[0].text.trim();
+        if (!/^(?:return\b|throw\b|[\w.]+\()/.test(body)) continue;
 
         warn(changedPath, lines[index].lineNumber,
             'single-statement if block; omit braces');
@@ -125,6 +131,65 @@ function openingBrace(lines, ifIndex) {
     }
 
     return null;
+}
+
+
+// Tells a single statement from several by tracking bracket depth and
+// counting ';' terminators that land at depth 0. A block is a single
+// statement only when exactly one such terminator occurs, and nothing
+// but whitespace follows it - regardless of how many lines, or blank
+// lines, the statement itself spans.
+function isSingleStatement(bodyTextLines) {
+
+    let depth = 0;
+    let terminators = 0;
+    let sawTrailingContent = false;
+    let quote = null;
+
+    for (const line of bodyTextLines) {
+
+        const code = stripLineComment(line);
+
+        for (let index = 0; index < code.length; index++) {
+
+            const character = code[index];
+
+            if (quote) {
+
+                if (character === '\\') index++;
+                else if (character === quote) quote = null;
+                continue;
+            }
+
+            if (character === '"' || character === '\''
+                    || character === '`') {
+
+                quote = character;
+                sawTrailingContent = true;
+                continue;
+            }
+
+            if ('([{'.includes(character)) depth++;
+            else if (')]}'.includes(character)) depth--;
+            else if (character === ';' && depth === 0) {
+
+                terminators++;
+                sawTrailingContent = false;
+                continue;
+            }
+
+            if (!/\s/.test(character)) sawTrailingContent = true;
+        }
+    }
+
+    return terminators === 1 && !sawTrailingContent;
+}
+
+
+function stripLineComment(line) {
+
+    const index = line.indexOf('//');
+    return index === -1 ? line : line.slice(0, index);
 }
 
 

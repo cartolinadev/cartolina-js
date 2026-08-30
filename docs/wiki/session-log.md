@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-31 - Fix an elevation-pass crash under a full GPU cache
+
+Suppressed GPU cache eviction for the whole terrain traversal in all
+three passes, not just the color one, and made a declined elevation draw
+void its replacement. RFC 13 sections 6.2, 10.3 and 11 record it.
+
+Folded in: the single-statement-if check in the pre-commit style script
+now tracks bracket depth and counts statement terminators, so it sees a
+one-statement body however many lines it spans.
+
 ## 2026-08-30 - Cut the elevation-store sampling cost on zoom-out
 
 Shared the per-node figures and tile-path walks across the samples of a

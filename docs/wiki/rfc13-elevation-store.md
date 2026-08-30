@@ -770,9 +770,13 @@ counters. The traversal updates legacy tile and metatile generation fields and
 publishes counters only when that color accounting is present. Depth and
 elevation omit it, so they cannot overwrite the inspector's color-frame state.
 
-Only the color caller brackets traversal with `gpuCache.skipCostCheck` and
-`checkCost()`. Auxiliary passes leave normal cache enforcement active. The
-pass-wide `doNotLoad` flag is combined with the traversal's existing
+GPU cache eviction is suppressed for the duration of the whole traversal,
+for all three sinks. Otherwise a tile can lose its mesh between the moment
+the traversal accepts it for drawing and the draw itself: readiness checks
+go on loading textures, an upload can evict, and what it evicts may be the
+mesh about to be drawn.
+
+The pass-wide `doNotLoad` flag is combined with the traversal's existing
 off-cadence no-load rule. The sink contract is an internal structural type. It
 has two required operations and two optional node hooks:
 
@@ -851,6 +855,10 @@ selected fallback rigs through the coverage mask supplied by the traversal.
 At `endNode()`, it commits a replacement when `covered` is true and discards
 it otherwise. Child tile IDs are derived from the current tile ID; the sink
 does not traverse terrain trees or interpret child coverage.
+
+A rig that fails to draw voids the whole replacement, and the resident unit
+stays until a later pass builds a complete one. A partial replacement would
+carry a hole that no sample can tell from measured ground.
 
 Mask creation stays in the traversal. Materializing a mask may change the GPU
 target, so each sink restores its own target immediately before drawing.
@@ -1222,6 +1230,15 @@ the per-node figures once and walks each distinct tile path once rather
 than per sample. Unit keys pack a tile ID into one double, bounding the store to
 LOD 24. Backlog 59 holds a further step, retaining the walks on the
 sample set.
+
+With the caches full, the elevation pass could throw. A tile
+draws as soon as the traversal accepts it, but the readiness
+check keeps uploading textures afterwards, and an upload can evict the
+mesh of that very tile. The color pass had always suppressed eviction for
+its traversal; depth and elevation had not. Section 6.2 now suppresses it
+for all three. Separately, `drawElevation()` reports whether it drew, so
+a tile that declines voids the replacement instead of publishing a unit
+with a hole no sample can tell from measured ground.
 
 ### 10.4 Gate 3: floating map positions
 
@@ -1792,8 +1809,10 @@ the GPU cache check staying with the color frame.
 
 *Adopted. Section 7.2 makes GPU-build usage pass-owned and makes color draw
 generation and traversal counters optional pass state. Auxiliary passes omit
-the color accounting; only the color caller publishes it or brackets traversal
-with the deferred GPU cache cost check.*
+the color accounting; only the color caller publishes it. Suppressing cache
+eviction is not color-only: section 6.2 does it for all three sinks, because
+a traversal that lets the cache evict while it runs can lose the mesh of a
+tile it has already accepted for drawing.*
 
 ### 12. The no-load metanode path skips a side effect the draw needs
 
@@ -2288,5 +2307,15 @@ The re-read explanation cited section 6.5 alone for a generation bump defined in
 4.3.
 
 *Applied. Section 5.4 now cites sections 4.3 and 6.5 together.*
+
+### 5. Suppressed cache eviction belongs to every pass, not the color one
+
+Raised from implementation, on the same fast track. All three passes run the
+same traversal and draw a tile as soon as they accept it, so the eviction
+rule is the same for all three. Section 6.2 gave it to the color pass alone.
+
+*Applied. Section 6.2 gives the rule to every pass, and adds that a rig which
+declines to draw voids the elevation replacement. Section 10.3 records the
+crash that exposed it.*
 
 The design is accepted. The status line moves to `Accepted`.
