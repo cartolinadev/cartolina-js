@@ -1036,7 +1036,8 @@ class Map {
         // Position-change events.
         const position = legacyMap.position;
         const lastPosition = legacyMap.lastPosition;
-        if (!position.isSame(lastPosition)) {
+        this.moving_ = !position.isSame(lastPosition);
+        if (this.moving_) {
 
             this.bus_.emit('map-position-changed', {
                 'position': position.toArray(),
@@ -1296,6 +1297,12 @@ class Map {
     // -----------------------------------------------------------------
     // Terrain elevation
     // -----------------------------------------------------------------
+
+    /** Whether the position changed at the start of the current tick. */
+    get moving(): boolean {
+
+        return this.moving_;
+    }
 
     /** Updates a retained terrain sample set in place. */
     updateTerrainSamples(
@@ -2003,6 +2010,8 @@ class Map {
     // -----------------------------------------------------------------
 
     private disposed_ = false;
+
+    private moving_ = false;
 
     /**
      * The elevation store, or null before the reference frame is ready

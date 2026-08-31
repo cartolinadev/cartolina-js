@@ -631,6 +631,26 @@ run the relevant check, then either turn it into the minimal confirmed
 fix or discard it. Do not stack new hypotheses on top of failed trial
 code.
 
+### No workarounds for undiagnosed bugs
+
+When something does not work, find the defect. Do not propose or build
+machinery whose purpose is to make the symptom tolerable while the
+defect stays in the tree. A fallback path, a looser invariant, a retry,
+or a finer granularity added around a failure you have not explained
+costs more than the fix it avoids: the bug is still there, and there is
+now a second mechanism to maintain that conceals it.
+
+The tell is a remedy justified by what the code cannot be relied on to
+do, rather than by the mechanism that makes it fail. "This value is
+sometimes missing, so handle the missing case" is a workaround. "This
+value is missing because that producer never runs on this path" is a
+diagnosis, and the fix follows from it. Weakening a check that fails is
+the same mistake: a failing check has either found a defect or is itself
+wrong, so establish which before touching it.
+
+When the mechanism genuinely is not diagnosed, say so and stop. An
+undiagnosed bug is a smaller liability than a design built around it.
+
 ### No loose ends
 
 Finish what the change starts. Code that a change makes redundant is

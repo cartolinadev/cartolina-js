@@ -8,6 +8,9 @@ import type MapDivisionNode from './division-node';
 import type MapGeodataProcessor from './geodata-processor/processor';
 
 
+const ReadinessPersistenceMs = 1000;
+
+
 /**
  * Retains the main-thread half of one worker-owned geodata job.
  *
@@ -60,6 +63,7 @@ class GeodataHeightcodingJob {
 
         // Output in flight belongs to the view that held the route.
         this.listener_ = listener;
+        this.readinessDemandSince_ = -Infinity;
         this.publishPending_ = false;
     }
 
@@ -83,6 +87,7 @@ class GeodataHeightcodingJob {
 
         if (this.disposed_ || this.listener_ !== listener) return;
 
+        this.published_ = true;
         this.publishPending_ = false;
 
         if (!this.changesPending_) return;
@@ -100,7 +105,6 @@ class GeodataHeightcodingJob {
 
         if (this.started_) return null;
         this.started_ = true;
-        this.publishPending_ = true;
 
         const legacyMap = this.map_.map!;
         const node = this.node_;
@@ -121,7 +125,8 @@ class GeodataHeightcodingJob {
     /** Requests fresh render commands from the retained worker geometry. */
     rebuild(): boolean {
 
-        if (!this.retained || this.publishPending_) return false;
+        if (!this.retained || !this.published_ || this.publishPending_)
+            return false;
 
         this.publishPending_ = true;
         this.send('heightcoding-rebuild', {
@@ -137,16 +142,28 @@ class GeodataHeightcodingJob {
         const sampleSet = this.sampleSet_;
         if (!sampleSet || this.disposed_) return null;
 
-        const changedGsd = sampleSet.desiredGsd !== desiredGsd;
         const now = performance.now();
 
-        if (!changedGsd && now - this.lastUpdate_
-                < this.map_.config.mapElevationStoreSampleIntervalMs)
-            return null;
+        if (this.map_.moving) {
+
+            if (this.readinessDemandSince_ === -Infinity)
+                this.readinessDemandSince_ = now;
+
+            if (now - this.readinessDemandSince_ < ReadinessPersistenceMs) {
+
+                this.map_.map?.markDirty();
+                return null;
+            }
+
+        } else {
+
+            this.readinessDemandSince_ = -Infinity;
+        }
 
         sampleSet.desiredGsd = desiredGsd;
+
         if (this.sampleUpdate_) return this.sampleUpdate_;
-        this.lastUpdate_ = now;
+        this.readinessDemandSince_ = now;
 
         this.sampleUpdate_ = this.map_.updateTerrainSamples(sampleSet)
             .then((changed) => {
@@ -226,6 +243,12 @@ class GeodataHeightcodingJob {
             return;
         }
 
+        if (this.sentRevision_ === 0) {
+
+            for (let index = 0; index < last.length; index++)
+                if (samples[index] === undefined) return;
+        }
+
         const changed: number[] = [];
 
         for (let index = 0; index < samples.length; index++) {
@@ -278,8 +301,9 @@ class GeodataHeightcodingJob {
     private sampleUpdate_: Promise<boolean> | null = null;
     private lastSentHeights_: Float64Array | null = null;
     private sentRevision_ = 0;
-    private lastUpdate_ = -Infinity;
+    private readinessDemandSince_ = -Infinity;
     private started_ = false;
+    private published_ = false;
     private publishPending_ = false;
     private changesPending_ = false;
     private disposed_ = false;

@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-31 - Make store heightcoding publication and motion admission real
+
+Corrected gate 2 so store mode cannot publish delivered geometry or use
+delivered heights as missing store answers. Sample preparation is bounded per
+tick, and draw-traversal readiness must persist before a tile's store update
+starts, preventing fly-by tiles from consuming the queue while allowing
+persistently needed geometry to publish. Removing the delivered-geometry
+fallback exposed, rather than introduced, a monolithic-path defect: its atomic
+first publication can wait forever for coordinates outside current store
+coverage.
+
 ## 2026-08-31 - Give the normal-map blender its own vertex array
 
 `TextureBlend` drew its quad on the default vertex array and repointed

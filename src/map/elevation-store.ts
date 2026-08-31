@@ -12,6 +12,10 @@ import ElevationTerrainSink from './elevation-terrain-sink';
 import * as utils from '../utils/utils';
 
 
+const PreparationBudgetMs = 8;
+const PreparationChunk = 256;
+
+
 /**
  * A height field over the terrain ready for normal rendering.
  *
@@ -70,21 +74,10 @@ class ElevationStore {
         const retainedState = this.sampleSetStates_.get(sampleSet);
         const count = sampleCount(sampleSet);
 
-        if (!retainedState
+        const validate = !retainedState
                 || retainedState.positions !== sampleSet.positions
                 || retainedState.samples !== sampleSet.samples
-                || retainedState.samples.length !== count) {
-
-            for (let index = 0; index < count; index++) {
-
-                if (!validPosition(sampleSet, index)) {
-
-                    return Promise.reject(new TypeError(
-                        'updateTerrainSamples: every position must contain '
-                        + 'two finite numbers.'));
-                }
-            }
-        }
+                || retainedState.samples.length !== count;
 
         const state = this.sampleSetState(sampleSet);
 
@@ -94,57 +87,33 @@ class ElevationStore {
         if (now - state.lastChecked < interval) return Promise.resolve(false);
         state.lastChecked = now;
 
-        const lookups: Lookup[] = [];
-
-        // Residency cannot move while this scan runs, so the per-node
-        // figures and tile paths it derives hold for every sample here.
-        const nodeScans = new globalThis.Map<MapDivisionNode, NodeScan>();
-
-        for (let index = 0; index < count; index++) {
-
-            let ref = state.refs[index];
-
-            if (!ref) {
-
-                ref = sampleSet.coordinateSpace === 'spatial-division'
-                    ? this.resolveSpatialDivisionPosition(sampleSet, index)
-                    : this.resolveGeographicPosition(
-                        sampleSet.positions[index]);
-                state.refs[index] = ref;
-            }
-
-            if (!ref) continue;
-
-            const candidates = this.resolveUnits(
-                ref, sampleSet.desiredGsd, nodeScans);
-
-            if (candidates && candidates.length > 0)
-                lookups.push({ update: null!, index, candidates });
-        }
-
-        if (lookups.length === 0) return Promise.resolve(false);
-
         let resolve!: (changed: boolean) => void;
-        const promise = new Promise<boolean>((settle) => {
+        let reject!: (reason: unknown) => void;
+        const promise = new Promise<boolean>((settle, fail) => {
             resolve = settle;
+            reject = fail;
         });
 
         const update: SampleUpdate = {
             sampleSet,
             state,
-            lookups,
+            desiredGsd: sampleSet.desiredGsd,
+            count,
+            validate,
+            scanIndex: 0,
+            nodeScans: new globalThis.Map(),
+            lookups: [],
             next: 0,
-            pending: lookups.length,
+            pending: 0,
             changed: false,
             promise,
             resolve,
+            reject,
             settled: false,
         };
 
-        for (const lookup of lookups) lookup.update = update;
-
         this.updates_.set(sampleSet, update);
-        this.queue_.push(update);
+        this.preparing_.push(update);
         return promise;
     }
 
@@ -171,6 +140,7 @@ class ElevationStore {
         }
 
         this.collectReadback();
+        this.prepareUpdates();
         this.submitBatch();
     }
 
@@ -464,13 +434,11 @@ class ElevationStore {
         const startLod = scan.startLod;
         if (startLod < rootLod) return [];
 
-        const candidates: ResidentUnit[] = [];
         const uv = [0, 0];
         const startTile = refFrame.getNodeTileAt(
             node, ref.coords, startLod, uv);
-
         const ladder = this.tileLadder(scan, startTile);
-
+        let candidates: ResidentUnit[] | null = null;
         let x = startTile[1];
         let y = startTile[2];
         let u = uv[0];
@@ -481,19 +449,20 @@ class ElevationStore {
 
             const unit = ladder[step];
 
-            if (unit)
-                candidates.push({ unit, u, v, actualGsd });
-
             if (unit && sameTile(ref.tileId, startLod - step, x, y)) {
 
-                if (candidates.length === 1
-                        && unit.generation === ref.generation)
+                if (!candidates && unit.generation === ref.generation)
                     return null;
+
+                (candidates ??= []).push({ unit, u, v, actualGsd });
 
                 if (unit.watertight) return candidates;
 
                 break;
             }
+
+            if (unit)
+                (candidates ??= []).push({ unit, u, v, actualGsd });
 
             if (unit?.watertight) return candidates;
 
@@ -504,7 +473,7 @@ class ElevationStore {
             actualGsd *= 2;
         }
 
-        return candidates;
+        return candidates ?? [];
     }
 
     /**
@@ -541,6 +510,96 @@ class ElevationStore {
 
         scan.ladders.set(key, ladder);
         return ladder;
+    }
+
+    private prepareUpdates(): void {
+
+        const deadline = performance.now() + PreparationBudgetMs;
+        let active: SampleUpdate | null = null;
+
+        while (this.preparing_.length > 0) {
+
+            const update = this.preparing_[0];
+
+            if (update !== active) {
+
+                update.nodeScans.clear();
+                active = update;
+            }
+
+            if (update.settled) {
+
+                this.preparing_.shift();
+                continue;
+            }
+
+            this.prepareUpdate(update);
+
+            if (update.settled) {
+
+                this.preparing_.shift();
+                continue;
+            }
+
+            if (update.scanIndex === update.count) {
+
+                this.preparing_.shift();
+                update.pending = update.lookups.length;
+
+                if (update.pending === 0) {
+
+                    this.finishUpdate(update);
+
+                } else {
+
+                    this.queue_.push(update);
+                }
+            }
+
+            if (performance.now() >= deadline) break;
+        }
+    }
+
+    private prepareUpdate(update: SampleUpdate): void {
+
+        const sampleSet = update.sampleSet;
+        const state = update.state;
+        const end = Math.min(
+            update.scanIndex + PreparationChunk, update.count);
+
+        // Residency cannot move while this scan runs, so the per-node
+        // figures and tile paths it derives hold for every sample here.
+        for (let index = update.scanIndex; index < end; index++) {
+
+            if (update.validate && !validPosition(sampleSet, index)) {
+
+                this.failUpdate(update, new TypeError(
+                    'updateTerrainSamples: every position must contain '
+                    + 'two finite numbers.'));
+                return;
+            }
+
+            let ref = state.refs[index];
+
+            if (!ref) {
+
+                ref = sampleSet.coordinateSpace === 'spatial-division'
+                    ? this.resolveSpatialDivisionPosition(sampleSet, index)
+                    : this.resolveGeographicPosition(
+                        sampleSet.positions[index]);
+                state.refs[index] = ref;
+            }
+
+            if (!ref) continue;
+
+            const candidates = this.resolveUnits(
+                ref, update.desiredGsd, update.nodeScans);
+
+            if (candidates && candidates.length > 0)
+                update.lookups.push({ update, index, candidates });
+        }
+
+        update.scanIndex = end;
     }
 
     private submitBatch(): void {
@@ -744,6 +803,16 @@ class ElevationStore {
         update.resolve(false);
     }
 
+    private failUpdate(update: SampleUpdate, error: unknown): void {
+
+        if (update.settled) return;
+
+        update.settled = true;
+        this.updates_.delete(update.sampleSet);
+        this.sampleSetStates_.delete(update.sampleSet);
+        update.reject(error);
+    }
+
     private settlePending(): void {
 
         if (this.inFlight_) {
@@ -755,6 +824,7 @@ class ElevationStore {
         for (const update of this.updates_.values())
             this.cancelUpdate(update);
 
+        this.preparing_ = [];
         this.queue_ = [];
         this.updates_.clear();
     }
@@ -908,6 +978,7 @@ class ElevationStore {
 
     private sampleSetStates_ =
         new WeakMap<ElevationStore.SampleSet, SampleSetState>();
+    private preparing_: SampleUpdate[] = [];
     private queue_: SampleUpdate[] = [];
     private inFlight_: InFlight | null = null;
 
@@ -984,12 +1055,18 @@ type Lookup = {
 type SampleUpdate = {
     sampleSet: ElevationStore.SampleSet;
     state: SampleSetState;
+    desiredGsd: number;
+    count: number;
+    validate: boolean;
+    scanIndex: number;
+    nodeScans: globalThis.Map<MapDivisionNode, NodeScan>;
     lookups: Lookup[];
     next: number;
     pending: number;
     changed: boolean;
     promise: Promise<boolean>;
     resolve: (changed: boolean) => void;
+    reject: (reason: unknown) => void;
     settled: boolean;
 };
 

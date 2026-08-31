@@ -574,6 +574,13 @@ self.onmessage = function (e) {
                     'coordinateSpace': registration.coordinateSpace,
                     'positions': registration.positions
                 }, [registration.positions.buffer]);
+
+                postMessage({
+                    'command': 'ready',
+                    'jobId': registration.jobId
+                });
+                globals.geodataJobId = null;
+                break;
             } else {
                 postMessage({
                     'command': 'heightcoding-unused',

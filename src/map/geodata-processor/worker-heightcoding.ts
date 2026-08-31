@@ -67,7 +67,7 @@ class WorkerHeightcodingJobs {
                 records.push({
                     target,
                     offset,
-                    original,
+                    original: source ? null : original,
                     source,
                     heightOffset,
                     sampleIndex,
@@ -84,6 +84,7 @@ class WorkerHeightcodingJobs {
             geodata,
             groups,
             heights: new Float64Array(positions.length / 2).fill(NaN),
+            initialized: false,
             revision: 0,
             renderState,
             toPhysical,
@@ -108,14 +109,19 @@ class WorkerHeightcodingJobs {
             job.heights[update.indices[index]] = update.heights[index];
 
         job.revision = update.revision;
+
+        if (job.heights.some((height) => Number.isNaN(height))) return null;
+
         rebuild(job);
+        job.initialized = true;
         return job;
     }
 
     /** Returns retained geometry for a view rebuild. */
     get(jobId: number): Job | null {
 
-        return this.jobs_.get(jobId) ?? null;
+        const job = this.jobs_.get(jobId);
+        return job?.initialized ? job : null;
     }
 
     /** Releases one retained parsed payload. */
@@ -146,7 +152,7 @@ type GeodataGroup = {
 type CoordinateRecord = {
     target: number[];
     offset: number;
-    original: number[];
+    original: number[] | null;
     source: number[] | null;
     heightOffset: number;
     sampleIndex: number;
@@ -163,6 +169,7 @@ type Job = {
     geodata: Geodata;
     groups: GroupRecord[];
     heights: Float64Array;
+    initialized: boolean;
     revision: number;
     renderState: WorkerHeightcodingJobs.RenderState;
     toPhysical: proj4.Converter;
@@ -200,8 +207,10 @@ function rebuild(job: Job): void {
 
             const height = job.heights[record.sampleIndex];
 
-            if (record.sampleIndex < 0 || Number.isNaN(height))
-                return record.original;
+            if (record.sampleIndex < 0) return record.original!;
+
+            if (Number.isNaN(height))
+                throw new Error('Heightcoding rebuild lacks a store height.');
 
             return job.toPhysical.forward([
                 record.source![0],

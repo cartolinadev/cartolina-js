@@ -1218,18 +1218,48 @@ Landed the round-6 worker/main split: `GeodataHeightcodingJob`,
 `heightcoding-update` / `heightcoding-rebuild` / `heightcoding-release`
 protocol, replacing `MapGeodataHeightcoder`. The worker owns parsing,
 coordinate conversion, and rebuilding; `MapGeodata` retains only the
-job and its sample set. The geographic branch heightcodes from a
-group's own geometry when no builder metadata entry supplies a source
-position, so delivered monolithic geodata is heightcoded the same as
-tiled geodata. The height-update publish barrier is the view's
-`commitGpuGroups()`, so a rebuild cannot start before the previous
-one's render commands are committed.
+job and its sample set.
+
+The first version of this attempt incorrectly published delivered geometry
+before store heights arrived and used its delivered heights for missing store
+answers. That made the performance comparison invalid. The worker now uses a
+sampled coordinate's delivered physical position only to derive its 2D store
+coordinate, then discards it. Registration leaves the tile unpublished in the
+worker until a complete first set of store heights arrives. A replacement may
+leave the previous complete store-built GPU result visible, but neither an
+initial publication nor a replacement can use delivered heights.
+
+Removing that fallback exposed an existing monolithic-path defect; it did not
+create the missing publication. A monolithic job registers one sample set for
+its complete payload and waits for every coordinate before its first atomic
+publication. The store, however, contains only terrain covered by current or
+retained traversal units. Coordinates outside that coverage remain undefined,
+so the complete first update can remain unreachable and the layer stays
+unpublished. No worker update or render-command publication begins in this
+case. The earlier delivered-geometry fallback had concealed this failure.
+Gate 2 remains incomplete until this coverage incompatibility is remedied;
+weakening atomic publication is not the remedy.
+
+The remaining motion cost was main-thread sample preparation. Preparation now
+scans one accepted sample set in bounded 256-coordinate chunks under an
+eight-millisecond tick budget instead of scanning all coordinates in the draw
+traversal call.
+
+Registration alone does not admit a sample set during motion. Readiness demand
+for the same view from draw traversal must persist for one second before the
+main thread starts its store update. A fly-by tile can therefore remain
+unpublished until its geodata is evicted, while a tile retained by slow motion
+crosses the gate and publishes. A stable or initial view starts immediately.
+The worker is free between registration and the eventual height update. The
+height-update publish barrier remains the view's `commitGpuGroups()`, so
+another rebuild cannot start before the previous one's render commands are
+committed.
 
 Samples in a set share one node and one requested gsd, so a scan derives
 the per-node figures once and walks each distinct tile path once rather
 than per sample. Unit keys pack a tile ID into one double, bounding the store to
-LOD 24. Backlog 59 holds a further step, retaining the walks on the
-sample set.
+LOD 24. The retained tile-ladder cache proposed in backlog 59 remains
+unimplemented.
 
 With the caches full, the elevation pass could throw. A tile
 draws as soon as the traversal accepts it, but the readiness
