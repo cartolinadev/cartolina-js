@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-31 - Give the normal-map blender its own vertex array
+
+`TextureBlend` drew its quad on the default vertex array and repointed
+only its own attribute, so it inherited whatever the legacy draw paths
+left enabled there. A geodata republish deletes the previous job buffers
+and strands those attributes, which rejected the blend draw; the shared
+accumulator then still held the previous tile's normals and `copyResult`
+baked them into this tile's collapsed texture. Backlog entry 60 records
+the stranding itself, which the GLSL 1.0 shader refactor is expected to
+remove.
+
 ## 2026-08-31 - Fix an elevation-pass crash under a full GPU cache
 
 Suppressed GPU cache eviction for the whole terrain traversal in all

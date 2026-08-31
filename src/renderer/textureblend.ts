@@ -16,12 +16,18 @@
 
 export class TextureBlend {
 
-    private gl: WebGLRenderingContext;
+    private gl: WebGL2RenderingContext;
     private width: number;
     private height: number;
     private trivialProgram: WebGLProgram | null;
     private octNormalProgram: WebGLProgram | null;
     private positionBuffer: WebGLBuffer | null;
+
+    // The quad lives in a vertex array of its own. On the default one it
+    // would inherit whatever attribute arrays the legacy draw paths left
+    // enabled, and a draw is rejected outright when one of those has lost
+    // its buffer to a resource release.
+    private vao: WebGLVertexArrayObject | null;
 
     // fboA is the sole target in trivial mode.
     // In oct-normal mode both FBOs ping-pong.
@@ -46,7 +52,7 @@ export class TextureBlend {
     private originalViewport: Int32Array | null = null;
     private originalBlendEnabled: boolean = false;
 
-    constructor(gl: WebGLRenderingContext, width: number, height: number) {
+    constructor(gl: WebGL2RenderingContext, width: number, height: number) {
 
         this.gl = gl;
         this.width = width;
@@ -61,12 +67,35 @@ export class TextureBlend {
         this.octNormalProgram = this.initShaderProgram('oct-normal');
 
         this.positionBuffer = this.gl.createBuffer();
+        this.vao = this.gl.createVertexArray();
+
+        this.gl.bindVertexArray(this.vao);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
         this.gl.bufferData(this.gl.ARRAY_BUFFER,
             new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]),
             this.gl.STATIC_DRAW);
 
+        // Both programs declare the one attribute, so both locations are
+        // set up here against the same buffer and neither blend has to
+        // touch attribute state again.
+        for (const program of [this.trivialProgram, this.octNormalProgram])
+            this.bindQuadAttribute(program);
+
+        this.gl.bindVertexArray(null);
         this.restoreInitialState();
+    }
+
+
+    /** Points one program's `a_position` at the quad, in the bound array. */
+    private bindQuadAttribute(program: WebGLProgram): void {
+
+        const gl = this.gl;
+        const location = gl.getAttribLocation(program, 'a_position');
+
+        if (location < 0) return;
+
+        gl.enableVertexAttribArray(location);
+        gl.vertexAttribPointer(location, 2, gl.FLOAT, false, 0, 0);
     }
 
     /**
@@ -134,6 +163,7 @@ export class TextureBlend {
             gl.deleteBuffer(this.positionBuffer);
             this.positionBuffer = null;
         }
+        if (this.vao) { gl.deleteVertexArray(this.vao); this.vao = null; }
     }
 
     // ---------------------------------------------------------------
@@ -152,15 +182,12 @@ export class TextureBlend {
         gl.uniform1f(
             gl.getUniformLocation(this.trivialProgram!, 'u_alpha'), alpha);
 
-        const posLoc =
-            gl.getAttribLocation(this.trivialProgram!, 'a_position');
-        gl.enableVertexAttribArray(posLoc);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+        gl.bindVertexArray(this.vao);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         // trivial mode never swaps — fboA is always the accumulator
@@ -187,13 +214,10 @@ export class TextureBlend {
         gl.uniform1f(
             gl.getUniformLocation(this.octNormalProgram!, 'u_alpha'), alpha);
 
-        const posLoc =
-            gl.getAttribLocation(this.octNormalProgram!, 'a_position');
-        gl.enableVertexAttribArray(posLoc);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
+        gl.bindVertexArray(this.vao);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
         this.accumIsA = !this.accumIsA;
@@ -245,9 +269,10 @@ export class TextureBlend {
 
     /*
      * WARN:
-     * Restores only part of the state changed by blend(). Array-buffer
-     * binding and vertex attribute enables are left as-is, so caller-side
-     * state caches can drift from actual GL state after this runs.
+     * Restores only part of the state changed by blend(). The array-buffer
+     * binding is left as-is, so caller-side state caches can drift from
+     * actual GL state after this runs. Attribute enables belong to this
+     * class's own vertex array and never reach the caller's.
      */
     private restoreInitialState() {
 

@@ -23,6 +23,41 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-60"></a>
+## 60. Legacy draws leave attribute arrays enabled on the default VAO
+
+**Opened:** 2026-08-31
+**Status:** open — expected to close with the GLSL 1.0 shader refactor
+**Related:** `src/renderer/gpu/device.ts`, `src/renderer/draw.js`,
+`src/renderer/gpu/bbox.js`, `src/renderer/gpu/line.js`,
+`src/renderer/gpu/pixel-line3.js`
+
+`GpuDevice.useProgram()` enables vertex attribute arrays by index on the
+default vertex array and caches the set in `enabledAttributes`. They stay
+enabled after the draw and after the frame. Deleting a buffer detaches it
+from the attribute arrays of the vertex array bound at that moment and
+leaves those arrays enabled, and the default one is what is bound
+whenever no other is. So any resource release strands whatever legacy
+attribute pointed at the released buffer, and the next draw on the
+default array that does not repoint it is rejected with
+`INVALID_OPERATION: no buffer is bound to enabled attribute`.
+
+Geodata republish reaches this constantly under `mapHeightcoding=store`:
+`commitGpuGroups` removes its own cache item, whose destructor runs
+`GpuGroup.kill` and deletes every job buffer. Cache size is irrelevant —
+republish frequency is what drives it.
+
+Paths that go through `useProgram()` repair themselves, because it
+disables attributes absent from the new program's list. `TextureBlend`
+did not, and drew a quad on the default array repointing only its own
+attribute; it now owns a vertex array. The remaining exposure is
+`bbox.js`, `line.js`, `pixel-line3.js` and the `draw.js` paths.
+
+The legacy calls are expected to go with the GLSL 1.0 shader refactor.
+That refactor should not carry the pattern forward: a draw either owns a
+vertex array or repoints every attribute it leaves enabled.
+
+
 <a id="backlog-59"></a>
 ## 59. Retain elevation-store tile walks across sample updates
 
