@@ -599,7 +599,7 @@ self.onmessage = function (e) {
         if (updatedJob) {
             globals.geodataJobId = data.jobId;
             setRenderState(updatedJob.renderState);
-            publishGeodata(updatedJob.geodata);
+            publishGeodata(updatedJob.builtGeodata);
         }
 
         break;
@@ -610,7 +610,7 @@ self.onmessage = function (e) {
         if (retainedJob) {
             globals.geodataJobId = data.jobId;
             setRenderState(retainedJob.renderState);
-            publishGeodata(retainedJob.geodata);
+            publishGeodata(retainedJob.builtGeodata);
         }
 
         break;

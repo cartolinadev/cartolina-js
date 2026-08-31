@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-08-31 - Publish store heightcoding from the heights the store has
+
+Store heightcoding required a height for every coordinate of a payload before
+its first publication, which the store can never supply: a payload reaches
+past the terrain the traversal has drawn. The monolithic layer never
+published, and tiled tiles at the edge of the view never published
+either. Publication now proceeds from the heights that are available, a
+coordinate without one takes the height of the nearest coordinate that has
+one, and later updates replace it once the store covers it. An unanswered
+coordinate is off screen, since store coverage holds every drawn tile, so
+nothing visible is placed from a carried height. Delivered heights stay
+unused.
+
+Nothing else gates the first publication. The readiness-persistence check on
+sample updates already keeps a tile the view passes over from starting one.
+
 ## 2026-08-31 - Make store heightcoding publication and motion admission real
 
 Corrected gate 2 so store mode cannot publish delivered geometry or use

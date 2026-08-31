@@ -5,7 +5,15 @@
 import proj4 from 'proj4';
 
 
-/** Owns parsed geodata retained for elevation-store heightcoding. */
+/**
+ * The worker-side registry of retained heightcoding jobs, keyed by job id.
+ *
+ * `register` parses one payload, converts each coordinate to its store
+ * position, and returns those positions to the main thread. `apply` writes
+ * the heights the main thread sends back and rebuilds the geometry; `get`
+ * returns an already-built job for a view rebuild. This owns the parsed
+ * geodata for the payload's lifetime; the main thread owns only the heights.
+ */
 class WorkerHeightcodingJobs {
 
     /**
@@ -82,6 +90,7 @@ class WorkerHeightcodingJobs {
 
         const job: Job = {
             geodata,
+            builtGeodata: geodata,
             groups,
             heights: new Float64Array(positions.length / 2).fill(NaN),
             initialized: false,
@@ -110,9 +119,8 @@ class WorkerHeightcodingJobs {
 
         job.revision = update.revision;
 
-        if (job.heights.some((height) => Number.isNaN(height))) return null;
+        if (!rebuild(job)) return null;
 
-        rebuild(job);
         job.initialized = true;
         return job;
     }
@@ -166,12 +174,32 @@ type GroupRecord = {
 
 
 type Job = {
+
+    /** Full parsed payload, kept so a later update can place a group
+     * a build skipped. */
     geodata: Geodata;
+
+    /** The subset of `geodata`'s groups published last, those with a
+     * store height. */
+    builtGeodata: Geodata;
+
+    /** Per-group records mapping each vertex to its store coordinate and
+     * height slot. */
     groups: GroupRecord[];
+
+    /** Latest store height per sample coordinate; NaN until answered. */
     heights: Float64Array;
+
+    /** Whether a build has produced publishable geometry at least once. */
     initialized: boolean;
+
+    /** Highest update revision applied; a lower one is ignored. */
     revision: number;
+
+    /** Tile-dependent render state replayed on each publish. */
     renderState: WorkerHeightcodingJobs.RenderState;
+
+    /** Converts a store coordinate and height to a physical position. */
     toPhysical: proj4.Converter;
 };
 
@@ -197,25 +225,38 @@ function readPhysicalCoordinates(group: GeodataGroup): number[][] {
 }
 
 
-function rebuild(job: Job): void {
+/**
+ * Requantizes every group the store can place and records them as the
+ * job's built geodata.
+ *
+ * @returns whether any group was built
+ */
+function rebuild(job: Job): boolean {
+
+    const built: GeodataGroup[] = [];
 
     for (const { group, records } of job.groups) {
 
         if (records.length === 0) continue;
 
-        const physical = records.map((record) => {
+        const heights = groupHeights(job, records);
 
-            const height = job.heights[record.sampleIndex];
+        // A group with no store height at all lies entirely outside the
+        // terrain the traversal has drawn, and so entirely off screen.
+        // It is left out of this build and enters a later one once the
+        // store covers it.
+        if (!heights) continue;
+
+        built.push(group);
+
+        const physical = records.map((record, index) => {
 
             if (record.sampleIndex < 0) return record.original!;
-
-            if (Number.isNaN(height))
-                throw new Error('Heightcoding rebuild lacks a store height.');
 
             return job.toPhysical.forward([
                 record.source![0],
                 record.source![1],
-                height + record.heightOffset,
+                heights[index] + record.heightOffset,
             ]);
         });
 
@@ -248,6 +289,63 @@ function rebuild(job: Job): void {
 
         group.bbox = [minimum, maximum];
     }
+
+    job.builtGeodata = { ...job.geodata, groups: built };
+    return built.length > 0;
+}
+
+
+/**
+ * Store heights for one group's records, in record order.
+ *
+ * A coordinate the store has no height for takes the height of the
+ * nearest coordinate that has one. Record order follows the geometry,
+ * so a line running out of the store's coverage carries on at the
+ * height it had where the coverage ended. Such a coordinate is off
+ * screen, and it gets a measured height once the store covers it.
+ *
+ * @returns null when the group has no store height at all
+ */
+function groupHeights(
+    job: Job,
+    records: readonly CoordinateRecord[],
+): Float64Array | null {
+
+    const heights = new Float64Array(records.length).fill(NaN);
+    let carried = NaN;
+    let answered = false;
+
+    for (let index = 0; index < records.length; index++) {
+
+        const sample = records[index].sampleIndex;
+        if (sample < 0) continue;
+
+        const height = job.heights[sample];
+
+        if (!Number.isNaN(height)) {
+
+            carried = height;
+            answered = true;
+        }
+
+        heights[index] = carried;
+    }
+
+    if (!answered) return null;
+
+    // The records before the first answer had nothing to carry, so they
+    // take the first answer that follows them.
+    carried = NaN;
+
+    for (let index = records.length - 1; index >= 0; index--) {
+
+        if (records[index].sampleIndex < 0) continue;
+
+        if (Number.isNaN(heights[index])) heights[index] = carried;
+        else carried = heights[index];
+    }
+
+    return heights;
 }
 
 

@@ -1224,21 +1224,44 @@ The first version of this attempt incorrectly published delivered geometry
 before store heights arrived and used its delivered heights for missing store
 answers. That made the performance comparison invalid. The worker now uses a
 sampled coordinate's delivered physical position only to derive its 2D store
-coordinate, then discards it. Registration leaves the tile unpublished in the
-worker until a complete first set of store heights arrives. A replacement may
-leave the previous complete store-built GPU result visible, but neither an
-initial publication nor a replacement can use delivered heights.
+coordinate, then discards it. A replacement may leave the previous complete
+store-built GPU result visible, but neither an initial publication nor a
+replacement can use delivered heights.
 
-Removing that fallback exposed an existing monolithic-path defect; it did not
-create the missing publication. A monolithic job registers one sample set for
-its complete payload and waits for every coordinate before its first atomic
-publication. The store, however, contains only terrain covered by current or
-retained traversal units. Coordinates outside that coverage remain undefined,
-so the complete first update can remain unreachable and the layer stays
-unpublished. No worker update or render-command publication begins in this
-case. The earlier delivered-geometry fallback had concealed this failure.
-Gate 2 remains incomplete until this coverage incompatibility is remedied;
-weakening atomic publication is not the remedy.
+That version also required a height for every coordinate before the first
+publication. A payload's coordinates reach past the terrain the traversal has
+drawn, so the store cannot answer all of them and the requirement was
+unreachable. A monolithic layer never published at all. Tiled tiles at the
+edge of the view did not publish either: each missed a few coordinates
+which lay in an adjacent, off-screen tile, since a geodata tile carries
+features beyond its own extent.
+
+Publication now proceeds from the heights the store has. A coordinate without
+one takes the height of the nearest coordinate in the group that has one. That
+carry needs a seed, so the two rules are one rule with a boundary: a group
+with no answered coordinate at all has nothing to carry from and is left out
+of the build until the store covers it. Both are safe because store coverage
+contains the whole extent of every drawn tile and therefore the whole view, so
+an unanswered coordinate is off screen. A skipped group is entirely off screen
+for the same reason — one on-screen coordinate would have been answered. Each
+later update sends the heights that have since
+arrived, so a coordinate is drawn at a measured height as soon as the store
+reaches it. Delivered heights remain unused on every path.
+
+A tile publishes on the first sample update that answers anything, at whatever
+count that update delivered. Nothing further gates it: the readiness
+persistence above already keeps a tile the view passes over from starting an
+update at all, and each later update corrects the heights it carried.
+
+That coverage rule also corrects an expectation in section 2. Coverage
+reaches past the viewport only by the tiles which straddle its edge, whose
+whole extent a draw writes. It does not widen with LOD: a node whose on-screen
+quadrants are watertight and whose remaining quadrants are off screen returns
+before any draw, so its unit holds the reduction of the drawn children and
+nothing else, and the same hole propagates to the node root. Filling those
+quadrants would need the node's own rig, and the meshes of nodes above the
+drawn tiles are not resident, so it would need a terrain request, which
+section 12 rejects.
 
 The remaining motion cost was main-thread sample preparation. Preparation now
 scans one accepted sample set in bounded 256-coordinate chunks under an

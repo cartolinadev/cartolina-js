@@ -1,5 +1,23 @@
 /*
  * geodata-heightcoding-job.ts - join one geodata worker job to terrain samples
+ *
+ * Client heightcoding is split across the worker boundary. The worker
+ * (`WorkerHeightcodingJobs`) parses geodata, converts coordinates, and
+ * rebuilds render geometry; this class, on the main thread, samples the
+ * elevation store and feeds the worker heights. They share a job id and
+ * exchange five messages:
+ *
+ *   heightcoding-request  worker -> main  the store coordinates for a
+ *                                         payload that needs heightcoding;
+ *                                         this class builds its sample set
+ *   heightcoding-unused   worker -> main  the payload needs no heightcoding;
+ *                                         this class tears itself down
+ *   heightcoding-update   main -> worker  changed heights and a revision;
+ *                                         the worker applies them, rebuilds,
+ *                                         and republishes the geometry
+ *   heightcoding-rebuild  main -> worker  no heights; the worker re-emits
+ *                                         its current geometry for a new view
+ *   heightcoding-release  main -> worker  drop the retained worker job
  */
 
 import type Map from './map';
@@ -12,11 +30,13 @@ const ReadinessPersistenceMs = 1000;
 
 
 /**
- * Retains the main-thread half of one worker-owned geodata job.
+ * The main-thread half of one worker-owned geodata heightcoding job.
  *
- * The worker owns parsed geometry and rebuilding. This object owns only the
- * corresponding terrain sample set, revision state, and worker routing for
- * the lifetime of `MapGeodata`.
+ * One instance lives for the lifetime of a `MapGeodata` and survives the
+ * transient `MapGeodataView`s that render it. It owns the terrain sample
+ * set, samples the elevation store when a view demands it, and sends the
+ * changed heights to the worker over the protocol above. The worker owns
+ * the parsed geometry and the rebuild; this class holds no geodata.
  */
 class GeodataHeightcodingJob {
 
@@ -243,12 +263,6 @@ class GeodataHeightcodingJob {
             return;
         }
 
-        if (this.sentRevision_ === 0) {
-
-            for (let index = 0; index < last.length; index++)
-                if (samples[index] === undefined) return;
-        }
-
         const changed: number[] = [];
 
         for (let index = 0; index < samples.length; index++) {
@@ -290,22 +304,52 @@ class GeodataHeightcodingJob {
             command, data, null, null, transferables);
     }
 
+    /** Owning map, source of the elevation store and the moving flag. */
     private readonly map_: Map;
+
+    /** Geodata worker this job registers with and messages. */
     private readonly processor_: MapGeodataProcessor;
+
+    /** Reference-frame node of a tiled job; null for a monolithic one. */
     private readonly node_: MapDivisionNode | null;
+
+    /** Called when the worker reports the payload needs no heightcoding. */
     private readonly onUnused_: () => void;
+
+    /** Worker-registry key shared by both threads. */
     private readonly jobId_: number;
 
+    /** Current view's message route; null between views. */
     private listener_: GeodataHeightcodingJob.Listener | null = null;
+
+    /** Retained store coordinates; null until the worker registers them. */
     private sampleSet_: ElevationStore.SampleSet | null = null;
+
+    /** In-flight store update; repeated calls share this promise. */
     private sampleUpdate_: Promise<boolean> | null = null;
+
+    /** Heights last sent per coordinate, to diff the next update. */
     private lastSentHeights_: Float64Array | null = null;
+
+    /** Monotonic update counter; the worker drops an older revision. */
     private sentRevision_ = 0;
+
+    /** When this view first demanded readiness while the map moved. */
     private readinessDemandSince_ = -Infinity;
+
+    /** Whether the first parse has been sent to the worker. */
     private started_ = false;
+
+    /** Whether a committed view has released the next update. */
     private published_ = false;
+
+    /** Whether one worker output is in flight. */
     private publishPending_ = false;
+
+    /** Whether heights changed while an output was in flight. */
     private changesPending_ = false;
+
+    /** Whether the job is released. */
     private disposed_ = false;
 }
 
