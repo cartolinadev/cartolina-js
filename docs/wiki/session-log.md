@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-01 - Rename the elevation store's throttle fields, document its internal types
+
+`lastChecked`/`checkedGeneration` named neither what they hold nor what
+they gate; renamed to `updateStarted`/`updateGeneration`. Added doc
+comments to `ResidentUnit`, `SampleSetState`, `Lookup`, `SampleUpdate`,
+and `InFlight`, correcting a few in the process (`refs` invalidates per
+whole-array swap, not per position; `validate` guards against a caller
+that resizes a retained `SampleSet` in place, which the public API
+permits but no current caller does). RFC 13 section 10.3 gained a table
+of gate 2's motion-stutter mechanisms, replacing three paragraphs that
+said largely the same things across the third implementation attempt.
+No behavior change.
+
 ## 2026-09-01 - Keep the map drawing until the store's samples are scanned
 
 The non-interactive demo drew its route line on some loads and not others.

@@ -1213,96 +1213,112 @@ adding another lookup optimization.
 
 #### Third implementation attempt (2026-08-30)
 
-Landed the round-6 worker/main split: `GeodataHeightcodingJob`,
-`WorkerHeightcodingJobs`, and the `heightcoding-request` /
-`heightcoding-update` / `heightcoding-rebuild` / `heightcoding-release`
-protocol, replacing `MapGeodataHeightcoder`. The worker owns parsing,
-coordinate conversion, and rebuilding; `MapGeodata` retains only the
-job and its sample set.
+Landed the round-6 worker/main split from section 5.6:
+`GeodataHeightcodingJob` and `WorkerHeightcodingJobs` replace
+`MapGeodataHeightcoder`. The worker owns parsing, coordinate conversion,
+and rebuilding; `MapGeodata` retains only the job and its sample set.
 
-The first version of this attempt incorrectly published delivered geometry
-before store heights arrived and used its delivered heights for missing store
-answers. That made the performance comparison invalid. The worker now uses a
-sampled coordinate's delivered physical position only to derive its 2D store
-coordinate, then discards it. A replacement may leave the previous complete
-store-built GPU result visible, but neither an initial publication nor a
-replacement can use delivered heights.
+**The first version had two correctness bugs that invalidated the
+gate-2 comparison.** It published delivered geometry before store
+heights arrived, and fell back to delivered heights for any coordinate
+the store had not yet answered — so `store` mode was quietly drawing
+`legacy` geometry, and the performance comparison between the two
+carried no weight. Fixed: the worker uses a sampled coordinate's
+delivered physical position only to derive its 2D store coordinate,
+then discards it; no publication, initial or replacement, ever uses a
+delivered height. A pending replacement may leave the previous
+complete store-built result visible while it waits.
 
-That version also required a height for every coordinate before the first
-publication. A payload's coordinates reach past the terrain the traversal has
-drawn, so the store cannot answer all of them and the requirement was
-unreachable. A monolithic layer never published at all. Tiled tiles at the
-edge of the view did not publish either: each missed a few coordinates
-which lay in an adjacent, off-screen tile, since a geodata tile carries
-features beyond its own extent.
+It also required a height for every coordinate before the first
+publication. That is unreachable: a payload's coordinates commonly
+reach past the terrain the traversal has drawn, so the store cannot
+answer all of them. Nothing published as a result — a monolithic layer
+never published at all, and tiled tiles at the edge of the view were
+left unpublished, each missing a few coordinates that lay in an adjacent,
+off-screen tile. (A geodata tile carries features beyond its own extent,
+so an edge tile always has some.)
 
-Publication now proceeds from the heights the store has. A coordinate without
-one takes the height of the nearest coordinate in the group that has one. That
-carry needs a seed, so the two rules are one rule with a boundary: a group
-with no answered coordinate at all has nothing to carry from and is left out
-of the build until the store covers it. Both are safe because store coverage
-contains the whole extent of every drawn tile and therefore the whole view, so
-an unanswered coordinate is off screen. A skipped group is entirely off screen
-for the same reason — one on-screen coordinate would have been answered. Each
-later update sends the heights that have since
-arrived, so a coordinate is drawn at a measured height as soon as the store
-reaches it. Delivered heights remain unused on every path.
+**Publication now proceeds from the heights the store has.** A
+coordinate without one takes the height of the nearest coordinate in
+its group that has one; that carry needs a seed, so a group with no
+answered coordinate at all has nothing to carry from and is left out
+of the build until the store covers it — one rule, with a boundary.
+Both halves are safe because store coverage always contains the whole
+view, so an unanswered coordinate is off screen (a skipped group is
+entirely off screen for the same reason — one on-screen coordinate would
+have been answered). Each later update
+sends the heights that have since arrived, so a coordinate reaches its
+measured height as soon as the store covers it; delivered heights
+remain unused on every path. A tile publishes on the first sample
+update that answers anything, at whatever count that update delivered.
 
-A tile publishes on the first sample update that answers anything, at whatever
-count that update delivered. Nothing further gates it: the readiness
-persistence above already keeps a tile the view passes over from starting an
-update at all, and each later update corrects the heights it carried.
+That coverage rule also corrects an expectation in section 2: coverage
+does not widen with LOD past the tiles that straddle the view's edge.
+A node whose on-screen quadrants are watertight but whose remaining
+quadrants are off screen still returns before any draw, so its unit
+holds only the reduction of the drawn children, and the same hole
+propagates to the node root. Filling those quadrants would need the
+node's own rig — and the meshes of nodes above the drawn tiles are not
+resident — so it would need a terrain request, which section 12 rejects.
 
-That coverage rule also corrects an expectation in section 2. Coverage
-reaches past the viewport only by the tiles which straddle its edge, whose
-whole extent a draw writes. It does not widen with LOD: a node whose on-screen
-quadrants are watertight and whose remaining quadrants are off screen returns
-before any draw, so its unit holds the reduction of the drawn children and
-nothing else, and the same hole propagates to the node root. Filling those
-quadrants would need the node's own rig, and the meshes of nodes above the
-drawn tiles are not resident, so it would need a terrain request, which
-section 12 rejects.
+**Three mechanisms address the remaining motion cost — main-thread
+sample preparation blocking a frame, and work spent on terrain the
+view only passes through:**
 
-The remaining motion cost was main-thread sample preparation. Preparation now
-scans one accepted sample set in bounded 256-coordinate chunks under an
-eight-millisecond tick budget instead of scanning all coordinates in the draw
-traversal call.
+| mechanism | addresses | effect |
+|---|---|---|
+| bounded preparation (`PreparationBudgetMs`/`PreparationChunk`) | one scan blocking a whole frame | eight-millisecond, 256-coordinate-chunk budget per tick, instead of scanning every coordinate in one draw-traversal call |
+| per-scan node/tile-path sharing (`nodeScans`, `tileLadder`) | walking the same per-node figures and tile path once per sample | derives them once per scan instead |
+| readiness persistence (`ReadinessPersistenceMs`) | a fly-by tile's job doing work for terrain the view has already left | holds a sample set's first store update during motion until the same tile has been demanded for one second; a stable or initial view starts immediately |
 
-Registration alone does not admit a sample set during motion. Readiness demand
-for the same view from draw traversal must persist for one second before the
-main thread starts its store update. A fly-by tile can therefore remain
-unpublished until its geodata is evicted, while a tile retained by slow motion
-crosses the gate and publishes. A stable or initial view starts immediately.
-The worker is free between registration and the eventual height update. The
-height-update publish barrier remains the view's `commitGpuGroups()`, so
-another rebuild cannot start before the previous one's render commands are
-committed.
+Unit keys pack a tile ID into one double, bounding the store to LOD 24.
+Two other approaches were tried and reverted: a retained tile-ladder
+cache across separate scans (backlog 59) reduced lookup work but did
+not improve frame latency and cost more garbage collection, and a
+two-millisecond round-robin preparation schedule spread the same work
+across more frames without improving responsiveness. The worker is
+free between registration and the eventual height update; the
+height-update publish barrier remains the view's `commitGpuGroups()`,
+so another rebuild cannot start before the previous one's render
+commands are committed.
 
-Samples in a set share one node and one requested gsd, so a scan derives
-the per-node figures once and walks each distinct tile path once rather
-than per sample. Unit keys pack a tile ID into one double, bounding the store to
-LOD 24. The retained tile-ladder cache proposed in backlog 59 remains
-unimplemented.
+**Two unrelated defects surfaced and were fixed along the way.** With
+the caches full, the elevation pass could crash: a tile
+draws as soon as the traversal accepts it, but
+the readiness check's own texture uploads afterward could evict the
+mesh of that same tile before the elevation pass rasterized it. The
+color pass had always suppressed eviction for its traversal; depth and
+elevation now do too (section 6.2), and `drawElevation()` reports
+whether it drew, so a declined draw voids the replacement instead of
+publishing a unit with a hole no sample can tell from measured ground.
 
-With the caches full, the elevation pass could throw. A tile
-draws as soon as the traversal accepts it, but the readiness
-check keeps uploading textures afterwards, and an upload can evict the
-mesh of that very tile. The color pass had always suppressed eviction for
-its traversal; depth and elevation had not. Section 6.2 now suppresses it
-for all three. Separately, `drawElevation()` reports whether it drew, so
-a tile that declines voids the replacement instead of publishing a unit
-with a hole no sample can tell from measured ground.
+Separately, the store's per-sample-set scan interval assumed the store
+cannot change between two calls inside it. It can: the elevation pass
+adds units whether or not the map is drawing, and the map draws only
+when something calls `markDirty()` — so a map that stops drawing before
+the store answers never reads it again. The non-interactive demo's
+route line, drawn on three loads in sixteen, was one symptom. The
+store now counts the units it publishes, records that count on each
+read, and calls `markDirty()` both when it turns away a caller whose
+count is stale and when `endUnit()` publishes a unit, so a stopped map
+restarts and reads the answer it missed.
 
-The sample interval above rests on the store not changing between two
-calls inside it. It does change: the elevation pass adds units whether or
-not the map is drawing. The map draws only when something calls
-`markDirty()`, and callers read the store from the draw traversal, so a
-map which stops drawing stops reading, and terrain which arrives after it
-stops is never read. The non-interactive demo drew its route line on
-three loads in sixteen. The store now counts the units it adds, records
-that count on each read, and calls `markDirty()` when it turns a caller
-away and the count has changed since. `endUnit()` calls `markDirty()`
-when it adds a unit, which restarts a map that has already stopped.
+**Where this leaves gate 2.** The worker/main split matches the
+objectives above: the worker owns parsing, coordinate conversion, and
+rebuilding, and the main thread performs none of it. The coverage
+argument above supports the publication rule and the
+section-2 correction; the motion-cost mechanisms and the two fixed
+defects address the rest of the validation criteria — that store
+geometry stays attached to rendered terrain, settles after motion
+stops, and never loses the previous complete result while a
+replacement is pending. The attempt exposed two errors in the RFC body
+itself: section 2's coverage-widens-with-LOD claim, and the
+sample-interval throttle's premise that the store cannot change
+between two calls — true of the throttle's own cadence, but not once
+the map itself stops drawing, a case the elevation pass's timing does
+not depend on. Both are corrected above. The FPS bound itself needs a
+measured store-versus-legacy comparison, which this document does not
+record.
 
 ### 10.4 Gate 3: floating map positions
 

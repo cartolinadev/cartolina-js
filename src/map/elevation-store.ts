@@ -19,14 +19,17 @@ const PreparationChunk = 256;
 /**
  * A height field over the terrain ready for normal rendering.
  *
- * One unit belongs to each resident tile at or below a spatial division
- * node root. Node-root units stay resident after obtaining coverage; the
- * rest are evicted least-recently-used against
- * `mapElevationStoreGPUCache`.
+ * The store provides machinery for client-side heightcoding - resolving
+ * of 2D geographic or spatial-division coordinates into geodetic heights, based
+ * on the currently resident terrain.
  *
  * Consumers retain sample sets. A sample retains the resolved spatial
  * division node and the unit that answered, so an unchanged set avoids
  * repeating coordinate conversion and tile-path work.
+ *
+ * Internally, the store is composed of units, which correspond to the
+ * color-pass terrain tiles, one unit per each resident tile. The store
+ * operates on a budget configured through `mapElevationStoreGPUCache`.
  */
 class ElevationStore {
 
@@ -49,6 +52,9 @@ class ElevationStore {
      * often than `mapElevationStoreSampleIntervalMs` resolves `false`
      * without reading the store. Calling again after the interval gets
      * the reading that call missed; the map is kept drawing until then.
+     *
+     * The store retains a sample set and its metadata until disposed by
+     * call to `disposeTerrainSamples` (or until garbage-collected).
      *
      * @param sampleSet caller-owned positions, requested gsd, and samples
      * @returns whether at least one height or actual gsd changed
@@ -84,18 +90,19 @@ class ElevationStore {
         const interval = this.map_.config.mapElevationStoreSampleIntervalMs;
         const now = performance.now();
 
-        if (now - state.lastChecked < interval) {
+        if (now - state.updateStarted < interval) {
 
-            // A later generation means the store answered since this
-            // set's last read; markDirty() gets it read again.
-            if (state.checkedGeneration !== this.nextGeneration_)
+            // nextGeneration_ has moved past updateGeneration, so a
+            // unit was published since this set was last read;
+            // markDirty() gets it read again.
+            if (state.updateGeneration !== this.nextGeneration_)
                 this.map_.map?.markDirty();
 
             return Promise.resolve(false);
         }
 
-        state.lastChecked = now;
-        state.checkedGeneration = this.nextGeneration_;
+        state.updateStarted = now;
+        state.updateGeneration = this.nextGeneration_;
 
         let resolve!: (changed: boolean) => void;
         let reject!: (reason: unknown) => void;
@@ -137,9 +144,13 @@ class ElevationStore {
         if (update) this.cancelUpdate(update);
     }
 
-    /** Settles completed lookups and submits the next result chunk. */
+    /** Advances every pending sample-set update by one tick — applies a
+     * finished GPU answer and starts the next one. Call once per map
+     * tick to make progress on outstanding `updateTerrainSamples()`
+     * calls. */
     update(): void {
 
+        // change in the map's active surface set => full teardown
         const signature = this.map_.surfaceList()
             .map((source) => source.id).join(' ');
 
@@ -166,11 +177,7 @@ class ElevationStore {
         return this.budgetBytes_ + this.units_.fixedBytes;
     }
 
-    /**
-     * Admits this tick's elevation pass when its interval has elapsed.
-     *
-     * @returns whether the caller should run the pass
-     */
+    /** Admits this tick's elevation pass when its interval has elapsed. */
     admitElevationPass(): boolean {
 
         const interval = this.map_.config.mapElevationStoreUpdateIntervalMs;
@@ -182,29 +189,14 @@ class ElevationStore {
         return true;
     }
 
-    /** Releases every unit and settles every pending update. */
-    clear(): void {
-
-        for (const unit of this.resident_.values())
-            this.units_.releaseUnit(unit.handle);
-
-        this.resident_.clear();
-        this.pinned_.clear();
-        this.usedBytes_ = 0;
-        this.deepestLod_ = -1;
-        this.sampleSetStates_ = new WeakMap();
-
-        this.settlePending();
-    }
-
-    /** Releases every store-owned GPU resource. */
-    [Symbol.dispose](): void {
-
-        this.clear();
-        this.units_[Symbol.dispose]();
-    }
-
-    /** Starts one replacement unit from its published children. */
+    /**
+     * Starts one replacement unit from its published children.
+     *
+     * ElevationTerrainSink hook, called once per node before any
+     * `drawUnit()`/`endUnit()` for it.
+     *
+     * @param tileId the node root under construction
+     */
     beginUnit(tileId: [number, number, number]): void {
 
         this.replacementTile_ = tileId;
@@ -238,7 +230,16 @@ class ElevationStore {
             this.replacementDirty_ = true;
     }
 
-    /** Adds one selected ready rig to the replacement unit. */
+    /**
+     * Adds one selected ready rig to the replacement unit.
+     *
+     * ElevationTerrainSink hook, called once per drawn tile under the
+     * current node.
+     *
+     * @param tile the drawn tile
+     * @param rig its already-drawn colour-frame render rig, reused here
+     * @param maskTexture the tile's multi-surface mask, if any
+     */
     drawUnit(
         tile: MapSurfaceTile,
         rig: TileRenderRig,
@@ -274,7 +275,17 @@ class ElevationStore {
         this.replacementWatertight_ = true;
     }
 
-    /** Publishes a complete replacement when the node has coverage. */
+    /**
+     * Publishes a complete replacement when the node has coverage.
+     *
+     * ElevationTerrainSink hook, closing the `beginUnit()` that started
+     * this node.
+     *
+     * @param tileId the node root, matching the `beginUnit()` call
+     * @param covered whether the traversal drew or masked the whole node
+     * @param watertight whether that coverage has no partial or
+     *   off-screen gaps
+     */
     endUnit(
         tileId: [number, number, number],
         covered: boolean,
@@ -317,8 +328,30 @@ class ElevationStore {
         this.map_.map?.markDirty();
     }
 
+    /** Releases every store-owned GPU resource. */
+    [Symbol.dispose](): void {
+
+        this.clear();
+        this.units_[Symbol.dispose]();
+    }
+
     /** The elevation sink that builds units during a pass. */
     readonly sink: ElevationTerrainSink;
+
+    /** Releases every unit and settles every pending update. */
+    private clear(): void {
+
+        for (const unit of this.resident_.values())
+            this.units_.releaseUnit(unit.handle);
+
+        this.resident_.clear();
+        this.pinned_.clear();
+        this.usedBytes_ = 0;
+        this.deepestLod_ = -1;
+        this.sampleSetStates_ = new WeakMap();
+
+        this.settlePending();
+    }
 
     private sampleSetState(
         sampleSet: ElevationStore.SampleSet,
@@ -352,8 +385,8 @@ class ElevationStore {
             positions: sampleSet.positions,
             samples: sampleSet.samples,
             refs,
-            lastChecked: -Infinity,
-            checkedGeneration: -1,
+            updateStarted: -Infinity,
+            updateGeneration: -1,
         };
 
         this.sampleSetStates_.set(sampleSet, state);
@@ -560,14 +593,10 @@ class ElevationStore {
                 this.preparing_.shift();
                 update.pending = update.lookups.length;
 
-                if (update.pending === 0) {
-
+                if (update.pending === 0)
                     this.finishUpdate(update);
-
-                } else {
-
+                else
                     this.queue_.push(update);
-                }
             }
 
             if (performance.now() >= deadline) break;
@@ -1043,49 +1072,96 @@ type NodeScan = {
 };
 
 
+/** One step of `resolveUnits`'s fine-to-coarse candidate chain for a
+ * sample: a unit, where in it, and at what resolution. */
 type ResidentUnit = {
     unit: Unit;
+
+    /** Texture coordinates of the sample inside `unit`. */
     u: number;
     v: number;
+
+    /** gsd this unit actually answers at */
     actualGsd: number;
 };
 
 
+/** One sample set's state, retained for as long as its owner — the
+ * code holding the `SampleSet` object across repeated
+ * `updateTerrainSamples()` calls — keeps it around. The store only
+ * releases this when the owner calls `disposeTerrainSamples()`;
+ * `sampleSetStates_` is a `WeakMap`, so an owner that never calls it
+ * still does not leak once nothing else references the `SampleSet`. */
 type SampleSetState = {
     positions: readonly ElevationStore.Position[] | Float64Array;
     samples: (ElevationStore.Sample | undefined)[];
+
+    /** Resolved node/coordinate per sample index. */
     refs: (UnitRef | undefined)[];
-    lastChecked: number;
-    checkedGeneration: number;
+
+    /** `performance.now()` of when update for this set most recently began. */
+    updateStarted: number;
+
+    /** The store's unit-publish counter as of `updateStarted`. */
+    updateGeneration: number;
 };
 
 
+/** One call to `updateTerrainSamples()`, alive from acceptance until its
+ * promise settles. */
+type SampleUpdate = {
+
+    sampleSet: ElevationStore.SampleSet;
+    state: SampleSetState;
+    desiredGsd: number;
+
+    /** sample count when this update was accepted. */
+    count: number;
+
+    /** whether every position must be checked this scan */
+    validate: boolean;
+
+    /** how far into the sample set preparation has scanned */
+    scanIndex: number;
+
+    /** per-node lookup figures, valid only while this update is the one
+     * being prepared */
+    nodeScans: globalThis.Map<MapDivisionNode, NodeScan>;
+
+    /** lookups this update has produced, in scan order */
+    lookups: Lookup[];
+
+    /** how many of lookups have been submitted to a GPU batch */
+    next: number;
+
+    /** how many submitted lookups still await a GPU answer  */
+    pending: number;
+
+    /** whether any sample's height or actual gsd changed */
+    changed: boolean;
+
+    /** the promise returned by update and its resolution funcs */
+    promise: Promise<boolean>;
+    resolve: (changed: boolean) => void;
+    reject: (reason: unknown) => void;
+
+    /** whether the promise has settled, guarding against settling it
+     * twice from separate completion paths */
+    settled: boolean;
+};
+
+/** One sample's fine-to-coarse candidates, queued for next GPU batch */
 type Lookup = {
     update: SampleUpdate;
+
+    /** The sample's index within `update`'s sample set. */
     index: number;
     candidates: ResidentUnit[];
 };
 
 
-type SampleUpdate = {
-    sampleSet: ElevationStore.SampleSet;
-    state: SampleSetState;
-    desiredGsd: number;
-    count: number;
-    validate: boolean;
-    scanIndex: number;
-    nodeScans: globalThis.Map<MapDivisionNode, NodeScan>;
-    lookups: Lookup[];
-    next: number;
-    pending: number;
-    changed: boolean;
-    promise: Promise<boolean>;
-    resolve: (changed: boolean) => void;
-    reject: (reason: unknown) => void;
-    settled: boolean;
-};
-
-
+/** The one GPU lookup batch currently submitted and awaiting readback;
+ * the store keeps at most one in flight at a time. */
 type InFlight = {
     readback: ElevationUnits.Readback;
     batch: Lookup[];

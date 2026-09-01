@@ -1068,6 +1068,7 @@ class Map {
         legacyMap.stats.begin(dirty);
         legacyMap.tickBefore();
 
+        // settle completed elevation lookups + update elevation store
         this.updateElevation();
 
         // prepare and/or draw if dirty
