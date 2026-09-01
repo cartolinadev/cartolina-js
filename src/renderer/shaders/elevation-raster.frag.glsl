@@ -2,7 +2,7 @@
 precision highp float;
 precision highp int;
 
-in vec3 vWorldPos;
+in float vHeight;
 in vec2 vTexCoords2;
 
 #include "./includes/frame.inc.glsl";
@@ -10,7 +10,6 @@ in vec2 vTexCoords2;
 
 uniform sampler2D uMask;
 uniform bool uMaskEnabled;
-uniform bool uGeocentric;
 
 // height range of the reference frame, used for depth ordering
 uniform vec2 uHeightRange;
@@ -21,18 +20,13 @@ void main() {
 
     vec2 sampleUv = floor(gl_FragCoord.xy) / elevationSampleSpan;
 
-    // Undo the raster overscan. Position is affine within each triangle,
-    // so screen derivatives recover the point at the exact sample UV.
+    // Undo the raster overscan. Height is affine within each triangle,
+    // so screen derivatives recover the value at the exact sample UV.
     vec2 offset = (sampleUv - vTexCoords2)
         * (elevationSampleSpan + 0.5);
-    vec3 worldPos = vWorldPos
-        + dFdx(vWorldPos) * offset.x
-        + dFdy(vWorldPos) * offset.y;
-    vec3 physicalPos = worldPos + uFrame.physicalEyePos.xyz;
-    float height = uGeocentric
-        ? elevationGeodeticHeight(physicalPos, uFrame.bodyParams.x,
-                                  uFrame.bodyParams.y)
-        : physicalPos.z;
+    float height = vHeight
+        + dFdx(vHeight) * offset.x
+        + dFdy(vHeight) * offset.y;
 
     // Coverage already established by finer children and higher-priority
     // terrain sources; this draw only fills what they left uncovered.

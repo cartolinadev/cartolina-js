@@ -1303,6 +1303,18 @@ read, and calls `markDirty()` both when it turns away a caller whose
 count is stale and when `endUnit()` publishes a unit, so a stopped map
 restarts and reads the answer it missed.
 
+**A third defect put every coarse answer kilometres below the terrain.**
+The raster fragment shader interpolated the vertex positions across a
+triangle and took the geodetic height of the interpolated point. That
+point lies on the triangle's chord, and a coarse mesh chords far under
+the ellipsoid: the demo's first Prague reading, from tile 3-2-1 of the
+`pseudomerc` node — 1128 faces across 90 degrees of longitude — was
+-3586 m where the terrain is about 250 m. The shader now takes the
+height at the vertices, where section 3.2 puts the conversion, and
+interpolates it. That reading became 436 m, then 348 m as finer units
+arrived. Fine LODs are unaffected, their chords being millimetres under
+the surface.
+
 **Where this leaves gate 2.** The worker/main split matches the
 objectives above: the worker owns parsing, coordinate conversion, and
 rebuilding, and the main thread performs none of it. The coverage

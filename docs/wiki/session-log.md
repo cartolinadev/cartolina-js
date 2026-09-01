@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-01 - Take the elevation store's height at the mesh vertices
+
+The elevation raster shader interpolated vertex positions across a triangle
+and took the geodetic height of that point — the height of the chord, not of
+the surface. On a coarse tile the chord runs kilometres below the ellipsoid.
+The non-interactive demo's first Prague reading came from tile 3-2-1 of the
+`pseudomerc` node, whose 1128 faces span 90 degrees of longitude, and was
+-3586 m where the terrain is about 250 m. The height is now computed at the
+vertices and interpolated: the same reading is 436 m, then 348 m as finer
+units arrive. Fine LODs are unaffected. RFC 13 section 10.3 records it.
+
 ## 2026-09-01 - Run elevation passes only for requested samples
 
 The elevation store now remains dormant until a consumer first requests a

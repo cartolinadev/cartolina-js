@@ -288,20 +288,6 @@ class GeodataHeightcodingJob {
             last[indices[index]] = heights[index];
         }
 
-        const sentSamples = Array.from(indices, (index) => {
-
-            const sample = samples[index];
-            return sample && {
-                ...sample,
-                tileId: (sample.unit as {
-                    tileId?: readonly number[];
-                }).tileId,
-            };
-        });
-
-        console.warn('geodata terrain update', sentSamples,
-            Array.from(heights));
-
         this.sentRevision_++;
         this.publishPending_ = true;
         this.send('heightcoding-update', {

@@ -15,7 +15,10 @@ in vec2 aTexCoords2;
 // model matrix, aPosition -> camera-relative physical position
 uniform mat4 uModel;
 
-out vec3 vWorldPos;
+// geodetic height above the ellipsoid when true, physical Z when false
+uniform bool uGeocentric;
+
+out float vHeight;
 out vec2 vTexCoords2;
 
 void main() {
@@ -23,7 +26,16 @@ void main() {
     // Camera-relative physical position. Vertical exaggeration is a
     // rendering transform and is deliberately not applied.
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
-    vWorldPos = worldPos.xyz;
+    vec3 physicalPos = worldPos.xyz + uFrame.physicalEyePos.xyz;
+
+    // Height is taken at the vertices and interpolated across the
+    // triangle. Interpolating the position instead and taking the height
+    // of that point measures the chord, which on a coarse mesh runs
+    // kilometres below the surface its vertices sit on.
+    vHeight = uGeocentric
+        ? elevationGeodeticHeight(physicalPos, uFrame.bodyParams.x,
+                                  uFrame.bodyParams.y)
+        : physicalPos.z;
 
     vTexCoords2 = aTexCoords2;
 
