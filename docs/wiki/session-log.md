@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-02 - Consolidate RFC 13 and reopen for review round 7
+
+Folded the shipped elevation-store behaviour into the RFC 13 design body and
+removed the pre-implementation notes it superseded. Three body deviations the
+gate-2 and gate-3 notes had flagged are now in the design: section 2 no longer
+says coverage widens with LOD, section 5.4 states the published-unit-generation
+wake-up behind the sample-interval throttle, and section 6.4 gates elevation
+passes on sample demand. Two further gaps folded: section 6.2's `endNode()`
+carries watertightness, and sections 5.4/6.2 state that a watertight unit ends
+the lookup walk. The embedded implementation-note blocks in sections 5-6 and
+the section-10.3 rework instructions are removed; the gate-2 note keeps the
+shipped result and measured findings only. Status returned to `In review` with
+a `Review round 7 — requested` covering the consolidated body and the
+foundation, gate-1, and gate-2 implementation. Review rounds 1-6 and the
+2026-08-27 addendum are untouched.
+
 ## 2026-09-01 - Async depth-hitmap readback; share the unit-fill buffer
 
 Two profiler findings. `copyHitmap` read the full depth hitmap with a

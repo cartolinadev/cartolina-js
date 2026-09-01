@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** Accepted
+**Status:** In review
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -68,9 +68,14 @@ rendering.
 Population follows the current frustum-culled terrain traversal. The LRU may
 retain units populated by earlier views, but no off-camera pass refreshes them.
 A visited rig is rasterized over its complete tile UV extent without a
-viewport scissor. Its unit therefore extends beyond the visible part of the
-tile, and reduced ancestors cover progressively larger regions. A lookup can
-still miss. Current-view lookup is the only supported population model.
+viewport scissor. Its unit therefore extends beyond the visible part of that
+tile. Coverage does not, however, widen with LOD past the tiles that straddle
+the view edge: a node whose on-screen quadrants are watertight returns before
+its own rig draws, so its unit holds only the reduction of the drawn children,
+and an off-screen quadrant with no drawn descendant stays a hole up to the
+node root. Filling it would need the node's own rig, hence a terrain request,
+which section 12 rejects. A lookup can still miss. Current-view lookup is the
+only supported population model.
 
 The store follows the same tile selection, source order, fallback, and partial
 coverage rules as terrain drawing. It never requests a metatile, mesh,
@@ -257,7 +262,7 @@ rule reaches the boundary texels and the stored grid includes both endpoints.
 
 Different LODs may cover different regions. Fine units from an earlier view
 may remain until eviction, but are not refreshed off camera. Coarser units
-cover broader areas, and the root unit of every reference-frame node remains
+span broader areas, and the root unit of every reference-frame node remains
 resident after it first obtains coverage. Reduction stops at that root.
 
 ### 4.2 Texture format
@@ -435,20 +440,6 @@ update promise is left unsettled. A consumer that discards its sample set before
 an in-flight update settles marks the set disposed, and the store drops that
 update's writeback rather than writing into a released worker job.
 
-*Implementation notes*:
-
-The current implementation already has retained sample sets and
-`updateTerrainSamples()`. Rework it around the two variants. Preserve the
-geographic path for waypoints, monolithic geodata, and later navigation-tile
-replacement. Add the spatial-division path by constructing `UnitRef` directly
-from the supplied node and positions. Remove `nodeHint`; a hint which still
-enters geographic resolution is not the spatial-division contract. This
-intentionally supersedes the hint path added by commit
-`f416d4a10197e0d6618bf2797bce74940697de96`; preserve the tile-to-node
-association, but enter lookup directly with that node and the supplied SDS
-coordinates. Remove the commit's temporary profiling counters.
-
-
 ### 5.2 gsd selection
 
 The tile hierarchy is defined in the projected SRS of its reference-frame
@@ -462,12 +453,9 @@ rootGsd = sqrt(extentWidth * extentHeight) / 256
 gsd(lod) = rootGsd / 2^(lod - rootLod)
 ```
 
-*Implementation notes*:
-
-The current implementation already selects and reports nominal gsd in the
-reference-frame node's spatial division SRS. Preserve that path. Physical-metre
-conversion is reference-frame support for diagnostics or application APIs,
-not store selection policy.
+gsd is nominal, in the reference-frame node's spatial division SRS.
+Physical-metre conversion is reference-frame support for diagnostics or
+application APIs, not store selection policy.
 
 ### 5.3 Sample protocol
 
@@ -517,22 +505,6 @@ monolithic layer carries few coordinates by design. A layer large enough for
 that one-time resolution to stall a frame must move to the spatial-division
 partition, which is out of scope here.
 
-*Implementation notes*:
-
-The current gate-2 implementation puts parsed geometry, geographic positions,
-and rebuilding in main-thread `MapGeodataHeightcoder`. Remove that class. For a
-payload which requests heightcoding, `MapGeodata` retains only the worker job
-identity and its store sample set. Tile-tree traversal decides which tiled views
-ask for updates; the monolithic draw path does the same for its one view. A view
-not reached by the current frame does not request an update.
-
-Preserve the `MapGeodata`-owned lifetime introduced by commit
-`f416d4a10197e0d6618bf2797bce74940697de96`: rebuilding a
-`MapGeodataView` must reuse the same parsed worker job and sample set, and
-evicting `MapGeodata` must dispose both. Moving parsed state to the worker
-changes its location, not its lifetime.
-
-
 ### 5.4 Query execution
 
 `updateTerrainSamples()` scans the sample set and builds a temporary batch of
@@ -545,8 +517,16 @@ XY value.
 
 A consumer may call every frame, but need not. The store skips a set checked
 more recently than `mapElevationStoreSampleIntervalMs`, whose default matches
-the elevation-pass interval. A scan then uses each retained answer and unit
-generation to build only the GPU work which can change that sample.
+the elevation-pass interval, and resolves `false` without reading the store.
+The elevation pass can publish a unit while the map has stopped drawing,
+though, and the map draws only while something marks it dirty. The store
+therefore stamps each set's scan with a store-wide published-unit generation
+and, when it turns a caller away while that generation has since advanced,
+marks the map dirty. It also marks the map dirty whenever it publishes a unit.
+A map that stopped before the store answered keeps drawing until the caller's
+next post-interval scan reads the answer it missed. A scan then uses each
+retained answer and unit generation to build only the GPU work which can
+change that sample.
 
 For each sample, the store calculates its ideal LOD from the gsd formula in
 section 5.2:
@@ -578,7 +558,9 @@ as finer rigs contribute. An unchanged generation — the empty
 walk when the retained tile is also the start tile — accepts the retained sample
 without GPU work. If the retained tile is not encountered, the walk includes the
 node root. The store records each resident unit encountered in fine-to-coarse
-order. If none is resident, the sample is unchanged.
+order. A watertight resident unit also ends the walk: it has no uncovered
+sample, so no coarser unit can contribute. If none is resident, the sample is
+unchanged.
 
 When `desiredGsd` grows — a consumer zooming out — `startLod` can fall below the
 retained tile, so the walk does not encounter it and re-answers from a coarser
@@ -597,20 +579,6 @@ fences outside the dirty-frame draw gate, so lookup completion does not depend
 on rendering a color frame. When a chunk completes, answered samples are
 updated in place with `height`, `actualGsd`, and the new `UnitRef`. Repeating an
 update for a sample set already queued or running returns the same promise.
-
-*Implementation notes*:
-
-The current implementation already has the retained update queue, unit walk,
-GPU lookup, and asynchronous readback. Keep them. Split only position
-onboarding: geographic sets use the current resolution path, while
-spatial-division sets validate one node and construct their references without
-`MapSrs` conversion or node search. Remove the tiled `nodeHint` branch. The
-result assembly and readback resources do not change.
-
-Preserve the per-sample-set throttle from commit
-`58ac9d2528ee83f4c06f4aed66dc57614d8c78ee`, including
-`mapElevationStoreSampleIntervalMs` and retained `lastChecked` state. The new
-coordinate-space branch changes position onboarding, not scan scheduling.
 
 ### 5.5 Public sample sets
 
@@ -643,12 +611,9 @@ so the next call returns it to the store. The Viewer sample-set types are public
 types, not aliases of `ElevationStore` or `Map` types. The operation exposes no
 store placement policy or resource lifetime.
 
-*Implementation notes*:
-
-The current implementation already exposes this operation and uses one Viewer
-sample set for the waypoint demo. The public API remains geographic and
-structural. Its missing discriminator selects the internal geographic variant;
-the internal spatial-division variant is not exposed through `Viewer`.
+The public API is geographic and structural: an absent discriminator selects
+the internal geographic variant, and the spatial-division variant is not
+exposed through `Viewer`.
 
 
 ### 5.6 Geodata worker protocol
@@ -672,14 +637,8 @@ Only a payload which sends this request becomes a retained worker job. A
 payload which does not require client heightcoding follows the existing
 command-scoped worker path and retains no parsed job or main-thread sample set.
 
-*Implementation notes*:
-
-The current worker processes one geodata command without creating a retained,
-addressable job. Persistent worker jobs are new. Retaining parsed data for
-heightcoded geodata is not: the current main-thread `MapGeodataHeightcoder`
-retains it for the same `MapGeodata` lifetime. This change moves that state into
-a worker registry keyed by geodata job ID; it neither extends that lifetime nor
-adds retained state for other geodata.
+The worker keeps a registry of retained heightcoding jobs keyed by geodata job
+ID.
 
 For tiled data, the main thread supplies the tile's reference-frame node ID,
 extents, and SRS definition with the existing process command. The worker uses
@@ -729,12 +688,6 @@ only if measurement shows transfer or duplicate storage to be material.
 
 Elevation population invokes the existing terrain traversal with an elevation
 sink. The same traversal also receives explicit color and depth sinks.
-
-*Implementation notes*:
-
-The current implementation has removed mutable `Map.drawChannel`. Do not add a
-third channel value; that would retain rendering decisions throughout map and
-traversal code.
 
 The traversal remains responsible for terrain policy:
 
@@ -794,7 +747,7 @@ type TerrainTraversalSink = {
         rig: TileRenderRig,
         maskTexture?: GpuTexture,
     ): void;
-    endNode?(tileId: TileId, covered: boolean): void;
+    endNode?(tileId: TileId, covered: boolean, watertight: boolean): void;
 };
 ```
 
@@ -817,24 +770,16 @@ The current-then-last sequence affects fallback and coverage, so it is shared
 traversal policy. The sink supplies only the output-specific readiness test
 used by that sequence.
 
-*Implementation notes*:
-
-The extraction from the current `renderTile()` is mechanical. Each
-color/depth gate around rig readiness, the rig draw, credits, and terrain
-debug drawing becomes the corresponding sink method. Resource acquisition,
-rig creation, current-versus-last selection, and the coverage code surrounding
-those gates stay in `renderTile()`. Code moves beyond that boundary only when
-required to remove `drawChannel`.
-
 `beginNode()` runs during backtracking after child recursion and before any
 post-child return or fallback draw. It therefore runs before the all-off-screen
 return, the children-covered return, and the watertight surface-loop return.
-`endNode()` receives only whether the completed node has coverage. It does not
-expose watertightness or another traversal state to the sink. Every node for
-which `beginNode()` ran reaches `endNode()` exactly once on each of those
-returns and on the final partial-or-empty path. A node with neither a draw nor
-a published child commits nothing; a node covered by published children can
-commit reduction without a fallback draw. Color and depth omit both hooks.
+`endNode()` receives whether the completed node has coverage and whether that
+coverage is watertight; it exposes no other traversal state to the sink. Every
+node for which `beginNode()` ran reaches `endNode()` exactly once on each of
+those returns and on the final partial-or-empty path. A node with neither a
+draw nor a published child commits nothing; a node covered by published
+children can commit reduction without a fallback draw. Color and depth omit
+both hooks.
 
 The three sinks apply the contract as follows:
 
@@ -853,8 +798,11 @@ replacement. At `beginNode()`, it clears a replacement once and reduces any
 published child units into their quadrants. Calls to `draw()` then compose the
 selected fallback rigs through the coverage mask supplied by the traversal.
 At `endNode()`, it commits a replacement when `covered` is true and discards
-it otherwise. Child tile IDs are derived from the current tile ID; the sink
-does not traverse terrain trees or interpret child coverage.
+it otherwise, and records the unit as watertight only when both `watertight`
+and its reduced children are watertight. A watertight unit ends the
+fine-to-coarse lookup walk (section 5.4). Child tile IDs are derived from the
+current tile ID; the sink does not traverse terrain trees or interpret child
+coverage.
 
 A rig that fails to draw voids the whole replacement, and the resident unit
 stays until a later pass builds a complete one. A partial replacement would
@@ -885,12 +833,6 @@ the color-frame entry point. This replaces the channel checks which currently
 protect those operations during the depth pass; those outer operations do not
 become terrain-sink responsibilities.
 
-*Implementation notes*:
-
-Color and depth move to sinks in the same change which introduces the sink
-contract. The implementation must not retain a channel path beside the sink
-path: two dispatch mechanisms would allow readiness and side effects to drift.
-
 ### 6.4 Timing and resource demand
 
 The store is always present after the reference frame is ready. There is no
@@ -899,18 +841,24 @@ enable setting.
 `mapElevationStoreUpdateIntervalMs` is a `runtime` setting defaulting to
 1000 ms. It is the minimum time between elevation-pass starts and accepts a
 non-negative value; zero makes every animation frame eligible. A runtime
-change applies to the next eligibility check. A due pass runs from the current
-camera state whether or not a color frame was drawn since the previous pass.
-It uses the traversal's existing no-load path for metanodes and
-`TileRenderRig.isReady(..., { doNotLoad: true })` for render rigs. A resource
-which is not ready for normal rendering contributes nothing at that interval
-and is reconsidered later.
+change applies to the next eligibility check. A pass is admitted only when a
+consumer has requested a sample-set update since the previous pass and the
+interval has elapsed; the store is otherwise dormant and runs no pass. An
+admitted pass runs from the current camera state whether or not a color frame
+was drawn since the previous pass. It uses the traversal's existing no-load
+path for metanodes and `TileRenderRig.isReady(..., { doNotLoad: true })` for
+render rigs. A resource which is not ready for normal rendering contributes
+nothing at that interval and is reconsidered later.
 
-Lookups do not start or accelerate elevation passes. Consumers request sample
-updates opportunistically while they need them. A later elevation pass admitted
-by `mapElevationStoreUpdateIntervalMs` may make a better answer available.
-Tiled geodata requests an update only when its normal draw traversal reaches
-the corresponding view. Registration alone does not make a sample set active.
+A sample-update request arms the next pass but does not accelerate it: the
+interval still bounds when the pass starts. The first request against an empty
+store arms a pass without scanning, since there is nothing yet to read; the
+consumer's next request after the pass publishes a unit enters the normal
+per-set scan interval. Consumers request sample updates opportunistically
+while they need them. A later elevation pass may make a better answer
+available. Tiled geodata requests an update only when its normal draw
+traversal reaches the corresponding view. Registration alone does not make a
+sample set active.
 
 The elevation pass never marks a resource used in a way that changes loader
 priority, and never creates a terrain request. It may allocate store textures
@@ -1035,7 +983,7 @@ here.
 
 ## 10. Implementation and validation sequence
 
-The foundation and gate 1 already exist. Gate 2 is reworked in place. Work
+The foundation, gate 1, and gate 2 are implemented. Gates 3 and 4 remain. Work
 continues through the same application gates, stopping after each one until its
 manual result is accepted. Diagnostics may explain a failure but do not replace
 the application run.
@@ -1056,16 +1004,15 @@ hit testing, and run the matched `complex-terrain` performance capture.
 #### Existing work and reworking
 
 The sink extraction, `drawChannel` removal, and explicit pass entry points are
-implemented. The ownership change in gate 2 does not alter them. Retest rather
-than rewrite them unless gate-2 work changes their code.
+implemented. The gate-2 ownership change does not alter them.
 
 ### 10.2 Gate 1: waypoint
 
 #### Objectives
 
 Deliver the elevation-store sample protocol and its public Viewer counterpart
-for one retained waypoint sample set, and restore the waypoint demo to working
-order. The gate does not heightcode geodata.
+for one retained waypoint sample set, and drive the waypoint demo from that
+sample set. The gate does not heightcode geodata.
 
 #### Validation criteria
 
@@ -1078,10 +1025,8 @@ request.
 
 Elevation population, resident units, nominal-gsd lookup, asynchronous
 readback, LRU eviction, the public retained operation, and waypoint adoption
-are implemented, but the waypoint demo is currently broken and this gate no
-longer passes. Restore and revalidate it as part of the RFC implementation.
-Treat the public set's missing discriminator as geographic; do not expose the
-spatial-division variant publicly.
+are implemented. The public set's absent discriminator is treated as
+geographic; the spatial-division variant is not exposed publicly.
 
 ### 10.3 Gate 2: client geodata heightcoding
 
@@ -1145,73 +1090,7 @@ removed. The shipped code contains no `__EHC_INSTRUMENT__` blocks,
 `globalThis.__ehc` counters, heightcoding-shadow reports, or heightcoding log
 messages. The final matched capture runs after this removal.
 
-#### Existing work and reworking
-
-Keep the elevation traversal, complete unit replacement, unit cache, nominal
-gsd, retained sample updates, GPU lookup, asynchronous readback, sample
-throttle, and watertight unit stop. These parts implement terrain storage and
-sampling rather than geodata ownership.
-
-The failed implementation parses delivered geodata and converts and rewrites
-every heightcoded coordinate in main-thread `MapGeodataHeightcoder`, then sends
-the rewritten payload to the existing worker for another parse and render-job
-build. Delete that class and its reporting and registration state. Remove the
-main-thread monolithic rebuilding branch and `mapHeightcodingShadow`; gate
-comparison uses separate `legacy` and `store` runs. Preserve monolithic client
-heightcoding by moving its parsing, source conversion, and rebuilding into the
-worker.
-
-The current EHC counters, shadow statistics, and log messages may be used while
-reworking and validating the gate. Remove them after they have served that
-purpose. Deleting `MapGeodataHeightcoder` removes its counters and `report()`;
-also remove the remaining `__EHC_INSTRUMENT__` blocks, the global `__ehc`
-object, `noteGeodataHeightcoder()`, and the heightcoding-shadow logger.
-
-Extend the existing geodata worker instead. When a tiled payload requires
-heightcoding, it retains that parsed job and emits the packed spatial-division
-coordinate set. When a monolithic payload requires heightcoding, it retains the
-job and emits its geographic coordinate set. Both accept height updates and
-re-enter the current render-job construction; otherwise the worker retains
-nothing. `MapGeodata` retains the job ID and internal sample set;
-`MapGeodataView` only activates updates and publishes completed GPU groups.
-Existing packed render commands and main-thread `mapMaxGeodataProcessingTime`
-budgeting remain unchanged.
-
-The existing gate-2 work also added two store changes which remain.
-
-`endNode()` supplies watertightness to the elevation sink. A unit records
-it only when its complete replacement is watertight; traversal coverage which
-includes off-screen quadrants is not enough. Such a unit ends the
-fine-to-coarse fallback walk. Ancestors are derived by shifting the finest
-tile index instead of resolving the coordinate at every LOD.
-
-Lookup does not use the store-wide settled-generation shortcut described in
-section 5.4. Each update resolves its target tile. Retained tile identity and
-the answering unit's generation bound the walk without invalidating unrelated
-samples after another unit commits.
-
-`updateTerrainSamples()` now resolves
-`false` without scanning when called again before
-`mapElevationStoreSampleIntervalMs` has elapsed since that set's last
-scan. The interval defaults to the same value as
-`mapElevationStoreUpdateIntervalMs`, since the store cannot commit new
-content faster than its own build-pass cadence, so scanning more often
-than that cannot find anything new.
-
-
-The later gate-2 work moved the main-thread heightcoder onto `MapGeodata` and
-added a tiled node hint. The hint reduced node searches from 895052 to 760 and
-the associated transforms from about 3.58 million to 3040 during one zoom-out.
-The rapid `store` zoom-out still froze while `legacy` remained smooth, so the
-gate failed.
-
-The profile distributed time across `proj4`, main-thread geodata parsing and
-rebuilding, sample lookup, readback, and garbage collection. It did not isolate
-one smaller store defect. The new design removes the main-thread geodata work
-and the geographic onboarding path instead of retaining that ownership and
-adding another lookup optimization.
-
-#### Third implementation attempt (2026-08-30)
+#### Implementation notes (2026-08-30)
 
 Landed the round-6 worker/main split from section 5.6:
 `GeodataHeightcodingJob` and `WorkerHeightcodingJobs` replace
@@ -1244,22 +1123,14 @@ its group that has one; that carry needs a seed, so a group with no
 answered coordinate at all has nothing to carry from and is left out
 of the build until the store covers it — one rule, with a boundary.
 Both halves are safe because store coverage always contains the whole
-view, so an unanswered coordinate is off screen (a skipped group is
-entirely off screen for the same reason — one on-screen coordinate would
-have been answered). Each later update
-sends the heights that have since arrived, so a coordinate reaches its
-measured height as soon as the store covers it; delivered heights
-remain unused on every path. A tile publishes on the first sample
-update that answers anything, at whatever count that update delivered.
-
-That coverage rule also corrects an expectation in section 2: coverage
-does not widen with LOD past the tiles that straddle the view's edge.
-A node whose on-screen quadrants are watertight but whose remaining
-quadrants are off screen still returns before any draw, so its unit
-holds only the reduction of the drawn children, and the same hole
-propagates to the node root. Filling those quadrants would need the
-node's own rig — and the meshes of nodes above the drawn tiles are not
-resident — so it would need a terrain request, which section 12 rejects.
+view (section 2), so an unanswered coordinate is off screen (a skipped
+group is entirely off screen for the same reason — one on-screen
+coordinate would have been answered).
+Each later update sends the heights that have since arrived, so a
+coordinate reaches its measured height as soon as the store covers it;
+delivered heights remain unused on every path. A tile publishes on the
+first sample update that answers anything, at whatever count that
+update delivered.
 
 **Three mechanisms address the remaining motion cost — main-thread
 sample preparation blocking a frame, and work spent on terrain the
@@ -1292,16 +1163,12 @@ elevation now do too (section 6.2), and `drawElevation()` reports
 whether it drew, so a declined draw voids the replacement instead of
 publishing a unit with a hole no sample can tell from measured ground.
 
-Separately, the store's per-sample-set scan interval assumed the store
-cannot change between two calls inside it. It can: the elevation pass
-adds units whether or not the map is drawing, and the map draws only
-when something calls `markDirty()` — so a map that stops drawing before
-the store answers never reads it again. The non-interactive demo's
-route line, drawn on three loads in sixteen, was one symptom. The
-store now counts the units it publishes, records that count on each
-read, and calls `markDirty()` both when it turns away a caller whose
-count is stale and when `endUnit()` publishes a unit, so a stopped map
-restarts and reads the answer it missed.
+Separately, an elevation pass can publish a unit while the map has
+stopped drawing, and a stopped map never reads the store again. The
+non-interactive demo's route line, drawn on three loads in sixteen, was
+one symptom. The store now wakes a stopped map whenever it publishes a
+unit or turns away a caller whose published-unit generation is stale
+(section 5.4).
 
 **A third defect put every coarse answer kilometres below the terrain.**
 The raster fragment shader interpolated the vertex positions across a
@@ -1318,19 +1185,13 @@ the surface.
 **Where this leaves gate 2.** The worker/main split matches the
 objectives above: the worker owns parsing, coordinate conversion, and
 rebuilding, and the main thread performs none of it. The coverage
-argument above supports the publication rule and the
-section-2 correction; the motion-cost mechanisms and the two fixed
-defects address the rest of the validation criteria — that store
-geometry stays attached to rendered terrain, settles after motion
-stops, and never loses the previous complete result while a
-replacement is pending. The attempt exposed two errors in the RFC body
-itself: section 2's coverage-widens-with-LOD claim, and the
-sample-interval throttle's premise that the store cannot change
-between two calls — true of the throttle's own cadence, but not once
-the map itself stops drawing, a case the elevation pass's timing does
-not depend on. Both are corrected above. The FPS bound itself needs a
-measured store-versus-legacy comparison, which this document does not
-record.
+argument above supports the publication rule; the
+motion-cost mechanisms and the fixed defects address the rest of the
+validation criteria — that store geometry stays attached to rendered
+terrain, settles after motion stops, and never loses the previous
+complete result while a replacement is pending. The FPS bound itself
+needs a measured store-versus-legacy comparison, which this document
+does not record.
 
 ### 10.4 Gate 3: floating map positions
 
@@ -1361,13 +1222,6 @@ operation.
 
 The store and geographic sample-set path exist. Current-position migration has
 not started. Implement it after gate 2 is accepted.
-
-Implementation note: the elevation store now remains dormant until a consumer
-first requests a sample-set update. That pending update makes a tick-initiated
-elevation pass admissible once its interval elapses. This deviates from section
-6.4, which specifies unconditional periodic passes. If the store has no
-resident units, the request starts no scan; the consumer's next request after
-the pass publishes a unit enters the normal per-set scan interval.
 
 ### 10.5 Gate 4: pan motion
 
@@ -2418,3 +2272,44 @@ declines to draw voids the elevation replacement. Section 10.3 records the
 crash that exposed it.*
 
 The design is accepted. The status line moves to `Accepted`.
+
+
+## Review round 7 — requested
+
+The author reopened the accepted design to fold shipped behaviour into the
+body and consolidate the gate-2 notes. This request covers the consolidated
+design body and the implementation landed so far — the foundation and gates 1
+and 2.
+
+Design-body changes:
+
+- Section 2 no longer says coverage widens with LOD. A node whose on-screen
+  quadrants are watertight returns before its own rig draws, so an off-screen
+  quadrant with no drawn descendant stays a hole up to the node root. Coverage
+  does not extend past the tiles that straddle the view edge.
+- Section 5.4 states the sample-interval throttle in full. The store stamps
+  each scan with a published-unit generation and, when it turns a caller away
+  while that generation has advanced or when it publishes a unit, marks the
+  map dirty. The wall-clock skip alone left a stopped map unable to read a
+  late answer.
+- Section 6.4 gates elevation passes on sample demand. A pass runs only when a
+  consumer has requested a sample-set update since the previous pass and the
+  interval has elapsed; the store is otherwise dormant. The body previously
+  specified unconditional periodic passes.
+- Section 6.2 gives `endNode()` a watertightness argument, and sections 5.4
+  and 6.2 state that a watertight unit ends the fine-to-coarse lookup walk.
+  The earlier sink type carried coverage alone.
+
+Consolidation:
+
+- The pre-implementation implementation-note blocks in sections 5 and 6, and
+  the gate-2 rework instructions in section 10.3, are removed. The design they
+  targeted is now in the body.
+- The gate-2 implementation note keeps the shipped result and the measured
+  findings — the publication rule, the three motion-cost mechanisms, and the
+  eviction and vertex-height defects — and drops the commentary on the body
+  deviations now folded above.
+
+The earlier review rounds and the 2026-08-27 addendum are unchanged. Please
+confirm the consolidated body matches the implementation, and review the
+foundation and gate-1 and gate-2 implementation for acceptance.

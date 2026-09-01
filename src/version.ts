@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.106-feature_elevation_store_gate2_attempt3.d1d1afe4';
+    return '2.50.107-feature_elevation_store_gate2_attempt3.5dc28092';
 }

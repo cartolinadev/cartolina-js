@@ -60,7 +60,7 @@ MapSurfaceTree.prototype.findSurfaceTile = function(id) {
     for (var lod = id[0]; lod > 0; lod--) {
         var mask = 1 << (lod-1);
         var index = 0;
-        
+
         if ((id[1] & mask) != 0) {
             index += 1;
         }
@@ -68,14 +68,14 @@ MapSurfaceTree.prototype.findSurfaceTile = function(id) {
         if ((id[2] & mask) != 0) {
             index += 2;
         }
-        
+
         tile = tile.children[index];
 
         if (!tile) {
             return null;
         }
     }
-    
+
     return tile;
 };
 
@@ -87,7 +87,7 @@ MapSurfaceTree.prototype.draw = function() {
 
     var map = this.map;
     var draw = map.draw;
-    
+
     var srs = map.getPhysicalSrs();
 
     //var divisionNode = this.divisionNode;
@@ -96,7 +96,7 @@ MapSurfaceTree.prototype.draw = function() {
     //if (this.map.config.mapBasicTileSequence) {
         //this.surfaceTracer = this.surfaceTracerBasic;
     //}
-    
+
     // Terrain now draws through the recursive traversal on the typed
     // Map. This legacy tree is reached only by tiled-geodata free
     // layers, which use the fitted-frontier traversal to collect their
@@ -116,10 +116,10 @@ MapSurfaceTree.prototype.logTileInfo = function(tile, node, cameraPos) {
     if (!tile || !node) {
         return;
     }
-    
+
     var visible = tile.bboxVisible(tile.id, cameraPos, node);
     tile.updateTexelSize();
-    
+
     // eslint-disable-next-line
     console.log('tile: ' + JSON.stringify(tile.id) + ' visible: ' + visible + ' texelsize: ' +  tile.texelSize + ' center: '  + JSON.stringify(node.diskPos) + ' vec: ' + node.diskNormal + 'ang: ' + node.diskAngle + ' dist: ' + node.diskDistance);
 };
@@ -130,11 +130,11 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     this.counter++;
 
     var tile = this.surfaceTree;
-    
+
     if (!tile.isMetanodeReady(this, 0)) {
         return;
     }
-    
+
     var map = this.map;
     var node = tile.metanode;
     var cameraPos = map.camera.position;
@@ -148,7 +148,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     var geodata = tile.surface ? tile.surface.geodata : null;
     var maxLod = tile.surface.lodRange[1];
     var checkGpu = true;
-    
+
     var lodShift = 4;//this.freeLayerSurface ? 1 : 1;
     var typeFactor = 2000;//this.freeLayerSurface ? 1 : 1;
 
@@ -156,7 +156,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
         lodShift = 0;//this.freeLayerSurface ? 1 : 1;
         typeFactor = 0.1;//this.freeLayerSurface ? 1 : 1;
     }
-    
+
     var draw = map.draw;
     var drawTiles = draw.drawTiles;
     var drawBuffer = draw.drawBuffer;
@@ -165,43 +165,43 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
     var drawBufferIndex = 0;
     var processBufferIndex = 0;
     var newProcessBufferIndex = 0;
-    
+
     processBuffer[0] = [tile, 0];
     processBufferIndex = 1;
 
     var texelSizeFit = draw.texelSizeFit;
 
     draw.drawCounter++;
-    
+
     var usedNodes = 1;
     var pocessedNodes = 1;
-    var pocessedMetatiles = 1;  
+    var pocessedMetatiles = 1;
     var drawCounter = draw.drawCounter;
     var maxHiresLodLevels = map.config.mapMaxHiresLodLevels, i, j, lj, child, priority, parent, parent2, children2;
-    
+
     do {
         var best = 0;
         newProcessBufferIndex = 0;
 
         /*if (this.map.drawIndices) {
             console.log("processed begin==============================================");
-        }*/            
-       
+        }*/
+
         for (i = processBufferIndex - 1; i >= 0; i--) {
             var pack = processBuffer[i];
             tile = pack[0];
             var depth = pack[1];
 
             tile.childrenReadyCount = 0;
-            
+
             /*if (this.map.drawIndices) {
                 console.log(JSON.stringify(tile.id));
             }*/
-            
+
             if (depth >= maxHiresLodLevels) {
                 continue;
             }
-            
+
             node = tile.metanode;
 
             if (node) {
@@ -228,8 +228,8 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
 
                 if (!node.hasChildren() || tile.texelSize <= texelSizeFit || (geodata && tile.id[0] >= maxLod)) {
 
-                    priority = ((tile.id[0] + lodShift) * typeFactor) * tile.distance; 
-            
+                    priority = ((tile.id[0] + lodShift) * typeFactor) * tile.distance;
+
                     if (node.hasChildren() && !drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, priority, true, (depth > 0), checkGpu)) {
 
                         depth++; //we dont have tile ready, so we try to draw more detailed tiles
@@ -237,16 +237,16 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                         for (j = 0; j < 4; j++) {
                             child = tile.children[j];
                             if (child) {
-           
+
                                 if (child.isMetanodeReady(this, child.id[0], true)) { //lod is used as priority
 
                                     child.updateTexelSize();
-                                    
+
                                     //are draw buffers ready? preventRender=true, preventLoad=false
                                     if (drawTiles.drawSurfaceTile(child, child.metanode, cameraPos, child.texelSize, priority, true, (depth > 0), checkGpu)) {
                                         tile.childrenReadyCount++;
                                         child.drawCounter = draw.drawCounter;
-                                        
+
                                         drawBuffer[drawBufferIndex] = [child, false];
                                         drawBufferIndex++;
                                     } else {
@@ -258,7 +258,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                         }
 
                         if (lastProcessBufferIndex == newProcessBufferIndex && lastDrawBufferIndex == drawBufferIndex) {
-                            depth--; 
+                            depth--;
                         }
 
                     } else {
@@ -267,25 +267,25 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                         drawBuffer[drawBufferIndex] = [tile, false];
                         drawBufferIndex++;
                     }
-                    
+
                 } else if (depth == 0 && node.hasGeometry() && tile.texelSize <= (texelSizeFit * 2)) {
-                    
+
                     //are all children ready? if not then draw carser lod
                     var childrenCount = 0;
                     var readyCount = 0;
                     var childrenBuffer = [];
-        
+
                     for (j = 0; j < 4; j++) {
                         child = tile.children[j];
                         if (child) {
                             childrenCount++;
-       
+
                             if (child.isMetanodeReady(this, child.id[0])) { //lod is used as priority
 
                                 child.updateTexelSize();
-                                
-                                priority = ((child.id[0] + lodShift) * typeFactor) * child.distance; 
-                               
+
+                                priority = ((child.id[0] + lodShift) * typeFactor) * child.distance;
+
                                 //are draw buffers ready? preventRender=true, preventLoad=true
                                 if (drawTiles.drawSurfaceTile(child, child.metanode, cameraPos, child.texelSize, priority, true, true, checkGpu)) {
                                     readyCount++;
@@ -294,33 +294,33 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                             }
                         }
                     }
-        
+
                     if (childrenCount > 0 && childrenCount == readyCount) {
                         //sort children by distance
-    
+
                         do {
                             var sorted = true;
-                            
+
                             for (j = 0, lj = childrenBuffer.length - 1; j < lj; j++) {
                                 if (childrenBuffer[j].distance > childrenBuffer[j+1].distance) {
                                     var t = childrenBuffer[j];
                                     childrenBuffer[j] = childrenBuffer[j+1];
                                     childrenBuffer[j+1] = t;
                                     sorted = false;
-                                } 
+                                }
                             }
-                            
+
                         } while(!sorted);
-    
-                        //add children to new process buffer 
+
+                        //add children to new process buffer
                         for (j = 0, lj = childrenBuffer.length; j < lj; j++) {
                             newProcessBuffer[newProcessBufferIndex] = [childrenBuffer[j], depth];
                             newProcessBufferIndex++;
                         }
                     } else {
-                        
+
                         //can i use coarser lod
-                        priority = ((tile.id[0] + lodShift) * typeFactor) * tile.distance; 
+                        priority = ((tile.id[0] + lodShift) * typeFactor) * tile.distance;
 
                         if (drawTiles.drawSurfaceTile(tile, tile.metanode, cameraPos, tile.texelSize, priority, true, true, checkGpu)) {
                             tile.drawCounter = draw.drawCounter;
@@ -332,7 +332,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                                 child = tile.children[j];
                                 if (child) {
                                     if (child.isMetanodeReady(this, child.id[0])) { //lod is used as priority
-                                        priority = ((child.id[0] + lodShift) * typeFactor) * child.distance; 
+                                        priority = ((child.id[0] + lodShift) * typeFactor) * child.distance;
                                         drawTiles.drawSurfaceTile(child, child.metanode, cameraPos, child.texelSize, priority, true, false, checkGpu);
                                     }
                                 }
@@ -340,7 +340,7 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
 
                         } else {
 
-                            //add children to new process buffer 
+                            //add children to new process buffer
                             for (j = 0; j < 4; j++) {
                                 child = tile.children[j];
                                 if (child) {
@@ -353,24 +353,24 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
                                 }
                             }
 
-                        } 
+                        }
                     }
 
                 }  else  {  //go deeper
-                    
-                    
+
+
                     for (j = 0; j < 4; j++) {
                         child = tile.children[j];
                         if (child) {
 
                             if (child.isMetanodeReady(this, child.id[0])) { //lod is used as priority
                                 child.updateTexelSize();
-                                
+
                                 newProcessBuffer[newProcessBufferIndex] = [child, depth];
                                 newProcessBufferIndex++;
                             }
                         }
-                    }                    
+                    }
                 }
             }
 
@@ -379,19 +379,19 @@ MapSurfaceTree.prototype.drawSurfaceFit = function(shift) {
         /*if (this.map.drawIndices) {
             console.log("processed end==============================================");
         }*/
-        
+
         var tmp = processBuffer;
         processBuffer = newProcessBuffer;
         newProcessBuffer = tmp;
         processBufferIndex = newProcessBufferIndex;
-        
+
     } while(processBufferIndex > 0);
 
     var stats = map.stats;
 
-    stats.usedNodes = usedNodes;    
-    stats.processedNodes = pocessedNodes;    
-    stats.processedMetatiles = pocessedMetatiles;    
+    stats.usedNodes = usedNodes;
+    stats.processedNodes = pocessedNodes;
+    stats.processedMetatiles = pocessedMetatiles;
 
     this.processDrawBuffer(draw, drawTiles, cameraPos, map, stats, drawBuffer, drawBufferIndex);
 };
@@ -402,7 +402,7 @@ MapSurfaceTree.prototype.processDrawBuffer = function(draw, drawTiles, cameraPos
     var scanExtents = (!this.freeLayerSurface && map.config.mapFeatureStickMode[0] == 2);
     var hmax = -999999, hmin = 999999;
     var renderer = map.renderer;
-    var mvp = this.camera.getMvpMatrix(), p1, p2, camVec, length, tilt, factor, i, tile, node; 
+    var mvp = this.camera.getMvpMatrix(), p1, p2, camVec, length, tilt, factor, i, tile, node;
 
     map.gpuCache.skipCostCheck = true;
 
@@ -485,7 +485,7 @@ MapSurfaceTree.prototype.traceHeight = function(tile, params, nodeOnly) {
 
     this.params = params;
 
-    var heightFunction = nodeOnly ? this.traceHeightTileByNodeOnly : this.traceHeightTileByMap;  
+    var heightFunction = nodeOnly ? this.traceHeightTileByNodeOnly : this.traceHeightTileByMap;
 
     if (tile.id[0] == 1) { //update root, get height in VTS2015 starts in division node which has lod 1
         this.traceHeightTile(tile.parent, 0, true);
@@ -493,7 +493,7 @@ MapSurfaceTree.prototype.traceHeight = function(tile, params, nodeOnly) {
             return;
         }
     }
-    
+
     this.traceHeightTile(tile, 0, false, heightFunction);
 };
 
@@ -520,14 +520,14 @@ MapSurfaceTree.prototype.traceHeightTile = function(tile, priority, nodeReadyOnl
         tile.restoreLastState();
         //return;
     }
-    
+
     //process tile e.g. draw or get height
-    var res = heightFunction(tile, this.params, priority); 
-    
+    var res = heightFunction(tile, this.params, priority);
+
     if (res) { //we need to go deeper
         var childIndex = this.traceHeightChild(tile, this.params);
         var child = tile.children[childIndex];
-        
+
         if (!child) {
             this.params.finalNode = true;
         }
@@ -573,7 +573,7 @@ MapSurfaceTree.prototype.traceHeightChild = function(tile, params) {
         bottom = !bottom;
     }*/
 
-    //trace only resulting quadrant 
+    //trace only resulting quadrant
     if (right) {
         return bottom ? 1 : 3;
     } else {
@@ -710,7 +710,7 @@ MapSurfaceTree.prototype.getNodeById = function(id, preventLoad) {
         if ((id[2] & mask) != 0) {
             index += 2;
         }
-        
+
         if (!tile.children[index]) {
 
             if (!tile.isMetanodeReady(this, 0, preventLoad)) {
@@ -722,7 +722,7 @@ MapSurfaceTree.prototype.getNodeById = function(id, preventLoad) {
             }
 
             tile.addChild(index);
-        } 
+        }
 
         tile = tile.children[index];
     }
@@ -734,7 +734,7 @@ MapSurfaceTree.prototype.getNodeById = function(id, preventLoad) {
     if (!tile.isMetanodeReady(this, 0, preventLoad)) {
         return;
     }
-	
+
     var node = tile.metanode;
     tile.metanode.metatile.used();
 
@@ -775,7 +775,7 @@ MapSurfaceTree.prototype.getRenderedNodeById = function(id, drawCounter) {
         if ((id[2] & mask) != 0) {
             index += 2;
         }
-        
+
         if (!tile.children[index]) {
 
             if (!tile.isMetanodeReady(this, 0)) {
@@ -785,7 +785,7 @@ MapSurfaceTree.prototype.getRenderedNodeById = function(id, drawCounter) {
             if (!tile.metanode.hasChild(index)) {
                 return;
             }
-        } 
+        }
 
         tile = tile.children[index];
 
