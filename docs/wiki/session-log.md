@@ -3,6 +3,24 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-01 - Keep the map drawing until the store's samples are scanned
+
+The non-interactive demo drew its route line on some loads and not others.
+`updateTerrainSamples()` returns without reading the store when it is called
+again within `mapElevationStoreSampleIntervalMs`, assuming the store cannot
+have changed in between. It can: the elevation pass adds height data whether
+or not the map is drawing. So the first read found the store empty, the pass
+then filled it while the map finished loading, and once the map stopped
+drawing nothing called `updateTerrainSamples()` again. Whether the line
+appeared depended on whether the second read came before the map stopped.
+
+The store now counts the units it adds and records the count on each read.
+When it turns a caller away and the count has changed, it calls `markDirty()`
+so the map draws and the caller comes back. `endUnit()` calls `markDirty()`
+too, which restarts a map that has already stopped. Draw calls after loading
+are unchanged at 110 per second, all from the elevation pass. RFC 13
+sections 5.4 and 11 record it.
+
 ## 2026-08-31 - Publish store heightcoding from the heights the store has
 
 Store heightcoding required a height for every coordinate of a payload before

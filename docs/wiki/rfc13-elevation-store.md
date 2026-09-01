@@ -1293,6 +1293,17 @@ for all three. Separately, `drawElevation()` reports whether it drew, so
 a tile that declines voids the replacement instead of publishing a unit
 with a hole no sample can tell from measured ground.
 
+The sample interval above rests on the store not changing between two
+calls inside it. It does change: the elevation pass adds units whether or
+not the map is drawing. The map draws only when something calls
+`markDirty()`, and callers read the store from the draw traversal, so a
+map which stops drawing stops reading, and terrain which arrives after it
+stops is never read. The non-interactive demo drew its route line on
+three loads in sixteen. The store now counts the units it adds, records
+that count on each read, and calls `markDirty()` when it turns a caller
+away and the count has changed since. `endUnit()` calls `markDirty()`
+when it adds a unit, which restarts a map that has already stopped.
+
 ### 10.4 Gate 3: floating map positions
 
 #### Objectives

@@ -47,8 +47,8 @@ class ElevationStore {
      * Repeated calls for one sample set share an in-flight update. A miss
      * leaves an earlier answer unchanged. A sample set checked more
      * often than `mapElevationStoreSampleIntervalMs` resolves `false`
-     * without scanning, since the store cannot have committed anything
-     * new in between.
+     * without reading the store. Calling again after the interval gets
+     * the reading that call missed; the map is kept drawing until then.
      *
      * @param sampleSet caller-owned positions, requested gsd, and samples
      * @returns whether at least one height or actual gsd changed
@@ -84,8 +84,18 @@ class ElevationStore {
         const interval = this.map_.config.mapElevationStoreSampleIntervalMs;
         const now = performance.now();
 
-        if (now - state.lastChecked < interval) return Promise.resolve(false);
+        if (now - state.lastChecked < interval) {
+
+            // A later generation means the store answered since this
+            // set's last read; markDirty() gets it read again.
+            if (state.checkedGeneration !== this.nextGeneration_)
+                this.map_.map?.markDirty();
+
+            return Promise.resolve(false);
+        }
+
         state.lastChecked = now;
+        state.checkedGeneration = this.nextGeneration_;
 
         let resolve!: (changed: boolean) => void;
         let reject!: (reason: unknown) => void;
@@ -302,6 +312,9 @@ class ElevationStore {
         unit.content = content;
         unit.generation = ++this.nextGeneration_;
         unit.watertight = unitWatertight;
+
+        // Wakes a map that stopped drawing before this unit existed.
+        this.map_.map?.markDirty();
     }
 
     /** The elevation sink that builds units during a pass. */
@@ -340,6 +353,7 @@ class ElevationStore {
             samples: sampleSet.samples,
             refs,
             lastChecked: -Infinity,
+            checkedGeneration: -1,
         };
 
         this.sampleSetStates_.set(sampleSet, state);
@@ -1042,6 +1056,7 @@ type SampleSetState = {
     samples: (ElevationStore.Sample | undefined)[];
     refs: (UnitRef | undefined)[];
     lastChecked: number;
+    checkedGeneration: number;
 };
 
 
