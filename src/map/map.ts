@@ -1231,7 +1231,7 @@ class Map {
     }
 
     /**
-     * Redraws the depth hitmap and copies it to CPU, for
+     * Redraws the depth hitmap and starts an async copy to CPU, for
      * `getScreenDepth`/`getHitCoords` pixel reads. Throttled to one
      * redraw per `renderer.hitmapCopyIntervalMs`; while throttled, the
      * caller keeps reading the previous CPU copy and `hitMapDirty`
@@ -1241,6 +1241,9 @@ class Map {
 
         const legacyMap = this.map!;
         const renderer = this.renderer;
+
+        // take any completed async copy before this frame's depth queries
+        if (renderer.hitmapMode > 2) renderer.collectHitmap();
 
         const interval = renderer.hitmapCopyIntervalMs;
         if (interval > 0) {

@@ -958,6 +958,14 @@ lines. Reserve block comments (`/* ... */`) for module headers,
 JSDoc, and other file- or declaration-level comments outside executable
 blocks.
 
+**Comment hierarchically.** Do not comment an inner block while its
+enclosing block is uncommented: either add the outer comment too, or
+leave the inner block bare. A commented detail should never sit under
+an unexplained whole.
+
+**One line per comment.** An in-block comment is a single line. Use
+more only when the logic is genuinely complex enough to need it.
+
 ## <span style="color:red">NEVER TOUCH USER-AUTHORED COMMENTS DURING REVIEW</span>
 
 User-authored comments and JSDoc are protected work. A request to review,

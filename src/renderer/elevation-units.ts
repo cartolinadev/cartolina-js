@@ -450,8 +450,15 @@ const QuadVertices = new Float32Array([
 ]);
 
 
-/** A unit texture's initial contents: no coverage everywhere. */
+let invalidUnitBytes_: Uint8Array | null = null;
+
+/**
+ * A unit texture's initial contents: no coverage everywhere. Built once
+ * and shared; `createFromData` copies it at upload and never retains it.
+ */
 function invalidUnitBytes(): Uint8Array {
+
+    if (invalidUnitBytes_) return invalidUnitBytes_;
 
     const bytes = new Uint8Array(UnitSize * UnitSize * 4);
 
@@ -461,7 +468,7 @@ function invalidUnitBytes(): Uint8Array {
         bytes[i + 3] = InvalidClearColor[3];
     }
 
-    return bytes;
+    return invalidUnitBytes_ = bytes;
 }
 
 

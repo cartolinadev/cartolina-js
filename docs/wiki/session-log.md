@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-01 - Async depth-hitmap readback; share the unit-fill buffer
+
+Two profiler findings. `copyHitmap` read the full depth hitmap with a
+synchronous `readPixels`, draining the pipeline each time it fired; it
+now issues an async
+pack-buffer read and a fence, and `updateDepthHitmap` drains the previous
+frame's read before its depth queries, so the CPU copy trails one drained
+copy — within the staleness the copy interval already allows. Separately,
+`invalidUnitBytes` rebuilt its constant 256 KB fill on every unit
+admission; it is now a shared lazy singleton, safe because `createFromData`
+copies at upload. Also added hierarchical / one-line inline-comment rules
+to AGENTS.md.
+
 ## 2026-09-01 - Take the elevation store's height at the mesh vertices
 
 The elevation raster shader interpolated vertex positions across a triangle

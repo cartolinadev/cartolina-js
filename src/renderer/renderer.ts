@@ -292,6 +292,9 @@ export class Renderer {
     updateGeoHitmap = true;
     lastHitmapCopyTime = 0;
 
+    /** in-flight async hitmap copy, drained by `collectHitmap` */
+    hitmapReadback: Optional<{ fence: WebGLSync; buffer: WebGLBuffer }> = null;
+
     rectVerticesBuffer: Optional<WebGLBuffer> = null;
     rectIndicesBuffer: Optional<WebGLBuffer> = null;
 
@@ -1883,21 +1886,42 @@ hitTest(
 
 
 /**
- * Read the full hitmap framebuffer into `hitmapData`.
- * Called once per frame when `hitmapMode > 2`.
+ * Start reading the full hitmap framebuffer without stalling. Drained
+ * by `collectHitmap`. Called once per interval when `hitmapMode > 2`.
  */
 copyHitmap() {
 
     const hitmapTexture = this.hitmapTexture;
-    const hitmapData = this.hitmapData ?? undefined;
+    if (!hitmapTexture || this.hitmapReadback) return;
 
-    if (!hitmapTexture) {
-        return;
-    }
+    // a fresh single-use buffer, never pooled -- see createPixelPackBuffer
+    const buffer = this.gpu.createPixelPackBuffer(
+        this.hitmapSize * this.hitmapSize * 4);
 
-    hitmapTexture.readFramebufferPixels(
-        0, 0, this.hitmapSize, this.hitmapSize, hitmapData
-    );
+    const fence = this.gpu.readFramebufferPixelsAsync(
+        hitmapTexture, this.hitmapSize, this.hitmapSize, buffer);
+
+    if (fence) this.hitmapReadback = { fence, buffer };
+    else this.gpu.gl.deleteBuffer(buffer);
+};
+
+
+/**
+ * Take a completed async hitmap copy into `hitmapData`, if the GPU has
+ * finished it. Never waits. `hitmapData` therefore trails one drained
+ * copy behind the framebuffer.
+ */
+collectHitmap() {
+
+    const pending = this.hitmapReadback;
+    if (!pending || !this.gpu.fenceSignalled(pending.fence)) return;
+
+    this.hitmapData ??= new Uint8Array(this.hitmapSize * this.hitmapSize * 4);
+    this.gpu.readPixelPackBuffer(pending.buffer, this.hitmapData);
+
+    this.gpu.gl.deleteSync(pending.fence);
+    this.gpu.gl.deleteBuffer(pending.buffer);
+    this.hitmapReadback = null;
 };
 
 
