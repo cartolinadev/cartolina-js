@@ -3,6 +3,12 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-01 - Run elevation passes only for requested samples
+
+The elevation store now remains dormant until a consumer first requests a
+sample-set update. That pending update makes a tick-initiated elevation pass
+admissible without weakening the global pass interval or per-set scan interval.
+
 ## 2026-09-01 - Rename the elevation store's throttle fields, document its internal types
 
 `lastChecked`/`checkedGeneration` named neither what they hold nor what

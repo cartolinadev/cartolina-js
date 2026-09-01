@@ -63,6 +63,7 @@ class ElevationStore {
         sampleSet: ElevationStore.SampleSet,
     ): Promise<boolean> {
 
+        // sanity
         if (!Number.isFinite(sampleSet.desiredGsd)
                 || sampleSet.desiredGsd < 0) {
 
@@ -71,11 +72,19 @@ class ElevationStore {
                 + 'non-negative.'));
         }
 
+        // disposed -> bail out
         if (this.disposedSampleSets_.has(sampleSet))
             return Promise.resolve(false);
 
+        // arm store updates (a one-off operation for an empty store)
+        this.sampleSetUpdateRequested_ = true;
+
+        // update in flight, return the existing promise
         const existing = this.updates_.get(sampleSet);
         if (existing) return existing.promise;
+
+        // store empty -> bail out without armig the updateStarted guard
+        if (this.resident_.size === 0) return Promise.resolve(false);
 
         const retainedState = this.sampleSetStates_.get(sampleSet);
         const count = sampleCount(sampleSet);
@@ -92,9 +101,10 @@ class ElevationStore {
 
         if (now - state.updateStarted < interval) {
 
-            // nextGeneration_ has moved past updateGeneration, so a
-            // unit was published since this set was last read;
-            // markDirty() gets it read again.
+            // This method is called by isReady checks within geodata draw
+            // traversal. A clean map will stop issuing these calls, so if there
+            // is a published terrain change, we keep it drawing until the
+            // throttle expires.
             if (state.updateGeneration !== this.nextGeneration_)
                 this.map_.map?.markDirty();
 
@@ -180,11 +190,14 @@ class ElevationStore {
     /** Admits this tick's elevation pass when its interval has elapsed. */
     admitElevationPass(): boolean {
 
+        if (!this.sampleSetUpdateRequested_) return false;
+
         const interval = this.map_.config.mapElevationStoreUpdateIntervalMs;
         const now = performance.now();
 
         if (now - this.lastPassTime_ < interval) return false;
 
+        this.sampleSetUpdateRequested_ = false;
         this.lastPassTime_ = now;
         return true;
     }
@@ -1034,6 +1047,7 @@ class ElevationStore {
     private replacementWatertight_ = false;
     private replacementFailed_ = false;
     private replacementContent_: UnitContent | null = null;
+    private sampleSetUpdateRequested_ = false;
     private lastPassTime_ = -Infinity;
     private sourceSignature_: string | null = null;
 }

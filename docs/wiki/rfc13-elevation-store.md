@@ -1350,6 +1350,13 @@ operation.
 The store and geographic sample-set path exist. Current-position migration has
 not started. Implement it after gate 2 is accepted.
 
+Implementation note: the elevation store now remains dormant until a consumer
+first requests a sample-set update. That pending update makes a tick-initiated
+elevation pass admissible once its interval elapses. This deviates from section
+6.4, which specifies unconditional periodic passes. If the store has no
+resident units, the request starts no scan; the consumer's next request after
+the pass publishes a unit enters the normal per-set scan interval.
+
 ### 10.5 Gate 4: pan motion
 
 #### Objectives
