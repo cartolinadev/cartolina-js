@@ -86,16 +86,13 @@ again.
 ## 58. Request geodata heightcoding at tile/view gsd
 
 **Opened:** 2026-08-26
-**Status:** open — part of reopened RFC 13 gate 2
+**Status:** open — implemented by RFC 13 gate 2; tracked until RFC completion
 **Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
-`src/map/geodata-heightcoder.ts`,
-`src/map/elevation-store-geodata-analysis.ts`, `src/map/geodata-builder.js`
+`src/map/geodata-heightcoding-job.ts`, `src/map/geodata-view.js`
 
-The failed gate-2 implementation uses `desiredGsd = 0` for its monolithic
-heightcoding and tiled shadow paths. Every coordinate is therefore refreshed
-for the life of the layer even after the store is as fine as the geometry can
-use. Reopened gate 2 needs requested nominal gsds so visible vector geometry
-settles at the resolution the current view can use.
+Gate 2 requests nominal gsds so visible vector geometry settles at the
+resolution the current view can use instead of refreshing every coordinate
+for the life of the layer.
 
 The natural request differs by consumer:
 
@@ -104,8 +101,7 @@ The natural request differs by consumer:
 - **Monolithic geodata:** the nominal tile side at the highest terrain LOD
   rendered in the current view, divided by 256.
 
-Neither is implemented. RFC 13 gate 2 adds both and keeps this entry open until
-the RFC is implemented.
+Both paths are implemented. This entry stays open until RFC 13 is implemented.
 
 <a id="backlog-57"></a>
 ## 57. GAP: a map cannot be initialized without a terrain source
@@ -126,21 +122,16 @@ incrementally.
 ## 56. Migrate geodata heightcoding to the elevation store
 
 **Opened:** 2026-08-25
-**Status:** open — part of reopened RFC 13 gate 2
+**Status:** open — implemented by RFC 13 gate 2; tracked until RFC completion
 **Related:** [rfc13-elevation-store.md](rfc13-elevation-store.md),
-`src/map/geodata-builder.js`, `src/map/geodata-heightcoder.ts`,
+`src/map/geodata-builder.js`, `src/map/geodata-heightcoding-job.ts`,
 `src/map/geodata-view.js`, `src/viewer/ui/control/measure.js`
 
-The failed gate-2 implementation moved `MapGeodataBuilder.processHeights()`
-from navigation tiles to a globally ticked `MapGeodataHeightcoder`. Only
-builder-created monolithic free layers draw store-heightcoded geometry. Tiled
-geodata is comparison-only, and other monolithic layers do not use that path.
-
-Reopened gate 2 gives tiled and monolithic rendered data the same
-`MapGeodataView`-owned sample-set path, regardless of payload origin. Migrate
-the measure tool, the sole direct `processHeights()` caller, to its own retained
-sample set. Then remove `processHeights()`, `stopHeightcoding()`, the global
-heightcoder registration, and builder-owned free-layer rebuilds.
+Gate 2 gives tiled and monolithic rendered data the same retained worker job
+and `MapGeodataView`-driven sample-set path, regardless of payload origin. The
+measure tool owns its retained sample set. The former builder heightcoding
+methods, global heightcoder registration, and builder-owned free-layer
+rebuilds are removed. This entry stays open until RFC 13 is implemented.
 
 <a id="backlog-55"></a>
 ## 55. Unify geodetic-height calculation

@@ -1,6 +1,8 @@
 # RFC 13: the elevation store
 
-**Status:** In review
+**Status:** Accepted
+**Implementation:** Partially implemented — foundation and gates 1–2 complete;
+gates 3–4 pending.
 **Opened:** 2026-08-21
 **Related:** [backlog #1](backlog.md#backlog-1),
 [nav-tiles.md](nav-tiles.md),
@@ -1259,12 +1261,12 @@ The expected ownership is:
 | File | Change |
 |---|---|
 | `src/map/elevation-store.ts` | units, geographic and spatial-division sample sets, lookup, readback, and LRU |
-| `src/map/terrain-traversal-sink.ts` | sink type and color/depth implementations |
+| `src/map/color-terrain-sink.ts`, `src/map/depth-terrain-sink.ts`, `src/map/elevation-terrain-sink.ts` | color, depth, and elevation sink implementations |
 | `src/map/refframe.js`, `src/map/refframe.d.ts` | resolve worker node IDs and retain nominal-gsd helpers |
 | `src/map/measure.js`, `src/map/geodata-builder.js` | use reference-frame-owned node selection |
 | `src/map/map.ts` | store ownership, worker sample registrations, explicit passes, fence polling, and current-position sample |
 | `src/map/draw.js` | invoke the depth entry point without the complete map draw |
-| `src/map/draw-traversal.ts` | retain traversal policy, consume pass-owned state, and dispatch selected rigs to a sink |
+| `src/map/draw-traversal.ts` | define the sink contract, retain traversal policy, consume pass-owned state, and dispatch selected rigs to a sink |
 | `src/map/tile-render-rig.ts` | test normal readiness and draw unexaggerated height |
 | `src/map/surface-tree.js`, `src/map/draw-tiles.js` | remove terrain-channel routing |
 | `src/renderer/renderer.ts` | initialize each terrain pass without a global channel |
@@ -1274,7 +1276,8 @@ The expected ownership is:
 | `src/viewer/viewer.ts` | public retained terrain sample sets used by the waypoint demo |
 | `src/viewer-config.ts` | store settings and `mapHeightcoding`; remove `mapHeightcodingShadow` |
 | `demos/waypoint/waypoint.js` | gate-1 consumer |
-| `src/map/geodata-heightcoder.ts` | delete the main-thread parser, converter, and rebuilder |
+| `src/map/geodata-heightcoding-job.ts` | own the main-thread sample set, worker-job lifecycle, and publication route |
+| `src/map/geodata-processor/worker-parser.js` | remove the unused binary-geodata parser |
 | `src/map/geodata-processor/worker-heightcoding.ts` | retain and release heightcoded jobs, prepare SDS or geographic coordinates, apply heights, and rebuild |
 | `src/map/geodata-processor/worker-main.js` | call the typed heightcoding operations from existing worker commands |
 | `src/map/geodata-processor/processor.js` | route job messages and transfer packed buffers |
@@ -2313,3 +2316,31 @@ Consolidation:
 The earlier review rounds and the 2026-08-27 addendum are unchanged. Please
 confirm the consolidated body matches the implementation, and review the
 foundation and gate-1 and gate-2 implementation for acceptance.
+
+
+## Review round 7 — findings and sign-off
+
+The project leader approved these findings and remedies for fast-track
+adoption on 2026-09-02.
+
+### 1. The implementation state was implicit
+
+The status recorded the reopened review but did not distinguish the accepted
+design from its partial implementation. The foundation and gates 1 and 2 are
+complete; gates 3 and 4 remain.
+
+*Applied. The document records the canonical `Accepted` status and states the
+partial implementation separately.*
+
+### 2. The source-change table named files which do not implement the design
+
+The table assigned the terrain-sink contract and implementations to a file
+which does not exist, and named a geodata heightcoder which does not exist.
+
+*Applied. The table now names the shared sink contract, the three concrete
+sinks, the main-thread heightcoding job, and the removed parser at their actual
+paths.*
+
+The consolidated design is accepted. The reviewed implementation comprises
+the foundation and gates 1 and 2. Gates 3 and 4 remain, so this sign-off does
+not mark the RFC implemented.
