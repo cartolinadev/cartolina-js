@@ -3,6 +3,26 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-02 - Runtime tile-shader specializer
+
+The tile fragment shader interpreted a per-fragment layer-stack loop, reading
+each layer's source, target, operation, and blend mode from the layer UBO. On
+a store-heightcoded, label-heavy view this loop dominated the GPU frame. A new
+specializer (`src/renderer/tile-shader-specializer.ts`) emits straight-line
+GLSL for a given layer stack: the opcodes become compile-time constants while
+the UBO still carries the per-draw dynamic values (texture transforms, blend
+alphas, constant colours). `TileRenderRig.draw` derives a signature from the
+layer stack and asks the renderer for a program keyed on it; three signatures
+cover a session, each compiled once and cached.
+
+The shade path reads the runtime render flags rather than baking them, because
+`mapFlagNormalMaps`, `mapShadingSlope`, and `mapShadingAspect` toggle
+independently of the layer stack. `renderFlags` is dynamically uniform, so the
+`if (renderFlags & Flag)` branches carry no divergence. Normal registers
+initialize to `flatNormal` so a flag-skipped push leaves the stack top at
+`flatNormal`, matching the interpreter's runtime stack. Dev-vs-prod pixels are
+identical at default flags and with `mapShadingSlope=1&mapFlagNormalMaps=0`.
+
 ## 2026-09-02 - Consolidate RFC 13 and reopen for review round 7
 
 Folded the shipped elevation-store behaviour into the RFC 13 design body and

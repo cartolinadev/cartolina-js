@@ -20,6 +20,11 @@ import { defaultOverrides, type Overrides } from '../map/overrides';
 import type * as viewerConfig from '../viewer-config';
 import type Map from '../map/map';
 import { TextureBlend } from './textureblend';
+import {
+    type LayerDesc,
+    layerSignature,
+    specializeFragmentSource,
+} from './tile-shader-specializer';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
 import shaderTileFrag from './shaders/tile.frag.glsl';
@@ -213,6 +218,12 @@ export class Renderer {
         elevationReduce?: GpuProgram
         elevationLookup?: GpuProgram
     }
+
+    // specialized tile programs keyed by layer-stack
+    // signature
+    private specializedPrograms:
+        { [key: string]: GpuProgram | undefined }
+        = {};
 
     private frustumVao_: Optional<WebGLVertexArrayObject> = null;
     private frustumState_: Optional<GpuDevice.State> = null;
@@ -487,9 +498,46 @@ programTile() : GpuProgram {
 
     __DEV__ && console.log('Initializing programs.tile');
 
-    this.programs.tile = this.buildTileColorProgram('shader-tile', []);
+    this.programs.tile = this.buildTileColorProgram(
+        'shader-tile', []);
 
     return this.programs.tile;
+}
+
+
+/**
+ * Return a specialized tile program for the given layer-stack
+ * shape, compiling and caching on first use. The specializer
+ * replaces the interpreter loop with straight-line GLSL.
+ */
+programTileSpecialized(
+    layers: LayerDesc[],
+    discard: boolean,
+): GpuProgram {
+
+    const sig = layerSignature(layers);
+    const cacheKey = discard ? `d|${sig}` : sig;
+
+    const cached = this.specializedPrograms[cacheKey];
+    if (cached) return cached;
+
+    const fragSource = specializeFragmentSource(
+        shaderTileFrag, layers);
+
+    const defines = discard ? ['TILE_DISCARD'] : [];
+
+    const count = Object.keys(this.specializedPrograms).length;
+
+    const program = this.buildTileColorProgram(
+        `tile-spec-${count}`, defines, fragSource);
+
+    this.specializedPrograms[cacheKey] = program;
+
+    __DEV__ && console.log(
+        `Compiled specialized tile program`
+        + ` '${cacheKey}' (${count + 1} cached)`);
+
+    return program;
 }
 
 /**
@@ -517,7 +565,9 @@ programTileDiscarding() : GpuProgram {
  * @defines preprocessor macros to define (e.g. `['TILE_DISCARD']`)
  */
 
-private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
+private buildTileColorProgram(
+    name: string, defines: string[],
+    fragSource: string = shaderTileFrag): GpuProgram {
 
     let atmBindings = {}
 
@@ -527,7 +577,7 @@ private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
     }
 
     return new GpuProgram(
-        this.gpu, shaderTileVert, shaderTileFrag,
+        this.gpu, shaderTileVert, fragSource,
         name, {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
