@@ -3,6 +3,28 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-02 - Profile past the terrain shader; write two perf analyses
+
+With the terrain color shader specialized, a label-heavy high-oblique
+view of the `complex` style at 2560×1353 still runs near 25 fps. A CPU
+profile shows why: the frame is CPU-bound (~40 ms CPU against ~15 ms
+GPU), and about seven tenths of the CPU frame is the legacy geodata and
+label renderer — a full per-frame rebuild of feature ordering,
+anti-overlap placement, and per-feature draw dispatch, all scaling with
+a feature count that high obliqueness inflates. Written up in
+[geodata-rendering-profiling.md](geodata-rendering-profiling.md), with
+backlog entry 61 pointing to it.
+
+Also recorded the reasoning behind the specialization itself, which
+predated this session, in the design-level
+[terrain-shader-performance.md](terrain-shader-performance.md): why a
+general per-fragment layer interpreter was the wrong tool for the hot
+path and why baking the fixed stack into straight-line code removes the
+emulated-indexing and branch cost without touching the shading math. The
+older [tile-render-rig-profiling.md](tile-render-rig-profiling.md) is
+marked superseded and kept as the raw diagnostic record. Both new pages
+are linked from the wiki index.
+
 ## 2026-09-02 - Move the tile-shader opcode bodies into GLSL functions
 
 The specializer assembled every opcode body from strings, duplicating the
