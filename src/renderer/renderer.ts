@@ -27,7 +27,6 @@ import {
 } from './tile-shader-specializer';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
-import shaderTileFrag from './shaders/tile.frag.glsl';
 
 import backgroundTileVert from './shaders/background.vert.glsl';
 import backgroundTileFrag from './shaders/background.frag.glsl';
@@ -205,8 +204,6 @@ export class Renderer {
 
     // programs
     programs!: {
-        tile?: GpuProgram,
-        tileDiscarding?: GpuProgram
         background?: GpuProgram
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
@@ -487,25 +484,6 @@ get curSize(): Readonly<Size2> {
 
 
 /**
- * Lazy tile program initialization, including binding buffers to block names
- * and fixed samplers.
- */
-
-programTile() : GpuProgram {
-
-    // discard-free variant for unmasked, unclipped tiles
-    if (this.programs.tile) return this.programs.tile;
-
-    __DEV__ && console.log('Initializing programs.tile');
-
-    this.programs.tile = this.buildTileColorProgram(
-        'shader-tile', []);
-
-    return this.programs.tile;
-}
-
-
-/**
  * Return a specialized tile program for the given layer-stack
  * shape, compiling and caching on first use. The specializer
  * replaces the interpreter loop with straight-line GLSL.
@@ -521,8 +499,7 @@ programTileSpecialized(
     const cached = this.specializedPrograms[cacheKey];
     if (cached) return cached;
 
-    const fragSource = specializeFragmentSource(
-        shaderTileFrag, layers);
+    const fragSource = specializeFragmentSource(layers);
 
     const defines = discard ? ['TILE_DISCARD'] : [];
 
@@ -541,24 +518,6 @@ programTileSpecialized(
 }
 
 /**
- * Tile color program variant that keeps the coverage mask and quadrant
- * clip `discard`, lazy initialization. Used for tiles that need to
- * discard fragments (masked or clipped).
- */
-
-programTileDiscarding() : GpuProgram {
-
-    if (this.programs.tileDiscarding) return this.programs.tileDiscarding;
-
-    __DEV__ && console.log('Initializing programs.tileDiscarding');
-
-    this.programs.tileDiscarding = this.buildTileColorProgram(
-        'shader-tile-discarding', ['TILE_DISCARD']);
-
-    return this.programs.tileDiscarding;
-}
-
-/**
  * Build a tile color program with the shared bindings, optionally
  * compiling the masked variant via preprocessor defines.
  * @name diagnostic program name
@@ -567,7 +526,7 @@ programTileDiscarding() : GpuProgram {
 
 private buildTileColorProgram(
     name: string, defines: string[],
-    fragSource: string = shaderTileFrag): GpuProgram {
+    fragSource: string): GpuProgram {
 
     let atmBindings = {}
 

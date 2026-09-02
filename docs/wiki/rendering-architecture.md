@@ -186,7 +186,7 @@ and is marked `@deprecated`; new code uses `setVerticalExaggeration()`.
 
 ## Terrain Shading
 
-Diffuse terrain shading in `tile.frag.glsl` combines up to three
+Diffuse terrain shading in `tile.frag.template.glsl` combines up to three
 coefficients: Lambertian, slope, and aspect. The mixed case is a
 weighted geometric mean of their complements, remapped to the final
 shading coefficient with `1.0 - ...`.

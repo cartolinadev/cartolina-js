@@ -3,6 +3,29 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Retire the tile shader interpreter; one assembled path
+
+The tile color shader existed as two implementations of the same
+layer-stack semantics: the runtime interpreter `main()` and the
+specializer, kept in step only by a byte-identity check. The
+interpreter is removed. `tile.frag.template.glsl` is now the whole
+shader — its `prologue` snippet carries the varyings, uniforms, and the
+shared opcode helper functions, and the specializer concatenates that
+with the generated register and layer code, so there is no separate
+snippet-free prelude to strip. Every tile draw takes the specialized
+path; an empty layer stack specializes to a black-output program,
+matching what the interpreter produced. The three one-line blends
+(`overlay`/`add`/`multiply`) are inlined into their snippets with a
+single-use alpha temp, so the arithmetic is visible where it runs;
+`blendSpecularMultiply` keeps its function. `tile.frag.glsl` and the
+interpreter-only `stack.inc.glsl` are deleted, and `layers.inc.glsl`
+loses its dead `decodeLayer`/`layerCount`/`Layer` decode path, keeping
+the UBO layout the specialized shader reads. `//%end` now takes an
+optional snippet name as a checked reading anchor. The snippet-parsing
+helpers sit below the module's public API. Generated per-layer code is
+unchanged except the intended blend inlining; the terrain and
+legacy-city screenshots render unchanged.
+
 ## 2026-09-03 - Move the specialized main's GLSL text out of TypeScript
 
 The specializer built the generated `main()` by concatenating GLSL as TS

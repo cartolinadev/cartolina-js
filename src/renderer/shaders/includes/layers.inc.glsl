@@ -5,40 +5,6 @@
 #include "./render-flags.inc.glsl";
 
 
-const int target_Color              = 0;
-const int target_Normal             = 1;
-
-const int source_Constant           = 1;
-const int source_Texture            = 0;
-const int source_Pop                = 2;
-const int source_Shade              = 3;
-const int source_AtmDensity         = 4;
-const int source_Shadows            = 5;
-const int source_None               = 6;
-const int source_NormalFlat         = 7;
-
-const int operation_Blend           = 0;
-const int operation_Push            = 1;
-const int operation_AtmColor        = 2;
-const int operation_Shadows         = 3;
-
-const int shadeType_Diffuse         = 0;
-const int shadeType_Specular        = 1;
-
-const int shadeNormal_NormalMap     = 0;
-const int shadeNormal_Flat          = 1;
-
-const int blendMode_Overlay             = 0;
-const int blendMode_Add                 = 1;
-const int blendMode_Multiply            = 2;
-const int blendMode_specularMultiply    = 3;
-
-const int textureUVs_External           = 0;
-const int textureUVs_Internal           = 1;
-
-const int textureSampling_Raw           = 0;
-const int textureSampling_Normal        = 1;
-
 /* raw layer,  as encoded in ubo */
 
 struct LayerRaw {
@@ -72,97 +38,6 @@ layout (std140) uniform uboLayers {
 
     LayerRaw layers[MAX_LAYERS];
 } uLayers;
-
-
-/* the decoded layer for processing */
-
-struct Layer {
-
-    int target;
-    int source;
-    int operation;
-
-    int srcShadeType;
-    int srcShadeNormal;
-
-    int srcTextureIdx;
-    int srcTextureMaskIdx;
-    int srcTextureUVs;
-    int srcTextureSampling;
-
-    int srcNormalMapTextureIdx;
-
-    int opBlendMode;
-    int flagMask;
-
-    vec3 srcConstant;
-    float srcTextureTransform[4];
-    float opBlendAlpha;
-    float targetColorWhitewash;
-};
-
-
-int layerCount() { return uLayers.layerCount.x; }
-
-/* the decode func, transforming ubo-encoded layer into processing format */
-
-Layer decodeLayer(int index) {
-
-    LayerRaw raw = uLayers.layers[index];
-
-    Layer layer;
-
-    // tag
-    layer.target = raw.tag.x;
-    layer.source = raw.tag.y;
-    layer.operation = raw.tag.z;
-
-    if (layer.source == source_Texture) {
-
-        layer.srcTextureSampling = raw.tag.w;
-    }
-
-    // p0
-    if (layer.source == source_Shade) {
-
-        layer.srcShadeType = raw.p0.x;
-        layer.srcShadeNormal = raw.p0.y;
-    }
-
-    if (layer.source == source_Texture) {
-
-        layer.srcTextureIdx = raw.p0.x;
-        layer.srcTextureMaskIdx = raw.p0.y;
-        layer.srcTextureUVs = raw.p0.z;
-    }
-
-    if (layer.operation == operation_Blend)
-        layer.opBlendMode = raw.p0.w;
-
-    // p1
-    if (layer.source == source_Constant)
-        layer.srcConstant = raw.p1.xyz;
-
-    if (layer.source == source_Texture) {
-
-        layer.srcTextureTransform[0] = raw.p1.x;
-        layer.srcTextureTransform[1] = raw.p1.y;
-        layer.srcTextureTransform[2] = raw.p1.z;
-        layer.srcTextureTransform[3] = raw.p1.w;
-    }
-
-    // p2
-    if (layer.operation == operation_Blend)
-        layer.opBlendAlpha = raw.p2.x;
-
-    if (layer.target == target_Color)
-        layer.targetColorWhitewash = raw.p2.y;
-
-    // p3
-    layer.flagMask = decodeRenderFlags(raw.p3);
-
-    return layer;
-}
 
 
 /* Individually named samplers to avoid array indexing issues in iOS/Metal */

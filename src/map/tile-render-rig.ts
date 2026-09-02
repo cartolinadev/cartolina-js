@@ -282,13 +282,10 @@ export class TileRenderRig {
         // program must be selected after this runs
         const layerDescs = this.fillLayerBuffer();
 
-        // use the specialized program for the layer-stack shape, falling
-        // back to the generic interpreter when there are no layers
-        const program = layerDescs.length > 0
-            ? this.renderer.programTileSpecialized(layerDescs, needsDiscard)
-            : needsDiscard
-                ? this.renderer.programTileDiscarding()
-                : this.renderer.programTile();
+        // the specialized program for the layer-stack shape; an empty
+        // stack specializes to a black-output program
+        const program =
+            this.renderer.programTileSpecialized(layerDescs, needsDiscard);
 
         /* make sure we got the right program (device caches the current program,
          * so no extra churn) */

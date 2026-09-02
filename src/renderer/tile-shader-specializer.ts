@@ -1,27 +1,22 @@
 /*
- * tile-shader-specializer.ts — generate a specialized tile
- * fragment shader from the prepared layer stack
+ * tile-shader-specializer.ts — assemble the tile fragment shader
+ * for a given layer stack
  *
- * The generic tile.frag.glsl interprets a UBO-encoded layer
- * stack per fragment: a loop, dynamic branching on
- * source/target/operation, sampler index ladders, and a
- * register stack. On complex styles this interpreter overhead
- * dominates GPU time.
+ * A style's layer stack is fixed per draw, not per fragment, so
+ * the composition it describes is baked into straight-line GLSL
+ * whose opcodes are compile-time constants. The generated main()
+ * flattens the layer stack into scope-level registers and calls
+ * the shared opcode helper functions. The UBO still carries the
+ * per-draw dynamic values (texture transforms, blend alphas,
+ * constant colors), so no per-tile recompilation is needed —
+ * programs are keyed by the structural shape of the layer stack.
  *
- * This module replaces the interpreter with straight-line GLSL
- * whose opcodes are compile-time constants. The per-opcode
- * bodies live as functions in tile.frag.glsl (shared with the
- * interpreter); the generated main() flattens the register
- * stack into scope-level registers and calls those functions.
- * The UBO still carries per-draw dynamic values (texture
- * transforms, blend alphas, constant colors), so no per-tile
- * recompilation is needed — programs are keyed by the
- * structural shape of the layer stack.
- *
- * The GLSL text of the generated main() lives as named snippets
- * in tile.frag.template.glsl; this module supplies only the
- * register allocation, indentation, and per-layer indices that
- * fill those snippets.
+ * The GLSL text lives as named snippets in
+ * tile.frag.template.glsl: the prologue snippet is the whole
+ * shader head (varyings, uniforms, the helper functions, and the
+ * opening of main), and the rest are the register and per-layer
+ * statement forms. This module supplies the register allocation,
+ * indentation, and per-layer indices that fill them.
  */
 
 
@@ -48,93 +43,6 @@ export type LayerDesc = {
 
     srcTextureIdx?: number;
     flagMask: number;
-}
-
-
-/**
- * Parse the snippet template into a name → text map. A snippet
- * runs from a `//%snippet <name>` line to the next `//%end`; the
- * lines between are kept verbatim, subject to line continuation.
- */
-function parseSnippets(
-    template: string,
-): Record<string, string> {
-
-    const snippets: Record<string, string> = {};
-    const rawLines = template.split('\n');
-
-    let name: string | null = null;
-    let body: string[] = [];
-
-    for (const rawLine of rawLines) {
-
-        const start = rawLine.match(/^\/\/%snippet\s+(\S+)\s*$/);
-
-        if (start) {
-            name = start[1];
-            body = [];
-            continue;
-        }
-
-        if (/^\/\/%end\s*$/.test(rawLine)) {
-
-            if (name !== null) snippets[name] = joinContinuations(body);
-            name = null;
-            continue;
-        }
-
-        if (name !== null) body.push(rawLine);
-    }
-
-    return snippets;
-}
-
-
-/**
- * Join snippet body lines. A line ending in a backslash continues
- * onto the next line: the backslash and the following line's
- * leading whitespace are dropped, so one output statement can be
- * wrapped in the template to stay within the line limit.
- */
-function joinContinuations(
-    bodyLines: string[],
-): string {
-
-    const out: string[] = [];
-
-    for (const line of bodyLines) {
-
-        // a pending backslash appends this line to the previous
-        // one with its leading whitespace removed
-        if (out.length > 0 && out[out.length - 1].endsWith('\\')) {
-
-            const prev = out[out.length - 1];
-            out[out.length - 1] =
-                prev.slice(0, -1) + line.replace(/^\s+/, '');
-            continue;
-        }
-
-        out.push(line);
-    }
-
-    return out.join('\n');
-}
-
-
-/**
- * Substitute every `${name}` hole in a snippet with its value.
- */
-function fill(
-    template: string,
-    slots: Record<string, string | number>,
-): string {
-
-    let out = template;
-
-    for (const key of Object.keys(slots))
-        out = out.split('${' + key + '}').join(String(slots[key]));
-
-    return out;
 }
 
 
@@ -263,42 +171,126 @@ export function generateSpecializedMain(
         lines.push('');
     }
 
-    lines.push(fill(SNIPPETS.epilogue, { top: `c${colorDepth - 1}` }));
+    // an empty or normal-only stack pushed no color register; the
+    // final color is then black, matching the retired interpreter
+    const top = colorDepth >= 1 ? `c${colorDepth - 1}` : 'vec3(0.0)';
+
+    lines.push(fill(SNIPPETS.epilogue, { top }));
 
     return lines.join('\n');
 }
 
 
 /**
- * Replace main() in the full tile fragment shader source
- * with the specialized version.
+ * Assemble the full tile fragment shader source for the layer
+ * stack: the prologue (shader head and the opening of main)
+ * followed by the generated register and layer code.
  */
 export function specializeFragmentSource(
-    baseSource: string,
     layers: LayerDesc[],
 ): string {
 
-    const mainIdx =
-        baseSource.indexOf('void main()');
-
-    if (mainIdx < 0)
-        throw new Error(
-            'tile.frag.glsl: void main() not found');
-
-    let cutIdx = mainIdx;
-    const commentIdx = baseSource.lastIndexOf(
-        '// main', mainIdx);
-
-    if (commentIdx >= 0
-        && mainIdx - commentIdx < 20)
-        cutIdx = commentIdx;
-
-    return baseSource.substring(0, cutIdx)
-        + generateSpecializedMain(layers) + '\n';
+    return generateSpecializedMain(layers) + '\n';
 }
 
 
 // -- internal helpers --
+
+
+/**
+ * Parse the snippet template into a name → text map. A snippet
+ * runs from a `//%snippet <name>` line to the next `//%end`; the
+ * lines between are kept verbatim, subject to line continuation.
+ */
+function parseSnippets(
+    template: string,
+): Record<string, string> {
+
+    const snippets: Record<string, string> = {};
+    const rawLines = template.split('\n');
+
+    let name: string | null = null;
+    let body: string[] = [];
+
+    for (const rawLine of rawLines) {
+
+        const start = rawLine.match(/^\/\/%snippet\s+(\S+)\s*$/);
+
+        if (start) {
+            name = start[1];
+            body = [];
+            continue;
+        }
+
+        const end = rawLine.match(/^\/\/%end(?:\s+(\S+))?\s*$/);
+
+        if (end) {
+
+            // an optional name on //%end is a reading anchor; when
+            // present it must match the open snippet
+            if (name !== null && end[1] && end[1] !== name)
+                throw new Error(
+                    `snippet '${name}' closed by '//%end ${end[1]}'`);
+
+            if (name !== null) snippets[name] = joinContinuations(body);
+            name = null;
+            continue;
+        }
+
+        if (name !== null) body.push(rawLine);
+    }
+
+    return snippets;
+}
+
+
+/**
+ * Join snippet body lines. A line ending in a backslash continues
+ * onto the next line: the backslash and the following line's
+ * leading whitespace are dropped, so one output statement can be
+ * wrapped in the template to stay within the line limit.
+ */
+function joinContinuations(
+    bodyLines: string[],
+): string {
+
+    const out: string[] = [];
+
+    for (const line of bodyLines) {
+
+        // a pending backslash appends this line to the previous
+        // one with its leading whitespace removed
+        if (out.length > 0 && out[out.length - 1].endsWith('\\')) {
+
+            const prev = out[out.length - 1];
+            out[out.length - 1] =
+                prev.slice(0, -1) + line.replace(/^\s+/, '');
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    return out.join('\n');
+}
+
+
+/**
+ * Substitute every `${name}` hole in a snippet with its value.
+ */
+function fill(
+    template: string,
+    slots: Record<string, string | number>,
+): string {
+
+    let out = template;
+
+    for (const key of Object.keys(slots))
+        out = out.split('${' + key + '}').join(String(slots[key]));
+
+    return out;
+}
+
 
 // emit the statement that computes `vec4 opN` for this layer's
 // source; texture and shade defer to shared GLSL functions,
@@ -434,8 +426,8 @@ function emitOperation(
 }
 
 
-// emit `base = blend<Mode>(base, operand, alpha);` for the
-// layer's blend mode
+// emit the blend of `operand` into register `base`; specular
+// multiply keeps its helper, the three trivial modes are inlined
 
 function emitBlend(
     layer: LayerDesc,
@@ -447,32 +439,40 @@ function emitBlend(
     lines: string[],
 ): void {
 
-    const alpha = fill(SNIPPETS['expr.blendAlpha'], { ubo, op });
+    // specular multiply has a substantial body; keep it a function
+    if (layer.opBlendMode === 'specular-multiply') {
+        lines.push(
+            fill(SNIPPETS['blend.specularMultiply'],
+                { ind, base, operand }));
+        return;
+    }
+
+    // bind the blend alpha to a temp so overlay does not evaluate
+    // the expression twice
+    const alphaVar = `${op}Alpha`;
+    const alphaExpr = fill(SNIPPETS['expr.blendAlpha'], { ubo, op });
+
+    lines.push(
+        fill(SNIPPETS['blend.alpha'], { ind, alphaVar, alphaExpr }));
 
     switch (layer.opBlendMode) {
 
         case 'overlay':
             lines.push(
                 fill(SNIPPETS['blend.overlay'],
-                    { ind, base, operand, alpha }));
+                    { ind, base, operand, alpha: alphaVar }));
             break;
 
         case 'add':
             lines.push(
                 fill(SNIPPETS['blend.add'],
-                    { ind, base, operand, alpha }));
+                    { ind, base, operand, alpha: alphaVar }));
             break;
 
         case 'multiply':
             lines.push(
                 fill(SNIPPETS['blend.multiply'],
-                    { ind, base, operand, alpha }));
-            break;
-
-        case 'specular-multiply':
-            lines.push(
-                fill(SNIPPETS['blend.specularMultiply'],
-                    { ind, base, operand }));
+                    { ind, base, operand, alpha: alphaVar }));
             break;
     }
 }
