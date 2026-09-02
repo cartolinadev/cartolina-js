@@ -17,7 +17,15 @@
  * transforms, blend alphas, constant colors), so no per-tile
  * recompilation is needed — programs are keyed by the
  * structural shape of the layer stack.
+ *
+ * The GLSL text of the generated main() lives as named snippets
+ * in tile.frag.template.glsl; this module supplies only the
+ * register allocation, indentation, and per-layer indices that
+ * fill those snippets.
  */
+
+
+import specializerTemplate from './shaders/tile.frag.template.glsl';
 
 
 /** Structural description of one active layer. */
@@ -41,6 +49,96 @@ export type LayerDesc = {
     srcTextureIdx?: number;
     flagMask: number;
 }
+
+
+/**
+ * Parse the snippet template into a name → text map. A snippet
+ * runs from a `//%snippet <name>` line to the next `//%end`; the
+ * lines between are kept verbatim, subject to line continuation.
+ */
+function parseSnippets(
+    template: string,
+): Record<string, string> {
+
+    const snippets: Record<string, string> = {};
+    const rawLines = template.split('\n');
+
+    let name: string | null = null;
+    let body: string[] = [];
+
+    for (const rawLine of rawLines) {
+
+        const start = rawLine.match(/^\/\/%snippet\s+(\S+)\s*$/);
+
+        if (start) {
+            name = start[1];
+            body = [];
+            continue;
+        }
+
+        if (/^\/\/%end\s*$/.test(rawLine)) {
+
+            if (name !== null) snippets[name] = joinContinuations(body);
+            name = null;
+            continue;
+        }
+
+        if (name !== null) body.push(rawLine);
+    }
+
+    return snippets;
+}
+
+
+/**
+ * Join snippet body lines. A line ending in a backslash continues
+ * onto the next line: the backslash and the following line's
+ * leading whitespace are dropped, so one output statement can be
+ * wrapped in the template to stay within the line limit.
+ */
+function joinContinuations(
+    bodyLines: string[],
+): string {
+
+    const out: string[] = [];
+
+    for (const line of bodyLines) {
+
+        // a pending backslash appends this line to the previous
+        // one with its leading whitespace removed
+        if (out.length > 0 && out[out.length - 1].endsWith('\\')) {
+
+            const prev = out[out.length - 1];
+            out[out.length - 1] =
+                prev.slice(0, -1) + line.replace(/^\s+/, '');
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    return out.join('\n');
+}
+
+
+/**
+ * Substitute every `${name}` hole in a snippet with its value.
+ */
+function fill(
+    template: string,
+    slots: Record<string, string | number>,
+): string {
+
+    let out = template;
+
+    for (const key of Object.keys(slots))
+        out = out.split('${' + key + '}').join(String(slots[key]));
+
+    return out;
+}
+
+
+const SNIPPETS = parseSnippets(specializerTemplate);
 
 
 /**
@@ -94,28 +192,7 @@ export function generateSpecializedMain(
     let colorDepth = 0;
     let normalDepth = 0;
 
-    lines.push('void main() {');
-    lines.push('');
-    lines.push('    int renderFlags = frameRenderFlags();');
-    lines.push('');
-
-    lines.push('#ifdef TILE_DISCARD');
-    lines.push('    if (uMaskEnabled) {');
-    lines.push(
-        '        float covered = texture(uMask, vTexCoords2).r;');
-    lines.push(
-        '        if (covered > frameMaskThreshold()) discard;');
-    lines.push('    }');
-    lines.push('#endif');
-    lines.push('');
-
-    lines.push('    Light light = frameLight();');
-    lines.push('    Eye eye = frameEye();');
-    lines.push('');
-
-    lines.push(
-        '    vec3 flatNormal'
-        + ' = normalize(cross(dFdx(vFragPos), dFdy(vFragPos)));');
+    lines.push(SNIPPETS.prologue);
     lines.push('');
 
     // pre-scan to find max stack depths so registers can be
@@ -142,13 +219,11 @@ export function generateSpecializedMain(
     // registers start at flatNormal so a runtime-skipped push
     // (a flag-gated normal layer) leaves the stack top at the
     // flat normal, matching the interpreter's runtime stack
-    lines.push('    vec3 n0 = flatNormal;');
-
-    for (let depth = 1; depth < maxNormalDepth; depth++)
-        lines.push(`    vec3 n${depth} = flatNormal;`);
+    for (let depth = 0; depth < maxNormalDepth; depth++)
+        lines.push(fill(SNIPPETS.normalReg, { depth }));
 
     for (let depth = 0; depth < maxColorDepth; depth++)
-        lines.push(`    vec3 c${depth};`);
+        lines.push(fill(SNIPPETS.colorReg, { depth }));
 
     normalDepth = 1;
 
@@ -157,12 +232,11 @@ export function generateSpecializedMain(
     for (let idx = 0; idx < layers.length; idx++) {
 
         const layer = layers[idx];
-        const ubo = `uLayers.layers[${idx}]`;
+        const ubo = fill(SNIPPETS['expr.uboRef'], { idx });
 
         if (layer.flagMask)
             lines.push(
-                '    if ((renderFlags'
-                + ` & ${layer.flagMask}) == ${layer.flagMask}) {`);
+                fill(SNIPPETS.guardOpen, { flagMask: layer.flagMask }));
 
         const ind = layer.flagMask ? '        ' : '    ';
         const op = `op${idx}`;
@@ -170,9 +244,7 @@ export function generateSpecializedMain(
         emitSource(layer, ubo, op, ind, lines, normalDepth);
 
         if (layer.target === 'color')
-            lines.push(
-                `${ind}${op} = vec4(mix(vec3(${op}), vec3(1.0),`
-                + ` ${ubo}.p2.y), ${op}.w);`);
+            lines.push(fill(SNIPPETS.whitewash, { ind, op, ubo }));
 
         emitOperation(
             layer, ubo, op, ind, lines, colorDepth, normalDepth);
@@ -186,13 +258,12 @@ export function generateSpecializedMain(
             if (layer.target === 'normal') normalDepth--;
         }
 
-        if (layer.flagMask) lines.push('    }');
+        if (layer.flagMask) lines.push(SNIPPETS.guardClose);
 
         lines.push('');
     }
 
-    lines.push(`    fragColor = vec4(c${colorDepth - 1}, 1.0);`);
-    lines.push('}');
+    lines.push(fill(SNIPPETS.epilogue, { top: `c${colorDepth - 1}` }));
 
     return lines.join('\n');
 }
@@ -245,8 +316,7 @@ function emitSource(
     switch (layer.source) {
 
         case 'constant':
-            lines.push(
-                `${ind}vec4 ${op} = vec4(${ubo}.p1.xyz, 1.0);`);
+            lines.push(fill(SNIPPETS['src.constant'], { ind, op, ubo }));
             break;
 
         case 'texture':
@@ -258,29 +328,27 @@ function emitSource(
             const specular = layer.srcShadeType === 'specular'
                 ? 'true' : 'false';
             lines.push(
-                `${ind}vec4 ${op} = srcShade(${nTop}, flatNormal,`
-                + ` ${specular}, light, eye, renderFlags);`);
+                fill(SNIPPETS['src.shade'],
+                    { ind, op, nTop, specular }));
             break;
         }
 
         // pop's value feeds the blend below; op only carries its
         // alpha (1.0)
         case 'pop':
-            lines.push(`${ind}vec4 ${op} = vec4(1.0);`);
+            lines.push(fill(SNIPPETS['src.pop'], { ind, op }));
             break;
 
         case 'atm-density':
-            lines.push(
-                `${ind}vec4 ${op} = vec4(vec3(vAtmDensity), 1.0);`);
+            lines.push(fill(SNIPPETS['src.atmDensity'], { ind, op }));
             break;
 
         case 'none':
-            lines.push(`${ind}vec4 ${op} = vec4(0.0);`);
+            lines.push(fill(SNIPPETS['src.none'], { ind, op }));
             break;
 
         case 'normal-flat':
-            lines.push(
-                `${ind}vec4 ${op} = vec4(flatNormal, 1.0);`);
+            lines.push(fill(SNIPPETS['src.normalFlat'], { ind, op }));
             break;
     }
 }
@@ -295,7 +363,7 @@ function emitTextureSource(
 ): void {
 
     const baseUv = layer.srcTextureUVs === 'internal'
-        ? 'vTexCoords' : 'vTexCoords2';
+        ? SNIPPETS['uv.internal'] : SNIPPETS['uv.external'];
     const texIdx = layer.srcTextureIdx!;
     const maskIdx = layer.srcTextureMaskIdx !== undefined
         && layer.srcTextureMaskIdx >= 0
@@ -304,8 +372,8 @@ function emitTextureSource(
         ? 'true' : 'false';
 
     lines.push(
-        `${ind}vec4 ${op} = srcTexture(${texIdx}, ${maskIdx},`
-        + ` ${baseUv}, ${ubo}.p1, ${normalSampling});`);
+        fill(SNIPPETS['src.texture'],
+            { ind, op, texIdx, maskIdx, baseUv, ubo, normalSampling }));
 }
 
 
@@ -325,7 +393,7 @@ function emitOperation(
             // registers are declared at function scope
             const reg = layer.target === 'color'
                 ? `c${colorDepth}` : `n${normalDepth}`;
-            lines.push(`${ind}${reg} = ${op}.xyz;`);
+            lines.push(fill(SNIPPETS['op.push'], { ind, reg, op }));
             break;
         }
 
@@ -339,9 +407,9 @@ function emitOperation(
                     ? `c${colorDepth - 1}` : `n${normalDepth - 1}`;
                 const base = layer.target === 'color'
                     ? `c${colorDepth - 2}` : `n${normalDepth - 2}`;
-                emitBlend(
-                    layer, ubo, op, base,
-                    `vec4(${popReg}, 1.0)`, ind, lines);
+                const operand =
+                    fill(SNIPPETS['expr.popOperand'], { popReg });
+                emitBlend(layer, ubo, op, base, operand, ind, lines);
                 break;
             }
 
@@ -353,15 +421,13 @@ function emitOperation(
 
         case 'atm-color': {
             const reg = `c${colorDepth - 1}`;
-            lines.push(
-                `${ind}${reg} = atmColor(${op}.x,`
-                + ` vec4(${reg}, 1.0)).xyz;`);
+            lines.push(fill(SNIPPETS['op.atmColor'], { ind, reg, op }));
             break;
         }
 
         case 'shadows': {
             const reg = `c${colorDepth - 1}`;
-            lines.push(`${ind}${reg} = applyShadows(${reg}, eye);`);
+            lines.push(fill(SNIPPETS['op.shadows'], { ind, reg }));
             break;
         }
     }
@@ -381,32 +447,32 @@ function emitBlend(
     lines: string[],
 ): void {
 
-    const alpha = `${ubo}.p2.x * ${op}.w`;
+    const alpha = fill(SNIPPETS['expr.blendAlpha'], { ubo, op });
 
     switch (layer.opBlendMode) {
 
         case 'overlay':
             lines.push(
-                `${ind}${base} = blendOverlay(${base}, ${operand},`
-                + ` ${alpha});`);
+                fill(SNIPPETS['blend.overlay'],
+                    { ind, base, operand, alpha }));
             break;
 
         case 'add':
             lines.push(
-                `${ind}${base} = blendAdd(${base}, ${operand},`
-                + ` ${alpha});`);
+                fill(SNIPPETS['blend.add'],
+                    { ind, base, operand, alpha }));
             break;
 
         case 'multiply':
             lines.push(
-                `${ind}${base} = blendMultiply(${base}, ${operand},`
-                + ` ${alpha});`);
+                fill(SNIPPETS['blend.multiply'],
+                    { ind, base, operand, alpha }));
             break;
 
         case 'specular-multiply':
             lines.push(
-                `${ind}${base} = blendSpecularMultiply(${base},`
-                + ` ${operand}, light);`);
+                fill(SNIPPETS['blend.specularMultiply'],
+                    { ind, base, operand }));
             break;
     }
 }

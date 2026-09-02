@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Move the specialized main's GLSL text out of TypeScript
+
+The specializer built the generated `main()` by concatenating GLSL as TS
+string literals, which was hard to read and awkward against the 80-column
+limit. The literal fragments now live as named snippets in a new
+`tile.frag.template.glsl`, delimited by `//%snippet`/`//%end` comments the
+shader loader passes through verbatim. `parseSnippets` reads them into a
+map and `fill` substitutes `${...}` holes; a backslash line-continuation
+lets a wrapped snippet still emit one line. The stack-to-register
+compilation — the depth pre-scan, register naming, and per-layer dispatch
+— stays in TypeScript. Output is byte-for-byte identical: a fuzzer over
+several thousand layer stacks found no difference in the generated main or
+the cache signature. Screenshot tests render unchanged.
+
 ## 2026-09-02 - Profile past the terrain shader; write two perf analyses
 
 With the terrain color shader specialized, a label-heavy high-oblique
