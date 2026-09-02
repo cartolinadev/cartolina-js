@@ -3,6 +3,22 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-02 - Move the tile-shader opcode bodies into GLSL functions
+
+The specializer assembled every opcode body from strings, duplicating the
+interpreter's texture, shade, blend, atmosphere, and shadow logic. The two
+copies could drift. The opcode bodies now live as GLSL functions in
+`tile.frag.glsl` — `srcTexture`, `srcShade`, `blendOverlay`, `blendAdd`,
+`blendMultiply`, `blendSpecularMultiply`, and `applyShadows`. The
+interpreter's `main()` and the specializer's generated `main()` both call
+them, so each opcode body has one source. The specializer keeps only what
+the preprocessor cannot express: the register-depth pre-scan and the
+scope-level register declarations, plus the per-layer call lines. Bool
+literal arguments (`true`/`false`) passed for the render-flag decisions are
+constant-folded, so the generated code stays straight-line. Rendering is
+unchanged: on the pixel-comparable test corpus (simple, complex, full,
+legacy-benatky) dev matches prod within anti-aliasing.
+
 ## 2026-09-02 - Runtime tile-shader specializer
 
 The tile fragment shader interpreted a per-fragment layer-stack loop, reading

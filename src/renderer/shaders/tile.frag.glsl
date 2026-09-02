@@ -189,6 +189,137 @@ float diffuseCoef(vec3 normal, Light light, vec3 zenithNorm, float slope,
     return 1.0 - pow(diffuseComplement, 1.0 / weightSum);
 }
 
+vec4 srcTexture(int texIdx, int maskIdx, vec2 baseUv, vec4 xform,
+        bool normalSampling) {
+
+    // obtain and transform uvs
+    vec2 uv = vec2(xform.x * baseUv.x + xform.z,
+        xform.y * baseUv.y + xform.w);
+
+    vec4 operand = vec4(0.0);
+
+    // result
+    if (normalSampling) operand = vec4(sampleNormal(texIdx, uv), 1.0);
+    else operand = sample2D(texIdx, uv);
+
+    // mask
+    if (maskIdx != -1) operand.w *= sample2D(maskIdx, uv).x;
+
+    return operand;
+}
+
+vec4 srcShade(vec3 nTop, vec3 flatNormal, bool specular, Light light,
+        Eye eye, int renderFlags) {
+
+    vec3 normal_ = nTop;
+    float slope = 0.0;
+
+    vec3 zenithNorm = normalize(vEllipsoidZenith);
+
+    bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
+    bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
+
+    if (useNormalMaps) {
+
+        // skip this for no exaggeration (optimization)
+        if (vVerticalExaggeration - 1.0 > 1e-3) {
+
+            float va = vVerticalExaggeration;
+
+            // numerical stability for near-flat areas
+            if (abs(1.0 - normal_.z) < 5e-4)
+                va = 1.0 + abs(1.0 - normal_.z) / 5e-4 * (va - 1.0);
+
+            normal_.z *= 1.0 / va;
+            normal_ = normalize(normal_);
+        }
+
+        if (useSlopeShading)
+            slope = acos(clamp(normal_.z, -1.0, 1.0));
+
+        normal_ = tangentialFrame2Wc(zenithNorm, uUpVector) * normal_;
+    }
+
+    if (!useNormalMaps) {
+
+        if (useSlopeShading)
+            slope = acos(clamp(dot(flatNormal, zenithNorm), -1.0, 1.0));
+    }
+
+    if (!specular) {
+
+        float diffuse_ = diffuseCoef(normal_, light, zenithNorm, slope,
+            renderFlags);
+        return vec4(light.ambient + diffuse_ * light.diffuse, 1.0);
+    }
+
+    // specular (blinn-phong)
+    vec3 viewDir = vFragPos - eye.virtualPos;
+    vec3 halfway = -normalize(normalize(viewDir) + normalize(light.direction));
+
+    return vec4(vec3(max(dot(normal_, halfway), 0.0)), 1.0);
+}
+
+vec3 blendOverlay(vec3 base, vec4 operand, float alpha) {
+    return (1.0 - alpha) * base + alpha * operand.xyz;
+}
+
+vec3 blendAdd(vec3 base, vec4 operand, float alpha) {
+    return base + alpha * operand.xyz;
+    //result = operand.xyz;
+}
+
+vec3 blendMultiply(vec3 base, vec4 operand, float alpha) {
+    return (1.0 - alpha * (1.0 - operand.xyz)) * base;
+}
+
+vec3 blendSpecularMultiply(vec3 base, vec4 operand, Light light) {
+
+    // specular reflectivity
+    int shininessBits = 4;
+    int shmask = (1 << shininessBits) - 1;
+    int cmask = 0xff & ~shmask;
+    float cdivisor = float((1 << (8 - shininessBits)) - 1);
+
+    int value = int(base.x * 255.0);
+
+    float specularColor = float((value & cmask) >> shininessBits);
+    specularColor /= cdivisor;
+
+    float shininess = float(value & shmask);
+
+    //result = light.specular
+    //    * specularColor * pow(operand.x, shininess);
+    return light.specular
+        * specularColor * pow(operand.x, 32.0);
+}
+
+vec3 applyShadows(vec3 color, Eye eye) {
+
+    float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
+    float ratio;
+
+    // the below dichotomy is not pretty but it yields decent empirical results
+    if (eye.virtualEyeToCenter / eye.eyeToCenter > 0.9) {
+
+        // scenario 1: linear ramp
+        ratio = r;
+
+    } else {
+
+        // scenario 2: generic power function
+        // we want the ratio to be equal to 0.5 at virtualEyeCenter
+        // and to 0 at eyeCenter
+
+        // relative eycenter distance
+        float d = (eye.eyeToCenter - eye.virtualEyeToCenter) / eye.eyeToCenter;
+
+        ratio = pow(r, log(0.5) / log(d));
+    }
+
+    return color * ratio;
+}
+
 // main
 
 void main() {
@@ -241,31 +372,14 @@ void main() {
         // source: texture
         if (l.source == source_Texture) {
 
-            // obtain and transform uvs
-            vec2 uv = vTexCoords2;
-
-            if (l.srcTextureUVs == textureUVs_Internal)
-                uv = vTexCoords;
+            vec2 baseUv = vTexCoords2;
+            if (l.srcTextureUVs == textureUVs_Internal) baseUv = vTexCoords;
 
             float xform[4] = l.srcTextureTransform;
 
-            uv = vec2(
-                xform[0] * uv.x + xform[2], xform[1] * uv.y + xform[3]);
-
-            operand = vec4(0.0);
-
-            // result
-            if (l.srcTextureSampling == textureSampling_Raw)
-                operand = sample2D(l.srcTextureIdx, uv);
-
-            if (l.srcTextureSampling == textureSampling_Normal) {
-
-                operand = vec4(sampleNormal(l.srcTextureIdx, uv), 1.0);
-            }
-
-            // mask
-            if (l.srcTextureMaskIdx != -1)
-                operand.w *= sample2D(l.srcTextureMaskIdx, uv).x;
+            operand = srcTexture(l.srcTextureIdx, l.srcTextureMaskIdx, baseUv,
+                vec4(xform[0], xform[1], xform[2], xform[3]),
+                l.srcTextureSampling == textureSampling_Normal);
         }
 
         // source: normal-flat
@@ -277,62 +391,8 @@ void main() {
         // source: shade
         if (l.source == source_Shade) {
 
-            vec3 normal_;
-            float slope = 0.0;
-
-            normal_ = top(normal);
-            vec3 zenithNorm = normalize(vEllipsoidZenith);
-
-            bool useNormalMaps = (renderFlags & FlagNormalMaps) != 0; // needed for slope formula selection
-            bool useSlopeShading = (renderFlags & FlagShadingSlope) != 0;
-
-            if (useNormalMaps) {
-
-                // skip this for no exaggeration (optimization)
-                if (vVerticalExaggeration - 1.0 > 1e-3) {
-
-                    float va = vVerticalExaggeration;
-
-                    // numerical stability for near-flat areas
-                    if (abs(1.0 - normal_.z) < 5e-4)
-                        va = 1.0 + abs(1.0 - normal_.z) / 5e-4 * (va - 1.0);
-
-                    normal_.z *= 1.0 / va;
-                    normal_ = normalize(normal_);
-                }
-
-                if (useSlopeShading)
-                    slope = acos(clamp(normal_.z, -1.0, 1.0));
-
-                normal_ = tangentialFrame2Wc(zenithNorm, uUpVector) * normal_;
-            }
-
-            if (!useNormalMaps) {
-
-                if (useSlopeShading)
-                    slope = acos(clamp(dot(flatNormal, zenithNorm), -1.0, 1.0));
-            }
-
-            
-            if (l.srcShadeType == shadeType_Diffuse) {
-
-                float diffuse_ = diffuseCoef(
-                    normal_, light, zenithNorm, slope, renderFlags);
-                operand = vec4(light.ambient +  diffuse_ * light.diffuse, 1.0);
-
-            }
-
-            if (l.srcShadeType == shadeType_Specular) {
-
-                // specular (blinn-phong)
-                vec3 viewDir = vFragPos - eye.virtualPos;
-
-                vec3 halfway = - normalize(
-                    normalize(viewDir) + normalize(light.direction));
-
-                operand = vec4(vec3(max(dot(normal_, halfway), 0.0)), 1.0);
-            }
-
+            operand = srcShade(top(normal), flatNormal,
+                l.srcShadeType == shadeType_Specular, light, eye, renderFlags);
         }
 
         // source: pop
@@ -367,50 +427,27 @@ void main() {
         // operation: blend
         if (l.operation == operation_Blend) {
 
-            vec3 base, result;
+            vec3 base;
 
             if (l.target == target_Color) base = top(color);
             if (l.target == target_Normal) base = top(normal);
 
             float alpha = l.opBlendAlpha * operand.w;
+            vec3 result = base;
 
             switch(l.opBlendMode) {
 
                 case blendMode_Overlay:
-                    result = (1.0 - alpha) * base + alpha * operand.xyz;
-                    break;
+                    result = blendOverlay(base, operand, alpha); break;
 
                 case blendMode_Add:
-                    result = base + alpha * operand.xyz;
-                    //result = operand.xyz;
-                    break;
+                    result = blendAdd(base, operand, alpha); break;
 
                 case blendMode_Multiply:
-                    result = (1.0 - alpha * (1.0 - operand.xyz)) * base;
-                    break;
+                    result = blendMultiply(base, operand, alpha); break;
 
                 case blendMode_specularMultiply:
-                    // specular reflectivity
-                    int shininessBits = 4;
-                    int shmask = (1 << shininessBits) - 1;
-                    int cmask = 0xff & ~shmask;
-                    float cdivisor = float((1 << (8 - shininessBits)) - 1);
-
-                    int value = int(base.x * 255.0);
-
-                    float specularColor = float((value & cmask) >> shininessBits);
-                    specularColor /= cdivisor;
-
-                    float shininess = float(value & shmask);
-
-                    //result = light.specular
-                    //    * specularColor * pow(operand.x, shininess);
-                    result = light.specular
-                        * specularColor * pow(operand.x, 32.0);
-
-                    break;
-
-                default: result = base;
+                    result = blendSpecularMultiply(base, operand, light); break;
             }
 
             if (l.target == target_Color) swapTop(color, result);
@@ -427,28 +464,8 @@ void main() {
         // operation: shadows
         if (l.operation == operation_Shadows) {
 
-            float r = min(-vFragPosVC.z / eye.eyeToCenter, 1.0);
-            float ratio;
-
-            // the below dichotomy is not pretty but it yields decent empirical results
-            if (eye.virtualEyeToCenter / eye.eyeToCenter > 0.9) {
-
-                // scenario 1: linear ramp
-                ratio = r;
-
-            } else {
-
-                // scenario 2: generic power function
-                // we want the ratio to be equal to 0.5 at virtualEyeCenter
-                // and to 0 at eyeCenter
-
-                // relative eycenter distance
-                float d = (eye.eyeToCenter - eye.virtualEyeToCenter) / eye.eyeToCenter;
-
-                ratio = pow(r, log(0.5)/ log(d));
-            }
-
-            if (l.target == target_Color) swapTop(color, top(color) * ratio);
+            if (l.target == target_Color)
+                swapTop(color, applyShadows(top(color), eye));
         }
 
 

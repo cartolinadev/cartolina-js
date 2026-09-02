@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.110-feature_tile_shader_specializer.4ae8ad05",
+  "version": "2.50.111-feature_tile_shader_specializer.cb5dc46d",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
