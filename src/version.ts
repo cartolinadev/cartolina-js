@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.114-feature_tile_shader_specializer.583806d8';
+    return '2.50.115-feature_tile_shader_specializer.42811348';
 }

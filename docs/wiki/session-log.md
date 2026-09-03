@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - One style validator instead of two
+
+Style validation ran the whole `StyleSpecification` through typia twice:
+equality validation to find unknown keys, then ordinary validation to
+tell an unknown key from a malformed known field. Each generated
+validator costs about 470 KB minified, in both the main and the compat
+bundle. The second one is gone: equality validation already separates
+the two cases, reporting a key the schema does not declare as expected
+to be `undefined` and a malformed known field as its expected type.
+`cartolina.min.esm.js` drops from 1.97 MB to 1.50 MB and
+`cartolina-compat.min.esm.js` from 1.02 MB to 0.54 MB.
+
+One behavior changes: an entry inside `shadows`, typed
+`Record<string, never>`, is now warned about and ignored rather than
+fatal, which is what the forward-compatibility rule asks for. The
+remaining validator is [backlog 62](backlog.md#backlog-62).
+
 ## 2026-09-03 - Retire the tile shader interpreter; one assembled path
 
 The tile color shader existed as two implementations of the same

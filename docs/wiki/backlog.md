@@ -23,6 +23,30 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-62"></a>
+## 62. Style validation costs half a megabyte of generated code
+
+**Opened:** 2026-09-03
+**Status:** open
+
+`validateSpecification` checks the authored style against the whole
+`StyleSpecification` type through typia. The generated validator is
+about 470 KB minified — roughly a third of `cartolina.min.esm.js`, and
+most of `cartolina-compat.min.esm.js`, which bundles its own copy. Gzip
+brings that down to about 32 KB per bundle, so the weight is in parse
+time rather than transfer.
+
+The size comes from the recursive `Expression` union. `Property<T>`
+admits an expression at nearly every layer property, and typia expands
+the twelve-branch union inline at each one instead of calling a shared
+function: the operator name `deg2rad` appears 32 times in the bundle.
+
+The direction is to keep expressions out of the generated validator —
+declare `Expression` opaque in the schema and check it separately —
+rather than to drop schema validation.
+
+---
+
 <a id="backlog-61"></a>
 ## 61. PERF: legacy geodata/label pipeline is the CPU frame bottleneck
 
