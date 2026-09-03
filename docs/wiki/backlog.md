@@ -23,6 +23,29 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-63"></a>
+## 63. Style validation costs half a megabyte of generated code
+
+**Opened:** 2026-09-03
+**Status:** open
+
+`validateSpecification` checks the authored style against the whole
+`StyleSpecification` type through typia. The generated validator is
+about 470 KB minified — roughly a third of `cartolina.min.esm.js`, and
+most of `cartolina-compat.min.esm.js`, which bundles its own copy. Gzip
+brings that down to about 32 KB per bundle, so the weight is in parse
+time rather than transfer.
+
+The size comes from the recursive `Expression` union. `Property<T>`
+admits an expression at nearly every layer property, and typia expands
+the twelve-branch union inline at each one instead of calling a shared
+function: the operator name `deg2rad` appears 32 times in the bundle.
+
+The direction is to keep expressions out of the generated validator —
+declare `Expression` opaque in the schema and check it separately —
+rather than to drop schema validation.
+
+
 <a id="backlog-62"></a>
 ## 62. Store heightcoding: unbounded publications, desktop-sized caches
 
@@ -63,6 +86,34 @@ The fix is to state what a killed mesh still guarantees — array length,
 bounding boxes and the coverage flag — and to keep readers off anything
 `kill()` nulls.
 
+
+<a id="backlog-61"></a>
+## 61. PERF: legacy geodata/label pipeline is the CPU frame bottleneck
+
+**Opened:** 2026-09-02
+**Status:** open
+**Related:** [geodata-rendering-profiling.md](geodata-rendering-profiling.md),
+[geodata-rendering.md](geodata-rendering.md), [36](#backlog-36)
+
+On a label-heavy, high-oblique view of the `complex` style at 2560×1353
+the frame settles near 25 fps and is CPU-bound: the CPU frame is roughly
+40 ms against a roughly 15 ms GPU frame, so terrain shading — including
+the specialized color shader — is off the critical path. About seven
+tenths of the CPU frame is the legacy geodata and label renderer.
+
+The cost splits into three per-frame operations, each scaling with the
+visible feature count: ordering the whole visible set by importance
+(~20%), anti-overlap placement across it (~10%), and per-feature draw
+dispatch with its per-job state setup (the largest block, over a third).
+Two design properties drive it: the pipeline rebuilds from scratch every
+frame, so a static camera recomputes an identical result; and high
+obliqueness floods the visible set with far-field features that are
+sorted and collision-tested before most are culled.
+
+Directions, by leverage: reuse the ordering and placement across
+unchanged frames; cull the far field before the sort; and batch the
+dispatch by shared draw state. Full analysis and numbers in
+[geodata-rendering-profiling.md](geodata-rendering-profiling.md).
 
 <a id="backlog-60"></a>
 ## 60. Legacy draws leave attribute arrays enabled on the default VAO
@@ -962,6 +1013,39 @@ shader's `discard` (see
 tiles](backlog-archive.md#backlog-35)), which the executor split
 should preserve by keeping depth and footprint as specialized,
 discard-free passes.
+
+**Update 2026-09-02:** the specialized shader is now built at runtime.
+`TileRenderRig.draw` builds a `LayerDesc[]` structural description of the
+stack and asks the renderer for a program keyed on its shape
+(`renderer.programTileSpecialized`); the renderer generates straight-line
+GLSL and caches the program. The win is not loop removal: with
+every UBO-driven index constant-folded, the compiler eliminates the two
+if-ladders that software-emulate dynamic indexing — the register stack
+(`stack.inc.glsl` `top`/`swapTop` walk `topIndex` through per-slot
+comparisons) collapses to named registers, and the 12-way `sample2D`
+sampler ladder collapses to one direct fetch — plus dead-code elimination
+on the source/target/operation/blend branches.
+
+This is a down payment on the split, not the split. The neutral
+`LayerDesc` (the "prepared render description" this entry wants) exists
+and GLSL codegen lives renderer-side, but execution has not moved:
+`tile-render-rig.ts` still owns UBO encode, sampler assignment, program
+selection, and the draw call, and `fillLayerBuffer()` builds the
+descriptors and does the WebGL binding together. Tech-independence is not
+advanced — the specializer emits GLSL, so it is a WebGL backend helper.
+And it bakes the whole stack into one single pass, the opposite of the
+multipass-first baseline; it is the fused fast-path endpoint, not the
+general executor.
+
+Vector/line-art layers (waterways, roads) do not fit the specializer
+directly: a vector layer is a separate rendering method (rasterize
+geometry into a tile-local target), not a fragment opcode over
+source/target/operation. They need the multipass executor this entry
+proposes. Once that pass produces the intermediate texture, it enters the
+stack as a `texture`/`pop` source and the specializer generates the
+composite tail that reads it — the shared blend/specular/atmosphere
+processing the specialized shader already does. The specializer is the
+composite tail, not the vector renderer.
 
 ---
 

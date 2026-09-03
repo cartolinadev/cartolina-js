@@ -1,5 +1,12 @@
 # TileRenderRig profiling
 
+> **Superseded.** This page measured the pre-specialization terrain
+> color shader — the per-fragment layer interpreter that no longer runs
+> on the common path. The design reasoning it led to, and why the shader
+> was specialized, is now in
+> [terrain-shader-performance.md](terrain-shader-performance.md). This
+> page is kept as the original raw diagnostic record only.
+
 Settled-state per-frame GPU cost of the style-era terrain color shader,
 measured on `simple.json` at a 2560×1353 viewport. The shader is the one
 `TileRenderRig` drives through `tile.frag.glsl`: a runtime layer

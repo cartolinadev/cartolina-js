@@ -76,6 +76,10 @@ in [AGENTS.md](../../AGENTS.md).
 
 - [geodata-rendering.md](geodata-rendering.md) — current geodata
   render path: tile traversal, job collection, and queued job drawing
+- [geodata-rendering-profiling.md](geodata-rendering-profiling.md) — why
+  the CPU frame is bound by the legacy geodata and label pipeline on
+  label-heavy oblique views: the per-frame rebuild model, per-job
+  dispatch cost, and the design changes that would move it
 - [label-styling-engine.md](label-styling-engine.md) — reference notes
   about the shared lettering style engine, expression domains, and
   textured line patterns
@@ -98,11 +102,14 @@ in [AGENTS.md](../../AGENTS.md).
   encoding: why it is kept for full-sphere coverage and uniform precision,
   the nonlinearity problem when blending encoded values, and how
   `TextureBlend` oct-normal mode fixes it for bump-layer collapse
+- [terrain-shader-performance.md](terrain-shader-performance.md) — why
+  the terrain color stage was specialized: the cost of a general
+  per-fragment layer interpreter in the hot path, and the reasoning that
+  led to baking the layer stack into straight-line code
 - [tile-render-rig-profiling.md](tile-render-rig-profiling.md) —
-  settled-state GPU cost of the terrain color shader on `simple.json`:
-  method and clock-drift caveat, the fill-bound finding, two confirmed
-  wins (discard×MSAA, layer-VM split), and a normal-tap change that did
-  not pay off on this hardware
+  superseded raw diagnostic record behind the above: settled-state GPU
+  cost of the pre-specialization terrain shader on `simple.json`, the
+  fill-bound finding, and the discard×MSAA and layer-VM findings
 
 ### API, navigation, demos, and testing
 

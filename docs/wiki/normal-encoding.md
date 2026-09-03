@@ -15,7 +15,7 @@ geographic location. This is a deliberate departure from the standard
 CG convention of expressing normals relative to the local mesh surface.
 The reason is that the tileserver generates normal maps independently
 of any mesh — see "Why the frame is mesh-independent" below.
-`tangentialFrame2Wc` in `tile.frag.glsl` constructs this frame from
+`tangentialFrame2Wc` in `tile.frag.template.glsl` constructs this frame from
 the ellipsoid zenith and the tile's up-vector and converts stored
 normals to world coordinates.
 
@@ -28,7 +28,7 @@ independently:
   `b1 = b2 × b0`. Returns `trans([b0,b1,b2])`: rotates a vector from
   ECEF into the tangent frame.
 
-- **Client shader** (`tangentialFrame2Wc` in `tile.frag.glsl`):
+- **Client shader** (`tangentialFrame2Wc` in `tile.frag.template.glsl`):
   same basis vectors, returns `mat3(b0, b1, b2)`: rotates from the
   tangent frame back to world space. The two matrices are inverses of
   each other, as required.
@@ -108,7 +108,7 @@ p   = n.z >= 0 ? n.xy
 rg  = p * 0.5 + 0.5                   // pack to [0,1]
 ```
 
-**Decode (tile.frag.glsl `decodeOct`):**
+**Decode (tile.frag.template.glsl `decodeOct`):**
 ```
 p  = rg * 2 − 1
 n  = (p.x, p.y, 1 − |p.x| − |p.y|)

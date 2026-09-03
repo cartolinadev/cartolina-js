@@ -31,17 +31,18 @@ export function validateSpecification(
     if (!exact.success) {
 
         // Exact validation reports unknown keys and malformed known
-        // fields alike. Ordinary validation ignores unknown keys, so
-        // it distinguishes the malformed case without trying to infer
-        // meaning from an error selected inside a union branch.
-        const known = validateKnownStyle(styleSpec);
+        // fields alike, and separates them by what it expected: a key
+        // the schema does not declare is expected to be undefined,
+        // while a known field carries the type it should have had.
+        const malformed = exact.errors
+            .filter((error) => error.expected !== 'undefined');
 
-        if (!known.success) {
+        if (malformed.length > 0) {
 
             // the cause travels in the message, so an application
             // handling the failure receives it rather than having to
             // read a separate console line
-            const details = known.errors
+            const details = malformed
                 .map((error) => `${error.path}: expected ${error.expected}, `
                     + `got ${JSON.stringify(error.value)}`)
                 .join('; ');
@@ -150,11 +151,14 @@ export function validateSurfaceDefinition(
 }
 
 
+/*
+ * The generated validator inlines the recursive expression union at
+ * every style property that accepts one, which costs about half a
+ * megabyte of minified code. Keep this the only whole-schema validator
+ * in the module.
+ */
 const validateStyleExactly =
     typia.createValidateEquals<StyleSchema.StyleSpecification>();
-
-const validateKnownStyle =
-    typia.createValidate<StyleSchema.StyleSpecification>();
 
 
 /*

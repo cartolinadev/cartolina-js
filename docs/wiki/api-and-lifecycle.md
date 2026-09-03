@@ -91,9 +91,11 @@ individual surface entry and raster definition.
 A known field with the wrong shape throws. The style document is authored
 by a tileserver that versions separately from this library, so a key added
 on the server must not stop an older client from rendering the parts it
-does understand. It uses exact and ordinary validation together to
-distinguish unknown keys from malformed known fields. Deprecated fields
-remain ordinary schema members, so they need no validation special case.
+does understand. It reads the distinction off the errors exact
+validation reports: an undeclared key is expected to be `undefined`,
+while a malformed known field carries the type it should have had.
+Deprecated fields remain ordinary schema members, so they need no
+validation special case.
 The other three validation boundaries use `typia.validate`, which ignores
 unknown keys.
 

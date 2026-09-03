@@ -31,6 +31,119 @@ remained dirty, so depth-tested labels repeatedly polled the same fence. The
 ready frame path now collects once outside the dirty draw gate, which also
 drains a pending copy after drawing stops.
 
+
+## 2026-09-03 - One style validator instead of two
+
+Style validation ran the whole `StyleSpecification` through typia twice:
+equality validation to find unknown keys, then ordinary validation to
+tell an unknown key from a malformed known field. Each generated
+validator costs about 470 KB minified, in both the main and the compat
+bundle. The second one is gone: equality validation already separates
+the two cases, reporting a key the schema does not declare as expected
+to be `undefined` and a malformed known field as its expected type.
+`cartolina.min.esm.js` drops from 1.97 MB to 1.50 MB and
+`cartolina-compat.min.esm.js` from 1.02 MB to 0.54 MB.
+
+One behavior changes: an entry inside `shadows`, typed
+`Record<string, never>`, is now warned about and ignored rather than
+fatal, which is what the forward-compatibility rule asks for. The
+remaining validator is [backlog 62](backlog.md#backlog-62).
+
+## 2026-09-03 - Retire the tile shader interpreter; one assembled path
+
+The tile color shader existed as two implementations of the same
+layer-stack semantics: the runtime interpreter `main()` and the
+specializer, kept in step only by a byte-identity check. The
+interpreter is removed. `tile.frag.template.glsl` is now the whole
+shader — its `prologue` snippet carries the varyings, uniforms, and the
+shared opcode helper functions, and the specializer concatenates that
+with the generated register and layer code, so there is no separate
+snippet-free prelude to strip. Every tile draw takes the specialized
+path; an empty layer stack specializes to a black-output program,
+matching what the interpreter produced. The three one-line blends
+(`overlay`/`add`/`multiply`) are inlined into their snippets with a
+single-use alpha temp, so the arithmetic is visible where it runs;
+`blendSpecularMultiply` keeps its function. `tile.frag.glsl` and the
+interpreter-only `stack.inc.glsl` are deleted, and `layers.inc.glsl`
+loses its dead `decodeLayer`/`layerCount`/`Layer` decode path, keeping
+the UBO layout the specialized shader reads. `//%end` now takes an
+optional snippet name as a checked reading anchor. The snippet-parsing
+helpers sit below the module's public API. Generated per-layer code is
+unchanged except the intended blend inlining; the terrain and
+legacy-city screenshots render unchanged.
+
+## 2026-09-03 - Move the specialized main's GLSL text out of TypeScript
+
+The specializer built the generated `main()` by concatenating GLSL as TS
+string literals, which was hard to read and awkward against the 80-column
+limit. The literal fragments now live as named snippets in a new
+`tile.frag.template.glsl`, delimited by `//%snippet`/`//%end` comments the
+shader loader passes through verbatim. `parseSnippets` reads them into a
+map and `fill` substitutes `${...}` holes; a backslash line-continuation
+lets a wrapped snippet still emit one line. The stack-to-register
+compilation — the depth pre-scan, register naming, and per-layer dispatch
+— stays in TypeScript. Output is byte-for-byte identical: a fuzzer over
+several thousand layer stacks found no difference in the generated main or
+the cache signature. Screenshot tests render unchanged.
+
+## 2026-09-02 - Profile past the terrain shader; write two perf analyses
+
+With the terrain color shader specialized, a label-heavy high-oblique
+view of the `complex` style at 2560×1353 still runs near 25 fps. A CPU
+profile shows why: the frame is CPU-bound (~40 ms CPU against ~15 ms
+GPU), and about seven tenths of the CPU frame is the legacy geodata and
+label renderer — a full per-frame rebuild of feature ordering,
+anti-overlap placement, and per-feature draw dispatch, all scaling with
+a feature count that high obliqueness inflates. Written up in
+[geodata-rendering-profiling.md](geodata-rendering-profiling.md), with
+backlog entry 61 pointing to it.
+
+Also recorded the reasoning behind the specialization itself, which
+predated this session, in the design-level
+[terrain-shader-performance.md](terrain-shader-performance.md): why a
+general per-fragment layer interpreter was the wrong tool for the hot
+path and why baking the fixed stack into straight-line code removes the
+emulated-indexing and branch cost without touching the shading math. The
+older [tile-render-rig-profiling.md](tile-render-rig-profiling.md) is
+marked superseded and kept as the raw diagnostic record. Both new pages
+are linked from the wiki index.
+
+## 2026-09-02 - Move the tile-shader opcode bodies into GLSL functions
+
+The specializer assembled every opcode body from strings, duplicating the
+interpreter's texture, shade, blend, atmosphere, and shadow logic. The two
+copies could drift. The opcode bodies now live as GLSL functions in
+`tile.frag.glsl` — `srcTexture`, `srcShade`, `blendOverlay`, `blendAdd`,
+`blendMultiply`, `blendSpecularMultiply`, and `applyShadows`. The
+interpreter's `main()` and the specializer's generated `main()` both call
+them, so each opcode body has one source. The specializer keeps only what
+the preprocessor cannot express: the register-depth pre-scan and the
+scope-level register declarations, plus the per-layer call lines. Bool
+literal arguments (`true`/`false`) passed for the render-flag decisions are
+constant-folded, so the generated code stays straight-line. Rendering is
+unchanged: on the pixel-comparable test corpus (simple, complex, full,
+legacy-benatky) dev matches prod within anti-aliasing.
+
+## 2026-09-02 - Runtime tile-shader specializer
+
+The tile fragment shader interpreted a per-fragment layer-stack loop, reading
+each layer's source, target, operation, and blend mode from the layer UBO. On
+a store-heightcoded, label-heavy view this loop dominated the GPU frame. A new
+specializer (`src/renderer/tile-shader-specializer.ts`) emits straight-line
+GLSL for a given layer stack: the opcodes become compile-time constants while
+the UBO still carries the per-draw dynamic values (texture transforms, blend
+alphas, constant colours). `TileRenderRig.draw` derives a signature from the
+layer stack and asks the renderer for a program keyed on it; three signatures
+cover a session, each compiled once and cached.
+
+The shade path reads the runtime render flags rather than baking them, because
+`mapFlagNormalMaps`, `mapShadingSlope`, and `mapShadingAspect` toggle
+independently of the layer stack. `renderFlags` is dynamically uniform, so the
+`if (renderFlags & Flag)` branches carry no divergence. Normal registers
+initialize to `flatNormal` so a flag-skipped push leaves the stack top at
+`flatNormal`, matching the interpreter's runtime stack. Dev-vs-prod pixels are
+identical at default flags and with `mapShadingSlope=1&mapFlagNormalMaps=0`.
+
 ## 2026-09-02 - Consolidate RFC 13 and reopen for review round 7
 
 Folded the shipped elevation-store behaviour into the RFC 13 design body and

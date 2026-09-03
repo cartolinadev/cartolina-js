@@ -15,6 +15,8 @@ import Atmosphere from './atmosphere';
 import { grayPngDecodeAvailable } from '../utils/gray-png';
 import type * as StyleSchema from './style-schema';
 import RasterSource from './raster-source';
+import type { LayerDesc } from
+    '../renderer/tile-shader-specializer';
 
 import * as illumination from './illumination';
 import * as math from '../utils/math';
@@ -275,46 +277,31 @@ export class TileRenderRig {
         // keeps the coverage-mask discard, driven by the mask texture.
         const needsDiscard = !!maskTexture;
 
-        const program = needsDiscard
-            ? this.renderer.programTileDiscarding()
-            : this.renderer.programTile();
+        // fill the UBO and collect layer descriptors; the descriptors
+        // carry the sampler indices assigned during encoding, so the
+        // program must be selected after this runs
+        const layerDescs = this.fillLayerBuffer();
+
+        // the specialized program for the layer-stack shape; an empty
+        // stack specializes to a black-output program
+        const program =
+            this.renderer.programTileSpecialized(layerDescs, needsDiscard);
 
         /* make sure we got the right program (device caches the current program,
          * so no extra churn) */
         this.renderer.gpu.useProgram2(program);
 
+        // sampler array uniform for the layer textures
+        program.setIntArray('uTexture[0]', this.uboSamplers);
+
         // uModel
         program.setMat4('uModel', this.submesh.getWorldMatrix(cameraPos));
-
-        // this shouldn't be necessary, this is set once per frame in
-        // renderer.updateBuffer. Oddly, we keep loosing the binding
-        /*if (false && this.renderer.map.legacyMap.atmosphere) {
-
-            this.renderer.gpu.bindTexture(
-                this.renderer.map.legacyMap.atmosphere.atmDensityTexture
-                    .getGpuTexture(),
-                this.renderer.textureIdxs.atmosphere);
-
-            program.setSampler(
-                'uTexAtmDensity', this.renderer.textureIdxs.atmosphere);
-        }*/
 
         // uUpVector
         program.setVec3('uUpVector', this.rt.upVector);
 
         // coverage uniforms exist only on the discarding program
-        if (needsDiscard) {
-
-            // uMask
-            this.bindMask(program, maskTexture);
-        }
-
-        //program.setSampler(
-        //    'material.normalMap', this.normalMap.getGpuTexture());
-
-        // rebuild the layer buffer, set sampler arrays, bind textures
-        // and buffer base
-        this.updateBuffer(program);
+        if (needsDiscard) this.bindMask(program, maskTexture);
 
         // draw
         let attrNames: GpuMesh.AttrNames = { position: 'aPosition' };
@@ -458,9 +445,11 @@ export class TileRenderRig {
     }
 
     /**
-     * Rebuild the layer UBO, bind textures and set the sampler array uniform
+     * Fill the layer UBO, bind textures and collect one descriptor per
+     * encoded layer for the shader specializer. Returns the descriptors
+     * so the caller can select the specialized program.
      */
-    private updateBuffer(program: GpuProgram) {
+    private fillLayerBuffer(): LayerDesc[] {
 
         let gl = this.renderer.gpu.gl;
 
@@ -496,6 +485,9 @@ export class TileRenderRig {
         let numLayers = 0;
         bufacc.woffset = 4;
 
+        // one descriptor per encoded layer, in draw order
+        const descs: LayerDesc[] = [];
+
         this.rt.layerStack.forEach((layer) => {
 
             // sanity
@@ -519,8 +511,43 @@ export class TileRenderRig {
             // skip nonessential unready leayers
             if (!ready) return;
 
+            // record the sampler slot the main texture will take
+            const preIdx = samplers.nextIdx;
+
             // LayerRaw layers[16];
             this.encodeLayer(layer, bufacc, samplers)
+
+            // build the descriptor matching what encodeLayer emitted;
+            // flagMask is the raw integer the GLSL compares against
+            const desc: LayerDesc = {
+                target: layer.target,
+                source: layer.source,
+                operation: layer.operation,
+                flagMask: layer.flagMask ?? Renderer.RenderFlags.FlagNone,
+            };
+
+            if (layer.source === 'shade')
+                desc.srcShadeType = layer.srcShadeType;
+
+            if (layer.source === 'texture') {
+
+                desc.srcTextureUVs = layer.srcTextureUVs;
+                desc.srcTextureSampling = layer.srcTextureSampling;
+                desc.srcTextureIdx = preIdx;
+
+                // the mask, if bound, takes the slot after the main
+                // texture; encodeLayer binds main then mask
+                const mainBound = samplers.nextIdx > preIdx;
+                const maskBound = samplers.nextIdx > preIdx + 1;
+
+                desc.srcTextureMaskIdx =
+                    mainBound && maskBound ? preIdx + 1 : -1;
+            }
+
+            if (layer.operation === 'blend')
+                desc.opBlendMode = layer.opBlendMode;
+
+            descs.push(desc);
             numLayers++;
         })
 
@@ -536,15 +563,11 @@ export class TileRenderRig {
         gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.uboBuf);
         gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
-
-        // texture uniforms
-        //for (let i = 0; i < samplers.nextIdx; i++)
-        //    program.setSampler(`uTexture${i}`, samplers.samplers[i]);
-        program.setIntArray('uTexture[0]', samplers.samplers);
-
         //__DEV__ && console.log(`${this.logSign()}: bound `
         //    + `${samplers.nextTextureUnit - FirstLayerTextureUnit}`
         //    + ` texture units.`);
+
+        return descs;
     }
 
     private encodeLayer(layer: Layer,

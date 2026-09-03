@@ -20,9 +20,13 @@ import { defaultOverrides, type Overrides } from '../map/overrides';
 import type * as viewerConfig from '../viewer-config';
 import type Map from '../map/map';
 import { TextureBlend } from './textureblend';
+import {
+    type LayerDesc,
+    layerSignature,
+    specializeFragmentSource,
+} from './tile-shader-specializer';
 
 import shaderTileVert from './shaders/tile.vert.glsl';
-import shaderTileFrag from './shaders/tile.frag.glsl';
 
 import backgroundTileVert from './shaders/background.vert.glsl';
 import backgroundTileFrag from './shaders/background.frag.glsl';
@@ -200,8 +204,6 @@ export class Renderer {
 
     // programs
     programs!: {
-        tile?: GpuProgram,
-        tileDiscarding?: GpuProgram
         background?: GpuProgram
         tileDepth?: GpuProgram
         tileMaskFootprint?: GpuProgram
@@ -213,6 +215,12 @@ export class Renderer {
         elevationReduce?: GpuProgram
         elevationLookup?: GpuProgram
     }
+
+    // specialized tile programs keyed by layer-stack
+    // signature
+    private specializedPrograms:
+        { [key: string]: GpuProgram | undefined }
+        = {};
 
     private frustumVao_: Optional<WebGLVertexArrayObject> = null;
     private frustumState_: Optional<GpuDevice.State> = null;
@@ -476,38 +484,37 @@ get curSize(): Readonly<Size2> {
 
 
 /**
- * Lazy tile program initialization, including binding buffers to block names
- * and fixed samplers.
+ * Return a specialized tile program for the given layer-stack
+ * shape, compiling and caching on first use. The specializer
+ * replaces the interpreter loop with straight-line GLSL.
  */
+programTileSpecialized(
+    layers: LayerDesc[],
+    discard: boolean,
+): GpuProgram {
 
-programTile() : GpuProgram {
+    const sig = layerSignature(layers);
+    const cacheKey = discard ? `d|${sig}` : sig;
 
-    // discard-free variant for unmasked, unclipped tiles
-    if (this.programs.tile) return this.programs.tile;
+    const cached = this.specializedPrograms[cacheKey];
+    if (cached) return cached;
 
-    __DEV__ && console.log('Initializing programs.tile');
+    const fragSource = specializeFragmentSource(layers);
 
-    this.programs.tile = this.buildTileColorProgram('shader-tile', []);
+    const defines = discard ? ['TILE_DISCARD'] : [];
 
-    return this.programs.tile;
-}
+    const count = Object.keys(this.specializedPrograms).length;
 
-/**
- * Tile color program variant that keeps the coverage mask and quadrant
- * clip `discard`, lazy initialization. Used for tiles that need to
- * discard fragments (masked or clipped).
- */
+    const program = this.buildTileColorProgram(
+        `tile-spec-${count}`, defines, fragSource);
 
-programTileDiscarding() : GpuProgram {
+    this.specializedPrograms[cacheKey] = program;
 
-    if (this.programs.tileDiscarding) return this.programs.tileDiscarding;
+    __DEV__ && console.log(
+        `Compiled specialized tile program`
+        + ` '${cacheKey}' (${count + 1} cached)`);
 
-    __DEV__ && console.log('Initializing programs.tileDiscarding');
-
-    this.programs.tileDiscarding = this.buildTileColorProgram(
-        'shader-tile-discarding', ['TILE_DISCARD']);
-
-    return this.programs.tileDiscarding;
+    return program;
 }
 
 /**
@@ -517,7 +524,9 @@ programTileDiscarding() : GpuProgram {
  * @defines preprocessor macros to define (e.g. `['TILE_DISCARD']`)
  */
 
-private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
+private buildTileColorProgram(
+    name: string, defines: string[],
+    fragSource: string): GpuProgram {
 
     let atmBindings = {}
 
@@ -527,7 +536,7 @@ private buildTileColorProgram(name: string, defines: string[]): GpuProgram {
     }
 
     return new GpuProgram(
-        this.gpu, shaderTileVert, shaderTileFrag,
+        this.gpu, shaderTileVert, fragSource,
         name, {
             uboFrame: Renderer.UniformBlockName.Frame,
             uboLayers: Renderer.UniformBlockName.Layers,
