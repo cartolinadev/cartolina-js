@@ -23,6 +23,20 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-62"></a>
+## 62. Store heightcoding: unbounded publications, desktop-sized caches
+
+**Opened:** 2026-09-03
+**Status:** open — not root-caused
+**Related:** `src/map/elevation-store.ts`
+
+Store heightcoding republishes every retained job on its own, with no
+bound on the publications in flight, and the three cache budgets are one
+desktop default whatever the canvas. On a small canvas whose GPU cache
+cannot hold a coarse, label-heavy view, a zoom-out turns eviction into
+republication and the page holds more memory than the device affords.
+
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 
