@@ -1033,6 +1033,9 @@ class Map {
             return;
         }
 
+        // take any completed async copy before this frame's depth queries
+        if (this.renderer.hitmapMode > 2) this.renderer.collectHitmap();
+
         // Position-change events.
         const position = legacyMap.position;
         const lastPosition = legacyMap.lastPosition;
@@ -1241,9 +1244,6 @@ class Map {
 
         const legacyMap = this.map!;
         const renderer = this.renderer;
-
-        // take any completed async copy before this frame's depth queries
-        if (renderer.hitmapMode > 2) renderer.collectHitmap();
 
         const interval = renderer.hitmapCopyIntervalMs;
         if (interval > 0) {

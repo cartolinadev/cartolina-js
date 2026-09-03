@@ -3,6 +3,13 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Poll the depth-hitmap fence once per frame
+
+Depth-hitmap collection ran from each depth query while a throttled hitmap
+remained dirty, so depth-tested labels repeatedly polled the same fence. The
+ready frame path now collects once outside the dirty draw gate, which also
+drains a pending copy after drawing stops.
+
 ## 2026-09-02 - Consolidate RFC 13 and reopen for review round 7
 
 Folded the shipped elevation-store behaviour into the RFC 13 design body and
