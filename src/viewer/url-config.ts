@@ -31,14 +31,20 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 
-function parseBoolean(value: unknown): boolean {
-    return value === true || value === 'true' || value === '1';
+function parseBoolean(value: unknown): boolean | unknown {
+
+    if (value === true || value === 'true' || value === '1') return true;
+    if (value === false || value === 'false' || value === '0') return false;
+    return value;
 }
 
 
 function parseNumber(value: unknown): number | unknown {
-    const parsed = parseFloat(String(value));
-    return Number.isFinite(parsed) ? parsed : value;
+
+    const text = String(value);
+    const parsed = Number(text);
+
+    return text.trim() !== '' && Number.isFinite(parsed) ? parsed : value;
 }
 
 
@@ -97,10 +103,11 @@ export function parseConfigParamValue(
  * The URL vocabulary is wider than `PublicConstructionConfig`: the
  * query string is a permissive ingestion boundary, and parsed
  * internal or debug keys still apply at runtime even though the
- * returned type does not declare them. An uncatalogued query key
- * carrying a config prefix (`map`, `renderer`, `control`, `debug`)
- * is dropped with a console warning; other unknown query keys are
- * dropped silently.
+ * returned type does not declare them. A recognized value that the
+ * catalogue adjusts logs a warning with its effective value. An
+ * uncatalogued query key carrying a config prefix (`map`, `renderer`,
+ * `control`, `debug`) is also dropped with a console warning; other
+ * unknown query keys are dropped silently.
  *
  * @param defaults initial runtime option values to merge with URL parameters
  * @param url the URL to parse, defaults to `window.location.href`
@@ -136,7 +143,11 @@ export function runtimeOptionsFromUrl(
         if (FACTORY_INPUT_KEYS.has(key)) continue;
 
         if (viewerConfig.canonicalConfigKey(key) !== null) {
-            runtimeOptions[key] = config[key];
+
+            const patch = viewerConfig.normalizeConfigPatch(
+                key, config[key], 'runtimeOptionsFromUrl()');
+            if (patch) Object.assign(runtimeOptions, patch);
+
         } else if (viewerConfig.looksLikeConfigKey(key)) {
             console.warn(
                 `Unknown configuration key '${key}' in the URL; `

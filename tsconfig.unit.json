@@ -9,6 +9,8 @@
   },
   "include": [
     "src/config-store.ts",
-    "src/map/event-bus.ts"
+    "src/map/event-bus.ts",
+    "src/viewer-config.ts",
+    "src/viewer/url-config.ts"
   ]
 }

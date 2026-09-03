@@ -778,8 +778,10 @@ class Viewer {
                 `'${String(key)}' is not a public runtime parameter.`);
         }
 
-        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        const patch = viewerConfig.normalizeConfigPatch(
+            key, value, 'Viewer.setParam()');
         if (patch) this.configStore.set(patch);
+
         return this;
     }
 
@@ -1049,7 +1051,8 @@ class Viewer {
     /** Normalizes and applies one raw shared option. */
     private applyOption(key: string, value: unknown): void {
 
-        const patch = viewerConfig.normalizeConfigPatch(key, value);
+        const patch = viewerConfig.normalizeConfigPatch(
+            key, value, 'map() options');
         if (!patch) {
 
             if (viewerConfig.looksLikeConfigKey(key)) {

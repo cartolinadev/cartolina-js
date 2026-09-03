@@ -32,6 +32,20 @@ export type UrlParseKind =
 
 
 /**
+ * One authored configuration value after the catalogue has normalized it.
+ * `adjusted` states whether the supplied value differs from the value that
+ * will take effect.
+ */
+export type ConfigNormalization = {
+    key: keyof ViewerConfig;
+    patch: Partial<ViewerConfig>;
+    suppliedValue: unknown;
+    effectiveValue: ViewerConfig[keyof ViewerConfig];
+    adjusted: boolean;
+};
+
+
+/**
  * One catalogue entry: everything the system knows about a config
  * key. `produce` returns the default — a fresh allocation for
  * array values, an environment read for the environment-dependent
@@ -1048,6 +1062,41 @@ export function normalizeConfigValue<K extends keyof ViewerConfig>(
 
 
 /**
+ * Resolves, normalizes, and describes one raw authored configuration value.
+ * The comparison retains an array's contents before normalization because
+ * legacy number-array validation clamps its input in place.
+ *
+ * @returns the normalized patch, or `null` for an unknown key
+ */
+export function normalizeConfigInput(
+    key: string,
+    value: unknown,
+): ConfigNormalization | null {
+
+    const canonical = canonicalConfigKey(key);
+    if (!canonical) return null;
+
+    const suppliedValue = copyConfigValue(value);
+    const effectiveValue = normalizeConfigValue(canonical, value);
+    const patch: Partial<ViewerConfig> = {
+        [canonical]: effectiveValue,
+    };
+
+    // legacy coupling: disabling textures also disables culling
+    if (canonical === 'mapNoTextures')
+        patch.mapDisableCulling = patch.mapNoTextures;
+
+    return {
+        key: canonical,
+        patch,
+        suppliedValue,
+        effectiveValue,
+        adjusted: !configValuesEqual(suppliedValue, effectiveValue),
+    };
+}
+
+
+/**
  * Builds the store patch for one public config key: alias
  * resolution, value normalization, and the coupled-key expansion
  * (`mapNoTextures` also drives `mapDisableCulling`).
@@ -1058,20 +1107,33 @@ export function normalizeConfigValue<K extends keyof ViewerConfig>(
 export function normalizeConfigPatch(
     key: string,
     value: unknown,
+    warningSource?: string,
 ): Partial<ViewerConfig> | null {
 
-    const canonical = canonicalConfigKey(key);
-    if (!canonical) return null;
+    const normalization = normalizeConfigInput(key, value);
+    if (!normalization) return null;
 
-    const patch: Partial<ViewerConfig> = {
-        [canonical]: normalizeConfigValue(canonical, value),
-    };
+    if (warningSource && normalization.adjusted) {
+        console.warn(configAdjustmentMessage(warningSource, normalization));
+    }
 
-    // legacy coupling: disabling textures also disables culling
-    if (canonical === 'mapNoTextures')
-        patch.mapDisableCulling = patch.mapNoTextures;
+    return normalization.patch;
+}
 
-    return patch;
+
+/**
+ * Formats one diagnostic for a supplied configuration value that did not take
+ * effect unchanged.
+ */
+export function configAdjustmentMessage(
+    source: string,
+    normalization: ConfigNormalization,
+): string {
+
+    return `Configuration value for '${normalization.key}' in ${source} `
+        + `was not used; supplied ${describeConfigValue(
+            normalization.suppliedValue)}, using ${describeConfigValue(
+            normalization.effectiveValue)}.`;
 }
 
 
@@ -1104,4 +1166,46 @@ export function looksLikeConfigKey(key: string): boolean {
 
     return CONFIG_KEY_PREFIXES.some(
         (prefix) => key.startsWith(prefix));
+}
+
+
+function copyConfigValue(value: unknown): unknown {
+
+    if (!Array.isArray(value)) return value;
+
+    return value.map(copyConfigValue);
+}
+
+
+function configValuesEqual(left: unknown, right: unknown): boolean {
+
+    if (Array.isArray(left) && Array.isArray(right)) {
+
+        if (left.length !== right.length) return false;
+
+        return left.every(
+            (value, index) => configValuesEqual(value, right[index]));
+    }
+
+    return Object.is(left, right);
+}
+
+
+function describeConfigValue(value: unknown): string {
+
+    if (typeof value === 'string') return JSON.stringify(value);
+
+    if (value === undefined) return 'undefined';
+
+    try {
+
+        const serialized = JSON.stringify(value);
+        if (serialized !== undefined) return serialized;
+
+    } catch {
+
+        // String conversion covers values JSON cannot serialize.
+    }
+
+    return String(value);
 }

@@ -1998,12 +1998,50 @@ class ConversionContext {
             // compatibility values intact.
             if (mapConfigViewerDefaultKeys.has(canonical)
                     && typeof value !== 'boolean') {
+
+                const normalization = viewerConfig.normalizeConfigInput(
+                    canonical, value);
+
+                if (normalization) {
+
+                    const effectiveValue = mapConfigViewerDefaults[
+                        canonical as keyof typeof mapConfigViewerDefaults];
+                    const adjusted = {
+                        ...normalization,
+                        effectiveValue,
+                        adjusted: true,
+                    };
+
+                    this.warnings.push({
+                        code: 'adjusted-browser-option',
+                        path,
+                        message: viewerConfig.configAdjustmentMessage(
+                            'mapConfig browserOptions', adjusted),
+                        recovery: 'The mapConfig compatibility default '
+                            + 'applies.',
+                    });
+                }
+
                 continue;
             }
 
-            const patch =
-                viewerConfig.normalizeConfigPatch(canonical, value);
-            if (patch) Object.assign(viewerOptions, patch);
+            const normalization = viewerConfig.normalizeConfigInput(
+                canonical, value);
+
+            if (normalization) {
+
+                if (normalization.adjusted) {
+                    this.warnings.push({
+                        code: 'adjusted-browser-option',
+                        path,
+                        message: viewerConfig.configAdjustmentMessage(
+                            'mapConfig browserOptions', normalization),
+                        recovery: 'The normalized value applies.',
+                    });
+                }
+
+                Object.assign(viewerOptions, normalization.patch);
+            }
         }
 
         return viewerOptions;

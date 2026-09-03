@@ -3,6 +3,11 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Warn when configuration values do not take effect
+
+The configuration catalogue now identifies authored values it changes, and
+each authored input path reports the supplied and effective values once.
+
 ## 2026-09-03 - Poll the depth-hitmap fence once per frame
 
 Depth-hitmap collection ran from each depth query while a throttled hitmap

@@ -131,7 +131,10 @@ normalizer, URL parse kind, and visibility class — and the
 `ViewerConfig` type, `defaultViewerConfig()`,
 `normalizeConfigPatch()`, the public subsets, and the URL parsing
 all derive from it. Invalid input falls back to the key's
-catalogue default, produced fresh for array values.
+catalogue default, produced fresh for array values. Every authored
+value that the catalogue changes logs a warning naming the supplied and
+effective values. This includes fallback, clamping, and value aliases;
+URL text that parses to the same typed value does not warn.
 
 The store's live value map is the single config object: `Viewer.config`,
 `Map.config`, `LegacyMap.config`, and `Renderer.config` all alias it, so
@@ -187,6 +190,12 @@ dropped key carrying a config prefix (`map`, `renderer`, `control`,
 catalogue and aliases, but drops unknown keys without logging. The vts-era
 `Browser.setConfigParam` / `getConfigParam` accessors are removed;
 no repository or documented integration called them.
+
+`runtimeOptionsFromUrl`, factory options, `Viewer.setParam`, and style
+`config` log once when a supplied catalogued value does not take effect
+unchanged. The URL helper returns already-normalized options, so the
+factory does not repeat its warning. MapConfig conversion records the
+same condition in its conversion warnings.
 
 Subsystems declare `store.watch(keys, fn)` for the side effects a
 change requires (cache resizing, redraws, UI refresh, autopilot,

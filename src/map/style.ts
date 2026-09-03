@@ -251,7 +251,8 @@ export class MapStyle {
 
             for (const [key, value] of Object.entries(spec.config)) {
 
-                const patch = viewerConfig.normalizeConfigPatch(key, value);
+                const patch = viewerConfig.normalizeConfigPatch(
+                    key, value, 'style config');
                 if (patch) legacyMap.core.configStore.set(patch);
             }
         }

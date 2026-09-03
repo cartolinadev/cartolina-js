@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.109-feature_elevation_store.b608db60",
+  "version": "2.50.110-feature_elevation_store.1dbaaf45",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {
@@ -19,7 +19,7 @@
     "prepare": "ts-patch install && husky install",
     "perf:install": "npx playwright install chromium",
     "perf": "npm run test:perf:headed",
-    "test": "node_modules/.bin/tsc -p tsconfig.unit.json && node test/config-store.test.js && node test/event-bus.test.js",
+    "test": "node_modules/.bin/tsc -p tsconfig.unit.json && node test/config-store.test.js && node test/config-normalization.test.js && node test/event-bus.test.js",
     "test:raster-sources": "node test/raster-source-lifecycle.js",
     "test:terrain-sources": "node test/terrain-source-lifecycle.js",
     "test:vertical-exaggeration": "node test/vertical-exaggeration.js",
