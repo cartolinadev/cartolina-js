@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Block session-log entries on docs-only commits
+
+The pre-commit check for this was advisory and got ignored. It now exits
+non-zero, with `SKIP_SESSION_LOG=1` as the bypass, the same variable that
+waives the opposite requirement on code commits. It keys on added lines in
+the staged session-log diff rather than on the file being staged, so removing
+an entry from a docs-only commit still passes.
+
 ## 2026-09-03 - Warn when configuration values do not take effect
 
 The configuration catalogue now identifies authored values it changes, and
