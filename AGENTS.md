@@ -347,8 +347,10 @@ change with no behavior change) does not get one, no matter how
 significant the finding: the backlog entry (or the wiki page) is
 already that finding's durable record, and restating it in the session
 log too, on top of the commit message, is the same fact recited three
-times. The pre-commit hook demands a staged session log; for a
-docs-only commit, pass `SKIP_SESSION_LOG=1` to get past it.
+times. A changed default value in the configuration catalogue counts
+as documentation here: it adds no code path, and the commit message
+carries the reasoning. The pre-commit hook demands a staged session
+log; for such a commit, pass `SKIP_SESSION_LOG=1` to get past it.
 
 **A session-log entry states the goal first, then the outcome** — what
 the change set out to do, and where the code ended up.

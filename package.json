@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.107-feature_elevation_store_gate2_attempt3.5dc28092",
+  "version": "2.50.108-feature_elevation_store.4f2f11a7",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {

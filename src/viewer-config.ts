@@ -427,8 +427,10 @@ const catalogue = {
 
     // --- Map (map* keys) ---
 
-    /** In-memory resource cache budget in megabytes. */
-    mapCache: num(10, MAX, 1100, 'runtime'),
+    /** In-memory resource cache budget in megabytes. Holds mesh
+     *  vertex arrays, parsed geodata and navtile height data; decoded
+     *  tile images are released at GPU upload. */
+    mapCache: num(10, MAX, 256, 'runtime'),
 
     /** GPU resource cache budget in megabytes. */
     mapGPUCache: num(10, MAX, 600, 'runtime'),

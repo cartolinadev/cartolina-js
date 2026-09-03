@@ -23,6 +23,33 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-61"></a>
+## 61. Mesh eviction depends on an array that is never emptied
+
+**Opened:** 2026-09-03
+**Status:** open
+**Related:** `src/map/mesh.js`, `src/map/tile-render-rig.ts`,
+`src/map/pre-v6-watertight.ts`
+
+`killSubmeshes()` nulls the per-submesh vertex, UV and index arrays but
+leaves the `submeshes` array itself populated — the assignment that
+would empty it is commented out
+([mesh.js:57](../../src/map/mesh.js#L57)). Two things depend on that:
+`TileRenderRig.hasGeometry()` counts the array, and the pre-v6
+watertight inference reads the `inferredFullCoverage` flag on each
+submesh object during traversal.
+
+Empty the array and every CPU-evicted tile reports malformed geometry.
+It stops drawing and stops claiming coverage, and the pre-v6 inference
+no longer finds its flag — all without a warning. The comment in
+`mesh.d.ts` that recorded the dependency was removed when the rig
+stopped reading submesh fields per draw (`0a27f3dd`).
+
+The fix is to state what a killed mesh still guarantees — array length,
+bounding boxes and the coverage flag — and to keep readers off anything
+`kill()` nulls.
+
+
 <a id="backlog-60"></a>
 ## 60. Legacy draws leave attribute arrays enabled on the default VAO
 
