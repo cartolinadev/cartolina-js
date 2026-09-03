@@ -1190,8 +1190,16 @@ Map.prototype.processProcessingTasks = function() {
         this.processingTasks.shift();
     }
 
+    var deadline = performance.now()
+        + this.config.mapMaxGeodataProcessingTime;
+
     while (this.processingTasks2.length > 0) {
-        if (this.processingTasks2[0]() != -123) {
+        if (performance.now() >= deadline) {
+            this.markDirty();
+            return;
+        }
+
+        if (this.processingTasks2[0](deadline) != -123) {
             this.processingTasks2.shift();
         } else {
             break;

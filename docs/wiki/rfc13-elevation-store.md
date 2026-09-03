@@ -672,9 +672,10 @@ entry is evicted or the `MapGeodata` is explicitly destroyed. Release deletes
 the worker registry entry, including its parsed geometry, coordinate mapping,
 height values, and rebuild state, and disposes the main-thread sample set. A
 transient `MapGeodataView` destruction does neither: a replacement view reuses
-the job. Worker termination releases any entries which remain during map or
-surface teardown. An in-flight store readback or worker rebuild checks the job
-ID and revision before publishing its result.
+the job by sending `publish-retained`, which regenerates render commands from
+the worker's current geometry. Worker termination releases any entries which
+remain during map or surface teardown. An in-flight store readback or worker
+rebuild checks the job ID and revision before publishing its result.
 
 The release command is lifecycle cleanup, not a third heightcoding data path.
 

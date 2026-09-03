@@ -15,8 +15,8 @@
  *   heightcoding-update   main -> worker  changed heights and a revision;
  *                                         the worker applies them, rebuilds,
  *                                         and republishes the geometry
- *   heightcoding-rebuild  main -> worker  no heights; the worker re-emits
- *                                         its current geometry for a new view
+ *   publish-retained      main -> worker  the worker re-emits its current
+ *                                         geometry for a new view
  *   heightcoding-release  main -> worker  drop the retained worker job
  */
 
@@ -149,7 +149,7 @@ class GeodataHeightcodingJob {
             return false;
 
         this.publishPending_ = true;
-        this.send('heightcoding-rebuild', {
+        this.send('publish-retained', {
             jobId: this.jobId_,
             revision: this.sentRevision_,
         });

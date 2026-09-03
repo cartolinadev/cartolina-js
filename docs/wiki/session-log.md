@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-03 - Bound geodata publication processing per frame
+
+Keep bursts of completed geodata from monopolising the main thread. All packed
+geodata buffers now share one `mapMaxGeodataProcessingTime` deadline per frame,
+and every incremental processing slice is charged to `renderBuild`. The command
+which regenerates render output from unchanged retained geometry is now named
+`publish-retained`.
+
 ## 2026-09-03 - Block session-log entries on docs-only commits
 
 The pre-commit check for this was advisory and got ignored. It now exits

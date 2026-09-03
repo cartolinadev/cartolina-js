@@ -89,9 +89,9 @@ MapGeodataView.prototype.killGpuGroups = function(groups, size) {
 };
 
 
-MapGeodataView.prototype.processPackedCommands = function(buffer, index) {
+MapGeodataView.prototype.processPackedCommands = function(
+        buffer, index, deadline) {
     var maxIndex = buffer.byteLength;
-    var maxTime = this.map.config.mapMaxGeodataProcessingTime;
     var t = performance.now(), length, str, data;
     var view = new DataView(buffer.buffer);
 
@@ -129,7 +129,8 @@ MapGeodataView.prototype.processPackedCommands = function(buffer, index) {
             break;
         }
 
-        if ((performance.now() - t) > maxTime && index < maxIndex) {
+        if (performance.now() >= deadline && index < maxIndex) {
+            this.stats.renderBuild += performance.now() - t;
             return index;
         }
 
@@ -173,14 +174,14 @@ MapGeodataView.prototype.commitGpuGroups = function() {
 
 
 MapGeodataView.prototype.onGeodataProcessorMessage = function(
-        command, message, task) {
+        command, message, task, deadline) {
     if (this.killed) return;
 
     switch (command) {
     case 'addPackedCommands':
         if (task) {
             var index = this.processPackedCommands(
-                message['buffer'], message.index);
+                message['buffer'], message.index, deadline);
 
             if (index < 0) {
                 this.map.markDirty();

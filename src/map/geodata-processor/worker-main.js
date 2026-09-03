@@ -604,7 +604,7 @@ self.onmessage = function (e) {
 
         break;
 
-    case 'heightcoding-rebuild':
+    case 'publish-retained':
         var retainedJob = heightcodingJobs.get(data.jobId);
 
         if (retainedJob) {
