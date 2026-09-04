@@ -50,8 +50,11 @@ rather than to drop schema validation.
 ## 62. Store heightcoding: unbounded publications, desktop-sized caches
 
 **Opened:** 2026-09-03
-**Status:** open — not root-caused
-**Related:** `src/map/elevation-store.ts`
+**Status:** open — the geodata cache entry is charged less than a
+heightcoded tile retains
+**Related:** `src/map/elevation-store.ts`,
+`src/map/geodata-heightcoding-job.ts`,
+`src/map/geodata-processor/worker-heightcoding.ts`, `src/map/geodata.js`
 
 Store heightcoding republishes every retained job on its own, with no
 bound on the publications in flight, and the three cache budgets are one
@@ -59,6 +62,14 @@ desktop default whatever the canvas. On a small canvas whose GPU cache
 cannot hold a coarse, label-heavy view, a zoom-out turns eviction into
 republication and the page holds more memory than the device affords.
 
+Client heightcoding retains five heap objects and 32 bytes of typed
+array per geodata coordinate, plus the worker's copy of the parsed
+payload. `MapGeodata.onLoaded` charges the cache entry the delivered
+payload byte length and nothing else, so the cache stays inside its
+budget while the process holds several times that. The cost follows a
+tile's coordinate count rather than its delivered size, and a tile
+carries more features the coarser it is, which is why a zoom-out is the
+trigger.
 
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
