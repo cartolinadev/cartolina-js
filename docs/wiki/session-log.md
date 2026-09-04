@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-04 - Drop the geodata worker's per-coordinate record
+
+A group is a span of `visitCoordinates` order, and a rebuild walks the
+geometry to reach each vertex, so the worker keeps no object per
+coordinate: about 92 bytes per coordinate less; see
+[backlog 62](backlog.md#backlog-62).
+
+Output is unchanged: both versions driven with one payload and one set
+of heights give bit-identical geometry, tiled and builder, with and
+without gaps.
+
 ## 2026-09-03 - Bound geodata publication processing per frame
 
 Keep bursts of completed geodata from monopolising the main thread. All packed

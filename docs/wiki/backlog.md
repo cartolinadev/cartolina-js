@@ -62,7 +62,7 @@ desktop default whatever the canvas. On a small canvas whose GPU cache
 cannot hold a coarse, label-heavy view, a zoom-out turns eviction into
 republication and the page holds more memory than the device affords.
 
-Client heightcoding retains five heap objects and 32 bytes of typed
+Client heightcoding retains three heap objects and 52 bytes of typed
 array per geodata coordinate, plus the worker's copy of the parsed
 payload. `MapGeodata.onLoaded` charges the cache entry the delivered
 payload byte length and nothing else, so the cache stays inside its

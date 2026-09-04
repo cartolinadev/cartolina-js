@@ -13,6 +13,10 @@ import proj4 from 'proj4';
  * the heights the main thread sends back and rebuilds the geometry; `get`
  * returns an already-built job for a view rebuild. This owns the parsed
  * geodata for the payload's lifetime; the main thread owns only the heights.
+ *
+ * A group is a span of `visitCoordinates` order, and a rebuild walks the
+ * geometry to reach each vertex. Per-coordinate values live in typed
+ * arrays over that same order.
  */
 class WorkerHeightcodingJobs {
 
@@ -35,16 +39,25 @@ class WorkerHeightcodingJobs {
         const toTarget = proj4(request.physicalSrs, targetSrs);
         const toPhysical = proj4(targetSrs, request.physicalSrs);
         const positions: number[] = [];
-        const groups: GroupRecord[] = [];
+        const groups: GroupSpan[] = [];
+        const sampleOf: number[] = [];
+        const heightOffsets: number[] = [];
+
+        // Only builder geodata reaches these: an authored height above
+        // terrain, and a coordinate the store does not place.
+        let authored = false;
+        let delivered: Map<number, number[]> | null = null;
+
+        let index = 0;
 
         for (const group of geodata.groups ?? []) {
 
-            const records: CoordinateRecord[] = [];
+            const base = index;
             const metadata = group.heightcoding;
             const physical = readPhysicalCoordinates(group);
             let coordinateIndex = 0;
 
-            visitCoordinates(group, (target, offset) => {
+            visitCoordinates(group, () => {
 
                 const original = physical[coordinateIndex];
                 const supplied = metadata?.[coordinateIndex];
@@ -68,22 +81,28 @@ class WorkerHeightcodingJobs {
                     heightOffset = supplied[2];
                 }
 
-                const sampleIndex = source ? positions.length / 2 : -1;
+                if (source) {
 
-                if (source) positions.push(source[0], source[1]);
+                    sampleOf.push(positions.length / 2);
+                    positions.push(source[0], source[1]);
 
-                records.push({
-                    target,
-                    offset,
-                    original: source ? null : original,
-                    source,
-                    heightOffset,
-                    sampleIndex,
-                });
+                } else {
+
+                    // Held from the delivered bbox: a rebuild
+                    // requantizes against a bbox it computes itself,
+                    // so reading it back later would let it drift.
+                    sampleOf.push(-1);
+                    (delivered ??= new Map()).set(index, original);
+                }
+
+                heightOffsets.push(heightOffset);
+                if (heightOffset) authored = true;
+
+                index++;
             });
 
             delete group.heightcoding;
-            groups.push({ group, records });
+            groups.push({ group, base, count: index - base });
         }
 
         if (positions.length === 0) return null;
@@ -92,6 +111,10 @@ class WorkerHeightcodingJobs {
             geodata,
             builtGeodata: geodata,
             groups,
+            sourceXY: new Float64Array(positions),
+            sampleOf: Int32Array.from(sampleOf),
+            heightOffsets: authored ? Float64Array.from(heightOffsets) : null,
+            delivered,
             heights: new Float64Array(positions.length / 2).fill(NaN),
             initialized: false,
             revision: 0,
@@ -157,19 +180,11 @@ type GeodataGroup = {
 };
 
 
-type CoordinateRecord = {
-    target: number[];
-    offset: number;
-    original: number[] | null;
-    source: number[] | null;
-    heightOffset: number;
-    sampleIndex: number;
-};
-
-
-type GroupRecord = {
+/** One group's run of coordinates within the payload's visit order. */
+type GroupSpan = {
     group: GeodataGroup;
-    records: CoordinateRecord[];
+    base: number;
+    count: number;
 };
 
 
@@ -183,9 +198,24 @@ type Job = {
      * store height. */
     builtGeodata: Geodata;
 
-    /** Per-group records mapping each vertex to its store coordinate and
-     * height slot. */
-    groups: GroupRecord[];
+    /** Where each group's coordinates start and end in visit order. */
+    groups: GroupSpan[];
+
+    /** Store position of each answerable coordinate, interleaved. The
+     * registration transfers its own copy to the main thread. */
+    sourceXY: Float64Array;
+
+    /** Height slot of each coordinate in visit order, or -1 for one the
+     * store does not place. */
+    sampleOf: Int32Array;
+
+    /** Authored height above terrain per coordinate; null unless the
+     * payload is builder geodata that carries one. */
+    heightOffsets: Float64Array | null;
+
+    /** Delivered physical position of each coordinate the store does
+     * not place; null unless the payload has one. */
+    delivered: Map<number, number[]> | null;
 
     /** Latest store height per sample coordinate; NaN until answered. */
     heights: Float64Array;
@@ -235,11 +265,11 @@ function rebuild(job: Job): boolean {
 
     const built: GeodataGroup[] = [];
 
-    for (const { group, records } of job.groups) {
+    for (const { group, base, count } of job.groups) {
 
-        if (records.length === 0) continue;
+        if (count === 0) continue;
 
-        const heights = groupHeights(job, records);
+        const heights = groupHeights(job, base, count);
 
         // A group with no store height at all lies entirely outside the
         // terrain the traversal has drawn, and so entirely off screen.
@@ -249,17 +279,7 @@ function rebuild(job: Job): boolean {
 
         built.push(group);
 
-        const physical = records.map((record, index) => {
-
-            if (record.sampleIndex < 0) return record.original!;
-
-            return job.toPhysical.forward([
-                record.source![0],
-                record.source![1],
-                heights[index] + record.heightOffset,
-            ]);
-        });
-
+        const physical = groupPositions(job, base, count, heights);
         const minimum = physical[0].slice();
         const maximum = physical[0].slice();
 
@@ -277,15 +297,16 @@ function rebuild(job: Job): boolean {
             resolution / (maximum[2] - minimum[2] + 1),
         ];
 
-        for (let index = 0; index < records.length; index++) {
+        let index = 0;
 
-            const record = records[index];
-            const point = physical[index];
+        visitCoordinates(group, (target, offset) => {
+
+            const point = physical[index++];
 
             for (let axis = 0; axis < 3; axis++)
-                record.target[record.offset + axis] = Math.round(
+                target[offset + axis] = Math.round(
                     (point[axis] - minimum[axis]) * scale[axis]);
-        }
+        });
 
         group.bbox = [minimum, maximum];
     }
@@ -296,10 +317,47 @@ function rebuild(job: Job): boolean {
 
 
 /**
- * Store heights for one group's records, in record order.
+ * One group's coordinates as physical positions at their store height,
+ * in the order `visitCoordinates` reaches them.
+ */
+function groupPositions(
+    job: Job,
+    base: number,
+    count: number,
+    heights: Float64Array,
+): number[][] {
+
+    const positions: number[][] = new Array(count);
+
+    for (let index = 0; index < count; index++) {
+
+        const sample = job.sampleOf[base + index];
+
+        if (sample < 0) {
+
+            positions[index] = job.delivered!.get(base + index)!;
+            continue;
+        }
+
+        const offset = job.heightOffsets
+            ? job.heightOffsets[base + index] : 0;
+
+        positions[index] = job.toPhysical.forward([
+            job.sourceXY[sample * 2],
+            job.sourceXY[sample * 2 + 1],
+            heights[index] + offset,
+        ]);
+    }
+
+    return positions;
+}
+
+
+/**
+ * Store heights for one group's coordinates, in visit order.
  *
  * A coordinate the store has no height for takes the height of the
- * nearest coordinate that has one. Record order follows the geometry,
+ * nearest coordinate that has one. Visit order follows the geometry,
  * so a line running out of the store's coverage carries on at the
  * height it had where the coverage ended. Such a coordinate is off
  * screen, and it gets a measured height once the store covers it.
@@ -308,16 +366,17 @@ function rebuild(job: Job): boolean {
  */
 function groupHeights(
     job: Job,
-    records: readonly CoordinateRecord[],
+    base: number,
+    count: number,
 ): Float64Array | null {
 
-    const heights = new Float64Array(records.length).fill(NaN);
+    const heights = new Float64Array(count).fill(NaN);
     let carried = NaN;
     let answered = false;
 
-    for (let index = 0; index < records.length; index++) {
+    for (let index = 0; index < count; index++) {
 
-        const sample = records[index].sampleIndex;
+        const sample = job.sampleOf[base + index];
         if (sample < 0) continue;
 
         const height = job.heights[sample];
@@ -333,13 +392,13 @@ function groupHeights(
 
     if (!answered) return null;
 
-    // The records before the first answer had nothing to carry, so they
-    // take the first answer that follows them.
+    // The coordinates before the first answer had nothing to carry, so
+    // they take the first answer that follows them.
     carried = NaN;
 
-    for (let index = records.length - 1; index >= 0; index--) {
+    for (let index = count - 1; index >= 0; index--) {
 
-        if (records[index].sampleIndex < 0) continue;
+        if (job.sampleOf[base + index] < 0) continue;
 
         if (Number.isNaN(heights[index])) heights[index] = carried;
         else carried = heights[index];
