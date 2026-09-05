@@ -160,6 +160,21 @@ bit-identical output. What
 remains is the main-thread half — a `Sample` and a `UnitRef` object per
 coordinate — to pack into typed arrays.
 
+**Update 2026-09-05 (packing landed).** The main-thread half
+is packed. A sample set now carries parallel `sampleHeight`/`sampleGsd`
+`Float32Array`s and a store-private reference table (unit key and
+generation, plus a node table and node-SRS coordinates for geographic
+sets) in place of a `Sample` and a `UnitRef` object per coordinate.
+`sameTile` is removed (the ladder walk compares `unit.key`); every gsd is
+rounded to `Float32` so a stored gsd equals one re-derived on the next
+scan. `updateTerrainSamples` fills `sampleHeight` (NaN where uncovered)
+and `sampleGsd`; the callers `geodata-heightcoding-job.ts` and
+`measure.js` are updated. Per covered coordinate the main-thread retained
+state falls from two objects with nested arrays to ~28 B of typed array,
+off the V8 heap.
+
+The entry stays open.
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 

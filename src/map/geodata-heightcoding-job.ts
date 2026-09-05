@@ -256,9 +256,9 @@ class GeodataHeightcodingJob {
 
     private sendChangedHeights(): void {
 
-        const samples = this.sampleSet_?.samples;
+        const heightField = this.sampleSet_?.sampleHeight;
         const last = this.lastSentHeights_;
-        if (!samples || !last) return;
+        if (!heightField || !last) return;
 
         // Only one worker output is in flight at a time.
         if (this.publishPending_) {
@@ -269,10 +269,11 @@ class GeodataHeightcodingJob {
 
         const changed: number[] = [];
 
-        for (let index = 0; index < samples.length; index++) {
+        for (let index = 0; index < heightField.length; index++) {
 
-            const height = samples[index]?.height;
-            if (height !== undefined && height !== last[index])
+            // NaN marks a coordinate no terrain covers yet.
+            const height = heightField[index];
+            if (!Number.isNaN(height) && height !== last[index])
                 changed.push(index, height);
         }
 

@@ -23,9 +23,10 @@ const PreparationChunk = 256;
  * of 2D geographic or spatial-division coordinates into geodetic heights, based
  * on the currently resident terrain.
  *
- * Consumers retain sample sets. A sample retains the resolved spatial
- * division node and the unit that answered, so an unchanged set avoids
- * repeating coordinate conversion and tile-path work.
+ * Consumers retain sample sets. For each coordinate the store keeps, in
+ * parallel typed arrays, the resolved node and the unit that answered, so
+ * an unchanged set avoids repeating coordinate conversion and tile-path
+ * work.
  *
  * Internally, the store is composed of units, which correspond to the
  * color-pass terrain tiles, one unit per each resident tile. The store
@@ -91,10 +92,10 @@ class ElevationStore {
 
         const validate = !retainedState
                 || retainedState.positions !== sampleSet.positions
-                || retainedState.samples !== sampleSet.samples
-                || retainedState.samples.length !== count;
+                || retainedState.count !== count;
 
-        const state = this.sampleSetState(sampleSet);
+        const state = this.sampleSetState(sampleSet, count);
+        const refs = this.refs_.get(sampleSet)!;
 
         const interval = this.map_.config.mapElevationStoreSampleIntervalMs;
         const now = performance.now();
@@ -123,7 +124,7 @@ class ElevationStore {
 
         const update: SampleUpdate = {
             sampleSet,
-            state,
+            refs,
             desiredGsd: sampleSet.desiredGsd,
             count,
             validate,
@@ -149,6 +150,7 @@ class ElevationStore {
 
         this.disposedSampleSets_.add(sampleSet);
         this.sampleSetStates_.delete(sampleSet);
+        this.refs_.delete(sampleSet);
 
         const update = this.updates_.get(sampleSet);
         if (update) this.cancelUpdate(update);
@@ -368,36 +370,38 @@ class ElevationStore {
 
     private sampleSetState(
         sampleSet: ElevationStore.SampleSet,
+        count: number,
     ): SampleSetState {
+
+        // Answers live on the sample set, so a store reset leaves the last
+        // heights in place until the units that answered come back.
+        if (!sampleSet.sampleHeight
+                || sampleSet.sampleHeight.length !== count) {
+
+            sampleSet.sampleHeight = new Float32Array(count).fill(NaN);
+            sampleSet.sampleGsd = new Float32Array(count);
+        }
+
+        // Resolved references also outlive a reset, so an unchanged set
+        // does not repeat coordinate conversion after every source change.
+        let refs = this.refs_.get(sampleSet);
+
+        if (!refs || refs.positions !== sampleSet.positions
+                || refs.count !== count) {
+
+            refs = makeSampleRefs(sampleSet, count);
+            this.refs_.set(sampleSet, refs);
+        }
 
         let state = this.sampleSetStates_.get(sampleSet);
 
-        const count = sampleCount(sampleSet);
-
         if (state && state.positions === sampleSet.positions
-                && state.samples === sampleSet.samples
-                && state.samples.length === count
-                && state.refs.length === count) {
-
+                && state.count === count)
             return state;
-        }
-
-        if (!sampleSet.samples
-                || sampleSet.samples.length !== count) {
-
-            sampleSet.samples = new Array(count);
-        }
-
-        const refs = sampleSet.samples.map((sample) => {
-
-            const unit = sample?.unit as UnitRef | undefined;
-            return unit?.store === this ? unit : undefined;
-        });
 
         state = {
             positions: sampleSet.positions,
-            samples: sampleSet.samples,
-            refs,
+            count,
             updateStarted: -Infinity,
             updateGeneration: -1,
         };
@@ -408,7 +412,7 @@ class ElevationStore {
 
     private resolveGeographicPosition(
         position: ElevationStore.Position,
-    ): UnitRef | undefined {
+    ): { node: MapDivisionNode; coords: [number, number] } | undefined {
 
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return undefined;
@@ -419,37 +423,7 @@ class ElevationStore {
 
         if (!owner) return undefined;
 
-        return {
-            store: this,
-            node: owner.node,
-            coords: [owner.coords[0], owner.coords[1]],
-        };
-    }
-
-    private resolveSpatialDivisionPosition(
-        sampleSet: ElevationStore.SpatialDivisionSampleSet,
-        index: number,
-    ): UnitRef | undefined {
-
-        const node = sampleSet.node;
-        const coords: [number, number] = [
-            sampleSet.positions[index * 2],
-            sampleSet.positions[index * 2 + 1],
-        ];
-        const extents = node.extents;
-
-        if (!productiveNode(node)
-                || coords[0] < extents.ll[0]
-                || coords[0] > extents.ur[0]
-                || coords[1] < extents.ll[1]
-                || coords[1] > extents.ur[1]) {
-
-            __DEV__ && utils.warnOnce(
-                'elevation store: sample outside its spatial division node');
-            return undefined;
-        }
-
-        return { store: this, node, coords };
+        return { node: owner.node, coords: [owner.coords[0], owner.coords[1]] };
     }
 
     /**
@@ -457,7 +431,10 @@ class ElevationStore {
      * retained answer is current and no GPU lookup is needed.
      */
     private resolveUnits(
-        ref: UnitRef,
+        node: MapDivisionNode,
+        coords: readonly number[],
+        prevKey: number,
+        prevGeneration: number,
         desiredGsd: number,
         nodeScans: globalThis.Map<MapDivisionNode, NodeScan>,
     ): ResidentUnit[] | null {
@@ -465,20 +442,23 @@ class ElevationStore {
         const refFrame = this.map_.map?.referenceFrame;
         if (!refFrame) return [];
 
-        const node = ref.node;
         let scan = nodeScans.get(node);
 
         // One node and one requested gsd give one start LOD, so every
-        // sample against this node shares the figures below.
+        // sample against this node shares the figures below. Every gsd is
+        // rounded to Float32 so a stored gsd compares equal to one derived
+        // again on the next scan.
         if (!scan) {
 
             const rootLod = node.id[0];
-            const rootGsd = refFrame.getNodeGsd(node, rootLod, 256);
+            const rootGsd = Math.fround(
+                refFrame.getNodeGsd(node, rootLod, 256));
+            const desired = Math.fround(desiredGsd);
 
-            const idealLod = desiredGsd === 0
+            const idealLod = desired === 0
                 ? Infinity
                 : Math.max(rootLod, rootLod
-                    + Math.floor(Math.log2(rootGsd / desiredGsd)));
+                    + Math.floor(Math.log2(rootGsd / desired)));
 
             scan = {
                 rootLod,
@@ -495,23 +475,25 @@ class ElevationStore {
         if (startLod < rootLod) return [];
 
         const uv = [0, 0];
-        const startTile = refFrame.getNodeTileAt(
-            node, ref.coords, startLod, uv);
+        const startTile = refFrame.getNodeTileAt(node, coords, startLod, uv);
         const ladder = this.tileLadder(scan, startTile);
         let candidates: ResidentUnit[] | null = null;
         let x = startTile[1];
         let y = startTile[2];
         let u = uv[0];
         let v = uv[1];
-        let actualGsd = scan.rootGsd / Math.pow(2, startLod - rootLod);
+        let actualGsd = Math.fround(
+            scan.rootGsd / Math.pow(2, startLod - rootLod));
 
         for (let step = 0; step < ladder.length; step++) {
 
             const unit = ladder[step];
 
-            if (unit && sameTile(ref.tileId, startLod - step, x, y)) {
+            // The ladder holds the unit at this step's tile, so a key match
+            // means the retained answer named that same tile.
+            if (unit && unit.key === prevKey) {
 
-                if (!candidates && unit.generation === ref.generation)
+                if (!candidates && unit.generation === prevGeneration)
                     return null;
 
                 (candidates ??= []).push({ unit, u, v, actualGsd });
@@ -619,7 +601,10 @@ class ElevationStore {
     private prepareUpdate(update: SampleUpdate): void {
 
         const sampleSet = update.sampleSet;
-        const state = update.state;
+        const refs = update.refs;
+        const spatial = sampleSet.coordinateSpace === 'spatial-division';
+        const spatialNode = spatial ? sampleSet.node : null;
+        const coords = this.coordScratch_;
         const end = Math.min(
             update.scanIndex + PreparationChunk, update.count);
 
@@ -635,21 +620,52 @@ class ElevationStore {
                 return;
             }
 
-            let ref = state.refs[index];
+            let node: MapDivisionNode;
 
-            if (!ref) {
+            if (spatial) {
 
-                ref = sampleSet.coordinateSpace === 'spatial-division'
-                    ? this.resolveSpatialDivisionPosition(sampleSet, index)
-                    : this.resolveGeographicPosition(
+                // A spatial-division coordinate is its own store position;
+                // its node is the whole set's node.
+                node = spatialNode!;
+                coords[0] = sampleSet.positions[index * 2];
+                coords[1] = sampleSet.positions[index * 2 + 1];
+                const extents = node.extents;
+
+                if (!productiveNode(node)
+                        || coords[0] < extents.ll[0]
+                        || coords[0] > extents.ur[0]
+                        || coords[1] < extents.ll[1]
+                        || coords[1] > extents.ur[1]) {
+
+                    __DEV__ && utils.warnOnce('elevation store: sample '
+                        + 'outside its spatial division node');
+                    continue;
+                }
+
+            } else {
+
+                // A geographic coordinate is projected and placed in a node;
+                // the result is cached so a later scan reuses it.
+                if (refs.nodeIndex![index] < 0) {
+
+                    const resolved = this.resolveGeographicPosition(
                         sampleSet.positions[index]);
-                state.refs[index] = ref;
+
+                    if (!resolved) continue;
+
+                    refs.nodeIndex![index] = internNode(refs, resolved.node);
+                    refs.coordX![index] = resolved.coords[0];
+                    refs.coordY![index] = resolved.coords[1];
+                }
+
+                node = refs.nodes![refs.nodeIndex![index]];
+                coords[0] = refs.coordX![index];
+                coords[1] = refs.coordY![index];
             }
 
-            if (!ref) continue;
-
             const candidates = this.resolveUnits(
-                ref, update.desiredGsd, update.nodeScans);
+                node, coords, refs.key[index], refs.generation[index],
+                update.desiredGsd, update.nodeScans);
 
             if (candidates && candidates.length > 0)
                 update.lookups.push({ update, index, candidates });
@@ -817,28 +833,23 @@ class ElevationStore {
     ): void {
 
         const update = lookup.update;
-        const ref = update.state.refs[lookup.index]!;
-        const previous = update.sampleSet.samples![lookup.index];
+        const index = lookup.index;
 
-        ref.tileId = candidate.unit.tileId;
-        ref.generation = candidate.unit.generation;
+        update.refs.key[index] = candidate.unit.key;
+        update.refs.generation[index] = candidate.unit.generation;
 
-        if (!previous || previous.height !== height
-                || previous.actualGsd !== candidate.actualGsd) {
+        // The GPU readback is already Float32 and the gsd is rounded to
+        // it, so a re-resolution to the same answer flags no change.
+        const heights = update.sampleSet.sampleHeight!;
+        const gsds = update.sampleSet.sampleGsd!;
 
-            update.sampleSet.samples![lookup.index] = {
-                height,
-                actualGsd: candidate.actualGsd,
-                unit: ref,
-            };
+        if (heights[index] !== height
+                || gsds[index] !== candidate.actualGsd) {
 
+            heights[index] = height;
+            gsds[index] = candidate.actualGsd;
             update.changed = true;
-
-        } else {
-
-            previous.unit = ref;
         }
-
     }
 
     private finishUpdate(update: SampleUpdate): void {
@@ -866,6 +877,7 @@ class ElevationStore {
         update.settled = true;
         this.updates_.delete(update.sampleSet);
         this.sampleSetStates_.delete(update.sampleSet);
+        this.refs_.delete(update.sampleSet);
         update.reject(error);
     }
 
@@ -1034,6 +1046,15 @@ class ElevationStore {
 
     private sampleSetStates_ =
         new WeakMap<ElevationStore.SampleSet, SampleSetState>();
+
+    // Persists across a store reset: an unchanged set keeps its resolved
+    // references and does not repeat coordinate conversion.
+    private readonly refs_ =
+        new WeakMap<ElevationStore.SampleSet, SampleRefs>();
+
+    // Reused per sample during a scan; holds no state between samples.
+    private readonly coordScratch_: [number, number] = [0, 0];
+
     private preparing_: SampleUpdate[] = [];
     private queue_: SampleUpdate[] = [];
     private inFlight_: InFlight | null = null;
@@ -1069,12 +1090,21 @@ type UnitContent = {
 };
 
 
-type UnitRef = {
-    store: ElevationStore;
-    node: MapDivisionNode;
-    coords: [number, number];
-    tileId?: [number, number, number];
-    generation?: number;
+/** One sample set's resolved references, packed in parallel typed arrays
+ * over its coordinate order. The unit key and generation record the unit
+ * that last answered each coordinate; -1 means none yet. A geographic set
+ * also caches the node and node-SRS coordinate its projection resolved,
+ * indexed into a small per-set node table; a spatial-division set reads
+ * those from the set directly and leaves the geographic fields null. */
+type SampleRefs = {
+    positions: readonly ElevationStore.Position[] | Float64Array;
+    count: number;
+    key: Float64Array;
+    generation: Int32Array;
+    nodes: MapDivisionNode[] | null;
+    nodeIndex: Int32Array | null;
+    coordX: Float64Array | null;
+    coordY: Float64Array | null;
 };
 
 
@@ -1108,10 +1138,9 @@ type ResidentUnit = {
  * still does not leak once nothing else references the `SampleSet`. */
 type SampleSetState = {
     positions: readonly ElevationStore.Position[] | Float64Array;
-    samples: (ElevationStore.Sample | undefined)[];
 
-    /** Resolved node/coordinate per sample index. */
-    refs: (UnitRef | undefined)[];
+    /** Sample count this state was validated against. */
+    count: number;
 
     /** `performance.now()` of when update for this set most recently began. */
     updateStarted: number;
@@ -1126,7 +1155,7 @@ type SampleSetState = {
 type SampleUpdate = {
 
     sampleSet: ElevationStore.SampleSet;
-    state: SampleSetState;
+    refs: SampleRefs;
     desiredGsd: number;
 
     /** sample count when this update was accepted. */
@@ -1195,18 +1224,40 @@ function unitKey(tileId: readonly number[]): number {
 }
 
 
-/** Whether a retained tile id names the tile reached at this step. */
-function sameTile(
-    tileId: readonly number[] | undefined,
-    lod: number,
-    x: number,
-    y: number,
-): boolean {
+function makeSampleRefs(
+    sampleSet: ElevationStore.SampleSet,
+    count: number,
+): SampleRefs {
 
-    return !!tileId
-        && tileId[0] === lod
-        && tileId[1] === x
-        && tileId[2] === y;
+    const geographic = sampleSet.coordinateSpace !== 'spatial-division';
+
+    return {
+        positions: sampleSet.positions,
+        count,
+        key: new Float64Array(count).fill(-1),
+        generation: new Int32Array(count).fill(-1),
+        nodes: geographic ? [] : null,
+        nodeIndex: geographic ? new Int32Array(count).fill(-1) : null,
+        coordX: geographic ? new Float64Array(count) : null,
+        coordY: geographic ? new Float64Array(count) : null,
+    };
+}
+
+
+/** Index of a node in a geographic set's node table, appending it if new.
+ * The table holds the few nodes a set's coordinates fall in. */
+function internNode(refs: SampleRefs, node: MapDivisionNode): number {
+
+    const nodes = refs.nodes!;
+    let index = nodes.indexOf(node);
+
+    if (index < 0) {
+
+        index = nodes.length;
+        nodes.push(node);
+    }
+
+    return index;
 }
 
 
@@ -1273,7 +1324,12 @@ namespace ElevationStore {
     /** Common retained storage for one stable position list. */
     export abstract class SampleSetBase<Positions> {
 
-        samples?: (Sample | undefined)[];
+        /** Resolved height per position, NaN where no terrain covers it.
+         * The store allocates and fills it; callers read it. */
+        sampleHeight?: Float32Array;
+
+        /** Ground sample distance each resolved height was taken at. */
+        sampleGsd?: Float32Array;
 
         protected constructor(
             readonly positions: Positions,
@@ -1311,13 +1367,6 @@ namespace ElevationStore {
 
     /** Either coordinate-space variant accepted by the store. */
     export type SampleSet = GeographicSampleSet | SpatialDivisionSampleSet;
-
-    /** One covered terrain sample. */
-    export type Sample = {
-        height: number;
-        actualGsd: number;
-        unit: unknown;
-    };
 }
 
 export default ElevationStore;

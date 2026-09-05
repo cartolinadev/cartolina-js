@@ -3,6 +3,23 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-05 — Elevation store: main-thread sample-set packing (backlog 62)
+
+Goal: pack the elevation store's per-coordinate main-thread state, backlog
+62's remaining half.
+
+A sample set's `Sample`/`UnitRef` objects are replaced by `sampleHeight`/
+`sampleGsd` `Float32Array`s plus a store-private reference table (unit key
+and generation; a node table and node-SRS coordinates for geographic
+sets). `sameTile` is removed — the ladder walk compares `unit.key`. Every
+gsd is rounded to `Float32` so a stored gsd equals one re-derived. Public
+`updateTerrainSamples` fills `sampleHeight`/`sampleGsd` (NaN = uncovered);
+`measure.js` and `geodata-heightcoding-job.ts` read the arrays. Per
+covered coordinate the retained main-thread state drops from two objects
+to ~28 B of typed array, off the V8 heap.
+
+Backlog 62 stays open.
+
 ## 2026-09-05 - Fix a null render group in the geodata build
 
 `processPackedCommands` could resume a command buffer part-way through a

@@ -429,9 +429,11 @@ UIControlMeasure.prototype.onCompute = function(button) {
                     pending = false;
                     if (self.areaSampleSet !== sampleSet) return;
 
-                    var samples = sampleSet.samples || [];
-                    if (samples.length !== sampleSet.positions.length
-                        || samples.some(function(sample) { return !sample; })) {
+                    var heights = sampleSet.sampleHeight;
+                    if (!heights
+                        || heights.length !== sampleSet.positions.length
+                        || heights.some(function(h) {
+                            return Number.isNaN(h); })) {
 
                         if (!self.areaUpdateDestructor) {
                             self.areaUpdateDestructor = self.browser.on(
@@ -443,8 +445,7 @@ UIControlMeasure.prototype.onCompute = function(button) {
 
                     var fixedCoords = self.navCoords.map(
                         function(coords, index) {
-                            return [coords[0], coords[1],
-                                samples[index].height];
+                            return [coords[0], coords[1], heights[index]];
                         });
                     var geodata = map.createGeodata();
                     geodata.addPolygon3(

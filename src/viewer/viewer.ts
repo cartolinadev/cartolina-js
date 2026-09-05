@@ -635,9 +635,10 @@ class Viewer {
     /**
      * Updates terrain heights for a retained set of geographic positions.
      *
-     * `samples` is created on the first call and updated in place. Keep
-     * the same sample set while its positions remain unchanged; a missing
-     * sample retains no covered terrain value.
+     * `sampleHeight` and `sampleGsd` are created on the first call and
+     * updated in place. Keep the same sample set while its positions
+     * remain unchanged; a position no terrain covers reads NaN in
+     * `sampleHeight`.
      *
      * @param sampleSet caller-owned positions, requested gsd, and samples
      * @returns whether at least one height or actual gsd changed
@@ -1295,18 +1296,16 @@ namespace Viewer {
      */
     export type VisibilityProfile = Map.VisibilityProfile;
 
-    /** Caller-owned retained terrain samples for stable positions. */
+    /** Caller-owned retained terrain samples for stable positions. The
+     * store allocates and fills the two parallel arrays; callers read
+     * them. `sampleHeight[i]` is NaN where no terrain covers position
+     * `i`, and `sampleGsd[i]` is the ground sample distance its height
+     * was taken at. */
     export type TerrainSampleSet = {
         positions: readonly (readonly [number, number])[];
         desiredGsd: number;
-        samples?: (TerrainSample | undefined)[];
-    };
-
-    /** One covered terrain sample. */
-    export type TerrainSample = {
-        height: number;
-        actualGsd: number;
-        unit: unknown;
+        sampleHeight?: Float32Array;
+        sampleGsd?: Float32Array;
     };
 
     /**
