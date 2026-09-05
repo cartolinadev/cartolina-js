@@ -36,6 +36,10 @@ var exportedGeometries = [];
 var featureCache = new Array(1024), featureCacheIndex = 0, finalFeatureCache = new Array(1024), finalFeatureCacheIndex = 0, finalFeatureCacheIndex2 = 0;
 var heightcodingJobs = new WorkerHeightcodingJobs();
 
+// Diagnostic: lets a CDP Runtime.evaluate on the worker target read the
+// structural census of retained heightcoding jobs.
+self.__hcDiag = function() { return heightcodingJobs.measure(); };
+
 function processLayerFeaturePass(type, feature, lod, layer, featureIndex, zIndex, eventInfo) {
 
     globals.stylesheetLocals = {};
@@ -594,23 +598,23 @@ self.onmessage = function (e) {
         break;
 
     case 'heightcoding-update':
-        var updatedJob = heightcodingJobs.apply(data);
+        var updated = heightcodingJobs.apply(data);
 
-        if (updatedJob) {
+        if (updated) {
             globals.geodataJobId = data.jobId;
-            setRenderState(updatedJob.renderState);
-            publishGeodata(updatedJob.builtGeodata);
+            setRenderState(updated.renderState);
+            publishGeodata(updated.geodata);
         }
 
         break;
 
     case 'publish-retained':
-        var retainedJob = heightcodingJobs.get(data.jobId);
+        var retained = heightcodingJobs.get(data.jobId);
 
-        if (retainedJob) {
+        if (retained) {
             globals.geodataJobId = data.jobId;
-            setRenderState(retainedJob.renderState);
-            publishGeodata(retainedJob.builtGeodata);
+            setRenderState(retained.renderState);
+            publishGeodata(retained.geodata);
         }
 
         break;

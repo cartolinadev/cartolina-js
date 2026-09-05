@@ -2,5 +2,5 @@
 // Do not edit manually.
 
 export default function getVersion(): string {
-    return '2.50.117-feature_elevation_store.ac9d5e13';
+    return '2.50.118-feature_heightcoding_retained_slim.f89b3585';
 }

@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-05 - Rebuild heightcoded geometry from a retained topology
+
+The geodata worker no longer keeps a heightcoded tile's coordinate
+arrays. A job retains the store positions, the heights and each group's
+feature topology and properties; a rebuild reconstructs the geometry
+from those and publishes it, and the publish is discarded. `apply` and
+`get` return that geometry rather than a geometry stored on the job.
+
+The coordinate arrays were the largest item a job retained; the store
+positions and retained properties stay. Output is unchanged - both
+versions driven with one payload and one set of heights give
+bit-identical geometry, tiled and builder, with and without gaps. A
+rebuild now reconstructs the geometry on each publish.
+
 ## 2026-09-04 - Drop the geodata worker's per-coordinate record
 
 A group is a span of `visitCoordinates` order, and a rebuild walks the

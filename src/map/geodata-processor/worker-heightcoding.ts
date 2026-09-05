@@ -9,19 +9,22 @@ import proj4 from 'proj4';
  * The worker-side registry of retained heightcoding jobs, keyed by job id.
  *
  * `register` parses one payload, converts each coordinate to its store
- * position, and returns those positions to the main thread. `apply` writes
- * the heights the main thread sends back and rebuilds the geometry; `get`
- * returns an already-built job for a view rebuild. This owns the parsed
- * geodata for the payload's lifetime; the main thread owns only the heights.
+ * position, returns those positions to the main thread, and keeps the
+ * store positions with each group's feature topology and properties.
+ * `apply` writes the heights the main thread sends back and rebuilds the
+ * geometry from the store positions; `get` rebuilds it again for a new
+ * view. The rebuilt geometry is published and dropped, so a job retains
+ * the store positions, the heights and the topology, never the parsed
+ * coordinate arrays.
  *
- * A group is a span of `visitCoordinates` order, and a rebuild walks the
- * geometry to reach each vertex. Per-coordinate values live in typed
- * arrays over that same order.
+ * A group is a span of `visitCoordinates` order, and a rebuild walks that
+ * order to reach each vertex. Per-coordinate values live in typed arrays
+ * over the same order.
  */
 class WorkerHeightcodingJobs {
 
     /**
-     * Retains one parsed payload and returns its store coordinates.
+     * Retains one payload's store coordinates and returns them.
      *
      * @param request job identity and coordinate definitions
      * @param geodata parsed geodata object
@@ -39,7 +42,7 @@ class WorkerHeightcodingJobs {
         const toTarget = proj4(request.physicalSrs, targetSrs);
         const toPhysical = proj4(targetSrs, request.physicalSrs);
         const positions: number[] = [];
-        const groups: GroupSpan[] = [];
+        const groups: RetainedGroup[] = [];
         const sampleOf: number[] = [];
         const heightOffsets: number[] = [];
 
@@ -102,14 +105,12 @@ class WorkerHeightcodingJobs {
             });
 
             delete group.heightcoding;
-            groups.push({ group, base, count: index - base });
+            groups.push(retainGroup(group, base, index - base));
         }
 
         if (positions.length === 0) return null;
 
         const job: Job = {
-            geodata,
-            builtGeodata: geodata,
             groups,
             sourceXY: new Float64Array(positions),
             sampleOf: Int32Array.from(sampleOf),
@@ -131,8 +132,9 @@ class WorkerHeightcodingJobs {
         };
     }
 
-    /** Applies changed heights and requantizes the retained geometry. */
-    apply(update: WorkerHeightcodingJobs.Update): Job | null {
+    /** Applies changed heights and rebuilds the geometry to publish. */
+    apply(update: WorkerHeightcodingJobs.Update):
+            WorkerHeightcodingJobs.Publication | null {
 
         const job = this.jobs_.get(update.jobId);
         if (!job || update.revision <= job.revision) return null;
@@ -142,23 +144,76 @@ class WorkerHeightcodingJobs {
 
         job.revision = update.revision;
 
-        if (!rebuild(job)) return null;
+        const geodata = rebuild(job);
+        if (!geodata) return null;
 
         job.initialized = true;
-        return job;
+        return { renderState: job.renderState, geodata };
     }
 
-    /** Returns retained geometry for a view rebuild. */
-    get(jobId: number): Job | null {
+    /** Rebuilds a job's geometry for a new view, at its current heights. */
+    get(jobId: number): WorkerHeightcodingJobs.Publication | null {
 
         const job = this.jobs_.get(jobId);
-        return job?.initialized ? job : null;
+        if (!job || !job.initialized) return null;
+
+        const geodata = rebuild(job);
+        if (!geodata) return null;
+
+        return { renderState: job.renderState, geodata };
     }
 
-    /** Releases one retained parsed payload. */
+    /** Releases one retained job. */
     release(jobId: number): void {
 
         this.jobs_.delete(jobId);
+    }
+
+    /**
+     * Diagnostic: structural census of everything the retained jobs hold.
+     * Counts are raw; a byte model is applied by the analysis script so it
+     * can be revised without recompiling the worker.
+     */
+    measure(): WorkerHeightcodingJobs.Census {
+
+        const census: WorkerHeightcodingJobs.Census = {
+            jobs: 0,
+            groups: 0,
+            coords: 0,
+            placedCoords: 0,
+            deliveredCoords: 0,
+            sourceXYBytes: 0,
+            sampleOfBytes: 0,
+            heightsBytes: 0,
+            heightOffsetsBytes: 0,
+            features: 0,
+            coordArrays: 0,
+            coordArrayElements: 0,
+            polygonArrays: 0,
+            polygonElements: 0,
+        };
+
+        for (const job of this.jobs_.values()) {
+
+            census.jobs++;
+            census.coords += job.sampleOf.length;
+            census.placedCoords += job.sourceXY.length / 2;
+            census.deliveredCoords += job.delivered?.size ?? 0;
+            census.sourceXYBytes += job.sourceXY.byteLength;
+            census.sampleOfBytes += job.sampleOf.byteLength;
+            census.heightsBytes += job.heights.byteLength;
+            census.heightOffsetsBytes += job.heightOffsets?.byteLength ?? 0;
+
+            for (const retained of job.groups) {
+
+                census.groups++;
+                census.features += retained.pointCounts.length
+                    + retained.lineLengths.length
+                    + retained.polygonCounts.length;
+            }
+        }
+
+        return census;
     }
 
     private readonly jobs_ = new Map<number, Job>();
@@ -180,9 +235,16 @@ type GeodataGroup = {
 };
 
 
-/** One group's run of coordinates within the payload's visit order. */
-type GroupSpan = {
+/**
+ * One retained group: its feature objects with properties but no
+ * coordinate arrays, the per-feature coordinate counts a rebuild needs
+ * to restore that geometry, and the group's span in visit order.
+ */
+type RetainedGroup = {
     group: GeodataGroup;
+    pointCounts: number[];
+    lineLengths: number[][];
+    polygonCounts: number[];
     base: number;
     count: number;
 };
@@ -190,16 +252,8 @@ type GroupSpan = {
 
 type Job = {
 
-    /** Full parsed payload, kept so a later update can place a group
-     * a build skipped. */
-    geodata: Geodata;
-
-    /** The subset of `geodata`'s groups published last, those with a
-     * store height. */
-    builtGeodata: Geodata;
-
-    /** Where each group's coordinates start and end in visit order. */
-    groups: GroupSpan[];
+    /** Retained groups: topology and properties, no coordinate arrays. */
+    groups: RetainedGroup[];
 
     /** Store position of each answerable coordinate, interleaved. The
      * registration transfers its own copy to the main thread. */
@@ -234,6 +288,32 @@ type Job = {
 };
 
 
+/**
+ * Records a group's feature topology and properties and drops its
+ * coordinate arrays. A rebuild restores the geometry from the store
+ * positions, so the parsed coordinates need not be kept.
+ */
+function retainGroup(
+    group: GeodataGroup,
+    base: number,
+    count: number,
+): RetainedGroup {
+
+    const pointCounts = (group.points ?? []).map(
+        (feature) => (feature.points ?? []).length);
+    const lineLengths = (group.lines ?? []).map(
+        (feature) => (feature.lines ?? []).map((line) => line.length));
+    const polygonCounts = (group.polygons ?? []).map(
+        (feature) => (feature.vertices ?? []).length);
+
+    for (const feature of group.points ?? []) delete feature.points;
+    for (const feature of group.lines ?? []) delete feature.lines;
+    for (const feature of group.polygons ?? []) delete feature.vertices;
+
+    return { group, pointCounts, lineLengths, polygonCounts, base, count };
+}
+
+
 function readPhysicalCoordinates(group: GeodataGroup): number[][] {
 
     const bbox = group.bbox;
@@ -256,17 +336,18 @@ function readPhysicalCoordinates(group: GeodataGroup): number[][] {
 
 
 /**
- * Requantizes every group the store can place and records them as the
- * job's built geodata.
+ * Rebuilds the geometry of every group the store can place, at the
+ * current heights, as a throwaway payload for one publish.
  *
- * @returns whether any group was built
+ * @returns the built geodata, or null when no group has a store height
  */
-function rebuild(job: Job): boolean {
+function rebuild(job: Job): Geodata | null {
 
     const built: GeodataGroup[] = [];
 
-    for (const { group, base, count } of job.groups) {
+    for (const retained of job.groups) {
 
+        const { base, count } = retained;
         if (count === 0) continue;
 
         const heights = groupHeights(job, base, count);
@@ -277,8 +358,7 @@ function rebuild(job: Job): boolean {
         // store covers it.
         if (!heights) continue;
 
-        built.push(group);
-
+        const group = shapedGroup(retained);
         const physical = groupPositions(job, base, count, heights);
         const minimum = physical[0].slice();
         const maximum = physical[0].slice();
@@ -309,10 +389,49 @@ function rebuild(job: Job): boolean {
         });
 
         group.bbox = [minimum, maximum];
+        built.push(group);
     }
 
-    job.builtGeodata = { ...job.geodata, groups: built };
-    return built.length > 0;
+    return built.length > 0 ? { groups: built } : null;
+}
+
+
+/**
+ * A throwaway copy of a retained group with fresh, zeroed coordinate
+ * arrays of the original shape, for one rebuild to fill and publish.
+ */
+function shapedGroup(retained: RetainedGroup): GeodataGroup {
+
+    const group = retained.group;
+    const out: GeodataGroup = { ...group };
+
+    if (group.points)
+        out.points = group.points.map((feature, index) => ({
+            ...feature,
+            points: shapedPoints(retained.pointCounts[index]),
+        }));
+
+    if (group.lines)
+        out.lines = group.lines.map((feature, index) => ({
+            ...feature,
+            lines: retained.lineLengths[index].map(
+                (length) => shapedPoints(length)),
+        }));
+
+    if (group.polygons)
+        out.polygons = group.polygons.map((feature, index) => ({
+            ...feature,
+            vertices: new Array(retained.polygonCounts[index]).fill(0),
+        }));
+
+    return out;
+}
+
+
+/** `count` fresh three-element coordinate arrays. */
+function shapedPoints(count: number): number[][] {
+
+    return Array.from({ length: count }, () => [0, 0, 0]);
 }
 
 
@@ -464,6 +583,30 @@ namespace WorkerHeightcodingJobs {
         revision: number;
         indices: Uint32Array;
         heights: Float64Array;
+    };
+
+    /** Render state and freshly built geometry for one publish. */
+    export type Publication = {
+        renderState: RenderState;
+        geodata: Geodata;
+    };
+
+    /** Diagnostic structural census of the retained jobs. */
+    export type Census = {
+        jobs: number;
+        groups: number;
+        coords: number;
+        placedCoords: number;
+        deliveredCoords: number;
+        sourceXYBytes: number;
+        sampleOfBytes: number;
+        heightsBytes: number;
+        heightOffsetsBytes: number;
+        features: number;
+        coordArrays: number;
+        coordArrayElements: number;
+        polygonArrays: number;
+        polygonElements: number;
     };
 }
 
