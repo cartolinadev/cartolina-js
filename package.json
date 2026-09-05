@@ -1,6 +1,6 @@
 {
   "name": "cartolina-js",
-  "version": "2.50.118-feature_heightcoding_retained_slim.f89b3585",
+  "version": "2.50.120-geodata_null_group.ce018795",
   "description": "A 3D terrain cartography engine",
   "main": "src/viewer/index.ts",
   "exports": {

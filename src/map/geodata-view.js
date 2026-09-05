@@ -32,6 +32,7 @@ var MapGeodataView = function(map, geodata, extraInfo) {
 
     this.geodataProcessor = this.surface.geodataProcessor;
     this.processing = false;
+    this.pendingCommands = 0;
     this.statsCounter = 0;
     this.size = 0;
     this.buildingSize = 0;
@@ -184,6 +185,7 @@ MapGeodataView.prototype.onGeodataProcessorMessage = function(
                 message['buffer'], message.index, deadline);
 
             if (index < 0) {
+                this.pendingCommands--;
                 this.map.markDirty();
             } else {
                 message.index = index;
@@ -191,6 +193,7 @@ MapGeodataView.prototype.onGeodataProcessorMessage = function(
             }
         } else {
             message.index = 0;
+            this.pendingCommands++;
             this.map.markDirty();
             this.map.addProcessingTask2(
                 this.onGeodataProcessorMessage.bind(
@@ -248,11 +251,16 @@ MapGeodataView.prototype.startProcessing = function(
 
 
 MapGeodataView.prototype.startHeightcodingRebuild = function() {
+
+    // Request the rebuild before clearing the group set, so a refused
+    // request leaves the current groups intact.
+    if (!this.heightcoding.rebuild()) return false;
+
     this.processing = true;
     this.buildingGpuGroups = [];
     this.buildingSize = 0;
     this.currentGpuGroup = null;
-    return this.heightcoding.rebuild();
+    return true;
 };
 
 
@@ -294,11 +302,14 @@ MapGeodataView.prototype.isReady = function(
             }
         }
 
-        if (!this.ready && !this.processing
+        // A new parse clears currentGpuGroup. Wait for any queued
+        // command buffers to drain first: one resumed mid-group would
+        // otherwise find the group gone.
+
+        if (!this.ready && !this.processing && !this.pendingCommands
             && this.geodataProcessor.isReady() && payload) {
             if (this.heightcoding && this.heightcoding.retained) {
-                if (!this.startHeightcodingRebuild())
-                    this.processing = false;
+                this.startHeightcodingRebuild();
             } else if (!this.heightcoding || !this.heightcoding.started) {
                 this.startProcessing(payload, this.heightcoding);
             }

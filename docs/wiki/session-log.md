@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-05 - Fix a null render group in the geodata build
+
+`processPackedCommands` could resume a command buffer part-way through a
+group after a fresh parse had cleared `currentGpuGroup`, faulting on
+`addRenderJob2` of null. A view now counts the command buffers it still
+has queued and does not start a new parse while any remain; the
+heightcoding rebuild clears the group set only after its request is
+accepted.
+
 ## 2026-09-05 - Rebuild heightcoded geometry from a retained topology
 
 The geodata worker no longer keeps a heightcoded tile's coordinate
