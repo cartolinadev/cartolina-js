@@ -23,6 +23,87 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
+<a id="backlog-65"></a>
+## 65. Release heightcoding retained state once a tile settles
+
+**Opened:** 2026-09-05
+**Status:** open
+**Related:** [backlog 62](#backlog-62),
+`src/map/geodata-heightcoding-job.ts`,
+`src/map/geodata-processor/worker-heightcoding.ts`,
+`src/map/elevation-store.ts`
+
+Client heightcoding retains, per geodata coordinate, the worker's store
+positions and topology and the main thread's terrain sample set, for as
+long as the tile's cache entry lives. Backlog 62 makes that retained
+representation cheaper; it stays linear in the number of tiles the cache
+holds.
+
+For a tiled tile the target resolution is fixed —
+`geodataHeightcodingGsd(tileId, displaySize)` does not depend on the
+camera. Once every sample is resolved to that gsd — a measured height at
+`actualGsd <= desiredGsd`, not a carried placeholder or a coarser
+stand-in — the tile is settled and no further height will change it.
+Release the worker job and the main sample set then, the way legacy
+geodata retains nothing; a later view re-parses and re-heightcodes the
+tile, the cost legacy already pays on a re-view.
+
+Settlement does not depend on whether the map moves. A sample whose
+terrain is not yet resident stays unresolved and keeps the tile live, so
+it is corrected once that terrain arrives; a tile with a genuinely
+unanswerable sample never settles and keeps retaining, which is the safe
+direction — placeholders are never frozen.
+
+The release must not blank a re-view. `dispose()` on the job tears down
+both sides, the main sample set and, by message, the worker job. Today
+it is only ever called from `killGeodata`, which right after nulls
+`MapGeodata.heightcoding`. Here the tile stays alive, so the settle path
+must null that reference too — leaving `this.geodata` and the cache entry
+— so a re-view re-parses through `startProcessing` instead of reaching
+the `publish-retained` branch into a released job.
+
+This applies to tiled geodata only: monolithic geodata is one payload for
+every view, its target resolution follows the camera, and it stays
+retained. The change bounds the retained state to the tiles in flight
+rather than every cached tile — the effect a smaller mapCache has today,
+without evicting the visible tile.
+
+
+<a id="backlog-64"></a>
+## 64. Shift geodata de-quantization from the builders to the parse boundary
+
+**Opened:** 2026-09-05
+**Status:** open
+**Related:** `src/map/geodata-processor/worker-main.js`,
+`src/map/geodata-processor/worker-heightcoding.ts`, the `worker-*`
+geometry builders
+
+Delivered geodata carries each coordinate as a quantized integer against
+a group's bbox and resolution. The geometry builders de-quantize every
+vertex themselves, multiplying by `forceScale` (bbox extent over
+resolution) as they read it, once per style layer the group passes
+through. Client heightcoding then works the other way: `rebuild`
+requantizes its physical positions into that integer form so the same
+builders can de-quantize them again.
+
+Decode the delivered format once, at parse, into physical coordinates,
+and let the builders and the heightcoding rebuild work in physical
+throughout. Nothing downstream then depends on the quantized transport,
+which is what the move to MVT needs: when the delivered format changes,
+only the parse step changes with it.
+
+The relocation lives in the shared geometry path, so it touches legacy
+rendering and must preserve the builders' other coordinate modes exactly
+— the `forceOrigin`/`tileX` origin subtraction, the `geocent` surface
+normals, and the `forceScale2` inverse the polygon extrusion uses.
+Heightcoding stops requantizing, so its geometry gains sub-coordinate
+precision and the rebuild drops the round-trip it does today. The change
+is memory-neutral; its gains are the removed round-trip and confining the
+format to one place. Legacy output stays identical; heightcoding output
+changes sub-coordinate, so a physical-level comparison and screenshots
+check it rather than byte invariance.
+
+
 <a id="backlog-63"></a>
 ## 63. Style validation costs half a megabyte of generated code
 
@@ -50,8 +131,8 @@ rather than to drop schema validation.
 ## 62. Store heightcoding: unbounded publications, desktop-sized caches
 
 **Opened:** 2026-09-03
-**Status:** open — the geodata cache entry is charged less than a
-heightcoded tile retains
+**Status:** open — worker retained geometry removed; main-thread sample
+sets outstanding
 **Related:** `src/map/elevation-store.ts`,
 `src/map/geodata-heightcoding-job.ts`,
 `src/map/geodata-processor/worker-heightcoding.ts`, `src/map/geodata.js`
@@ -70,6 +151,14 @@ budget while the process holds several times that. The cost follows a
 tile's coordinate count rather than its delivered size, and a tile
 carries more features the coarser it is, which is why a zoom-out is the
 trigger.
+
+**Update 2026-09-05.** The worker's retained parsed geometry — a separate
+array per coordinate, kept so a later height could rebuild the tile — is
+gone. The worker retains the store positions and each group's feature
+topology and properties and rebuilds the geometry on demand, with
+bit-identical output. What
+remains is the main-thread half — a `Sample` and a `UnitRef` object per
+coordinate — to pack into typed arrays.
 
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
