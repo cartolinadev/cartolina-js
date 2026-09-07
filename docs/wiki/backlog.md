@@ -23,52 +23,6 @@ existing entry, even one added earlier in the same session. Assign the
 next entry the number one higher than the highest number used so far
 across this file and [backlog-archive.md](backlog-archive.md).**
 
-<a id="backlog-65"></a>
-## 65. Release heightcoding retained state once a tile settles
-
-**Opened:** 2026-09-05
-**Status:** open
-**Related:** [backlog 62](#backlog-62),
-`src/map/geodata-heightcoding-job.ts`,
-`src/map/geodata-processor/worker-heightcoding.ts`,
-`src/map/elevation-store.ts`
-
-Client heightcoding retains, per geodata coordinate, the worker's store
-positions and topology and the main thread's terrain sample set, for as
-long as the tile's cache entry lives. Backlog 62 makes that retained
-representation cheaper; it stays linear in the number of tiles the cache
-holds.
-
-For a tiled tile the target resolution is fixed —
-`geodataHeightcodingGsd(tileId, displaySize)` does not depend on the
-camera. Once every sample is resolved to that gsd — a measured height at
-`actualGsd <= desiredGsd`, not a carried placeholder or a coarser
-stand-in — the tile is settled and no further height will change it.
-Release the worker job and the main sample set then, the way legacy
-geodata retains nothing; a later view re-parses and re-heightcodes the
-tile, the cost legacy already pays on a re-view.
-
-Settlement does not depend on whether the map moves. A sample whose
-terrain is not yet resident stays unresolved and keeps the tile live, so
-it is corrected once that terrain arrives; a tile with a genuinely
-unanswerable sample never settles and keeps retaining, which is the safe
-direction — placeholders are never frozen.
-
-The release must not blank a re-view. `dispose()` on the job tears down
-both sides, the main sample set and, by message, the worker job. Today
-it is only ever called from `killGeodata`, which right after nulls
-`MapGeodata.heightcoding`. Here the tile stays alive, so the settle path
-must null that reference too — leaving `this.geodata` and the cache entry
-— so a re-view re-parses through `startProcessing` instead of reaching
-the `publish-retained` branch into a released job.
-
-This applies to tiled geodata only: monolithic geodata is one payload for
-every view, its target resolution follows the camera, and it stays
-retained. The change bounds the retained state to the tiles in flight
-rather than every cached tile — the effect a smaller mapCache has today,
-without evicting the visible tile.
-
-
 <a id="backlog-64"></a>
 ## 64. Shift geodata de-quantization from the builders to the parse boundary
 

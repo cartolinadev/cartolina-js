@@ -3,6 +3,39 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-07 — Dispose tiled heightcoding on settle (backlog 65)
+
+Goal: release a tiled tile's retained heightcoding once it reaches its
+fixed target resolution, closing backlog 65.
+
+The opened entry stated settlement as `actualGsd <= desiredGsd`. RFC 13
+§5.4 and `elevation-store.ts` guarantee the opposite always holds — the
+store's fine-to-coarse walk starts at `startLod = min(idealLod,
+deepestLod)` and only coarsens, so the store's best answer for a
+`desiredGsd` lies in `[desiredGsd, 2 * desiredGsd)`. Settlement is
+`actualGsd < 2 * desiredGsd` with a finite height, per sample.
+
+`SampleSetBase.settled` is a store-written boolean beside `sampleHeight`/
+`sampleGsd`, computed once at `finishUpdate`. It is meaningful for any
+consumer; only tiled geodata acts on it.
+`GeodataHeightcodingJob.settled` combines the flag with worker-delivery
+quiescence and excludes monolithic jobs. `MapGeodata.settleHeightcoding()`
+disposes the job and nulls the reference while keeping the payload and
+cache entry, so a re-view re-parses through `getHeightcoding`.
+`MapGeodataView` releases once its committed geometry reflects the
+settled job and guards against resurrecting the job under a still-drawn
+settled view. `ElevationStore.terrainEpoch` (re-exported on `Map`) bumps
+when the store discards resident terrain (a surface-set change), so a
+released view whose epoch advanced evicts and re-parses instead of
+drawing stale heights. Gated by `mapTiledGeodataDisposeOnSettled`
+(construction, default on).
+
+Verified with `tsc --noEmit`, the simple/complex/full-terrain screenshot
+set, and a manual `mapHeightcoding=store` pass — a null-`sampleSet_` crash
+found in manual testing (`settled` assumed a published job always has a
+sample set; geometry can publish before the worker's heightcoding-request
+creates it) is fixed.
+
 ## 2026-09-05 — Elevation store: main-thread sample-set packing (backlog 62)
 
 Goal: pack the elevation store's per-coordinate main-thread state, backlog

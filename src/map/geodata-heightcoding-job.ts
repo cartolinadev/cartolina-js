@@ -76,6 +76,20 @@ class GeodataHeightcodingJob {
         return this.started_;
     }
 
+    /**
+     * Whether a tiled tile has reached its fixed target resolution and
+     * the worker holds that final geometry, so its retained state can be
+     * released. Monolithic jobs (no node) never settle.
+     */
+    get settled(): boolean {
+
+        // Geometry can publish before sampleSet_ is created.
+        return this.node_ !== null
+            && this.published_ && !this.publishPending_
+            && !this.changesPending_ && !this.sampleUpdate_
+            && this.sampleSet_ !== null && this.sampleSet_.settled;
+    }
+
     /** Routes worker render output to the current transient view. */
     attach(listener: GeodataHeightcodingJob.Listener): void {
 

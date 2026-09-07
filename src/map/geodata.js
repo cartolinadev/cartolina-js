@@ -61,6 +61,19 @@ MapGeodata.prototype.killGeodata = function(killedByCache) {
 };
 
 
+/**
+ * Releases a settled tile's heightcoding while keeping the parsed
+ * payload and cache entry, so a later view re-parses through
+ * getHeightcoding rather than reaching a released worker job.
+ */
+MapGeodata.prototype.settleHeightcoding = function() {
+    if (this.heightcoding) {
+        this.heightcoding.dispose();
+        this.heightcoding = null;
+    }
+};
+
+
 MapGeodata.prototype.getHeightcoding = function(processor) {
     if (this.heightcodingUnavailable) return null;
 

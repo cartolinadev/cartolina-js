@@ -1348,3 +1348,68 @@ and `Map`. `addSource` registers a `cartolina-freelayer` data source;
 `MapStyle.commitCandidate`, so the layer flows through the same compile
 that fills `freeLayerSequence` and attaches the stylesheet. Validated by
 `demos/core`, whose heightcoded triangle route now renders.
+
+
+<a id="backlog-65"></a>
+## 65. Release heightcoding retained state once a tile settles
+
+**Opened:** 2026-09-05
+**Status:** resolved 2026-09-07
+**Related:** [backlog 62](#backlog-62),
+`src/map/geodata-heightcoding-job.ts`,
+`src/map/geodata.js`, `src/map/geodata-view.js`,
+`src/map/elevation-store.ts`
+
+Client heightcoding retains, per geodata coordinate, the worker's store
+positions and topology and the main thread's terrain sample set, for as
+long as the tile's cache entry lives. Backlog 62 makes that retained
+representation cheaper; it stays linear in the number of tiles the cache
+holds.
+
+For a tiled tile the target resolution is fixed —
+`geodataHeightcodingGsd(tileId, displaySize)` does not depend on the
+camera. Once every sample is resolved to that gsd, the tile is settled
+and no further height will change it. Release the worker job and the
+main sample set then, the way legacy geodata retains nothing; a later
+view re-parses and re-heightcodes the tile, the cost legacy already pays
+on a re-view.
+
+Settlement does not depend on whether the map moves. A sample whose
+terrain is not yet resident stays unresolved and keeps the tile live, so
+it is corrected once that terrain arrives; a tile with a genuinely
+unanswerable sample never settles and keeps retaining, which is the safe
+direction — placeholders are never frozen.
+
+### Resolution
+
+The opening text stated settlement as a measured height at `actualGsd <=
+desiredGsd`. RFC 13 §5.4 and `elevation-store.ts` guarantee the opposite
+— the store's fine-to-coarse walk starts at `startLod = min(idealLod,
+deepestLod)` and only ever coarsens from there, so `actualGsd >=
+desiredGsd` always holds and the stated condition is met only by
+coincidence. Since the store's best possible answer for a `desiredGsd`
+lies in `[desiredGsd, 2 * desiredGsd)`, settlement is `actualGsd < 2 *
+desiredGsd` with a finite height, evaluated per sample.
+
+Settlement is a store-internal predicate, not a policy the consumer
+computes: `SampleSetBase.settled` is a boolean the store writes in place
+next to `sampleHeight`/`sampleGsd`, true once every sample has a finite
+height within one gsd step of the request. It is defined for any
+consumer (monolithic geodata, measure, navigation); only tiled geodata
+acts on it. `GeodataHeightcodingJob.settled` combines the flag with
+worker-delivery quiescence and excludes monolithic jobs (no node).
+
+`MapGeodata.settleHeightcoding()` disposes the job and nulls the
+reference while keeping the parsed payload and cache entry, so a re-view
+re-parses through `getHeightcoding` rather than reaching a released
+worker job. `MapGeodataView` triggers the release once its committed
+geometry reflects the settled job, and guards against resurrecting the
+job under a settled view that still holds geometry.
+
+The store already discards resident terrain on a surface-set change
+(e.g. terrain visibility toggled); a released tile's baked heights are
+then stale. `ElevationStore.terrainEpoch` (re-exported on `Map`) bumps on
+that teardown, and a settled view whose epoch has advanced evicts its
+geometry so the normal flow re-parses it.
+
+Gated by `mapTiledGeodataDisposeOnSettled` (construction, default on).

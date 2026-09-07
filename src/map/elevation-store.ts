@@ -169,6 +169,7 @@ class ElevationStore {
         if (signature !== this.sourceSignature_) {
 
             this.sourceSignature_ = signature;
+            this.terrainEpoch_++;
             this.clear();
         }
 
@@ -187,6 +188,14 @@ class ElevationStore {
     get budgetBytes(): number {
 
         return this.budgetBytes_ + this.units_.fixedBytes;
+    }
+
+    /** Bumps whenever the active surface set changes and the store
+     * discards its resident terrain, so a consumer that released on a
+     * settle knows to re-query. */
+    get terrainEpoch(): number {
+
+        return this.terrainEpoch_;
     }
 
     /** Admits this tick's elevation pass when its interval has elapsed. */
@@ -858,6 +867,19 @@ class ElevationStore {
 
         update.settled = true;
         this.updates_.delete(update.sampleSet);
+
+        // Settled: every sample has a height within one gsd step of ask.
+        const set = update.sampleSet;
+        const gsd = set.sampleGsd!;
+        const height = set.sampleHeight!;
+        const limit = 2 * update.desiredGsd;
+        let settled = limit > 0;
+
+        for (let index = 0; settled && index < update.count; index++)
+            settled = gsd[index] < limit && !Number.isNaN(height[index]);
+
+        set.settled = settled;
+
         update.resolve(update.changed);
     }
 
@@ -1071,6 +1093,7 @@ class ElevationStore {
     private sampleSetUpdateRequested_ = false;
     private lastPassTime_ = -Infinity;
     private sourceSignature_: string | null = null;
+    private terrainEpoch_ = 0;
 }
 
 
@@ -1330,6 +1353,10 @@ namespace ElevationStore {
 
         /** Ground sample distance each resolved height was taken at. */
         sampleGsd?: Float32Array;
+
+        /** True once every sample holds a finite height at the store's
+         * best resolution for the current desiredGsd. Store-written. */
+        settled = false;
 
         protected constructor(
             readonly positions: Positions,

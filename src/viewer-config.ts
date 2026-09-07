@@ -593,6 +593,12 @@ const catalogue = {
         visibility: 'construction',
     }),
 
+    /** Releases a tiled store-heightcoding tile's retained worker job
+     *  and terrain sample set once it settles at its fixed target gsd;
+     *  a later view re-parses. Tiled geodata only. Read once at
+     *  construction. */
+    mapTiledGeodataDisposeOnSettled: bool(true, 'construction'),
+
     /** Brake on descending through geometry-less metanode chains:
      *  the allowed cell-span growth per structural step (see
      *  `rfc09-metadata-first-traversal.md`). */

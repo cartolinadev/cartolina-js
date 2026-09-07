@@ -1306,6 +1306,7 @@ namespace Viewer {
         desiredGsd: number;
         sampleHeight?: Float32Array;
         sampleGsd?: Float32Array;
+        settled: boolean;
     };
 
     /**

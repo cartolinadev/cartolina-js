@@ -1326,6 +1326,12 @@ class Map {
         this.elevationStore_?.disposeTerrainSamples(sampleSet);
     }
 
+    /** Bumps when the elevation store discards its resident terrain. */
+    get terrainEpoch(): number {
+
+        return this.elevationStore_?.terrainEpoch ?? 0;
+    }
+
     /** Nominal requested gsd for one prepared geodata view. */
     geodataHeightcodingGsd(
         tileId: readonly number[] | null,

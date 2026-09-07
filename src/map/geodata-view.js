@@ -42,6 +42,7 @@ var MapGeodataView = function(map, geodata, extraInfo) {
     this.heightcoding = null;
     this.heightcodingUpdate = null;
     this.heightcodingMode = this.map.config.mapHeightcoding;
+    this.settledEpoch = 0;
     this.isReady();
 };
 
@@ -281,24 +282,48 @@ MapGeodataView.prototype.isReady = function(
         var payload = geodata;
 
         if (mode === 'store') {
-            this.heightcoding = this.geodata.getHeightcoding(
-                this.geodataProcessor);
 
-            if (this.heightcoding)
-                this.heightcoding.attach(this.processorListener);
+            // Stale after the store dropped its terrain: re-parse below.
+            if (this.ready && !this.heightcoding
+                    && this.settledEpoch !== this.map.outerMap.terrainEpoch)
+                this.map.gpuCache.remove(this.gpuCacheItem);
 
-            var tileId = this.tile ? this.tile.id : null;
-            var desiredGsd = this.map.outerMap.geodataHeightcodingGsd(
-                tileId, this.surface.displaySize);
+            // Hold a job while building or refining; a settled view keeps none.
+            if (!this.ready || this.heightcoding) {
 
-            if (this.heightcoding && desiredGsd !== null
-                    && !this.heightcodingUpdate) {
-                var update = this.heightcoding.update(desiredGsd);
+                this.heightcoding = this.geodata.getHeightcoding(
+                    this.geodataProcessor);
 
-                if (update)
-                    this.heightcodingUpdate = update.finally((function() {
-                        this.heightcodingUpdate = null;
-                    }).bind(this));
+                if (this.heightcoding)
+                    this.heightcoding.attach(this.processorListener);
+            }
+
+            // Reached final resolution and committed here: release it.
+            if (this.map.config.mapTiledGeodataDisposeOnSettled
+                    && this.ready && !this.processing && !this.pendingCommands
+                    && this.heightcoding && this.heightcoding.settled) {
+
+                this.settledEpoch = this.map.outerMap.terrainEpoch;
+                this.geodata.settleHeightcoding();
+                this.heightcoding = null;
+            }
+
+            // Not yet settled: bring the retained samples up to date.
+            if (this.heightcoding && !this.heightcodingUpdate) {
+
+                var tileId = this.tile ? this.tile.id : null;
+                var desiredGsd = this.map.outerMap.geodataHeightcodingGsd(
+                    tileId, this.surface.displaySize);
+
+                if (desiredGsd !== null) {
+
+                    var update = this.heightcoding.update(desiredGsd);
+
+                    if (update)
+                        this.heightcodingUpdate = update.finally((function() {
+                            this.heightcodingUpdate = null;
+                        }).bind(this));
+                }
             }
         }
 
