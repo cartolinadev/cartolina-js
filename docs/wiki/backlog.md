@@ -85,8 +85,8 @@ rather than to drop schema validation.
 ## 62. Store heightcoding: unbounded publications, desktop-sized caches
 
 **Opened:** 2026-09-03
-**Status:** open — worker retained geometry removed; main-thread sample
-sets outstanding
+**Status:** open — retained state in the geodata path shared by both
+modes is under investigation
 **Related:** `src/map/elevation-store.ts`,
 `src/map/geodata-heightcoding-job.ts`,
 `src/map/geodata-processor/worker-heightcoding.ts`, `src/map/geodata.js`
@@ -128,6 +128,19 @@ state falls from two objects with nested arrays to ~28 B of typed array,
 off the V8 heap.
 
 The entry stays open.
+
+The worker geometry reduction (`69ea6929`), main-thread sample packing
+(`c389189a`), and settled-job disposal (`ad59a39f`) remove real retained
+state. Investigation continues on lifetime and peak allocation in the
+geodata processing and rendering path shared by both heightcoding modes.
+
+**Update 2026-09-07 (evicted geodata jobs).** GPU-cache eviction destroyed
+the WebGL resources of a geodata render group but left its JavaScript jobs,
+geometry table, and pending subjob attached. `MapGeodataView` could also keep
+the evicted group as `currentGpuGroup`. None of those fields has a role after
+destruction. Clearing them and dropping the obsolete view reference closes a
+shared-path retention defect. It does not account for the additional render
+commands produced by store heightcoding and does not resolve #62 by itself.
 
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied

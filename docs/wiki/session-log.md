@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-07 — Release evicted geodata group state (backlog 62)
+
+Goal: stop evicted geodata groups retaining their CPU-side feature graphs
+while the wider geodata failure remains under investigation. Destruction now
+clears the group's jobs, geometry table, and pending subjob, and its view drops
+the obsolete current-group reference. This fixes one shared-path retention
+defect but does not close backlog 62.
+
 ## 2026-09-07 — Dispose tiled heightcoding on settle (backlog 65)
 
 Goal: release a tiled tile's retained heightcoding once it reaches its

@@ -85,6 +85,10 @@ GpuGroup.prototype.kill = function() {
             }
         }
     }
+
+    this.jobs = [];
+    this.geometries = {};
+    this.subjob = null;
 };
 
 

@@ -68,6 +68,7 @@ MapGeodataView.prototype.kill = function() {
 
     this.buildingGpuGroups = [];
     this.buildingSize = 0;
+    this.currentGpuGroup = null;
 };
 
 
@@ -157,6 +158,7 @@ MapGeodataView.prototype.commitGpuGroups = function() {
     this.size = size;
     this.buildingGpuGroups = [];
     this.buildingSize = 0;
+    this.currentGpuGroup = null;
     this.ready = true;
     this.processing = false;
 
