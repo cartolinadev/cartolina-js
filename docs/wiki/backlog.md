@@ -85,8 +85,8 @@ rather than to drop schema validation.
 ## 62. Store heightcoding: unbounded publications, desktop-sized caches
 
 **Opened:** 2026-09-03
-**Status:** open — retained state in the geodata path shared by both
-modes is under investigation
+**Status:** open — the cache budgets are one desktop default whatever
+the canvas, and store mode adds an unbounded publication path
 **Related:** `src/map/elevation-store.ts`,
 `src/map/geodata-heightcoding-job.ts`,
 `src/map/geodata-processor/worker-heightcoding.ts`, `src/map/geodata.js`
@@ -159,6 +159,28 @@ filled, although its bytes had already been copied into the merged command.
 It now clears an absorbed command as soon as that copy completes. This reduces
 the overlap between source, merged, and final buffers in the geodata worker. It
 does not change how much render data is produced and does not close #62.
+
+**Update 2026-09-09 (memory budget).** Four facts follow from the code:
+
+- A label render job is charged nothing to the GPU cache: the
+  single-buffer paths of `addIconJob` and `addLineLabelJob` add no size,
+  so tens of thousands of label jobs and their feature property objects
+  sit outside the cache's budget.
+- The surface and geodata tile trees are never pruned. A tile is removed
+  only when its metatile stops listing it (`isMetanodeReady`), so the
+  trees grow with the ground visited for the life of the map.
+- On iOS, WebGL resources are accounted to the page process, which the
+  system kills at a fixed memory limit. The default budgets
+  (`mapGPUCache` 600, `mapCache` 256, `mapElevationStoreGPUCache` 192)
+  plus the uncharged geodata state are sized for a desktop, whatever the
+  canvas. `mapMobileDetailDegradation` defaults to 0, so mobile mode
+  scales none of them.
+- Store mode's publication path has no concurrency bound. Legacy parses
+  one tile at a time (`MapGeodataProcessor.busy`); in store mode every
+  retained job may have a publication in flight, and the main thread
+  drains them under `mapMaxGeodataProcessingTime` per frame, so command
+  buffers queue in `processingTasks2` and the frame rate falls during
+  coarse pans.
 
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
