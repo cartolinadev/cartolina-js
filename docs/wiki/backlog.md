@@ -142,6 +142,17 @@ destruction. Clearing them and dropping the obsolete view reference closes a
 shared-path retention defect. It does not account for the additional render
 commands produced by store heightcoding and does not resolve #62 by itself.
 
+**Update 2026-09-08 (worker command packing).** The worker's reusable message
+array kept every source command buffer reachable after producing the packed
+result: packing reset only its active length. The optimizer also copied merged
+geometry through two module-level 16 MB scratch buffers which grew with the
+largest batch and never shrank. Packing now clears each consumed array slot and
+copies source geometry directly into the required merged buffer. This removes
+a shared legacy/store retention path, two permanent high-water buffers, and one
+copy of every merged vertex stream. Store still republishes complete geometry
+as heights arrive, so this reduces its amplification but does not establish or
+close the remaining cumulative failure in #62.
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 

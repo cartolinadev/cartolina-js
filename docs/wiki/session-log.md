@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-08 — Reduce geodata worker packing retention (backlog 62)
+
+Goal: remove avoidable retained and transient buffers from the geodata path
+shared by legacy and store heightcoding. Completed command slots are released,
+and merged geometry is copied directly into its result instead of through
+grow-only worker scratch buffers. This reduces the store path's amplification
+but does not close the cumulative failure in backlog 62.
+
 ## 2026-09-07 — Release evicted geodata group state (backlog 62)
 
 Goal: stop evicted geodata groups retaining their CPU-side feature graphs

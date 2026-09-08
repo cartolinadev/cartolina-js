@@ -5,8 +5,6 @@ import * as vts from '../../constants';
 
 //get rid of compiler mess
 var globals = globals_, stringToUint8Array = stringToUint8Array_;
-var tmpVertexBuffer = new Uint8Array(65536*4*4*4*4);
-var tmpVertexBuffer2 = new Uint8Array(65536*4*4*4*4);
 var packedEvents = [];
 var packedTransferables = [];
 
@@ -95,30 +93,11 @@ function postGroupMessageDirect(command, type, message, buffersIndex, signature,
 }
 
 
-function setToTmpBuffer(index, buffer2, offset) {
-    var buffer = (index == 1) ? tmpVertexBuffer2 : tmpVertexBuffer;
-
-    if (buffer.byteLength <= buffer2.byteLength + offset) {
-        var buffer3 = new Uint8Array(buffer.byteLength * 2);
-        buffer3.set(buffer, 0);
-        buffer = buffer3;
-
-        if (index == 1) {
-            tmpVertexBuffer2 = buffer;
-        } else {
-            tmpVertexBuffer = buffer;
-        }
-    }
-
-    buffer.set(buffer2, offset);
-}
-
-
 function optimizeGroupMessages() {
 
     //loop messages
     var messages = globals.messageBuffer;
-    var j, lk, k, message2, job2, bufferSize, buffer, view, index, length, buff, buff2, index, count, totalVertices;
+    var j, lk, k, message2, bufferSize, buffer, view, index, length, count;
 
 
     for (var i = 0, li = globals.messageBufferIndex; i < li; i++) {
@@ -136,12 +115,10 @@ function optimizeGroupMessages() {
             case vts.WORKER_TYPE_POLYGON:
             case vts.WORKER_TYPE_FLAT_LINE:
                 count = 0;
+                var matches = [];
 
-                //get message vertices length and copy vertices to buffer
+                //get message vertices length
                 length = (new DataView(message.job)).getUint32(message.buffersIndex) * 4;
-
-                //tmpVertexBuffer.set(new Uint8Array(message.job, message.buffersIndex+4, length), 0);
-                setToTmpBuffer(0, new Uint8Array(message.job, message.buffersIndex+4, length), 0);
                 bufferSize = length;
 
                 for (j = i + 1; j < li; j++) {
@@ -149,14 +126,11 @@ function optimizeGroupMessages() {
 
                     if (message2.signature == signature) {
                         message2.reduced = true;
+                        matches.push(message2);
                         count++;
 
                         //get message2 vertices length
                         length = (new DataView(message2.job)).getUint32(message2.buffersIndex) * 4;
-
-                        // copy vertices to buffer
-                        //tmpVertexBuffer.set(new Uint8Array(message2.job, message2.buffersIndex+4, length), bufferSize);
-                        setToTmpBuffer(0, new Uint8Array(message2.job, message2.buffersIndex+4, length), bufferSize);
                         bufferSize += length;
                     }
                 }
@@ -169,7 +143,22 @@ function optimizeGroupMessages() {
                     buffer.set(new Uint8Array(message.job, 0, message.buffersIndex), 0);
 
                     view.setUint32(message.buffersIndex, bufferSize / 4);
-                    buffer.set(new Uint8Array(tmpVertexBuffer.buffer, 0, bufferSize), message.buffersIndex + 4);
+                    index = message.buffersIndex + 4;
+                    length = (new DataView(message.job)).getUint32(
+                        message.buffersIndex) * 4;
+                    buffer.set(new Uint8Array(
+                        message.job, message.buffersIndex + 4, length), index);
+                    index += length;
+
+                    for (j = 0; j < matches.length; j++) {
+                        message2 = matches[j];
+                        length = (new DataView(message2.job)).getUint32(
+                            message2.buffersIndex) * 4;
+                        buffer.set(new Uint8Array(
+                            message2.job, message2.buffersIndex + 4, length),
+                        index);
+                        index += length;
+                    }
 
                     globals.messagePackSize -= message.job.byteLength;
                     globals.messagePackSize += buffer.byteLength;
@@ -183,19 +172,12 @@ function optimizeGroupMessages() {
             case vts.WORKER_TYPE_FLAT_RLINE:
 
                 count = 0;
-                totalVertices = 0;
+                matches = [];
 
-                //get message vertices length and copy vertices to buffer
+                //get message vertices length
                 length = (new DataView(message.job)).getUint32(message.buffersIndex);
                 //console.log('count: ' + count + ' totalPoints:' + message.totalPoints + ' length: ' + length);
                 length *= 4;
-                totalVertices += length;
-
-
-                //tmpVertexBuffer.set(new Uint8Array(message.job, message.buffersIndex+4, length), 0);
-                //tmpVertexBuffer2.set(new Uint8Array(message.job, message.buffersIndex+4+length+4, length), 0);
-                setToTmpBuffer(0, new Uint8Array(message.job, message.buffersIndex+4, length), 0);
-                setToTmpBuffer(1, new Uint8Array(message.job, message.buffersIndex+4+length+4, length), 0);
                 bufferSize = length;
 
                 for (j = i + 1; j < li; j++) {
@@ -203,23 +185,13 @@ function optimizeGroupMessages() {
 
                     if (message2.signature == signature) {
                         message2.reduced = true;
+                        matches.push(message2);
                         globals.messagePackSize -= message2.job.byteLength;
                         count++;
 
                         //get message2 vertices length
                         length = (new DataView(message2.job)).getUint32(message2.buffersIndex);
-                        //console.log('count:' + count + ' totalPoints:' + message2.totalPoints + ' length:' + length + ' jobl:' + message2.job.byteLength + ' remaning:' + (message2.job.byteLength - (message2.buffersIndex+4)) + ' bufferSize:' + bufferSize + ' totalVertices:' + totalVertices);
                         length *= 4;
-                        totalVertices += length;
-
-
-                        // copy vertices to buffer
-                        //tmpVertexBuffer.set(new Uint8Array(message2.job, message2.buffersIndex+4, length), bufferSize);
-                        setToTmpBuffer(0, new Uint8Array(message2.job, message2.buffersIndex+4, length), bufferSize);
-
-                        // copy normals to buffer
-                        //tmpVertexBuffer2.set(new Uint8Array(message2.job, message2.buffersIndex+4+length+4, length), bufferSize);
-                        setToTmpBuffer(1, new Uint8Array(message2.job, message2.buffersIndex+4+length+4, length), bufferSize);
                         bufferSize += length;
 
                         if (type == vts.WORKER_TYPE_LINE_LABEL) {
@@ -264,10 +236,26 @@ function optimizeGroupMessages() {
                     }
 
                     view.setUint32(message.buffersIndex, bufferSize / 4);
-                    buffer.set(new Uint8Array(tmpVertexBuffer.buffer, 0, bufferSize), message.buffersIndex + 4);
-
                     view.setUint32(message.buffersIndex + 4 + bufferSize, bufferSize / 4);
-                    buffer.set(new Uint8Array(tmpVertexBuffer2.buffer, 0, bufferSize), message.buffersIndex + 4 + bufferSize + 4 );
+
+                    var vertexIndex = message.buffersIndex + 4;
+                    var normalIndex = vertexIndex + bufferSize + 4;
+                    var sources = [message].concat(matches);
+
+                    for (j = 0; j < sources.length; j++) {
+                        message2 = sources[j];
+                        length = (new DataView(message2.job)).getUint32(
+                            message2.buffersIndex) * 4;
+                        buffer.set(new Uint8Array(
+                            message2.job, message2.buffersIndex + 4, length),
+                        vertexIndex);
+                        buffer.set(new Uint8Array(
+                            message2.job,
+                            message2.buffersIndex + 8 + length,
+                            length), normalIndex);
+                        vertexIndex += length;
+                        normalIndex += length;
+                    }
 
                     globals.messagePackSize -= message.job.byteLength;
                     globals.messagePackSize += buffer.byteLength;
@@ -290,6 +278,8 @@ function optimizeGroupMessages() {
             buffer.set(new Uint8Array(message.job), index);
             index += globals.messageBuffer[i].job.byteLength;
         }
+
+        messages[i] = null;
     }
 
     //console.log('send:' + buffer.length);
