@@ -158,6 +158,8 @@ function optimizeGroupMessages() {
                             message2.job, message2.buffersIndex + 4, length),
                         index);
                         index += length;
+                        message2.job = null;
+                        message2.job2 = null;
                     }
 
                     globals.messagePackSize -= message.job.byteLength;
@@ -255,6 +257,11 @@ function optimizeGroupMessages() {
                             length), normalIndex);
                         vertexIndex += length;
                         normalIndex += length;
+
+                        if (message2 !== message) {
+                            message2.job = null;
+                            message2.job2 = null;
+                        }
                     }
 
                     globals.messagePackSize -= message.job.byteLength;

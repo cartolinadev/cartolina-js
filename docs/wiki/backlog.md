@@ -153,6 +153,13 @@ copy of every merged vertex stream. Store still republishes complete geometry
 as heights arrive, so this reduces its amplification but does not establish or
 close the remaining cumulative failure in #62.
 
+**Update 2026-09-08 (merged-source lifetime).** The optimizer kept each
+absorbed command buffer alive until the final packet had been allocated and
+filled, although its bytes had already been copied into the merged command.
+It now clears an absorbed command as soon as that copy completes. This reduces
+the overlap between source, merged, and final buffers in the geodata worker. It
+does not change how much render data is produced and does not close #62.
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 

@@ -3,6 +3,12 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-08 — Release absorbed geodata command buffers (backlog 62)
+
+Goal: reduce the worker allocation peak while merging geodata commands.
+Absorbed source buffers are now released as soon as their bytes enter the
+merged command, instead of overlapping the later final-packet allocation.
+
 ## 2026-09-08 — Reduce geodata worker packing retention (backlog 62)
 
 Goal: remove avoidable retained and transient buffers from the geodata path
