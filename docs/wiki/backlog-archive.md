@@ -5,6 +5,142 @@ closed for another reason (superseded, promoted to an RFC, subsumed by another
 change). Entries keep the sequential number they were assigned in the active
 backlog, in order of when they were opened; numbers are not reused.
 
+<a id="backlog-62"></a>
+## 62. Store heightcoding: unbounded publications, desktop-sized caches
+
+**Opened:** 2026-09-03
+**Status:** resolved 2026-09-09 — publication cap and canvas-scaled cache
+budgets
+**Related:** `src/map/elevation-store.ts`,
+`src/map/geodata-heightcoding-job.ts`,
+`src/map/geodata-processor/worker-heightcoding.ts`, `src/map/geodata.js`
+
+Store heightcoding republishes every retained job on its own, with no
+bound on the publications in flight, and the three cache budgets are one
+desktop default whatever the canvas. On a small canvas whose GPU cache
+cannot hold a coarse, label-heavy view, a zoom-out turns eviction into
+republication and the page holds more memory than the device affords.
+
+Client heightcoding retains three heap objects and 52 bytes of typed
+array per geodata coordinate, plus the worker's copy of the parsed
+payload. `MapGeodata.onLoaded` charges the cache entry the delivered
+payload byte length and nothing else, so the cache stays inside its
+budget while the process holds several times that. The cost follows a
+tile's coordinate count rather than its delivered size, and a tile
+carries more features the coarser it is, which is why a zoom-out is the
+trigger.
+
+**Update 2026-09-05.** The worker's retained parsed geometry — a separate
+array per coordinate, kept so a later height could rebuild the tile — is
+gone. The worker retains the store positions and each group's feature
+topology and properties and rebuilds the geometry on demand, with
+bit-identical output. What
+remains is the main-thread half — a `Sample` and a `UnitRef` object per
+coordinate — to pack into typed arrays.
+
+**Update 2026-09-05 (packing landed).** The main-thread half
+is packed. A sample set now carries parallel `sampleHeight`/`sampleGsd`
+`Float32Array`s and a store-private reference table (unit key and
+generation, plus a node table and node-SRS coordinates for geographic
+sets) in place of a `Sample` and a `UnitRef` object per coordinate.
+`sameTile` is removed (the ladder walk compares `unit.key`); every gsd is
+rounded to `Float32` so a stored gsd equals one re-derived on the next
+scan. `updateTerrainSamples` fills `sampleHeight` (NaN where uncovered)
+and `sampleGsd`; the callers `geodata-heightcoding-job.ts` and
+`measure.js` are updated. Per covered coordinate the main-thread retained
+state falls from two objects with nested arrays to ~28 B of typed array,
+off the V8 heap.
+
+The entry stays open.
+
+The worker geometry reduction (`69ea6929`), main-thread sample packing
+(`c389189a`), and settled-job disposal (`ad59a39f`) remove real retained
+state. Investigation continues on lifetime and peak allocation in the
+geodata processing and rendering path shared by both heightcoding modes.
+
+**Update 2026-09-07 (evicted geodata jobs).** GPU-cache eviction destroyed
+the WebGL resources of a geodata render group but left its JavaScript jobs,
+geometry table, and pending subjob attached. `MapGeodataView` could also keep
+the evicted group as `currentGpuGroup`. None of those fields has a role after
+destruction. Clearing them and dropping the obsolete view reference closes a
+shared-path retention defect. It does not account for the additional render
+commands produced by store heightcoding and does not resolve #62 by itself.
+
+**Update 2026-09-08 (worker command packing).** The worker's reusable message
+array kept every source command buffer reachable after producing the packed
+result: packing reset only its active length. The optimizer also copied merged
+geometry through two module-level 16 MB scratch buffers which grew with the
+largest batch and never shrank. Packing now clears each consumed array slot and
+copies source geometry directly into the required merged buffer. This removes
+a shared legacy/store retention path, two permanent high-water buffers, and one
+copy of every merged vertex stream. Store still republishes complete geometry
+as heights arrive, so this reduces its amplification but does not establish or
+close the remaining cumulative failure in #62.
+
+**Update 2026-09-08 (merged-source lifetime).** The optimizer kept each
+absorbed command buffer alive until the final packet had been allocated and
+filled, although its bytes had already been copied into the merged command.
+It now clears an absorbed command as soon as that copy completes. This reduces
+the overlap between source, merged, and final buffers in the geodata worker. It
+does not change how much render data is produced and does not close #62.
+
+**Update 2026-09-09 (memory budget).** Four facts follow from the code:
+
+- A label render job is charged nothing to the GPU cache: the
+  single-buffer paths of `addIconJob` and `addLineLabelJob` add no size,
+  so tens of thousands of label jobs and their feature property objects
+  sit outside the cache's budget.
+- The surface and geodata tile trees are never pruned. A tile is removed
+  only when its metatile stops listing it (`isMetanodeReady`), so the
+  trees grow with the ground visited for the life of the map.
+- On iOS, WebGL resources are accounted to the page process, which the
+  system kills at a fixed memory limit. The default budgets
+  (`mapGPUCache` 600, `mapCache` 256, `mapElevationStoreGPUCache` 192)
+  plus the uncharged geodata state are sized for a desktop, whatever the
+  canvas. `mapMobileDetailDegradation` defaults to 0, so mobile mode
+  scales none of them.
+- Store mode's publication path has no concurrency bound. Legacy parses
+  one tile at a time (`MapGeodataProcessor.busy`); in store mode every
+  retained job may have a publication in flight, and the main thread
+  drains them under `mapMaxGeodataProcessingTime` per frame, so command
+  buffers queue in `processingTasks2` and the frame rate falls during
+  coarse pans.
+
+**Update 2026-09-09 (bounded publications).** Store heightcoding now has
+the backpressure legacy has. A geodata worker admits at most
+`mapGeodataMaxPublications` outstanding store publications (height
+updates and retained rebuilds); a job whose request is refused sends
+nothing and the tile retries from its next draw, as a legacy tile
+retries while `MapGeodataProcessor.busy` is set. The slot is returned
+when the output commits or when it can no longer commit (the job's view
+changes or the job is disposed). This bounds the command buffers queued
+on the main thread to the cap; the budgets are the next step.
+
+**Update 2026-09-09 (budgets from the canvas).** The three cache keys
+(`mapGPUCache`, `mapCache`, `mapElevationStoreGPUCache`) are now the
+budget for a FullHD canvas at pixel ratio 1. `Map.cacheBudgets` scales
+them by the canvas area at the resolution the map renders tiles at,
+floors them at 150 / 64 / 48 MB, and caps the scale at
+`mapCacheScaleMax` (default 2). The rendered resolution is the CSS
+resolution raised by `dpr ^ (mapPixelRatioUse / 2)`
+(`Map.pixelRatioScale`, default exponent 0.5), and the texel fit uses
+the same factor, so a canvas that asks for finer tiles also holds more
+of them. The two runtime caches follow a canvas resize; the store's
+budget is fixed when the store is built. Mobile mode
+(`mapMobileMode`, `mapMobileModeAutodect`, `mapMobileDetailDegradation`,
+`platform.isMobile`) is removed: it scaled two caches by a factor
+nobody set.
+
+**Resolution.** Two changes close the entry. A geodata worker admits at
+most `mapGeodataMaxPublications` outstanding store publications
+(`c9c13ac1`), which bounds the republication a small GPU cache provokes.
+The three cache budgets are the FullHD baseline scaled by the canvas
+area at the rendered resolution, floored and capped, with
+`mapPixelRatioUse` setting that resolution (`ea9db245`), which keeps the
+page process's memory in proportion to the screen it renders for. Left
+open as backlog 66: the frame rate at small budgets, where eviction and
+republication on coarse pans keep the map slow.
+
 <a id="backlog-29"></a>
 ## 29. REFACTOR: drop metatile format versions 1–3
 
