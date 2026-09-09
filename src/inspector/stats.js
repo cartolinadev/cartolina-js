@@ -17,7 +17,7 @@ InspectorStats.prototype.init = function() {
             + 'color: #000000;'
             + 'display: none;'
             + 'padding:15px;'
-            + 'width: 305px;'
+            + 'width: 325px;'
             + 'font-size: 13px;'
             + 'position: absolute;'
             + 'right: 10px;'
@@ -148,19 +148,30 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
             'FBO switches: ' + (fp ? fp.fboSwitches : 0) + '<br/><br/>' +
 
             // Group 2 - caches.
-            'GPU Cache: ' + Math.round(stats.gpuUsed/(1024*1024)) + 'MB<br/>' +
-            ' - textures: ' + Math.round(stats.gpuTextures/(1024*1024)) + 'MB<br/>' +
-            ' - meshes: ' + Math.round(stats.gpuMeshes/(1024*1024)) + 'MB<br/>' +
-            ' - geodata: ' + Math.round(stats.gpuGeodata/(1024*1024)) + 'MB<br/>' +
-            'CPU Cache: ' + Math.round(stats.resourcesUsed/(1024*1024)) + 'MB<br/>' +
-            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024)) + 'MB<br/>' +
+            'GPU Cache: ' + Math.round(stats.gpuUsed/(1024*1024))
+                + ' / ' + Math.round(stats.gpuBudget/(1024*1024))
+                + ' MB<br/>' +
+            ' - textures: ' + Math.round(stats.gpuTextures/(1024*1024))
+                + ' MB<br/>' +
+            ' - meshes: ' + Math.round(stats.gpuMeshes/(1024*1024))
+                + ' MB<br/>' +
+            ' - geodata: ' + Math.round(stats.gpuGeodata/(1024*1024))
+                + ' MB<br/>' +
+            'CPU Cache: ' + Math.round(stats.resourcesUsed/(1024*1024))
+                + ' / ' + Math.round(stats.resourcesBudget/(1024*1024))
+                + ' MB<br/>' +
+            'Metatile Cache: ' + Math.round(stats.metaUsed/(1024*1024))
+                + ' / ' + Math.round(stats.metaBudget/(1024*1024))
+                + ' MB<br/>' +
             'Elevation Store: ' + Math.round(stats.elevationUsed/(1024*1024))
                 + ' / ' + Math.round(stats.elevationBudget/(1024*1024))
-                + 'MB<br/><br/>' +
+                + ' MB<br/><br/>' +
 
             // Group 3 - this frame's render footprint.
-            'Render resources: ' + Math.round(stats.gpuRenderUsed/(1024*1024)) + 'MB<br/>' +
-            'Topdown: ' + Math.round(stats.gpuNeeded/(1024*1024)) + 'MB<br/>' +
+            'Render resources: '
+                + Math.round(stats.gpuRenderUsed/(1024*1024)) + ' MB<br/>' +
+            'Topdown: ' + Math.round(stats.gpuNeeded/(1024*1024))
+                + ' MB<br/>' +
             'Polygons: ' + (stats.drawnFaces) + '<br/><br/>' +
             'Terrain Height: ' + (stats.heightTerrain.toFixed(2)) + '<br/>' +
             '- float: ' + (stats.heightDelta.toFixed(2)) + '<br/>' +
@@ -215,7 +226,7 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
 
     if (stats.octoNodes) {
         text3 += 'OctoNodes: ' + (stats.octoNodes) +'<br/>'+
-                 'OctoNodesMem: ' + Math.round(stats.octoNodesMemSize/(1024*1024)) + 'MB<br/>';
+                 'OctoNodesMem: ' + Math.round(stats.octoNodesMemSize/(1024*1024)) + ' MB<br/>';
     }
 
     text3 += '<br/>';
@@ -266,7 +277,8 @@ InspectorStats.prototype.updateStatsPanel = function(stats) {
     }
 
 
-    var text = '<table style="width:305px"><tr><td>' + text2 + '</td><td>' + text3 + '</td></tr></table>';
+    var text = '<table style="width:325px"><tr><td>' + text2
+        + '</td><td>' + text3 + '</td></tr></table>';
 
     this.infoElement.innerHTML = text;
 

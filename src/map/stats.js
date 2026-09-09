@@ -58,8 +58,11 @@ var MapStats = function(map) {
     this.gpuTextures = 0;
     this.gpuGeodata = 0;
     this.gpuUsed = 0;
+    this.gpuBudget = 0;
     this.resourcesUsed = 0;
+    this.resourcesBudget = 0;
     this.metaUsed = 0;
+    this.metaBudget = 0;
     this.elevationUsed = 0;
     this.elevationBudget = 0;
     this.gpuRenderUsed = 0;
@@ -198,8 +201,11 @@ MapStats.prototype.end = function(dirty) {
 
         if (this.inspector && this.inspector.stats) {
             this.gpuUsed = this.map.gpuCache.totalCost;
+            this.gpuBudget = this.map.gpuCache.maxCost;
             this.resourcesUsed = this.map.resourcesCache.totalCost;
+            this.resourcesBudget = this.map.resourcesCache.maxCost;
             this.metaUsed = this.map.metatileCache.totalCost;
+            this.metaBudget = this.map.metatileCache.maxCost;
 
             var elevation = this.map.outerMap.elevationMemory();
             this.elevationUsed = elevation.used;
