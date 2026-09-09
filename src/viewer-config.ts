@@ -451,7 +451,7 @@ const catalogue = {
     /** GPU resource cache budget in megabytes for a FullHD canvas at
      *  pixel ratio 1, scaled by the map's effective canvas area and
      *  never below 150 MB. */
-    mapGPUCache: num(10, MAX, 600, 'runtime'),
+    mapGPUCache: num(10, MAX, 500, 'runtime'),
 
     /** Share of the device pixel ratio the map uses, as an exponent
      *  from 0 (CSS pixels) to 2 (physical pixels). Tiles refine to

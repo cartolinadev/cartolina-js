@@ -3,6 +3,18 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Single-channel specular maps
+
+Goal: stop storing specular maps as RGBA8. The specular stack is read
+through its red channel only (`blendSpecularMultiply`), so a specular
+layer's texture is now `GpuTexture.Type.SpecularMap`, uploaded as R8
+through the branch the coverage masks use. A specular texel costs one
+byte instead of four; a complex-style tile with a diffuse, a bump and a
+specular layer drops from 10 to 7 bytes per texel. The `mapGPUCache`
+baseline follows, 600 to 500 MiB, so the saving returns to the page
+process rather than holding more tiles. A specular view over water and
+the three canonical tests render unchanged.
+
 ## 2026-09-10 — 16-bit elevation store samples (RFC 13)
 
 Goal: halve the elevation store's GPU memory. A unit sample was a float32

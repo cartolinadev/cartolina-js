@@ -1354,8 +1354,13 @@ export class TileRenderRig {
 
                 let path = source.getUrl(tile.id);
 
+                // a specular map is consumed through its red channel
+                // only, so it is stored single-channel
+                const textureType = layerSpec.type === 'specular-map'
+                    ? GpuTexture.Type.SpecularMap : GpuTexture.Type.Color;
+
                 texture = tile.resources.getTexture(
-                    path, GpuTexture.Type.Color, ancestorFallback,
+                    path, textureType, ancestorFallback,
                     {tile, source}, tile, false);
 
                 if (source.coverage) {

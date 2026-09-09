@@ -110,6 +110,7 @@ getSize() {
           break;
 
       case GpuTexture.Type.Mask:
+      case GpuTexture.Type.SpecularMap:
           bytesPerTexel = 1;
           break;
 
@@ -205,6 +206,7 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array | Uint16Array,
             break;
 
         case GpuTexture.Type.Mask:
+        case GpuTexture.Type.SpecularMap:
 
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -302,6 +304,7 @@ createFromImage(
             break;
 
         case GpuTexture.Type.Mask:
+        case GpuTexture.Type.SpecularMap:
 
             gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -513,6 +516,12 @@ export namespace GpuTexture {
          * not this type - easy to miss.
          */
         Elevation = 7,
+
+        /**
+         * Specular map. Uploaded as single-channel R8; the shader reads
+         * the specular stack's red channel only.
+         */
+        SpecularMap = 8,
     }
 }
 
