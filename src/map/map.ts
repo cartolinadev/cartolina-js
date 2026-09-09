@@ -44,6 +44,10 @@ import type RasterSource from './raster-source';
 import type TerrainSource from './terrain-source';
 
 
+/** Pixel count of the canvas the cache baselines are configured for. */
+const FullHdPixels = 1920 * 1080;
+
+
 /**
  * The map data model — cartolina's central object. The typed
  * representation of a loaded map together with the logic that
@@ -1060,8 +1064,10 @@ class Map {
         legacyMap.lastPosition = position.clone();
         camera.lastTerrainHeight = camera.terrainHeight;
 
-        // Canvas size change forces a redraw.
+        // Canvas size change re-sizes the caches and forces a redraw.
         if (this.renderer.ensureCanvasRenderTarget()) {
+
+            legacyMap.setupCache();
             legacyMap.markDirty();
         }
 
@@ -1296,6 +1302,47 @@ class Map {
                 doNotLoad: false,
             });
         });
+    }
+
+    // -----------------------------------------------------------------
+    // Canvas budgets
+    // -----------------------------------------------------------------
+
+    /**
+     * Linear factor between the canvas's CSS resolution and the
+     * resolution the map renders tiles at: `dpr ^ (mapPixelRatioUse /
+     * 2)`, 1 on a ratio-1 display.
+     */
+    get pixelRatioScale(): number {
+
+        const ratio =
+            this.renderer.gpu.canvasRenderTarget.devicePixelRatio ?? 1;
+
+        return Math.pow(ratio, this.config.mapPixelRatioUse / 2);
+    }
+
+    /**
+     * Cache budgets in bytes for the current canvas: the configured
+     * FullHD baselines scaled by the canvas area at the rendered
+     * resolution, capped at `mapCacheScaleMax` times the baseline, and
+     * never below a fixed floor per cache.
+     */
+    get cacheBudgets(): Map.CacheBudgets {
+
+        const [width, height] =
+            this.renderer.gpu.canvasRenderTarget.apparentSize;
+        const linear = this.pixelRatioScale;
+        const area = width * linear * height * linear;
+        const scale = Math.min(
+            area / FullHdPixels, this.config.mapCacheScaleMax);
+        const budget = (baseline: number, floor: number): number =>
+            Math.max(floor, baseline * scale) * 1024 * 1024;
+
+        return {
+            gpu: budget(this.config.mapGPUCache, 150),
+            resource: budget(this.config.mapCache, 64),
+            store: budget(this.config.mapElevationStoreGPUCache, 48),
+        };
     }
 
     // -----------------------------------------------------------------
@@ -1624,7 +1671,6 @@ class Map {
 
             legacyMap.draw = new MapDraw(legacyMap);
             this.freeze = new FreezeCameraState(legacyMap);
-            legacyMap.draw.setupDetailDegradation();  // probably not needed
 
             this.map = legacyMap;
             this.loadingMap_ = null;
@@ -2135,6 +2181,13 @@ type OverlayEntry = {
  * here; types owned elsewhere forward to their canonical module. The
  * same-name namespace pattern is documented in AGENTS.md. */
 namespace Map {
+
+    /** Cache budgets in bytes for the current canvas. */
+    export type CacheBudgets = {
+        gpu: number;
+        resource: number;
+        store: number;
+    };
 
     export type RasterSourceEntry =
         | { status: 'ready'; source: RasterSource }

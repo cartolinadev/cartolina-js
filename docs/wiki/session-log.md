@@ -3,6 +3,21 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-09 — Cache budgets from the canvas (backlog 62)
+
+Goal: size the resource, GPU and elevation-store caches to the canvas
+instead of one desktop default, which sized the page process for a
+desktop on every device. The three cache keys
+are now the FullHD baseline; `Map.cacheBudgets` scales them by the
+canvas area at the rendered resolution, with floors and a
+`mapCacheScaleMax` ceiling, at construction and on resize. A new
+`mapPixelRatioUse` exponent (default 0.5) sets how much of the device
+pixel ratio the map renders at; the texel fit and the budgets use the
+same factor. Mobile mode is removed with its three keys (`mapMobileMode`,
+`mapMobileModeAutodect`, `mapMobileDetailDegradation`), a breaking
+change for anyone setting them; nothing in the compatibility inventory
+did.
+
 ## 2026-09-09 — Bound outstanding store publications (backlog 62)
 
 Goal: give store heightcoding the backpressure legacy parses have.

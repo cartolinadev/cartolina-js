@@ -192,6 +192,21 @@ when the output commits or when it can no longer commit (the job's view
 changes or the job is disposed). This bounds the command buffers queued
 on the main thread to the cap; the budgets are the next step.
 
+**Update 2026-09-09 (budgets from the canvas).** The three cache keys
+(`mapGPUCache`, `mapCache`, `mapElevationStoreGPUCache`) are now the
+budget for a FullHD canvas at pixel ratio 1. `Map.cacheBudgets` scales
+them by the canvas area at the resolution the map renders tiles at,
+floors them at 150 / 64 / 48 MB, and caps the scale at
+`mapCacheScaleMax` (default 2). The rendered resolution is the CSS
+resolution raised by `dpr ^ (mapPixelRatioUse / 2)`
+(`Map.pixelRatioScale`, default exponent 0.5), and the texel fit uses
+the same factor, so a canvas that asks for finer tiles also holds more
+of them. The two runtime caches follow a canvas resize; the store's
+budget is fixed when the store is built. Mobile mode
+(`mapMobileMode`, `mapMobileModeAutodect`, `mapMobileDetailDegradation`,
+`platform.isMobile`) is removed: it scaled two caches by a factor
+nobody set.
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 

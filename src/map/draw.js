@@ -50,14 +50,16 @@ MapDraw.prototype.initFrame = function() {
             Math.abs(this.renderer.cameraOrientation[1] * 2 * 3)
         )))
     );
-    this.setupDetailDegradation();
+    this.texelSizeFit = this.config.mapTexelSizeFit;
 
-    // Tile resolution is driven by the apparent (CSS) size of the map.
+    // Tile resolution is driven by the apparent (CSS) size of the map,
+    // raised by the share of the device pixel ratio the map uses.
     // Using apparent size also keeps the color pass and the auxiliary
     // depth pass consistent, since the auxiliary target inherits the
     // canvas apparent size while keeping its own storage resolution.
     this.ndcToScreenPixel =
-        this.renderer.gpu.currentRenderTarget.apparentSize[0] * 0.5;
+        this.renderer.gpu.currentRenderTarget.apparentSize[0]
+        * this.map.core.pixelRatioScale * 0.5;
     this.maxGpuUsed = Math.max(
         32 * 102 * 1204,
         this.map.gpuCache.getMaxCost() - 32 * 102 * 1204
@@ -181,24 +183,6 @@ MapDraw.prototype.drawMonoliticGeodata = function(surface) {
             }.bind(this));
         }
     }
-};
-
-
-MapDraw.prototype.setupDetailDegradation = function(degradeMore) {
-    var factor = 0;
-    
-    if (this.map.mobile) {
-        //factor = this.config.mapMobileDetailDegradation;
-        //console.log(factor);
-    }
-
-    if (degradeMore) {
-        factor += degradeMore;
-    }
-
-    this.texelSizeFit = this.config.mapTexelSizeFit * Math.pow(2,factor);
-
-    //console.log("TexelSizeFit: %f", this.texelSizeFit);
 };
 
 

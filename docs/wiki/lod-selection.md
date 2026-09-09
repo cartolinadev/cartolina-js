@@ -23,10 +23,12 @@ The short version:
 
 ## Names
 
-`texelSize` is the projected size of one terrain sample in physical
-viewport pixels. Larger values mean the tile is too coarse for the
-current view. The traversal descends when `tile.texelSize` is greater
-than `draw.texelSizeFit`.
+`texelSize` is the projected size of one terrain sample in the pixels
+the map renders tiles at: the canvas's apparent (CSS) resolution raised
+by `dpr ^ (mapPixelRatioUse / 2)`, which is `Map.pixelRatioScale`.
+Larger values mean the tile is too coarse for the current view. The
+traversal descends when `tile.texelSize` is greater than
+`draw.texelSizeFit`.
 
 The name is historical. In old VTS datasets it was tied to imagery
 texels. For `surface-dem` in cartolina-tileserver it means one nominal
@@ -282,17 +284,12 @@ ordering, horizon degradation, and statistics.
 
 ## Threshold
 
-`draw.texelSizeFit` is computed in `MapDraw.setupDetailDegradation()`:
-
-```js
-this.texelSizeFit =
-    mapTexelSizeFit * Math.pow(2, factor);
-```
-
-`mapTexelSizeFit` defaults to `1.1`. `factor` comes from detail
-degradation. The threshold is DPI-independent, matching the apparent-size
-basis of `ndcToScreenPixel`, so the fit test gives the same result on the
-color pass and the auxiliary depth pass.
+`draw.texelSizeFit` is `mapTexelSizeFit`, read in `MapDraw.initFrame()`;
+it defaults to `1.1`. The device pixel ratio enters through
+`ndcToScreenPixel`, not the threshold, so the fit test gives the same
+result on the color pass and the auxiliary depth pass. The cache budgets
+scale with the same rendered resolution (`Map.cacheBudgets`), so a
+canvas that asks for finer tiles also holds more of them.
 
 A tile passes the LOD test when:
 

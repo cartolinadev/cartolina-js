@@ -1039,8 +1039,7 @@ class ElevationStore {
 
     private resolveBudget(): number {
 
-        const configured =
-            this.map_.config.mapElevationStoreGPUCache * 1024 * 1024;
+        const configured = this.map_.cacheBudgets.store;
 
         const nodes = this.map_.map?.referenceFrame
             ?.getSpatialDivisionNodes().filter(productiveNode).length ?? 1;

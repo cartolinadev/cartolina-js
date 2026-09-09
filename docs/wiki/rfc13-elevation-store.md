@@ -2368,6 +2368,17 @@ is free, and does not settle while a send is owed. A refused rebuild is
 retried by the view's next `isReady`, the same retry a legacy tile makes
 while `busy` is set. Releasing a slot marks the map dirty, so the redraw
 that follows a commit is what lets a waiting job ask again.
+
+
+## Addendum — 2026-09-09 — store budget scaled with the canvas
+
+`mapElevationStoreGPUCache` is now the budget for a FullHD canvas at
+pixel ratio 1. The store takes its budget from `Map.cacheBudgets`, which
+scales the configured value by the canvas area at the resolution the
+map renders tiles at, with a 48 MiB floor and the `mapCacheScaleMax`
+ceiling, and then applies the reference-frame minimum it already
+applied. The value is read once when the store is built; a later resize
+changes the two resource caches but not the store's budget.
 The slot is returned when the output commits, and when it can no longer
 commit because the job's view changed or the job was disposed. Gates and
 the protocol messages are unchanged; the worker needs no change, since

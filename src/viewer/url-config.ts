@@ -27,7 +27,6 @@ const FACTORY_INPUT_KEYS = new Set([
 // `canonicalConfigKey`
 const KEY_ALIASES: Record<string, string> = {
     zoomAlowed: 'zoomAllowed',
-    mapMobileDeatailDegradation: 'mapMobileDetailDegradation'
 };
 
 

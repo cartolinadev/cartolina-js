@@ -1,6 +1,5 @@
 
 import {vec3} from '../utils/matrix';
-import {platform} from '../utils/platform';
 import MapSurfaceTree from './surface-tree';
 import MapResourceTree from './resource-tree';
 import MapSrs from './srs';
@@ -38,12 +37,9 @@ var Map = function(core, path, config, bus) {
         core.configStore.watch(
             [
                 'mapCache', 'mapGPUCache', 'mapMetatileCache',
-                'mapMobileDetailDegradation',
+                'mapPixelRatioUse',
             ],
             this.setupCache.bind(this)),
-        core.configStore.watch(
-            ['mapMobileMode'],
-            this.setupMobileMode.bind(this)),
         core.configStore.watch(
             [
                 'mapTraversalMaskThreshold', 'mapTraversalMaskErosion',
@@ -95,15 +91,13 @@ var Map = function(core, path, config, bus) {
         mapdata : {}
     };
     
-    this.mobile = false;
     this.metanodeBuffer = new Uint8Array(1024);
-   
-    this.gpuCache = new MapCache(this.config.mapGPUCache*1024*1024);
-    this.resourcesCache = new MapCache(this.config.mapCache*1024*1024);
-    this.metatileCache = new MapCache(this.config.mapMetatileCache*1024*1024);
 
-    this.setupMobileMode(this.config.mapMobileMode);
-    this.setupCache();
+    var budgets = this.core.cacheBudgets;
+
+    this.gpuCache = new MapCache(budgets.gpu);
+    this.resourcesCache = new MapCache(budgets.resource);
+    this.metatileCache = new MapCache(this.config.mapMetatileCache*1024*1024);
 
     this.loader = new MapLoader(this, this.config.mapDownloadThreads);
 
@@ -153,28 +147,15 @@ Map.prototype.kill = function() {
 };
 
 
-Map.prototype.setupMobileMode = function() {
-    this.mobile = this.config.mapMobileMode;
-
-    if (!this.mobile && this.config.mapMobileModeAutodect) {
-        this.mobile = platform.isMobile();        
-    }
-
-    this.setupCache();
-};
-
-
+/** Re-reads the cache budgets after a canvas or config change. */
 Map.prototype.setupCache = function() {
-    if (!this.resourcesCache) {
-        return;
-    }
+    if (!this.resourcesCache) return;
 
-    var factor = 1 / (this.mobile ? Math.pow(2, Math.max(0,this.config.mapMobileDetailDegradation-1)) : 1);
-    var factor2 = 1 / (this.mobile ? Math.pow(2, this.config.mapMobileDetailDegradation) : 1);
-    factor = (factor + factor2) * 0.5;
-    this.resourcesCache.setMaxCost(this.config.mapCache*1024*1024*factor);
-    this.gpuCache.setMaxCost(this.config.mapGPUCache*1024*1024*factor);
-    this.metatileCache.setMaxCost(this.config.mapMetatileCache*1024*1024*(factor < 0.8 ? 0.5 : 1));
+    var budgets = this.core.cacheBudgets;
+
+    this.resourcesCache.setMaxCost(budgets.resource);
+    this.gpuCache.setMaxCost(budgets.gpu);
+    this.metatileCache.setMaxCost(this.config.mapMetatileCache*1024*1024);
 };
 
 

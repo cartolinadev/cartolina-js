@@ -166,6 +166,7 @@ export default class Map {
     getPosition(): MapPosition;
 
     markDirty(): void;
+    setupCache(): void;
     isReferenceFrameReady(): boolean;
 
     /** Releases map-owned resources; the shared renderer stays alive. */

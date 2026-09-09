@@ -56,7 +56,7 @@ type _publicRuntimeSubsetPin = Expect<Eq<
     | 'mapCache' | 'mapGPUCache' | 'mapMetatileCache'
     | 'mapTexelSizeFit' | 'mapDownloadThreads'
     | 'mapMaxProcessingTime' | 'mapMaxGeodataProcessingTime'
-    | 'mapMobileMode' | 'mapMobileDetailDegradation'
+    | 'mapPixelRatioUse'
     | 'mapLoadErrorRetryTime' | 'mapLoadErrorMaxRetryCount'
     | 'mapDegradeHorizon' | 'mapDegradeHorizonParams'
     | 'mapLabelFreeMargins' | 'mapMetricUnits' | 'mapLanguage'

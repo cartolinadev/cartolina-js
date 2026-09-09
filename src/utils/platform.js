@@ -11,7 +11,6 @@ var platform = {
         self.version = self.searchVersion(navigator.userAgent.toLowerCase()) || self.searchVersion(navigator.appVersion) || 'an unknown version';
         self.OS = self.searchString(self.dataOS) || 'an unknown os: ua: ' + navigator.userAgent + ' pl: ' + navigator.platform;
 
-        self.mobile = (self.OS == 'iphone/ipod' || self.OS == 'android' || self.OS == 'ipad' || self.OS == 'windows ce'  || self.OS == 'windows phone' || self.OS == 'kindle');
         self.mobileAndroid = (self.OS == 'android');
         self.initialized = true;
     },
@@ -31,11 +30,6 @@ var platform = {
         return platform.browser;
     },
 
-    isMobile : function() {
-        if(!platform.initialized) { platform.init(); }
-        return platform.mobile;
-    },
-    
     isAndroid : function() {
         if(!platform.initialized) { platform.init(); }
         return platform.mobileAndroid;

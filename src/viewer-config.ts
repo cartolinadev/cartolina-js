@@ -441,13 +441,28 @@ const catalogue = {
 
     // --- Map (map* keys) ---
 
-    /** In-memory resource cache budget in megabytes. Holds mesh
+    /** In-memory resource cache budget in megabytes for a FullHD
+     *  canvas at pixel ratio 1, scaled by the map's effective canvas
+     *  area (see `mapPixelRatioUse`) and never below 64 MB. Holds mesh
      *  vertex arrays, parsed geodata and navtile height data; decoded
      *  tile images are released at GPU upload. */
     mapCache: num(10, MAX, 256, 'runtime'),
 
-    /** GPU resource cache budget in megabytes. */
+    /** GPU resource cache budget in megabytes for a FullHD canvas at
+     *  pixel ratio 1, scaled by the map's effective canvas area and
+     *  never below 150 MB. */
     mapGPUCache: num(10, MAX, 600, 'runtime'),
+
+    /** Share of the device pixel ratio the map uses, as an exponent
+     *  from 0 (CSS pixels) to 2 (physical pixels). Tiles refine to
+     *  `dpr ^ (this / 2)` times the CSS resolution, and the cache
+     *  budgets scale with the canvas area at that resolution. */
+    mapPixelRatioUse: num(0, 2, 0.5, 'runtime'),
+
+    /** Upper bound on the canvas-area factor applied to the cache
+     *  budgets, so a large canvas asks for at most this many times the
+     *  FullHD baseline. Read once at construction. */
+    mapCacheScaleMax: num(0, MAX, 2, 'construction'),
 
     /** Metatile cache budget in megabytes. */
     mapMetatileCache: num(10, MAX, 60, 'runtime'),
@@ -476,18 +491,6 @@ const catalogue = {
      *  outstanding at once. A tile whose request is refused retries
      *  from its next draw. */
     mapGeodataMaxPublications: num(1, MAX, 1, 'runtime'),
-
-    /** Forces the mobile rendering profile. */
-    mapMobileMode: bool(false, 'runtime'),
-
-    /** Autodetects the mobile profile from the user agent when
-     *  `mapMobileMode` is off. The key name carries the historic
-     *  misspelling. */
-    mapMobileModeAutodect: bool(true, 'internal'),
-
-    /** In mobile mode, degrades detail and cache budgets by this
-     *  power of two. */
-    mapMobileDetailDegradation: num(0, MAX, 0, 'runtime'),
 
     /** Sampling density used when picking the terrain-height
      *  measurement LOD for a view extent. */
@@ -580,12 +583,15 @@ const catalogue = {
      *  frame eligible. */
     mapElevationStoreSampleIntervalMs: num(0, MAX, 1000, 'runtime'),
 
-    /** Maximum GPU memory the elevation store may own, in MiB. One
-     *  height field costs 256 KiB, and a view needs one per drawn tile
-     *  plus one per node above them, so 192 MiB holds about two and a
-     *  half views of a 1920 by 1080 window. Clamped up when a reference
-     *  frame needs more to keep one pinned field per spatial division
-     *  node. Read once at construction. */
+    /** Maximum GPU memory the elevation store may own, in MiB, for a
+     *  FullHD canvas at pixel ratio 1; scaled by the map's effective
+     *  canvas area and never below 48 MiB. One height field costs
+     *  256 KiB, and a view needs one per drawn tile plus one per node
+     *  above them, so 192 MiB holds about two and a half views of a
+     *  1920 by 1080 window. Clamped up when a reference frame needs
+     *  more to keep one pinned field per spatial division node. Read
+     *  once when the store is built; a later resize does not change
+     *  it. */
     mapElevationStoreGPUCache: num(0, MAX, 192, 'construction'),
 
     /** Selects delivered legacy or elevation-store geodata heights.
