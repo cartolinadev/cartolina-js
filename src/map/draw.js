@@ -1,5 +1,4 @@
 
-import * as math from '../utils/math';
 import MapGeodata from './geodata';
 import MapGeodataView from './geodata-view';
 import MapDrawTiles from './draw-tiles';
@@ -29,9 +28,6 @@ var MapDraw = function(map) {
     var gpu = this.renderer.gpu;
     this.drawTileState = gpu.createState({});
 
-    this.degradeHorizonFactor = 0;
-    this.degradeHorizonTiltFactor = 0;
-
     this.drawTiles = new MapDrawTiles(map, this);
 
 };
@@ -42,14 +38,6 @@ var MapDraw = function(map) {
  */
 MapDraw.prototype.initFrame = function() {
 
-    this.degradeHorizonFactor =
-        200.0 * this.config.mapDegradeHorizonParams[0];
-    this.degradeHorizonTiltFactor = 0.5 * (
-        1.0 + Math.cos(math.radians(Math.min(
-            180,
-            Math.abs(this.renderer.cameraOrientation[1] * 2 * 3)
-        )))
-    );
     this.texelSizeFit = this.config.mapTexelSizeFit;
 
     // Tile resolution is driven by the apparent (CSS) size of the map,

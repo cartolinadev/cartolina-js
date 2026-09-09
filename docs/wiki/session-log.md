@@ -3,6 +3,14 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Drop the horizon degrade
+
+Goal: remove the horizon degrade from the texel-size test. It was off
+by default and nothing enabled it; the adaptive texel fit (backlog 66)
+replaces it. `mapDegradeHorizon` and `mapDegradeHorizonParams` leave the
+catalogue, the redraw watcher and the runtime-subset pin, which is now
+64 keys. `updateTexelSize` ends at the projected size.
+
 ## 2026-09-10 — Single-channel specular maps
 
 Goal: stop storing specular maps as RGBA8. The specular stack is read

@@ -774,18 +774,6 @@ const catalogue = {
      *  tests. */
     mapDMapDilatePx: num(0, 8, 2, 'internal'),
 
-    /** Coarsens tile LOD toward the horizon, controlled by
-     *  `mapDegradeHorizonParams`. */
-    mapDegradeHorizon: bool(false, 'runtime'),
-
-    /** Horizon degrade parameters: `[0]` strength (scaled ×200
-     *  into the degrade factor), `[1]` fade start and `[2]` fade
-     *  end distances. */
-    mapDegradeHorizonParams: quad(
-        [0, 1, 1, 1],
-        [Infinity, Infinity, Infinity, Infinity],
-        [1, 1500, 97500, 3500], 'runtime'),
-
     /** Font file URL registered as the stylesheet's `#default`
      *  font. */
     mapDefaultFont: str(

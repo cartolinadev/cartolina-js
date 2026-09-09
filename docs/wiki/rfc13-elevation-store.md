@@ -1293,12 +1293,11 @@ a continuous render loop without synchronous GPU reads.
 
 #### Validation criteria
 
+Test conversions are run using several 2D positions (Whitney / Prague) using the baseline MapMeasure.getSurfaceHeight() and using the new implementation, path to settlement is measured and compared with respect to settlement time
+and final value. The differences in final settled value should not exceed 5%.
+
 The manual run uses `simple-terrain`, `complex-terrain`, and `full-terrain`.
-The reviewer changes fixed and floating height modes, changes view extent, and
-moves between areas with different terrain LOD. The displayed position must
-keep the authored above-terrain offset, settle to finer terrain without a
-camera discontinuity, and issue no navigation-tile request for the migrated
-operation.
+The reviewer changes fixed and floating height modes, changes view extent. The displayed position must keep the authored above-terrain offset, settle to finer terrain without a camera discontinuity, and issue no navigation-tile request for the migrated operation.
 
 #### Existing work and reworking
 
@@ -1309,14 +1308,16 @@ by gate 2. Current-position migration has not started.
 
 #### Objectives
 
-Move pan terrain following to the same retained current-position mechanism.
-`Map` keeps one submitted one-position sample set and the latest unsubmitted
-XY. Input replaces the latter immediately while the camera continues with the
-retained terrain height. When the submitted update completes, its answer
-becomes the newest terrain observation even if input has advanced; `Map` then
-submits a new set for the latest XY. This bounds queued work without issuing an
-update for every input event. Each accepted height preserves the user's
-above-terrain offset.
+Pan is the current position moving, so it already uses gate 3's retained
+height: the camera renders from the last height received and refreshes it
+with asynchronous store lookups.
+
+Gate 3 requests a lookup whenever XY changes. A pan changes XY every frame,
+which would submit a lookup per frame. Gate 4 caps this to one in flight.
+`Map` holds the submitted lookup and, separately, the latest pan XY. Pan
+input only updates that XY. When the lookup returns, its height becomes
+current and `Map` submits one more for the latest XY. Everything else is
+inherited from gate 3, including the above-terrain offset.
 
 #### Validation criteria
 

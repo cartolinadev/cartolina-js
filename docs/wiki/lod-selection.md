@@ -305,20 +305,13 @@ surface-tile selection rule.
 
 ## Detail Degradation
 
-Two mechanisms intentionally bias the test toward coarser terrain.
+One mechanism intentionally biases the test toward coarser terrain.
 
 When `texelSizeFit > 1.1` and precise geocentric distance is not active,
 the code applies a "move camera away" approximation. It scales
 `screenPixelSize` by `texelSizeFit / 1.1`, then evaluates distance from a
 point displaced backward along the camera view vector by
 `camera.distance * texelSizeFit / 1.1`.
-
-When `mapDegradeHorizon` is enabled, `updateTexelSize()` divides the
-computed `texelSize` by a fade factor. The factor grows with tile
-distance between `mapDegradeHorizonParams[1]` and `[2]`, is reduced by
-camera tilt, and is disabled when `camera.perceivedDistance` exceeds
-`mapDegradeHorizonParams[3]`. Dividing `texelSize` makes distant terrain
-pass the threshold sooner.
 
 
 ## Tree Traversal

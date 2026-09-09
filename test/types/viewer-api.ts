@@ -19,7 +19,7 @@ declare const runtimeConfig: PublicMap.PublicRuntimeConfig;
 const sameType: viewerConfig.PublicRuntimeConfig = runtimeConfig;
 void sameType;
 
-// The audited 66-key public runtime subset, pinned as a lasting
+// The audited 64-key public runtime subset, pinned as a lasting
 // compile-time contract (rfc01-config-store.md, step 8): an
 // incidental visibility edit in the catalogue fails here and
 // requires an explicit test update. RFC 11 promoted the corpus
@@ -58,7 +58,6 @@ type _publicRuntimeSubsetPin = Expect<Eq<
     | 'mapMaxProcessingTime' | 'mapMaxGeodataProcessingTime'
     | 'mapPixelRatioUse'
     | 'mapLoadErrorRetryTime' | 'mapLoadErrorMaxRetryCount'
-    | 'mapDegradeHorizon' | 'mapDegradeHorizonParams'
     | 'mapLabelFreeMargins' | 'mapMetricUnits' | 'mapLanguage'
     | 'mapShadingLambertian' | 'mapShadingSlope'
     | 'mapShadingAspect' | 'mapFlagLighting' | 'mapFlagNormalMaps'

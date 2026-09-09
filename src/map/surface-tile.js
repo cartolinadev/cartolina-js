@@ -682,41 +682,6 @@ MapSurfaceTile.prototype.updateTexelSize = function() {
 
     this.texelSize = pixelSize[0];
     this.distance = pixelSize[1];
-
-    //degrade horizont
-    if (!map.config.mapDegradeHorizon || draw.degradeHorizonFactor < 1.0) {
-        // hot path
-        return;
-    }
-
-    var degradeHorizon = map.config.mapDegradeHorizonParams;
-    var degradeFadeStart = degradeHorizon[1];
-    var degradeFadeEnd = degradeHorizon[2];
-
-    //reduce degrade factor by tilt
-    var degradeFactor = draw.degradeHorizonFactor * draw.degradeHorizonTiltFactor;
-    var distance = this.distance * camera.distanceFactor;
-
-    //apply degrade factor smoothly from specified tile distance
-    if (distance < degradeFadeStart) {
-        degradeFactor = 1.0;
-    } else if (distance > degradeFadeStart && distance < degradeFadeEnd) {
-        degradeFactor = 1.0 + (degradeFactor-1.0) * ((distance - degradeFadeStart) / (degradeFadeEnd - degradeFadeStart));
-    }
-
-    degradeFactor = Math.max(degradeFactor, 1.0);
-
-    //reduce degrade factor by observed distance
-    var observerDistance = camera.perceivedDistance;
-    var distanceFade = degradeHorizon[3];
-
-    if (observerDistance > distanceFade) {
-        degradeFactor = 1.0;
-    } else if (observerDistance < distanceFade && degradeFactor > 1.0) {
-        degradeFactor = 1.0 + ((degradeFactor - 1.0) * (1.0-(observerDistance / distanceFade)));
-    }
-
-    this.texelSize /= degradeFactor;
 };
 
 

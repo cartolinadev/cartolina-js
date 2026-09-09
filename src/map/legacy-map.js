@@ -49,8 +49,7 @@ var Map = function(core, path, config, bus) {
                 'mapFlagSpecularMaps', 'mapFlagBumpMaps',
                 'mapFlagAtmosphere', 'mapFlagShadows', 'mapFlagLabels',
                 'mapFlagVerticalExaggeration',
-                'mapTexelSizeFit', 'mapDegradeHorizon',
-                'mapDegradeHorizonParams',
+                'mapTexelSizeFit',
             ],
             this.markDirty.bind(this)),
         // units and language are baked into worker-generated label
