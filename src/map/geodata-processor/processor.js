@@ -43,6 +43,7 @@ var MapGeodataProcessor = function(surface, listener) {
     this.processCounter = 0;
     this.heightcodingJobs = new Map();
     this.nextHeightcodingJobId = 1;
+    this.publishing = new Set();
 
     this.workerPromise = createProcessWorker().then((worker) => {
 
@@ -189,6 +190,31 @@ MapGeodataProcessor.prototype.forgetHeightcodingJob = function(id) {
 MapGeodataProcessor.prototype.releaseHeightcodingJob = function(id) {
     if (!this.heightcodingJobs.delete(id)) return;
     this.sendCommand('heightcoding-release', { jobId: id });
+};
+
+
+/**
+ * Claims one of the worker's outstanding-publication slots for a
+ * heightcoding job, or refuses when they are all taken. A refused job
+ * retries from its next draw.
+ *
+ * @returns whether the job may publish now
+ */
+MapGeodataProcessor.prototype.acquirePublication = function(id) {
+    if (this.publishing.has(id)) return true;
+
+    if (this.publishing.size >= this.map.config.mapGeodataMaxPublications)
+        return false;
+
+    this.publishing.add(id);
+    return true;
+};
+
+
+/** Returns a job's publication slot once its output committed or can no
+ * longer commit. The redraw lets a refused job ask again. */
+MapGeodataProcessor.prototype.releasePublication = function(id) {
+    if (this.publishing.delete(id)) this.map.markDirty();
 };
 
 MapGeodataProcessor.prototype.setStylesheet = function(stylesheet, fontsOnly) {

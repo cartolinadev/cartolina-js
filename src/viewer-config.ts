@@ -472,6 +472,11 @@ const catalogue = {
      *  processing. */
     mapMaxGeodataProcessingTime: num(1, MAX, 10, 'runtime'),
 
+    /** Store heightcoding publications a geodata worker may have
+     *  outstanding at once. A tile whose request is refused retries
+     *  from its next draw. */
+    mapGeodataMaxPublications: num(1, MAX, 1, 'runtime'),
+
     /** Forces the mobile rendering profile. */
     mapMobileMode: bool(false, 'runtime'),
 

@@ -86,7 +86,7 @@ class GeodataHeightcodingJob {
         // Geometry can publish before sampleSet_ is created.
         return this.node_ !== null
             && this.published_ && !this.publishPending_
-            && !this.changesPending_ && !this.sampleUpdate_
+            && !this.changesPending_ && !this.sendOwed_ && !this.sampleUpdate_
             && this.sampleSet_ !== null && this.sampleSet_.settled;
     }
 
@@ -98,7 +98,7 @@ class GeodataHeightcodingJob {
         // Output in flight belongs to the view that held the route.
         this.listener_ = listener;
         this.readinessDemandSince_ = -Infinity;
-        this.publishPending_ = false;
+        this.dropPublication();
     }
 
     /** Stops routing output to a view without releasing the worker job. */
@@ -108,7 +108,7 @@ class GeodataHeightcodingJob {
 
         // Output in flight belongs to the view that held the route.
         this.listener_ = null;
-        this.publishPending_ = false;
+        this.dropPublication();
     }
 
     /**
@@ -122,7 +122,7 @@ class GeodataHeightcodingJob {
         if (this.disposed_ || this.listener_ !== listener) return;
 
         this.published_ = true;
-        this.publishPending_ = false;
+        this.dropPublication();
 
         if (!this.changesPending_) return;
 
@@ -161,6 +161,8 @@ class GeodataHeightcodingJob {
 
         if (!this.retained || !this.published_ || this.publishPending_)
             return false;
+
+        if (!this.processor_.acquirePublication(this.jobId_)) return false;
 
         this.publishPending_ = true;
         this.send('publish-retained', {
@@ -202,10 +204,9 @@ class GeodataHeightcodingJob {
         this.sampleUpdate_ = this.map_.updateTerrainSamples(sampleSet)
             .then((changed) => {
 
-                if (changed) {
-
-                    if (!this.disposed_) this.sendChangedHeights();
-                }
+                // An owed send retries on every answer, changed or not.
+                if ((changed || this.sendOwed_) && !this.disposed_)
+                    this.sendChangedHeights();
 
                 return changed;
             })
@@ -223,6 +224,7 @@ class GeodataHeightcodingJob {
         if (this.sampleSet_)
             this.map_.disposeTerrainSamples(this.sampleSet_);
 
+        this.dropPublication();
         this.processor_.releaseHeightcodingJob(this.jobId_);
         this.listener_ = null;
     }
@@ -281,6 +283,17 @@ class GeodataHeightcodingJob {
             return;
         }
 
+        // The slot comes before the scan: a refused send costs a lookup
+        // and is owed until a later store answer gets the slot. The
+        // release of a slot redraws the map, which is what asks again.
+        if (!this.processor_.acquirePublication(this.jobId_)) {
+
+            this.sendOwed_ = true;
+            return;
+        }
+
+        this.sendOwed_ = false;
+
         const changed: number[] = [];
 
         for (let index = 0; index < heightField.length; index++) {
@@ -291,7 +304,11 @@ class GeodataHeightcodingJob {
                 changed.push(index, height);
         }
 
-        if (changed.length === 0) return;
+        if (changed.length === 0) {
+
+            this.processor_.releasePublication(this.jobId_);
+            return;
+        }
 
         const indices = new Uint32Array(changed.length / 2);
         const heights = new Float64Array(indices.length);
@@ -311,6 +328,13 @@ class GeodataHeightcodingJob {
             indices,
             heights,
         }, [indices.buffer, heights.buffer]);
+    }
+
+    /** Ends the outstanding publication, committed or orphaned. */
+    private dropPublication(): void {
+
+        this.publishPending_ = false;
+        this.processor_.releasePublication(this.jobId_);
     }
 
     private send(
@@ -367,6 +391,9 @@ class GeodataHeightcodingJob {
 
     /** Whether heights changed while an output was in flight. */
     private changesPending_ = false;
+
+    /** Whether a refused send still owes the worker its heights. */
+    private sendOwed_ = false;
 
     /** Whether the job is released. */
     private disposed_ = false;

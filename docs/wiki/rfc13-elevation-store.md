@@ -2345,3 +2345,32 @@ paths.*
 The consolidated design is accepted. The reviewed implementation comprises
 the foundation and gates 1 and 2. Gates 3 and 4 remain, so this sign-off does
 not mark the RFC implemented.
+
+
+## Addendum — 2026-09-09 — bounded publications
+
+Section 5's protocol lets every retained job republish independently:
+`heightcoding-update` and `publish-retained` bypass the `busy` gate that
+serializes legacy parses, so the number of full-tile command buffers in
+flight between the worker and the main thread was bounded only by the
+number of tiles a traversal touched. When the GPU cache is small for
+the view, evicted views republish from their retained jobs faster than
+the main thread's per-frame budget drains them, and the queue grows
+without bound.
+
+A geodata worker now admits at most `mapGeodataMaxPublications`
+(default 1, legacy's rule) outstanding store publications. `GeodataHeightcodingJob`
+claims a slot on `MapGeodataProcessor` before sending either message,
+before it even scans the sample set for changed heights, and sends
+nothing when refused. A refused height send is owed: the job retries it
+on each of the set's later store answers, changed or not, until a slot
+is free, and does not settle while a send is owed. A refused rebuild is
+retried by the view's next `isReady`, the same retry a legacy tile makes
+while `busy` is set. Releasing a slot marks the map dirty, so the redraw
+that follows a commit is what lets a waiting job ask again.
+The slot is returned when the output commits, and when it can no longer
+commit because the job's view changed or the job was disposed. Gates and
+the protocol messages are unchanged; the worker needs no change, since
+every sent update carries a finite height and every rebuild follows a
+committed publication, so each admitted request produces exactly one
+publication.

@@ -182,6 +182,16 @@ does not change how much render data is produced and does not close #62.
   buffers queue in `processingTasks2` and the frame rate falls during
   coarse pans.
 
+**Update 2026-09-09 (bounded publications).** Store heightcoding now has
+the backpressure legacy has. A geodata worker admits at most
+`mapGeodataMaxPublications` outstanding store publications (height
+updates and retained rebuilds); a job whose request is refused sends
+nothing and the tile retries from its next draw, as a legacy tile
+retries while `MapGeodataProcessor.busy` is set. The slot is returned
+when the output commits or when it can no longer commit (the job's view
+changes or the job is disposed). This bounds the command buffers queued
+on the main thread to the cap; the budgets are the next step.
+
 <a id="backlog-61"></a>
 ## 61. Mesh eviction depends on an array that is never emptied
 

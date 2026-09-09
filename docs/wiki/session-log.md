@@ -3,6 +3,21 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-09 — Bound outstanding store publications (backlog 62)
+
+Goal: give store heightcoding the backpressure legacy parses have.
+Legacy lets one tile's worker output exist at a time through
+`MapGeodataProcessor.busy`; store's republications bypassed it, so a
+GPU cache small for the view turned every eviction into a republication
+and the command buffers queued without bound. A geodata worker now
+admits at most
+`mapGeodataMaxPublications` (default 1) outstanding store publications.
+The slot is claimed before the sample set is scanned; a refused height
+send is owed and retried on the set's later store answers, and a
+refused rebuild is retried by the view's next draw. The slot is returned
+on commit, and when the job's view changes or the job is disposed, since
+that output never commits.
+
 ## 2026-09-08 — Release absorbed geodata command buffers (backlog 62)
 
 Goal: reduce the worker allocation peak while merging geodata commands.
