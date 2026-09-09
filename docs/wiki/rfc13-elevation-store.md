@@ -1,6 +1,6 @@
 # RFC 13: the elevation store
 
-**Status:** Accepted
+**Status:** In review
 **Implementation:** Partially implemented — foundation and gates 1–2 complete;
 gates 3–4 pending.
 **Opened:** 2026-08-21
@@ -357,7 +357,9 @@ namespace ElevationStore {
     export type Position = readonly [number, number];
 
     export abstract class SampleSetBase<Positions> {
-        samples?: (Sample | undefined)[];
+        sampleHeight?: Float32Array;
+        sampleGsd?: Float32Array;
+        settled: boolean;
 
         protected constructor(
             readonly positions: Positions,
@@ -393,14 +395,6 @@ namespace ElevationStore {
     export type SampleSet =
         | GeographicSampleSet
         | SpatialDivisionSampleSet;
-
-    export type Sample = {
-        height: number;
-        actualGsd: number;
-        unit: UnitRef;
-    };
-
-    export type UnitRef = unknown;
 }
 ```
 
@@ -418,20 +412,27 @@ existing tuple representation. Spatial-division positions are interleaved XY
 values in a `Float64Array`, so the worker can transfer one packed buffer without
 cloning coordinate objects.
 
-`samples` is optional on the first call; the store creates it and then updates
-it in place. A missing or `undefined` sample means no retained covered value
-for that position. `UnitRef` records the node-local coordinate, answering tile
-ID, and that unit's build generation as the walk's stop bound. A geographic
-set also records its resolved node. A spatial-division set already supplies
-the node and coordinate, so it creates the same reference without conversion
-or node search. The tile at any LOD is derived arithmetically from the local
-coordinate, so no tile path is stored. `UnitRef` is opaque to the consumer and
-does not retain or pin a resident store unit.
+`sampleHeight` and `sampleGsd` are absent on the first call; the store creates
+them, one entry per position, and then updates them in place. A `NaN` height
+means no retained covered value for that position. Every gsd is rounded to
+`Float32`, so a stored gsd equals one re-derived on a later scan. `settled` is
+store-written at the end of an update: every sample has a finite height at
+better than twice the requested gsd.
+
+What the store needs to resume a sample's walk lives in a store-private
+reference table keyed by the sample set: the answering tile's key and that
+unit's build generation as the walk's stop bound, and for a geographic set the
+resolved node and node-local coordinate. A spatial-division set already
+supplies the node and coordinate, so it needs neither conversion nor node
+search. The tile at any LOD is derived arithmetically from the local
+coordinate, so no tile path is stored. The table does not retain or pin a
+resident store unit, and the consumer never sees it.
 
 A sample set represents one stable positions array. If those positions change,
-the consumer creates a new sample set or clears `samples`. While an update is
-queued or running, the store may keep a transient request record so repeated
-calls for the same sample set share the same promise. That record is discarded
+the consumer creates a new sample set. The store keeps the reference table and
+the set's scan state until the consumer disposes the set. While an update is
+queued or running, the store keeps a transient request record so repeated
+calls for the same sample set share the same promise; that record is discarded
 when the update settles or the store is disposed.
 
 For a packed spatial-division set, sample `i` reads XY from positions `2 * i`
@@ -463,8 +464,9 @@ application APIs, not store selection policy.
 
 A sample set is caller-owned retained storage for one stable position list.
 The caller submits the same sample set while that list, coordinate space, node,
-and requested gsd remain valid. The store updates `samples` in place and keeps
-no settled request state of its own.
+and requested gsd remain valid. The store updates the sample arrays in place
+and keeps only the per-set reference table and scan state described in
+section 5.1.
 
 Consumers request updates only when they need the samples:
 
@@ -502,7 +504,8 @@ For retained sample-set consumers, the requested gsd is:
 
 Monolithic geodata stays on the geographic variant, so the store resolves each
 of its positions to a reference-frame node and SRS-converts it on the main
-thread once, caching the result in `UnitRef`. This is bounded because a
+thread once, caching the result in the set's reference table. This is bounded
+because a
 monolithic layer carries few coordinates by design. A layer large enough for
 that one-time resolution to stall a frame must move to the spatial-division
 partition, which is out of scope here.
@@ -510,7 +513,7 @@ partition, which is out of scope here.
 ### 5.4 Query execution
 
 `updateTerrainSamples()` scans the sample set and builds a temporary batch of
-samples that can change. A retained sample's `UnitRef` describes its previous
+samples that can change. A retained sample's reference describes its previous
 answer, not the request, so it remains valid when `desiredGsd` changes. For a
 geographic sample whose position is not yet resolved, the store first resolves
 its reference-frame node and local coordinate. For a spatial-division sample,
@@ -552,7 +555,8 @@ startLod = min(idealLod, deepestLod)
 
 The store walks from `startLod` towards the node root in fine-to-coarse order.
 Each resident unit carries a build generation stamped at commit (section 4.3),
-and `UnitRef` records the answering unit's generation. When the walk reaches the
+and the reference table records the answering unit's generation. When the
+walk reaches the
 retained answering tile it stops there, but re-reads that tile when a resident
 unit's generation differs from the retained one, because a later timed pass
 rebuilds the same tile ID and stamps a new generation (sections 4.3 and 6.5)
@@ -579,8 +583,9 @@ Readback is asynchronous. Chunks are no wider than the device limit and reuse
 the result target; each has a transient pixel-pack buffer. `Map.update()` polls
 fences outside the dirty-frame draw gate, so lookup completion does not depend
 on rendering a color frame. When a chunk completes, answered samples are
-updated in place with `height`, `actualGsd`, and the new `UnitRef`. Repeating an
-update for a sample set already queued or running returns the same promise.
+updated in place in `sampleHeight` and `sampleGsd`, and the reference table
+takes the answering unit and generation. Repeating an update for a sample set
+already queued or running returns the same promise.
 
 ### 5.5 Public sample sets
 
@@ -596,21 +601,17 @@ namespace Viewer {
     export type TerrainSampleSet = {
         positions: readonly (readonly [number, number])[];
         desiredGsd: number;
-        samples?: (TerrainSample | undefined)[];
-    };
-
-    export type TerrainSample = {
-        height: number;
-        actualGsd: number;
-        unit: unknown;
+        sampleHeight?: Float32Array;
+        sampleGsd?: Float32Array;
+        settled: boolean;
     };
 }
 ```
 
-Its positions and heights use section 3.1. `unit` is an opaque retained handle:
-application code does not inspect or change it, but retains the same sample set
-so the next call returns it to the store. The Viewer sample-set types are public
-types, not aliases of `ElevationStore` or `Map` types. The operation exposes no
+Its positions and heights use section 3.1. The arrays and `settled` are
+store-written: application code reads them and retains the same sample set so
+the next call returns it to the store. The Viewer sample-set type is a public
+type, not an alias of `ElevationStore` or `Map` types. The operation exposes no
 store placement policy or resource lifetime.
 
 The public API is geographic and structural: an absent discriminator selects
@@ -649,12 +650,17 @@ converts source positions to geographic positions and the elevation store uses
 its existing geographic onboarding. Main-thread geodata code performs no
 coordinate conversion.
 
-For a retained job, the worker keeps the parsed geometry and its
-coordinate-to-vertex mapping. A tiled transferred array is a packed copy for
-store lookup, not the worker's only coordinate storage. The main thread creates
-the sample-set variant named by the request and retains it until the geodata job
-is released. The delivered geometry remains the last complete result until the
-first store answer or a later update has been rebuilt and published.
+For a retained job, the worker keeps each coordinate's store position and
+latest height in typed arrays, and each group's feature topology and
+properties without coordinate arrays; it rebuilds the geometry from those for
+every publication and drops it again. A tiled transferred array is a packed
+copy for store lookup, not the worker's only coordinate storage. The main
+thread creates the sample-set variant named by the request and retains it
+until the geodata job is released, or, for a tiled job, until its set settles
+at the tile's fixed target gsd (`mapTiledGeodataDisposeOnSettled`), after
+which a later view re-parses the cached payload. No publication uses a
+delivered height; a pending replacement leaves the previous complete
+store-built result visible.
 
 When draw traversal reaches a tiled view, the main thread updates its set at
 the tile-side-over-`displaySize` gsd. When the monolithic view is reached, it
@@ -667,9 +673,18 @@ heights, ignores an older revision, and performs the incremental or complete
 rebuild required by its existing render-job construction. A monolithic rebuild
 replaces the complete view atomically.
 
+A geodata worker admits at most `mapGeodataMaxPublications` outstanding
+publications, height updates and retained rebuilds alike, the rule legacy
+parsing has through the processor's busy flag. A job claims the slot before it
+scans its set; a refused height send is owed and retried on the set's later
+store answers, a refused rebuild by the view's next draw, and the job does not
+settle while a send is owed. The slot is returned when the output commits, or
+when it can no longer commit because the job's view changed or the job was
+released; releasing it redraws the map so a waiting job asks again.
+
 `MapGeodata.killGeodata()` sends the release command when its resource-cache
 entry is evicted or the `MapGeodata` is explicitly destroyed. Release deletes
-the worker registry entry, including its parsed geometry, coordinate mapping,
+the worker registry entry, including its retained positions, topology,
 height values, and rebuild state, and disposes the main-thread sample set. A
 transient `MapGeodataView` destruction does neither: a replacement view reuses
 the job by sending `publish-retained`, which regenerates render commands from
@@ -893,8 +908,12 @@ retained parsed job. Other geodata has neither retained object.
 ## 7. Memory and eviction
 
 `mapElevationStoreGPUCache` is a `construction` setting which sets the maximum
-GPU memory owned by the store in MiB and defaults to 192. Fixed replacement
-and lookup resources are reserved from the limit before resident units are
+GPU memory owned by the store in MiB for a FullHD canvas at pixel ratio 1 and
+defaults to 192. `Map.cacheBudgets` scales it, like the resource and GPU
+caches, by the canvas area at the resolution the map renders tiles at,
+floored at 48 MiB and capped at `mapCacheScaleMax` times the baseline; the
+store reads the scaled value once when it is built. Fixed replacement and
+lookup resources are reserved from the limit before resident units are
 admitted.
 
 With maximum texture width `W`, the reserved allocations are:
@@ -1196,6 +1215,45 @@ complete result while a replacement is pending. The FPS bound itself
 needs a measured store-versus-legacy comparison, which this document
 does not record.
 
+#### Addendum — 2026-09-09 — bounded publications
+
+Section 5's protocol lets every retained job republish independently:
+`heightcoding-update` and `publish-retained` bypass the `busy` gate that
+serializes legacy parses, so the number of full-tile command buffers in
+flight between the worker and the main thread was bounded only by the
+number of tiles a traversal touched. When the GPU cache is small for
+the view, evicted views republish from their retained jobs faster than
+the main thread's per-frame budget drains them, and the queue grows
+without bound.
+
+A geodata worker now admits at most `mapGeodataMaxPublications`
+(default 1, legacy's rule) outstanding store publications. `GeodataHeightcodingJob`
+claims a slot on `MapGeodataProcessor` before sending either message,
+before it even scans the sample set for changed heights, and sends
+nothing when refused. A refused height send is owed: the job retries it
+on each of the set's later store answers, changed or not, until a slot
+is free, and does not settle while a send is owed. A refused rebuild is
+retried by the view's next `isReady`, the same retry a legacy tile makes
+while `busy` is set. Releasing a slot marks the map dirty, so the redraw
+that follows a commit is what lets a waiting job ask again.
+
+
+#### Addendum — 2026-09-09 — store budget scaled with the canvas
+
+`mapElevationStoreGPUCache` is now the budget for a FullHD canvas at
+pixel ratio 1. The store takes its budget from `Map.cacheBudgets`, which
+scales the configured value by the canvas area at the resolution the
+map renders tiles at, with a 48 MiB floor and the `mapCacheScaleMax`
+ceiling, and then applies the reference-frame minimum it already
+applied. The value is read once when the store is built; a later resize
+changes the two resource caches but not the store's budget.
+The slot is returned when the output commits, and when it can no longer
+commit because the job's view changed or the job was disposed. Gates and
+the protocol messages are unchanged; the worker needs no change, since
+every sent update carries a finite height and every rebuild follows a
+committed publication, so each admitted request produces exactly one
+publication.
+
 ### 10.4 Gate 3: floating map positions
 
 #### Objectives
@@ -1223,8 +1281,8 @@ operation.
 
 #### Existing work and reworking
 
-The store and geographic sample-set path exist. Current-position migration has
-not started. Implement it after gate 2 is accepted.
+The store, the sample-set variants and the settle flag exist and are in use
+by gate 2. Current-position migration has not started.
 
 ### 10.5 Gate 4: pan motion
 
@@ -1265,7 +1323,7 @@ The expected ownership is:
 | `src/map/color-terrain-sink.ts`, `src/map/depth-terrain-sink.ts`, `src/map/elevation-terrain-sink.ts` | color, depth, and elevation sink implementations |
 | `src/map/refframe.js`, `src/map/refframe.d.ts` | resolve worker node IDs and retain nominal-gsd helpers |
 | `src/map/measure.js`, `src/map/geodata-builder.js` | use reference-frame-owned node selection |
-| `src/map/map.ts` | store ownership, worker sample registrations, explicit passes, fence polling, and current-position sample |
+| `src/map/map.ts` | store ownership, worker sample registrations, explicit passes, fence polling, cache budgets from the canvas, and current-position sample |
 | `src/map/draw.js` | invoke the depth entry point without the complete map draw |
 | `src/map/draw-traversal.ts` | define the sink contract, retain traversal policy, consume pass-owned state, and dispatch selected rigs to a sink |
 | `src/map/tile-render-rig.ts` | test normal readiness and draw unexaggerated height |
@@ -1281,7 +1339,7 @@ The expected ownership is:
 | `src/map/geodata-processor/worker-parser.js` | remove the unused binary-geodata parser |
 | `src/map/geodata-processor/worker-heightcoding.ts` | retain and release heightcoded jobs, prepare SDS or geographic coordinates, apply heights, and rebuild |
 | `src/map/geodata-processor/worker-main.js` | call the typed heightcoding operations from existing worker commands |
-| `src/map/geodata-processor/processor.js` | route job messages and transfer packed buffers |
+| `src/map/geodata-processor/processor.js` | route job messages, transfer packed buffers, and bound outstanding publications |
 | `src/map/geodata.js` | own the worker job ID and internal sample set; release both from `killGeodata()` |
 | `src/map/geodata-view.js` | activate tiled and monolithic sample updates and publish completed worker output |
 | `src/map/geodata-builder.js` | preserve monolithic source-coordinate metadata for worker heightcoding |
@@ -2347,41 +2405,28 @@ the foundation and gates 1 and 2. Gates 3 and 4 remain, so this sign-off does
 not mark the RFC implemented.
 
 
-## Addendum — 2026-09-09 — bounded publications
+## Review round 8 — requested
 
-Section 5's protocol lets every retained job republish independently:
-`heightcoding-update` and `publish-retained` bypass the `busy` gate that
-serializes legacy parses, so the number of full-tile command buffers in
-flight between the worker and the main thread was bounded only by the
-number of tiles a traversal touched. When the GPU cache is small for
-the view, evicted views republish from their retained jobs faster than
-the main thread's per-frame budget drains them, and the queue grows
-without bound.
+The body is brought up to date with the implementation as of cartolina-js
+`fdafa4bd`, and the two addenda of 2026-09-09 are filed under gate 2, the
+implementation point. Nothing in the design changes; the text described an
+earlier shape of the same design. What changed, and where:
 
-A geodata worker now admits at most `mapGeodataMaxPublications`
-(default 1, legacy's rule) outstanding store publications. `GeodataHeightcodingJob`
-claims a slot on `MapGeodataProcessor` before sending either message,
-before it even scans the sample set for changed heights, and sends
-nothing when refused. A refused height send is owed: the job retries it
-on each of the set's later store answers, changed or not, until a slot
-is free, and does not settle while a send is owed. A refused rebuild is
-retried by the view's next `isReady`, the same retry a legacy tile makes
-while `busy` is set. Releasing a slot marks the map dirty, so the redraw
-that follows a commit is what lets a waiting job ask again.
+- Sections 5.1, 5.3, 5.4 and 5.5: a sample set carries `sampleHeight` and
+  `sampleGsd` typed arrays and a store-written `settled` flag instead of an
+  array of sample objects with a `UnitRef`; the walk's resume state is a
+  store-private reference table kept until the set is disposed. The public
+  `TerrainSampleSet` follows.
+- Section 5.6: the worker retains positions, heights and topology and
+  rebuilds geometry per publication; a tiled job is also released when its
+  set settles; a worker admits at most `mapGeodataMaxPublications`
+  outstanding publications, with the owed-send and retry rules.
+- Section 7: the store budget is the FullHD baseline scaled with the canvas
+  through `Map.cacheBudgets`.
+- Section 10.3: two addenda record the bounded publications and the
+  store budget scaled with the canvas; backlog 66 continues the frame rate
+  at small budgets.
+- Section 11: two table rows extended.
 
-
-## Addendum — 2026-09-09 — store budget scaled with the canvas
-
-`mapElevationStoreGPUCache` is now the budget for a FullHD canvas at
-pixel ratio 1. The store takes its budget from `Map.cacheBudgets`, which
-scales the configured value by the canvas area at the resolution the
-map renders tiles at, with a 48 MiB floor and the `mapCacheScaleMax`
-ceiling, and then applies the reference-frame minimum it already
-applied. The value is read once when the store is built; a later resize
-changes the two resource caches but not the store's budget.
-The slot is returned when the output commits, and when it can no longer
-commit because the job's view changed or the job was disposed. Gates and
-the protocol messages are unchanged; the worker needs no change, since
-every sent update carries a finite height and every rebuild follows a
-committed publication, so each admitted request produces exactly one
-publication.
+Requested: confirm the updated sections describe the implementation, and
+that the gate 3 and 4 plans still hold before gate 3 starts.
