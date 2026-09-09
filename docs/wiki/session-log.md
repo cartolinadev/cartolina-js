@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — 16-bit elevation store samples (RFC 13)
+
+Goal: halve the elevation store's GPU memory. A unit sample was a float32
+bit pattern in `RGBA8UI`, four bytes for a height the shader reconstructs
+with about a metre of float32 noise. A sample is now a 16-bit integer in
+`R16UI`, quantized linearly over the reference frame's declared height
+range, with 65535 for no coverage; that range already bounds every
+stored height through the depth ordering. The step is below 0.4 m for
+every registry frame. The default budget and its floor halve with the
+unit, to 96 MiB and 24 MiB, and hold the same number of units. The
+lookup result rows stay float32 bit patterns. RFC 13 reopens its round 8
+request with the change.
+
 ## 2026-09-09 — Cache budgets from the canvas (backlog 62)
 
 Goal: size the resource, GPU and elevation-store caches to the canvas

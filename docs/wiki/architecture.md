@@ -239,8 +239,9 @@ in place and misses retain their last answer.
 Population rides the terrain traversal with a third sink, so the store
 follows the same tile selection, source order, fallback, and coverage
 rules as drawing, and it requests no resource of its own. Each resident
-tile holds one 256 by 256 unit of packed float32 heights, rasterized
-through the tile's external UV, so a unit covers the whole tile.
+tile holds one 256 by 256 unit of 16-bit heights quantized over the
+reference frame's height range, rasterized through the tile's external
+UV, so a unit covers the whole tile.
 Coarser units come from reducing four child units, and every visited
 reference-frame node keeps a pinned root unit; the rest are evicted
 least-recently-used against `mapElevationStoreGPUCache`.

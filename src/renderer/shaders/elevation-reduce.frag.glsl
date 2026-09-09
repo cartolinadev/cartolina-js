@@ -27,13 +27,16 @@ uniform usampler2D uChild3;
 // nothing
 uniform int uChildPresent;
 
-out uvec4 fragColor;
+// height range of the reference frame: the sample's quantization domain
+uniform vec2 uHeightRange;
+
+out uint fragColor;
 
 const int gridMax = 510;
 const int childMax = 255;
 
-// One sample of the combined child grid, or NaN where no child covers it.
-float childGridSample(int x, int y) {
+// One sample of the combined child grid, invalid where no child covers it.
+uint childGridSample(int x, int y) {
 
     // The shared edge at 255 belongs to both neighbours and holds the
     // same position in each, so either side may answer for it.
@@ -43,29 +46,13 @@ float childGridSample(int x, int y) {
     ivec2 texel = ivec2(x - column * childMax, y - row * childMax);
     int quadrant = row * 2 + column;
 
-    if ((uChildPresent & (1 << quadrant)) == 0)
-        return uintBitsToFloat(elevationInvalidBits);
+    if ((uChildPresent & (1 << quadrant)) == 0) return elevationInvalid;
 
-    uvec4 encoded;
+    if (quadrant == 0) return texelFetch(uChild0, texel, 0).r;
+    if (quadrant == 1) return texelFetch(uChild1, texel, 0).r;
+    if (quadrant == 2) return texelFetch(uChild2, texel, 0).r;
 
-    if (quadrant == 0) {
-
-        encoded = texelFetch(uChild0, texel, 0);
-
-    } else if (quadrant == 1) {
-
-        encoded = texelFetch(uChild1, texel, 0);
-
-    } else if (quadrant == 2) {
-
-        encoded = texelFetch(uChild2, texel, 0);
-
-    } else {
-
-        encoded = texelFetch(uChild3, texel, 0);
-    }
-
-    return elevationDecode(encoded);
+    return texelFetch(uChild3, texel, 0).r;
 }
 
 void main() {
@@ -85,21 +72,21 @@ void main() {
             int x = clamp(centre.x + dx, 0, gridMax);
             int y = clamp(centre.y + dy, 0, gridMax);
 
-            float height = childGridSample(x, y);
-            if (!elevationValid(height)) continue;
+            uint sample_ = childGridSample(x, y);
+            if (!elevationValid(sample_)) continue;
 
             float weight = (dx == 0 ? 2.0 : 1.0) * (dy == 0 ? 2.0 : 1.0);
 
-            sum += height * weight;
+            sum += elevationDecode(sample_, uHeightRange) * weight;
             weightSum += weight;
         }
     }
 
     if (weightSum == 0.0) {
 
-        fragColor = elevationEncodeInvalid();
+        fragColor = elevationInvalid;
         return;
     }
 
-    fragColor = elevationEncode(sum / weightSum);
+    fragColor = elevationEncode(sum / weightSum, uHeightRange);
 }

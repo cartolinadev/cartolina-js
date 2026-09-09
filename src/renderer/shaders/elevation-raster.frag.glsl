@@ -11,10 +11,11 @@ in vec2 vTexCoords2;
 uniform sampler2D uMask;
 uniform bool uMaskEnabled;
 
-// height range of the reference frame, used for depth ordering
+// height range of the reference frame: the sample's quantization domain
+// and the depth ordering
 uniform vec2 uHeightRange;
 
-out uvec4 fragColor;
+out uint fragColor;
 
 void main() {
 
@@ -47,5 +48,5 @@ void main() {
     if (!(depth >= 0.0 && depth <= 1.0)) discard;
 
     gl_FragDepth = depth;
-    fragColor = elevationEncode(height);
+    fragColor = elevationEncode(height, uHeightRange);
 }

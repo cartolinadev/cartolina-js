@@ -4,13 +4,14 @@
 /*
  * Shared encoding and geometry for the elevation store.
  *
- * A stored sample is the IEEE 754 bit pattern of a float32 height, written
- * as four bytes into an RGBA8UI texel in little-endian order. One NaN bit
- * pattern stands for no coverage, so validity is part of the value and the
- * store needs no separate mask.
+ * A stored sample is the height quantized linearly over the reference
+ * frame's declared height range into an R16UI texel: 0 at the range
+ * minimum, 65534 at its maximum. 65535 stands for no coverage, so
+ * validity is part of the value and the store needs no separate mask.
  */
 
-const uint elevationInvalidBits = 0x7FC00000u;
+const uint elevationInvalid = 0xFFFFu;
+const float elevationLevels = 65534.0;
 
 /*
  * Samples have 255 intervals between the two tile edges. Rasterization
@@ -19,34 +20,37 @@ const uint elevationInvalidBits = 0x7FC00000u;
  */
 const float elevationSampleSpan = 255.0;
 
-uvec4 elevationEncode(float height) {
+uint elevationEncode(float height, vec2 range) {
 
-    uint bits = floatBitsToUint(height);
+    return uint(round(
+        (height - range.x) / (range.y - range.x) * elevationLevels));
+}
+
+float elevationDecode(uint sample_, vec2 range) {
+
+    return range.x
+        + float(sample_) / elevationLevels * (range.y - range.x);
+}
+
+bool elevationValid(uint sample_) {
+
+    return sample_ != elevationInvalid;
+}
+
+/*
+ * A decoded value written to the lookup result: the IEEE 754 bit pattern
+ * of a float32, as four bytes of an RGBA8UI texel in little-endian order.
+ * The CPU reads it back with DataView.getFloat32(..., true).
+ */
+uvec4 elevationPackResult(float value) {
+
+    uint bits = floatBitsToUint(value);
 
     return uvec4(
          bits         & 0xFFu,
         (bits >>  8u) & 0xFFu,
         (bits >> 16u) & 0xFFu,
          bits >> 24u);
-}
-
-uvec4 elevationEncodeInvalid() {
-
-    return elevationEncode(uintBitsToFloat(elevationInvalidBits));
-}
-
-float elevationDecode(uvec4 texel) {
-
-    uint bits = texel.r | (texel.g << 8u) | (texel.b << 16u)
-        | (texel.a << 24u);
-
-    return uintBitsToFloat(bits);
-}
-
-bool elevationValid(float height) {
-
-    // NaN is the only value that compares unequal to itself
-    return height == height;
 }
 
 

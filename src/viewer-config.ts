@@ -585,14 +585,14 @@ const catalogue = {
 
     /** Maximum GPU memory the elevation store may own, in MiB, for a
      *  FullHD canvas at pixel ratio 1; scaled by the map's effective
-     *  canvas area and never below 48 MiB. One height field costs
-     *  256 KiB, and a view needs one per drawn tile plus one per node
-     *  above them, so 192 MiB holds about two and a half views of a
+     *  canvas area and never below 24 MiB. One height field costs
+     *  128 KiB, and a view needs one per drawn tile plus one per node
+     *  above them, so 96 MiB holds about two and a half views of a
      *  1920 by 1080 window. Clamped up when a reference frame needs
      *  more to keep one pinned field per spatial division node. Read
      *  once when the store is built; a later resize does not change
      *  it. */
-    mapElevationStoreGPUCache: num(0, MAX, 192, 'construction'),
+    mapElevationStoreGPUCache: num(0, MAX, 96, 'construction'),
 
     /** Selects delivered legacy or elevation-store geodata heights.
      *  Read once at construction. */

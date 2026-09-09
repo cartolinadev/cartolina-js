@@ -13,19 +13,24 @@ import type * as math from '../utils/math';
  * The WebGL side of the elevation store: the unit textures, the draws
  * that fill them, and the batched lookup that reads them back.
  *
- * A unit is one tile's 256 by 256 field of packed float32 heights, with
- * one NaN pattern for no coverage. Only one unit is built at a time, and
- * a lookup issued while it is being built still reads the unit's
- * previous contents in full.
+ * A unit is one tile's 256 by 256 field of 16-bit heights, quantized
+ * over the reference frame's declared height range, with 65535 for no
+ * coverage. Only one unit is built at a time, and a lookup issued while
+ * it is being built still reads the unit's previous contents in full.
  *
  * `ElevationStore` decides which tiles have units and which answer a
  * position.
  */
 export class ElevationUnits {
 
-    constructor(renderer: Renderer) {
+    /**
+     * @param heightRange the reference frame's declared height range,
+     *     the quantization domain of every sample
+     */
+    constructor(renderer: Renderer, heightRange: [number, number]) {
 
         this.renderer_ = renderer;
+        this.heightRange_ = heightRange;
 
         const gpu = renderer.gpu;
 
@@ -37,7 +42,7 @@ export class ElevationUnits {
         this.result_.createFromData(
             this.maxBatch, ResultRows,
             new Uint8Array(this.maxBatch * ResultRows * 4),
-            GpuTexture.Type.Elevation);
+            GpuTexture.Type.DepthUint);
         this.result_.createFramebuffer(this.maxBatch, ResultRows);
 
         this.readbackBytes_ = new Uint8Array(this.maxBatch * ResultRows * 4);
@@ -70,7 +75,7 @@ export class ElevationUnits {
     }
 
     /** GPU bytes one unit occupies. */
-    readonly unitBytes = UnitSize * UnitSize * 4;
+    readonly unitBytes = UnitSize * UnitSize * 2;
 
     /** Most positions one lookup batch can carry. */
     readonly maxBatch: number;
@@ -78,10 +83,11 @@ export class ElevationUnits {
     /** GPU bytes held regardless of unit count. */
     get fixedBytes(): number {
 
-        // the replacement unit and its depth attachment, the two result
-        // rows and their depth, one transient pixel-pack buffer (never
-        // pooled -- see endLookup), and the points
-        return 2 * this.unitBytes + 40 * this.maxBatch;
+        // the replacement unit and its four-byte depth attachment, the
+        // two result rows and their depth, one transient pixel-pack
+        // buffer (never pooled -- see endLookup), and the points
+        return this.unitBytes + UnitSize * UnitSize * 4
+            + 40 * this.maxBatch;
     }
 
     /** A new unit, with no coverage. */
@@ -106,7 +112,7 @@ export class ElevationUnits {
 
         gpu.setTextureSpaceRenderTarget(this.replacement_, UnitSizePair);
         gpu.setState(this.composeState_);
-        gpu.clearColorAndDepth(InvalidClearColor);
+        gpu.clearColorAndDepth(InvalidUnitClearColor);
     }
 
     /**
@@ -150,6 +156,7 @@ export class ElevationUnits {
         }
 
         program.setInt('uChildPresent', present);
+        program.setVec2('uHeightRange', this.heightRange_);
 
         this.drawQuad(program);
         return true;
@@ -159,7 +166,6 @@ export class ElevationUnits {
      * Composes one rig's unexaggerated height into the replacement.
      *
      * @param cameraPos camera position in world coordinates
-     * @param heightRange the reference frame's declared height range
      * @param geocentric geodetic height above the ellipsoid when true,
      *     physical Z when false
      * @param maskTexture coverage already established at this node
@@ -168,7 +174,6 @@ export class ElevationUnits {
     rasterizeRig(
         rig: TileRenderRig,
         cameraPos: math.vec3,
-        heightRange: [number, number],
         geocentric: boolean,
         maskTexture?: GpuTexture,
     ): boolean {
@@ -184,7 +189,7 @@ export class ElevationUnits {
         gpu.clearDepth();
 
         return rig.drawElevation(
-            cameraPos, heightRange, geocentric, maskTexture);
+            cameraPos, this.heightRange_, geocentric, maskTexture);
     }
 
     /** Publishes the unit started by `beginReplacement`. */
@@ -222,6 +227,7 @@ export class ElevationUnits {
         gpu.useProgram2(program);
         program.setFloat('uResultWidth', this.maxBatch);
         program.setFloat('uMaxPreference', maxPreference);
+        program.setVec2('uHeightRange', this.heightRange_);
         program.setSampler('uUnit', renderer.textureIdxs.elevation);
     }
 
@@ -325,7 +331,7 @@ export class ElevationUnits {
 
         const texture = new GpuTexture(this.renderer_.gpu, null, null);
 
-        texture.createFromData(UnitSize, UnitSize, invalidUnitBytes(),
+        texture.createFromData(UnitSize, UnitSize, invalidUnitSamples(),
             GpuTexture.Type.Elevation, 'nearest');
 
         if (withFramebuffer) texture.createFramebuffer(UnitSize, UnitSize);
@@ -406,6 +412,7 @@ export class ElevationUnits {
     }
 
     private readonly renderer_: Renderer;
+    private readonly heightRange_: [number, number];
 
     /** The unit under construction, published by `publishReplacement`. */
     private readonly replacement_: GpuTexture;
@@ -439,7 +446,17 @@ const UnitSize = 256;
 const UnitSizePair: [number, number] = [UnitSize, UnitSize];
 const ResultRows = 2;
 
-/** Little-endian bytes of the NaN pattern that stands for no coverage. */
+/** The unit sample that stands for no coverage. */
+const InvalidSample = 0xFFFF;
+
+/** Clear value of a unit: no coverage in its one channel. */
+const InvalidUnitClearColor: [number, number, number, number] =
+    [InvalidSample, 0, 0, 0];
+
+/**
+ * Clear value of the result rows: little-endian bytes of the NaN pattern
+ * that stands for no answer.
+ */
 const InvalidClearColor: [number, number, number, number] = [0, 0, 192, 127];
 
 const QuadVertices = new Float32Array([
@@ -450,25 +467,18 @@ const QuadVertices = new Float32Array([
 ]);
 
 
-let invalidUnitBytes_: Uint8Array | null = null;
+let invalidUnitSamples_: Uint16Array | null = null;
 
 /**
  * A unit texture's initial contents: no coverage everywhere. Built once
  * and shared; `createFromData` copies it at upload and never retains it.
  */
-function invalidUnitBytes(): Uint8Array {
+function invalidUnitSamples(): Uint16Array {
 
-    if (invalidUnitBytes_) return invalidUnitBytes_;
+    if (invalidUnitSamples_) return invalidUnitSamples_;
 
-    const bytes = new Uint8Array(UnitSize * UnitSize * 4);
-
-    for (let i = 0; i < bytes.length; i += 4) {
-
-        bytes[i + 2] = InvalidClearColor[2];
-        bytes[i + 3] = InvalidClearColor[3];
-    }
-
-    return invalidUnitBytes_ = bytes;
+    return invalidUnitSamples_ =
+        new Uint16Array(UnitSize * UnitSize).fill(InvalidSample);
 }
 
 

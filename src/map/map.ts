@@ -1341,7 +1341,7 @@ class Map {
         return {
             gpu: budget(this.config.mapGPUCache, 150),
             resource: budget(this.config.mapCache, 64),
-            store: budget(this.config.mapElevationStoreGPUCache, 48),
+            store: budget(this.config.mapElevationStoreGPUCache, 24),
         };
     }
 

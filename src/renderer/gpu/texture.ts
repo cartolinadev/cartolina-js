@@ -112,6 +112,10 @@ getSize() {
       case GpuTexture.Type.Mask:
           bytesPerTexel = 1;
           break;
+
+      case GpuTexture.Type.Elevation:
+          bytesPerTexel = 2;
+          break;
   }
 
   const base = this.width * this.height * bytesPerTexel;
@@ -134,7 +138,7 @@ readPixelsFormat(): GLenum {
 }
 
 
-createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
+createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array | Uint16Array,
     type_: GpuTexture.Type = GpuTexture.Type.Color,
     filter: GpuTexture.Filter = 'nearest', repeat?: GLfloat | GLint) {
 
@@ -189,10 +193,15 @@ createFromData(lx: GLsizei, ly: GLsizei, data: Uint8Array,
             break;
 
         case GpuTexture.Type.DepthUint:
-        case GpuTexture.Type.Elevation:
 
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI, lx, ly, 0,
                           gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, data);
+            break;
+
+        case GpuTexture.Type.Elevation:
+
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, lx, ly, 0,
+                          gl.RED_INTEGER, gl.UNSIGNED_SHORT, data);
             break;
 
         case GpuTexture.Type.Mask:
@@ -489,15 +498,19 @@ export namespace GpuTexture {
         AtmosphereDensity = 5,
 
         /**
-         * Depth hitmap texture. Stores raw float32 depth bit patterns as four
-         * little-endian bytes in an RGBA8UI framebuffer attachment.
+         * Raw float32 bit patterns as four little-endian bytes in an
+         * RGBA8UI framebuffer attachment. Holds the depth hitmap and the
+         * elevation store's lookup result rows.
          */
         DepthUint = 6,
 
         /**
-         * Elevation-store height field. Stores raw float32 height bit
-         * patterns as four little-endian bytes in an RGBA8UI framebuffer
-         * attachment, with one NaN pattern standing for no coverage.
+         * Elevation-store height field. Stores heights quantized over the
+         * reference frame's height range in an R16UI framebuffer
+         * attachment, with 65535 standing for no coverage.
+         *
+         * Note that result rows for elevation lookups use float32 (DepthUint),
+         * not this type - easy to miss.
          */
         Elevation = 7,
     }

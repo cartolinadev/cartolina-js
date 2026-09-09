@@ -173,7 +173,8 @@ float32. At Earth radius the reconstructed Cartesian components have a 0.5 m
 unit in the last place. The subsequent ellipsoid calculation subtracts
 quantities near Earth radius, so its camera-dependent height quantization is
 of order one metre. The planned consumers do not require better than
-metre-scale height.
+metre-scale height, and the stored sample (section 4.2) is quantized more
+finely than this.
 
 The shader then converts the Cartesian position to geodetic height. The
 semi-minor axis `b` is derived from the semi-major axis and major-to-minor
@@ -269,9 +270,26 @@ resident after it first obtains coverage. Reduction stops at that root.
 
 ### 4.2 Texture format
 
-Each unit owns one 256 by 256 `RGBA8UI` texture. A finite IEEE 754 float is
-stored as four bytes. One NaN bit pattern represents no coverage. There is no
-persistent mask texture; validity is part of the stored value.
+Each unit owns one 256 by 256 `R16UI` texture. A sample is the height
+quantized linearly over the reference frame's declared height range
+`[minimum, maximum]`:
+
+```text
+sample = round((height - minimum) / (maximum - minimum) * 65534)
+```
+
+The value 65535 represents no coverage. There is no persistent mask texture;
+validity is part of the stored value. The range is the same one the depth
+ordering of section 3.3 uses, and a height outside it is already omitted from
+the draw, so every stored height lies within the quantization domain.
+
+The quantization step is the range divided by 65534. For the reference
+frames in the registry it lies between 0.11 m (`[-500, 7000]`) and 0.37 m
+(`[500, 25000]`), below the float32 reconstruction noise of section 3.2.
+A frame declaring a range wider than about 65 km would store heights at
+steps coarser than one metre; none does. For comparison, the
+[navtile encoder][vts-navtile-encoding] stores eight-bit samples quantized
+over the tile's own height range; a unit has twice that sample depth.
 
 The grid has 256 samples per tile and 255 sample intervals between duplicated
 tile-boundary edges. Using 257 samples would provide 256 intervals, but a
@@ -279,23 +297,26 @@ tile-boundary edges. Using 257 samples would provide 256 intervals, but a
 row. The store reports nominal gsd from the tile span divided by 256; the
 boundary-sampled texture layout is a storage detail.
 
-The existing [`DepthUint` texture](../../src/renderer/gpu/texture.ts) and
-[depth fragment shader](../../src/renderer/shaders/tile-depth.frag.glsl)
-already render a float bit pattern into `RGBA8UI` and read the same bytes on
-the CPU. The elevation texture uses that byte order and packing rule.
-
 The texture uses nearest filtering. Lookup and reduction shaders decode four
-samples and perform bilinear filtering explicitly. This keeps the store on
-the WebGL2 baseline. Rendering to `R32F` would require
-`EXT_color_buffer_float`, and linear filtering would also depend on float
-filtering support. Four decoded reads happen only during elevation lookup and
-reduction, not in the color render loop, so the optional extensions do not
-justify a second format or a fallback path.
+samples and perform bilinear filtering explicitly. `R16UI` is
+color-renderable in core WebGL2, so this keeps the store on the WebGL2
+baseline. Rendering to `R32F` or `R16F` would require
+`EXT_color_buffer_float` or `EXT_color_buffer_half_float`, and linear
+filtering would also depend on float filtering support. Four decoded reads
+happen only during elevation lookup and reduction, not in the color render
+loop, so the optional extensions do not justify a second format or a fallback
+path.
+
+The lookup result rows (section 7) are decoded heights, not unit samples.
+They use the existing [`DepthUint` texture](../../src/renderer/gpu/texture.ts)
+format: a float32 bit pattern as four bytes of an `RGBA8UI` attachment, read
+back on the CPU as the
+[depth hitmap](../../src/renderer/shaders/tile-depth.frag.glsl) is.
 
 One unit occupies:
 
 ```text
-256 * 256 * 4 = 262144 bytes = 256 KiB
+256 * 256 * 2 = 131072 bytes = 128 KiB
 ```
 
 ### 4.3 Complete unit replacement
@@ -909,17 +930,17 @@ retained parsed job. Other geodata has neither retained object.
 
 `mapElevationStoreGPUCache` is a `construction` setting which sets the maximum
 GPU memory owned by the store in MiB for a FullHD canvas at pixel ratio 1 and
-defaults to 192. `Map.cacheBudgets` scales it, like the resource and GPU
+defaults to 96. `Map.cacheBudgets` scales it, like the resource and GPU
 caches, by the canvas area at the resolution the map renders tiles at,
-floored at 48 MiB and capped at `mapCacheScaleMax` times the baseline; the
+floored at 24 MiB and capped at `mapCacheScaleMax` times the baseline; the
 store reads the scaled value once when it is built. Fixed replacement and
 lookup resources are reserved from the limit before resident units are
 admitted.
 
 With maximum texture width `W`, the reserved allocations are:
 
-- one 256 by 256 replacement texture at four bytes per texel:
-  `262144` bytes;
+- one 256 by 256 replacement texture at two bytes per texel:
+  `131072` bytes;
 - its 256 by 256 depth attachment at four bytes per texel:
   `262144` bytes;
 - one two-row `RGBA8UI` lookup result attachment at four bytes per texel:
@@ -933,11 +954,11 @@ With maximum texture width `W`, the reserved allocations are:
 The total logical reservation is:
 
 ```text
-524288 + 40 * W bytes
+393216 + 40 * W bytes
 ```
 
-At a common `W = 16384`, that is 1.125 MiB and leaves room for 763 resident
-units in the 192 MiB default.
+At a common `W = 16384`, that is 1 MiB and leaves room for 760 resident
+units in the 96 MiB default.
 
 Unpinned units use least-recently-used eviction. Building a unit and returning
 a successful lookup both move it to the front of the LRU list. The least
@@ -949,7 +970,7 @@ When the reference frame is parsed, `Map` calculates a minimum effective
 budget: the fixed allocation and one unit for every reference-frame node root.
 The reference frames documented in
 [reference-frames.md](reference-frames.md) have at most six nodes, so root
-textures reserve at most 1.5 MiB. If the configured value is smaller, the
+textures reserve at most 0.75 MiB. If the configured value is smaller, the
 store warns once and raises its effective budget without changing the reported
 construction setting. This preserves the coarse-result guarantee without
 failing map creation.
@@ -1330,7 +1351,7 @@ The expected ownership is:
 | `src/map/surface-tree.js`, `src/map/draw-tiles.js` | remove terrain-channel routing |
 | `src/renderer/renderer.ts` | initialize each terrain pass without a global channel |
 | `src/renderer/gpu/device.ts` | compact two-row result target, pixel-pack buffer, and fence operations |
-| `src/renderer/gpu/texture.ts` | packed unit texture and byte accounting |
+| `src/renderer/gpu/texture.ts` | 16-bit unit texture and byte accounting |
 | `src/renderer/shaders/elevation-*.glsl` | rasterization, reduction, and lookup |
 | `src/viewer/viewer.ts` | public retained terrain sample sets used by the waypoint demo |
 | `src/viewer-config.ts` | store settings and `mapHeightcoding`; remove `mapHeightcodingShadow` |
@@ -1426,9 +1447,32 @@ create a second terrain-demand and priority path.
 
 ### Use floating-point render targets
 
-Rejected while they require optional WebGL extensions. Packed `RGBA8UI` is
-renderable and readable in core WebGL2, and the explicit four-sample filtering
-is outside the color render loop.
+Rejected while they require optional WebGL extensions. `R16UI` units and the
+`RGBA8UI` lookup result are renderable and readable in core WebGL2, and the
+explicit four-sample filtering is outside the color render loop.
+
+### Store float32 samples
+
+Rejected. The shader reconstructs height with about a metre of float32
+noise (section 3.2), so a four-byte sample preserves noise, not
+information. A 16-bit sample halves the store's memory for the same
+coverage.
+
+### Store half-float samples
+
+Rejected. A half float carries an 11-bit significand, so its step is 2 m
+between 2048 and 4096 m and 4 m above that, coarser than the reconstruction
+itself and dependent on the height. A linear 16-bit integer has one step
+across the whole range.
+
+### Quantize over a per-unit height range
+
+Rejected. A per-unit range needs metadata beside every unit, a pass to find
+the tile's extremes before its samples can be written, and rescaling when
+reduction merges children with different ranges. The reference frame's
+declared range already bounds every stored height (section 3.3), and the
+resulting step is below the float32 noise floor, so a finer per-unit step
+would resolve nothing.
 
 ### Retain raw and opened VHR fields
 
@@ -2428,5 +2472,15 @@ earlier shape of the same design. What changed, and where:
   at small budgets.
 - Section 11: two table rows extended.
 
-Requested: confirm the updated sections describe the implementation, and
-that the gate 3 and 4 plans still hold before gate 3 starts.
+One design change is added to this round. A unit sample is a 16-bit
+integer quantized linearly over the reference frame's declared height range,
+with 65535 for no coverage, in place of a float32 bit pattern in `RGBA8UI`.
+The reconstruction already carries about a metre of float32 noise, and the
+frame range already bounds every stored height, so the integer step loses
+nothing; the unit cost halves to 128 KiB. Sections 3.2, 4.2, 7 and 12
+change. The default budget and its floor halve with the unit, to 96 MiB and
+24 MiB, and hold the same number of units as before.
+
+Requested: confirm the updated sections describe the implementation, review
+the 16-bit sample format, and confirm that the gate 3 and 4 plans still hold
+before gate 3 starts.

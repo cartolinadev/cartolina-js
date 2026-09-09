@@ -40,7 +40,7 @@ class ElevationStore {
     constructor(map: Map) {
 
         this.map_ = map;
-        this.units_ = new ElevationUnits(map.renderer);
+        this.units_ = new ElevationUnits(map.renderer, this.heightRange());
         this.sink = new ElevationTerrainSink(this);
         this.budgetBytes_ = this.resolveBudget();
     }
@@ -279,7 +279,6 @@ class ElevationStore {
             () => this.units_.rasterizeRig(
                 rig,
                 legacyMap.camera.position,
-                this.heightRange(),
                 legacyMap.isGeocent,
                 maskTexture));
 

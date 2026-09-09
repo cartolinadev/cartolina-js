@@ -14,11 +14,14 @@ uniform usampler2D uUnit;
 // 0 writes the height row, 1 the preference-index row
 uniform int uRow;
 
+// height range of the reference frame: the sample's quantization domain
+uniform vec2 uHeightRange;
+
 out uvec4 fragColor;
 
 void main() {
 
-    // The unit stores nearest-filtered bit patterns, so bilinear
+    // The unit stores nearest-filtered integer samples, so bilinear
     // filtering is done here over the four decoded neighbours. The
     // sample grid includes both tile boundaries
     vec2 grid = clamp(vUv, 0.0, 1.0) * elevationSampleSpan;
@@ -41,13 +44,13 @@ void main() {
         if (weights[i] == 0.0) continue;
 
         ivec2 texel = base + ivec2(i & 1, i >> 1);
-        float sample_ = elevationDecode(texelFetch(uUnit, texel, 0));
+        uint sample_ = texelFetch(uUnit, texel, 0).r;
 
         // one uncovered contributor leaves the answer to a later unit
         if (!elevationValid(sample_)) discard;
 
-        height += sample_ * weights[i];
+        height += elevationDecode(sample_, uHeightRange) * weights[i];
     }
 
-    fragColor = elevationEncode(uRow == 0 ? height : vPreference);
+    fragColor = elevationPackResult(uRow == 0 ? height : vPreference);
 }
