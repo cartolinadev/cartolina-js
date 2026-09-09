@@ -457,7 +457,7 @@ const catalogue = {
      *  from 0 (CSS pixels) to 2 (physical pixels). Tiles refine to
      *  `dpr ^ (this / 2)` times the CSS resolution, and the cache
      *  budgets scale with the canvas area at that resolution. */
-    mapPixelRatioUse: num(0, 2, 0.5, 'runtime'),
+    mapPixelRatioUse: num(0, 2, 0, 'runtime'),
 
     /** Upper bound on the canvas-area factor applied to the cache
      *  budgets, so a large canvas asks for at most this many times the

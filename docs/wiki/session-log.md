@@ -11,9 +11,12 @@ desktop on every device. The three cache keys
 are now the FullHD baseline; `Map.cacheBudgets` scales them by the
 canvas area at the rendered resolution, with floors and a
 `mapCacheScaleMax` ceiling, at construction and on resize. A new
-`mapPixelRatioUse` exponent (default 0.5) sets how much of the device
-pixel ratio the map renders at; the texel fit and the budgets use the
-same factor. Mobile mode is removed with its three keys (`mapMobileMode`,
+`mapPixelRatioUse` exponent sets how much of the device pixel ratio the
+map renders at; the texel fit and the budgets use the same factor. Its
+default is 0, CSS resolution as before, until the texel fit adapts to
+eviction pressure (backlog 66): a finer rendered resolution asks for
+more tiles than the smaller caches hold. Mobile mode is removed with
+its three keys (`mapMobileMode`,
 `mapMobileModeAutodect`, `mapMobileDetailDegradation`), a breaking
 change for anyone setting them; nothing in the compatibility inventory
 did.
