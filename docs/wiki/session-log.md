@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Resolve npm audit findings (Dependabot alerts)
+
+`npm audit fix` bumped transitive pins for browserslist,
+baseline-browser-mapping, fast-uri, and postcss-selector-parser
+(pulled in via `@babel/preset-env`, webpack's ajv/schema-utils chain,
+and css-loader's PostCSS chain — none are direct dependencies or
+shipped in the built bundle). `npm audit` now reports zero
+vulnerabilities. Only `package-lock.json` changed.
+
 ## 2026-09-10 — Depth hitmap copy interval 1500 to 300 ms
 
 Goal: a fresher depth copy for label occlusion and the waypoint test.
