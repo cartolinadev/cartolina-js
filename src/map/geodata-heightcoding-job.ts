@@ -95,10 +95,9 @@ class GeodataHeightcodingJob {
 
         if (this.listener_ === listener) return;
 
-        // Output in flight belongs to the view that held the route.
         this.listener_ = listener;
         this.readinessDemandSince_ = -Infinity;
-        this.dropPublication();
+        this.orphanPublication();
     }
 
     /** Stops routing output to a view without releasing the worker job. */
@@ -106,9 +105,8 @@ class GeodataHeightcodingJob {
 
         if (this.listener_ !== listener) return;
 
-        // Output in flight belongs to the view that held the route.
         this.listener_ = null;
-        this.dropPublication();
+        this.orphanPublication();
     }
 
     /**
@@ -165,10 +163,7 @@ class GeodataHeightcodingJob {
         if (!this.processor_.acquirePublication(this.jobId_)) return false;
 
         this.publishPending_ = true;
-        this.send('publish-retained', {
-            jobId: this.jobId_,
-            revision: this.sentRevision_,
-        });
+        this.send('publish-retained', { jobId: this.jobId_ });
         return true;
     }
 
@@ -267,7 +262,31 @@ class GeodataHeightcodingJob {
             return;
         }
 
+        // An orphaned output drains unrouted; its `ready` returns the
+        // slot, and the worker keeps the geometry for the next view's
+        // rebuild.
+        if (this.routeStale_) {
+
+            if (command !== 'ready') return;
+
+            this.routeStale_ = false;
+            this.published_ = true;
+            this.dropPublication();
+            return;
+        }
+
         this.listener_?.(command, message);
+    }
+
+    /**
+     * Marks the output in flight as belonging to a view that no longer
+     * holds the route. It keeps its publication slot until its last
+     * message arrives, so the cap still counts it; `onMessage` discards
+     * it on the way.
+     */
+    private orphanPublication(): void {
+
+        if (this.publishPending_) this.routeStale_ = true;
     }
 
     private sendChangedHeights(): void {
@@ -383,11 +402,14 @@ class GeodataHeightcodingJob {
     /** Whether the first parse has been sent to the worker. */
     private started_ = false;
 
-    /** Whether a committed view has released the next update. */
+    /** Whether the worker holds geometry a view can ask `rebuild()` for. */
     private published_ = false;
 
     /** Whether one worker output is in flight. */
     private publishPending_ = false;
+
+    /** Whether the output in flight belongs to a view that lost the route. */
+    private routeStale_ = false;
 
     /** Whether heights changed while an output was in flight. */
     private changesPending_ = false;
@@ -428,7 +450,6 @@ namespace GeodataHeightcodingJob {
     export type WorkerRequest =
         | {
             jobId: number;
-            revision: number;
         }
         | {
             jobId: number;

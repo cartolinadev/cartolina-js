@@ -699,9 +699,11 @@ publications, height updates and retained rebuilds alike, the rule legacy
 parsing has through the processor's busy flag. A job claims the slot before it
 scans its set; a refused height send is owed and retried on the set's later
 store answers, a refused rebuild by the view's next draw, and the job does not
-settle while a send is owed. The slot is returned when the output commits, or
-when it can no longer commit because the job's view changed or the job was
-released; releasing it redraws the map so a waiting job asks again.
+settle while a send is owed. The slot is returned when the output commits or
+the job is released. An output whose view changed while it was in flight is
+discarded as it arrives and returns the slot with its last message; the next
+view requests its own rebuild. Releasing a slot redraws the map so a waiting
+job asks again.
 
 `MapGeodata.killGeodata()` sends the release command when its resource-cache
 entry is evicted or the `MapGeodata` is explicitly destroyed. Release deletes
@@ -1274,6 +1276,19 @@ the protocol messages are unchanged; the worker needs no change, since
 every sent update carries a finite height and every rebuild follows a
 committed publication, so each admitted request produces exactly one
 publication.
+
+
+#### Addendum — 2026-09-10 — an orphaned output keeps its slot
+
+`GeodataHeightcodingJob` returned the publication slot as soon as a view
+detached or another attached, although the worker had already queued the
+output. The replacement view could then take the freed slot for its own
+rebuild while the queued output was routed to it as well, so two outputs
+were in flight against one slot and the view committed one it had not
+asked for. An output in flight now keeps its slot until its `ready`
+message arrives; it is discarded on the way, and the worker's geometry
+stays available to the next view's rebuild. The `revision` field of
+`publish-retained`, which the worker never read, is gone.
 
 ### 10.4 Gate 3: floating map positions
 

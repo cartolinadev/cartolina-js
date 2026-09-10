@@ -3,6 +3,20 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — An orphaned geodata publication keeps its slot
+
+Goal: make `mapGeodataMaxPublications` hold across view churn.
+`GeodataHeightcodingJob` returned the slot when a view detached or
+another attached, but the worker had already queued the output, which
+the processor routes by job id to whichever listener is current. The
+replacement view could take the freed slot for its own rebuild and
+receive the queued output too: two outputs against one slot, and a
+commit the view had not asked for. An output in flight now keeps its
+slot until its `ready` message arrives; it is discarded on the way, and
+the worker's geometry stays available to the next view's rebuild. The
+`revision` field of `publish-retained`, which the worker never read, is
+gone. RFC 13 section 5.6 and a gate-2 addendum record it.
+
 ## 2026-09-10 — Refuse to remove a terrain source the style still uses
 
 Goal: keep `removeSource` atomic. It checked only `layer.source`
