@@ -469,20 +469,34 @@ export class MapStyle {
      * install after removal.
      *
      * @param id source identifier passed to `addSource`
-     * @throws on an unknown id, or when a style layer still references
-     *   the source (remove the dependent layers first)
+     * @throws on an unknown id, or when the terrain stack or a style
+     *   layer still references the source (retarget or remove the
+     *   dependents first)
      */
     removeSource(id: string): void {
 
         if (!(id in this.spec_.sources))
             throw new Error(`Unknown source id "${id}".`);
 
-        const dependent = (this.spec_.layers ?? [])
-            .find((layer) => layer.source === id);
+        const layers = this.spec_.layers ?? [];
+        const dependent = layers.find((layer) => layer.source === id);
 
         if (dependent)
             throw new Error(`Cannot remove source "${id}": layer `
                 + `"${dependent.id}" still references it.`);
+
+        // Every dependency is checked before anything is removed, so a
+        // refused removal leaves the style untouched.
+        if (this.spec_.terrain.sources.includes(id))
+            throw new Error(`Cannot remove source "${id}": the terrain `
+                + `stack still references it.`);
+
+        const terrainDependent = layers.find(
+            (layer) => layer.terrain?.includes(id));
+
+        if (terrainDependent)
+            throw new Error(`Cannot remove source "${id}": layer `
+                + `"${terrainDependent.id}" still lists it as terrain.`);
 
         this.map_.legacyMap!.removeFreeLayer(id);
         this.map_.removeTerrainSourceEntry(id);

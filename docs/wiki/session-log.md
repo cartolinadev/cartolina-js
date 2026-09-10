@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Refuse to remove a terrain source the style still uses
+
+Goal: keep `removeSource` atomic. It checked only `layer.source`
+dependencies, then deleted the registries and the source specification
+before refreshing, so removing a terrain source named by the terrain
+stack or a layer's terrain list threw from the refresh with the source
+already gone. Both dependencies are now checked before anything is
+removed.
+
 ## 2026-09-10 — Waypoint marker reads the packed sample arrays
 
 Goal: put the waypoint demo's terrain marker back on the terrain. It
