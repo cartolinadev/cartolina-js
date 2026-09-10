@@ -74,6 +74,11 @@ relevant information.
   cases as evidence. Records of private validation belong in the
   private counterpart repository; when a finding rests solely on
   private data, this repository records only what the code shows.
+  Removing the device, dataset, or route from a measurement does not
+  make it public: a count, timing, profile share, or memory figure
+  taken on private data stays out, and so does an incident observed
+  only there. A change whose validation or diagnosis depended on
+  private data is described here by its behaviour and mechanism alone.
 - Never name, link to, or describe the existence or layout of a private
   companion repository. Public commits must stand alone; private material
   is organized entirely from the private repository.
