@@ -134,9 +134,10 @@ MapMesh.prototype.isReady = function(doNotLoad, priority, doNotCheckGpu) {
             this.stats.renderBuild += performance.now() - t;
         }
 
-        if (!doNotLoad && this.gpuCacheItem) {
+        // a resident mesh is in use whenever it is checked; keep it warm
+        if (this.gpuCacheItem)
             this.map.gpuCache.updateItem(this.gpuCacheItem);
-        }
+
         return true;
     } else {
         if (this.loadState == 0) {

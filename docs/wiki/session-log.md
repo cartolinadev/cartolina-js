@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Warm resident GPU resources on every check
+
+Goal: keep a drawn texture or mesh out of the GPU cache's eviction
+candidates. `MapSubtexture.isReady` and `MapMesh.isReady` marked a
+resident GPU resource recently used only when called without
+`doNotLoad`, so a fallback tile drawn through off-cadence probes never
+warmed its textures and lost them to uploads for natural leaves, then
+re-uploaded them on the next probe. A resident resource is now warmed
+on every check; `doNotLoad` governs network fetches and retries only.
+
 ## 2026-09-10 — Draw only resident texture layers
 
 Goal: stop a tile from drawing a layer whose texture is not on the GPU.
