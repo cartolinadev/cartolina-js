@@ -3,6 +3,17 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Elevation store: LOD bound, seam samples, lookup buffer
+
+Goal: close three store defects from a code review. The packed unit key
+holds 24 bits per axis, so two LOD-25 tiles could share a key; the
+store now builds no unit deeper than LOD 24, the bound RFC 13 already
+stated. The reduction shader read a shared-edge sample from the east or
+south child only, so a missing or invalid sample there eroded coverage
+the west or north child had; it now falls back to that neighbour. A
+lookup whose fence the device refused leaked its pixel-pack buffer; it
+is deleted with the failed fence.
+
 ## 2026-09-10 — An orphaned geodata publication keeps its slot
 
 Goal: make `mapGeodataMaxPublications` hold across view churn.

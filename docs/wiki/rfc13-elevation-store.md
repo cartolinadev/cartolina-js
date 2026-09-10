@@ -248,7 +248,8 @@ reference-frame node root. It does not create units for global traversal tiles
 above those roots, because one such tile can span nodes with different
 projected SRSs. Each resident tile in that range has one height-field unit.
 Tile IDs are unique within a reference frame, so a tile ID `[lod, x, y]` is
-the complete unit key.
+the complete unit key. The key packs the ID into one double, so units stop
+at LOD 24, the deepest level it holds distinct.
 
 A unit is a 256 by 256 grid. Its samples lie on the tile boundary:
 
@@ -345,8 +346,10 @@ dimension. At the outer boundary, coordinates are clamped to the boundary
 sample. Invalid samples carry no weight and the remaining weights are
 renormalized; an all-invalid neighbourhood produces an invalid parent sample.
 The reduction shader binds the four child textures and routes each of the
-nine reads to the child containing that sample, so it does not materialize
-the 511 by 511 grid.
+nine reads to a child containing that sample, so it does not materialize
+the 511 by 511 grid. A sample on a shared edge is read from the east or
+south neighbour, or from the west or north one when that is absent or
+invalid there.
 
 Reduction continues through every ancestor up to the reference-frame node
 root. This supplies all coarser gsds even when fallback cadence skipped direct
@@ -2496,6 +2499,13 @@ frame range already bounds every stored height, so the integer step loses
 nothing; the unit cost halves to 128 KiB. Sections 3.2, 4.2, 7 and 12
 change. The default budget and its floor halve with the unit, to 96 MiB and
 24 MiB, and hold the same number of units as before.
+
+Three corrections follow a code review of 2026-09-10. Section 4.1 states the
+LOD 24 bound the packed unit key imposes, which the store now enforces.
+Section 4.2 states that a shared-edge sample is read from the west or north
+child when the east or south one is absent or invalid there. Section 5.6
+states that an output orphaned by a view change keeps its publication slot
+until it drains, so the cap counts it; the slot was returned early before.
 
 Requested: confirm the updated sections describe the implementation, review
 the 16-bit sample format, and confirm that the gate 3 and 4 plans still hold

@@ -15,6 +15,9 @@ import * as utils from '../utils/utils';
 const PreparationBudgetMs = 8;
 const PreparationChunk = 256;
 
+// deepest LOD the packed unit key holds distinct: 24 bits per axis
+const MaxUnitLod = 24;
+
 
 /**
  * A height field over the terrain ready for normal rendering.
@@ -217,11 +220,16 @@ class ElevationStore {
      * Starts one replacement unit from its published children.
      *
      * ElevationTerrainSink hook, called once per node before any
-     * `drawUnit()`/`endUnit()` for it.
+     * `drawUnit()`/`endUnit()` for it. A node deeper than `MaxUnitLod`
+     * gets no unit.
      *
      * @param tileId the node root under construction
      */
     beginUnit(tileId: [number, number, number]): void {
+
+        // Without a replacement, endUnit() finds no content and publishes
+        // nothing; lookups coarsen to the parent unit.
+        if (tileId[0] > MaxUnitLod) return;
 
         this.replacementTile_ = tileId;
         this.replacementDirty_ = false;
@@ -1236,11 +1244,9 @@ type InFlight = {
 
 function unitKey(tileId: readonly number[]): number {
 
-    // Packs the tile id into one exact double, so the ladder walk in
-    // `resolveUnits` looks units up without building a key string.
-    __DEV__ && tileId[0] > 24 && utils.warnOnce(
-        'elevation store: tile LOD above 24 has no distinct unit key');
-
+    // Packs the tile id into one exact double, 24 bits per axis under the
+    // LOD, so the ladder walk in `resolveUnits` looks units up without
+    // building a key string. `MaxUnitLod` keeps every axis in range.
     return tileId[0] * 0x1000000000000
         + tileId[2] * 0x1000000
         + tileId[1];

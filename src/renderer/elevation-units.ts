@@ -282,6 +282,9 @@ export class ElevationUnits {
         const fence = gpu.readFramebufferPixelsAsync(
             this.result_, count, ResultRows, buffer);
 
+        // a read the device could not fence has no result to collect
+        if (!fence) gpu.gl.deleteBuffer(buffer);
+
         gpu.setState(this.entryState_!, true);
         gpu.setRenderTarget(this.entryTarget_!);
 

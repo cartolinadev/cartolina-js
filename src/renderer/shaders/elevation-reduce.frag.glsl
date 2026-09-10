@@ -35,24 +35,41 @@ out uint fragColor;
 const int gridMax = 510;
 const int childMax = 255;
 
-// One sample of the combined child grid, invalid where no child covers it.
-uint childGridSample(int x, int y) {
-
-    // The shared edge at 255 belongs to both neighbours and holds the
-    // same position in each, so either side may answer for it.
-    int column = x < childMax ? 0 : 1;
-    int row = y < childMax ? 0 : 1;
-
-    ivec2 texel = ivec2(x - column * childMax, y - row * childMax);
-    int quadrant = row * 2 + column;
-
-    if ((uChildPresent & (1 << quadrant)) == 0) return elevationInvalid;
+// One texel of the child bound at `quadrant`.
+uint childSample(int quadrant, ivec2 texel) {
 
     if (quadrant == 0) return texelFetch(uChild0, texel, 0).r;
     if (quadrant == 1) return texelFetch(uChild1, texel, 0).r;
     if (quadrant == 2) return texelFetch(uChild2, texel, 0).r;
 
     return texelFetch(uChild3, texel, 0).r;
+}
+
+// One sample of the combined child grid, invalid where no child covers it.
+uint childGridSample(int x, int y) {
+
+    // The shared edge at 255 belongs to both neighbours and holds the
+    // same position in each, so any present neighbour with a valid
+    // sample there may answer; the east or south one is asked first.
+    int columnHigh = x < childMax ? 0 : 1;
+    int columnLow = x > childMax ? 1 : 0;
+    int rowHigh = y < childMax ? 0 : 1;
+    int rowLow = y > childMax ? 1 : 0;
+
+    for (int row = rowHigh; row >= rowLow; row--) {
+
+        for (int column = columnHigh; column >= columnLow; column--) {
+
+            int quadrant = row * 2 + column;
+            if ((uChildPresent & (1 << quadrant)) == 0) continue;
+
+            uint sample_ = childSample(
+                quadrant, ivec2(x - column * childMax, y - row * childMax));
+            if (elevationValid(sample_)) return sample_;
+        }
+    }
+
+    return elevationInvalid;
 }
 
 void main() {
