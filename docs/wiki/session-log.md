@@ -3,6 +3,19 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Draw only resident texture layers
+
+Goal: stop a tile from drawing a layer whose texture is not on the GPU.
+`fillLayerBuffer` decided with `isReady(doNotLoad, doNotCheckGpu)`,
+which reports a downloaded texture ready before its upload, so the layer
+was encoded without a bound texture and its sampler slot aliased the
+next layer's texture. Fallback tiles, whose optional layers the
+readiness check never uploads, rendered dark, wrongly lit or with an
+ancestor's shading for about a second. The rig now asks
+`isLayerResident`, a read-only test of the GPU texture the layer would
+bind, both when encoding layers and when collecting credits; `isReady()`
+keeps the loading policy.
+
 ## 2026-09-10 — Drop the horizon degrade
 
 Goal: remove the horizon degrade from the texel-size test. It was off

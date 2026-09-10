@@ -497,19 +497,16 @@ export class TileRenderRig {
             // skip optimized-out layer
             if (layer.rt.optimizedOut) return;
 
-            // a zero-trigger readiness check
-            let ready = this.isLayerReady(layer,
-                { minimum: 'full', desired: 'full' },
-                TileRenderRig.DefaultPriority,
-                { doNotLoad: true, doNotCheckGpu: true });
+            // skip a layer with nothing to bind; an essential one is a
+            // readiness fault upstream
+            if (!this.isLayerResident(layer)) {
 
-            // sanity
-            if (!ready && layer.necessity === 'essential')
-                __DEV__ && utils.warnOnce(
-                    `${this.logSign()}: Essential layer unready, bad flow.`);
+                if (layer.necessity === 'essential')
+                    __DEV__ && utils.warnOnce(`${this.logSign()}: `
+                        + 'Essential layer not resident, bad flow.');
 
-            // skip nonessential unready leayers
-            if (!ready) return;
+                return;
+            }
 
             // record the sampler slot the main texture will take
             const preIdx = samplers.nextIdx;
@@ -537,11 +534,9 @@ export class TileRenderRig {
 
                 // the mask, if bound, takes the slot after the main
                 // texture; encodeLayer binds main then mask
-                const mainBound = samplers.nextIdx > preIdx;
                 const maskBound = samplers.nextIdx > preIdx + 1;
 
-                desc.srcTextureMaskIdx =
-                    mainBound && maskBound ? preIdx + 1 : -1;
+                desc.srcTextureMaskIdx = maskBound ? preIdx + 1 : -1;
             }
 
             if (layer.operation === 'blend')
@@ -611,18 +606,19 @@ export class TileRenderRig {
                 const texture = layer.srcTextureTexture;
                 let mainIdx = -1, maskIdx = -1;
 
-                // use baked normal for the base normal-map push layer
-                let main: ReturnType<MapTexture['getGpuTexture']>;
+                const main = this.mainGpuTexture(layer);
                 let mask: ReturnType<MapTexture['getGpuMaskTexture']>;
 
-                if (this.collapsed && layer.target === 'normal'
-                        && layer.operation === 'push') {
+                // the collapsed normal carries no mask; binding it keeps
+                // it warm in the GPU cache
+                if (this.collapsed && main === this.collapsed.normalGpu) {
+
                     this.tile.map.gpuCache.updateItem(
                         this.collapsed.cacheItem);
-                    main = this.collapsed.normalGpu;
                     mask = null;
+
                 } else {
-                    main = texture.getGpuTexture();
+
                     mask = texture.getGpuMaskTexture();
                 }
 
@@ -804,24 +800,17 @@ export class TileRenderRig {
     }
 
     /**
-     * Retrieves the raster source ids that contributed a ready texture to
-     * this tile. Used to assemble imagery credits.
+     * Retrieves the raster source ids whose texture this tile draws.
+     * Used to assemble imagery credits.
      */
 
-    activeRasterSourceIds(readiness: TileRenderRig.ReadinessLevels
-        = { minimum: 'full', desired: 'full' }): string[] {
-
-        const options: TileRenderRig.IsReadyOptions
-            = { doNotLoad: true, doNotCheckGpu: true };
+    activeRasterSourceIds(): string[] {
 
         let ret = [] as string[];
 
         this.rt.layerStack.forEach((item: Layer) => {
 
-            // priority is irelevant, we load nothing
-            if (this.isLayerReady(item, readiness,
-                TileRenderRig.DefaultPriority, options)
-                && item.rt && item.rt.rasterSourceId)
+            if (this.isLayerResident(item) && item.rt.rasterSourceId)
                 ret.push(item.rt.rasterSourceId);
         });
 
@@ -1551,6 +1540,38 @@ export class TileRenderRig {
                 return TileRenderRig.isResourceReady(
                         this.tile.map.atmosphere,
                         necessity, readiness, priority, options);
+        }
+
+        return true;
+    }
+
+    /**
+     * The GPU texture a texture layer samples: the collapsed normal for
+     * the base normal-map push layer while a collapse is active, the
+     * layer's own texture otherwise. Null when not resident.
+     */
+    private mainGpuTexture(layer: TextureBlendLayer | TexturePushLayer) {
+
+        if (this.collapsed && layer.target === 'normal'
+                && layer.operation === 'push')
+            return this.collapsed.normalGpu;
+
+        return layer.srcTextureTexture.getGpuTexture();
+    }
+
+    /**
+     * Whether the layer's GPU resources can be bound right now. A
+     * read-only test; loading and upload are `isReady()`'s business.
+     */
+    private isLayerResident(layer: Layer): boolean {
+
+        switch (layer.source) {
+
+            case 'texture':
+                return !!this.mainGpuTexture(layer);
+
+            case 'atm-density':
+                return !!this.tile.map.atmosphere?.isResident();
         }
 
         return true;

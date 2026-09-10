@@ -176,6 +176,15 @@ class Atmosphere {
     }
 
     /**
+     * Whether the density texture is on the GPU. A read-only test that
+     * neither loads nor uploads.
+     */
+    isResident(): boolean {
+
+        return !!this.atmDensityTexture.getGpuTexture();
+    }
+
+    /**
      * Update the live, user-facing atmosphere parameters.
      *
      * Only the three runtime-tunable parameters are touched here. Geometry,
