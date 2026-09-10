@@ -108,12 +108,13 @@ Each frame, for each marker:
 Marker elements are absolutely-positioned `<img>` (or `<a><img>` when
 a link is provided) in a pointer-events-none overlay `<div>`.
 
-**Depth / occlusion limitation:** The depth check (`depth <= 1`) tests
-only whether the geo point is in front of the camera's near plane. It
-does **not** test occlusion by terrain geometry. A marker anchored to a
-location on the far side of the globe can remain visible during
-cross-planetary navigation. Use `show` / `hide` filters to suppress
-markers that are not relevant to the current waypoint.
+**Depth / occlusion:** The depth check (`depth <= 1`) tests only
+whether the geo point is in front of the camera's near plane. A
+two-element marker is also tested against the drawn terrain with
+`checkVisibility`, so one behind a ridge or on the far side of the
+globe is hidden. A three-element marker gets the near-plane check
+alone; use `show` / `hide` filters to suppress those when they are not
+relevant to the current waypoint.
 
 ### `demos/waypoint/index.html`
 
@@ -144,14 +145,14 @@ convertCoordsFromNavToCanvas(pos: vec3, mode: HeightMode,
 Also adds:
 
 ```typescript
-checkVisibility(pos: vec3, mode: HeightMode): boolean | null
+checkVisibility(pos: vec3): boolean | null
 ```
 
-This method is reliable for points with explicit (`'fix'`) heights.
-Terrain-anchored (`'float'`) points remain unreliable near silhouettes
-because their navigation-field height can differ from the rendered mesh.
-The waypoint demo uses terrain-anchored markers and therefore does not
-rely on it.
+The point is navigation space, carrying the terrain height
+`updateTerrainSamples` resolved for it. It is tested against the last
+depth hitmap copy and the camera that drew it, so the answer lags the
+view by up to the copy interval but never mixes two cameras. Null
+means no depth copy exists yet.
 
 ### `test/screenshot.js`
 

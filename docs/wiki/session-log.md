@@ -3,6 +3,21 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Waypoint marker: occlusion against the depth copy's camera
+
+Goal: stop the waypoint marker vanishing during flights and at close
+range. `checkVisibility` projected the point with the current camera but
+read a depth copy up to `mapDMapCopyIntervalMs` old, so every zoom-out
+read as occlusion. The renderer now records the camera the depth hitmap
+was drawn with, keeps it with the async copy, and the test projects
+against that camera; the demo's debounce, which existed only to absorb
+that staleness, is gone. The demo also passed the store's ellipsoidal
+height through the public-to-navigation conversion, which on melown2015
+adds the EGM96 separation, 27 m at Whitney; that hid the marker once 1%
+of the view distance fell below it. `checkVisibility` now takes the
+navigation-space point `updateTerrainSamples` answers in, and the demo
+uses that answer without conversion.
+
 ## 2026-09-10 — Elevation store: LOD bound, seam samples, lookup buffer
 
 Goal: close three store defects from a code review. The packed unit key

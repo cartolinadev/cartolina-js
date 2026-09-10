@@ -635,10 +635,12 @@ class Viewer {
     /**
      * Updates terrain heights for a retained set of geographic positions.
      *
-     * `sampleHeight` and `sampleGsd` are created on the first call and
-     * updated in place. Keep the same sample set while its positions
-     * remain unchanged; a position no terrain covers reads NaN in
-     * `sampleHeight`.
+     * Positions and heights are navigation space: on a geocentric frame,
+     * longitude and latitude on the reference ellipsoid and geodetic
+     * height above it. `sampleHeight` and `sampleGsd` are created on the
+     * first call and updated in place. Keep the same sample set while
+     * its positions remain unchanged; a position no terrain covers reads
+     * NaN in `sampleHeight`.
      *
      * @param sampleSet caller-owned positions, requested gsd, and samples
      * @returns whether at least one height or actual gsd changed
@@ -652,8 +654,8 @@ class Viewer {
     }
 
     /**
-     * Returns whether a public-space point is visible in the current
-     * terrain view.
+     * Returns whether a navigation-space point is visible in the
+     * current terrain view.
      *
      * A point is reported occluded when the terrain drawn at the pixel
      * it projects to is nearer to the camera than the point itself.
@@ -661,16 +663,17 @@ class Viewer {
      * exaggeration is applied to the point before its distance is
      * measured, matching the exaggerated surface the depth pass drew.
      *
-     * The point carries its own terrain height in `pos[2]`; resolve it
-     * with `updateTerrainSamples` first. This method does not derive a
-     * height and never consults navigation tiles.
+     * The point carries its own terrain height in `pos[2]`, in the
+     * navigation space `updateTerrainSamples` answers in; resolve it
+     * there first. This method does not derive a height and never
+     * consults navigation tiles.
      *
-     * This uses the cached hitmap/depth-map path. Occlusion can lag
-     * while the camera is moving because hitmap copies are throttled by
-     * `mapDMapCopyIntervalMs`; a point can therefore be tested against
-     * terrain depths up to that interval old.
+     * The test runs against the last depth hitmap copy and the camera
+     * that drew it, so the answer lags the view by up to
+     * `mapDMapCopyIntervalMs` but never mixes two cameras.
      *
-     * @param pos `[lon, lat, height]` in public space, height resolved
+     * @param pos `[lon, lat, height]` in navigation space, height resolved
+     * @returns visibility, or null before the first depth copy exists
      */
     checkVisibility(
         pos: vec3,
@@ -685,18 +688,28 @@ class Viewer {
             return null;
         }
 
-        const navCoords = this.convertCoordsFromPublicToNav(pos, 'fix');
-        if (!navCoords) {
-            return false;
+        // The refresh comes first so the copy read below and the camera
+        // projected against are the same one.
+        if (map.hitMapDirty) {
+
+            this.map_.updateDepthHitmap();
+            renderer.camera.update();
         }
 
-        const canvasCoords = this.convertCoordsFromNavToCanvas(
-            navCoords, 'fix'
+        const hitmapCamera = renderer.depthHitmapCamera;
+        if (!hitmapCamera) return null;
+
+        // The depth pass writes the distance to the surface as drawn,
+        // which carries vertical exaggeration, so the point is
+        // exaggerated the same way before its distance is measured.
+        const physCoords = this.convertCoordsFromNavToPhys(
+            pos, 'fix', undefined, true
         );
+        if (!physCoords) return false;
 
-        if (!canvasCoords || canvasCoords[2] > 1) {
-            return false;
-        }
+        const canvasCoords = renderer.project2(
+            physCoords, hitmapCamera.mvp, hitmapCamera.position);
+        if (canvasCoords[2] > 1) return false;
 
         const [screenX, screenY] = canvasCoords;
         const viewport = renderer.apparentSize;
@@ -709,27 +722,10 @@ class Viewer {
             return false;
         }
 
-        // The depth pass writes the distance to the surface as drawn,
-        // which carries vertical exaggeration, so the point is
-        // exaggerated the same way before its distance is measured.
-        const physCoords = this.convertCoordsFromNavToPhys(
-            navCoords, 'fix', undefined, true
-        );
-        if (!physCoords) {
-            return false;
-        }
-
-        const cameraSpaceCoords = this.convertCoordsFromPhysToCameraSpace(
-            physCoords
-        );
-        if (!cameraSpaceCoords) {
-            return false;
-        }
-
         const pointDepth = Math.hypot(
-            cameraSpaceCoords[0],
-            cameraSpaceCoords[1],
-            cameraSpaceCoords[2],
+            physCoords[0] - hitmapCamera.position[0],
+            physCoords[1] - hitmapCamera.position[1],
+            physCoords[2] - hitmapCamera.position[2],
         );
 
         // Dilation off: the sample is the terrain in the single texel

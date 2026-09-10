@@ -1292,10 +1292,12 @@ class Map {
         renderer.gpu.clearDepth();
         renderer.gpu.setState(legacyMap.draw.drawTileState);
 
-        if (!this.overrides.drawEarth) return;
-        if (this.surfaceList().length === 0) return;
-
         this.withSelectionCamera(() => {
+
+            renderer.recordHitmapCamera();
+
+            if (!this.overrides.drawEarth) return;
+            if (this.surfaceList().length === 0) return;
 
             this.drawTerrain({
                 sink: new DepthTerrainSink(this),

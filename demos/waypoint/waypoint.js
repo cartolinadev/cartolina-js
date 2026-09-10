@@ -80,7 +80,9 @@
  *
  *   A two-element "coords" marker sits on the terrain. Its height comes
  *   from updateTerrainSamples, which answers from the terrain the map
- *   has drawn, so the marker and the terrain agree. The height arrives
+ *   has drawn, so the marker and the terrain agree. That answer is a
+ *   navigation-space height and is used as one, with no public-space
+ *   conversion in between. The height arrives
  *   asynchronously and improves as finer terrain loads; the marker is
  *   hidden until the first answer and stays where it is until a better
  *   one arrives. Those markers are also tested against the terrain with
@@ -94,22 +96,6 @@
  */
 
 const DEFAULT_MARKER_HEIGHT = 90;
-
-// checkVisibility() answers from whatever depth hitmap currently
-// exists, which can be stale by up to the hitmap's own throttle
-// interval. A single stale reading holds for that whole interval, not
-// one tick, so filtering it needs a change to survive real elapsed
-// time spanning a hitmap refresh, not a handful of animation ticks
-// against the same stale texture. A visibility change must hold
-// continuously this long before a marker acts on it; the very first
-// reading for a marker is never subject to this and applies
-// immediately.
-//
-// This mirrors `mapDMapCopyIntervalMs`'s default (1500ms). That
-// setting is 'internal' visibility (see src/viewer-config.ts) and has
-// no public accessor, so it cannot be read at runtime; keep this
-// value equal to it by hand if that default ever changes.
-const VISIBILITY_CHANGE_HOLD_MS = 1500;
 
 /**
  * Fetch JSON from a URL string, or return an object passed directly.
@@ -370,53 +356,6 @@ export class WaypointMap {
         this._terrainMarkers.forEach(({ index }, slot) => {
             this._terrainSampleSlots[index] = slot;
         });
-        this._terrainVisibleConfirmed = new Array(markers.length).fill(null);
-        this._terrainVisiblePending = new Array(markers.length).fill(null);
-    }
-
-    /**
-     * Debounces a raw checkVisibility() answer for one marker.
-     *
-     * The first reading for a marker (no confirmed state yet) applies
-     * immediately. After that, a change from the confirmed state must
-     * hold continuously for VISIBILITY_CHANGE_HOLD_MS before it is
-     * accepted, absorbing a single stale-hitmap reading during pan. A
-     * reading that reverts back to the confirmed state before the hold
-     * elapses cancels the pending change.
-     *
-     * @param {number} index
-     * @param {boolean|null} rawState
-     * @returns {boolean|null} the confirmed state to act on
-     */
-    _debouncedVisibility(index, rawState) {
-        if (rawState === null) return this._terrainVisibleConfirmed[index];
-
-        const confirmed = this._terrainVisibleConfirmed[index];
-
-        if (confirmed === null) {
-            this._terrainVisibleConfirmed[index] = rawState;
-            return rawState;
-        }
-
-        if (rawState === confirmed) {
-            this._terrainVisiblePending[index] = null;
-            return confirmed;
-        }
-
-        const now = performance.now();
-        const pending = this._terrainVisiblePending[index];
-
-        if (!pending || pending.value !== rawState) {
-            this._terrainVisiblePending[index] =
-                { value: rawState, since: now };
-            return confirmed;
-        }
-
-        if (now - pending.since < VISIBILITY_CHANGE_HOLD_MS) return confirmed;
-
-        this._terrainVisibleConfirmed[index] = rawState;
-        this._terrainVisiblePending[index] = null;
-        return rawState;
     }
 
     /**
@@ -463,16 +402,20 @@ export class WaypointMap {
                 continue;
             }
 
-            let pubCoords;
+            let navCoords;
 
             // Whether the terrain occlusion test allows the marker to
             // show. Stays true when no such test applies (authored
-            // three-element coords); a stale (null) answer must not
+            // three-element coords); a missing (null) answer must not
             // stop the position below from tracking the camera.
             let showState = true;
 
             if (coords.length >= 3) {
-                pubCoords = [coords[0], coords[1], coords[2]];
+
+                // an authored height is public space, like a map position
+                navCoords = this._viewer.convertCoordsFromPublicToNav(
+                    [coords[0], coords[1], coords[2]], 'fix'
+                );
             } else {
 
                 // on the terrain: wait for the first elevation answer
@@ -485,16 +428,13 @@ export class WaypointMap {
                     continue;
                 }
 
-                pubCoords = [coords[0], coords[1], height];
+                // the store answers in navigation space; no conversion
+                navCoords = [coords[0], coords[1], height];
 
-                // checkVisibility() answers from whatever hitmap it has,
-                // which can be stale by up to its own throttle interval;
-                // debouncing absorbs a single wrong reading during pan.
-                // Position still tracks the camera every tick below,
-                // independent of this.
-                const rawVisible =
-                    this._viewer.checkVisibility(pubCoords);
-                showState = this._debouncedVisibility(i, rawVisible);
+                // checkVisibility() answers from the last depth copy, up
+                // to its own throttle interval old. Position still tracks
+                // the camera every tick below, independent of this.
+                showState = this._viewer.checkVisibility(navCoords);
 
                 // the terrain itself can hide the marker
                 if (showState === false) {
@@ -502,10 +442,6 @@ export class WaypointMap {
                     continue;
                 }
             }
-
-            const navCoords = this._viewer.convertCoordsFromPublicToNav(
-                pubCoords, 'fix'
-            );
 
             if (!navCoords) {
                 el.style.visibility = 'hidden';
@@ -544,7 +480,7 @@ export class WaypointMap {
             el.style.left = (canvas[0] - elW / 2 + ox) + 'px';
             el.style.top  = (canvas[1] - elH      + oy) + 'px';
 
-            // A stale occlusion answer (null) leaves visibility as it
+            // A missing occlusion answer (null) leaves visibility as it
             // was; the position above still moved to the current spot.
             if (showState !== null) el.style.visibility = 'visible';
         }

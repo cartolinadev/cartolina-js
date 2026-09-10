@@ -301,7 +301,17 @@ export class Renderer {
     lastHitmapCopyTime = 0;
 
     /** in-flight async hitmap copy, drained by `collectHitmap` */
-    hitmapReadback: Optional<{ fence: WebGLSync; buffer: WebGLBuffer }> = null;
+    hitmapReadback: Optional<{
+        fence: WebGLSync;
+        buffer: WebGLBuffer;
+        camera: Optional<Renderer.HitmapCamera>;
+    }> = null;
+
+    /** camera the hitmap framebuffer was last drawn with */
+    hitmapCamera: Optional<Renderer.HitmapCamera> = null;
+
+    /** camera the drained `hitmapData` copy was drawn with */
+    hitmapDataCamera: Optional<Renderer.HitmapCamera> = null;
 
     rectVerticesBuffer: Optional<WebGLBuffer> = null;
     rectIndicesBuffer: Optional<WebGLBuffer> = null;
@@ -1895,6 +1905,33 @@ hitTest(
 
 
 /**
+ * Records the camera the depth hitmap is being drawn with, so a later
+ * depth read can project against the camera its hitmap belongs to.
+ * Called by the depth pass under its active camera.
+ */
+recordHitmapCamera(): void {
+
+    const position = this.cameraPosition;
+
+    this.hitmapCamera = {
+        position: [position[0], position[1], position[2]],
+        mvp: Array.from(this.camera.mvp) as math.mat4,
+    };
+}
+
+
+/**
+ * The camera the hitmap `getDepth` reads was drawn with: the drained
+ * copy's camera in cached mode, the framebuffer's otherwise. Null
+ * before that hitmap exists.
+ */
+get depthHitmapCamera(): Renderer.HitmapCamera | null {
+
+    return this.hitmapMode > 2 ? this.hitmapDataCamera : this.hitmapCamera;
+}
+
+
+/**
  * Start reading the full hitmap framebuffer without stalling. Drained
  * by `collectHitmap`. Called once per interval when `hitmapMode > 2`.
  */
@@ -1909,8 +1946,9 @@ copyHitmap() {
 
     const fence = this.gpu.readFramebufferPixelsAsync(
         hitmapTexture, this.hitmapSize, this.hitmapSize, buffer);
+    const camera = this.hitmapCamera;
 
-    if (fence) this.hitmapReadback = { fence, buffer };
+    if (fence) this.hitmapReadback = { fence, buffer, camera };
     else this.gpu.gl.deleteBuffer(buffer);
 };
 
@@ -1918,7 +1956,7 @@ copyHitmap() {
 /**
  * Take a completed async hitmap copy into `hitmapData`, if the GPU has
  * finished it. Never waits. `hitmapData` therefore trails one drained
- * copy behind the framebuffer.
+ * copy behind the framebuffer, and `hitmapDataCamera` follows it.
  */
 collectHitmap() {
 
@@ -1927,6 +1965,7 @@ collectHitmap() {
 
     this.hitmapData ??= new Uint8Array(this.hitmapSize * this.hitmapSize * 4);
     this.gpu.readPixelPackBuffer(pending.buffer, this.hitmapData);
+    this.hitmapDataCamera = pending.camera;
 
     this.gpu.gl.deleteSync(pending.fence);
     this.gpu.gl.deleteBuffer(pending.buffer);
@@ -2375,6 +2414,13 @@ export namespace Renderer {
 
 /** Coordinate space used by hit, depth, and ray screen-coordinate APIs. */
 export type CoordinateSpace = 'layout' | 'apparent';
+
+/** Camera a depth hitmap was drawn with: the map camera position and
+ * the origin-based matrix `project2` takes with it. */
+export type HitmapCamera = {
+    position: math.vec3;
+    mvp: math.mat4;
+};
 
 export enum RenderFlags {
 
