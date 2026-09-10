@@ -169,53 +169,6 @@ class WorkerHeightcodingJobs {
         this.jobs_.delete(jobId);
     }
 
-    /**
-     * Diagnostic: structural census of everything the retained jobs hold.
-     * Counts are raw; a byte model is applied by the analysis script so it
-     * can be revised without recompiling the worker.
-     */
-    measure(): WorkerHeightcodingJobs.Census {
-
-        const census: WorkerHeightcodingJobs.Census = {
-            jobs: 0,
-            groups: 0,
-            coords: 0,
-            placedCoords: 0,
-            deliveredCoords: 0,
-            sourceXYBytes: 0,
-            sampleOfBytes: 0,
-            heightsBytes: 0,
-            heightOffsetsBytes: 0,
-            features: 0,
-            coordArrays: 0,
-            coordArrayElements: 0,
-            polygonArrays: 0,
-            polygonElements: 0,
-        };
-
-        for (const job of this.jobs_.values()) {
-
-            census.jobs++;
-            census.coords += job.sampleOf.length;
-            census.placedCoords += job.sourceXY.length / 2;
-            census.deliveredCoords += job.delivered?.size ?? 0;
-            census.sourceXYBytes += job.sourceXY.byteLength;
-            census.sampleOfBytes += job.sampleOf.byteLength;
-            census.heightsBytes += job.heights.byteLength;
-            census.heightOffsetsBytes += job.heightOffsets?.byteLength ?? 0;
-
-            for (const retained of job.groups) {
-
-                census.groups++;
-                census.features += retained.pointCounts.length
-                    + retained.lineLengths.length
-                    + retained.polygonCounts.length;
-            }
-        }
-
-        return census;
-    }
-
     private readonly jobs_ = new Map<number, Job>();
 }
 
@@ -589,24 +542,6 @@ namespace WorkerHeightcodingJobs {
     export type Publication = {
         renderState: RenderState;
         geodata: Geodata;
-    };
-
-    /** Diagnostic structural census of the retained jobs. */
-    export type Census = {
-        jobs: number;
-        groups: number;
-        coords: number;
-        placedCoords: number;
-        deliveredCoords: number;
-        sourceXYBytes: number;
-        sampleOfBytes: number;
-        heightsBytes: number;
-        heightOffsetsBytes: number;
-        features: number;
-        coordArrays: number;
-        coordArrayElements: number;
-        polygonArrays: number;
-        polygonElements: number;
     };
 }
 
