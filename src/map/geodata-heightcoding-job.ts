@@ -87,7 +87,7 @@ class GeodataHeightcodingJob {
         return this.node_ !== null
             && this.published_ && !this.publishPending_
             && !this.changesPending_ && !this.sendOwed_ && !this.sampleUpdate_
-            && this.sampleSet_ !== null && this.sampleSet_.settled;
+            && this.sampleSet_ !== null && this.sampleSet_.settled === true;
     }
 
     /** Routes worker render output to the current transient view. */

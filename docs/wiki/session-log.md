@@ -3,6 +3,15 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Waypoint marker reads the packed sample arrays
+
+Goal: put the waypoint demo's terrain marker back on the terrain. It
+still read a per-sample object from `samples[slot].height`, which the
+sample-set packing replaced with the `sampleHeight` array, so the marker
+stayed hidden. The public `TerrainSampleSet` now declares `settled`
+optional, as the store writes it, and the store allocates both arrays
+whenever either is missing or wrongly sized.
+
 ## 2026-09-10 — Warm resident GPU resources on every check
 
 Goal: keep a drawn texture or mesh out of the GPU cache's eviction

@@ -477,16 +477,15 @@ export class WaypointMap {
 
                 // on the terrain: wait for the first elevation answer
                 const slot = this._terrainSampleSlots[i];
-                const sample = this._terrainSampleSet?.samples?.[slot];
+                const height =
+                    this._terrainSampleSet?.sampleHeight?.[slot] ?? NaN;
 
-                if (!sample) {
+                if (Number.isNaN(height)) {
                     el.style.visibility = 'hidden';
                     continue;
                 }
 
-                pubCoords = [
-                    coords[0], coords[1], sample.height
-                ];
+                pubCoords = [coords[0], coords[1], height];
 
                 // checkVisibility() answers from whatever hitmap it has,
                 // which can be stale by up to its own throttle interval;

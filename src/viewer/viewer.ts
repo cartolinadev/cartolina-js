@@ -1300,13 +1300,14 @@ namespace Viewer {
      * store allocates and fills the two parallel arrays; callers read
      * them. `sampleHeight[i]` is NaN where no terrain covers position
      * `i`, and `sampleGsd[i]` is the ground sample distance its height
-     * was taken at. */
+     * was taken at. `settled` is store-written: true once every sample
+     * holds a height at the store's best resolution for `desiredGsd`. */
     export type TerrainSampleSet = {
         positions: readonly (readonly [number, number])[];
         desiredGsd: number;
         sampleHeight?: Float32Array;
         sampleGsd?: Float32Array;
-        settled: boolean;
+        settled?: boolean;
     };
 
     /**

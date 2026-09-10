@@ -384,7 +384,9 @@ class ElevationStore {
         // Answers live on the sample set, so a store reset leaves the last
         // heights in place until the units that answered come back.
         if (!sampleSet.sampleHeight
-                || sampleSet.sampleHeight.length !== count) {
+                || sampleSet.sampleHeight.length !== count
+                || !sampleSet.sampleGsd
+                || sampleSet.sampleGsd.length !== count) {
 
             sampleSet.sampleHeight = new Float32Array(count).fill(NaN);
             sampleSet.sampleGsd = new Float32Array(count);
@@ -1354,7 +1356,7 @@ namespace ElevationStore {
 
         /** True once every sample holds a finite height at the store's
          * best resolution for the current desiredGsd. Store-written. */
-        settled = false;
+        settled?: boolean;
 
         protected constructor(
             readonly positions: Positions,
