@@ -768,7 +768,7 @@ const catalogue = {
 
     /** Minimum interval in milliseconds between depth-map
      *  copies. */
-    mapDMapCopyIntervalMs: num(0, MAX, 1500, 'internal'),
+    mapDMapCopyIntervalMs: num(0, MAX, 300, 'internal'),
 
     /** Dilation radius in pixels applied to depth-map hit
      *  tests. */

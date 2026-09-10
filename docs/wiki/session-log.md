@@ -3,6 +3,16 @@
 **New entries go directly below this line, newest first — never below an
 existing entry, even one added earlier in the same session.**
 
+## 2026-09-10 — Depth hitmap copy interval 1500 to 300 ms
+
+Goal: a fresher depth copy for label occlusion and the waypoint test.
+The copy has been asynchronous since the pixel-pack readback: a pass
+draws the hitmap once and drains the previous read, and the copy's age
+is the interval itself, so a shorter interval buys freshness for one
+small pass per interval. Default `mapDMapCopyIntervalMs` is now 300.
+`mapDMapSize` stays 512: `mapDMapDilatePx` is in hitmap pixels, so a
+size change alters label occlusion.
+
 ## 2026-09-10 — Waypoint marker: occlusion against the depth copy's camera
 
 Goal: stop the waypoint marker vanishing during flights and at close
